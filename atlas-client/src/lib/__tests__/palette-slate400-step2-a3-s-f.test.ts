@@ -313,19 +313,43 @@ const INDEX_CSS_LF_SHA256_SUPERSEDED_A3C8R1 = INDEX_CSS_LF_SHA256_REPINNED_A3C8R
 const INDEX_CSS_LF_SHA256_SUPERSEDED_A3C9 = '51b95594beb80d5f488d4b36c20dcac3b06dd275d6bc52ef0f94df73dab4630e';
 
 /**
- * The current LF-normalised SHA-256 of src/index.css, after A3-C9.
+ * A3-C9 BOUNDED CORRECTION (2026-09-28) — the value this pin held between the A3-C9 value change
+ * and the wash-surface correction. Retained, not deleted, per AGENTS.md §16.
+ *
+ * THIRD FIRING OF THIS PIN INSIDE A3-C9, and the third of the same kind: NO TOKEN VALUE MOVED.
+ * The per-file delta is COMMENT-ONLY. The C2 correction rewrote the surface model in the three
+ * `index.css` contrast annotations: the "body wash" figures were measured by compositing the
+ * wash alphas over the gradient's own `#fafbfc` 0% stop, which is a surface the browser never
+ * paints (`html` declares no background, so the body gradient is propagated to the white
+ * canvas), and the 50% stop was treated as a stack rather than a premultiplied interpolation.
+ * The superseded model and its figures are retained, marked superseded, beside the corrected
+ * ones. `--muted-foreground`, `--destructive`, `--accent` and `--accent-ring` are byte-identical.
+ *
+ * Proof that no value moved, for a reviewer who should not take this comment's word for it:
+ *   git diff -U0 -- atlas-client/src/index.css | Select-String -Pattern "^[-+]\s*--"
+ *   -> only comment lines; no `--token: value` declaration line appears at all.
+ *
+ * The token-value controls in this file are the load-bearing ones for a change like this; this
+ * hash is a byte-detector, and it firing on a comment-only edit is the documented behaviour noted
+ * immediately above, not evidence of a colour change.
+ */
+const INDEX_CSS_LF_SHA256_SUPERSEDED_A3C9_CORRECTION = '209ad24c199373ad02f9f1458d5a29246b04f7db6fdcf5b40136355fdc336535';
+
+/**
+ * The current LF-normalised SHA-256 of src/index.css, after A3-C9 + the bounded correction.
  * Recomputed in the same session that changed the file, with the `lfSha256` method above:
  *   node -e "const{createHash}=require('crypto'),{readFileSync}=require('fs');
  *            const f='src/index.css';
  *            console.log(createHash('sha256')
  *              .update(Buffer.from(readFileSync(f,'utf8').replace(/\r\n/g,'\n'),'utf8'))
  *              .digest('hex'));"
- *   -> 209ad24c199373ad02f9f1458d5a29246b04f7db6fdcf5b40136355fdc336535
+ *   -> c716be676f181e091ea6cd7c86568b7c368954d188edc35c4e5b0428b99c4e7a
  * Bound to this revision only (AGENTS.md §11: a computed artifact is valid only for the
- * revision and moment that produced it). See INDEX_CSS_LF_SHA256_SUPERSEDED_A3C9 for the value
- * it replaces, the per-file delta, and why the pin moved.
+ * revision and moment that produced it). See INDEX_CSS_LF_SHA256_SUPERSEDED_A3C9_CORRECTION for
+ * the value it replaces and why the pin moved; see INDEX_CSS_LF_SHA256_SUPERSEDED_A3C9 for the
+ * one before that, and the per-file delta and reason.
  */
-const INDEX_CSS_LF_SHA256_REPINNED = '209ad24c199373ad02f9f1458d5a29246b04f7db6fdcf5b40136355fdc336535';
+const INDEX_CSS_LF_SHA256_REPINNED = 'c716be676f181e091ea6cd7c86568b7c368954d188edc35c4e5b0428b99c4e7a';
 
 const AA = 4.5;
 /** The S-e rename ceiling. Asserted to be EXCEEDED below, so nobody can widen their way to green. */

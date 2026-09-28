@@ -22,6 +22,7 @@ import {
 	assessSectionCoverage,
 	classifyClassTemplateEvidence,
 	collectSectionProgramCodesWithoutTemplate,
+	type ClassTemplateEvidenceState,
 	type SectionCoverageAssessment,
 } from '../audit-section-coverage';
 
@@ -69,13 +70,24 @@ test('an empty fulfilled class-template list never yields a green section-covera
 	//   assert.match(finding.title, /UNRESOLVED/, 'the finding must be explicitly UNRESOLVED');
 	//
 	// WHY IT IS SUPERSEDED, NOT VIOLATED: the thing it protected is still protected, by the
-	// assertions beside it. It demanded that a raw internal enum value — `UNRESOLVED`, one of the
-	// three members of the `ClassTemplateEvidenceState` union declared 100 lines up in
-	// src/lib/audit-section-coverage.ts — be VISIBLE to an operator reading the Audit page.
+	// assertions beside it. It demanded that a raw internal enum value — `UNRESOLVED` — be VISIBLE
+	// to an operator reading the Audit page.
 	// `UNRESOLVED` is a machine state, not a sentence. An operator asking "what is wrong with my
 	// sections" cannot act on it; the sibling `detail` and `why` fields, which are already calm
 	// plain sentences, are what they act on. Requiring the enum in the title made the finding
 	// LESS usable in order to be more explicit.
+	//
+	// CORRECTION 2026-09-28 (this file, A3-C9 bounded correction). This block ALSO carried a
+	// second, false claim, retained above verbatim as the record of the error:
+	//
+	//     "`UNRESOLVED`, one of the three members of the `ClassTemplateEvidenceState` union
+	//      declared 100 lines up in src/lib/audit-section-coverage.ts"
+	//
+	// THAT WAS NEVER TRUE. The union is `INITIALIZED | NOT_INITIALIZED | UNAVAILABLE` — proven
+	// literally by the assertion in "no other operator-facing string in the module leaks a raw
+	// enum" below, which matches the declaration text itself. `UNRESOLVED` was a word in the old
+	// English TITLE STRING and was never a member of the type. The corrected union is stated here
+	// beside the error, and asserted for real by `UNRESOLVED IS NOT A UNION MEMBER` below.
 	//
 	// What replaces it, immediately below, is strictly STRONGER on both halves the old row was
 	// reaching for:
@@ -185,6 +197,16 @@ test('NO RAW ENUM IN OPERATOR-FACING STRINGS: no title leaks a machine state or 
 	// string, not in the enum: the enum is load-bearing TYPE STATE and three separate branches
 	// key off it, so renaming or removing a member would be a real behaviour change.
 	//
+	// CORRECTION 2026-09-28 (A3-C9 bounded correction): the first sentence above is FALSE and is
+	// retained verbatim only as the record of the error. The three members of the union are
+	// `INITIALIZED`, `NOT_INITIALIZED` and `UNAVAILABLE`. `UNRESOLVED` is NOT a member of the
+	// type at all — it was a word in the old English title string. The real leak the row below
+	// closes is therefore narrower and more precise than the paragraph claimed: of the three
+	// genuine members, `UNAVAILABLE` and `NOT_INITIALIZED` were the ones that reached the DOM,
+	// and `UNRESOLVED` was a fourth, non-member token that leaked the same way. All four are
+	// still checked below, because the guarantee is "no machine-state token in a title", which
+	// holds regardless of which words happen to be type members.
+	//
 	// Built from the REAL module output for all three blocking states rather than from a
 	// hand-written fixture, so a new leak in a fourth branch is caught by construction.
 	const assessments: SectionCoverageAssessment[] = [
@@ -238,6 +260,65 @@ test('NO RAW ENUM IN OPERATOR-FACING STRINGS: no title leaks a machine state or 
 		classifyClassTemplateEvidence([TEMPLATE_REGULAR], true),
 		'INITIALIZED',
 		'the state union is unchanged',
+	);
+});
+
+test('UNRESOLVED IS NOT A UNION MEMBER: the type and the prose now agree', () => {
+	// A3-C9 BOUNDED CORRECTION, additive. The two blocks above (and the module's own doc comment)
+	// asserted that `UNRESOLVED` is a member of `ClassTemplateEvidenceState`. It never was. The
+	// union is exactly `INITIALIZED | NOT_INITIALIZED | UNAVAILABLE`, which the test near the
+	// bottom of this file already proved by matching the declaration text literally — so this
+	// range was contradicting itself 150 lines apart.
+	//
+	// This row states the truth three ways, because the defect was a claim about a TYPE and only
+	// one of the three can be checked from each side of that boundary.
+	//
+	// DISCLOSED LIMITATION: the third control is a source-text assertion. It is included
+	// deliberately and is genuinely failing-first, but a string in a comment is not behaviour —
+	// it is here to catch the exact regression, a false claim re-appearing in the prose, and it
+	// is NOT offered as evidence that the AUDIT PAGE renders anything correctly. The first two
+	// controls are the ones that carry real weight.
+
+	// (1) TYPE LEVEL. If a future edit ever adds `UNRESOLVED` to the union, this
+	// `@ts-expect-error` becomes unused and `npx tsc --noEmit` FAILS. It is load-bearing in the
+	// typecheck gate, not merely decorative.
+	// @ts-expect-error `UNRESOLVED` is NOT a member of ClassTemplateEvidenceState
+	const notAState: ClassTemplateEvidenceState = 'UNRESOLVED';
+	assert.equal(typeof notAState, 'string', 'control: the constant above must still be constructed');
+
+	// (2) BEHAVIOUR. The set of states the module can actually produce, over the whole input
+	// domain, is exactly the three declared members — and `UNRESOLVED` is not among them. Built
+	// from real calls, so it cannot drift from the implementation the way a comment can.
+	const produced = new Set<ClassTemplateEvidenceState>([
+		classifyClassTemplateEvidence([], true),
+		classifyClassTemplateEvidence([], false),
+		classifyClassTemplateEvidence([TEMPLATE_REGULAR], true),
+		classifyClassTemplateEvidence([TEMPLATE_REGULAR, TEMPLATE_STE], false),
+	]);
+	assert.deepEqual(
+		[...produced].sort(),
+		['INITIALIZED', 'NOT_INITIALIZED', 'UNAVAILABLE'],
+		'the module must produce exactly the three declared union members, over the whole input domain',
+	);
+	assert.equal(
+		produced.has('UNRESOLVED' as ClassTemplateEvidenceState),
+		false,
+		'UNRESOLVED must not be a producible state; it was a word in the old title string only',
+	);
+
+	// (3) PROSE. Both files must now carry the corrected claim, and the false one only as
+	// explicitly-marked superseded evidence. Fails at the pre-correction revision of either file.
+	const moduleSource = readFileSync(resolve(clientRoot, 'src/lib/audit-section-coverage.ts'), 'utf8');
+	assert.match(
+		moduleSource,
+		/`UNRESOLVED` is NOT a member of the/,
+		'the module doc comment must state the corrected claim beside the retained false one',
+	);
+	const selfSource = readFileSync(resolve(import.meta.filename), 'utf8');
+	assert.match(
+		selfSource,
+		/THAT WAS NEVER TRUE/,
+		'this file must state the corrected claim beside the retained false one',
 	);
 });
 

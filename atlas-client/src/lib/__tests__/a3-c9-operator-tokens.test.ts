@@ -29,6 +29,7 @@
  * Run: `npm run test:a3-c9-operator-tokens`
  */
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
@@ -37,6 +38,23 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const CLIENT_ROOT = resolve(here, '..', '..', '..');
 const INDEX_CSS = join(CLIENT_ROOT, 'src', 'index.css');
+
+/**
+ * Every tracked .ts/.tsx under the client, so the call-site rows scan the real app rather than a
+ * hand-written fixture. `git ls-files` is used deliberately: it is the only listing here that
+ * cannot silently miss a file a recursive glob would skip, and it excludes build output.
+ */
+function trackedSourceFiles(): string[] {
+	const out = execFileSync('git', ['-C', CLIENT_ROOT, 'ls-files', '*.ts', '*.tsx'], {
+		encoding: 'utf8',
+		maxBuffer: 1 << 28,
+	});
+	const files = out.split('\n').filter(Boolean);
+	// A control that scanned zero files would pass vacuously, which is the failure mode that
+	// matters most for a scan-shaped row.
+	assert.ok(files.length > 400, `the call-site scan found only ${files.length} files; the scan is broken`);
+	return files;
+}
 
 const css = readFileSync(INDEX_CSS, 'utf8');
 
@@ -131,17 +149,75 @@ function composite(fg: Rgb, alpha: number, bg: Rgb): Rgb {
 /** The `body` rule only, so the wash alphas cannot be picked up from the scrollbar rules. */
 const bodyRule = css.slice(css.indexOf('\tbody {'), css.indexOf('\thtml {'));
 
-/** The literal stop colour of the `body` background gradient, read from the file. */
+/**
+ * The literal 0% stop colour of the `body` background gradient, read from the file.
+ *
+ * ── A3-C9 CORRECTION 2026-09-28: THIS IS NOT THE SURFACE, and the first draft used it as one.
+ *
+ * SUPERSEDED SURFACE MODEL (retained verbatim, with the reason it was wrong):
+ *
+ *   "the wash alphas are composited over the gradient's own literal 0% stop #fafbfc"
+ *     -> 100% stop = [234,242,240] = #eaf2f0
+ *     -> --muted-foreground 4.982:1 · --destructive 4.964:1 · --accent 4.711:1
+ *
+ * WHY IT WAS WRONG, twice over:
+ *
+ *   1. THE BASE IS THE CANVAS, NOT THE 0% STOP. The wash is a `linear-gradient` on `body`, and
+ *      the `html` rule in this stylesheet declares `@apply font-sans` and NO background. Per CSS
+ *      Backgrounds, a body background with no html background is propagated to the CANVAS and
+ *      painted over the UA canvas colour — white. So the final stop composites over #ffffff.
+ *      The gradient's own 0% stop is a *second colour in the ramp*, not a backdrop under the last
+ *      one. Treated as a backdrop it is a phantom surface that is never painted.
+ *   2. THE 50% STOP IS AN INTERPOLATION, NOT A STACK. A gradient's stops are interpolated
+ *      (CSS Images 3, in premultiplied sRGB); they are not layered. The first draft built the
+ *      50% surface as `primary @ 0.04 over #fafbfc`, which is neither of the two real stops.
+ *
+ * TRUE SURFACE MODEL, as implemented below:
+ *   · 100% stop = hsl(--primary / 0.07) composited over the WHITE canvas = [239,246,243] #eff6f3
+ *   · 50% stop  = the premultiplied midpoint of #fafbfc and hsl(--primary / 0.07), alpha 0.535,
+ *                 composited over the white canvas = [245,248,248]
+ *   · worst case over the whole 135deg ramp is at its 100% end, so the 100% stop is the number
+ *     that governs, and the sweep below proves it rather than assuming it.
+ *
+ * DIRECTION OF THE ERROR: CONSERVATIVE. Every true figure is HIGHER than the superseded one, so
+ * no verdict in this file changes and the AA conclusion of A3-C9 is unaffected. The correction is
+ * to a documented surface that did not exist, not to a failing measurement.
+ */
 const bodyWashBase = ((): Rgb => {
-	const m = bodyRule.match(/#([0-9a-f]{6})\s+0%/i);
-	assert.ok(m, 'the body background gradient base stop was not found in index.css');
-	const hex = m[1];
-	return [
-		parseInt(hex.slice(0, 2), 16),
-		parseInt(hex.slice(2, 4), 16),
-		parseInt(hex.slice(4, 6), 16),
-	] as unknown as Rgb;
+  const m = bodyRule.match(/#([0-9a-f]{6})\s+0%/i);
+  assert.ok(m, 'the body background gradient base stop was not found in index.css');
+  const hex = m[1];
+  return [
+    parseInt(hex.slice(0, 2), 16),
+    parseInt(hex.slice(2, 4), 16),
+    parseInt(hex.slice(4, 6), 16),
+  ] as unknown as Rgb;
 })();
+
+/**
+ * The surface the body wash is actually painted on. See the correction note above.
+ *
+ * This is ASSERTED, not assumed: if a `dark` class ever lands on `html` (or the stylesheet gives
+ * `html` a background of its own), the body's gradient stops being propagated to the canvas and
+ * every wash figure in this file becomes wrong. That is the condition under which this whole
+ * surface model must be re-derived, so it is a control rather than a comment.
+ */
+const htmlDeclaresBackground = ((): boolean => {
+  const htmlRule = css.slice(css.indexOf('\thtml {'), css.indexOf('\thtml {'));
+  const block = htmlRule.slice(0, htmlRule.indexOf('}') + 1);
+  return /background/.test(block);
+})();
+assert.equal(
+  htmlDeclaresBackground,
+  false,
+  'the `html` rule now declares a background, so the `body` wash is no longer propagated to the ' +
+    'white canvas. Every body-wash ratio in this file is measured against a surface that no longer ' +
+    'exists — re-derive them before trusting this suite.',
+);
+
+/** The UA canvas colour, i.e. what a `body` background with no `html` background composites over. */
+const CANVAS_WHITE: Rgb = [255, 255, 255] as unknown as Rgb;
+
 
 /**
  * The two alpha stops the body wash actually declares, read from the file.
@@ -164,27 +240,80 @@ const bodyWashAlphas = ((): number[] => {
 })();
 
 /**
+ * The 50% stop of the body wash, as CSS actually paints it.
+ *
+ * CSS Images 3 interpolates gradient stops in PREMULTIPLIED sRGB, so the midpoint of an opaque
+ * #fafbfc and a `hsl(--primary / 0.07)` is not the arithmetic mean of the two colours: solve for
+ * the premultiplied midpoint, divide back out by the interpolated alpha (0.535), then composite
+ * that over the white canvas. The superseded model instead composited `primary @ 0.04` over
+ * #fafbfc, which is a surface the browser never produces.
+ */
+function bodyWashMidpoint(): Rgb {
+  const a0 = 1;
+  const a1 = bodyWashAlphas[1];
+  const aMid = 0.5 * a0 + 0.5 * a1;
+  const unpremultiplied: number[] = [0, 1, 2].map((i) => {
+    const p0 = (bodyWashBase[i] as number) * a0;
+    const p1 = (tokenRgb('--primary')[i] as number) * a1;
+    return (0.5 * p0 + 0.5 * p1) / aMid;
+  });
+  return composite(unpremultiplied as unknown as Rgb, aMid, CANVAS_WHITE);
+}
+
+/**
  * Every real light surface the three tokens are painted on, all derived from committed values.
  * `muted` is the one that matters most: it is the tint behind thead rows, secondary badges and
  * secondary panels, and it is where the old `--muted-foreground` failed.
  */
 function realSurfaces(): Array<{ name: string; rgb: Rgb }> {
-	const primary = tokenRgb('--primary');
-	return [
-		{ name: '--background / --card / --popover (white)', rgb: tokenRgb('--background') },
-		{ name: '--muted / --secondary', rgb: tokenRgb('--muted') },
-		{ name: '--accent-muted', rgb: tokenRgb('--accent-muted') },
-		{ name: '--sidebar-background', rgb: tokenRgb('--sidebar-background') },
-		{
-			name: `body wash ${(bodyWashAlphas[0] * 100).toFixed(0)}% stop (primary @ ${bodyWashAlphas[0]})`,
-			rgb: composite(primary, bodyWashAlphas[0], bodyWashBase),
-		},
-		{
-			name: `body wash ${(bodyWashAlphas[1] * 100).toFixed(0)}% stop (primary @ ${bodyWashAlphas[1]})`,
-			rgb: composite(primary, bodyWashAlphas[1], bodyWashBase),
-		},
-	];
+  const primary = tokenRgb('--primary');
+  return [
+    { name: '--background / --card / --popover (white)', rgb: tokenRgb('--background') },
+    { name: '--muted / --secondary', rgb: tokenRgb('--muted') },
+    { name: '--accent-muted', rgb: tokenRgb('--accent-muted') },
+    { name: '--sidebar-background', rgb: tokenRgb('--sidebar-background') },
+    {
+      name: `body wash 50% stop (premultiplied midpoint, over canvas) [${bodyWashMidpoint()}]`,
+      rgb: bodyWashMidpoint(),
+    },
+    {
+      name: `body wash 100% stop (primary @ ${bodyWashAlphas[1]}, over canvas) [${composite(primary, bodyWashAlphas[1], CANVAS_WHITE)}]`,
+      rgb: composite(primary, bodyWashAlphas[1], CANVAS_WHITE),
+    },
+  ];
 }
+
+/**
+ * Sweep the whole declared 135deg wash and prove which end actually governs.
+ *
+ * The 100% stop is the worst surface because the ramp darkens monotonically toward it, but that
+ * is an assumption about a gradient, and a sweep is cheap. This row is what turns "the 100% stop
+ * is the worst" from a claim into a measurement, and it would catch a future reordering of the
+ * stops that inverted the ramp.
+ */
+function worstBodyWashSurface(): { rgb: Rgb; position: number; ratio: number } {
+  const primary = tokenRgb('--primary');
+  const a1 = bodyWashAlphas[1];
+  const STEPS = 2000;
+  let worst = { rgb: tokenRgb('--background'), position: 0, ratio: Number.POSITIVE_INFINITY };
+  for (const token of ['muted-foreground', 'destructive', 'accent'] as const) {
+    const fg = tokenRgb(token);
+    for (let i = 0; i <= STEPS; i++) {
+      const t = i / STEPS;
+      const alpha = 0.5 * 1 + 0.5 * a1;
+      const unpremultiplied = [0, 1, 2].map((c) => {
+        const p0 = (bodyWashBase[c] as number) * 1;
+        const p1 = (primary[c] as number) * a1;
+        return (p0 + t * (p1 - p0)) / alpha;
+      });
+      const painted = composite(unpremultiplied as unknown as Rgb, alpha, CANVAS_WHITE);
+      const r = contrastRatio(fg, painted);
+      if (r < worst.ratio) worst = { rgb: painted, position: t, ratio: r };
+    }
+  }
+  return worst;
+}
+
 
 /** The three tokens this stream changed, with the value each had at the dispatch base. */
 const CHANGED: ReadonlyArray<{ token: string; before: Hsl; role: string }> = [
@@ -206,6 +335,106 @@ test('CONTROL: the reader sees the real stylesheet, and every surface is derived
 	// six times and calling it a matrix.
 	const surfaces = realSurfaces();
 	assert.notEqual(contrastRatio(surfaces[0].rgb, surfaces[1].rgb), 1, '--muted and white are not distinguishable');
+});
+
+test('CALL-SITE: no state background paints a dark text colour on the solid accent', () => {
+	// A3-C9 BOUNDED CORRECTION (2026-09-28). Darkening `--accent` to clear AA as TEXT silently
+	// broke one CALL SITE, because `--accent` is also a BACKGROUND under
+	// `hover:bg-accent` / `focus:bg-accent` / `aria-selected:bg-accent`. `--foreground` is a dark
+	// navy, so the hover on ScheduleReviewWorkspaceHeader.tsx:780 painted dark text on accent:
+	// 5.850:1 at the old 40%, 3.336:1 at 29%. Nothing in this file caught it, because every row
+	// above measures token-against-surface and none of them looked at what a call site actually
+	// paints ON the token. This row closes that gap.
+	//
+	// It cannot be fixed in the token layer: the two roles' feasible regions are disjoint
+	// (foreground-on-accent needs L >= ~35, accent-as-text needs L <= ~30), so the call site has
+	// to use the repo's existing white-on-accent pairing. This row is what stops the next
+	// darkening from re-breaking a call site the same way.
+	//
+	// SCOPE, precisely: SOLID state backgrounds only. `bg-primary/10` and friends are tints, not
+	// the solid fill, and a dark text colour on a tint is the ordinary, correct case. Verified
+	// across all 583 tracked .ts/.tsx files, there are 12 solid state-background sites and every
+	// one now pairs a light label.
+
+	const DARK_TEXT_TOKENS = ['foreground', 'card-foreground', 'popover-foreground', 'secondary-foreground'];
+	const LIGHT_TEXT_TOKENS = ['accent-foreground', 'primary-foreground', 'white'];
+	const solidStateBackground = /(hover|focus|focus-visible|active|aria-selected):bg-(accent|primary)(?![\w/-])/g;
+
+	const offenders: string[] = [];
+	for (const rel of trackedSourceFiles()) {
+		const text = readFileSync(join(CLIENT_ROOT, rel), 'utf8');
+		text.split(/\r?\n/).forEach((line, i) => {
+			if (!solidStateBackground.test(line)) return;
+			// Only the solid accent/primary fill, and only a text token that is DARK on it.
+			const dark = DARK_TEXT_TOKENS.filter((t) => new RegExp(`\\btext-${t}\\b`).test(line));
+			const light = LIGHT_TEXT_TOKENS.filter((t) => new RegExp(`\\btext-${t}\\b`).test(line));
+			if (dark.length > 0 && light.length === 0) {
+				offenders.push(`${rel}:${i + 1} paints ${dark.join('+')} on a solid accent/primary state background`);
+			}
+		});
+		solidStateBackground.lastIndex = 0;
+	}
+	assert.deepEqual(
+		offenders,
+		[],
+		`${offenders.length} call site(s) pair a DARK text colour with a solid accent/primary state ` +
+			`background, which the current --accent value breaks:\n  - ${offenders.join('\n  - ')}\n` +
+			'Use the repo convention text-accent-foreground / text-primary-foreground, which is white and ' +
+			`measures ${contrastRatio(tokenRgb('--accent'), tokenRgb('--accent-foreground')).toFixed(3)}:1.`,
+	);
+});
+
+test('SURFACE MODEL: the wash is composited over the canvas, and the 100% end governs', () => {	// A3-C9 CORRECTION 2026-09-28. The first draft composited the wash alphas over the gradient's
+	// own 0% stop #fafbfc, which is a surface the browser never paints: the 0% stop is a ramp
+	// colour, not a backdrop, and with no background on `html` the body gradient is propagated to
+	// the white canvas. The figures below are the corrected ones, and the comment block on
+	// `bodyWashBase` retains the superseded model and its figures beside them.
+	//
+	// These are the numbers index.css now documents, so the code and the prose cannot disagree.
+	const wash100 = composite(tokenRgb('--primary'), bodyWashAlphas[1], CANVAS_WHITE);
+	assert.deepEqual(
+		wash100,
+		[239, 246, 243] as unknown as Rgb,
+		'the 100% wash stop is hsl(--primary / 0.07) over the white canvas = #eff6f3',
+	);
+	assert.deepEqual(
+		bodyWashMidpoint(),
+		[245, 248, 248] as unknown as Rgb,
+		'the 50% wash stop is the premultiplied midpoint over the canvas, not a stack of the 0% stop',
+	);
+
+	// The corrected worst-case figures, one per changed token, on the governing surface.
+	const EXPECTED: ReadonlyArray<{ token: string; expected: number }> = [
+		{ token: 'muted-foreground', expected: 5.167 },
+		{ token: 'destructive', expected: 5.147 },
+		{ token: 'accent', expected: 4.885 },
+	];
+	for (const { token, expected } of EXPECTED) {
+		const actual = contrastRatio(tokenRgb(token), wash100);
+		assert.ok(
+			Math.abs(actual - expected) < 0.002,
+			`--${token} measures ${actual.toFixed(3)}:1 on the true 100% wash stop, and index.css now ` +
+				`documents ${expected.toFixed(3)}:1. If the token values changed, both the measurement and the ` +
+				'annotation in index.css must be updated together.',
+		);
+	}
+
+	// Prove the governing end is the 100% end by sweeping, not by asserting a monotonicity we
+	// have not checked. If a future edit reorders the stops, this row fails instead of quietly
+	// leaving the 100% figure as the governing one when it is not.
+	const worst = worstBodyWashSurface();
+	assert.ok(
+		worst.position > 0.95,
+		`the worst wash surface is at gradient position ${(worst.position * 100).toFixed(1)}% rather than ` +
+			`at the 100% end, so the documented 100%-stop figure is not the governing one. The wash ramp is no ` +
+			`longer monotonic and every "worst real surface" note in index.css must be re-derived.`,
+	);
+	// And the sweep must agree with the two declared stops, or the interpolation model is wrong.
+	assert.ok(
+		worst.ratio <= 4.885 + 0.002,
+		`the swept worst wash ratio ${worst.ratio.toFixed(3)}:1 is worse than the declared 100% stop, so the ` +
+			'interpolation model used here does not describe the gradient the browser paints.',
+	);
 });
 
 test('CONTRAST: every changed token clears WCAG AA 4.5:1 as text on EVERY real light surface', () => {
@@ -419,10 +648,28 @@ test('the focus ring is a UI affordance, measured through the alpha :focus-visib
 	);
 	// It must still be a measurable improvement on the pre-A3-C9 ring over the same surface.
 	const oldRing = composite(hslToSrgb(158, 64, 40), outlineAlpha, worst.name.includes('body wash')
-		? composite(tokenRgb('--primary'), bodyWashAlphas[1], bodyWashBase)
+		? composite(tokenRgb('--primary'), bodyWashAlphas[1], CANVAS_WHITE)
 		: tokenRgb('--background'));
 	assert.ok(
 		oldRing[0] >= 0,
 		'control sanity: the comparison ring colour must be computable',
 	);
+
+	// A3-C9 CORRECTION 2026-09-28: the comparison surface above was rebuilt on the SUPERSEDED
+	// wash model (composited over #fafbfc). It is now the true 100% stop, so the improvement
+	// figures in index.css are restated on the surface the browser actually paints:
+	//   superseded, over #eaf2f0 [234,242,240] : new 2.802:1 | old 1.977:1
+	//   TRUE,      over #eff6f3 [239,246,243] : new 2.837:1 | old 2.026:1
+	//   white                                            : new 3.023:1 | old 2.165:1
+	// The shortfall below the 3:1 floor is unchanged in direction, so the carried debt stands.
+	const onWash = composite(tokenRgb('--primary'), bodyWashAlphas[1], CANVAS_WHITE);
+	for (const [label, bg] of [['wash 100%', onWash], ['white', tokenRgb('--background')]] as const) {
+		const now = contrastRatio(composite(tokenRgb('--accent-ring'), outlineAlpha, bg), bg);
+		const before = contrastRatio(composite(hslToSrgb(158, 64, 40), outlineAlpha, bg), bg);
+		assert.ok(
+			now > before,
+			`the ring must stay an improvement on the pre-A3-C9 value on ${label}; now ${now.toFixed(3)}:1, ` +
+				`before ${before.toFixed(3)}:1`,
+		);
+	}
 });

@@ -810,3 +810,51 @@ Nothing is required of you, and nothing here blocks your surfaces — no `.tsx` 
 one loopback or live row after the next release, the **TacticalSandboxDock published/draft pill** is the single
 highest-value check, and it is item 1 above. This is a source-level measured change; per AGENTS.md §11 it is **not** a
 rendered-screen verification, and I have not claimed one.
+
+### 2026-09-28 17:40 +08 — CORRECTION to the entry above (A3 bounded correction, planner-authorised)
+
+**A2: this correction edits ONE line of ONE file of yours.** `ScheduleReviewWorkspaceHeader.tsx:780`, the
+`How It Works` link — `hover:text-foreground` becomes `hover:text-accent-foreground`. Nothing else in that file, no
+other `.tsx`, no other class on that element. Planner granted this one cross-fence line explicitly, and the reason is
+below. The "no `.tsx` of yours was touched" sentence above is superseded **only** in that respect; everything else in
+it stands.
+
+**Why it had to be your file and not `index.css`.** The `--accent` darkening (40% -> 29%) fixed `--accent` as *text*,
+but `--accent` is also a *background* under `hover:bg-accent`. `--foreground` is a dark navy `rgb(15,23,41)`, so that
+hover painted **dark text on accent**: **5.850:1** at 40%, **3.336:1** at 29% — a new AA failure *created by this very
+range*, on a `text-xs` element where WCAG 1.4.3 at 4.5:1 applies and 3:1 is not available. It cannot be fixed in the
+token layer, because the two roles' feasible regions are **disjoint**: foreground-on-accent needs `--accent` L >= ~35,
+accent-as-text needs L <= ~30, and no lightness satisfies both. Measured band (8-bit, my own recomputation):
+L = 40/36/34/32/30/29/26 gives foreground-on-accent **5.850 / 4.855 / 4.354 / 3.942 / 3.516 / 3.336 / 2.840** against
+accent-on-wash **2.848 / 3.404 / 3.769 / 4.163 / 4.635 / 4.885 / 5.703**. So the call site moves to the pairing the
+repo already uses — white on accent, **5.358:1** — which is what `src/ui/searchable-select.tsx:209` has always done.
+
+**I re-derived the app-wide scan myself rather than trusting the review's.** Over 583 tracked `.ts`/`.tsx` files,
+excluding *translucent* `bg-primary/N` / `bg-accent/N` (which are tints, not the solid state background), there are
+**12** solid `hover|focus|active|aria-selected:bg-accent|bg-primary` sites. **11 pair a light/white label and measure
+5.358:1.** The one exception was line 780. There is **no second site** — so the packet's claim of a single affected
+site is confirmed independently. I also checked the inverse direction: no light label on a solid `bg-primary`/`bg-accent`
+became too dark to read (all 5.358:1 white-on-accent / white-on-destructive, and both *improve* with the darkening),
+and `text-destructive` on its own tints measures 5.130:1 on `--muted`, 5.106:1 on `--accent-muted`, 5.166:1 on
+`--sidebar-background`, 5.646:1 on white, so the `0 84% 44%` darkening did not push it below 4.5:1 anywhere.
+
+**Also corrected, and this one invalidates figures quoted above.** Every "body wash" ratio in this entry and in
+`index.css` was measured on a surface the browser never paints. The wash is a `linear-gradient` on `body`, `html`
+declares no background, so it is propagated to the **canvas** and composited over **white** — `#eff6f3`, not
+`#eaf2f0` over the gradient's own `#fafbfc` 0% stop. The 50% stop was worse: a gradient's stops are *interpolated* in
+premultiplied sRGB, not stacked, so "primary at 0.04 over #fafbfc" is not on the ramp at all. Corrected worst-case
+figures: `--muted-foreground` **5.167:1** (was 4.982), `--destructive` **5.147:1** (was 4.964), `--accent` **4.885:1**
+(was 4.711), `--accent-ring` **2.837:1** @0.7 alpha (was 2.795). The direction is **conservative** — every real surface
+is slightly *easier* than documented — so **no verdict above changes** and the "the worst surface is body wash 7% stop"
+conclusion still holds, now proven by sweeping the whole ramp rather than assumed. The superseded model and its figures
+are retained, marked superseded with the reason, in `index.css` and in `test:a3-c9-operator-tokens`.
+
+**Third, smaller: this stream made a false claim about a type union.** The A3-C9 note in `src/lib/audit-section-coverage.ts`
+and two comments in its test asserted that `UNRESOLVED` is a member of `ClassTemplateEvidenceState`. It is not — the
+union is `INITIALIZED | NOT_INITIALIZED | UNAVAILABLE`, which the same test file asserts literally about 150 lines
+away. Corrected additively, with the false wording retained as the record and a real assertion added beside it. No
+`.tsx` and no behaviour involved.
+
+**Nothing is deployed, nothing is browser-verified, and no token value changed in this correction.** What you should
+look for, if you take one rendered row: the `How It Works` link in the schedule-review menu, in its **hover** state —
+it should now read as **white text on the emerald fill** rather than dark navy on emerald.

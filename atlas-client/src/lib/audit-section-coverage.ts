@@ -121,9 +121,23 @@ export function classifyClassTemplateEvidence(
 
 /**
  * A3-C9 (2026-09-28): the three `title` strings below used to begin
- * `Section coverage is UNRESOLVED: ...`. `UNRESOLVED` is a member of the
- * `ClassTemplateEvidenceState` union declared at the top of this file — a machine state, not a
- * sentence. It reached an operator reading the Audit page, who cannot act on it, while the
+ * `Section coverage is UNRESOLVED: ...`. The old wording claimed:
+ *
+ *     "`UNRESOLVED` is a member of the `ClassTemplateEvidenceState` union declared at the top of
+ *      this file"
+ *
+ * THAT CLAIM WAS FALSE, and it is retained here verbatim only as the record of the error. The
+ * union is, and always was, exactly THREE members — `INITIALIZED`, `NOT_INITIALIZED`,
+ * `UNAVAILABLE` — as declared at line 25 of this file and as this file's own test asserts
+ * literally. `UNRESOLVED` was never one of them: it was a word in an old English TITLE STRING,
+ * not a machine state, and the prose above conflated the two. The corrected wording follows
+ * beside the error, not in place of it.
+ *
+ * A3-C9 (2026-09-28): the three `title` strings below used to begin
+ * `Section coverage is UNRESOLVED: ...`. `UNRESOLVED` is NOT a member of the
+ * `ClassTemplateEvidenceState` union — that union is `INITIALIZED | NOT_INITIALIZED |
+ * UNAVAILABLE`. It was a word in a sentence, not a machine state. It reached an operator
+ * reading the Audit page, who cannot act on it, while the
  * sibling `detail` and `why` fields on the SAME object already said the same thing in calm plain
  * language. The titles now speak that register too, so the whole finding reads as one voice.
  *

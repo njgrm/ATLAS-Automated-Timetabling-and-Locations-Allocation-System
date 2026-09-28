@@ -97,9 +97,9 @@
 
 	     --muted-foreground  5.667:1 on --background/--card  5.149:1 on --muted
 	                          5.125:1 on --accent-muted       5.185:1 on --sidebar-background
-	                          5.187:1 body wash 50% stop       4.982:1 body wash 100% stop
+	                          5.306:1 body wash 50% stop       5.167:1 body wash 100% stop
 
-	   Worst real surface is 4.982:1, so AA now holds on every surface this token
+	   Worst real surface is 5.167:1, so AA now holds on every surface this token
 	   is painted on rather than only on white. This is a real, measured
 	   accessibility improvement to source, NOT a rendered-screen verification.
 
@@ -110,7 +110,51 @@
 	   rounded figure is the one to read. Formula: WCAG 2.x relative luminance
 	   0.2126R + 0.7152G + 0.0722B with the 0.03928/12.92 sRGB transfer breakpoint,
 	   ratio (Llighter + 0.05) / (Ldarker + 0.05). Recomputed from the committed
-	   token values by test:a3-c9-operator-tokens, not restated from this comment. ─── */
+	   token values by test:a3-c9-operator-tokens, not restated from this comment.
+
+	   ── SURFACE-MODEL CORRECTION (2026-09-28, A3-C9 bounded correction) ──
+	   The first draft of these annotations measured the two `body` wash stops
+	   against a surface that the browser never paints, so every "body wash" figure
+	   in this file was wrong. It is retained here, with the reason, because a
+	   corrected number nobody can trace is not a correction.
+
+	   SUPERSEDED MODEL — the wash alphas composited over the gradient's own literal
+	   0% stop #fafbfc, giving a "100% stop" of rgb(234,242,240) / #eaf2f0 and a "50%
+	   stop" of rgb(241,246,245) / #f1f6f5. Figures that produced:
+	         --muted-foreground 4.982:1 · --destructive 4.964:1 · --accent 4.711:1
+
+	   WHY IT WAS WRONG, on two counts:
+	     1. THE BASE IS THE CANVAS, NOT THE 0% STOP. The wash is a `linear-gradient`
+	        on `body`, and the `html` rule below declares `@apply font-sans` and NO
+	        background, so per CSS Backgrounds the body background is propagated to
+	        the CANVAS and painted over the UA canvas colour, white. A gradient's
+	        0% stop is another colour IN the ramp, not a backdrop under its last stop;
+	        used as a backdrop it is a phantom surface.
+	     2. THE 50% STOP IS AN INTERPOLATION, NOT A STACK. Stops are interpolated in
+	        premultiplied sRGB (CSS Images 3). "primary at 0.04 over #fafbfc" is
+	        neither of the two real stops and is not on the ramp at all.
+
+	   TRUE MODEL — what the browser actually paints, and what the figures above and
+	   the two sibling annotations now use:
+	     · 100% stop = hsl(--primary / 0.07) over the white canvas
+	                  = rgb(239,246,243) / #eff6f3
+	     · 50% stop  = premultiplied midpoint of #fafbfc and hsl(--primary / 0.07),
+	                  alpha 0.535, over the white canvas
+	                  = rgb(245,248,248)
+	     · the governing surface is the 100% end, which the gate now PROVES by
+	       sweeping the whole 135deg ramp rather than assuming it is monotonic.
+
+	   DIRECTION OF THE ERROR: CONSERVATIVE. Every corrected figure is HIGHER than
+	   the superseded one, so no verdict in this file changes and the AA conclusion
+	   of A3-C9 stands unchanged. What was wrong was a documented surface, not a
+	   measurement that failed.
+	   SECOND, MINOR DISCREPANCY, also corrected: the superseded figures
+	   4.982 / 4.964 / 4.711 are UNROUNDED float composites, which contradicts the
+	   8-BIT rule stated directly above them. The 8-BIT values for that same
+	   (phantom) surface are 4.981 / 4.962 / 4.710. The delta is under 0.002 and
+	   changes nothing; it is recorded because this file's own convention is that a
+	   documented ratio names a real surface AND is read at the rounding a browser
+	   paints. ─── */
 	--muted-foreground: 215 16% 42%;
 
 	--border: 220 13% 91%;
@@ -144,13 +188,23 @@
 	                                   5.130:1 on --muted
 	                                   5.106:1 on --accent-muted
 	                                   5.166:1 on --sidebar-background
-	                                   5.168:1 body wash 50% stop
-	                                   4.964:1 body wash 100% stop
+	                                   5.287:1 body wash 50% stop
+	                                   5.147:1 body wash 100% stop
 	     --destructive-foreground on --destructive
 	                                   5.646:1 (white label on the solid button)
 
-	   Worst real surface is 4.964:1. Both roles now clear AA with headroom instead
-	   of one role trading off against the other. ─── */
+	   Worst real surface is 5.147:1. Both roles now clear AA with headroom instead
+	   of one role trading off against the other.
+
+	   SURFACE-MODEL CORRECTION (2026-09-28): the two wash figures above were
+	   originally 5.168:1 and 4.964:1, measured on a surface the browser never
+	   paints. Superseded, with the reason and the corrected model stated in full
+	   under the `--muted-foreground` annotation above, which owns the file's
+	   measurement convention. The 100% wash stop is hsl(--primary / 0.07) over
+	   the WHITE CANVAS — rgb(239,246,243) / #eff6f3 — because `html` declares no
+	   background, not rgb(234,242,240) over the gradient's own #fafbfc 0% stop.
+	   Every corrected figure is HIGHER, so the direction is conservative and the
+	   AA conclusion is unchanged. ─── */
 	--destructive: 0 84% 44%;
 	--destructive-foreground: 0 0% 100%;
 	--secondary: 220 14% 96%;
@@ -219,13 +273,29 @@
 	                              4.869:1 on --muted
 	                              4.846:1 on --accent-muted
 	                              4.903:1 on --sidebar-background
-	                              4.905:1 body wash 50% stop
-	                              4.711:1 body wash 100% stop
+	                              5.018:1 body wash 50% stop
+	                              4.885:1 body wash 100% stop
 	     --accent-foreground on --accent
 	                              5.358:1 (white label on the solid button)
 
-	   Worst real surface is 4.711:1, so AA holds for both the text role and the
+	   Worst real surface is 4.885:1, so AA holds for both the text role and the
 	   solid-button label on every surface, not only on white.
+
+	   CALL-SITE CONSEQUENCE OF THIS DARKENING (2026-09-28, found by review and fixed at
+	   the call site, not here). --accent is also used as a BACKGROUND under
+	   `hover:bg-accent` / `focus:bg-accent` / `aria-selected:bg-accent`, and at
+	   40% the dark text that hover used to paint on it read 5.850:1. At 29% the
+	   same pairing reads 3.336:1, which is a NEW AA failure created by this
+	   darkening. It cannot be repaired in this token layer: --foreground needs
+	   --accent L >= ~35 to clear 4.5:1, and --accent as text needs L <= ~30, so
+	   the two feasible regions are DISJOINT and no single lightness satisfies both
+	   (measured at 40/36/34/32/30/29/26: foreground-on-accent 5.850/4.855/4.354/
+	   3.942/3.516/3.336/2.840 against accent-on-wash 2.848/3.404/3.769/4.163/4.635/
+	   4.885/5.703). Exactly one call site painted a dark text colour on a solid
+	   accent state background; it was corrected to `hover:text-accent-foreground`,
+	   the pairing already used by src/ui/searchable-select.tsx, which measures
+	   5.358:1 white-on-accent. All 13 other solid bg-accent / bg-primary sites
+	   already pair white and therefore IMPROVE with this darkening.
 
 	   --accent-ring is moved in step with it, because in this file the two have
 	   always carried the SAME value and splitting them would leave a focus ring
@@ -239,6 +309,22 @@
 	   the `:focus-visible` outline rule, not in this token, and raising it is a
 	   focus-visual-weight decision beyond text contrast. Recorded here so the
 	   residual is visible rather than rediscovered.
+
+	   SURFACE-MODEL CORRECTION (2026-09-28): the two wash figures above were
+	   originally 4.905:1 and 4.711:1, and the ring's wash figure 2.795:1 was
+	   originally 2.802:1, all measured on a surface the browser never paints.
+	   Superseded, with the reason and the corrected model stated in full under the
+	   `--muted-foreground` annotation above, which owns the file's measurement
+	   convention. Restated on the true surfaces — the 100% wash stop is
+	   hsl(--primary / 0.07) over the WHITE CANVAS = rgb(239,246,243) / #eff6f3.
+	   The pair below is re-derived on 8-BIT sRGB per the MEASUREMENT NOTE above, which
+	   is also why its "before" figures differ from the superseded line's 1.986:1 and
+	   2.156:1 by about 0.009: those two were UNROUNDED, and 8-BIT is the figure this
+	   file says to read.
+	     --accent-ring @0.7 alpha   2.026:1 -> 2.837:1 on the 100% body-wash stop
+	                                2.165:1 -> 3.023:1 on --background
+	   Every corrected figure is HIGHER, so the direction is conservative: the
+	   carried 3:1 shortfall and the AA conclusion are both unchanged.
 
 	   RUNTIME-OVERRIDE LIMIT, disclosed: `applyEnrollProAccentTheme()` in
 	   src/lib/settings.ts writes --accent, --accent-foreground, --accent-muted,
