@@ -77,6 +77,23 @@ export function SectionGridMode({
 }: SectionGridModeProps) {
 	const [searchQuery, setSearchQuery] = useState('');
 
+	/*
+	 * A6 C2 (Slice 4, Major 5) — the filter's own name, in ONE place.
+	 *
+	 * The `Select` options and the empty-state message below read the SAME map,
+	 * so "Needs staffing is active" and the message that says which filter is
+	 * active cannot drift into two vocabularies. Sentence case throughout: the
+	 * operator's complaint was a message that shouted `NO SECTIONS REQUIRE
+	 * ATTENTION` while diagnosing the wrong thing.
+	 */
+	const SECTION_MODE_FILTER_LABELS: Record<string, string> = {
+		all: 'All sections',
+		unassigned: 'Needs staffing',
+		constrained: 'Special programs',
+	};
+	const activeFilterLabels = SECTION_MODE_FILTER_LABELS;	const activeFilterLabel = SECTION_MODE_FILTER_LABELS[sectionModeFilter] ?? 'this filter';
+	const trimmedQuery = searchQuery.trim();
+
 	const sectionRows = useMemo(() => {
 		// Identify unique sections from sectionsBySubject
 		const uniqueSections = Array.from(new Map(Object.values(sectionsBySubject).flat().map((section) => [section.id, section])).values());
@@ -203,11 +220,11 @@ export function SectionGridMode({
 									<SelectValue placeholder="Filter View" />
 								</div>
 							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All Sections</SelectItem>
-								<SelectItem value="unassigned" className="text-xs font-bold uppercase tracking-tight">Needs Staffing</SelectItem>
-								<SelectItem value="constrained" className="text-xs font-bold uppercase tracking-tight">Special Programs</SelectItem>
-							</SelectContent>
+						<SelectContent>
+							<SelectItem value="all" className="text-xs font-bold">{activeFilterLabels.all}</SelectItem>
+							<SelectItem value="unassigned" className="text-xs font-bold">{activeFilterLabels.unassigned}</SelectItem>
+							<SelectItem value="constrained" className="text-xs font-bold">{activeFilterLabels.constrained}</SelectItem>
+						</SelectContent>
 						</Select>
 					</div>
 
@@ -222,10 +239,72 @@ export function SectionGridMode({
 						<p className="text-sm text-muted-foreground mt-2 max-w-md">Refresh the source after sections and subjects are available. Coverage cannot be counted until ATLAS has subject-section pairs.</p>
 					</div>
 				) : sectionRows.length === 0 ? (
-					<div className="flex flex-col items-center justify-center p-12 text-center bg-background border border-dashed border-border/60 rounded-2xl">
-						<CheckCircle2 className="size-10 text-emerald-500/40 mb-4" />
-						<h3 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground/60">No sections require attention</h3>
-						<p className="text-xs text-muted-foreground/40 mt-1">All visible sections match this filter. Switch to all sections if you need to review completed coverage.</p>
+					/*
+					 * A6 C2 (Slice 4) — THREE causes, three messages.
+					 *
+					 * Lane C searched `zzzzzz` and was told `NO SECTIONS REQUIRE
+					 * ATTENTION` / `All visible sections match this filter`: a
+					 * STAFFING diagnosis for a SEARCH result, which sends a
+					 * scheduler down the wrong troubleshooting path. Collapsing
+					 * these into one message is the defect, so they stay apart:
+					 *
+					 *   no data at all        (handled above) — "no section
+					 *                          assignment needs loaded": the count
+					 *                          cannot be computed yet.
+					 *   a search with no match this one — the QUERIED term, plus a
+					 *                          working `Clear search`.
+					 *   a filter with no match this one — the ACTIVE FILTER's own
+					 *                          name, plus a way back to All
+					 *                          sections.
+					 */
+					<div className="flex flex-col items-center justify-center p-12 text-center bg-background border border-dashed border-border/60 rounded-2xl" data-testid="teaching-load-section-empty">
+						{trimmedQuery ? <Search className="size-10 text-muted-foreground/40 mb-4" /> : <Filter className="size-10 text-muted-foreground/40 mb-4" />}
+						{trimmedQuery ? (
+							<>
+								<h3 className="text-sm font-semibold text-muted-foreground" data-testid="teaching-load-section-empty-title">
+									{`No sections match '${trimmedQuery}'`}
+								</h3>
+								<p className="text-xs text-muted-foreground/80 mt-1 max-w-md">
+									{sectionModeFilter === 'all'
+										? 'The search text does not appear in any section name or program code.'
+										: `The search text does not appear in any section under ${activeFilterLabel}.`}
+								</p>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									className="mt-4 gap-1.5 text-xs"
+									data-testid="teaching-load-section-clear-search"
+									onClick={() => setSearchQuery('')}
+								>
+									<X className="size-3.5" aria-hidden="true" />
+									Clear search
+								</Button>
+							</>
+						) : (
+							<>
+								<h3 className="text-sm font-semibold text-muted-foreground" data-testid="teaching-load-section-empty-title">
+									{`No sections match ${activeFilterLabel}`}
+								</h3>
+								<p className="text-xs text-muted-foreground/80 mt-1 max-w-md">
+									{sectionModeFilter === 'all'
+										? 'There is nothing to show in this view yet.'
+										: `No section currently matches ${activeFilterLabel}. Switch to ${activeFilterLabels.all} to review every section.`}
+								</p>
+								{sectionModeFilter !== 'all' && (
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										className="mt-4 gap-1.5 text-xs"
+										data-testid="teaching-load-section-clear-filter"
+										onClick={() => onSectionModeFilterChange('all')}
+									>
+										Show all sections
+									</Button>
+								)}
+							</>
+						)}
 					</div>
 				) : sectionRows.map((row) => {
 					const isExpanded = selectedSectionId === row.section.id;

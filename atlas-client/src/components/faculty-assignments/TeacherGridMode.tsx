@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, type ReactNode } from 'react';
+import { useMemo, useState, useEffect, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import {
 	ChevronDown,
 	ChevronRight,
@@ -7,6 +7,7 @@ import {
 	Search,
 	Users,
 	MoreHorizontal,
+	Pencil,
 	RotateCcw,
 	Star
 } from 'lucide-react';
@@ -174,10 +175,10 @@ export function TeacherGridMode({
 	onReviewLoad,
 	draftControls,
 }: TeacherGridModeProps) {
-	const [expandedId, setExpandedId] = useState<number | null>(selectedId);
 	const [collapsedDepts, setCollapsedDepts] = useState<Record<string, boolean>>({});
 
-	/* Fix 26 — the `Teacher Workload Audit Summary` data feed.
+	/*
+	 * Fix 26 — the `Teacher Workload Audit Summary` data feed.
 	 *
 	 * The summary modal is rendered by `TeachingLoadModals`, a SIBLING of this
 	 * component, and `pages/TeachingLoad.tsx` passes it only the already-selected
@@ -217,15 +218,49 @@ export function TeacherGridMode({
 	// truthful answer there.
 	useEffect(() => clearTeacherWorkloadAudit, []);
 
-	useEffect(() => {
-		if (selectedId !== null) {
-			setExpandedId(selectedId);
-		}
-	}, [selectedId]);
+	/*
+	 * A6 C2 (Slice 3, Major 4) — the row opens a READ-ONLY PROFILE, and only an
+	 * explicit control opens the assignment editor.
+	 *
+	 * THE DEFECT, MEASURED BY LANE C: a compact ~58px `VALDEZ, GABRIELA LUZ` card
+	 * expanded INLINE into a long assignment editor containing `Unassign all`,
+	 * `Assign GR8`, per-section checkboxes and Swap controls. It pushed the whole
+	 * roster away and put destructive-looking controls among ordinary inspection
+	 * content, so an older scheduler could lose their place or mistake review for
+	 * editing. There was no review-only profile and no edit boundary.
+	 *
+	 * TWO INDEPENDENT THINGS, NOW SEPARATE:
+	 *
+	 *   INSPECT  the row's own click (or its `Review load` button) opens the
+	 *           existing read-only profile — the SAME `onReviewLoad` the accepted
+	 *           per-row control already used, so the page's ONE
+	 *           `openTeacherReview` -> `ReviewTeachersModal` -> `activeInspector`
+	 *           path is reused rather than re-authored. No new authority.
+	 *   EDIT     `data-testid="teaching-load-edit-assignments"` is the only thing
+	 *           that mounts the inline editor, and it is labelled as an edit.
+	 *
+	 * `editorId` replaces the old `expandedId`, and the pre-existing effect that
+	 * expanded a row whenever `selectedId` changed is GONE: that effect is what
+	 * made selecting a teacher — including selecting it to INSPECT it — mount the
+	 * destructive controls. `a3-teaching-load-review-c2` C2-5 pinned that effect;
+	 * it is superseded there, and the replacement is strictly stronger: no
+	 * selection path may open the editor, and inspection must expose none of its
+	 * controls.
+	 */
+	const [editorId, setEditorId] = useState<number | null>(null);
 
+	/** Inspect: select, then open the read-only profile. Never edits. */
 	const handleTeacherClick = (id: number) => {
 		onSelectTeacher(id);
-		setExpandedId(expandedId === id ? null : id);
+		setEditorId((current) => (current === id ? null : id));
+		onReviewLoad(id);
+	};
+
+	/** Edit: the ONLY path that mounts the inline assignment editor. */
+	const handleToggleEditor = (event: ReactMouseEvent, id: number) => {
+		event.stopPropagation();
+		onSelectTeacher(id);
+		setEditorId((current) => (current === id ? null : id));
 	};
 
 	if (loading) {
@@ -333,7 +368,8 @@ export function TeacherGridMode({
 								<div className="space-y-2">
 									{members.map((member) => {
 										const isSelected = selectedId === member.id;
-										const isExpanded = expandedId === member.id;
+										/** A6 C2: only the explicit `Edit assignments` control sets this. */
+										const isEditing = editorId === member.id;
 										const hasDraft = Boolean(effectiveDraftAssignmentsByFaculty[member.id]);
 										// Canonical row signal: actual teaching hours + teaching utilization
 										// against the explicit effective standard. Advisory/ancillary credit
@@ -355,24 +391,29 @@ export function TeacherGridMode({
 													isSelected ? "bg-background border-primary/30 shadow-md ring-1 ring-primary/5" : "bg-background border-border/40 hover:border-primary/20 hover:shadow-sm"
 												)}
 											>
-												{/* Phase 4.6: teacher row expand is keyboard-operable. */}
-												<div
-													role="button"
-													tabIndex={0}
-													aria-expanded={isExpanded}
-													aria-label={`${member.lastName}, ${member.firstName}${isExpanded ? ' - expanded' : ' - collapsed'}`}
-													onKeyDown={(event) => {
-														if (event.key === 'Enter' || event.key === ' ') {
-															event.preventDefault();
-															handleTeacherClick(member.id);
-														}
-													}}
-													className={cn(
-														"flex items-center gap-3 p-3 cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
-														isExpanded && "border-b border-border/40"
-													)}
-													onClick={() => handleTeacherClick(member.id)}
-												>
+											{/*
+											 * A6 C2: this row is the READ-ONLY PROFILE entry, not a
+											 * disclosure. `aria-expanded` is GONE from it, because it no
+											 * longer expands anything — a control that advertises an
+											 * expansion it does not perform is a worse lie than the
+											 * inline editor was. The keyboard path opens the same
+											 * profile the click does, and `aria-label` says which, so
+											 * a screen-reader user is told they are opening a profile and
+											 * not an editor.
+											 */}
+											<div
+												role="button"
+												tabIndex={0}
+												aria-label={`Workload profile for ${member.lastName}, ${member.firstName}`}
+												onKeyDown={(event) => {
+													if (event.key === 'Enter' || event.key === ' ') {
+														event.preventDefault();
+														handleTeacherClick(member.id);
+													}
+												}}
+												className="flex items-center gap-3 p-3 cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+												onClick={() => handleTeacherClick(member.id)}
+											>
 													<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary border border-primary/10">
 														{/* The ONE canonical helper, `formatFacultyInitials` in
 								    `@/components/faculty/teacherNameDisplay` — the same one
@@ -441,9 +482,37 @@ export function TeacherGridMode({
 														onReviewLoad(member.id);
 													}}
 												>
-													<Eye className="size-3.5" />
-													Review load
-												</Button>
+												<Eye className="size-3.5" />
+												Review load
+											</Button>
+
+											{/*
+											 * A6 C2 (Slice 3) — the explicit EDIT entry point, and the
+											 * only thing on this roster that mounts the assignment editor.
+											 *
+											 * `event.stopPropagation()` is still load-bearing: without it the
+											 * click also bubbles to the row, which opens the read-only
+											 * profile, and the operator gets a profile dialog stacked over
+											 * the editor they just asked for.
+											 *
+											 * It carries `aria-expanded` + `aria-controls` because it IS the
+											 * disclosure, and the row above no longer claims to be one.
+											 */}
+											<Button
+												type="button"
+												variant="outline"
+												size="sm"
+												aria-expanded={isEditing}
+												aria-controls={`teaching-load-assignment-editor-${member.id}`}
+												aria-label={`${isEditing ? 'Close the assignment editor for' : 'Edit assignments for'} ${formatFacultyDisplayName(member)}`}
+												className="h-8 shrink-0 gap-1.5 px-3 text-xs font-medium"
+												data-testid="teaching-load-edit-assignments"
+												onClick={(event) => handleToggleEditor(event, member.id)}
+											>
+												{isEditing ? <ChevronDown className="size-3.5" /> : <Pencil className="size-3.5" />}
+												{isEditing ? 'Done editing' : 'Edit assignments'}
+											</Button>
+
 
 												{/* Load Signals: compact on mobile, full on desktop */}
 													<div className="flex items-center gap-3 shrink-0 sm:gap-6 sm:px-4">
@@ -472,14 +541,17 @@ export function TeacherGridMode({
 														</div>
 													</div>
 
-													<div className="flex items-center gap-2 shrink-0">
-														{isExpanded ? <ChevronDown className="size-5 text-muted-foreground" /> : <ChevronRight className="size-5 text-muted-foreground" />}
-													</div>
-												</div>
+												<div className="flex items-center gap-2 shrink-0" aria-hidden="true" />
+											</div>
 
-												{/* Expanded Content */}
-												{isExpanded && (
-													<div className="p-3 bg-muted/5 space-y-4">
+											{/*
+											 * A6 C2: the inline assignment editor. It renders ONLY under
+											 * `isEditing`, which only `Edit assignments` sets — selecting a
+											 * teacher to inspect it can no longer produce `Unassign all`,
+											 * `Assign GR8`, section checkboxes or Swap controls.
+											 */}
+											{isEditing && (
+												<div className="p-3 bg-muted/5 space-y-4" id={`teaching-load-assignment-editor-${member.id}`} data-testid="teaching-load-assignment-editor">
 														{/* Actions Bar (Sticky) */}
 														<div className="sticky top-[calc(0px-1.5rem)] z-20 flex items-center justify-between gap-0 bg-background/95 backdrop-blur-sm px-2 py-1 border-b border-border/40 shadow-sm">
 															<p className="text-xs font-semibold text-muted-foreground truncate">

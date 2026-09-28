@@ -20,8 +20,7 @@ import { useTeachingLoadData } from '@/hooks/useTeachingLoadData';
 import { useTeachingLoadUI } from '@/hooks/useTeachingLoadUI';
 import { TeacherGridMode } from '@/components/faculty-assignments/TeacherGridMode';
 import { SectionGridMode } from '@/components/faculty-assignments/SectionGridMode';
-import { WorkloadInspector } from '@/components/faculty-assignments/WorkloadInspector';
-import { SectionInspector } from '@/components/faculty-assignments/SectionInspector';
+import { TeachingLoadInspectorPanel } from '@/components/faculty-assignments/TeachingLoadInspectorPanel';
 import { WorkspaceToolbar } from '@/components/faculty-assignments/WorkspaceToolbar';
 import { TeachingLoadRepairQueue } from '@/components/faculty-assignments/TeachingLoadRepairQueue';
 import { openTeacherReview } from '@/components/faculty-assignments/teacherReviewEntry';
@@ -550,19 +549,14 @@ export default function TeachingLoad() {
 	]);
 
 	/**
-	 * FIX 16.1 — the ONE production opener for a teacher workload review.
-	 *
-	 * The detached bottom-right `Review teachers` button is gone, and each row
-	 * now carries its own `Review load` button passing THAT row's faculty id, so
-	 * the two call sites differ only in whether a teacher is named: a row
-	 * selects then opens, and the repair queue (which already ran
-	 * `onSelectFaculty`) opens against the standing selection. Both land on the
-	 * same `openTeacherReview` call, so the modal, its title and its view mode
-	 * cannot disagree between the entry points.
-	 *
-	 * The select runs BEFORE the open deliberately: `reviewModalTitle` is derived
-	 * from `data.selected`, and a dialog that opened against the previous teacher
-	 * and corrected itself one render later is the defect this indirection caused.
+	 * FIX 16.1 + A6 C2 — the ONE production opener for a staff-workload review,
+	 * now also the roster's read-only teacher profile (Slice 3). The detached
+	 * bottom-right `Review teachers` button is gone; a row's `Review load` button
+	 * and the repair queue both land here, so the modal, its title and its view
+	 * mode cannot disagree. The select runs BEFORE the open deliberately:
+	 * `reviewModalTitle` is derived from `data.selected`, and a dialog that opened
+	 * against the previous teacher and corrected itself one render later is the
+	 * defect this indirection caused.
 	 */
 	const openTeacherReviewFor = useCallback((facultyId?: number | null) => {
 		if (facultyId != null) data.setSelectedId(facultyId);
@@ -636,12 +630,12 @@ export default function TeachingLoad() {
 		[data.authorityDiagnostics],
 	);
 
-	// Fix 26: ONE inspector node, shared by the mobile Sheet and the desktop
-	// `Review teachers` modal. Previously the same WorkloadInspector/SectionInspector
-	// element tree was written out twice; it is now defined once, so the modal can
-	// never drift from the Sheet.
-	const activeInspector = ui.viewMode === 'teacher' ? (
-		<WorkloadInspector
+	// A6 C2: the ONE inspector node, now an extracted component so this page stays
+	// UNDER the AGENTS.md §8 1000-line ceiling. Shared by the mobile Sheet, the
+	// desktop review modal and the roster's read-only profile dialog.
+	const activeInspector = (
+		<TeachingLoadInspectorPanel
+			viewMode={ui.viewMode}
 			selected={data.selected}
 			loadProfile={ui.loadProfile}
 			rotationTermBreakdown={data.selected?.rotationTermBreakdown ?? []}
@@ -652,13 +646,10 @@ export default function TeachingLoad() {
 			teachingStandardHours={ui.teachingStandardHours}
 			policyReady={ui.policyReady}
 			writeBlockedReason={workspaceState.writeBlockedReason}
-		/>
-	) : (
-		<SectionInspector
-			section={ui.selectedSectionId ? data.sectionMap.get(ui.selectedSectionId) ?? null : null}
-			sectionContract={selectedSectionContract}
+			selectedSectionId={ui.selectedSectionId}
+			sectionMap={data.sectionMap}
+			selectedSectionContract={selectedSectionContract}
 			effectiveOwnershipMap={data.effectiveOwnershipMap}
-			writeBlockedReason={workspaceState.writeBlockedReason}
 		/>
 	);
 
@@ -692,32 +683,20 @@ export default function TeachingLoad() {
 	 * queue's prose description moved behind a hover whose trigger already names
 	 * the task, the count and the status. */
 	const headerStateLine = (
-		<>
-			{/* FIX 38: the inline `TEACHING LOAD SUMMARY` band is removed from this
-			    row — it was the widest thing on the line and its metric rows are
-			    horizontal pill scrollers. The breakdown is unchanged and now lives in
-			    `TeachingLoadSummarySurface` below, on the SAME `truthModel`. */}
-			<TeachingLoadRepairQueue
-				items={repairQueueItems}
-				activeItemId={activeRepairId ?? routedRepairId}
-				isReadOnly={data.isReadOnlyMode}
-				saving={data.saving}
-				advancedGridVisible={advancedGridVisible}
-				onPrimaryAction={handleRepairPrimaryAction}
-			/>
-			<Button
-				asChild
-				variant="outline"
-				size="sm"
-				className="h-7 shrink-0 gap-1.5 px-2 text-xs"
-				data-testid="teaching-load-history-link"
-			>
-				<Link to="/teaching-load/history">
-					<History className="size-3.5" aria-hidden="true" />
-					Archived load
-				</Link>
-			</Button>
-		</>
+		/* A6 C2 (Major 1): this is the ONE control on row 2, because row 2 is
+		 * "one sentence of status + one primary action" and the repair queue's
+		 * `h-7` button is that action. FIX 38 had already moved the truth panel
+		 * into the `Load summary` dialog below (same `truthModel`); the
+		 * `Archived load` control that sat beside the queue was navigation, not
+		 * state, and moved into the header's More menu as `historyAction`. */
+		<TeachingLoadRepairQueue
+			items={repairQueueItems}
+			activeItemId={activeRepairId ?? routedRepairId}
+			isReadOnly={data.isReadOnlyMode}
+			saving={data.saving}
+			advancedGridVisible={advancedGridVisible}
+			onPrimaryAction={handleRepairPrimaryAction}
+		/>
 	);
 
 	if (data.error && data.dataSource === 'none') {		return (
@@ -787,6 +766,7 @@ export default function TeachingLoad() {
 						<TeachingLoadSummarySurface>
 							<TeachingLoadTruthPanel
 								expanded
+								vertical
 								model={truthModel}
 								loading={data.loading || data.authorityDiagnosticsLoading}
 								sourceRevision={data.authorityDiagnostics?.sourceRevision ?? null}
@@ -795,6 +775,19 @@ export default function TeachingLoad() {
 							/>
 						</TeachingLoadSummarySurface>
 					)}
+					// A6 C2 (Major 1): the `Archived load` link, built HERE and
+					// positioned by the toolbar's More menu. `client-quality-c01` reads
+					// both the test id and the `to` in this file, so keeping the node
+					// here keeps one place to read the reachability claim.
+					historyAction={(
+						<Link to="/teaching-load/history" data-testid="teaching-load-history-link">
+							<History className="size-3.5" aria-hidden="true" />
+							Archived load
+						</Link>
+					)}
+					// A6 C2 (Major 2): the only timestamp the client holds for this
+					// snapshot; null while live, so no unproven time is ever printed.
+					savedAtLabel={data.dataSource === 'live' ? null : data.sectionSummary?.fetchedAt ?? null}
 				/>
 					<p className="sr-only" aria-label="Teaching load workflow">
 						<span className="text-foreground">1. Choose a teacher or section</span>

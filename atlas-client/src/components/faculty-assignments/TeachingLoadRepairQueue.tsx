@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2, ClipboardCheck } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { STAFF_WORKLOAD_REVIEW_LABEL } from '@/components/faculty-assignments/teacherReviewEntry';
 
 export type TeachingLoadRepairTaskKind =
 	| 'save-draft'
@@ -47,9 +48,11 @@ const FALLBACK_ITEM: TeachingLoadRepairQueueItem = {
 	id: 'review-ready',
 	kind: 'review-ready',
 	title: 'Teaching Load looks ready',
-	description: 'No urgent item is visible. Review the teacher list before generating a new timetable.',
+	description: 'No urgent item is visible. Review the staff workload once before generating.',
 	status: 'Ready for review',
-	actionLabel: 'Review teachers',
+	// A6 C2 (Slice 5): imported from the ONE opener module, so this label and the
+	// hook's `review-ready` item cannot drift into two different words.
+	actionLabel: STAFF_WORKLOAD_REVIEW_LABEL,
 };
 
 /**
@@ -114,7 +117,11 @@ export function TeachingLoadRepairQueue({
 						className={cn('flex h-7 min-w-0 items-center gap-1.5 rounded-full border px-2 text-xs font-semibold shadow-sm', taskTone(currentItem.kind))}
 					>
 						<CurrentIcon className="size-3.5 shrink-0" aria-hidden="true" />
-						<span className="shrink-0 text-xs font-bold uppercase tracking-wide">Next step</span>
+						{/* A6 C2 (Slice 2): `Next step` is a LABEL on the header's one
+					    status line. It was `uppercase tracking-wide`, one of the
+					    letter-spaced ALL-CAPS labels the operator rejected across the
+					    Teaching Load header; sentence case, no tracking. */}
+					<span className="shrink-0 text-xs font-bold">Next step</span>
 						{currentItem.countLabel && (
 							/* A <span>, not a @/ui Badge: the badge primitive is a
 							 * <div>, and this chip is a <span> so it can sit inside the

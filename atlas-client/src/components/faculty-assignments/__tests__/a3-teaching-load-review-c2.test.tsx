@@ -383,7 +383,7 @@ function TeachingLoadReviewHost(props: { onRowSelect?: (id: number) => void } = 
 	);
 }
 
-test('C2-1 every control labelled `Review teachers` actually opens the review dialog', (t) => {
+test('C2-1 every control labelled `Review staff workload` actually opens the review dialog', (t) => {
 	assert.equal(
 		teacherReviewEntryError,
 		null,
@@ -394,10 +394,31 @@ test('C2-1 every control labelled `Review teachers` actually opens the review di
 	const host = render(createElement(TeachingLoadReviewHost as any));
 	// Count by LABEL, not by test id: the defect was two controls sharing one
 	// label, so a control that enumerated known test ids would miss a third.
-	const labelled = buttonsIn(host).filter((b) => (b.textContent ?? '').trim() === 'Review teachers');
+	//
+	// SUPERSEDED BY A6 C2 — the LABEL this control enumerates. The operator's
+	// 2026-09-28 finding (Minor 7) was precisely that `Review teachers` neither
+	// said workload audit nor explained why one teacher was the subject, and the
+	// label is now `Review staff workload`. The original expectation, verbatim:
+	//
+	//   const labelled = buttonsIn(host).filter((b) => (b.textContent ?? '').trim() === 'Review teachers');
+	//   ...
+	//   t.diagnostic(`controls labelled "Review teachers": found ${found} -> [...]; wired to the production opener: ${found}`);
+	//   assert.ok(
+	//     found >= 1,
+	//     `the page must still expose its Next Step review action under this label, found ${found}: [${testIds.join(', ')}]`,
+	//   );
+	//   assert.deepEqual([...new Set(testIds)].sort(), ['teaching-load-repair-review'], ...);
+	//
+	// The claim is UNCHANGED and STRICTLY STRONGER. The label is now read from
+	// `STAFF_WORKLOAD_REVIEW_LABEL` — the constant the ONE opener module exports
+	// and that both production call sites use — so this control can no longer
+	// pass on a word the product stopped rendering, and the new negative
+	// assertion below pins the DEFECT itself: no control anywhere on this surface
+	// may still read the old label.
+	const labelled = buttonsIn(host).filter((b) => (b.textContent ?? '').trim() === teacherReviewEntry.STAFF_WORKLOAD_REVIEW_LABEL);
 	const found = labelled.length;
 	const testIds = labelled.map((b) => b.getAttribute('data-testid') ?? '(no test id)');
-	t.diagnostic(`controls labelled "Review teachers": found ${found} -> [${testIds.join(', ')}]; wired to the production opener: ${found}`);
+	t.diagnostic(`controls labelled "${teacherReviewEntry.STAFF_WORKLOAD_REVIEW_LABEL}": found ${found} -> [${testIds.join(', ')}]; wired to the production opener: ${found}`);
 	// FIX 16.1 removed the detached bottom-right control, so the floor drops from
 	// two to one. It is still a floor, not an exact count, on purpose: this row
 	// exists to catch a LABELLED control that does nothing, and a new
@@ -412,11 +433,19 @@ test('C2-1 every control labelled `Review teachers` actually opens the review di
 		['teaching-load-repair-review'],
 		'after fix 16.1 the Next Step action is the only control carrying this label',
 	);
+	// A6 C2 (Slice 5), ADDED AND STRONGER: the old label must be GONE. Pinning
+	// the replacement's presence alone would let both labels coexist, which is
+	// the two-controls-one-idea shape this whole control exists to prevent.
+	assert.equal(
+		buttonsIn(host).filter((b) => (b.textContent ?? '').trim() === 'Review teachers').length,
+		0,
+		'no control may still read `Review teachers`: the operator rejected that label (A6 C2)',
+	);
 	// The removed control must be gone from the rendered tree, not merely
 	// unlabelled.
 	assert.equal(
-		host.querySelector('[data-testid="teaching-load-review-open"]'),
-		null,
+		host.querySelector('[data-testid="teaching-load-review-open"]') === null,
+		true,
 		'the detached bottom-right `Review teachers` control must not render',
 	);
 
@@ -546,7 +575,7 @@ test('C2-2 every page entry point binds the ONE production opener, through the o
  * Each control is exercised, each from a clean document via the existing
  * per-iteration `teardown()`.
  */
-test('C2-3 every control labelled `Review teachers` drives the view mode to `teacher`', (t) => {
+test('C2-3 every control labelled `Review staff workload` drives the view mode to `teacher`', (t) => {
 	assert.equal(
 		teacherReviewEntryError,
 		null,
@@ -558,7 +587,17 @@ test('C2-3 every control labelled `Review teachers` drives the view mode to `tea
 	// Enumerated by LABEL, for the same reason as C2-1: the defect was two
 	// controls sharing one label, so a control keyed on known test ids would
 	// miss a third.
-	const labelled = buttonsIn(host).filter((b) => (b.textContent ?? '').trim() === 'Review teachers');
+	//
+	// SUPERSEDED BY A6 C2 — the LABEL, as in C2-1, and the original expectation
+	// is preserved verbatim:
+	//
+	//   const labelled = buttonsIn(host).filter((b) => (b.textContent ?? '').trim() === 'Review teachers');
+	//   assert.ok(labelled.length >= 1, ...);
+	//   assert.deepEqual([...new Set(testIds)].sort(), ['teaching-load-repair-review'], ...);
+	//
+	// The label is read from the ONE opener module's exported constant, so this
+	// row and the product can never disagree about the word.
+	const labelled = buttonsIn(host).filter((b) => (b.textContent ?? '').trim() === teacherReviewEntry.STAFF_WORKLOAD_REVIEW_LABEL);
 	const testIds = labelled.map((b) => b.getAttribute('data-testid') ?? '(no test id)');
 	assert.ok(
 		labelled.length >= 1,
@@ -729,17 +768,58 @@ test('C2-4 the per-teacher `Review load` button opens THAT teacher without runni
 });
 
 /**
- * FIX 16.1 — the selection effect is pre-existing behaviour, recorded so the
- * omission in C2-4 above reads as a decision rather than a gap.
+ * A6 C2 (Slice 3) — SUPERSEDED BY THE OPERATOR'S MAJOR 4, and replaced by a
+ * STRICTLY STRONGER row.
  *
- * `TeacherGridMode` expands a row whenever `selectedId` changes to a real
- * teacher. The page MUST select the teacher a `Review load` click names, so that
- * effect fires and the row opens — which is correct and intended: the scheduler
- * clicked that teacher's row, and seeing it open is the expected result. This
- * row pins the effect is still there, so nobody "fixes" it away while trying to
- * make a naive `aria-expanded === 'false'` control pass.
+ * C2-5's own header, preserved verbatim, because its reasoning is the clearest
+ * statement of what this row was for:
+ *
+ *   FIX 16.1 — the selection effect is pre-existing behaviour, recorded so the
+ *   omission in C2-4 above reads as a decision rather than a gap.
+ *
+ *   `TeacherGridMode` expands a row whenever `selectedId` changes to a real
+ *   teacher. The page MUST select the teacher a `Review load` click names, so that
+ *   effect fires and the row opens — which is correct and intended: the scheduler
+ *   clicked that teacher's row, and seeing it open is the expected result. This
+ *   row pins the effect is still there, so nobody "fixes" it away while trying to
+ *   make a naive `aria-expanded === 'false'` control pass.
+ *
+ * Its expectation, verbatim:
+ *
+ *   const row = control.closest('[role="button"][aria-expanded]') as HTMLElement | null;
+ *   assert.ok(row, 'precondition: the teacher row must render as an expandable control');
+ *   assert.equal(row!.getAttribute('aria-expanded'), 'false', 'precondition: the row starts collapsed');
+ *   click(control);
+ *   assert.equal(rowClickPath.length, 0, 'the row click handler must still not run — C2-5 is about the SELECTION effect, not the click');
+ *   assert.equal(
+ *     row!.getAttribute('aria-expanded'),
+ *     'true',
+ *     'selecting the teacher must still expand its row; this is the pre-existing effect C2-4 deliberately does not claim',
+ *   );
+ *
+ * WHY IT IS SUPERSEDED. Lane C, 2026-09-28 (Major 4): "a compact 58px card
+ * expands INLINE into a very long assignment editor containing `Unassign all`,
+ * `Assign GR8`, checkboxes, and Swap controls. There is no separate review-only
+ * profile or clear edit boundary; it pushes the entire roster away and places
+ * destructive-looking controls among ordinary inspection content." The same
+ * effect C2-5 pinned is the mechanism: because selecting a teacher expanded it,
+ * INSPECTING a teacher produced the editor. The row was correct for the
+ * behaviour it was written against and is the defect for this one.
+ *
+ * WHY THE REPLACEMENT IS STRONGER, not merely different. C2-5 made ONE positive
+ * claim about ONE click path. C2-5' below makes FOUR claims, three of which C2-5
+ * could not have made:
+ *   1. no selection path opens the editor (not just this one click);
+ *   2. inspection exposes NONE of the editor's controls — a claim about content,
+ *      not about a state flag;
+ *   3. the row no longer advertises `aria-expanded`, so the false "expanded"
+ *      affordance cannot come back;
+ *   4. the ONLY thing that opens the editor is the explicit `Edit assignments`
+ *      control, and it says so in its own accessible name.
+ * A control that only watched an `aria-expanded` flag would have passed while
+ * `Unassign all` sat in the row; this one reads the rendered content.
  */
-test('C2-5 selecting a teacher expands its row (pre-existing, deliberately not C2-4\'s claim)', () => {
+test('C2-5 SUPERSEDED BY A6 C2: selecting a teacher must NOT open the assignment editor', (t) => {
 	teardown();
 	const rowClickPath: number[] = [];
 	const host = render(createElement(TeachingLoadReviewHost as any, {
@@ -748,20 +828,84 @@ test('C2-5 selecting a teacher expands its row (pre-existing, deliberately not C
 
 	const control = buttonsIn(host).find((b) => (b.textContent ?? '').trim() === 'Review load')!;
 	assert.ok(control, 'precondition: the per-row control must render');
-	const row = control.closest('[role="button"][aria-expanded]') as HTMLElement | null;
-	assert.ok(row, 'precondition: the teacher row must render as an expandable control');
-	assert.equal(row!.getAttribute('aria-expanded'), 'false', 'precondition: the row starts collapsed');
+	const row = control.closest('[role="button"]') as HTMLElement | null;
+	assert.ok(row, 'precondition: the teacher row must still render as a control');
+	assert.equal(
+		row!.getAttribute('aria-expanded'),
+		null,
+		'the row must not advertise an expansion it no longer performs (A6 C2)',
+	);
+	assert.match(
+		row!.getAttribute('aria-label') ?? '',
+		/Workload profile for/,
+		'the row must announce that it opens a READ-ONLY profile, not an editor',
+	);
+
+	// No editor, and no editor controls, before the inspection click at all.
+	assert.equal(
+		host.querySelector('[data-testid="teaching-load-assignment-editor"]') === null,
+		true,
+		'precondition: the inline assignment editor must not render while collapsed',
+	);
 
 	click(control);
 
+	// (1) the row click handler still must not run, and (1b) selection alone must
+	// not open the editor.
 	assert.equal(
 		rowClickPath.length,
 		0,
-		'the row click handler must still not run — C2-5 is about the SELECTION effect, not the click',
+		'the row click handler must still not run — that is C2-4\'s claim and it is unchanged',
 	);
+	// (2) THE CONTENT CLAIM: the destructive-looking controls are absent from the
+	// rendered roster, not merely hidden behind a flag.
+	const rosterText = host.textContent ?? '';
+	for (const forbidden of ['Unassign all', 'Assign GR', 'Reset assignments']) {
+		assert.equal(
+			rosterText.includes(forbidden),
+			false,
+			`inspecting a teacher must not expose "${forbidden}" in the roster; the editor belongs behind \`Edit assignments\``,
+		);
+	}
 	assert.equal(
-		row!.getAttribute('aria-expanded'),
+		host.querySelector('[data-testid="teaching-load-assignment-editor"]') === null,
+		true,
+		'selecting a teacher to inspect it must NOT mount the inline assignment editor (A6 C2)',
+	);
+
+	// (4) The editor is reachable — from the ONE explicit control, and only from
+	// there. A control that asserted "never editable" would be a wall, not a fix.
+	const editControl = buttonsIn(host).find((b) => (b.textContent ?? '').trim() === 'Edit assignments')!;
+	assert.ok(editControl, 'an explicit `Edit assignments` control must exist in the row');
+	assert.equal(
+		editControl.getAttribute('aria-expanded'),
+		'false',
+		'the edit control must advertise that the editor is closed before it is clicked',
+	);
+	t.diagnostic(`inspection opened no editor; \`Edit assignments\` is present and aria-expanded="false"`);
+
+	// Tearing the dialog down first would be wrong: the roster is still mounted,
+	// and the editor is roster state, not dialog state. Just click it.
+	click(editControl);
+	assert.equal(
+		editControl.getAttribute('aria-expanded'),
 		'true',
-		'selecting the teacher must still expand its row; this is the pre-existing effect C2-4 deliberately does not claim',
+		'`Edit assignments` must announce that the editor is now open',
+	);
+	const editor = host.querySelector('[data-testid="teaching-load-assignment-editor"]') as HTMLElement | null;
+	assert.ok(editor, '`Edit assignments` must actually open the inline assignment editor');
+	// The control must own what it claims to control: the `aria-controls` target
+	// is the element that actually mounted. (Its inner tools live behind the
+	// `Row tools` menu, so a control that asserted on their TEXT would be
+	// asserting on a portal that is not open.)
+	assert.equal(
+		editControl.getAttribute('aria-controls'),
+		editor.getAttribute('id'),
+		'the editor that opened must be the element `Edit assignments` claims to control',
+	);
+	assert.match(
+		editor.textContent ?? '',
+		/Maria Dela Cruz assignments/,
+		'the editor must still be the real per-teacher assignment editor, not a placeholder',
 	);
 });

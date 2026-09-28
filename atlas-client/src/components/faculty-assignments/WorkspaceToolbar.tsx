@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from 'react';
-import { Zap, Activity, Settings2, Users } from 'lucide-react';
+import { Zap, Settings2, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
@@ -67,6 +67,33 @@ type WorkspaceToolbarProps = {
 	 * drift from the page's `truthModel`.
 	 */
 	loadSummaryAction?: ReactNode;
+	/**
+	 * A6 C2 (Major 1) — the `Archived load` navigation link, MOVED out of the
+	 * state line and into this toolbar's More menu.
+	 *
+	 * Lane C measured the state line trying to hold 1,070px: 140px `% staffed`,
+	 * 231px `Classes without a teacher`, a 451px summary, a 223px next-step
+	 * chip, a 169px Assign, and a 117px `Archived load` link. The link was the
+	 * only one of those that is NAVIGATION rather than state, and the operator's
+	 * target header keeps `Archived load` out of the two status rows. It is still
+	 * a real link to `/teaching-load/history`, the PAGE still builds it (so
+	 * `client-quality-c01` and `a6-teaching-load-surface` keep one place to read
+	 * the reachability claim), and only its POSITION moves — into the More
+	 * dropdown, where a settings-adjacent destination belongs.
+	 */
+	historyAction?: ReactNode;
+	/**
+	 * A6 C2 (Major 2) — when the last successful Teaching Load snapshot was
+	 * fetched, as a display string the PAGE derived from a real field.
+	 *
+	 * It exists for the degraded line. `SectionSummaryResponse.fetchedAt` is the
+	 * only timestamp the client genuinely holds, so the page supplies that when
+	 * it has one and `null` otherwise, and the degraded sentence drops the
+	 * `from <time>` clause rather than inventing a time. A fabricated
+	 * "saved from 09:14" next to a number we cannot verify is the exact class of
+	 * claim this packet exists to remove.
+	 */
+	savedAtLabel?: string | null;
 };
 
 /**
@@ -119,12 +146,16 @@ export const TEACHING_LOAD_HEADER_MODEL = {
 	MEASURED_FIRST_ROW_BASELINE_PX: 430,
 } as const;
 
-const STRIP_TONE: Record<'success' | 'warning' | 'danger' | 'info', string> = {
-	success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-	warning: 'border-amber-200 bg-amber-50 text-amber-700',
-	danger:  'border-rose-200 bg-rose-50 text-rose-700',
-	info:    'border-sky-200 bg-sky-50 text-sky-700',
-};
+/*
+ * A6 C2: `STRIP_TONE` is GONE, and deliberately so. The four-tone pill palette
+ * existed only to colour the two `% staffed` / `Classes without a teacher` pills
+ * and the alert pill on row 2. Row 2 is now one sentence that uses the ordinary
+ * foreground colour plus `text-destructive` for the alert clause, and the
+ * degraded line uses the shared `border-warning-border bg-warning-muted
+ * text-warning-foreground` warning treatment the rest of ATLAS already uses. A
+ * second private colour vocabulary for four pills was one more thing to keep in
+ * step with the theme, and there are no pills left to keep in step.
+ */
 
 export function WorkspaceToolbar({
 	realAssignedPairs,
@@ -158,6 +189,8 @@ export function WorkspaceToolbar({
 	onRetrySource,
 	stateLineSlot,
 	loadSummaryAction,
+	historyAction,
+	savedAtLabel = null,
 }: WorkspaceToolbarProps) {
 	const completenessPercent = totalPairs > 0 ? Math.round(((realAssignedPairs + syntheticPlaceholderPairs) / totalPairs) * 100) : 0;
 
@@ -174,6 +207,8 @@ export function WorkspaceToolbar({
 		if (dataSource === 'refreshing') {
 			return {
 				label: 'Checking source',
+				shortLabel: 'Checking',
+				isSuggestion: false,
 				onClick: onRetrySource,
 				disabled: true,
 				variant: 'outline' as const,
@@ -183,14 +218,27 @@ export function WorkspaceToolbar({
 		if (!isOnline || dataSource === 'none') {
 			return {
 				label: isOnline ? 'Retry source' : 'Offline',
+				shortLabel: isOnline ? 'Retry' : 'Offline',
+				isSuggestion: false,
 				onClick: onRetrySource,
 				disabled: !isOnline,
 				variant: 'outline' as const,
 				helper: isOnline ? 'Try loading teaching load data again.' : 'Reconnect before retrying.',
 			};
 		}
+		/*
+		 * A6 C2 (Major 1): the operator's own words are `Suggest assignments`,
+		 * SECONDARY, not red. The old label was `Preview suggested assignments`
+		 * and the old call site forced `border border-primary/20 bg-primary/5
+		 * … text-primary` on top of the `secondary` variant, so it READ as the
+		 * page's primary action in primary colour while doing nothing until a
+		 * second dialog. The label is now the operator's, the primary tint is
+		 * gone, and the button is honestly a secondary one.
+		 */
 		return {
-			label: 'Preview suggested assignments',
+			label: 'Suggest assignments',
+			shortLabel: 'Suggest',
+			isSuggestion: true,
 			onClick: onAutoFillClick,
 			disabled: autoFillLoading || !autoFillEnabled,
 			variant: 'secondary' as const,
@@ -238,6 +286,71 @@ export function WorkspaceToolbar({
 		return null;
 	}, [overCapCount, excessTeachingCount, policyReady, syntheticPlaceholderPairs, onShowExcessTeachingLoad, onShowTemporarySubstitutes]);
 
+	/*
+	 * A6 C2 (Major 2) — the degraded-data gate for the WHOLE header.
+	 *
+	 * Lane C's second finding: `% staffed 100%` and `Classes without a teacher 0`
+	 * sat beside `Unknown number of classes`, `Not available`, and a page that
+	 * said it was using saved data because EnrollPro could not be reached. A
+	 * scheduler could conclude staffing was complete. While the figures are NOT
+	 * verified, row 2 therefore renders ONE amber line and NO derived count at
+	 * all — the number is withheld, not relabelled, so nothing live-looking can
+	 * ever sit next to an unknown again.
+	 *
+	 * `refreshing` is deliberately NOT degraded: ATLAS is actively asking
+	 * EnrollPro, and "not reachable" would be a lie mid-check. It gets its own
+	 * honest line instead. Offline and `none` are degraded but say so in their
+	 * own words, because "EnrollPro not reachable" is false when ATLAS is the
+	 * thing that is down.
+	 */
+	const degradedTail = useMemo(() => {
+		if (!isOnline) return 'ATLAS is offline';
+		if (dataSource === 'none') return 'no live Teaching Load source is available';
+		if (dataSource === 'refreshing') return null;
+		if (dataSource !== 'live' || dataSourceNotice) return 'EnrollPro not reachable';
+		return null;
+	}, [dataSource, dataSourceNotice, isOnline]);
+
+	/*
+	 * `savedAtLabel` is the PAGE's real field, never a synthesised clock reading.
+	 * With no timestamp the clause is dropped, so the sentence degrades from
+	 * `Using saved data from <time> — EnrollPro not reachable` to `Using the last
+	 * saved data — EnrollPro not reachable` instead of inventing a time we cannot
+	 * prove (see the `savedAtLabel` prop doc).
+	 */
+	const degradedLine = useMemo(() => {
+		if (!degradedTail) return null;
+		const prefix = savedAtLabel
+			? `Using saved data from ${(() => { const p = new Date(savedAtLabel); return Number.isNaN(p.getTime()) ? savedAtLabel : p.toLocaleString(); })()}`
+			: 'Using the last saved data';
+		return `${prefix} — ${degradedTail}`;
+	}, [degradedTail, savedAtLabel]);
+
+	/*
+	 * ONE sentence of status. The `% staffed` and `Classes without a teacher`
+	 * figures the header used to show as two separate pills are now inside it,
+	 * and the state-driven alert is inside it too — which is what removes Lane C's
+	 * "the warning chip is hidden under the Assign button" overlap at 1366
+	 * without moving the ONE primary action off the row.
+	 *
+	 * The alert is NOT part of this string: the clause below carries its own
+	 * test id and tone, and putting the same words in both places printed them
+	 * twice.
+	 *
+	 * It is `truncate`d, never wrapped: the height budget is 2 band rows and
+	 * 70px, so a longer sentence loses its tail rather than becoming a third row.
+	 */
+	const statusSentence = useMemo(() => {
+		if (dataSource === 'refreshing') return 'Checking EnrollPro for the latest roster…';
+		const parts = [`${completenessPercent}% staffed`];
+		parts.push(
+			unassignedPairs > 0
+				? `${unassignedPairs} ${unassignedPairs === 1 ? 'class needs' : 'classes need'} a teacher`
+				: 'Every class has a teacher',
+		);
+		return parts.join(' · ');
+	}, [completenessPercent, dataSource, unassignedPairs]);
+
 	return (
 		<CompactTitleStrip
 			stripTestId="teaching-load-command-header"
@@ -262,8 +375,8 @@ export function WorkspaceToolbar({
 					<div className="flex min-w-0 items-center" data-testid="teaching-load-tab-row">
 						<Tabs value={viewMode} onValueChange={(v) => onViewModeChange(v as 'teacher' | 'allocation')} className="h-7">
 							<TabsList className="h-7 p-0.5 border border-border/40 bg-muted/50">
-								<TabsTrigger value="teacher" className="h-6 px-2.5 text-xs font-bold uppercase tracking-tight">Teachers</TabsTrigger>
-								<TabsTrigger value="allocation" className="h-6 px-2.5 text-xs font-bold uppercase tracking-tight">Sections</TabsTrigger>
+							<TabsTrigger value="teacher" className="h-6 px-2.5 text-xs font-bold">Teachers</TabsTrigger>
+							<TabsTrigger value="allocation" className="h-6 px-2.5 text-xs font-bold">Sections</TabsTrigger>
 							</TabsList>
 						</Tabs>
 					</div>
@@ -271,7 +384,20 @@ export function WorkspaceToolbar({
 			}
 			statusDescription={workspaceStateDescription}
 			statusNextAction={workspaceStateNextAction}
-			status={
+		status={
+			/*
+			 * A6 C2 (Major 1) — row 1, the operator's order: `Teaching Load` ·
+			 * Teachers | Sections · DRAFT CHIP, then right: Help, `Suggest
+			 * assignments`, settings. The source-verification badge is KEPT and
+			 * keeps its `[data-source-state]` attribute and its four labels; the
+			 * draft chip is ADDED beside it, because "is my work saved?" and
+			 * "is this data current?" are two different questions and the header
+			 * could answer only the second.
+			 *
+			 * `h-6`, not `h-7`, so `ROW_1_COMMAND_PX` is still driven by the
+			 * action buttons and the committed height model is unchanged.
+			 */
+			<span className="inline-flex items-center gap-1.5">
 				<Badge
 					variant="outline"
 					data-source-state={dataSource}
@@ -280,7 +406,21 @@ export function WorkspaceToolbar({
 					<span className={cn('mr-1.5 size-2 rounded-full', statusConfig.color)} />
 					{statusConfig.label}
 				</Badge>
-			}
+				<Badge
+					variant="outline"
+					data-testid="teaching-load-draft-chip"
+					data-draft-state={activeDraftCount > 0 ? 'unsaved' : 'saved'}
+					className={cn(
+						'h-6 rounded-full px-2 text-xs font-semibold shadow-none',
+						activeDraftCount > 0
+							? 'border-sky-200 bg-sky-50 text-sky-700'
+							: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+					)}
+				>
+					{activeDraftCount > 0 ? 'Draft — not saved' : 'Saved'}
+				</Badge>
+			</span>
+		}
 			actions={
 				<>
 					<SmartHelpTrigger
@@ -327,12 +467,19 @@ export function WorkspaceToolbar({
 							size="sm"
 							onClick={primaryAction.onClick}
 							disabled={primaryAction.disabled}
-							data-testid={primaryAction.label === 'Preview suggested assignments' ? 'teaching-load-suggest-draft-action' : undefined}
-							className="h-7 gap-1.5 border border-primary/20 bg-primary/5 px-2 text-xs font-bold uppercase tracking-tight text-primary shadow-sm transition-all hover:bg-primary/10 sm:px-3"
+							data-testid={primaryAction.isSuggestion ? 'teaching-load-suggest-draft-action' : undefined}
+							/*
+							 * A6 C2: no `bg-primary/5 … text-primary` overlay, no
+							 * `uppercase tracking-tight`. The `secondary` variant is now
+							 * what the operator sees, so the button that does nothing
+							 * until a second dialog can no longer be mistaken for the
+							 * page's primary action.
+							 */
+							className="h-7 gap-1.5 px-2 text-xs sm:px-3"
 						>
 							<Zap className="size-4" />
 							<span className="hidden sm:inline">{primaryAction.label}</span>
-							<span className="sm:hidden">{primaryAction.label === 'Preview suggested assignments' ? 'Preview' : primaryAction.label}</span>
+							<span className="sm:hidden">{primaryAction.shortLabel}</span>
 						</Button>
 					</TooltipTrigger>
 					<TooltipContent side="bottom" className="max-w-62.5 text-xs font-semibold">
@@ -359,11 +506,20 @@ export function WorkspaceToolbar({
 									</Button>
 								</DropdownMenuTrigger>
 								<DropdownMenuContent align="end" className="w-64 p-2">
-									<DropdownMenuLabel className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Staffing mode</DropdownMenuLabel>
+									{/*
+									 * A6 C2 (Major 1): the `Archived load` link arrives here
+									 * from the PAGE, which still builds it — only its position
+									 * moved off row 2. `asChild` hands the menu-item styling
+									 * and the keyboard/roving-focus behaviour to the link itself,
+									 * so it stays one real link rather than a div wrapping one.
+									 */}
+									{historyAction}
+									<DropdownMenuSeparator />
+									<DropdownMenuLabel className="text-xs font-semibold text-muted-foreground/70">Staffing mode</DropdownMenuLabel>
 									<DropdownMenuRadioGroup value={coverageMode} onValueChange={(v) => onCoverageModeChange(v as CoverageMode)}>
 										{Object.entries(coverageModeConfig || {}).map(([mode, config]) => (
 											<DropdownMenuRadioItem key={mode} value={mode} className="flex flex-col items-start gap-0.5 py-2 cursor-pointer">
-												<span className="text-xs font-bold uppercase tracking-tight">{config.label}</span>
+												<span className="text-xs font-bold">{config.label}</span>
 												<span className="text-xs text-muted-foreground font-medium leading-tight">{config.description}</span>
 											</DropdownMenuRadioItem>
 										))}
@@ -376,71 +532,75 @@ export function WorkspaceToolbar({
 				</>
 			}
 		>
-			{/* A3-C10-S3 ROW 2 — the single compact state line. Everything that used
-				to be its own band under the strip is here now: the % staffed figure,
-				the classes-without-a-teacher count, the state-driven alert chip, and
-				the page's `stateLineSlot` (canonical truth summary, the "Next step"
-				chip and its action, and the archived-load control).
+			{/* A6 C2 ROW 2 — ONE sentence of status + ONE primary action.
+			 *
+			 * THE DEFECT, MEASURED BY LANE C at 1366x768: this row was
+			 * `flex … flex-nowrap … overflow-x-auto` and tried to hold 1,070px of
+			 * content — 140px `% staffed`, 231px `Classes without a teacher`, a
+			 * 451px summary, a 223px next-step/warning, 169px Assign and a 117px
+			 * `Archived load`. The warning section BEGAN at x=1115 while Assign
+			 * began at x=1133, so only its icon was visible, and the summary text
+			 * was cut to 204px of 329px. At 1920 the warning was still hidden
+			 * beneath Assign. The row scrolled sideways, which is the rejection.
+			 *
+			 * WHAT REPLACED IT:
+			 *   - ONE sentence (`teaching-load-status-sentence`) carrying the
+			 *     `% staffed` figure, the classes-needing-a-teacher clause and the
+			 *     alert, so the alert can no longer be overlapped BY anything;
+			 *   - OR, when the data is degraded, exactly ONE amber line
+			 *     (`teaching-load-degraded-notice`) and NO derived count at all;
+			 *   - and the page's `stateLineSlot`, whose `h-7` repair queue supplies
+			 *     the ONE primary action (`teaching-load-repair-review`).
+			 *
+			 * NO SIDEWAYS SCROLL. `overflow-x-auto` is gone from this row. The
+			 * sentence is `min-w-0` + `truncate`, so at 1366 a long sentence loses
+			 * its tail instead of pushing the roster sideways or becoming a third
+			 * band row.
+			 *
+			 * HEIGHT: unchanged. Only the 1px `border-t` hairline separates the
+			 * rows and every member is `h-7`, so the band is still 1 + 28 = 29px
+			 * and `TEACHING_LOAD_HEADER_MODEL` still holds at 9 + 28 + 29 = 66px
+			 * against a 70px budget with a hard 2-row ceiling. The degraded line
+			 * therefore did NOT have to move into the dialog: it is a `h-7` pill in
+			 * this same 28px row, which is the operator's better outcome and the
+			 * reason no budget was broken. */}
+			<div className="flex min-w-0 flex-nowrap items-center gap-2 border-t border-border/40" data-testid="teaching-load-readiness-strip">
+				{degradedLine ? (
+					<span
+						data-testid="teaching-load-degraded-notice"
+						data-degraded={degradedTail ?? undefined}
+						className="flex h-7 min-w-0 shrink items-center gap-1.5 rounded-full border border-warning-border bg-warning-muted px-2.5 text-xs font-semibold text-warning-foreground"
+					>
+						<AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
+						<span className="min-w-0 truncate">{degradedLine}</span>
+					</span>
+				) : (
+					<span
+						data-testid="teaching-load-status-sentence"
+						className="flex h-7 min-w-0 shrink items-center gap-1.5 rounded-full border border-border/60 bg-background px-2.5 text-xs font-semibold text-foreground"
+					>
+						<span className="min-w-0 truncate">{statusSentence}</span>
+						{/*
+						 * The alert KEEPS its test id and its number, but it is now
+						 * text INSIDE the sentence rather than a fourth pill. A
+						 * generation blocker must not be the first thing a scheduler
+						 * loses to a 1366px viewport, and it must not become a second
+						 * competing action either — the repair queue's `h-7` button is
+						 * the ONE action on this row, and for an over-cap teacher it is
+						 * the `Move classes` item that actually resolves it.
+						 */}
+						{alertChip && (
+							<span data-testid={alertChip.testId} data-alert-key={alertChip.key} className="shrink-0 font-bold text-destructive">
+								· {alertChip.label}
+							</span>
+						)}
+					</span>
+				)}
 
-				HEIGHT: the old `mt-1.5 ... border-t ... pt-1.5` wrapper cost 13px
-				of margin+padding to separate a row that no longer exists. Only the
-				1px `border-t` hairline is kept, so the row is 1 + 28 = 29px.
-
-				NOT A DISCLOSURE. Every chip on this line is visible at a glance; the
-				caller's slot is a peer, not a hidden panel. Horizontal overflow
-				scrolls inside this shrink-0 strip (the same treatment the readiness
-				strip already had) and never becomes a global scrollbar. */}
-			<div className="flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto border-t border-border/40" data-testid="teaching-load-readiness-strip">
-				<div
-					className={cn(
-						'flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold shadow-sm',
-						STRIP_TONE[completenessPercent === 100 ? 'success' : 'warning'],
-					)}
-				>
-					<span className="text-xs uppercase tracking-wide opacity-75">% staffed</span>
-					<span className="text-sm font-bold tabular-nums">{completenessPercent}%</span>
-				</div>
-
-				<div
-					className={cn(
-						'flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold shadow-sm',
-						STRIP_TONE[unassignedPairs > 0 ? 'warning' : 'success'],
-					)}
-				>
-					<span className="text-xs uppercase tracking-wide opacity-75">Classes without a teacher</span>
-					<span className="text-sm font-bold tabular-nums">{unassignedPairs}</span>
-				</div>
-
-{alertChip ? (
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Button
-							type="button"
-							variant="outline"
-							data-testid={alertChip.testId}
-							data-alert-key={alertChip.key}
-							onClick={alertChip.onClick}
-							disabled={alertChip.disabled}
-							aria-label={alertChip.label}
-							className={cn(
-								'flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold shadow-sm transition-colors cursor-pointer hover:brightness-95',
-								STRIP_TONE[alertChip.tone],
-							)}
-						>
-							{alertChip.key === 'overcap' ? <Activity className="size-3.5" /> : <Users className="size-3.5" />}
-							<span className="text-sm font-bold">{alertChip.label}</span>
-						</Button>
-					</TooltipTrigger>
-					<TooltipContent side="bottom" className="max-w-64 text-xs leading-relaxed">
-						{alertChip.tooltip}
-					</TooltipContent>
-				</Tooltip>
-			) : null}
-
-				{/* The page's own state, on the same line and at the same height.
-					`min-w-0` + the strip's `overflow-x-auto` is what keeps a long
-					truth sentence from pushing the roster sideways. */}
-				{stateLineSlot}
+				{/* The page's own state, on the same line and at the same height, and
+					pushed to the right so the sentence truncates BEFORE the ONE action
+					can be squeezed or hidden. */}
+				<div className="ml-auto flex min-w-0 shrink-0 items-center gap-1.5">{stateLineSlot}</div>
 			</div>
 
 			<p className="sr-only">

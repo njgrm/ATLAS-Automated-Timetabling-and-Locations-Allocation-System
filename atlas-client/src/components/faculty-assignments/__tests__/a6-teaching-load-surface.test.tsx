@@ -96,6 +96,18 @@ const { TeachingLoadTruthPanel } = await import('@/components/faculty-assignment
 const { TeachingLoadInspectorTriggers } = await import('@/components/faculty-assignments/TeachingLoadInspectorTriggers');
 const { WorkspaceToolbar } = await import('@/components/faculty-assignments/WorkspaceToolbar');
 const { TeachingLoadModals } = await import('@/components/faculty-assignments/TeachingLoadModals');
+const { TeachingLoadRepairQueue } = await import('@/components/faculty-assignments/TeachingLoadRepairQueue');
+const { SectionGridMode } = await import('@/components/faculty-assignments/SectionGridMode');
+const { ReviewTeachersModal } = await import('@/components/faculty-assignments/ReviewTeachersModal');
+const { WorkloadInspector } = await import('@/components/faculty-assignments/WorkloadInspector');
+const teacherReviewEntry = await import('@/components/faculty-assignments/teacherReviewEntry');
+const { openTeacherReview, STAFF_WORKLOAD_REVIEW_LABEL } = teacherReviewEntry as unknown as {
+	openTeacherReview: (s: { setViewMode: (m: 'teacher' | 'allocation') => void; setReviewModalOpen: (o: boolean) => void }) => void;
+	STAFF_WORKLOAD_REVIEW_LABEL: string;
+};
+const { reviewModalCopy } = await import('@/components/faculty-assignments/teachingLoadWorkspaceMetrics');
+const { Link } = (await import('react-router-dom')) as any;
+const { Fragment: Fragment2 } = (await import('react')) as any;
 const { ConfirmationModal } = await import('@/ui/confirmation-modal');
 
 const clientRoot = resolve(import.meta.dirname, '../../../..');
@@ -130,6 +142,38 @@ function render(node: any): HTMLElement {
 
 function click(el: Element) {
 	act(() => { el.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true })); });
+}
+
+/** Radix opens a DROPDOWN on `pointerdown`, not on `click`. */
+function press(el: Element) {
+	act(() => {
+		el.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }));
+		el.dispatchEvent(new dom.window.MouseEvent('pointerup', { bubbles: true, cancelable: true, button: 0 }));
+		el.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+	});
+}
+
+/**
+ * A GENUINE outside pointer-down, on a real element outside the dialog.
+ *
+ * The target is the host DIV, not `document.body`: Radix's `DismissableLayer`
+ * ignores a pointer-down whose target has `pointer-events: none`, and while a
+ * dialog is open it sets exactly that on `body`. Dispatching on `body` therefore
+ * proves nothing — it is the event a real browser would not even deliver.
+ */
+async function outsidePointerDown(dialog: Element | null) {
+	const outside = Array.from(dom.window.document.body.children)
+		.find((child) => !dialog || !dialog.contains(child)) ?? dom.window.document.body;
+	// Radix `usePointerDownOutside` registers its document listener inside a
+	// `setTimeout(0)`, so a synchronous dispatch would find no listener and
+	// prove nothing. Let that timer run FIRST, then deliver a real event.
+	await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+	await act(async () => {
+		for (const type of ['pointerdown', 'pointerup']) {
+			outside.dispatchEvent(new dom.window.MouseEvent(type, { bubbles: true, cancelable: true, button: 0 }));
+		}
+		await Promise.resolve();
+	});
 }
 
 function buttonsIn(scope: ParentNode): HTMLButtonElement[] {
@@ -327,10 +371,47 @@ test('A6-16.1-2 clicking `Review load` opens THAT teacher and does NOT expand th
 	const second = controls[1] as HTMLElement;
 	assert.match(second.getAttribute('aria-label') ?? '', /ALCANTARA/, 'precondition: this is Alcantara\'s row');
 
-	// Precondition: the row is collapsed and nothing was reviewed.
-	const row = second.closest('[role="button"][aria-expanded]') as HTMLElement;
-	assert.ok(row, 'the teacher row must render as an expandable control');
-	assert.equal(row.getAttribute('aria-expanded'), 'false', 'precondition: the row starts collapsed');
+	// Precondition: the row advertises no inline expansion.
+	//
+	// SUPERSEDED BY A6 C2 (Slice 3, Major 4) — the ORIGINAL expectation, verbatim:
+	//
+	//   const row = second.closest('[role="button"][aria-expanded]') as HTMLElement;
+	//   assert.ok(row, 'the teacher row must render as an expandable control');
+	//   assert.equal(row.getAttribute('aria-expanded'), 'false', 'precondition: the row starts collapsed');
+	//   ...
+	//   const after = second.closest('[role="button"][aria-expanded]') as HTMLElement;
+	//   assert.equal(
+	//     after.getAttribute('aria-expanded'),
+	//     'false',
+	//     'clicking `Review load` must NOT also toggle the row open — `event.stopPropagation()` is load-bearing',
+	//   );
+	//
+	// WHY. Lane C: a compact 58px card "expands INLINE into a very long assignment
+	// editor containing `Unassign all`, `Assign GR8`, checkboxes, and Swap
+	// controls… it pushes the entire roster away and places destructive-looking
+	// controls among ordinary inspection content." The row is no longer a
+	// disclosure AT ALL — inspecting opens a read-only profile dialog and only the
+	// explicit `Edit assignments` control mounts the editor — so there is no
+	// `aria-expanded` left to read.
+	//
+	// The claim is UNCHANGED and STRICTLY STRONGER. `stopPropagation()` is still
+	// load-bearing, and instead of watching a state FLAG the replacement below
+	// watches the rendered CONTENT: if the click bubbled to the row, the editor
+	// would be in the DOM, and these editor controls would be on screen among the
+	// ordinary inspection content the operator is reading. A flag can be wrong
+	// while the page is right; the controls cannot.
+	const row = second.closest('[role="button"]') as HTMLElement;
+	assert.ok(row, 'the teacher row must still render as a control');
+	assert.equal(
+		row.getAttribute('aria-expanded'),
+		null,
+		'the row must not advertise an expansion it no longer performs (A6 C2)',
+	);
+	assert.equal(
+		host.querySelector('[data-testid="teaching-load-assignment-editor"]') === null,
+		true,
+		'precondition: no inline assignment editor is mounted while the row is collapsed',
+	);
 
 	click(second);
 
@@ -339,14 +420,23 @@ test('A6-16.1-2 clicking `Review load` opens THAT teacher and does NOT expand th
 		[OTHER_TEACHER.id],
 		`the click must call onReviewLoad with THAT member's id; saw ${JSON.stringify(reviewed)}`,
 	);
-	const after = second.closest('[role="button"][aria-expanded]') as HTMLElement;
+	// The load-bearing claim, on rendered content: `stopPropagation()` is what
+	// keeps a profile click from ALSO mounting the editor behind the dialog.
 	assert.equal(
-		after.getAttribute('aria-expanded'),
-		'false',
-		'clicking `Review load` must NOT also toggle the row open — `event.stopPropagation()` is load-bearing',
+		host.querySelector('[data-testid="teaching-load-assignment-editor"]') === null,
+		true,
+		'clicking `Review load` must NOT also mount the inline assignment editor — `event.stopPropagation()` is load-bearing',
 	);
-	// The row is still keyboard-operable: it is a real focusable control, and the
-	// new button is a real button, so both are in the Tab order.
+	const rosterAfter = host.textContent ?? '';
+	for (const forbidden of ['Unassign all', 'Assign GR', 'Reset assignments']) {
+		assert.equal(
+			rosterAfter.includes(forbidden),
+			false,
+			`inspection must not expose "${forbidden}" in the roster`,
+		);
+	}
+	// The row stays keyboard-operable: it is a real focusable control, and
+	// the new button is a real button, so both are in the Tab order.
 	assert.equal(row.getAttribute('tabindex'), '0', 'the row must stay keyboard-operable');
 	assert.equal((second as HTMLButtonElement).tagName, 'BUTTON', 'the per-row control is a real button');
 	assert.equal((second as HTMLButtonElement).type, 'button', 'and it must not submit anything');
@@ -495,14 +585,18 @@ function TeachingLoadLoadSummaryShell() {
 			loadSummaryAction: createElement(
 				TeachingLoadSummarySurface as any,
 				null,
-				createElement(TeachingLoadTruthPanel as any, {
-					expanded: true,
-					model: TRUTH_MODEL,
-					loading: false,
-					sourceRevision: 'rev-1',
-					upstreamVerified: true,
-					unresolvedReasons: [],
-				}),
+			createElement(TeachingLoadTruthPanel as any, {
+				expanded: true,
+				// A6 C2 (Major 3): the page passes `vertical` next to `expanded`,
+				// so this fixture must too — a control that mounted the pill layout
+				// while the product renders the stacked one would measure a fiction.
+				vertical: true,
+				model: TRUTH_MODEL,
+				loading: false,
+				sourceRevision: 'rev-1',
+				upstreamVerified: true,
+				unresolvedReasons: [],
+			}),
 			),
 		}),
 	);
@@ -1073,4 +1167,535 @@ test('A6-16.1-3 the detached control component renders only the mobile affordanc
 		/<TeachingLoadInspectorTriggers[\s\S]{0,200}onOpenReview/,
 		'the page must not pass the removed prop',
 	);
+});
+
+/* ══════════════════════════════════════════════════════════════════════════ *
+ * A6 C2 — the operator's 2026-09-28 Teaching Load walk, rendered.
+ * `docs/reviews/codex-teaching-load-walk-20260928/report.md`, items 1-5 and 7.
+ * Every row below MOUNTS THE REAL COMPONENT and reads the RENDERED result: a
+ * source-string assertion is not acceptance evidence for a visible change.
+ * FAILING-FIRST is recorded per slice in the commit body (revert -> red -> restore).
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/** The thirteen metrics the operator enumerated, in the order the panel must show them. */
+const ALL_METRIC_IDS = [
+	'teaching-load-truth-required-pairs',
+	'teaching-load-truth-assigned-pairs',
+	'teaching-load-truth-unresolved-pairs',
+	'teaching-load-truth-actual-hours',
+	'teaching-load-truth-standard',
+	'teaching-load-truth-hard-cap',
+	'teaching-load-truth-over-standard',
+	'teaching-load-truth-over-hard-cap',
+	'teaching-load-truth-remaining',
+	'teaching-load-truth-zero-load',
+	'teaching-load-truth-advisers',
+	'teaching-load-truth-advisory-credit',
+	'teaching-load-truth-hg-excluded',
+];
+
+test('A6-C2-1 the `Load summary` breakdown has NO sideways scroller and stacks every metric', () => {
+	// Walk item 3, verbatim: "opening it produces two 34px-high horizontal
+	// scrollers. At 1366 their content is 1,189px and 2,388px wide inside 451px;
+	// even at 1920 it is 1,189px/2,388px inside 897px." The cause was the two
+	// `flex … flex-nowrap … overflow-x-auto` pill rows.
+	const host = render(createElement(TeachingLoadLoadSummaryShell as any, {}));
+	click(host.querySelector('[data-testid="teaching-load-summary-open"]')!);
+	const dialog = portalledDialog();
+	assert.ok(dialog, 'precondition: the summary dialog must be open');
+
+	// (a) NO descendant of the dialog may declare horizontal overflow. Not the
+	// rows, not a grid, not a wrapper — the whole subtree.
+	const sideways = Array.from(dialog!.querySelectorAll('*')).filter((el) => {
+		const cls = el.getAttribute('class') ?? '';
+		return /(^|\s)overflow-x-(auto|scroll)(\s|$)/.test(cls);
+	});
+	assert.equal(
+		sideways.length,
+		0,
+		`no descendant of the dialog may scroll sideways; found ${sideways.length}: ` +
+			sideways.map((el) => `${el.getAttribute('data-testid') ?? el.tagName}="${el.getAttribute('class')}"`).join(' | '),
+	);
+	// And the pill treatment itself is gone from the dialog body.
+	assert.equal(
+		dialog!.querySelectorAll('[data-metric-layout="vertical"]').length,
+		2,
+		'both metric groups must render in the vertical definition-list layout',
+	);
+
+	// (b) All thirteen figures are still present, each with its metric state.
+	for (const id of ALL_METRIC_IDS) {
+		const node: HTMLElement | null = dialog!.querySelector(`[data-testid="${id}"]`);
+		assert.ok(node, `the breakdown must still show ${id}`);
+		assert.equal(
+			node!.getAttribute('data-metric-state'),
+			'known',
+			`${id} must report a known state from the real model, not an invented 0`,
+		);
+	}
+
+	// (c) It is a STACKED definition list in document order — a dt/dd pair per
+	// metric, label before value. A wrapped grid that can still spill would fail
+	// this; so would a `<ul>` of pills.
+	const groups = Array.from(dialog!.querySelectorAll('[data-metric-layout="vertical"]')) as HTMLElement[];
+	assert.equal(groups.length, 2, 'the breakdown has two metric groups');
+	const order: string[] = [];
+	for (const dl of groups) {
+		assert.equal(dl.tagName, 'DL', 'each metric group must be a real description list');
+		const dts = Array.from(dl.querySelectorAll('dt'));
+		const dds = Array.from(dl.querySelectorAll('dd'));
+		assert.equal(dts.length, dds.length, 'each `<dt>` must have its `<dd>` in the same group');
+		assert.ok(dts.length > 0, 'a metric group must not be empty');
+		// Label before value in document order, one pair per metric element.
+		for (const pair of Array.from(dl.children)) {
+			assert.equal(pair.tagName, 'DIV', 'each definition is wrapped in its own row');
+			const kids = Array.from(pair.children);
+			assert.equal(kids.length, 2, 'a definition row is exactly a `<dt>` and a `<dd>`');
+			assert.equal(kids[0]!.tagName, 'DT', 'the LABEL comes first');
+			assert.equal(kids[1]!.tagName, 'DD', 'the VALUE comes second');
+			order.push(pair.getAttribute('data-testid')!);
+		}
+	}
+	assert.deepEqual(order, ALL_METRIC_IDS, 'the thirteen metrics must appear in the operator\'s order, stacked');
+	assert.equal(groups[0]!.getAttribute('data-testid'), 'teaching-load-truth-summary');
+	assert.equal(groups[1]!.getAttribute('data-testid'), 'teaching-load-truth-capacity');
+	// Real visible text on both sides of the first pair, from the real model.
+	const firstPair = groups[0]!.children[0]!;
+	assert.equal(firstPair.querySelector('dt')!.textContent, 'Classes needing a teacher');
+	assert.equal(firstPair.querySelector('dd')!.textContent, '24', 'the value must be the model\'s, not a placeholder');
+
+	// (d) The dialog body is the ONE scroll region, still bounded.
+	const scrollers = Array.from(dialog!.querySelectorAll('*'))
+		.filter((el) => /(^|\s)overflow-y-auto(\s|$)/.test(el.getAttribute('class') ?? ''));
+	assert.equal(scrollers.length, 1, `the dialog must contain exactly one vertical scroll region, found ${scrollers.length}`);
+	assert.match(scrollers[0]!.getAttribute('class') ?? '', /max-h-\[70vh\]/, 'and it must be bounded to the viewport');
+});
+
+/** Row 2 as the page composes it: the repair queue only, plus the More-menu link. */
+function headerHost(overrides: Record<string, any> = {}, slotOverrides: Record<string, any> = {}) {
+	return render(createElement(WorkspaceToolbar as any, {
+		realAssignedPairs: 22, syntheticPlaceholderPairs: 1, unassignedPairs: 2, totalPairs: 24,
+		overCapCount: 1, excessTeachingCount: 0, policyReady: true,
+		onShowExcessTeachingLoad: () => {}, onShowTemporarySubstitutes: () => {},
+		autoFillLoading: false, autoFillEnabled: true, onAutoFillClick: () => {},
+		viewMode: 'teacher', onViewModeChange: () => {},
+		dataSource: 'live', degradedWriteEnabled: false, isWorkspaceWritable: true, isOnline: true,
+		dataSourceNotice: null, coverageMode: 'balanced', onCoverageModeChange: () => {},
+		coverageModeConfig: { balanced: { label: 'Balanced', description: 'desc' } },
+		workspaceStateLabel: 'Ready', workspaceStateDescription: 'Live roster verified.',
+		workspaceStateNextAction: 'Assign the remaining classes.',
+		activeDraftCount: 0, saving: false, onSave: () => {}, onRetrySource: () => {},
+		stateLineSlot: createElement(TeachingLoadRepairQueue as any, {
+			items: [{ id: 'review-ready', kind: 'review-ready', title: 'Teaching Load looks ready', description: 'd', status: 'Ready for review', actionLabel: STAFF_WORKLOAD_REVIEW_LABEL }],
+			activeItemId: 'review-ready', isReadOnly: false, saving: false, advancedGridVisible: true,
+			onPrimaryAction: () => {}, ...slotOverrides,
+		}),
+		historyAction: createElement(Link as any, { to: '/teaching-load/history', 'data-testid': 'teaching-load-history-link' }, 'Archived load'),
+		...overrides,
+	}));
+}
+
+test('A6-C2-2 row 2 is one status sentence + ONE action, and never scrolls sideways', () => {
+	// Walk item 1, verbatim: the second row "tries to hold 140px `% staffed`,
+	// 231px `Classes without a teacher`, 451px summary, a 223px next-step/warning,
+	// 169px Assign, and 117px Archived link… only its icon is visible."
+	const host = headerHost();
+	const row2 = host.querySelector('[data-testid="teaching-load-readiness-strip"]')!;
+	assert.ok(row2, 'row 2 must render');
+
+	// (a) No sideways scroll on the row. This is the operator's rejection.
+	assert.doesNotMatch(
+		row2.getAttribute('class') ?? '',
+		/overflow-x-(auto|scroll)/,
+		'row 2 must not scroll sideways; a long sentence must truncate instead',
+	);
+	// (b) The status sentence, present, and ONE status sentence.
+	const sentence = row2.querySelector('[data-testid="teaching-load-status-sentence"]')!;
+	assert.ok(sentence, 'row 2 must carry a status sentence');
+	assert.equal(
+		row2.querySelectorAll('[data-testid="teaching-load-status-sentence"]').length, 1,
+		'there must be one status sentence, not several competing ones',
+	);
+	assert.match(sentence.textContent ?? '', /96% staffed/, 'the % staffed figure is in the sentence');
+	assert.match(sentence.textContent ?? '', /2 classes need a teacher/, 'the classes-needing-a-teacher clause is in the sentence');
+	// The alert keeps its test id and its number, inside the sentence.
+	assert.ok(row2.querySelector('[data-testid="teaching-load-alert-over-cap"]'), 'the alert stays addressable');
+	assert.match(row2.textContent ?? '', /Above weekly max: 1/, 'the alert still states its number');
+
+	// (c) EXACTLY ONE button on the row: the ONE primary action.
+	const row2Buttons = Array.from(row2.querySelectorAll('button'));
+	assert.equal(row2Buttons.length, 1, `row 2 must hold exactly ONE action, found ${row2Buttons.length}`);
+	assert.equal(
+		row2Buttons[0]!.getAttribute('data-testid'),
+		'teaching-load-repair-review',
+		'the ONE action must be the repair queue\'s primary action',
+	);
+	assert.match(row2Buttons[0]!.textContent ?? '', new RegExp(STAFF_WORKLOAD_REVIEW_LABEL));
+
+	// (d) The `Archived load` link is NOT on row 2 — it moved into the More menu.
+	assert.equal(
+		row2.querySelector('[data-testid="teaching-load-history-link"]') === null,
+		true,
+		'`Archived load` must not be on the state line',
+	);
+	// And it IS reachable: the page still builds it and hands it to the header.
+	const page = read('src/pages/TeachingLoad.tsx');
+	assert.match(page, /data-testid="teaching-load-history-link"/, 'the page must still build the link');
+	assert.match(page, /historyAction=\{/, 'the header must own its position');
+	// The More menu renders it. Radix only mounts menu content on open, so the
+	// click is what proves reachability rather than mere presence in a prop.
+	press(host.querySelector('button[aria-label="More Teaching Load tools"]')!);
+	const menuLink = dom.window.document.querySelector('[data-testid="teaching-load-history-link"]');
+	assert.ok(menuLink, 'the More menu must render the `Archived load` link');
+	assert.equal(menuLink!.getAttribute('href'), '/teaching-load/history', 'it must be a real link to the archived surface');
+});
+
+test('A6-C2-3 a degraded source shows ONE amber line and NO live-looking derived count', () => {
+	// Walk item 2, verbatim: "`% staffed 100%` and `Classes without a teacher 0`
+	// sit beside `Unknown number of classes`… A scheduler can falsely conclude
+	// staffing is complete."
+	const host = headerHost({
+		dataSource: 'cached', isWorkspaceWritable: false,
+		dataSourceNotice: 'EnrollPro could not be reached, so ATLAS is using the last saved sections.',
+	});
+	const row2 = host.querySelector('[data-testid="teaching-load-readiness-strip"]')!;
+
+	// (a) EXACTLY ONE amber line, and it says EnrollPro is not reachable.
+	const amber = Array.from(row2.querySelectorAll('[data-testid="teaching-load-degraded-notice"]'));
+	assert.equal(amber.length, 1, `the degraded state must render exactly ONE amber line, found ${amber.length}`);
+	assert.match(amber[0]!.textContent ?? '', /EnrollPro not reachable/, 'the amber line must name the cause');
+	assert.match(
+		amber[0]!.getAttribute('class') ?? '',
+		/warning-muted/,
+		'the degraded line must be visibly amber, not an ordinary chip',
+	);
+	assert.equal(
+		row2.querySelectorAll('[data-testid="teaching-load-status-sentence"]').length,
+		0,
+		'the live status sentence must be REPLACED, not printed beside the amber line',
+	);
+
+	// (b) No bare derived figure survives anywhere on row 2. This is the defect:
+	// a percentage or a count rendered next to an unverified authority.
+	const rowText = row2.textContent ?? '';
+	assert.doesNotMatch(rowText, /% staffed/, 'the `% staffed` figure must be suppressed while degraded');
+	assert.doesNotMatch(rowText, /\b\d+ classes? need/, 'a computed classes-needing-a-teacher count must be suppressed');
+	assert.doesNotMatch(rowText, /Above weekly max/, 'the alert count must be suppressed too, or it states an unverifiable number');
+	assert.doesNotMatch(rowText, /\b100%\b/, 'never a confident 100% next to an unknown');
+	// And no element on the row still claims a staffing percentage at all.
+	assert.equal(row2.querySelector('[data-testid="teaching-load-alert-over-cap"]'), null, 'no alert count while degraded');
+
+	// (c) The saved-at time is used when the caller supplies one, and OMITTED
+	// rather than invented when it does not.
+	const stamped = headerHost({
+		dataSource: 'cached', isWorkspaceWritable: false, dataSourceNotice: 'x',
+		savedAtLabel: '2026-09-28T09:14:00.000Z',
+	});
+	const stampedLine = stamped.querySelector('[data-testid="teaching-load-degraded-notice"]')!;
+	assert.match(stampedLine.textContent ?? '', /Using saved data from /, 'a real timestamp is used when the page has one');
+	const unstamped = headerHost({ dataSource: 'cached', isWorkspaceWritable: false, dataSourceNotice: 'x' });
+	assert.match(
+		unstamped.querySelector('[data-testid="teaching-load-degraded-notice"]')!.textContent ?? '',
+		/Using the last saved data/,
+		'with no proven timestamp the clause is dropped, never faked',
+	);
+});
+
+test('A6-C2-4 the header is still at most 2 band rows, in sentence case, with a draft chip', () => {
+	// The band-row filter is the same idea as `a3-c10`'s: an `sr-only` line is
+	// clipped to 1px and a `hidden` band is `display:none`, so neither is a row.
+	// Copied in 5 lines rather than imported, so this file owns its own reader.
+	const isRendered = (el: Element): boolean => {
+		if (el.hasAttribute('hidden')) return false;
+		const cls = el.getAttribute('class') ?? '';
+		return !/\b(sr-only|hidden|invisible)\b/.test(cls);
+	};
+
+	const host = headerHost();
+	const strip = host.querySelector('[data-testid="teaching-load-command-header"]')!;
+	const bands = Array.from(strip.children).filter(isRendered);
+	assert.equal(bands.length, 2, `the strip must render at most 2 band rows, found ${bands.length}: ${bands.map((b) => b.getAttribute('data-testid') ?? '(row)').join(', ')}`);
+	assert.equal(bands[0]!.getAttribute('data-testid'), 'teaching-load-compact-command-header', 'row 1 is the command row');
+	assert.equal(bands[1]!.getAttribute('data-testid'), 'teaching-load-readiness-strip', 'row 2 is the status line');
+
+	// Sentence case: no `uppercase` and no letter-spaced `tracking-widest`
+	// anywhere on the rendered header. `tracking-tight` on the h1 is a
+	// pre-existing, separately-pinned scale choice and is not ALL CAPS.
+	for (const el of Array.from(strip.querySelectorAll('*'))) {
+		const cls = el.getAttribute('class') ?? '';
+		assert.doesNotMatch(cls, /(^|\s)uppercase(\s|$)/, `no header node may shout in caps: ${el.tagName} "${cls}"`);
+		assert.doesNotMatch(cls, /(^|\s)tracking-widest(\s|$)/, `no header label may be letter-spaced: ${el.tagName} "${cls}"`);
+	}
+
+	// The draft chip, on row 1, beside the source badge, with both states.
+	const chip = strip.querySelector('[data-testid="teaching-load-draft-chip"]')!;
+	assert.ok(chip, 'the draft chip must render on row 1');
+	assert.equal(chip.textContent, 'Saved', 'no unsaved draft reads `Saved`');
+	assert.equal(chip.getAttribute('data-draft-state'), 'saved');
+	assert.equal(strip.querySelectorAll('[data-source-state]').length, 1, 'the source-verification badge is kept, not replaced');
+	const withDraft = headerHost({ activeDraftCount: 3 });
+	const draftChip = withDraft.querySelector('[data-testid="teaching-load-draft-chip"]')!;
+	assert.equal(draftChip.textContent, 'Draft — not saved', 'an unsaved draft reads `Draft — not saved`');
+	assert.equal(draftChip.getAttribute('data-draft-state'), 'unsaved');
+
+	// And the suggestion action is the operator's word, secondary, not red.
+	const suggest = strip.querySelector('[data-testid="teaching-load-suggest-draft-action"]')!;
+	assert.ok(suggest, 'the suggestion action must render');
+	assert.match(suggest.textContent ?? '', /Suggest assignments/, 'the operator asked for `Suggest assignments`');
+	const suggestClass = suggest.getAttribute('class') ?? '';
+	assert.match(suggestClass, /\bbg-secondary\b/, 'it must be the secondary variant');
+	assert.doesNotMatch(suggestClass, /\bbg-primary\b/, 'it must not be the primary action');
+	assert.doesNotMatch(suggestClass, /\bbg-destructive\b|\btext-destructive\b/, 'and not red');
+	assert.doesNotMatch(suggestClass, /(^|\s)uppercase(\s|$)/, 'no letter-spaced caps on the action');
+});
+
+test('A6-C2-5 inspection shows a read-only profile; only `Edit assignments` opens the editor', async () => {
+	// Walk item 4, verbatim: "a compact 58px card expands INLINE into a very long
+	// assignment editor containing `Unassign all`, `Assign GR8`, checkboxes, and
+	// Swap controls… it pushes the entire roster away."
+	// The host mirrors the page: `onReviewLoad` is the page's own
+	// `openTeacherReviewFor`, and the dialog is the real `ReviewTeachersModal`
+	// carrying the real `WorkloadInspector` node.
+	function TeacherProfileHost(props: { onRowSelect?: (id: number) => void } = {}) {
+		const [selected, setSelected] = useState<any>(null);
+		const [open, setOpen] = useState(false);
+		const review = (facultyId: number) => {
+			setSelected(facultyId === TEACHER.id ? TEACHER : OTHER_TEACHER);
+			openTeacherReview({ setViewMode: () => {}, setReviewModalOpen: setOpen });
+		};
+		const copy = reviewModalCopy('teacher', selected);
+		return createElement(Fragment2, null,
+			createElement(TeacherGridMode as any, gridProps({
+				selectedId: selected?.id ?? null,
+				onSelectTeacher: props.onRowSelect ?? setSelected,
+				onReviewLoad: review,
+				departmentQualifiedSubjects: [
+					{ id: 1, code: 'FIL', title: 'Filipino', gradeLevels: [7], programScopes: [], isActive: true } as any,
+				],
+			})),
+			createElement(ReviewTeachersModal as any, {
+				open, onOpenChange: setOpen, title: copy.title, description: copy.description,
+			}, createElement(WorkloadInspector as any, {
+				selected, loadProfile: null, rotationTermBreakdown: [], hoveredIncomingMinutes: 0,
+				previewLoadHours: 0, isReadOnlyMode: false, activeTermIndex: 0,
+				teachingStandardHours: 20, policyReady: true, writeBlockedReason: null,
+			})),
+		);
+	}
+	const host = render(createElement(TeacherProfileHost as any, {}));
+
+	// (a) Inspect: the profile control opens a dialog with NONE of the editor's
+	// controls. Asserted on the rendered TEXT and on the rendered ELEMENTS.
+	assert.equal(portalledDialog() === null, true, 'precondition: no dialog before the click');
+	click(host.querySelector('[data-testid="teaching-load-row-review"]')!);
+	const dialog = portalledDialog();
+	assert.ok(dialog, 'the profile control must open a read-only dialog');
+	assert.equal(dialog!.getAttribute('data-testid'), 'teaching-load-review-modal', 'it must be the real review/profile dialog');
+	const dialogText = dialog!.textContent ?? '';
+	for (const forbidden of ['Unassign all', 'Assign GR', 'Reset assignments']) {
+		assert.equal(dialogText.includes(forbidden), false, `the profile dialog must not contain "${forbidden}"`);
+	}
+	assert.equal(dialog!.querySelectorAll('input[type="checkbox"]').length, 0, 'no section checkboxes in the profile');
+	assert.equal(dialog!.querySelectorAll('[role="checkbox"]').length, 0, 'no checkbox roles in the profile');
+	assert.equal(/swap/i.test(dialogText), false, 'no Swap control in the read-only profile');
+	// It really is the inspector, not an empty frame.
+	assert.match(dialogText, /Dela Cruz/i, 'the profile must name the teacher it is about');
+
+	// (a2) THE ROSTER BEHIND THE DIALOG. Walk item 4's own words: the inline
+	// editor "pushes the entire roster away and places destructive-looking
+	// controls among ordinary inspection content". Reading only the dialog would
+	// miss exactly that, because the editor renders in the ROSTER, not the modal.
+	assert.equal(
+		host.querySelector('[data-testid="teaching-load-assignment-editor"]') === null,
+		true,
+		'inspecting a teacher must not mount the inline editor in the roster behind the dialog',
+	);
+	const rosterBehind = host.textContent ?? '';
+	for (const forbidden of ['Unassign all', 'Assign GR', 'Reset assignments']) {
+		assert.equal(rosterBehind.includes(forbidden), false, `the roster must not show "${forbidden}" while inspecting`);
+	}
+
+	// (b) A GENUINE outside pointerdown closes it. Radix listens for
+	// `pointerdown` on the ownerDocument, so a real event on `document.body`
+	// outside the dialog is dispatched — not a synthetic `close()` call.
+	assert.ok(dom.window.document.body.contains(dialog!), 'precondition: the dialog is on the document');
+	await outsidePointerDown(dialog!);
+	assert.equal(
+		portalledDialog() === null,
+		true,
+		'an outside pointer-down must dismiss the profile dialog (Lane C verified this on the sibling modal)',
+	);
+
+	// (c) The SEPARATE, explicit edit entry point is what opens the editor.
+	const edit = host.querySelector('[data-testid="teaching-load-edit-assignments"]')!;
+	assert.ok(edit, 'an explicit `Edit assignments` control must exist');
+	assert.equal((edit.textContent ?? '').trim(), 'Edit assignments', 'it must be labelled as an edit');
+	assert.equal(edit.getAttribute('aria-expanded'), 'false', 'it must announce the editor is closed');
+	click(edit);
+	assert.equal(edit.getAttribute('aria-expanded'), 'true', 'clicking it must announce the editor is open');
+	assert.ok(host.querySelector('[data-testid="teaching-load-assignment-editor"]'), 'the editor must mount');
+	assert.equal(edit.getAttribute('aria-controls'), host.querySelector('[data-testid="teaching-load-assignment-editor"]')!.getAttribute('id'));
+	// The editor's inner TOOLS live behind the `Row tools` menu, so asserting on
+	// their text would be asserting on a portal that is not open. The editor's own
+	// heading and its real `SubjectRow` control are in the DOM and are what
+	// distinguishes the real editor from an empty placeholder.
+	assert.match(
+		host.querySelector('[data-testid="teaching-load-assignment-editor"]')!.textContent ?? '',
+		/Maria Dela Cruz assignments/,
+		'it must be the real per-teacher editor, with its own subject rows',
+	);
+	// Inspecting again must never bring the editor back: the row click opens the
+	// profile, and the profile contains none of the editor's controls.
+	click(host.querySelector('[data-testid="teaching-load-edit-assignments"]')!);
+	click(host.querySelector('[data-testid="teaching-load-row-review"]')!);
+	assert.equal(
+		portalledDialog()!.textContent!.includes('Unassign all'),
+		false,
+		'inspecting while the editor is closed must still show no editor control',
+	);
+});
+
+/** `SectionGridMode` props with a real staffed section, so only the filter is in play. */
+function sectionProps(overrides: Record<string, any> = {}) {
+	return {
+		loading: false,
+		subjects: [{ id: 1, code: 'FIL', title: 'Filipino', gradeLevels: [7], programScopes: [], isActive: true }],
+		sectionsBySubject: { 1: [{ id: 101, name: 'FIL 7 - A', programCode: 'REG', displayOrder: 7, isSpecialProgram: false }] },
+		faculty: [TEACHER], effectiveOwnershipMap: { '1:101': { facultyId: 9, isPending: false } },
+		onSetSections: () => {}, saving: false, isReadOnlyMode: false,
+		activeFacultyIds: new Set<number>([9]), sectionModeFilter: 'all',
+		onSectionModeFilterChange: () => {}, effectiveAssignmentsByFaculty: { 9: [] },
+		selectedSectionId: null, onSelectSection: () => {},
+		workspaceStateLabel: 'Ready', workspaceStateNextAction: 'x', writeBlockedReason: null,
+		teachingStandardHours: 20, completedSectionIds: new Set<number>(),
+		...overrides,
+	};
+}
+
+test('A6-C2-6 the Sections empty state names the SEARCH, the FILTER, or the missing data', () => {
+	// Walk item 5, verbatim: after searching `zzzzzz` it said "NO SECTIONS
+	// REQUIRE ATTENTION" / "All visible sections match this filter" — a STAFFING
+	// diagnosis for a SEARCH result. Three causes, three messages.
+
+	// (1) A search with no match. Typed into the REAL input, because the query is
+	// local state the page does not own.
+	const searched = render(createElement(SectionGridMode as any, sectionProps()));
+	assert.ok(searched.querySelector('[data-testid="teaching-load-section-row"]'), 'precondition: sections are rendered before searching');
+	const input = searched.querySelector('input') as HTMLInputElement;
+	act(() => {
+		const setter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')!.set!;
+		setter.call(input, 'zzzzzz');
+		input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+	});
+	assert.equal(input.value, 'zzzzzz', 'precondition: the real search input took the query');
+	const searchEmpty = searched.querySelector('[data-testid="teaching-load-section-empty"]')!;
+	assert.ok(searchEmpty, 'the empty state must render');
+	assert.equal(
+		searchEmpty.querySelector('[data-testid="teaching-load-section-empty-title"]')!.textContent,
+		"No sections match 'zzzzzz'",
+		'the message must name the QUERIED TERM, in the operator\'s words',
+	);
+	assert.equal(searchEmpty.textContent!.includes('require attention'), false, 'no staffing diagnosis for a search result');
+	// A working way back.
+	const clear = searchEmpty.querySelector('[data-testid="teaching-load-section-clear-search"]')!;
+	assert.ok(clear, 'a `Clear search` control must be offered');
+	click(clear);
+	assert.equal((searched.querySelector('input') as HTMLInputElement).value, '', 'clicking it must empty the search');
+	assert.ok(searched.querySelector('[data-testid="teaching-load-section-row"]'), 'and the sections must come back');
+
+	// (2) A filter with no match and no search term: the ACTIVE FILTER is named.
+	const filtered = render(createElement(SectionGridMode as any, sectionProps({ sectionModeFilter: 'unassigned' })));
+	const filterEmpty = filtered.querySelector('[data-testid="teaching-load-section-empty"]')!;
+	assert.ok(filterEmpty, 'the filter empty state must render');
+	assert.match(
+		filterEmpty.querySelector('[data-testid="teaching-load-section-empty-title"]')!.textContent ?? '',
+		/Needs staffing/,
+		'the message must name the ACTIVE filter, not the search',
+	);
+	assert.equal(filterEmpty.querySelector('[data-testid="teaching-load-section-clear-search"]'), null, 'no `Clear search` when there is no search');
+	const back = filterEmpty.querySelector('[data-testid="teaching-load-section-clear-filter"]')!;
+	assert.ok(back, 'a way back to All sections must be offered');
+	// Sentence case: the old heading shouted `NO SECTIONS REQUIRE ATTENTION`.
+	assert.doesNotMatch(filterEmpty.textContent ?? '', /require attention/i, 'the rejected copy must be gone');
+
+	// (3) No subject-section data at all: the ORIGINAL message is untouched.
+	const empty = render(createElement(SectionGridMode as any, sectionProps({ sectionsBySubject: {} })));
+	const noneLoaded = empty.querySelector('[data-testid="teaching-load-section-empty"]');
+	assert.equal(noneLoaded === null, true, 'case 3 is a different branch and keeps its own message');
+	assert.match(
+		empty.textContent ?? '',
+		/No section assignment needs loaded/,
+		'the no-data message must survive unchanged',
+	);
+});
+
+test('A6-C2-7 both entry points share `openTeacherReview`, and the dialog names a staff-workload audit', () => {
+	// Walk item 7, verbatim: the label "neither says workload audit nor explains
+	// why one teacher is the subject."
+	assert.equal(typeof openTeacherReview, 'function', 'the ONE opener must be importable');
+	assert.equal(STAFF_WORKLOAD_REVIEW_LABEL, 'Review staff workload', 'the label constant must be the operator\'s words');
+
+	// Both entry points route through it: the repair queue's action label and the
+	// per-row control. Neither declares the label or the opener itself.
+	const queue = read('src/components/faculty-assignments/TeachingLoadRepairQueue.tsx');
+	assert.match(queue, /STAFF_WORKLOAD_REVIEW_LABEL/, 'the repair queue must use the shared label constant');
+	assert.doesNotMatch(queue, /'Review teachers'/, 'and must not re-declare the rejected label');
+	const hook = read('src/hooks/useTeachingLoadRepairQueue.ts');
+	assert.match(hook, /openTeacherReview|onOpenReview/, 'the queue action flows to the shared opener');
+	// The page drives it once, and both entry points land there.
+	const page = read('src/pages/TeachingLoad.tsx');
+	assert.match(page, /openTeacherReview\(\{ setViewMode: ui\.setViewMode, setReviewModalOpen \}\)/, 'the page must call the one opener');
+	assert.match(page, /onReviewLoad=\{openTeacherReviewFor\}/, 'the per-row control must use that wrapper');
+	assert.match(page, /onOpenReview: \(\) => openTeacherReviewFor\(null\)/, 'and the repair queue the same wrapper');
+
+	// The dialog, rendered. The TITLE is roster-level; the DESCRIPTION names the
+	// subject when there is one.
+	const host = render(createElement(ReviewTeachersModal as any, {
+		open: true, onOpenChange: () => {},
+		...reviewModalCopy('teacher', null),
+	}, createElement('div', null, 'inspector body')));
+	const dialog = portalledDialog()!;
+	assert.ok(dialog, 'the review dialog must render when open');
+	assert.match(
+		dialog.querySelector('[data-testid="teaching-load-review-modal-title"]')!.textContent ?? '',
+		/Staff workload audit/,
+		'the title must name a STAFF-WORKLOAD AUDIT, not one person',
+	);
+	assert.doesNotMatch(dialog.textContent ?? '', /Teacher workload:/, 'the roster-wide audit must not be titled as one person');
+	assert.match(dialog.textContent ?? '', /Every active teacher/, 'with no selection it must say the census is roster-wide');
+});
+
+test('A6-C2-7b with a teacher selected the DESCRIPTION names them, and the title stays roster-level', async () => {
+	// Its OWN test, not a second render inside A6-C2-7: two open Radix dialogs
+	// coexist in `document.body` and `querySelector` returns the first, so the
+	// selected case would have been asserted against the unselected dialog. The
+	// `afterEach` teardown is what keeps this honest — the same reasoning already
+	// recorded for `A6-40-3-REAL-SINGULAR`.
+	// A stateful wrapper, so `onOpenChange` really closes it: with a stubbed
+	// handler the dismissal assertion below would pass for the wrong reason.
+	function SelectedReviewHost() {
+		const [open, setOpen] = useState(true);
+		return createElement(ReviewTeachersModal as any, {
+			open, onOpenChange: setOpen,
+			...reviewModalCopy('teacher', { lastName: 'Valdez', firstName: 'Gabriela Luz' }),
+		}, createElement('div', null, 'inspector body'));
+	}
+	const host = render(createElement(SelectedReviewHost as any, {}));
+	assert.ok(host, 'the selected-case render must mount');
+	const withTeacher = portalledDialog()!;
+	assert.ok(withTeacher, 'the dialog must render for the selected case');
+	assert.equal(
+		withTeacher.querySelector('[data-testid="teaching-load-review-modal-title"]')!.textContent,
+		'Staff workload audit',
+		'the title stays roster-level even with a teacher selected',
+	);
+	assert.match(
+		withTeacher.textContent ?? '',
+		/Narrowed to Valdez, Gabriela Luz/,
+		'the description must say, in words, which teacher the audit is narrowed to',
+	);
+	// A genuine outside pointer-down must still dismiss it — the dismissal path is
+	// shared with the profile dialog and is not re-implemented per copy.
+	await outsidePointerDown(withTeacher);
+	assert.equal(portalledDialog() === null, true, 'the dialog must still dismiss on an outside pointer-down');
 });

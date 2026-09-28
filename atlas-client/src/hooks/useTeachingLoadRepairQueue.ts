@@ -4,6 +4,7 @@ import type { SetURLSearchParams } from 'react-router-dom';
 import { getFacultyComparableLoadHours } from '@/lib/faculty-assignment-helpers';
 import type { FacultyAssignmentDraft, FacultySummary } from '@/types';
 import type { TeachingLoadRepairQueueItem } from '@/components/faculty-assignments/TeachingLoadRepairQueue';
+import { STAFF_WORKLOAD_REVIEW_LABEL } from '@/components/faculty-assignments/teacherReviewEntry';
 
 type UseTeachingLoadRepairQueueParams = {
 	searchParams: URLSearchParams;
@@ -145,9 +146,13 @@ export function useTeachingLoadRepairQueue({
 				id: 'review-ready',
 				kind: 'review-ready',
 				title: 'Teaching Load looks ready',
-				description: 'No open classes, over-cap teachers, or temporary substitutes need review. Review teachers once before generating.',
+				// A6 C2 (Slice 5): the label comes from the ONE opener module, so the
+				// queue's roster-level action and the toolbar's per-teacher control
+				// cannot drift into two different words. It is `Review staff workload`
+				// because that is what the dialog it opens is: a staff-wide census.
+				description: 'No open classes, over-cap teachers, or temporary substitutes need review. Review the staff workload once before generating.',
 				status: `${coverageAssigned} of ${coverageTotal} classes have a teacher.`,
-				actionLabel: 'Review teachers',
+				actionLabel: STAFF_WORKLOAD_REVIEW_LABEL,
 			});
 		}
 		return items;

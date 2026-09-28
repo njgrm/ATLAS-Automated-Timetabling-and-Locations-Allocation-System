@@ -1236,10 +1236,53 @@ test('F14-3 the permanent desktop inspector column is gone and the modal replace
 	assert.match(page, /TeachingLoadInspectorTriggers/);
 	assert.match(page, /reviewModalOpen/);
 	assert.match(page, /activeInspector/, 'the inspector node must be defined once and shared');
-	// The inspector itself is still rendered — just not permanently.
-	assert.match(page, /<WorkloadInspector/);
-	assert.match(page, /<SectionInspector/);
 	assert.match(page, /<ReviewTeachersModal|TeachingLoadModals/);
+
+	/*
+	 * SUPERSEDED BY A6 C2 (2026-09-28) — a FILE MOVE, recorded not deleted
+	 * (AGENTS.md §16: never delete an assertion to close a finding).
+	 *
+	 * The two assertions this replaces read, verbatim:
+	 *
+	 *   assert.match(page, /<WorkloadInspector/);
+	 *   assert.match(page, /<SectionInspector/);
+	 *
+	 * with the comment above them: "The inspector itself is still rendered —
+	 * just not permanently."
+	 *
+	 * WHY THEY NO LONGER HOLD, and why the claim is not weaker. A6 C2 extracted
+	 * the page's `activeInspector` element tree verbatim into
+	 * `components/faculty-assignments/TeachingLoadInspectorPanel.tsx` so that
+	 * `pages/TeachingLoad.tsx` could come back UNDER the AGENTS.md §8
+	 * 1000-physical-line ceiling (it sat at 998 with no room for the header
+	 * work). Nothing about the render changed: same two components, same props,
+	 * same `viewMode` ternary, one node, three consumers.
+	 *
+	 * The claim these assertions protected — ONE shared inspector node, not two
+	 * — is now asserted STRICTLY STRONGER below, because `present` cannot
+	 * distinguish one copy from two and an exact COUNT of `1` can.
+	 */
+	const panel = read('src/components/faculty-assignments/TeachingLoadInspectorPanel.tsx');
+	// The page composes the panel EXACTLY ONCE and still names the shared node.
+	assert.equal(
+		(page.match(/<TeachingLoadInspectorPanel/g) ?? []).length,
+		1,
+		'the page must compose the shared inspector node exactly once, not once per surface',
+	);
+	assert.match(page, /activeInspector/, 'the page must still hold the one shared node it hands to every surface');
+	assert.match(page, /TeachingLoadInspectorPanel/, 'the page must import the extracted shared panel');
+	// The panel holds each real inspector exactly once — a second copy of either
+	// would be a second authority for one person's load, which is the defect.
+	assert.equal(
+		(panel.match(/<WorkloadInspector/g) ?? []).length,
+		1,
+		'TeachingLoadInspectorPanel must render <WorkloadInspector> exactly once',
+	);
+	assert.equal(
+		(panel.match(/<SectionInspector/g) ?? []).length,
+		1,
+		'TeachingLoadInspectorPanel must render <SectionInspector> exactly once',
+	);
 });
 
 test('F26-1 the mobile View profile button and its Sheet are PRESERVED', () => {
