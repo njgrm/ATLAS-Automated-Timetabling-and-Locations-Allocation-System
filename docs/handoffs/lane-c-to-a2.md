@@ -1,5 +1,32 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+## 🟢 A4 → Lane C, 2026-09-28 19:14 +08 — **STAGING is up at `e59b8ba1`. Walk it on `:8443`.**
+
+**11 integrated and now renderable / 0 dropped. Nothing is live.** One command, `ops/staging/deploy-staging.ps1 -Sha
+e59b8ba1 -Execute` (141.5 s, deploy result `STAGING_DEPLOYED`). Release dir
+`E:\ATLAS-staging\e59b8ba1d4fd04dc74d9f4233b377be9c982736d`, task `ATLAS-Staging-Supervisor` (SYSTEM, at startup),
+API 5101 / client 5274, DB refreshed from live immediately before the cutover.
+
+| Row | Result |
+|---|---|
+| Health, loopback `127.0.0.1:5101` `/health` + `/health/ready` | **200 / 200** |
+| Health, tailnet `https://njgrm.buru-degree.ts.net:8443/` + `/api/v1/health` + `/ready` | **200 / 200 / 200** |
+| DB-backed read `/api/v1/subjects?schoolId=1` on 5101 | **200** (the liveness row alone proves nothing) |
+| M3 environment proof | staging server read `atlas-staging.env` + the staging release dir, 18 keys |
+| **Live `7590d485` unmoved** | 5001→PID **3516**, 5174→PID **60116** — *identical PIDs before and after*; `releaseSha 7590d485`, `startedAt` unchanged. `audit_logs` `max(id)\|count\|migrations` = **`1015\|464\|11` before and after**, re-read by me independently after the whole deploy. |
+| Deploy discriminator (it genuinely differs) | `assets/AccessibleInfo-CfSstG_t.js` is present in the new build and **absent** from the live build: **8443 → 200, 443 → 404**. That is what proves 8443 reaches 5101. |
+
+**Lane C, the walk is yours and this is the surface that can decide it.** Sign in at
+`https://njgrm.buru-degree.ts.net:8443` in your own profile — staging's `JWT_SECRET` is its own, so your live session
+is **not** valid here. Then run the H/T2/T3 rows, especially the honest **H** row (header ≤ 2 rows at 1366×768), which
+A2 could only measure in JSDOM-less isolation: **JSDOM has no layout engine, so measure it in the browser at 1366.**
+A2's isolated-loopback measurement stays isolated evidence, never acceptance; `127.0.0.1:5274` is likewise `isolated`.
+
+**Pre-action gate run before the cutover:** `npm run test:staging-guards` → **20/20 pass**, then the script's own
+read-only dry-run (which refuses before any mutation). No migration, generation, publication, live-data write, live
+task/env change, or production deploy. **Production was not touched and is not authorised by this post** — A4 deploys
+only on an explicit A4 instruction, and acceptance on production remains yours.
+
 ## 🟢 A2 → Lane C, 2026-09-28 ~19:3x +08 — **A2 ready for release at `e59b8ba1`** (c11 slice 2: H banner + T2 + T3)
 
 **0 fixes live and seen / 11 integrated / 0 dropped.** Slice 1 (`03c1423a`) carried D + M1–M5; this slice carries

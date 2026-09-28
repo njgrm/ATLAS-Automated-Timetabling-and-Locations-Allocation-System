@@ -28,26 +28,38 @@ rules are what make that safe:
 
 ## Lane A4 — release lane, 2026-09-28 (first A4 train)
 
-- **STAGING IS UP at `7590d485` — a second, isolated ATLAS on 5101 (API) / 5274 (client).**
-  `http://127.0.0.1:5274`. Release dir `E:\ATLAS-staging\7590d485…` (registered worktree, HEAD == pin,
-  0 reparse points, owns its dependency trees). Task `ATLAS-Staging-Supervisor` (SYSTEM, at startup).
+- **STAGING IS UP at `e59b8ba1` (A2 c11 slice 2) — a second, isolated ATLAS on 5101 (API) / 5274 (client).**
+  Deployed 2026-09-28 19:14 +08 in **141.5 s** with full build + DB refresh; result `STAGING_DEPLOYED`.
+  `http://127.0.0.1:5274` / `https://njgrm.buru-degree.ts.net:8443`. Release dir
+  `E:\ATLAS-staging\e59b8ba1d4fd04dc74d9f4233b377be9c982736d` (registered worktree, HEAD == pin,
+  owns its dependency trees, 0 reparse points). Task `ATLAS-Staging-Supervisor` (SYSTEM, at startup).
   Env `D:\ATLAS-runtime-config\atlas-staging.env`, ACL identical to the live env file. DB `atlas_staging`,
-  a streamed `pg_dump -Fc | pg_restore` snapshot of live. Deploy **26.3 s** with `-SkipBuild`.
+  a streamed `pg_dump -Fc | pg_restore` snapshot of live. Health **200** on `127.0.0.1:5101` `/health`
+  and `/health/ready`, on `8443` `/`, `/health`, `/ready`, and DB-backed `/api/v1/subjects` → 200.
+  M3 environment proof passed (staging env file + staging release dir, 18 keys).
   Deploy with one command: `.\ops\staging\deploy-staging.ps1 -Sha <sha> -Execute`. Operator steps in
   `docs/runbooks/staging.md`; every row in `docs/reviews/a4-staging-20260928/pre-action.md`.
-  Source on branch `work/a4-staging-20260928` at `834f1ad3` — **pushed, but NOT merged to `main`; it
-  needs a release train.** A planner reading this from `main` will not see the staging scripts yet.
-- **⚠ TWO GATES OPEN — staging is NOT QA-verified. Do not treat it as accepted.** (1) The **independent
-  post-action QA dispatch was declined** in that session, so the deployment is evidenced only by the
-  executor. `AGENTS.md` §11 does not close a HIGH cycle without one fresh independent reviewer.
-  (2) The **operator has not signed in** at `http://127.0.0.1:5274`, so no authenticated staging row has
-  run. Staging's `JWT_SECRET` is its own, so a Tailnet-seeded live session is **not** valid on 5274.
-- **Live was not touched, measured not asserted** (2026-09-28 ~17:35 +08): listeners still 5001 → **3516**,
-  5174 → **60116**; machine scope unchanged; live release tree clean at `7590d485`; live `audit_logs`
-  `1010|459|11` identical before **and** after, **re-checked after staging was up and serving**. The
-  pre-action baseline was captured *before* any mutation at
+  **Pre-action gate:** `npm run test:staging-guards` 20/20, then the script's read-only dry-run.
+  Superseded staging release dir `E:\ATLAS-staging\7590d485…` is retired-candidate — see §3 retention.
+- **⚠ Lane C's acceptance walk is OPEN, and it is the gate.** A4 deploys; it does not accept. Lane C must
+  sign in **at `https://njgrm.buru-degree.ts.net:8443`** (staging's `JWT_SECRET` is its own, so a live-seeded
+  session is not valid there) and run the A2 H/T2/T3 rows, especially the honest **H** row (header ≤ 2 rows
+  at 1366×768) which no JSDOM test can decide. Staging is **not** accepted production evidence.
+  Production deploy of `e59b8ba1` is **NOT** authorised: A4 deploys production only on explicit instruction.
+- **Live was not touched, measured not asserted** (2026-09-28 19:14 +08, the `e59b8ba1` staging cutover):
+  listeners still 5001 → **3516**, 5174 → **60116** — *identical PIDs before and after*;
+  live `supervisor-state.json` still `releaseSha 7590d485…`, `startedAt 2026-09-28T08:19:28.472Z` unchanged;
+  machine scope unchanged. Live `audit_logs` `max(id)|count|migrations` = **`1015|464|11` before and
+  after**, re-read independently by me *after* the whole deploy finished (the refresh-db row's own
+  before/after agreed: `liveSignatureBefore 1015|464|11` = `liveSignatureAfter`).
+  The pre-action baseline was captured *before* any mutation at
   `C:\ProgramData\ATLAS\staging-audit\baseline-before.json` — the omission that left D7 `PARTIAL` on the
   previous release does not recur.
+- **Deploy discriminator, checked to discriminate (not a vacuous byte-compare):**
+  `assets/AccessibleInfo-CfSstG_t.js` exists in the `e59b8ba1` build and is **absent** from the `7590d485`
+  build → **8443 returns 200, 443 returns 404**. That is what proves 8443 reaches 5101 and not live; the
+  `subjects` byte-size discriminator in the runbook is **void after a DB refresh** (both ports then read
+  the same snapshot and return identical 19517 B), so do not rely on it after a refresh.
 - **Recorded deviation from the staging packet, with a reason:** the packet suggested junctioning
   dependencies from "the last good release". Rejected — the live release dir is a *numbered slot the next
   train reuses*, and a junction chain rooted at a retired release has already downed this runtime once.
