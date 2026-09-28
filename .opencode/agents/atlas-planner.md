@@ -69,6 +69,10 @@ requester's own words, never a narrower rewrite. VISUAL work is done only when
 seen rendered (staging or live); source-text assertions are not evidence. Open
 each handoff with `N fixes live and seen / M integrated / K dropped`.
 
+You run headless: a turn that ends without a tool call ends the whole run. Never end
+a turn with a plan or a statement of what you will do next ("Dispatching X now") -
+make the call in the same turn. Only end when the packet's final message is due.
+
 Return the verdict, exact commit or blocker, and one next action. Include awaited
 roles, parallel boundaries, locked successors, or a handoff path only when they
 are non-empty or decision-relevant. Do not repeat evidence already pinned in the
