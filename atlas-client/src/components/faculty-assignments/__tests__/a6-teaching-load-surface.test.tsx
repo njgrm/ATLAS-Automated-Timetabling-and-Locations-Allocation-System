@@ -108,7 +108,7 @@ const { openTeacherReview, STAFF_WORKLOAD_REVIEW_LABEL } = teacherReviewEntry as
 	openTeacherReview: (s: { setViewMode: (m: 'teacher' | 'allocation') => void; setReviewModalOpen: (o: boolean) => void }) => void;
 	STAFF_WORKLOAD_REVIEW_LABEL: string;
 };
-const { reviewModalCopy } = await import('@/components/faculty-assignments/teachingLoadWorkspaceMetrics');
+const { reviewModalCopy, buildTeachingLoadWorkspaceState } = await import('@/components/faculty-assignments/teachingLoadWorkspaceMetrics');
 const { Link } = (await import('react-router-dom')) as any;
 const { Fragment: Fragment2 } = (await import('react')) as any;
 const { ConfirmationModal } = await import('@/ui/confirmation-modal');
@@ -1942,4 +1942,168 @@ test('A6-C2-7b with a teacher selected the DESCRIPTION names them, and the title
 	// shared with the profile dialog and is not re-implemented per copy.
 	await outsidePointerDown(withTeacher);
 	assert.equal(portalledDialog() === null, true, 'the dialog must still dismiss on an outside pointer-down');
+});
+
+/* ================================================================== *
+ * A6 C3 SLICE 1 — the workspace-state copy builder, extracted out of
+ * `pages/TeachingLoad.tsx` (which was 995 physical lines against the
+ * AGENTS.md §8 cap of 1000).
+ *
+ * The row is table-driven over ALL SIX branches, and the expected strings are
+ * written out byte-for-byte rather than derived from the function, so a
+ * reword inside the extraction is caught here. That is the whole risk of this
+ * slice: an extraction that quietly improves a string is still a behaviour
+ * change wearing a refactor's name.
+ * ================================================================== */
+
+test('A6-C3-1-EXTRACT the extracted workspace-state builder returns all six branches verbatim', () => {
+	const BASE = {
+		isOnline: true,
+		dataSource: 'live' as const,
+		canPersistAssignments: true,
+		activeDraftCount: 0,
+		degradedNotice: null,
+		error: null,
+	};
+
+	const ROWS: Array<{ label: string; input: Record<string, any>; expected: Record<string, any> }> = [
+		{
+			label: 'OFFLINE wins over every source state',
+			input: { ...BASE, isOnline: false, dataSource: 'live' },
+			expected: {
+				label: 'Offline',
+				description: 'ATLAS is showing the last saved teaching load. Changes stay off until the connection returns.',
+				nextAction: 'Reconnect, then refresh before saving assignments.',
+				writeBlockedReason: 'Saving is off until ATLAS reconnects. Your work is safe to review.',
+			},
+		},
+		{
+			label: 'REFRESHING is its own state, not a failure',
+			input: { ...BASE, dataSource: 'refreshing' },
+			expected: {
+				label: 'Checking source',
+				description: 'ATLAS is comparing the saved workspace with EnrollPro. The last saved snapshot remains visible while this finishes.',
+				nextAction: 'Wait for verification before saving new changes.',
+				writeBlockedReason: 'Saving is off while ATLAS verifies the roster with EnrollPro.',
+			},
+		},
+		{
+			label: 'LIVE + writable, no draft',
+			input: { ...BASE },
+			expected: {
+				label: 'EnrollPro roster verified',
+				description: 'ATLAS Teaching Load draft. Assignment data was checked against EnrollPro. Draft changes can be saved.',
+				nextAction: 'Inspect one teacher or fill section coverage gaps.',
+				writeBlockedReason: null,
+			},
+		},
+		{
+			label: 'LIVE + writable, WITH a draft \u2014 the next action names the draft',
+			input: { ...BASE, activeDraftCount: 3 },
+			expected: {
+				label: 'EnrollPro roster verified',
+				description: 'ATLAS Teaching Load draft. Assignment data was checked against EnrollPro. Draft changes can be saved.',
+				nextAction: 'Save the draft changes before leaving this page.',
+				writeBlockedReason: null,
+			},
+		},
+		{
+			label: 'CACHED + writable, no notice \u2014 the default sentence is used',
+			input: { ...BASE, dataSource: 'cached' },
+			expected: {
+				label: 'ATLAS Teaching Load draft',
+				description: 'ATLAS is using synced EnrollPro section data for Teaching Load. This is expected. Draft changes can be saved.',
+				nextAction: 'Check the classes below. Refresh later to pick up any new EnrollPro changes.',
+				writeBlockedReason: null,
+			},
+		},
+		{
+			label: 'CACHED + writable + a real notice \u2014 the page\'s notice WINS over the default',
+			input: { ...BASE, dataSource: 'cached', activeDraftCount: 2, degradedNotice: 'EnrollPro could not be reached, so ATLAS is using the last saved sections.' },
+			expected: {
+				label: 'ATLAS Teaching Load draft',
+				description: 'EnrollPro could not be reached, so ATLAS is using the last saved sections.',
+				nextAction: 'Save your changes. Refresh later to pick up any new EnrollPro changes.',
+				writeBlockedReason: null,
+			},
+		},
+		{
+			label: 'CACHED + read-only',
+			input: { ...BASE, dataSource: 'cached', canPersistAssignments: false },
+			expected: {
+				label: 'Read-only saved data',
+				description: 'ATLAS can show the saved assignments, but it cannot safely save changes yet.',
+				nextAction: 'Refresh from EnrollPro before saving, suggesting, or resetting assignments.',
+				writeBlockedReason: 'Saving is off until ATLAS reconnects to EnrollPro.',
+			},
+		},
+		{
+			label: 'NONE, with a real error',
+			input: { ...BASE, dataSource: 'none', canPersistAssignments: false, error: 'The Teaching Load source returned an error.' },
+			expected: {
+				label: 'No assignment data',
+				description: 'The Teaching Load source returned an error.',
+				nextAction: 'Retry the connection before assigning teachers.',
+				writeBlockedReason: 'Saving is off because no teaching load data is available.',
+			},
+		},
+		{
+			label: 'NONE + LIVE-but-not-writable falls through to the same last branch',
+			input: { ...BASE, dataSource: 'live', canPersistAssignments: false },
+			expected: {
+				label: 'No assignment data',
+				description: 'ATLAS could not load a live source or a saved teaching load.',
+				nextAction: 'Retry the connection before assigning teachers.',
+				writeBlockedReason: 'Saving is off because no teaching load data is available.',
+			},
+		},
+	];
+
+	for (const row of ROWS) {
+		const state = buildTeachingLoadWorkspaceState(row.input as any);
+		assert.equal(state.label, row.expected.label, `${row.label}: label`);
+		assert.equal(state.description, row.expected.description, `${row.label}: description`);
+		assert.equal(state.nextAction, row.expected.nextAction, `${row.label}: nextAction`);
+		assert.equal(state.writeBlockedReason, row.expected.writeBlockedReason, `${row.label}: writeBlockedReason`);
+	}
+});
+
+test('A6-C3-1-WIRING the page CALLS the extracted builder and no longer inlines the copy', () => {
+	// The extraction is only real if the page stopped holding the strings. This
+	// row is a wiring row, not acceptance evidence for a visible change: the
+	// copy itself is byte-identical, so nothing a scheduler sees moved.
+	const page = read('src/pages/TeachingLoad.tsx');
+	assert.doesNotMatch(
+		page,
+		/label: 'No assignment data'/,
+		'the page must not carry the last branch\'s copy inline any more \u2014 the builder is the authority',
+	);
+	assert.doesNotMatch(
+		page,
+		/label: 'EnrollPro roster verified'/,
+		'no branch of the header copy may remain inline in the page',
+	);
+	assert.match(
+		page,
+		/buildTeachingLoadWorkspaceState,/,
+		'the page must import and call the extracted builder',
+	);
+	assert.match(
+		page,
+		/useMemo\(\(\) => buildTeachingLoadWorkspaceState\(/,
+		'the page still decides WHEN to recompute, through the same useMemo',
+	);
+	// And the builder really lives in the pure-derivation module that holds the
+	// page's other derivations, with no React import beside it.
+	const metrics = read('src/components/faculty-assignments/teachingLoadWorkspaceMetrics.ts');
+	assert.match(
+		metrics,
+		/export function buildTeachingLoadWorkspaceState\(/,
+		'the builder must be exported from the pure-derivation module',
+	);
+	assert.doesNotMatch(
+		metrics,
+		/^import .* from 'react'/m,
+		'the extraction target must stay React-free, or the page could hide a side effect in it',
+	);
 });

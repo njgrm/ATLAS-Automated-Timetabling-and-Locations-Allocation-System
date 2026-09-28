@@ -33,6 +33,7 @@ import { TeachingLoadTruthPanel } from '@/components/faculty-assignments/Teachin
 import { buildTeachingLoadTruthModel } from '@/lib/teaching-load-authority-truth';
 import {
 	buildCoverageHeadline,
+	buildTeachingLoadWorkspaceState,
 	countTeachersAboveWeeklyMax,
 	previewLoadHoursFor,
 	reviewModalCopy,
@@ -492,61 +493,20 @@ export default function TeachingLoad() {
 		setAdvancedGridVisible(true);
 	}, [ui]);
 
-	const workspaceState = useMemo(() => {
-		if (!data.isOnline) {
-			return {
-				label: 'Offline',
-				description: 'ATLAS is showing the last saved teaching load. Changes stay off until the connection returns.',
-				nextAction: 'Reconnect, then refresh before saving assignments.',
-				writeBlockedReason: 'Saving is off until ATLAS reconnects. Your work is safe to review.',
-			};
-		}
-		if (data.dataSource === 'refreshing') {
-			return {
-				label: 'Checking source',
-				description: 'ATLAS is comparing the saved workspace with EnrollPro. The last saved snapshot remains visible while this finishes.',
-				nextAction: 'Wait for verification before saving new changes.',
-				writeBlockedReason: 'Saving is off while ATLAS verifies the roster with EnrollPro.',
-			};
-		}
-		if (data.dataSource === 'live' && data.canPersistAssignments) {
-			return {
-				label: 'EnrollPro roster verified',
-				description: 'ATLAS Teaching Load draft. Assignment data was checked against EnrollPro. Draft changes can be saved.',
-				nextAction: data.activeDraftCount > 0 ? 'Save the draft changes before leaving this page.' : 'Inspect one teacher or fill section coverage gaps.',
-				writeBlockedReason: null,
-			};
-		}
-		if (data.dataSource === 'cached' && data.canPersistAssignments) {
-			return {
-				label: 'ATLAS Teaching Load draft',
-				description: data.degradedNotice ?? 'ATLAS is using synced EnrollPro section data for Teaching Load. This is expected. Draft changes can be saved.',
-				nextAction: data.activeDraftCount > 0 ? 'Save your changes. Refresh later to pick up any new EnrollPro changes.' : 'Check the classes below. Refresh later to pick up any new EnrollPro changes.',
-				writeBlockedReason: null,
-			};
-		}
-		if (data.dataSource === 'cached') {
-			return {
-				label: 'Read-only saved data',
-				description: data.degradedNotice ?? 'ATLAS can show the saved assignments, but it cannot safely save changes yet.',
-				nextAction: 'Refresh from EnrollPro before saving, suggesting, or resetting assignments.',
-				writeBlockedReason: 'Saving is off until ATLAS reconnects to EnrollPro.',
-			};
-		}
-		return {
-			label: 'No assignment data',
-			description: data.error ?? 'ATLAS could not load a live source or a saved teaching load.',
-			nextAction: 'Retry the connection before assigning teachers.',
-			writeBlockedReason: 'Saving is off because no teaching load data is available.',
-		};
-	}, [
-		data.activeDraftCount,
-		data.canPersistAssignments,
-		data.dataSource,
-		data.degradedNotice,
-		data.error,
-		data.isOnline,
-	]);
+	/*
+	 * A6 C3 SLICE 1 — the header's four strings, extracted.
+	 *
+	 * This was a 55-line inline `useMemo` and it is now a call to
+	 * `buildTeachingLoadWorkspaceState` in
+	 * `components/faculty-assignments/teachingLoadWorkspaceMetrics.ts`, the
+	 * module that already holds this page's other pure derivations. It moved
+	 * because the file was 995 physical lines against the AGENTS.md §8 cap of
+	 * 1000, and because it was already pure: seven `data.*` fields in, four
+	 * strings out. EVERY string moved byte-for-byte and the branch order is
+	 * unchanged, so this extraction changes nothing a scheduler can see. The
+	 * page still decides WHEN to recompute.
+	 */
+	const workspaceState = useMemo(() => buildTeachingLoadWorkspaceState({ isOnline: data.isOnline, dataSource: data.dataSource, canPersistAssignments: data.canPersistAssignments, activeDraftCount: data.activeDraftCount, degradedNotice: data.degradedNotice, error: data.error }), [data.isOnline, data.dataSource, data.canPersistAssignments, data.activeDraftCount, data.degradedNotice, data.error]);
 
 	/**
 	 * FIX 16.1 + A6 C2 — the ONE production opener for a staff-workload review,
