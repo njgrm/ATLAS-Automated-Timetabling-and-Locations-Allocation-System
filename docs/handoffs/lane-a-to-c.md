@@ -1,5 +1,67 @@
 # A2 -> Lane C: what I need tested, and what I need answered
 
+## 🟢 A6 → Lane C, 2026-09-29 05:5x +08 — **A6 ready for release at `91a9b8fb`** — Guided mode is gone from `main`; the Teaching Load header is two calm rows
+
+**0 fixes seen on the live Tailnet / 2 integrated (`91a9b8fb`, `main`) / 0 dropped.** Header renders **seen, isolated loopback only** (below).
+**A4 owns the deploy; A6 has not deployed and will not.** Merge `52210369`, reviewed candidate `b1cfd033`, evidence `405381bb`.
+
+**🚩 Read this first — two of your records were false, and I fixed the code, not the record.**
+`docs/prompts/a4-train-2026-09-29-5.md:13` lists A6 `a2c4c135` as *"Guided mode removed from Teaching Load"*, and
+`docs/prompts/a6-tl-header-budget-2026-09-29.md` says the same. **`a2c4c135` is a docs-only fold.** At `ce1257c8`,
+`TeachingLoad.tsx:895` still rendered `TeachingLoadGuidedModePlaceholder` ("Guided mode is active … Open advanced grid")
+in place of the grid. Train 5 would have shipped a claim that was not true. It is now true, and on `main`.
+
+| Item | Status | What changes for the operator |
+|---|---|---|
+| **Guided mode removed** (operator: *"Just remove that please"*) | **DONE** | The grid always renders. The placeholder component is deleted, the `advancedGridVisible` gate is deleted with the state that fed it, and no second reveal control was re-plunged. 22 `advancedGridVisible` sites at base → **0** production references. |
+| **Header to the §8 Header budget** (operator: *"compaction to less vertical rows is not graceful nor practical"*) | **DONE** | Two calm rows. One primary action. Nothing truncated. The row-squeeze was undone by **deleting** a surface, not by tightening the row. |
+| **Lane C T5 — two amber lines when EnrollPro is unreachable** | **DONE, as rendered** | Degraded state at 1366x768: **three** status surfaces and a clipped button before; **two** and the full label after. |
+| **One look per control, in this row** | **DONE, by A5's work** | A5 C3 slice B (`e8bb101b`) had already replaced the four page-local `@/ui/select` triggers with the one shared `@/ui` FilterPicker while I was integrating. I took their version and re-pointed my row; no product code was hand-merged. |
+
+**The before/after, as pixels — `docs/reviews/a6-tl-header-20260929/`.** Real `WorkspaceToolbar` + real
+`TeachingLoadRepairQueue`, Playwright, 1366x768 and 1920x1080, healthy and degraded. Harness deleted after capture
+(§2); the before-state was the base components checked out over the candidate and restored byte-exact.
+
+- Degraded 1366 — **before**: `Using the last saved data — ATLAS is offline` · `Next step | … | Unverified — EnrollPro is not reachable…` · a **second amber pill** `Read-only: verify the source first` · primary action clipped to **`Review staff work…`**. **After**: the read-only reason folded into the next step's own text, one amber surface, primary action reads **`Review staff workload`** in full.
+- Healthy 1366 — **before** `Review subject co…` → **after** `Review subject coverage`.
+
+**QA verdict, honestly quoted.** Fresh QA round 2: `CORRECTION_REQUIRED`, **11 passed / 12, 0 blocked, 1 unperformed**,
+design judgement gate **PASS_UX** (it opened the PNGs and scored them; `ux-communication-rubric` does not exist in
+this repo, so it scored against §8). The one unperformed row is **not mine and not a product defect**:
+`atlas-client/package.json`'s `test:client-suite` is malformed at **both** revisions — `"tsx --test tsx --test src/…"`
+— so it dies before printing a tally and cannot decide its own row. **I did not fix it** (§14, one writer per
+stream): repairing a shared 130-file gate mid-train, with A4 waiting, is not a product lane's call and could turn
+the repo red for other lanes. **It needs an owner.** Not recorded green, not recorded n/a.
+
+**Ship-with, per §11's two-round rule (no third round):**
+
+1. **TOP FOLLOW-UP — the header still advertises a dead control.** `WorkspaceToolbar.tsx:782` renders the
+   `Temporary substitutes` alert as a **`<span>`**; the committed control `tl-operator-workspace-c05.test.ts:458`
+   demands a `<button>` and is **red at base and on the candidate**. It is pre-existing and not worsened, and the
+   calmer chip arguably makes the dead affordance more inviting. It is false UI truth in the exact header this
+   release re-signs off.
+2. Row 1 still carries **two** chips (`EnrollPro roster verified` · `Saved`). They are two different claims and the
+   condition is unchanged from base, so nothing goes; against §8's letter it is the next header pass's job.
+3. `TeachingLoad.tsx` is **981** physical lines against the 1000 cap. 19 lines of headroom; extract before the next edit.
+4. A5 C3 slice B and this slice both edit `WorkspaceToolbar.tsx`, `TeachingLoad.tsx`, `useTeachingLoadRepairQueue.ts`
+   and `a3-teaching-load-review-c2.test.tsx`. Resolved mechanically here, but it is a live conflict surface for A4.
+5. `buildGuidedEmptyTeachingLoadMessage` keeps "Guided" in its **name**; its words are now plain. Naming debt.
+
+**Owed to a real browser — deployment-acceptance rows, not source rows (§11).** Assert
+`window.location.origin === 'https://njgrm.buru-degree.ts.net'`, at **1366x768** and **1920x1080**, after A4 ships:
+1. `/teaching-load` — the grid is there on first paint; the string `Guided` appears nowhere on the page.
+2. `/teaching-load` with EnrollPro unreachable — **one** amber status line, not two.
+3. `/teaching-load` — no `…` on any header or filter-row label; the primary action reads in full.
+4. The filter row at 1366: four identical shared pickers, one height, one placeholder grey, no wrap, no horizontal scrollbar.
+
+**Not claimed, dated 2026-09-29:** nothing is on the live Tailnet and nothing is on staging. Every picture is an
+**isolated** loopback harness with hand-passed props — no session, no real roster, no deployed build. No full-route
+`/teaching-load` render exists, and no `min-h` wrap was exercised at two lines. No deployment, no sign-in, no
+generation, no publication, no migration, no live-data write, no runtime/task/env change.
+
+**Next action (single, and it is A4's, not mine):** put `91a9b8fb` in the next train and run the four browser rows
+above on staging. A6's `docs/prompts/a6-outage-placeholders-2026-09-29.md` is **not started** and is not claimed.
+
 ## 🟢 A2 → Lane C, 2026-09-29 00:5x +08 — **A2 ready for release at `c1a04411`** — past-year read-only timetable is in. P stays parked.
 
 **1 fix seen on staging / 5 integrated, not on production / 0 dropped.** Loopback smoke still WAIVED for this lane per
