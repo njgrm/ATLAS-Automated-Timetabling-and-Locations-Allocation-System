@@ -40,9 +40,16 @@
  *          filter below is the authority for this. `uq_grade_shift_window` backs it
  *          up for NON-NULL `program_type` only: `programType` is nullable and a
  *          PostgreSQL unique index treats NULLs as distinct, so it would NOT stop
- *          two NULL-program rows. Do not rely on it for that case; the
- *          `withSchoolLock(schoolId)` in the route and the `Serializable`
- *          transaction are what actually serialise two rollovers of one school;
+ *          two NULL-program rows. Do not rely on it for that case. The
+ *          `Serializable` transaction below is what holds: two concurrent carries
+ *          read the same target set, so one loses with a serialization failure
+ *          rather than inserting a duplicate. `withSchoolLock` is NOT the guarantee
+ *          and must not be cited as one — it lives in the ROUTES
+ *          (`runtime.router.ts`), and the automation path
+ *          (`rollover-automation.service.ts`) reaches this function without it.
+ *          A serialization failure is deliberately not caught or retried here: it
+ *          propagates out of `applyRolloverSync` and fails the rollover loudly
+ *          rather than writing anything ambiguous;
  *        - flag ceremonies / special events: copy only when the target year has
  *          ZERO `policy_special_events` rows.
  *      A source row is never updated or deleted; a target row is never

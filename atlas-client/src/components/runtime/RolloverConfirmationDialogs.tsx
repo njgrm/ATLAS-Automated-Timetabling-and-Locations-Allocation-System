@@ -8,13 +8,28 @@
  * `recoveryConfirmDialog`, `markTestDataConfirmDialog`) moved here, in one piece,
  * leaving the card under the limit.
  *
- * IT IS A MOVE, NOT A REWRITE. Every prop below is a value or a handler the card
- * already held, and the JSX, the `data-testid`s, the typed-confirmation gates and
- * the reset-on-close behaviour are byte-for-byte the same. The card renders these
- * three dialogs in the SAME three places it did before, so nothing about which
- * mount shows which dialog has changed — including the five mounts
- * (Dashboard, Sections, Faculty, TeachingLoad and the two timetable surfaces)
- * that other lanes own and that must render unchanged.
+ * IT IS A MOVE, NOT A REWRITE — and where the first draft of this comment
+ * overclaimed, the independent review of 2026-09-29 caught it and the code was
+ * changed rather than the sentence. Every prop below is a value or a handler the
+ * card already held, and the JSX, the `data-testid`s and the typed-confirmation
+ * gates are the same. TWO CORRECTIONS, both now true:
+ *
+ *   1. CANCEL. The first extraction routed both Cancel buttons through the
+ *      dialogs' `onOpenChange` handlers, which is the escape/X/overlay close path
+ *      and also clears the typed confirmation text and the acknowledgement. The
+ *      base tree's Cancel called the state setter DIRECTLY and so left the text in
+ *      place. That silently changed behaviour on the five mounts other lanes own,
+ *      so `onRecoveryCancel` / `onMarkTestDataCancel` were added and restore the
+ *      base semantics exactly. The reset-on-Close behaviour described in the old
+ *      comment is unchanged; only the Cancel button is back to what it was.
+ *
+ *   2. THE COMPACT BRANCH. Base rendered only `termRepairDialog` on the compact
+ *      branch; this component is mounted there and carries all three. No
+ *      user-visible difference — a closed Radix `Dialog` emits no DOM, and the
+ *      only setters that open the other two dialogs are outside that branch, so
+ *      their open state is unreachable there. It is a component-TREE difference,
+ *      not a rendered-output one, and the claim "nothing about which mount shows
+ *      which dialog has changed" is about rendered output.
  */
 import { Loader2 } from 'lucide-react';
 
@@ -54,6 +69,21 @@ export type RolloverConfirmationDialogsProps = {
 	onRecoveryConfirmTextChange: (value: string) => void;
 	onRecoveryAckPublishedChange: (acknowledged: boolean) => void;
 	onRecoveryApply: () => void;
+	/**
+	 * A7-C4 CORRECTION (independent review, finding N3) — Cancel must do EXACTLY
+	 * what it did before the dialogs were extracted: close, and nothing else.
+	 *
+	 * This is deliberately NOT `onRecoveryOpenChange(false)`. That handler is
+	 * Radix's close path (escape, X, overlay) and it ALSO clears the typed
+	 * confirmation text and the published acknowledgement. Before the extraction
+	 * the Cancel button called `setShowRecoveryConfirm(false)` directly, so a
+	 * cancel left the text in place. Routing Cancel through the open-change
+	 * handler silently changed that on the FIVE NON-PLAIN MOUNTS other lanes own.
+	 * Both behaviours are defensible on their own, but changing another lane's
+	 * surface is not this packet's to do (AGENTS §14), so the base semantics are
+	 * restored here rather than the new ones being documented.
+	 */
+	onRecoveryCancel: () => void;
 
 	// ── A7-C1: the mark-as-test-data confirmation ─────────────────────────────
 	showMarkTestDataConfirm: boolean;
@@ -62,6 +92,8 @@ export type RolloverConfirmationDialogsProps = {
 	onMarkTestDataOpenChange: (open: boolean) => void;
 	onMarkTestDataAcknowledgedChange: (acknowledged: boolean) => void;
 	onMarkTestData: () => void;
+	/** See `onRecoveryCancel` — same reason, same restoration. */
+	onMarkTestDataCancel: () => void;
 };
 
 export function RolloverConfirmationDialogs(props: RolloverConfirmationDialogsProps) {
@@ -72,8 +104,10 @@ export function RolloverConfirmationDialogs(props: RolloverConfirmationDialogsPr
 		showRecoveryConfirm, recoveryConfirmText, recoveryAckPublished, recovering,
 		recoveryClassification,
 		onRecoveryOpenChange, onRecoveryConfirmTextChange, onRecoveryAckPublishedChange, onRecoveryApply,
+		onRecoveryCancel,
 		showMarkTestDataConfirm, markTestDataAcknowledged, markingTestData,
 		onMarkTestDataOpenChange, onMarkTestDataAcknowledgedChange, onMarkTestData,
+		onMarkTestDataCancel,
 	} = props;
 	const showTermRepair = termRepair.dialogOpen;
 	const termConfirmText = termRepair.confirmationText;
@@ -182,7 +216,7 @@ export function RolloverConfirmationDialogs(props: RolloverConfirmationDialogsPr
 						<Input id="recovery-confirmation" value={recoveryConfirmText} onChange={(event) => onRecoveryConfirmTextChange(event.target.value)} placeholder={recoveryClassification?.confirmationText ?? ''} disabled={recovering} autoComplete="off" />
 					</div>
 					<DialogFooter>
-						<Button type="button" variant="outline" size="sm" onClick={() => onRecoveryOpenChange(false)} disabled={recovering}>Cancel</Button>
+						<Button type="button" variant="outline" size="sm" onClick={onRecoveryCancel} disabled={recovering}>Cancel</Button>
 						<Button type="button" size="sm" onClick={onRecoveryApply} disabled={recovering || recoveryConfirmText !== recoveryClassification?.confirmationText || (Boolean(recoveryClassification?.publishedResetBlocked) && !recoveryAckPublished)} data-testid="recovery-confirm-apply">
 							{recovering ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
 							{plainLanguageNextStep ? 'Yes, erase and start the new year' : 'Clear and sync'}
@@ -208,7 +242,7 @@ export function RolloverConfirmationDialogs(props: RolloverConfirmationDialogsPr
 						<Label htmlFor="mark-test-data-confirmation" className="leading-5">I confirm that this school year contains only disposable test data.</Label>
 					</div>
 					<DialogFooter>
-						<Button type="button" variant="outline" size="sm" onClick={() => onMarkTestDataOpenChange(false)} disabled={markingTestData}>Cancel</Button>
+						<Button type="button" variant="outline" size="sm" onClick={onMarkTestDataCancel} disabled={markingTestData}>Cancel</Button>
 						<Button type="button" size="sm" onClick={onMarkTestData} disabled={markingTestData || !markTestDataAcknowledged} data-testid="rollover-mark-test-data-confirm">
 							{markingTestData ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
 							Mark test data

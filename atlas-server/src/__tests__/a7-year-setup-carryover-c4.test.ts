@@ -237,7 +237,7 @@ describe('A7-C4 the source year setup a new school year keeps', () => {
 		assert.ok(model, 'SchedulingPolicy is missing from the Prisma DMMF');
 		const dataColumns = model!.fields.map((field) => field.name).sort();
 		const expected = dataColumns.filter((name) => !(SCHEDULING_POLICY_CARRY_EXCLUDED_COLUMNS as readonly string[]).includes(name)).sort();
-		const carried = [...SCHEDULING_POLICY_CARRY_COLUMNS].sort();
+		const carried: string[] = [...SCHEDULING_POLICY_CARRY_COLUMNS].sort();
 		assert.deepEqual(
 			carried,
 			expected,
@@ -492,12 +492,26 @@ describe('A7-C4 the source year setup a new school year keeps', () => {
 	});
 
 	/**
-	 * S8b — THE CALL-SITE SCAN, and its limits stated. The real `applyRolloverSync`
+	 * S8b - THE CALL-SITE SCAN, and its limits stated. The real `applyRolloverSync`
 	 * cannot be driven hermetically (its preview needs a live EnrollPro), so the
-	 * "no caller can turn the default off by omission" claim is finished by reading
-	 * the two production call sites. This is a SOURCE assertion and it is labelled
-	 * as one; the behavioural half of S8 is the row above, on the real service and a
-	 * real database.
+	 * call sites were read by hand and this row pins the parts of that reading a
+	 * scan CAN decide. This is a SOURCE assertion and it is labelled as one; the
+	 * behavioural half of S8 is the row above, on the real service and a real
+	 * database.
+	 *
+	 * WHAT THIS ROW PROVES, precisely: no call site in the server tree passes a
+	 * LITERAL default-off carry (a bare `false`, or a `?? false` / `|| false`
+	 * fallback), and the route forwards the raw body values unvalidated. It
+	 * detects those textual shapes only.
+	 *
+	 * WHAT IT DOES NOT PROVE, stated here rather than left implied: a call site
+	 * passing a boolean VARIABLE that evaluates to `false` would not be flagged by
+	 * this scan. The manual review that closed the gap read all six call sites of
+	 * `applyRolloverSync` — the `/rollover-sync/apply` route, `/reset-dummy-year`,
+	 * `/rollover-archive/apply`, `applyTestYearRecovery`, `resetDummyYearAndApplyRollover`
+	 * and the automation path — and found that only the first passes the object at
+	 * all, with both values taken raw off `req.body`. The behavioural row above,
+	 * not this one, is what guarantees the property.
 	 *
 	 * The POSITIVE CONTROL is the part that makes it evidence: the same extractor,
 	 * fed a synthetic default-off caller, must report it. A scan that cannot go red

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, Archive, CheckCircle2, Loader2, RefreshCw, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -30,7 +30,8 @@ import {
 	isTermRepairPreviewApplicable,
 	resetTermRepairForScope,
 	type TermRepairScopeState,
-} from '@/lib/term-authority-repair-scope';import { Badge } from '@/ui/badge';
+} from '@/lib/term-authority-repair-scope';
+import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
@@ -550,9 +551,15 @@ export function RolloverGuidanceCard({
 	// component (`RolloverConfirmationDialogs.tsx`). They were EXTRACTED, not
 	// rewritten, because this file stood at 1008 physical lines — over the
 	// AGENTS.md §8 limit of 1000 — before this packet added anything to it. The
-	// values, handlers, `data-testid`s and reset-on-close behaviour are the same,
-	// and each dialog is still rendered in the same three places below, so which
-	// mount shows which dialog has not changed.
+	// values, handlers and `data-testid`s are the same, and each dialog is still
+	// rendered in the same places below.
+	//
+	// A7-C4 CORRECTION (independent review, N3): the first extraction changed the
+	// two Cancel buttons' behaviour, because they had been pointed at the
+	// open-change handler (which also clears the typed text and the
+	// acknowledgement) instead of the state setter. `onRecoveryCancel` and
+	// `onMarkTestDataCancel` below restore the base semantics exactly, so the five
+	// mounts other lanes own are unchanged. See the sibling's header.
 	const confirmationDialogs = (
 		<RolloverConfirmationDialogs
 			plainLanguageNextStep={plainLanguageNextStep}
@@ -583,6 +590,13 @@ export function RolloverGuidanceCard({
 			onRecoveryConfirmTextChange={setRecoveryConfirmText}
 			onRecoveryAckPublishedChange={setRecoveryAckPublished}
 			onRecoveryApply={() => void handleRecoveryApply()}
+			// A7-C4 CORRECTION (independent review, N3): Cancel closes ONLY, exactly
+			// as it did before the dialogs were extracted. The two callbacks below are
+			// byte-identical to the base tree's `onClick` handlers, so the five
+			// non-plain mounts other lanes own are unchanged. They deliberately do
+			// NOT reuse `onRecoveryOpenChange`, which is the escape/X/overlay close
+			// path and also clears the typed text and the acknowledgement.
+			onRecoveryCancel={() => setShowRecoveryConfirm(false)}
 			showMarkTestDataConfirm={showMarkTestDataConfirm}
 			markTestDataAcknowledged={markTestDataAcknowledged}
 			markingTestData={markingTestData}
@@ -592,6 +606,7 @@ export function RolloverGuidanceCard({
 			}}
 			onMarkTestDataAcknowledgedChange={setMarkTestDataAcknowledged}
 			onMarkTestData={() => void handleMarkTestData()}
+			onMarkTestDataCancel={() => setShowMarkTestDataConfirm(false)}
 		/>
 	);
 
@@ -655,9 +670,9 @@ export function RolloverGuidanceCard({
 					</TooltipProvider>
 				) : null}
 			</div>
-		{confirmationDialogs}
-			</>
-		);
+			{confirmationDialogs}
+		</>
+	);
 	}
 
 	// Dismissed non-blocking banner -> render nothing. Blocking drift states
@@ -716,7 +731,7 @@ export function RolloverGuidanceCard({
 					onKeepSchedulingRulesChange={setKeepSchedulingRules}
 					onKeepGradeTimeWindowsChange={setKeepGradeTimeWindows}
 				/>
-			{confirmationDialogs}
+				{confirmationDialogs}
 			</>
 		);
 	}
