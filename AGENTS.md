@@ -198,6 +198,10 @@ non-risks; A3 marked 4 items QA_PASSED against its own narrowed rewrites.
   `/api/v1`, `ISOLATED_LOCAL_BROWSER`) that loads every route the slice touched from loading to resolved data and fails
   on any error boundary or console error. Evidence 2026-09-28: `e59b8ba1` passed 41/41 jsdom QA and crashed `/timetable`
   on staging with React #310 on every load.
+  **Server lifecycle for that run:** start the preview with `Start-Process -WindowStyle Hidden -PassThru`, poll the
+  port with a 60 s cap, run the smoke, then `Stop-Process` that PID in the SAME command (try/finally). Never run
+  `vite preview`, `npm run dev` or `node dist/server.js` as a foreground command: a tool call that waits on a server
+  never returns (A6 hung 60 min and A5/A3 stalled on 2026-09-28 until Lane C killed their previews).
 - **Staging first.** Once staging exists (§14 A4), a candidate counts as ready only after it renders on staging and
   the lane's rows pass there; production then needs only the A4 smoke.
 
