@@ -55,6 +55,34 @@ type TeachingLoadTruthPanelProps = {
 	 * open on every render.
 	 */
 	expanded?: boolean;
+	/**
+	 * A6 C2 (Major 3, operator 2026-09-28) — render the breakdown as a VERTICAL
+	 * definition list instead of two horizontal pill strips.
+	 *
+	 * THE DEFECT, MEASURED BY LANE C at 1366x768 on
+	 * `https://njgrm.buru-degree.ts.net/teaching-load`: opening `Load summary`
+	 * produced two 34px-high HORIZONTAL scrollers — content 1,189px and 2,388px
+	 * wide inside a 451px container, and still 1,189px/2,388px at 1920x1080.
+	 * Every label and value that mattered required a hidden sideways scroll to
+	 * read. The cause was literal: the two metric rows were
+	 * `flex … flex-nowrap … overflow-x-auto` pill strips, so their width grew
+	 * with the number of metrics and the row scrolled sideways.
+	 *
+	 * In this mode each row is a `<dl>` of `dt`/`dd` pairs that STACKS. There is
+	 * no `flex-nowrap` and no overflow class on the row at all, so there is no
+	 * sideways scroller to discover — not a narrower one, and not a grid that
+	 * can still spill. The dialog's own bounded body scroll region stays the one
+	 * scroll region, and this component still contributes no vertical scroller of
+	 * its own (a3-c10 T9, and `tl-operator-workspace-c05-r3-truth`, both of which
+	 * read this file and ban the literal outright).
+	 *
+	 * NOTHING IS DROPPED IN THIS MODE. Every `data-testid`, every
+	 * `data-metric-state`, the source badge and the `Details` disclosure render
+	 * exactly as they do in the pill form; only the arrangement changes. The
+	 * default stays `false`, so the compact inline chip and any other caller keep
+	 * the pill treatment that fits a 28px header row.
+	 */
+	vertical?: boolean;
 };
 
 const CHIP_TONE: Record<'neutral' | 'success' | 'warning' | 'danger' | 'unknown', string> = {
@@ -65,19 +93,21 @@ const CHIP_TONE: Record<'neutral' | 'success' | 'warning' | 'danger' | 'unknown'
 	unknown: 'border-dashed border-border bg-muted/40 text-muted-foreground',
 };
 
-function MetricChip({
-	label,
-	metric,
-	format,
-	tone = 'neutral',
-	testId,
-}: {
+/**
+ * One metric, described ONCE, so the two renderers cannot disagree about which
+ * label, value, tone or test id belongs to a figure. The alternative — writing
+ * each metric out twice, once per mode — is exactly how a test id and its label
+ * drift apart between a dialog and a header.
+ */
+type MetricSpec = {
 	label: string;
 	metric: TruthMetric<unknown>;
 	format: (value: never) => string;
 	tone?: keyof typeof CHIP_TONE;
 	testId: string;
-}) {
+};
+
+function MetricChip({ label, metric, format, tone = 'neutral', testId }: MetricSpec) {
 	if (!isKnown(metric)) {
 		return (
 			<div
@@ -99,6 +129,39 @@ function MetricChip({
 		>
 			<span className="uppercase tracking-wide opacity-80">{label}</span>
 			<span className="text-sm font-bold tabular-nums">{format(metric.value as never)}</span>
+		</div>
+	);
+}
+
+/**
+ * A6 C2 (Major 3) — the same metric as a STACKED definition-list row.
+ *
+ * This is the renderer the `vertical` mode uses inside the `Load summary`
+ * dialog, and it is the direct replacement for the horizontal pill strip whose
+ * `flex-nowrap overflow-x-auto` row Lane C measured at 1,189px and 2,388px of
+ * content inside a 451px container. There is no overflow class here at all: the
+ * row is `flex-col` through its `<dl>` parent, so the width is the container's
+ * width and every label and value is visible without a sideways scroll.
+ *
+ * SENTENCE CASE, unlike the pill. The pill's `uppercase tracking-wide` is what
+ * made the summary read as a diagnostic wall; a definition list is prose, so the
+ * label is sentence case and the value keeps `tabular-nums` so a column of them
+ * stays aligned.
+ *
+ * `data-testid` and `data-metric-state` are on the SAME element as in the pill
+ * form, and an unknown authority still reads `Not available` rather than 0.
+ */
+function MetricRow({ label, metric, format, testId }: MetricSpec) {
+	return (
+		<div
+			data-testid={testId}
+			data-metric-state={isKnown(metric) ? 'known' : 'unknown'}
+			className="flex min-w-0 items-baseline justify-between gap-3 py-1"
+		>
+			<dt className="min-w-0 text-xs font-semibold text-muted-foreground">{label}</dt>
+			<dd className="shrink-0 text-xs font-bold tabular-nums text-foreground">
+				{isKnown(metric) ? format(metric.value as never) : 'Not available'}
+			</dd>
 		</div>
 	);
 }
@@ -125,7 +188,7 @@ function DrillDownList({ title, values, empty }: { title: string; values: string
  * explanations, and server reasons on demand. Never renders a raw diagnostic
  * wall and never invents a number for an unknown authority.
  */
-export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision = null, upstreamVerified = true, unresolvedReasons = [], inline = false, expanded = false }: TeachingLoadTruthPanelProps) {
+export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision = null, upstreamVerified = true, unresolvedReasons = [], inline = false, expanded = false, vertical = false }: TeachingLoadTruthPanelProps) {
 	const zeroLoadNames = model && isKnown(model.zeroLoadFaculty) ? model.zeroLoadFaculty.value.names : [];
 	const adviserNames = model && isKnown(model.adviserStatus) ? model.adviserStatus.value.names : [];
 	const hgExplanation = model && isKnown(model.excludedHgRows) ? model.excludedHgRows.value.explanation : '';
@@ -140,6 +203,105 @@ export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision 
 			`${isKnown(model.unresolvedPairs) ? model.unresolvedPairs.value : 'unknown'} without a teacher`,
 		].join(' · ')
 		: 'Not available yet';
+
+	/*
+	 * A6 C2: the thirteen metrics are described ONCE, in two ordered groups, and
+	 * each group is rendered by whichever layout the caller asked for. Declaring
+	 * them as data (rather than as JSX) is what lets the same list be a row of
+	 * pills in the header and a stacked definition list in the dialog without a
+	 * second copy that can drift — and the ORDER is then a property of the data,
+	 * so "every label and value is visible, in the operator's order" is one
+	 * assertion rather than thirteen.
+	 */
+	const unknown: TruthMetric<never> = { state: 'unknown', reason: 'Waiting for authority.' } as unknown as TruthMetric<never>;
+	const demandMetrics: MetricSpec[] = [
+		{
+			label: 'Classes needing a teacher',
+			testId: 'teaching-load-truth-required-pairs',
+			metric: (model?.requiredPairs ?? unknown) as TruthMetric<unknown>,
+			format: ((value: number) => `${value}`) as (value: never) => string,
+		},
+		{
+			label: 'Classes with a teacher',
+			testId: 'teaching-load-truth-assigned-pairs',
+			tone: model && isKnown(model.assignedPairs) && model.assignedPairs.value.real > 0 ? 'success' : 'neutral',
+			metric: (model?.assignedPairs ?? unknown) as TruthMetric<unknown>,
+			format: ((value: { real: number; placeholder: number; total: number }) =>
+				(value.placeholder > 0 ? `${value.total} (${value.placeholder} temporary)` : `${value.total}`)) as (value: never) => string,
+		},
+		{
+			label: 'Still without a teacher',
+			testId: 'teaching-load-truth-unresolved-pairs',
+			tone: model && isKnown(model.unresolvedPairs) && model.unresolvedPairs.value > 0 ? 'warning' : 'neutral',
+			metric: (model?.unresolvedPairs ?? unknown) as TruthMetric<unknown>,
+			format: ((value: number) => `${value}`) as (value: never) => string,
+		},
+		{
+			label: 'Total teaching hours',
+			testId: 'teaching-load-truth-actual-hours',
+			metric: (model?.actualTeachingMinutes ?? unknown) as TruthMetric<unknown>,
+			format: ((value: number) => `${minutesToHours(value)}h`) as (value: never) => string,
+		},
+	];
+	const capacityMetrics: MetricSpec[] = [
+		{
+			label: 'Standard load',
+			testId: 'teaching-load-truth-standard',
+			metric: (model?.policyCapacity ?? unknown) as TruthMetric<unknown>,
+			format: ((value: { teachingStandardMinutes: number }) => `${minutesToHours(value.teachingStandardMinutes)}h`) as (value: never) => string,
+		},
+		{
+			label: 'School hard cap',
+			testId: 'teaching-load-truth-hard-cap',
+			metric: (model?.policyCapacity ?? unknown) as TruthMetric<unknown>,
+			format: ((value: { hardCapMinutes: number | null }) => (value.hardCapMinutes == null ? 'Not set' : `${minutesToHours(value.hardCapMinutes)}h`)) as (value: never) => string,
+		},
+		{
+			label: 'Above standard',
+			testId: 'teaching-load-truth-over-standard',
+			tone: model && isKnown(model.overload) && model.overload.value.overStandardCount > 0 ? 'warning' : 'success',
+			metric: (model?.overload ?? unknown) as TruthMetric<unknown>,
+			format: ((value: { overStandardCount: number; excessMinutes: number }) => `${value.overStandardCount} (+${minutesToHours(value.excessMinutes)}h)`) as (value: never) => string,
+		},
+		{
+			label: 'Above hard cap',
+			testId: 'teaching-load-truth-over-hard-cap',
+			tone: model && isKnown(model.overload) && model.overload.value.overHardCapCount > 0 ? 'danger' : 'neutral',
+			metric: (model?.overload ?? unknown) as TruthMetric<unknown>,
+			format: ((value: { overHardCapCount: number }) => `${value.overHardCapCount}`) as (value: never) => string,
+		},
+		{
+			label: 'Hours still available',
+			testId: 'teaching-load-truth-remaining',
+			metric: (model?.remainingCapacityMinutes ?? unknown) as TruthMetric<unknown>,
+			format: ((value: number) => `${minutesToHours(value)}h`) as (value: never) => string,
+		},
+		{
+			label: 'Teachers with no classes',
+			testId: 'teaching-load-truth-zero-load',
+			tone: model && isKnown(model.zeroLoadFaculty) && model.zeroLoadFaculty.value.count > 0 ? 'warning' : 'success',
+			metric: (model?.zeroLoadFaculty ?? unknown) as TruthMetric<unknown>,
+			format: ((value: { count: number }) => `${value.count}`) as (value: never) => string,
+		},
+		{
+			label: 'Class advisers',
+			testId: 'teaching-load-truth-advisers',
+			metric: (model?.adviserStatus ?? unknown) as TruthMetric<unknown>,
+			format: ((value: { count: number }) => `${value.count}`) as (value: never) => string,
+		},
+		{
+			label: 'Adviser credit',
+			testId: 'teaching-load-truth-advisory-credit',
+			metric: (model?.advisoryCreditMinutes ?? unknown) as TruthMetric<unknown>,
+			format: ((value: number) => `${minutesToHours(value)}h`) as (value: never) => string,
+		},
+		{
+			label: 'Homeroom Guidance (not counted)',
+			testId: 'teaching-load-truth-hg-excluded',
+			metric: (model?.excludedHgRows ?? unknown) as TruthMetric<unknown>,
+			format: ((value: { count: number }) => `${value.count}`) as (value: never) => string,
+		},
+	];
 
 	return (
 		<section
@@ -239,96 +401,44 @@ export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision 
 							)}
 						</div>
 
-			{/* Row 1 — demand and assignment truth. */}
-			<div className="mt-1.5 flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto border-t border-border/40 pt-1.5" data-testid="teaching-load-truth-summary">
-				<MetricChip
-					label="Classes needing a teacher"
-					testId="teaching-load-truth-required-pairs"
-					metric={model?.requiredPairs ?? { state: 'unknown', reason: 'Waiting for authority.' }}
-					format={(value: number) => `${value}`}
-				/>
-				<MetricChip
-					label="Classes with a teacher"
-					testId="teaching-load-truth-assigned-pairs"
-					tone={model && isKnown(model.assignedPairs) && model.assignedPairs.value.real > 0 ? 'success' : 'neutral'}
-					metric={model?.assignedPairs ?? { state: 'unknown', reason: 'Waiting for authority.' }}
-					format={(value: { real: number; placeholder: number; total: number }) => (value.placeholder > 0 ? `${value.total} (${value.placeholder} temporary)` : `${value.total}`)}
-				/>
-				<MetricChip
-					label="Still without a teacher"
-					testId="teaching-load-truth-unresolved-pairs"
-					tone={model && isKnown(model.unresolvedPairs) && model.unresolvedPairs.value > 0 ? 'warning' : 'neutral'}
-					metric={model?.unresolvedPairs ?? { state: 'unknown', reason: 'Waiting for authority.' }}
-					format={(value: number) => `${value}`}
-				/>
-				<MetricChip
-					label="Total teaching hours"
-					testId="teaching-load-truth-actual-hours"
-					metric={model?.actualTeachingMinutes ?? { state: 'unknown', reason: 'Waiting for authority.' }}
-					format={(value: number) => `${minutesToHours(value)}h`}
-				/>
-			</div>
+			{/*
+			 * A6 C2 (Major 3) — the layout switch, and the whole of the fix.
+			 *
+			 * The two rows below used to be `flex … flex-nowrap … overflow-x-auto`
+			 * pill strips, which is what Lane C measured as two 34px-high
+			 * sideways scrollers holding 1,189px and 2,388px of content in a
+			 * 451px dialog. In `vertical` mode the same ordered metric list
+			 * renders as a `<dl>` that STACKS, with no overflow class anywhere
+			 * on the row, so there is nothing to scroll sideways — and the
+			 * dialog's bounded body scroll region stays the one scroll
+			 * region on the surface.
+			 *
+			 * The `overflow-x-auto` literal survives ONLY on the default pill
+			 * layout, which is the compact inline chip. The vertical-scroller
+			 * ban still holds either way.
+			 */}
+			{vertical ? (
+				<>
+					<dl className="mt-1.5 flex min-w-0 flex-col border-t border-border/40 pt-1" data-metric-layout="vertical" data-testid="teaching-load-truth-summary">
+						{demandMetrics.map((spec) => <MetricRow key={spec.testId} {...spec} />)}
+					</dl>
+					<dl className="flex min-w-0 flex-col border-t border-border/40 pt-1" data-metric-layout="vertical" data-testid="teaching-load-truth-capacity">
+						{capacityMetrics.map((spec) => <MetricRow key={spec.testId} {...spec} />)}
+					</dl>
+				</>
+			) : (
+				<>
+					{/* Row 1 — demand and assignment truth. */}
+					<div className="mt-1.5 flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto border-t border-border/40 pt-1.5" data-testid="teaching-load-truth-summary">
+						{demandMetrics.map((spec) => <MetricChip key={spec.testId} {...spec} />)}
+					</div>
 
-			{/* Row 2 — persisted policy capacity, overload, and exceptions. */}
-			<div className="mt-1.5 flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto border-t border-border/40 pt-1.5" data-testid="teaching-load-truth-capacity">
-				<MetricChip
-					label="Standard load"
-					testId="teaching-load-truth-standard"
-					metric={model?.policyCapacity ?? { state: 'unknown', reason: 'Waiting for authority.' }}
-					format={(value: { teachingStandardMinutes: number; hardCapMinutes: number | null }) => `${minutesToHours(value.teachingStandardMinutes)}h`}
-				/>
-				<MetricChip
-					label="School hard cap"
-					testId="teaching-load-truth-hard-cap"
-					metric={model?.policyCapacity ?? { state: 'unknown', reason: 'Waiting for authority.' }}
-					format={(value: { teachingStandardMinutes: number; hardCapMinutes: number | null }) => (value.hardCapMinutes == null ? 'Not set' : `${minutesToHours(value.hardCapMinutes)}h`)}
-				/>
-				<MetricChip
-					label="Above standard"
-					testId="teaching-load-truth-over-standard"
-					tone={model && isKnown(model.overload) && model.overload.value.overStandardCount > 0 ? 'warning' : 'success'}
-					metric={model?.overload ?? { state: 'unknown', reason: 'Waiting for authority.' }}
-					format={(value: { overStandardCount: number; overHardCapCount: number; excessMinutes: number }) => `${value.overStandardCount} (+${minutesToHours(value.excessMinutes)}h)`}
-				/>
-				<MetricChip
-					label="Above hard cap"
-					testId="teaching-load-truth-over-hard-cap"
-					tone={model && isKnown(model.overload) && model.overload.value.overHardCapCount > 0 ? 'danger' : 'neutral'}
-					metric={model?.overload ?? { state: 'unknown', reason: 'Waiting for authority.' }}
-					format={(value: { overStandardCount: number; overHardCapCount: number; excessMinutes: number }) => `${value.overHardCapCount}`}
-				/>
-				<MetricChip
-					label="Hours still available"
-					testId="teaching-load-truth-remaining"
-					metric={model?.remainingCapacityMinutes ?? { state: 'unknown', reason: 'Waiting for authority.' }}
-					format={(value: number) => `${minutesToHours(value)}h`}
-				/>
-				<MetricChip
-					label="Teachers with no classes"
-					testId="teaching-load-truth-zero-load"
-					tone={model && isKnown(model.zeroLoadFaculty) && model.zeroLoadFaculty.value.count > 0 ? 'warning' : 'success'}
-					metric={model?.zeroLoadFaculty ?? { state: 'unknown', reason: 'Waiting for authority.' }}
-					format={(value: { count: number; names: string[] }) => `${value.count}`}
-				/>
-				<MetricChip
-					label="Class advisers"
-					testId="teaching-load-truth-advisers"
-					metric={model?.adviserStatus ?? { state: 'unknown', reason: 'Waiting for authority.' }}
-					format={(value: { count: number; names: string[] }) => `${value.count}`}
-				/>
-				<MetricChip
-					label="Adviser credit"
-					testId="teaching-load-truth-advisory-credit"
-					metric={model?.advisoryCreditMinutes ?? { state: 'unknown', reason: 'Waiting for authority.' }}
-					format={(value: number) => `${minutesToHours(value)}h`}
-				/>
-				<MetricChip
-					label="Homeroom Guidance (not counted)"
-					testId="teaching-load-truth-hg-excluded"
-					metric={model?.excludedHgRows ?? { state: 'unknown', reason: 'Waiting for authority.' }}
-					format={(value: { count: number; explanation: string }) => `${value.count}`}
-				/>
-			</div>
+					{/* Row 2 — persisted policy capacity, overload, and exceptions. */}
+					<div className="mt-1.5 flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto border-t border-border/40 pt-1.5" data-testid="teaching-load-truth-capacity">
+						{capacityMetrics.map((spec) => <MetricChip key={spec.testId} {...spec} />)}
+					</div>
+				</>
+			)}
 
 			<p className="sr-only" aria-live="polite" data-testid="teaching-load-truth-summary-text">
 				{model

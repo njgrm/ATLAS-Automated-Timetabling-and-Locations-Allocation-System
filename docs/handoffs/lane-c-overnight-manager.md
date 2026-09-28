@@ -69,6 +69,19 @@ Rules for the planners:
 - Before Wednesday: a **demo walkthrough script** (the operator's path through the product) walked end to end on live,
   graded for older users, with every stumble fixed or listed.
 
+## CHECKPOINT 2026-09-28 20:30 (supersedes earlier checkpoints)
+
+PC rebooted ~20:15. Live `7590d485` and staging came back on their own; admin serve on :4097 restarted by the operator WITHOUT a
+password (a password-set serve gives 401 to our launches). Lanes resumed in their own sessions via
+`launch.ps1 -Session <id>`: a2-c12r (ses_f183ec69…: header ≤2 rows, then speed), a3-c12r (ses_f1819474…: Dashboard + demo-walk
+items), a5-c2r3 (ses_f1814066…: EnrollPro root cause + 2 blockers), a6-c2r (ses_f1836d61…: Teaching Load header spec).
+**Train 2 running:** a4-train2-stg = release/2026-09-28-2 from main tip (A2 e910811b #310 fix, A5 c5aba703, A6 6498c322) + A3
+13d75ce6 (local-only commit) → STAGING only. Next: Codex walks staging (A2 c11 targets + A5/A6/A3 rows, prompts in
+scratchpad/codex-qa/stg-a2walk and fixdocs), then A4 ships to production, then Codex smoke, then tell the operator it is live.
+Heartbeat task `atlas-planner-heartbeat` (every 30 min) survives restarts. Waiters must be re-armed after any Claude restart:
+`bash scratchpad/await.sh <run>` for each RUNNING run in `bash scratchpad/status.sh`.
+Lesson: exit 0 with no final message = the model ended its turn on a statement of intent → continue the same session.
+
 ## CHECKPOINT 2026-09-28 20:00 (supersedes earlier checkpoints)
 
 Live `7590d485` (rollback `4c35cc8f`). Staging `e59b8ba1` (BROKEN: /timetable React #310) at http://127.0.0.1:5274 and

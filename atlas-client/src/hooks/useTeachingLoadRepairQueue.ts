@@ -4,6 +4,7 @@ import type { SetURLSearchParams } from 'react-router-dom';
 import { getFacultyComparableLoadHours } from '@/lib/faculty-assignment-helpers';
 import type { FacultyAssignmentDraft, FacultySummary } from '@/types';
 import type { TeachingLoadRepairQueueItem } from '@/components/faculty-assignments/TeachingLoadRepairQueue';
+import { STAFF_WORKLOAD_REVIEW_LABEL } from '@/components/faculty-assignments/teacherReviewEntry';
 
 type UseTeachingLoadRepairQueueParams = {
 	searchParams: URLSearchParams;
@@ -16,6 +17,20 @@ type UseTeachingLoadRepairQueueParams = {
 	coverageAssigned: number;
 	coverageTotal: number;
 	coverageUnassigned: number;
+	/**
+	 * A6 C2 CORRECTION — REQUIRED, and threaded from the page's own
+	 * `data.dataSource` / `data.degradedNotice` / `data.isOnline` through the
+	 * shared `isTeachingLoadSourceDegraded` predicate, never sniffed from a
+	 * string.
+	 *
+	 * REQUIRED rather than optional so a new caller cannot inherit the healthy
+	 * rendering by omission: a queue that defaults to publishing live figures is
+	 * exactly the defect this closes, and a default would reopen it silently.
+	 * The queue's component takes NO new prop on purpose — this hook is where the
+	 * figures are authored, so withholding them HERE means the component has no
+	 * path that can render an unlabelled number, whatever a caller passes it.
+	 */
+	sourceDegraded: boolean;
 	writeBlockedReason: string | null;
 	onSelectFaculty: (facultyId: number) => void;
 	onSave: () => void;
@@ -31,6 +46,77 @@ function formatTeacherName(member: { firstName: string; lastName: string }) {
 	return `${member.lastName}, ${member.firstName}`;
 }
 
+/**
+ * A6 C2 CORRECTION — what replaces every derived figure while the source is
+ * unverified. It NAMES the cause and says the figure is withheld, so no reader
+ * is left holding a bare number and no reader is told a false one. The queue's
+ * component renders this string as-is beside the one amber line, so the row
+ * states its own uncertainty instead of relying on the reader to remember the
+ * banner at the far end of it.
+ */
+const UNVERIFIED_STATUS = 'Unverified — EnrollPro is not reachable, so this figure is withheld.';
+
+/**
+ * The `review-ready` item, in the two forms it can honestly take.
+ *
+ * The defect, as rendered: with the REAL queue in the REAL `CACHED` header,
+ * row 2 read `Using the last saved data — EnrollPro not reachableNext
+ * stepTeaching Load looks ready23 of 24 classes have a teacher.Review staff
+ * workload`. The header had correctly suppressed its OWN `% staffed` and `N
+ * classes need a teacher` sentence, but the queue publishes the SAME snapshot's
+ * figures beside it — so a scheduler could still conclude staffing was complete
+ * from the one line they had been told to trust.
+ *
+ * Both keep the same `id`, `kind` and `actionLabel`, so routing, the chip tone
+ * and the ONE primary action are byte-identical between the two states; only the
+ * claims change. The degraded form does not print `23 of 24` labelled either:
+ * that number describes the last saved snapshot, and a completeness-shaped
+ * figure on the row is the defect even when it is honestly caveated.
+ *
+ * WHY THIS LIVES IN THE HOOK AND NOT IN THE COMPONENT. The component receives
+ * already-authored `title` / `status` / `countLabel` strings. Deciding there
+ * which of them are a "completeness claim" would mean matching on their text,
+ * which is string sniffing, and it would break the moment a title is reworded.
+ * The hook is the authority that WRITES those strings, so it is the only place
+ * that can withhold a figure without reading it back.
+ */
+function buildReviewReadyItem(coverageAssigned: number, coverageTotal: number, sourceDegraded: boolean): TeachingLoadRepairQueueItem {
+	if (sourceDegraded) {
+		return {
+			id: 'review-ready',
+			kind: 'review-ready',
+			// Not `Teaching Load looks ready`: the title is the strongest claim
+			// on the row, and while the source is unreachable the honest claim
+			// is that ATLAS cannot tell.
+			title: 'Teaching Load not verified',
+			description: 'ATLAS cannot reach EnrollPro, so it cannot confirm whether any class, over-cap teacher, or temporary substitute still needs review. Treat the last saved data as unverified until the source is reachable again.',
+			status: UNVERIFIED_STATUS,
+			actionLabel: STAFF_WORKLOAD_REVIEW_LABEL,
+		};
+	}
+	return {
+		id: 'review-ready',
+		kind: 'review-ready',
+		title: 'Teaching Load looks ready',
+		// A6 C2 (Slice 5): the label comes from the ONE opener module, so the
+		// queue's roster-level action and the toolbar's per-teacher control
+		// cannot drift into two different words. It is `Review staff workload`
+		// because that is what the dialog it opens is: a staff-wide census.
+		description: 'No open classes, over-cap teachers, or temporary substitutes need review. Review the staff workload once before generating.',
+		status: `${coverageAssigned} of ${coverageTotal} classes have a teacher.`,
+		actionLabel: STAFF_WORKLOAD_REVIEW_LABEL,
+	};
+}
+
+/**
+ * The ONE item whose figures are not derived from the EnrollPro snapshot: a
+ * draft count is the operator's own unsaved work, held in this browser, and is
+ * true whether or not the upstream source is reachable. Withholding it would
+ * hide something that is known — a second lie, in the opposite direction.
+ */
+const LOCAL_DRAFT_ITEM_IDS = new Set(['save-draft']);
+
+
 export function useTeachingLoadRepairQueue({
 	searchParams,
 	setSearchParams,
@@ -42,6 +128,7 @@ export function useTeachingLoadRepairQueue({
 	coverageAssigned,
 	coverageTotal,
 	coverageUnassigned,
+	sourceDegraded,
 	writeBlockedReason,
 	onSelectFaculty,
 	onSave,
@@ -141,14 +228,29 @@ export function useTeachingLoadRepairQueue({
 			});
 		}
 		if (items.length === 0) {
-			items.push({
-				id: 'review-ready',
-				kind: 'review-ready',
-				title: 'Teaching Load looks ready',
-				description: 'No open classes, over-cap teachers, or temporary substitutes need review. Review teachers once before generating.',
-				status: `${coverageAssigned} of ${coverageTotal} classes have a teacher.`,
-				actionLabel: 'Review teachers',
-			});
+			items.push(buildReviewReadyItem(coverageAssigned, coverageTotal, sourceDegraded));
+		}
+		/*
+		 * A6 C2 CORRECTION — withhold every UPSTREAM-derived figure while the
+		 * source is unverified. `missing-load` ("2 section-subject pairs need a
+		 * teacher"), `over-cap` ("26.0h used / 40h max"), `placeholder` ("3
+		 * subject groups assigned") and their `countLabel` badges are all read
+		 * off the same snapshot as `23 of 24`, so suppressing the header's
+		 * sentence while leaving these on the row would close the finding on one
+		 * branch and leave it open on the others. `save-draft` is excluded for
+		 * the reason on `LOCAL_DRAFT_ITEM_IDS`.
+		 *
+		 * The item's TASK, its `actionLabel`, its `id` and its `disabledReason`
+		 * are untouched, so the queue still says what to do and the ONE primary
+		 * action still works. That is deliberate: a degraded row must not become
+		 * a dead row.
+		 */
+		if (sourceDegraded) {
+			for (const item of items) {
+				if (LOCAL_DRAFT_ITEM_IDS.has(item.id)) continue;
+				item.status = UNVERIFIED_STATUS;
+				delete item.countLabel;
+			}
 		}
 		return items;
 	}, [
@@ -160,6 +262,7 @@ export function useTeachingLoadRepairQueue({
 		isReadOnlyMode,
 		overCapTeachers,
 		placeholderTeachers,
+		sourceDegraded,
 		teachersWithoutLoad,
 		writeBlockedReason,
 	]);

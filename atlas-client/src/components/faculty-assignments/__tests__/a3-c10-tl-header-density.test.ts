@@ -54,6 +54,7 @@ import { JSDOM } from 'jsdom';
 import { WorkspaceToolbar } from '@/components/faculty-assignments/WorkspaceToolbar';
 import { TeachingLoadTruthPanel } from '@/components/faculty-assignments/TeachingLoadTruthPanel';
 import { TeachingLoadRepairQueue } from '@/components/faculty-assignments/TeachingLoadRepairQueue';
+import { STAFF_WORKLOAD_REVIEW_LABEL } from '@/components/faculty-assignments/teacherReviewEntry';
 import { TooltipProvider } from '@/ui/tooltip';
 import { COVERAGE_MODE_CONFIG } from '@/lib/teaching-load-helpers';
 import type { CoverageMode } from '@/types';
@@ -235,7 +236,10 @@ const REPAIR_ITEMS = [{
 	title: '3 classes have no teacher',
 	description: 'A scheduler officer should assign these before generating a timetable.',
 	status: '3 awaiting assignment',
-	actionLabel: 'Review teachers',
+	// A6 C2 (Slice 5): the label is now the operator's, and it is imported from
+	// the ONE opener module rather than retyped here, so this fixture cannot claim
+	// a word the product does not render.
+	actionLabel: STAFF_WORKLOAD_REVIEW_LABEL,
 	countLabel: '3 to fix',
 }];
 
@@ -272,9 +276,18 @@ const toolbarProps = {
 };
 
 /**
- * Row 2 exactly as `TeachingLoad.tsx` builds it: the canonical truth summary,
- * the next-step chip with its action, and the archived-load control, on the one
- * state line. Rendered for real, so the model below measures shipped markup.
+ * Row 2 exactly as `TeachingLoad.tsx` builds it AFTER A6 C2: the repair queue
+ * (which supplies the ONE primary action) and nothing else, because the
+ * `% staffed` / `Classes without a teacher` / alert figures moved INTO the one
+ * status sentence the toolbar itself renders, and the `Archived load` link moved
+ * into the More menu.
+ *
+ * A6 C2 REMOVED the `TeachingLoadTruthPanel` from this fixture. It was never on
+ * the production state line — FIX 38 had already moved it into the `Load summary`
+ * dialog — so injecting it here measured a layout the product does not have, and
+ * it was the reason T7 could assert four truth-panel test ids on "the state
+ * line". The real panel is still covered, in its real dialog, by
+ * `a6-teaching-load-surface` A6-C2-1.
  */
 function renderStateLine(): string {
 	// The page wraps the route in a TooltipProvider; so does CompactTitleStrip.
@@ -283,15 +296,6 @@ function renderStateLine(): string {
 		createElement(
 			TooltipProvider,
 			null,
-			createElement(Fragment, null,
-			createElement(TeachingLoadTruthPanel, {
-				inline: true,
-				model: TRUTH_MODEL,
-				loading: false,
-				sourceRevision: 'rev-9',
-				upstreamVerified: true,
-				unresolvedReasons: [{ code: 'NO_DEMAND', message: 'No canonical demand for this section.' }],
-			}),
 			createElement(TeachingLoadRepairQueue, {
 				items: REPAIR_ITEMS,
 				activeItemId: 'missing-load',
@@ -300,7 +304,6 @@ function renderStateLine(): string {
 				advancedGridVisible: true,
 				onPrimaryAction: () => {},
 			}),
-			),
 		),
 	);
 }
@@ -511,14 +514,48 @@ test('T4 the page stacks no header band of its own above the roster', () => {
 	);
 	assert.match(column, /RolloverGuidanceCard/, 'the rollover wrapper is the one that remains');
 
-	// The three surfaces are composed into the strip's state line instead.
-	assert.match(pageSource, /const headerStateLine = \(/, 'the page must build the state line once');
-	for (const component of ['<TeachingLoadRepairQueue', 'data-testid="teaching-load-history-link"']) {
-		const at = pageSource.indexOf(component);
-		assert.ok(at > 0, 'the page must render ' + component);
-		const lineAt = pageSource.indexOf('const headerStateLine = (');
-		assert.ok(at > lineAt, component + ' must be composed into the state line, not stacked above the roster');
-	}
+	/**
+	 * SUPERSEDED BY A6 C2 — the `Archived load` link is no longer a member of the
+	 * state line. It is a NAVIGATION link, not a state chip, and Lane C measured
+	 * the state line trying to hold 1,070px at 1366x768 with the link's own 117px
+	 * among them. The operator's target header keeps `Archived load` off the two
+	 * status rows, so it moved into the toolbar's More menu. The claim the
+	 * assertion protected — nothing that belongs above the roster is stacked as
+	 * its own band — is STRICTLY STRONGER below, which pins BOTH remaining
+	 * members on the row AND the link's new home.
+	 *
+	 * The original expectation, verbatim:
+	 *
+	 *   for (const component of ['<TeachingLoadRepairQueue', 'data-testid="teaching-load-history-link"']) {
+	 *     const at = pageSource.indexOf(component);
+	 *     assert.ok(at > 0, 'the page must render ' + component);
+	 *     const lineAt = pageSource.indexOf('const headerStateLine = (');
+	 *     assert.ok(at > lineAt, component + ' must be composed into the state line, not stacked above the roster');
+	 *   }
+	 */
+	const lineAt0 = pageSource.indexOf('const headerStateLine = (');
+	const lineEnd0 = pageSource.indexOf('\n\t);', lineAt0);
+	const queueAt0 = pageSource.indexOf('<TeachingLoadRepairQueue');
+	assert.ok(queueAt0 > 0, 'the page must still render the repair queue');
+	assert.ok(
+		queueAt0 > lineAt0 && queueAt0 < lineEnd0,
+		'the repair queue must be composed INTO the state line, not stacked above the roster',
+	);
+	// STRICTLY STRONGER: the link is still built by the page (one place to read
+	// the reachability claim, and `client-quality-c01` reads it there), and it is
+	// now positioned by the header's More menu instead of the status row.
+	const historyAt = pageSource.indexOf('data-testid="teaching-load-history-link"');
+	assert.ok(historyAt > 0, 'the page must still build the `Archived load` link itself');
+	assert.ok(
+		historyAt > lineEnd0,
+		'the `Archived load` link must have moved OFF the state line and into the header action group',
+	);
+	assert.match(pageSource, /historyAction=\{/, 'the link must be handed to the header, which owns its position');
+	assert.match(
+		pageSource,
+		/<Link to="\/teaching-load\/history" data-testid="teaching-load-history-link">/,
+		'and it must still be a real link to the archived Teaching Load surface',
+	);
 	assert.match(pageSource, /stateLineSlot=\{headerStateLine\}/, 'the strip must receive the state line');
 
 	/**
@@ -727,7 +764,11 @@ test('T7 every state compacted into row 2 is still visible and announced on the 
 	// The action is still a real control, with its label and its test id.
 	const action = STATE_LINE.querySelector('[data-testid="teaching-load-repair-review"]') as HTMLButtonElement | null;
 	assert.ok(action, 'the next-step primary action must stay on the state line');
-	assert.match(action!.textContent ?? '', /Review teachers/, 'the action keeps its label');
+	assert.match(
+		action!.textContent ?? '',
+		new RegExp(STAFF_WORKLOAD_REVIEW_LABEL),
+		'the action keeps the label the ONE opener module declares (A6 C2 Slice 5)',
+	);
 	assert.equal(action!.disabled, false, 'the action must be operable in the loaded state');
 	assert.ok(
 		STATE_LINE.contains(action!),
@@ -748,34 +789,85 @@ test('T7 every state compacted into row 2 is still visible and announced on the 
 	assert.ok(reason, 'the disabled reason must render');
 	assert.match(reason.textContent ?? '', /Read-only: verify the source first/, 'the reason must be visible text, not a hover');
 
-	// The canonical truth surface keeps its own one-line announcement.
-	const truthLine = STATE_LINE.querySelector('[data-testid="teaching-load-truth-summary-line"]')!;
-	assert.ok(truthLine, 'the truth summary line must stay on the state line');
-	assert.match(truthLine.textContent ?? '', /42 classes/, 'the summary must still state the class count');
-	assert.match(truthLine.textContent ?? '', /3 without a teacher/, 'the summary must still state the unassigned count');
-	// Source-of-truth state is not decoration either.
-	assert.ok(
-		STATE_LINE.querySelector('[data-testid="teaching-load-truth-source-badge"]'),
-		'the EnrollPro source-verification badge must stay reachable',
+	/*
+	 * SUPERSEDED BY A6 C2 — the row-2 composition assertions this control used to
+	 * make, preserved VERBATIM as a copy claim. Each of them is a claim about
+	 * WHICH SURFACE a piece of state appears on, and the operator's 2026-09-28
+	 * spec (Major 1 + Major 2) contradicts all of them: row 2 is "one sentence of
+	 * status + ONE primary action", the long summary belongs behind `Load
+	 * summary`, and `Archived load` belongs in the More menu. Keeping them would
+	 * force the requested change to be reverted.
+	 *
+	 *   // The canonical truth surface keeps its own one-line announcement.
+	 *   const truthLine = STATE_LINE.querySelector('[data-testid="teaching-load-truth-summary-line"]')!;
+	 *   assert.ok(truthLine, 'the truth summary line must stay on the state line');
+	 *   assert.match(truthLine.textContent ?? '', /42 classes/, 'the summary must still state the class count');
+	 *   assert.match(truthLine.textContent ?? '', /3 without a teacher/, 'the summary must still state the unassigned count');
+	 *   // Source-of-truth state is not decoration either.
+	 *   assert.ok(
+	 *     STATE_LINE.querySelector('[data-testid="teaching-load-truth-source-badge"]'),
+	 *     'the EnrollPro source-verification badge must stay reachable',
+	 *   );
+	 *   assert.match(
+	 *     STATE_LINE.textContent ?? '',
+	 *     /Up to date with EnrollPro/,
+	 *     'the source badge must state its state',
+	 *   );
+	 *   assert.ok(
+	 *     STATE_LINE.querySelector('[data-testid="teaching-load-truth-details"]'),
+	 *     'the Details popover trigger must stay reachable',
+	 *   );
+	 *   // And the % staffed / unassigned / alert figures are all still on the line.
+	 *   const lineText = STATE_LINE.textContent ?? '';
+	 *   assert.match(lineText, /% staffed/, 'the % staffed figure must stay on the state line');
+	 *   assert.match(lineText, /Classes without a teacher/, 'the unassigned count must stay on the state line');
+	 *   assert.match(lineText, /Above weekly max: 1/, 'the alert chip must stay on the state line and state its number');
+	 *   assert.ok(
+	 *     STATE_LINE.querySelector('[data-testid="teaching-load-alert-over-cap"]'),
+	 *     'the alert chip keeps its test id',
+	 *   );
+	 *
+	 * WHAT SURVIVES, AS STRICTLY STRONGER ASSERTIONS. None of these is "the chip
+	 * is on row 2" any more; each is "the state is still visible SOMEWHERE on the
+	 * header, and the row-2 sentence is the one place it may be":
+	 */
+	const sentence = STATE_LINE.querySelector('[data-testid="teaching-load-status-sentence"]')!;
+	assert.ok(sentence, 'row 2 must carry exactly ONE status sentence');
+	assert.equal(
+		STATE_LINE.querySelectorAll('[data-testid="teaching-load-status-sentence"]').length,
+		1,
+		'there must be one status sentence, not several competing ones',
 	);
-	assert.match(
-		STATE_LINE.textContent ?? '',
-		/Up to date with EnrollPro/,
-		'the source badge must state its state',
-	);
-	assert.ok(
-		STATE_LINE.querySelector('[data-testid="teaching-load-truth-details"]'),
-		'the Details popover trigger must stay reachable',
-	);
-	// And the % staffed / unassigned / alert figures are all still on the line.
-	const lineText = STATE_LINE.textContent ?? '';
-	assert.match(lineText, /% staffed/, 'the % staffed figure must stay on the state line');
-	assert.match(lineText, /Classes without a teacher/, 'the unassigned count must stay on the state line');
-	assert.match(lineText, /Above weekly max: 1/, 'the alert chip must stay on the state line and state its number');
+	assert.match(sentence.textContent ?? '', /95% staffed/, 'the sentence must still state the % staffed figure');
+	assert.match(sentence.textContent ?? '', /3 classes need a teacher/, 'the sentence must still state the classes needing a teacher');
+	// The alert KEEPS its test id and its number, inside the sentence.
 	assert.ok(
 		STATE_LINE.querySelector('[data-testid="teaching-load-alert-over-cap"]'),
-		'the alert chip keeps its test id',
+		'the alert must stay addressable by its test id',
 	);
+	assert.match(STATE_LINE.textContent ?? '', /Above weekly max: 1/, 'the alert must still state its number');
+	// And row 2 scrolls no longer: the defect was a sideways scroller.
+	assert.doesNotMatch(
+		STATE_LINE.getAttribute('class') ?? '',
+		/overflow-x-auto/,
+		'row 2 must not scroll sideways; a long sentence truncates instead',
+	);
+	// The truth panel is NOT on row 2 any more — it is in the `Load summary`
+	// dialog, on the page's own `truthModel` (FIX 38, and T4 above).
+	assert.equal(
+		STATE_LINE.querySelector('[data-testid="teaching-load-truth-panel"]') === null,
+		true,
+		'the truth panel must be in the `Load summary` dialog, not back on the state line',
+	);
+	assert.equal(
+		STATE_LINE.querySelector('[data-testid="teaching-load-history-link"]') === null,
+		true,
+		'the `Archived load` link must be in the More menu, not on the state line',
+	);
+	// The long breakdown is STILL reachable, with all thirteen figures — asserted
+	// on the real panel in its real dialog by `a6-teaching-load-surface`
+	// A6-C2-1, so the numbers are not lost by moving them.
+	assert.ok(TRUTH_MODEL, 'the truth model still exists for the dialog surface');
 });
 
 // =============================================================================

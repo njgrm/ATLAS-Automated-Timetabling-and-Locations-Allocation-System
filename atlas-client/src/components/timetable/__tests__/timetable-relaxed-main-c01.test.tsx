@@ -674,7 +674,13 @@ test('C6: the primary action leads the narrow action strip and returns inline at
 	// visible on narrow viewports without reordering.
 	const renderedTag = markup.match(/<[^>]*data-testid="timetable-simple-publish-action"[^>]*>/)?.[0];
 	assert.ok(renderedTag, 'the rendered primary action element exists');
-	assert.match(markup, /class="flex min-w-0 flex-wrap items-center justify-start gap-1\.5 lg:ml-auto lg:justify-end"/, 'the primary cluster wraps instead of scrolling');
+	// MECHANISM SUPERSEDED 2026-09-28 (A2 C12 item 1, on Lane C's ruling that the
+	// header is at most 2 visual rows at 1366 px): this cluster no longer WRAPS from
+	// `lg` up. The requirement the row protects is unchanged and still asserted on
+	// the next line — no horizontally scrolling strip can clip the primary. What
+	// changed is that pressure is absorbed by truncation rather than by a second
+	// line, so the primary, Undo and More stay on the control row's single line.
+	assert.match(markup, /class="flex min-w-0 flex-wrap items-center justify-start gap-1\.5 lg:ml-auto lg:flex-nowrap lg:justify-end"/, 'the primary cluster does not wrap from lg up: one visual line, no scrolling strip');
 	assert.doesNotMatch(markup, /overflow-x-auto/, 'no horizontally scrolling strip can clip the primary');
 });
 

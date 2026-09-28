@@ -117,13 +117,22 @@ export function SimpleTermScopeLine({
 		? null
 		: resolveTermAuthorityNotice(context.schoolYearContext, hasScheduleOnScreen);
 	return (
-		<span className="flex min-w-0 flex-wrap items-baseline gap-1 text-xs text-muted-foreground" data-testid="timetable-term-scope-line">
-			<span className="min-w-0">
+		/* A2 C12 / ITEM 1 — ONE LINE AT 1366. This line is the widest thing in the
+		 * status region, and it carries THREE facts: what the scheduler is viewing,
+		 * what term the school is in, and the unverified-authority notice. Wrapping
+		 * any of them is what pushed the status region past one visual line, so from
+		 * `lg` up the line does not wrap and each part truncates instead. Below `lg`
+		 * it is unchanged, so the narrow/390 px shape is untouched. */
+		<span className="flex min-w-0 flex-wrap items-baseline gap-1 text-xs text-muted-foreground lg:flex-nowrap" data-testid="timetable-term-scope-line">
+			<span className="min-w-0 lg:truncate">
 				<span className="font-semibold text-foreground">Term:</span> {parts.viewing}
 			</span>
 			<span aria-hidden="true">·</span>
-			<span className="min-w-0" data-term-authority={parts.activeTermVerified ? 'verified' : 'unverified'}>{parts.schoolSide}</span>
-			{notice ? <span className="min-w-0 text-amber-800" data-testid="timetable-term-authority-unverified">{notice}</span> : null}
+			<span className="min-w-0 lg:truncate" data-term-authority={parts.activeTermVerified ? 'verified' : 'unverified'}>{parts.schoolSide}</span>
+			{/* The notice is the ELASTIC part: `lg:flex-1` hands it whatever the
+			 * sibling parts do not need, so the amber sentence is what gives up width
+			 * rather than the two short facts beside it. */}
+			{notice ? <span className="min-w-0 text-amber-800 lg:min-w-0 lg:flex-1 lg:truncate" data-testid="timetable-term-authority-unverified">{notice}</span> : null}
 		</span>
 	);
 }

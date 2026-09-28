@@ -216,6 +216,27 @@ export function SimpleScheduleControls({
 					groups={groups}
 					disabled={!entityOptionsAvailable}
 					disabledReason="No schedule options are available yet. Generate or load a timetable first."
+					/* A2 C12 / ITEM 3 — THE NAMED COMBOBOX. This call site passed NO
+					 * `ariaLabel`, and `SearchableSelect` composes `aria-label` from it
+					 * (and from `triggerId`, also absent here), so the rendered trigger
+					 * carried `aria-label={undefined}`: an EMPTY accessible name. Its
+					 * visible label is a non-interactive `<span>Schedule for</span>` that
+					 * no `for`/`aria-labelledby` points at, and the neighbouring
+					 * `<span class="sr-only">Showing …</span>` belongs to the GROUP, not
+					 * to this button — so a screen reader announced the entity picker as
+					 * an unlabelled combobox, and the header's one schedule picker was
+					 * the one control nobody could tell apart from the view-type
+					 * dropdown beside it.
+					 *
+					 * `Schedule for` is the operator's OWN visible label for this control
+					 * (the span three lines up), so the accessible name and the visible
+					 * label can never drift — the LANE-C C03 (B11) rule.
+					 *
+					 * The wording deliberately does NOT depend on the selected value,
+					 * because the name has to be non-empty in EVERY state and the value
+					 * is the empty string in the `all` default (see
+					 * `searchable-select.tsx`'s `selectedLabel`). */
+					ariaLabel="Schedule for"
 				/>
 			</div>
 			<span className="sr-only">Showing {context.VIEW_MODE_LABELS[context.viewMode]} schedule: {rememberedLabel}</span>

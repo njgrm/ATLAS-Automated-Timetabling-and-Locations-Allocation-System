@@ -134,5 +134,30 @@ test('WorkloadInspector guards remainingHours on the nullable profile', () => {
 test('Teaching Load exposes the archived surface from within the page', () => {
 	const source = clientSource('src/pages/TeachingLoad.tsx');
 	assert.match(source, /data-testid="teaching-load-history-link"/);
-	assert.match(source, /<Link to="\/teaching-load\/history">/);
+	/*
+	 * SUPERSEDED BY A6 C2 — as a COPY claim only, and only its second line.
+	 *
+	 *   assert.match(source, /<Link to="\/teaching-load\/history">/);
+	 *
+	 * A6 C2 (Major 1) moved the `Archived load` control off header row 2 and into
+	 * the toolbar's More menu, and the page now writes its test id alongside the
+	 * `to` attribute — so the literal no longer reads `<Link to="…">` with the
+	 * bracket immediately after. The CLAIM the assertion protected — the archived
+	 * surface is reachable from within the Teaching Load page, as a real link, not
+	 * a handler or a comment — is unchanged, and the replacement below is
+	 * STRICTLY STRONGER: it requires both attributes on the SAME `Link`, and it
+	 * additionally requires the control to be handed to the header action group
+	 * (so "reachable" means "rendered in the header", not merely "present in a
+	 * file"). Nothing about the destination changed.
+	 */
+	assert.match(
+		source,
+		/<Link\s+to="\/teaching-load\/history"[^>]*data-testid="teaching-load-history-link"/,
+		'the archived Teaching Load link must be ONE real link carrying both its destination and its test id',
+	);
+	assert.match(
+		source,
+		/historyAction=\{/,
+		'the link must be handed to the header action group, which owns its position (A6 C2)',
+	);
 });

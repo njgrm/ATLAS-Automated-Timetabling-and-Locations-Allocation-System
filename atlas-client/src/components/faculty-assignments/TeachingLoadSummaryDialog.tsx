@@ -20,6 +20,25 @@
  * `max-h-[70vh] overflow-y-auto` on the body is the dialog's ONE scroll
  * region, bounded so the dialog itself can never grow past the viewport and
  * produce a global scrollbar (AGENTS.md §8).
+ *
+ * A6 C2 (Major 3) — WHY THE PANEL ARRIVES IN `vertical` MODE, AND WHY THE
+ * DIALOG DOES NOT PASS IT.
+ *
+ * Lane C measured this dialog producing two 34px-high HORIZONTAL scrollers:
+ * 1,189px and 2,388px of content inside a 451px container, and the same widths
+ * at 1920. Every important label and value needed a hidden sideways scroll. The
+ * panel's two metric rows were `flex … flex-nowrap … overflow-x-auto` pill
+ * strips, so they now render as a stacked `dl`/`dt`/`dd` list when the panel is
+ * given `vertical`.
+ *
+ * The prop is set by the PAGE, next to `expanded`, for the reason stated in
+ * `TeachingLoadSummarySurface`: this file is a frame with a `children` slot and
+ * two committed controls locate the `<TeachingLoadTruthPanel` literal IN THE
+ * PAGE. A dialog that passed `vertical` itself would have to construct or clone
+ * the panel, which is the second authority for the breakdown that both of those
+ * controls exist to prevent. So the LAYOUT MODE travels with the node the page
+ * already builds, and this dialog's contribution is the bounded single scroll
+ * region the stacked list now needs.
  */
 import type { ReactNode } from 'react';
 import {
