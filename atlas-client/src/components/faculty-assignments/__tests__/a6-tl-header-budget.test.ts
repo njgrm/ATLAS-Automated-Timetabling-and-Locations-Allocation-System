@@ -603,28 +603,54 @@ test('A6c4-G2-6 MUTANT ROW: the Teaching Load filter row is one look per control
 	const primary = doc.querySelector('[data-testid="teaching-load-primary-filters"]')!;
 	assert.ok(primary, 'the filter row must render');
 
+	// SUPERSEDED at integration (2026-09-29), NOT deleted (AGENTS.md §16). This row
+	// originally asserted, per picker, that the trigger carried no
+	// `uppercase`/`tracking-` override, declared the same `w-*` width as its three
+	// siblings, and kept `border-border/60` + `h-9`. Those were page-local chrome
+	// strings on a Radix `@/ui/select` trigger, and A5 C3 slice B (`e8bb101b`,
+	// `src/ui/filter-picker.tsx`) replaced the mechanism: these four controls are
+	// now the ONE shared `FilterPicker`, which has **no `className` prop at all**,
+	// so this page cannot restate a trigger's chrome even if it wanted to. The
+	// per-token assertions are therefore unreachable, not merely redundant, and
+	// A5's committed picker guard (`src/ui/__tests__/a5-c3-picker-guard.test.ts`,
+	// `.../a5-c3-picker-contract.test.tsx`) now polices the rule repo-wide.
+	//
+	// The row's INTENT is unchanged and is re-asserted in the primitive's terms.
+	assert.doesNotMatch(
+		code(FILTER_FILE),
+		/<SelectTrigger\b/,
+		'this row must build its filters through the shared `@/ui` FilterPicker, not a bespoke `@/ui/select` trigger',
+	);
+	for (const name of ['Status', 'Department', 'Load', 'Sort']) {
+		assert.match(
+			code(FILTER_FILE),
+			new RegExp(`<FilterPicker\\s+[\\s\\S]{0,120}?name="${name}"`),
+			`the "${name}" filter must be the shared FilterPicker`,
+		);
+	}
+	// The pickers keep the accessible names the committed controls assert. Losing
+	// one would be a regression, not a simplification.
+	for (const ariaLabel of ['Filter by status', 'Filter by department', 'Filter by load', 'Sort teachers']) {
+		assert.match(code(FILTER_FILE), new RegExp(`ariaLabel="${ariaLabel}"`), `the "${ariaLabel}" picker must keep its accessible name`);
+	}
+
 	const PICKERS = ['Filter by status', 'Filter by department', 'Filter by load', 'Sort teachers'];
-	const widths = new Set<string>();
+	// `FilterPicker` composes the selected option into the accessible name
+	// (`aria-label="Grade: All grades"`, `src/ui/filter-picker.tsx`), so a prefix
+	// match is what finds these triggers now, not an exact match.
 	for (const name of PICKERS) {
-		const trigger = primary.querySelector(`[aria-label="${name}"]`)!;
+		const trigger = primary.querySelector(`[aria-label^="${name}"]`)!;
 		assert.ok(trigger, `the "${name}" picker must render`);
-		const cls = trigger.getAttribute('class') ?? '';
 		assert.doesNotMatch(
-			cls,
-			/\buppercase\b|\btracking-/,
+			trigger.getAttribute('class') ?? '',
+			// `tracking-normal` is not an override: it is the shared primitive's own
+			// `PICKER_TRIGGER_TYPE_CLASS` (`src/ui/picker-trigger.ts`), which exists
+			// precisely so a look-changing `tracking-tight` cannot be added on top.
+			// A5 C3 introduced it, so this row must read it as the fix, not the defect.
+			/\buppercase\b|\btracking-(?!normal\b)/,
 			`the "${name}" picker must not override the primitive's text style: the header strip already forbids letter-spaced ALL-CAPS, and one control family cannot have two looks`,
 		);
-		const width = /\bw-(\d+)\b/.exec(cls)?.[1];
-		assert.ok(width, `the "${name}" picker must declare its width`);
-		widths.add(width!);
-		assert.match(cls, /\bborder-border\/60\b/, `the "${name}" picker must keep the shared border`);
-		assert.match(cls, /\bh-9\b/, `the "${name}" picker must keep the shared height`);
 	}
-	assert.equal(
-		widths.size,
-		1,
-		`every picker in the row must be the same trigger size, found widths: ${[...widths].join(', ')}`,
-	);
 
 	// The search input shares the pickers' placeholder style. It is an
 	// `@/ui/input`, which does not carry it, so without this the two controls sit
@@ -636,12 +662,23 @@ test('A6c4-G2-6 MUTANT ROW: the Teaching Load filter row is one look per control
 		/\bplaceholder:text-muted-foreground\b/,
 		'the search input must use the same placeholder style the select primitive gives the pickers',
 	);
-	// And the inclusion toggles stopped shouting too — they are on the same row.
-	for (const label of Array.from(primary.querySelectorAll('label'))) {
+	// EXCEPTION, recorded not forgotten: A5 C3 slice B deliberately KEPT
+	// `uppercase tracking-tight` on the two inclusion SWITCH labels and says why
+	// in `TeachingLoadFilterBar.tsx` — "a Switch label is a different control, and
+	// restyling it would be a change the sweep was not asked to make". This row
+	// originally forbade caps on every label in the row, which is no longer true
+	// and no longer this slice's call. The claim is narrowed to what is actually
+	// true and still discriminating: caps are allowed on the inclusion switch
+	// labels and nowhere else, so a new caps override anywhere else still fails.
+	const shoutingLabels = Array.from(primary.querySelectorAll('label')).filter((label) =>
+		/\buppercase\b|\btracking-/.test(label.getAttribute('class') ?? ''),
+	);
+	assert.ok(shoutingLabels.length <= 2, `only the two documented inclusion-switch labels may shout in caps, found ${shoutingLabels.length}`);
+	for (const label of shoutingLabels) {
 		assert.doesNotMatch(
-			label.getAttribute('class') ?? '',
-			/\buppercase\b|\btracking-/,
-			'a control label on this row must not shout in letter-spaced caps',
+			label.textContent ?? '',
+			/^(Status|Load|Department|Sort)\b/,
+			"a filter's own label must not be shouted in caps; only the inclusion switches are the documented exception",
 		);
 	}
 	// SCOPE GUARD: this row is scoped to Teaching Load and must not have widened
