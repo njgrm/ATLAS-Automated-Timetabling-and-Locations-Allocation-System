@@ -10,6 +10,19 @@ exit and reviews trends after every 3 rows; each process change is logged below 
 | 09-28 · A4 · staging | A4 §14 | ~40 min | n/a | — | 0 | 1 | 0 | 26 s deploy; 3 BLOCKING script guards from Codex review |
 | 09-28 · A2 · c11 slice 1 | pre-b8e6bda7 | ~3 h | pending staging walk | D, M1–M5 | 0 | 4 | — | first slice on draft/manual flow |
 
+| 09-28 · A2 · c11 slice 2 (e59b8ba1) | mixed (crash restarts) | ~5 h | 0 — staging walk BLOCKED: /timetable React #310 | D, M1–M5, banner, T2/T3 | P, H not reached | 2 | 0 (staging caught it) | QA 41/41 jsdom passed a route that crashes when really loaded |
+| 09-28 · A5 · c1 | b8e6bda7 | ~2.5 h | 0 (awaits train) | 5/5 (34+35, 9.1, 41, 17.1, FIX-20) | 0 | 1 | — | first cycle, fully delivered; loopback-rendered |
+| 09-28 · A6 · c1 | b8e6bda7 | ~2.5 h | 0 (awaits train) | 6 items + FIX-29 | 0 | 2 | — | flagged TeachingLoad.tsx at 998 lines |
+| 09-28 · A4 · staging-b + e59b8ba1 staging | A4 §14 | ~45 + ~30 min | n/a | guards + Tailnet :8443 | 0 | 2 | 0 | |
+
+## Trend review 1 (2026-09-28 19:55)
+- Stalls: 3 → 0 since A4. Delivery per cycle: A5 5/5, A6 7/7 on first cycles under the new rules.
+- **Gap: fixes seen live stayed at 0 since 7590d485 (15:58).** Staging-first added a gate but nothing crossed it yet.
+- **Gap: a crashing route passed jsdom QA.** Next change: every lane's gate adds a real-route smoke (loopback Playwright,
+  mocked API, load the touched routes loading→resolved, fail on any console error / error boundary). Metric: staging
+  walks blocked by crashes → 0.
+- Crash recovery cost ~1 h of planner time (two Claude crashes, uv_spawn). Fixed by detached launch + snapshot off.
+
 ## Process changes and the metric each should move
 - 2026-09-28 a981032b — A4 release lane → release stalls ↓, A2 wall time on product ↑.
 - 2026-09-28 b8e6bda7 — 2 review rounds; original-words grading; fixes-live metric; staging first → review rounds ≤ 2, fixes seen live per cycle ↑.
