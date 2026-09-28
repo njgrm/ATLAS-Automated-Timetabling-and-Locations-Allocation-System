@@ -14,6 +14,7 @@ import { TimetableCellOverflowSheet } from '@/components/timetable/TimetableCell
 import { ConflictBadgeWithTooltip, EntrySeverityIndicator, entryAccessibleName } from '@/components/timetable/TimetableGridConflictBadge';
 import { DraggableEntry, useTimetableEntryReadOnly } from '@/components/timetable/TimetableDraggableEntry';
 import { SandboxEntryBadge, TeacherDepartureEntryBadge } from '@/components/timetable/TimetableGridEntryBadges';
+import type { GridCellProps } from '@/components/timetable/TimetableGridCell.types';
 import {
 	GridDropContainer,
 	inactiveDragCellState,
@@ -39,65 +40,17 @@ export function dedupeCellGradeRepetition(roomText: string): string {
 	return roomText.replace(new RegExp(`^${token}\\s+`), '');
 }
 
-interface GridCellProps {
-	cellId: string;
-	day: string;
-	startTime: string;
-	endTime: string;
-	cellEntries: ScheduledEntry[];
-	isSpecialEvent: boolean;
-	eventName?: string;
-	/** When present, the event blocks only this weekday. */
-	eventDayOfWeek?: string;
-	hasKbSource: boolean;
-	violationIndex: Map<string, Violation[]>;
-	highlightedEntryIds: Set<string>;
-	swapClassAEntryId?: string | null;
-	swapClassBEntryId?: string | null;
-	teacherDepartureEntryIds?: Set<string>;
-	localSandboxChangedEntryIds?: Set<string>;
-	localSandboxConflictEntryIds?: Set<string>;
-	selectedEntry: ScheduledEntry | null;
-	followUps: Set<string>;
-	onEntryClick: (entry: ScheduledEntry) => void;
-	subjectLabel: (id: number) => string;
-	sectionLabel: (id: number) => string;
-	gradeForSection: (sectionId: number) => number | null;
-	entryContextLabel: (entry: ScheduledEntry) => string;
-	formatFacultyInitials: (id: number) => string;
-	facultyLabel: (id: number) => string;
-	viewMode: 'section' | 'faculty' | 'room';
-	/** Selected ordered-term scope. Resolves the teacher from the entry in that term. */
-	termFilter?: 'all' | number;
-	/**
-	 * A2 — resolves the visible ordered-term label for an entry. Only consulted
-	 * under the `All terms` comparison scope, where stacked entries from
-	 * different terms must be distinguishable.
-	 */
-	termLabelFor?: (termIndex: number | null | undefined) => string | null;
-	/** A8 — the active review set annotates, but never hides, selected-term warnings. */
-	reviewEntryIds?: ReadonlySet<string>;
-	formatWarningMessage?: (message: string, violation?: Violation) => string;
-	showTeacherDetails?: boolean;
-	pivotLabel: (id: number) => string;
-	roomLabelShort: (roomId: number) => string;
-	onKbPlace: (day: string, startTime: string, endTime: string) => void;
-	onKbPlaceStart?: () => void;
-	getCellConflict: ((cellId: string) => CellConflictInfo | null) | null;
-	fullPreviewInfo: CellConflictInfo | null;
-	onNavToFaculty: (id: number) => void;
-	onNavToSection: (id: number) => void;
-	onNavToRoom: (id: number) => void;
-	onReassignTeacher?: (entry: ScheduledEntry) => void;
-	simpleMode?: boolean;
-	/** F6 — a published run is read-only presentation; a draft keeps edit affordances. */
-	readOnly?: boolean;
-}
-
 // A2-C7 item 3(a): the drag-cell store, its subscription and the drop wrapper
 // were extracted verbatim to `TimetableGridDropContext.tsx` so this file could
 // take the blocked-window fix inside the 1000-line component cap (AGENTS.md
 // §8). Same objects, same module-scope singletons, same rendered output.
+// A2-C7: the cell's prop contract moved to `TimetableGridCell.types.ts`.
+// The cap guard (`timetable-relaxed-main` B5) caught this file at 1011 physical
+// lines after the blocked-window fix, and the 1000-line cap is not negotiable
+// (AGENTS.md §8). It is a TYPE, so the move is erased at compile time. It is
+// re-exported here so no importer has to change its import path.
+export type { GridCellProps };
+
 const GridCell = memo(function GridCell({
 	cellId,
 	day,
@@ -253,6 +206,16 @@ const GridCell = memo(function GridCell({
 	// secondary sheet. Concrete-term views retain the compact overflow affordance.
 	const visibleEntries = termFilter === 'all' ? cellEntries : cellEntries.slice(0, 2);
 	const hiddenEntries = termFilter === 'all' ? [] : cellEntries.slice(2);
+	// A2-C7 correction (QA `ses_f19fa473bffeDm5iNBes3VX7PH` row 6, BLOCKING): the
+	// overlap marker counted `cellEntries` while the cell renders `visibleEntries`,
+	// which is `cellEntries.slice(0, 2)` in a concrete-term view. Measured at n=3
+	// the marker read "3 classes overlap Lunch Break" above two rendered classes,
+	// and worse at n=4 and n=5 — a count an operator can check, disagreeing with
+	// what is on screen. It is now the number of classes actually rendered beneath
+	// it, and any remainder is STATED rather than silently dropped, because the
+	// overflow sheet is a second place to look and this label is the only place
+	// that says the collision exists at all.
+	const hiddenOverlaps = blockedWindowWithClass ? hiddenEntries.length : 0;
 	const hiddenAffectedCount = hiddenEntries.filter((entry) => teacherDepartureEntryIds?.has(entry.entryId)).length;
 	const overflowEntryIds = hiddenEntries.map((entry) => entry.entryId).join(' ');
 
@@ -358,19 +321,25 @@ const GridCell = memo(function GridCell({
 			)}
 			{blockedWindowWithClass && (
 				// A2-C7 item 3(a). Colour is not the signal: the text states the
-				// count and names the block, and the count matches the classes
-				// rendered directly beneath it, so the two can be checked.
+				// count and names the block, and the count is the number of classes
+				// rendered DIRECTLY BENEATH this label, so the two can be checked by
+				// eye. `visibleEntries.length`, never `cellEntries.length` — see the
+				// note at the declaration. A remainder is stated rather than hidden,
+				// because the overflow sheet is a second place to look and this label
+				// is the only place that says the collision exists.
 				<div
 					className="mb-0.5 flex items-center gap-1 rounded-sm bg-amber-100 px-1 py-0.5 text-[12px] font-semibold leading-none text-amber-900"
 					data-testid="timetable-blocked-overlap-label"
-					data-overlap-count={cellEntries.length}
+					data-overlap-count={visibleEntries.length}
+					data-overlap-hidden={hiddenOverlaps}
 					data-overlap-window={eventName ?? 'Special Event'}
 				>
 					<AlertCircle className="size-2.5 shrink-0" aria-hidden="true" />
 					<span className="min-w-0 truncate">
-						{cellEntries.length === 1
+						{visibleEntries.length === 1
 							? `1 class overlaps ${eventName ?? 'this blocked time'}`
-							: `${cellEntries.length} classes overlap ${eventName ?? 'this blocked time'}`}
+							: `${visibleEntries.length} classes overlap ${eventName ?? 'this blocked time'}`}
+						{hiddenOverlaps > 0 ? ` · ${hiddenOverlaps} more in the overflow` : ''}
 					</span>
 				</div>
 			)}

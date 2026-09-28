@@ -4,7 +4,7 @@ import type { ScheduleReviewDialogsContext } from '@/components/timetable/timeta
 import type { ManualEditRecord } from '@/types';
 import { manualEditActionLabel } from '@/lib/timetable-plain-language';
 // A2-C6-TRUTH (T2a): the plain sentence naming a class the auto-fix relocated.
-import { describeEditAutoMove } from '@/lib/timetable-edit-history-truth';
+import { describeEditAutoMove, editHistoryRevertBlockedReason, editHistorySummarySentence } from '@/lib/timetable-edit-history-truth';
 import {
 	ALREADY_UNDONE_EDIT_MESSAGE,
 	REVERT_EDIT_TYPE,
@@ -105,6 +105,17 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 		showEditHistory, setShowEditHistory, editHistory,
 		revertEditById, revertLoading, currentRunVersion,
 	} = context;
+	// A2-C6-TRUTH (T1b) and the A2-C7 correction (QA
+	// `ses_f19fa473bffeDm5iNBes3VX7PH` row 2, BLOCKING): this dialog kept its OWN
+	// empty-state sentence, so a FAILED read of a run with four recorded changes
+	// still claimed the run had none. The More-menu entry was already gated and
+	// this second surface was not — the exact defect T1b exists to close,
+	// surviving one branch over. Both surfaces now read the ONE derivation, so a
+	// future change to the wording moves both.
+	const historySentence = editHistorySummarySentence(
+		editHistory.length,
+		context.editHistoryReadState ?? 'ready',
+	);
 
 	return (
 		<Dialog open={showEditHistory} onOpenChange={setShowEditHistory}>
@@ -114,10 +125,8 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 						<History className="size-4" />
 						Manual edit history
 					</DialogTitle>
-					<DialogDescription>
-						{editHistory.length === 0
-							? 'No manual edits have been made on this run.'
-							: `${editHistory.length} edit${editHistory.length === 1 ? '' : 's'} recorded. Only the latest edit can be reverted; newer edits would make an older revert stale.`}
+					<DialogDescription data-testid="timetable-edit-history-summary">
+						{historySentence}
 					</DialogDescription>
 				</DialogHeader>
 				<div className="max-h-64 space-y-2 overflow-auto scrollbar-thin py-2">
@@ -143,8 +152,21 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 						// decide whether a third session was relocated, and the row says
 						// so in the same plain words the post-commit toast used.
 						const autoMove = describeEditAutoMove(edit);
-						const canRevert = !isRevert && !isUndone && isHead && currentRunVersion != null && !revertLoading;
-						const revertReason = isHead ? 'Revert this edit' : 'Only the latest edit can be reverted';
+					const canRevert = !isRevert && !isUndone && isHead && currentRunVersion != null && !revertLoading;
+					// A2-C7 correction (QA `ses_f19fa473bffeDm5iNBes3VX7PH` finding on
+					// T2d, BLOCKING): the head row's tooltip reason WAS the button's own
+					// label. A JSDOM mount of the real dialog showed three DOM nodes
+					// reading exactly 'Revert this edit' — the TooltipTrigger wrapper
+					// span, the button, and the tooltip content — so the accessible name
+					// read as a stutter and the tooltip told an older user nothing.
+					// The reason is now derived in ONE place and is null for a live
+					// control, so a working button carries no tooltip at all.
+					const revertBlockedReason = editHistoryRevertBlockedReason({
+						canRevert,
+						hasRunVersion: currentRunVersion != null,
+						revertLoading,
+						isHead,
+					});
 						return (
 							<div key={edit.id} className="rounded-md border p-3 text-xs" data-testid="timetable-edit-history-row">
 								<div className="flex items-center justify-between gap-2">
@@ -230,8 +252,10 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 									<div className="mt-2 flex items-center justify-end">
 										{/* J2 (P4) + AGENTS.md section 8: the native `title`
 									 * attribute is forbidden for extra information. The
-									 * explanation moves to the @/ui Tooltip primitive and
-									 * stays available on the disabled button. */}
+									 * explanation moves to the @/ui Tooltip primitive, and
+									 * per the A2-C7 correction it appears ONLY on a disabled
+									 * control, where it explains why — never on a live one,
+									 * where it would restate the label. */}
 										<TooltipProvider>
 											<Tooltip>
 												<TooltipTrigger asChild>
@@ -253,8 +277,9 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 														</Button>
 													</span>
 												</TooltipTrigger>
-												<TooltipContent>{revertReason}</TooltipContent>
-											</Tooltip>
+												<TooltipContent data-testid="timetable-edit-history-revert-reason">
+													{revertBlockedReason ?? 'Undo this change to the schedule.'}
+												</TooltipContent>											</Tooltip>
 										</TooltipProvider>
 									</div>
 								)}

@@ -203,3 +203,58 @@ export function describeEditAutoMove(edit: ManualEditRecord): string | null {
 		? `Also moved Class A to ${formatEditAutoMoveSlot(move.to)}.`
 		: `Also moved Class B to ${formatEditAutoMoveSlot(move.to)}.`;
 }
+
+/**
+ * A2-C7 correction (QA `ses_f19fa473bffeDm5iNBes3VX7PH` row 2, BLOCKING): the
+ * ONE sentence the manual-edit-history surfaces print, extracted so the dialog
+ * and the More-menu entry cannot hold separate copies of the empty state.
+ *
+ * The defect this closes: the More-menu entry was gated on
+ * `editHistoryReadState` and the DIALOG kept its own literal, so a FAILED read
+ * of a run with four recorded changes still printed "No manual edits have been
+ * made on this run." T1b was half-done — the exact "survives one branch over"
+ * shape AGENTS.md §11 warns about.
+ *
+ * The count is supplied rather than derived from the array, because the two
+ * surfaces hold it in different forms (the menu has the read state, the dialog
+ * has the context). It is a number, never a claim: every branch that can be
+ * reached with `count === 0` is gated on the read state, so the empty-run
+ * sentence is reachable only from a read that really returned zero rows.
+ */
+export function editHistorySummarySentence(
+	count: number,
+	state: EditHistoryReadState,
+): string {
+	if (count > 0) {
+		return `${count} edit${count === 1 ? '' : 's'} recorded. Only the latest edit can be reverted; newer edits would make an older revert stale.`;
+	}
+	return editHistoryEmptyStateMessage(state, 0);
+}
+
+/**
+ * A2-C7 correction (QA `ses_f19fa473bffeDm5iNBes3VX7PH`, the T2d finding,
+ * BLOCKING): the one sentence a revert control may show in a tooltip.
+ *
+ * `null` means "show no tooltip" — a live control has nothing to explain, and a
+ * tooltip that restates the control's own label makes its accessible name read
+ * as a stutter. The measured defect was three DOM nodes reading exactly
+ * "Revert this edit": the trigger wrapper, the button, and the tooltip, because
+ * the head row's reason WAS the button's label.
+ *
+ * Extracted for the same reason as the sentence above: the wording is a
+ * truthfulness surface, and two copies of a truthfulness surface is how the
+ * second one goes stale.
+ */
+export function editHistoryRevertBlockedReason(options: {
+	canRevert: boolean;
+	hasRunVersion: boolean;
+	revertLoading: boolean;
+	isHead: boolean;
+}): string | null {
+	if (options.canRevert) return null;
+	if (!options.hasRunVersion) return 'Reopen this schedule to enable reverting.';
+	if (options.revertLoading) return 'Reverting…';
+	return options.isHead
+		? 'The schedule changed since this list was opened. Close and reopen it to revert.'
+		: 'Only the latest edit can be reverted.';
+}

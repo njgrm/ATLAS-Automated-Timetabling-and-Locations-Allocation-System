@@ -14,6 +14,7 @@ import type {
 	Violation,
 	ViolationCode,
 } from '@/types';
+import type { EditHistoryReadState } from '@/lib/timetable-edit-history-truth';
 
 export type LeftRailContentContext = {
 	leftTab: 'violations' | 'unassigned' | 'pinned' | 'requests';
@@ -288,6 +289,17 @@ export type ScheduleReviewDialogsContext = {
 	showEditHistory: boolean;
 	setShowEditHistory: Dispatch<SetStateAction<boolean>>;
 	editHistory: ManualEditRecord[];
+	/**
+	 * A2-C6-TRUTH (T1b/T1c) and the A2-C7 correction (QA
+	 * `ses_f19fa473bffeDm5iNBes3VX7PH` row 2, BLOCKING): what the last ledger read
+	 * PROVED. The row list alone cannot tell a run nobody edited from a read that
+	 * failed, and this dialog is the SECOND surface that renders the ledger's
+	 * empty state — it kept its own literal and claimed an empty run on a failed
+	 * read until both surfaces were routed through `editHistorySummarySentence`.
+	 * Optional so a caller that has not wired the read state degrades to the
+	 * pre-existing behaviour rather than to a blank.
+	 */
+	editHistoryReadState?: EditHistoryReadState;
 	/** R4 — operation-bound undo used by the per-row history revert affordance. */
 	revertEditById: (operationId: number, expectedVersion: number) => Promise<boolean>;
 	revertLoading: boolean;
