@@ -113,3 +113,45 @@ test('control: real balanced coverage still reads as balanced', () => {
 	assert.match(text, /covers all rows and is balanced/);
 	assert.doesNotMatch(text, /No classes to fill/);
 });
+
+// Hotfix 2026-09-29 — live proposal 105 (school year 2022-2023): a brand-new
+// year has no saved rows, so the plan's covered/uncovered rows were both 0
+// while ATLAS proposed 239 real teachers + 25 temporary substitutes. The
+// header read "No classes to fill" and the note said "0 rows remain
+// unresolved", yet after apply 25 classes had no teacher. Fixture fields are
+// copied from the stored live preview payload.
+function liveNewYearProposal(): any {
+	const suggestedRows = [
+		...Array.from({ length: 239 }, (_, i) => ({ assignmentType: 'REAL_TEACHER', subjectId: 1, sectionId: i + 1, facultyId: 1 })),
+		...Array.from({ length: 25 }, (_, i) => ({ assignmentType: 'TEMPORARY_SUBSTITUTE', subjectId: 6, sectionId: i + 1, facultyId: null })),
+	];
+	const value = result(0);
+	value.coverageMode = 'REAL_FACULTY_THEN_TEACHER_X';
+	value.created = 25;
+	value.preserved = 0;
+	value.unresolved = 0;
+	value.suggestedRows = suggestedRows;
+	value.distribution.inserts = Array.from({ length: 239 }, (_, i) => ({ subjectId: 1, sectionId: i + 1, facultyId: 1 }));
+	return value;
+}
+
+test('new year with 264 proposed rows: never "No classes to fill"', () => {
+	const text = renderModal(liveNewYearProposal());
+	assert.doesNotMatch(text, /No classes to fill/);
+	assert.ok(!text.startsWith('no-demand|'), text.slice(0, 80));
+});
+
+test('new year with 25 substitutes: header and note say 25 still need a real teacher', () => {
+	const text = renderModal(liveNewYearProposal());
+	assert.ok(text.startsWith('shortage|'), text.slice(0, 80));
+	assert.doesNotMatch(text, /covers all rows and is balanced/);
+	assert.doesNotMatch(text, /0 rows remain unresolved/);
+	assert.match(text, /25 classes still need a real teacher/);
+});
+
+test('applied toast names the classes that still need a real teacher', async () => {
+	const { appliedSuggestionMessage } = await import('@/lib/teaching-load-suggestion-presentation');
+	assert.equal(appliedSuggestionMessage(25), 'Teaching Load saved. 25 classes still need a real teacher.');
+	assert.equal(appliedSuggestionMessage(1), 'Teaching Load saved. 1 class still needs a real teacher.');
+	assert.equal(appliedSuggestionMessage(0), 'Suggested Teaching Load applied. Review the saved load before creating the timetable.');
+});
