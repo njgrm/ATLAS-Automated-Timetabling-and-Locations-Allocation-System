@@ -468,8 +468,13 @@ test('D1 at ≥1366px the header uses bounded wrapping rows instead of a horizon
 	// onto a second line. The base `flex-wrap` is retained for narrow widths.
 	// Retained, not deleted: the assertion is restated at the new mechanism and
 	// the no-scroll-strip claim is left exactly as it was.
+	// The `[^"]*` tail matches the empty remainder, so this regex checks that the
+	// status line KEEPS its wrapping BASE and nothing more — the "does not wrap from
+	// lg up" half of that claim is asserted where it can actually fail, in
+	// `a2-c12-header-rows2` ROW 1, which asserts the `lg:flex-nowrap` token itself.
+	// The message states only what this regex decides.
 	assert.match(markup, /class="flex min-w-0 flex-wrap items-center gap-1\.5[^"]*"/,
-		'the status line keeps its wrapping base (narrow layouts) and does not wrap from lg up');
+		'the status line keeps its wrapping base for narrow layouts');
 	assert.match(markup, /class="flex min-w-0 flex-wrap items-center gap-1\.5 px-3 lg:flex-nowrap"/,
 		'the control row does not wrap from lg up, so it is ONE visual line at 1366 px');
 	assert.doesNotMatch(markup, /justify-start gap-1\.5 overflow-x-auto/);
