@@ -6,12 +6,14 @@
  * `ses_f19d2dd03ffePT8XACF7EV1dxU`, findings B1 and B2).
  *
  * This header previously claimed "EVERY ROW HERE RENDERS OR EVALUATES A
- * VALUE. No row asserts source text" and was FALSE at the tip: two rows carry
+ * VALUE. No row asserts source text" and was FALSE at the tip: three rows carry
  * labelled source-text DRIFT GUARDS. It also advertised a row `T1d` that has
  * never existed, and mis-described `T1a` as a measurement when it is a guard.
- * Both are corrected here rather than left, because a header that overstates its
- * own evidence is the same defect class this file exists to close — an artifact
- * asserting something false about the product.
+ * A first correction under-counted the guards as two and omitted `T1b
+ * SURFACE 2`; the enumeration below is now verified against the file rather
+ * than asserted. Both are corrected here rather than left, because a header that
+ * overstates its own evidence is the same defect class this file exists to
+ * close — an artifact asserting something false about the product.
  *
  * The rows that RENDER or DERIVE a real value, and therefore decide behaviour:
  *
@@ -22,7 +24,8 @@
  *   T2a      a swap row names the class the auto-fix relocated, from the
  *             RECORDED payload (the live `manual_schedule_edits` id 12 shape).
  *   T2d      the revert tooltip's reason, over every branch of the derivation —
- *             six real `editHistoryRevertBlockedReason` calls.
+ *             a loop over five option shapes plus two direct calls, i.e. seven
+ *             invocations across three call sites.
  *   T3a      Simple view names the run and whether anyone can see it.
  *   T3b/T3c  one line, two facts, and no invented term.
  *   T3f      the status region is capped and says what it dropped.
@@ -33,16 +36,22 @@
  *             collision with a count that matches what is rendered.
  *
  * The rows that are LABELLED DRIFT GUARDS — source-text assertions that stop a
- * call or a derivation from being deleted. They are NOT acceptance evidence
- * (AGENTS.md §11) and each says so at its own row:
+ * call, a derivation or a hard-coded string from being deleted. There are
+ * exactly THREE, verified by locating every `readFileSync` in this file, and
+ * each says so at its own row:
  *
- *   T1a      the two run-scoped handlers call the ledger refill, and the
- *             scope-wide reset does not. T1a's OUTCOME is a
- *             DEPLOYMENT-ACCEPTANCE (browser) row — see the row.
- *   T2d      three further assertions on the dialog component's own text, added
- *             with F2's fix. Two of the three were measured failing-first
- *             against the pre-fix component; the third is NON-DISCRIMINATING by
- *             design and is labelled so.
+ *   T1a              two `readFileSync` reads: both run-scoped handlers call
+ *                    the ledger refill, and the scope-wide reset does not. T1a's
+ *                    OUTCOME is a DEPLOYMENT-ACCEPTANCE (browser) row — see the
+ *                    row.
+ *   T1b SURFACE 2    two `readFileSync`-based assertions: the dialog derives its
+ *                    sentence from the one shared function, and its own literal
+ *                    is gone. The row's other assertions decide real derived
+ *                    values, so it is not wholly a guard.
+ *   T2d              three assertions on the dialog component's own text, added
+ *                    with F2's fix. Two were measured failing-first against the
+ *                    pre-fix component; the third is NON-DISCRIMINATING by
+ *                    design and is labelled so.
  *
  * `T1d` is gone from this list because no such row exists. The run-re-selection
  * half of T1a is covered by the `T1a GUARD` row, which asserts on
@@ -351,7 +360,7 @@ test('T1b SURFACE 2 FAILING-FIRST: the dialog\'s sentence is the shared derivati
 		'utf8',
 	);
 	assert.match(dialogSource, /editHistorySummarySentence\(\s*editHistory\.length/,
-		'the dialog derives its sentence from the ONE shared function, so it cannot drift from the More-menu entry');
+		'DRIFT GUARD (source text, not acceptance evidence): the dialog derives its sentence from the ONE shared function, so it cannot drift from the More-menu entry');
 	assert.doesNotMatch(dialogSource, /No manual edits have been made on this run\.(?!\*)/,
 		'the dialog\'s own empty-run literal is gone from its code, not merely from its comment');
 });
@@ -393,9 +402,10 @@ test('T2d FAILING-FIRST: a revert control announces its name once, and a tooltip
 	// Whatever the branch, the name is announced once. The three assertions
 	// below are LABELLED DRIFT GUARDS on the dialog component's own text, not
 	// acceptance evidence (AGENTS.md §11): a source-text read cannot decide what
-	// a component renders. The load-bearing assertions in this row are the six
-	// `editHistoryRevertBlockedReason` calls above, which decide a real derived
-	// value. The guards exist so the F2 fix cannot be quietly deleted.
+	// a component renders. The load-bearing assertions in this row are the
+	// `editHistoryRevertBlockedReason` calls above — seven invocations across three
+	// call sites — which decide real derived values. The guards exist so the F2 fix
+	// cannot be quietly deleted.
 	//
 	// Discriminating power, measured by fresh QA
 	// `ses_f19d2dd03ffePT8XACF7EV1dxU` against the pre-fix component:
