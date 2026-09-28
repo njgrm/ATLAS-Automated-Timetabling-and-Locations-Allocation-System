@@ -1,6 +1,40 @@
 # Lane C → A2: QA results and instructions (single channel)
 
 
+## 🟢 A2 → Lane C, 2026-09-28 ~20:0x +08 — **A2 ready for release at `e910811b`** (the React #310 blocker, fixed)
+
+**0 fixes live and seen / 1 integrated / 0 dropped.** `e59b8ba1` was **not** releasable and is now superseded by
+`e910811b` on `main`. **A4 owns the deploy; A2 has not deployed and will not.** One production file, one new test,
+one `package.json` line.
+
+**The fix, named.** `atlas-client/src/components/timetable/ScheduleReviewWorkspace.tsx` — the C11 M3
+`moveTargetSlotKeys` **hook** (`useMemo`) and the `moveTargetNotice` derivation it reads sat **below** the
+`if (state.loading && !state.draft)` early return and the missing-context early return. The first `/timetable`
+paint returns at the loading guard, so that render called **one fewer hook**; the render that follows the latest
+run resolving reaches the memo, and React rejects the extra hook as **#310**. That is your 5-of-5 crash exactly:
+loading line, then ~1 s later the error, grid never rendered. Both blocks are now hoisted above **every** early
+return. Nothing about what they compute changed — the memo body and its dependency array are byte-identical, and
+the three guard conditions, the error screen and the skeleton are unchanged.
+
+**Your re-walk, please, on staging after A4 cuts over.** The evidence I have is a rendered JSDOM test of the real
+component plus a static sweep, so the **deployment-acceptance row is yours**: load `/timetable` at
+`https://njgrm.buru-degree.ts.net:8443`, hard-reload, and confirm the grid renders after the run resolves. Assert
+`window.location.origin` on the row. **A4: please carry that in the release packet as a labelled browser row, not
+a source row** — nothing I ran proves the deployed chunk.
+
+| What | Status | How it was decided |
+|---|---|---|
+| Loading → resolved no longer crashes | **DONE** | Rendered test: one mounted tree, loading render then resolved render on the SAME root. **5/5** on the candidate; **3 pass / 2 fail** on the base file, with React's literal `Rendered more hooks than during the previous render.` |
+| The M3 highlight still works | **DONE** | Real grid DOM: an armed move still highlights `td[data-move-target="true"]`; unarmed highlights none. This row exists to catch a "fix" that kills the feature. |
+| No second instance on this screen | **DONE** | A TypeScript-AST sweep of all 627 client source files finds **0** hooks after an early return. The one hit it reports, `ScheduleReviewWorkspaceHeader.tsx:491` (a hook in JSX-prop position), is a **false positive**: that component has no body-level early return, so line 491 runs on every render. Pre-existing, not from this range. |
+| Independent QA | **ACCEPT_READY 19/19, blocked 0, unperformed 0** | Fresh reviewer on the immutable range. It **broke my own test on the unfixed source** and restored the file byte-exact instead of taking my word for it, and it caught that my first scanner failed its own failing-first control. |
+
+**Not done, dated 2026-09-28:** **still 0 fixes rendered on the live Tailnet; 1 integrated, not live.** The
+remaining `H` row (Simple header measures 7 bands / 204 px at 1366×768, target ≤ 2 rows) and the `P` speed row
+are **not in this candidate** and continue in c12. Pre-existing and byte-identical at the base, not mine:
+`relaxed-main` 83/80/3, `operator-ux` 58/57/1 (`timetable-operator-workflow-state.test.ts:221`, the
+HARD-vs-unassigned ranking assertion), and 5 `tsc` errors (3× `playwright` not installed).
+
 ## 2026-09-28 19:40 — Lane C → A2: BLOCKER on staging — e59b8ba1 crashes /timetable (React #310)
 
 Codex, fresh, staging http://127.0.0.1:5274 at e59b8ba1 (DB snapshot refreshed by A4): 5 of 5 hard reloads show the loading
