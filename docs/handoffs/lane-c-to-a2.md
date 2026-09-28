@@ -1,5 +1,53 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+## 🟢 A2 → Lane C, 2026-09-28 17:5x +08 — **A2 ready for release at `03c1423a`** (c11 slice 1: D + M1–M5)
+
+Integrated on `main`, five commits, **46 paths, all `atlas-client/`** — nothing foreign rode along. **A4: this is
+ready for your train; A2 has not deployed and will not.** Every row below is decided by a **rendered** test that
+clicks the real control on the real component; no source-text row is offered as evidence.
+
+| Packet target | Status | What an operator sees now | Rendered row |
+|---|---|---|---|
+| **D** one draft model, always visible | **DONE** | One sentence in **both** headers: "Draft — not visible to teachers until you publish" / "Published". **It adds zero buttons.** | `D1`–`D4`, `D2R` (strip button count = 0) |
+| **M1** manual edit | **DONE** | Reachable from the grid and from `More`; without a selection the menu row is disabled and *says why* beside it. A direct `/timetable/manual-edit` with no selection returns you to the grid with a hint. Back always shows the grid. | `F1 M1 RENDERED` + 4-state probe |
+| **M2** change room | **DONE** | Opens a picker of rooms free at that time, from data already on screen (no new fetch). Half-open overlap, so a room freed exactly at class start is offered again. | `M2 RENDERED` + negative |
+| **M3** move | **DONE** | Every legal free slot is highlighted **with a readable "Move here" cue**, not colour alone. If none exist, one sentence plus a Cancel. | `F3 M3 RENDERED` |
+| **M4** swap | **DONE** | One sentence verdict, **one** reset across all five dialog exits (cancel, back, Escape, close, footer). No reload, ever. | `M4 WIRING` + banner row |
+| **M5** undo | **DONE** | **One** Undo, visible after any edit, in **both** layouts. This discharges the Lane-C-C1 row that was explicitly owed to "the successor cycle that owns the Simple Undo/Redo surface". | `M5R RENDERED` |
+
+**Also fixed because the walk found them:** the More menu's group headings no longer claim a row count their own
+group does not have (defect #50, regressed and re-closed), and `Edit draft` is a real `menuitem` that closes the
+menu and is keyboard-reachable — all four run states measured.
+
+**Independent QA: `ACCEPT_READY`, 7/7 mandatory, blocked 0, unperformed 0.** It reached that verdict after four
+correction rounds, and each round's blocking finding is real: a **regression** that made Manual edit unreachable
+from the grid; an Expert layout that had lost Undo and gained two enabled no-op buttons; 18 stale test pointers
+after a file extraction; a 9-control default header with two Publish buttons on screen; and the two More-menu
+defects above. Every one is closed with a **base-reverted control that fails** — not asserted.
+
+**Two decisions I made, so you can overrule them:**
+1. **DRAFT-UX-C01 (operator, 2026-09-25) stands.** My first fix put `Edit draft` in the primary slot; that reverses
+   "Publish schedule is the solid primary once a run exists" and 15 re-pinned test files. I reverted it. `Publish`
+   is the primary again; `Edit draft` and `Discard draft` live in the existing More menu. The 6-control cap holds
+   in all four states (measured 6/5/6/6).
+2. `TimetableSimpleHeader.tsx` is at **998 of the 1000-line §8 cap** — the next edit to that file has no headroom,
+   so the H slice must extract before it adds.
+
+**Not done, dated 2026-09-28:** **0 fixes rendered on the live Tailnet**; 5 integrated, none live. No browser row
+has run — every row above is JSDOM on the real components, which is this repo's strongest available harness but is
+**not** a browser row. You are the acceptance owner for the walk. No deployment, no generation, no publication, no
+migration, no live-data write.
+
+**Still owed in c11, in packet order:** **H** (header ≤ 2 rows, plus your change-banner spec below), **P** (speed:
+switch ≤ 0.4 s, cold load ≤ 1.2 s, measured before/after), and your two Codex folds — **T2** (history reads "Also
+moved Class A" instead of naming TLE) and **T3** (header shows "Draft schedule" not "Run 321 · Draft"; More still
+says "Generate"; the drift notice shows on the unchanged published run).
+
+**Your change-banner spec (accepted as written, queued for H):** one sentence, one primary action, one secondary —
+"Teachers, rooms or subjects changed since this schedule was made. [See what changed] [Update schedule]"; name what
+changed when known; no "checked Ns ago"; **not red**; one row at 1366 px, wraps cleanly at 390 px. The same
+one-sentence-plus-one-action shape is what D's strip now uses, so H consolidates rather than re-litigates.
+
 ## 2026-09-28 16:40 +08 -- A4 LIVE at `7590d485` (first A4 train; A3 c9+c10 shipped)
 
 **Lane A4 -- release lane.** `docs/prompts/a4-release-2026-09-28-1.md` executed; detail in
