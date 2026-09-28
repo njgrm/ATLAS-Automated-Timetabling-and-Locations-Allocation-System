@@ -50,6 +50,11 @@ import { PencilLine, Trash2 } from 'lucide-react';
 
 import { Button } from '@/ui/button';
 import { describeRunState } from '@/components/timetable/RunStateBadge';
+/* A2 HEADER-BUDGET — the `reasonPresentation: 'tooltip'` mode reuses the ONE
+ * gated-action wrapper, from its own neutral module so this file does not reach
+ * into `simple/SimpleHeaderHelpers` (an import-cycle risk). Same component, same
+ * markup, same reason text. */
+import { GatedAction } from '@/components/timetable/simple/GatedAction';
 
 export type DraftStripPublishPlan =
 	| { readonly kind: 'disabled'; readonly reason: string }
@@ -195,37 +200,65 @@ export function DraftActionButton({
 	icon,
 	label,
 	testId,
+	reasonPresentation = 'visible',
 }: {
 	action: DraftMenuAction;
 	icon: 'edit' | 'discard';
 	label: string;
 	testId: string;
+	/**
+	 * A2 HEADER-BUDGET (operator, 2026-09-29) — WHERE a disabled action states its
+	 * reason. §8's new "Header budget" rule: "disabled actions with nothing to do
+	 * … are hidden or live under `More`; no helper sentence under a button (put it
+	 * in a `Tooltip`)". The operator's screenshot showed exactly this sentence
+	 * printed under `Edit draft` and `Discard draft` on `/timetable` and named it.
+	 *
+	 *   - `'visible'` (the DEFAULT, unchanged) — the sentence is printed beneath the
+	 *     control. The `More`-menu rows and the Expert `TimetableExpertDraftActions`
+	 *     keep this: a menu row's second line is a menu pattern, and §8's rule is
+	 *     about a helper sentence under a BUTTON. Their accepted rows are untouched.
+	 *   - `'tooltip'` — the sentence moves into the same `@/ui` `GatedAction` tooltip
+	 *     the primary actions use, and the visible `<span>` is NOT rendered. The
+	 *     Simple header's row-2 draft actions pass this.
+	 *
+	 * IN BOTH MODES THE `aria-label` STILL CARRIES THE REASON
+	 * (`${label} — ${reason}`), so nothing depends on a hover being available, and
+	 * neither mode uses a raw `title`. The default is `'visible'` precisely so
+	 * that adding a call site cannot silently change an existing surface.
+	 */
+	reasonPresentation?: 'visible' | 'tooltip';
 }) {
 	if (!action.visible) return null;
 	const Icon = icon === 'edit' ? PencilLine : Trash2;
+	const control = (
+		<Button
+			type="button"
+			/* `outline`, never `default`: the ONE solid primary in this header is
+			 * `Publish schedule` (DRAFT-UX-C01), and this surface must not add a
+			 * second `bg-primary`. */
+			variant="outline"
+			size="sm"
+			className="h-8 shrink-0 gap-1.5"
+			disabled={!action.enabled}
+			onClick={action.onSelect}
+			aria-label={action.enabled ? label : `${label} — ${action.reason}`}
+			data-testid={testId}
+		>
+			<Icon className="size-3.5" aria-hidden="true" />
+			{label}
+		</Button>
+	);
+	// Nothing to say, or the reason is a tooltip: the control renders ALONE, so the
+	// header gains no vertical line from an action that cannot act.
+	if (action.enabled || reasonPresentation === 'tooltip') {
+		return <GatedAction disabled={!action.enabled} reason={action.reason}>{control}</GatedAction>;
+	}
 	return (
 		<span className="flex shrink-0 flex-col items-start gap-0.5">
-			<Button
-				type="button"
-				/* `outline`, never `default`: the ONE solid primary in this header is
-				 * `Publish schedule` (DRAFT-UX-C01), and this surface must not add a
-				 * second `bg-primary`. */
-				variant="outline"
-				size="sm"
-				className="h-8 shrink-0 gap-1.5"
-				disabled={!action.enabled}
-				onClick={action.onSelect}
-				aria-label={action.enabled ? label : `${label} — ${action.reason}`}
-				data-testid={testId}
-			>
-				<Icon className="size-3.5" aria-hidden="true" />
-				{label}
-			</Button>
-			{action.enabled ? null : (
-				<span className="max-w-[16rem] text-xs text-muted-foreground" data-testid={`${testId}-reason`}>
-					{action.reason}
-				</span>
-			)}
+			{control}
+			<span className="max-w-[16rem] text-xs text-muted-foreground" data-testid={`${testId}-reason`}>
+				{action.reason}
+			</span>
 		</span>
 	);
 }
@@ -241,15 +274,37 @@ export function DraftStripActions({
 	actions,
 	editTestId,
 	discardTestId,
+	reasonPresentation = 'visible',
+	hideDiscardWhenAbsent = false,
 }: {
 	actions: DraftStripActionPair;
 	editTestId: string;
 	discardTestId: string;
+	/** A2 HEADER-BUDGET — forwarded to both buttons. See `DraftActionButton`. */
+	reasonPresentation?: 'visible' | 'tooltip';
+	/**
+	 * A2 HEADER-BUDGET (operator, 2026-09-29) — `Discard draft` renders NOTHING
+	 * when there is no draft on screen. §8: "disabled actions with nothing to do
+	 * … are hidden or live under `More`"; `Discard draft` on a year with no
+	 * schedule is exactly that.
+	 *
+	 * IT HIDES NOTHING THAT IS LOST: the `More` menu keeps BOTH entries in every
+	 * state, unchanged, so the action is always one `More` click away — which is
+	 * why the caller sets this rather than making it unconditional.
+	 *
+	 * The caller passes `true` together with the `actions` it already resolved from
+	 * `resolveDraftStripProps`, whose `discard` gate IS "there is a draft". This
+	 * prop therefore restates the caller's own decision; it derives nothing.
+	 */
+	hideDiscardWhenAbsent?: boolean;
 }) {
+	const discard = hideDiscardWhenAbsent
+		? { ...actions.discard, visible: actions.discard.enabled }
+		: actions.discard;
 	return (
 		<>
-			<DraftActionButton action={actions.edit} icon="edit" label="Edit draft" testId={editTestId} />
-			<DraftActionButton action={actions.discard} icon="discard" label="Discard draft" testId={discardTestId} />
+			<DraftActionButton action={actions.edit} icon="edit" label="Edit draft" testId={editTestId} reasonPresentation={reasonPresentation} />
+			<DraftActionButton action={discard} icon="discard" label="Discard draft" testId={discardTestId} reasonPresentation={reasonPresentation} />
 		</>
 	);
 }
@@ -382,6 +437,8 @@ export function TimetableDraftStateStrip({
 	visibility,
 	actions,
 	children,
+	reasonPresentation = 'visible',
+	hideDiscardWhenAbsent = false,
 }: {
 	visibility: string | null;
 	/**
@@ -396,6 +453,14 @@ export function TimetableDraftStateStrip({
 	 * superseded `M5` row still compiles and runs.
 	 */
 	children?: React.ReactNode;
+	/**
+	 * A2 HEADER-BUDGET — forwarded to the two draft buttons. The Simple header
+	 * passes `'tooltip'`; the default `'visible'` keeps every other surface
+	 * byte-identical. See `DraftActionButton`.
+	 */
+	reasonPresentation?: 'visible' | 'tooltip';
+	/** A2 HEADER-BUDGET — see `DraftStripActions`. */
+	hideDiscardWhenAbsent?: boolean;
 }) {
 	return (
 		<>
@@ -418,6 +483,8 @@ export function TimetableDraftStateStrip({
 					actions={actions}
 					editTestId="timetable-draft-strip-edit"
 					discardTestId="timetable-draft-strip-discard"
+					reasonPresentation={reasonPresentation}
+					hideDiscardWhenAbsent={hideDiscardWhenAbsent}
 				/>
 			) : null}
 		</>

@@ -57,6 +57,7 @@
     "test:ux-a2-c12-310fix": "node --experimental-test-module-mocks --import tsx --test src/components/timetable/__tests__/a2-c12-s2-310fix.test.tsx",
     "test:ux-a2-c12-header-rows": "tsx --max-old-space-size=6144 --test src/components/timetable/__tests__/a2-c12-header-two-rows.test.tsx",
     "test:ux-a2-c12-header-rows2": "tsx --max-old-space-size=6144 --test src/components/timetable/__tests__/a2-c12-header-rows2.test.tsx",
+    "test:ux-a2-header-budget": "tsx --max-old-space-size=6144 --test src/components/timetable/__tests__/a2-header-budget-2026-09-29.test.tsx",
     "test:ux-a2-c12-past-year": "tsx --max-old-space-size=6144 --test src/components/timetable/__tests__/a2-c12-past-year-view.test.tsx",
     "test:ux-a2-c12-entity-index-p1": "tsx --test src/lib/__tests__/a2-c12-entity-index-p1.test.ts",
     "test:timetable-scheduling-quality-c03": "tsx --test src/components/timetable/__tests__/timetable-scheduling-quality-c03.test.tsx",

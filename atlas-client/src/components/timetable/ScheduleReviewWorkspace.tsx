@@ -246,15 +246,23 @@ export default function ScheduleReviewWorkspace() {
 	// layout that is showing. It is the same component the Expert toolbar used to
 	// mount itself, so no new capability or endpoint is involved; only the surface
 	// moved, and Simple gains the Undo it never had.
+	/* A2 HEADER-BUDGET — `hideWhenIdle` follows the LAYOUT, and this is still exactly
+	 * ONE `TimetableUndoRedoControl` in the tree: only one layout mounts at a time
+	 * (the ternary at `showSchedulerChrome`), both are handed this same element, and
+	 * it is the same component with the same state and handlers, so the
+	 * A2-TIMETABLE-CUSTODY single-surface rule is untouched. §8 asks for it —
+	 * "disabled actions with nothing to do … are hidden or live under `More`" — and
+	 * the operator saw a disabled Undo/Redo/History on a year with no schedule. */
 	const sharedUndoRedoControl = state.headerContext ? (
 		<TimetableUndoRedoControl
+			hideWhenIdle={layoutMode === 'simple'}
 			editHistoryCount={state.headerContext.editHistoryCount}
 			revertLoading={state.headerContext.revertLoading}
 			revertLastEdit={state.headerContext.revertLastEdit}
 			redoState={state.redoState ?? null}
 			redoVersionStale={state.redoVersionStale ?? false}
 			undoNotice={state.undoNotice ?? null}
-			undoBlockedReason={state.undoBlockedReason ?? null}
+			undoBlockedReason={state.headerContext.undoBlockedReason ?? null}
 			redoLastEdit={async () => { await state.redoLastEdit?.(); }}
 			clearRedo={() => state.clearRedo?.()}
 			setShowEditHistory={state.headerContext.setShowEditHistory}
@@ -566,8 +574,12 @@ export default function ScheduleReviewWorkspace() {
 			<div className={`h-0.5 shrink-0 bg-emerald-500 transition-opacity duration-150 ${state.showTopLoadingStrip ? 'opacity-100 animate-pulse' : 'opacity-0'}`} />
 		{/* C01R D1 — persistent sub-nav on every /timetable* route (index included).
 		    Links only: the nested children are element-less, so this never
-		    remounts the workspace or refetches the grid. */}
-		<TimetableSubNav />
+		    remounts the workspace or refetches the grid.
+		    A2 HEADER-BUDGET — SKIPPED when the Simple header is the surface showing
+		    the title and the tabs: it renders `TimetableSubNavRow` (the same `<h1>`,
+		    the same `<nav>`, the same `SUB_NAV_ITEMS`) inside its own row 1, and both
+		    at once is the "regressed / messy" double band the operator reported. */}
+		{!(showSchedulerChrome && layoutMode === 'simple') ? <TimetableSubNav /> : null}
 		{/* A2-TIMETABLE-CUSTODY (#61) — the concurrent-commit notice. A row above
 		    the grid, not a floating overlay: the defect was a change the operator
 		    could not see, and it must not cover the grid it is describing. It

@@ -63,6 +63,7 @@
 
 import { SimpleGenerationBlockerSheet } from '@/components/timetable/simple/SimpleGenerationBlockerSheet';
 import { TimetableSwapClassTimesBanner } from '@/components/timetable/TimetableSwapClassTimesBanner';
+import { SIMPLE_HEADER_MESSAGE_LIMIT, type SimpleHeaderMessage } from '@/components/timetable/simple/SimpleHeaderMessages';
 import type { TimetableGenerationReadinessDiagnostic } from '@/lib/timetable-generation-readiness';
 
 export type SimpleHeaderTrailingSurfacesProps = {
@@ -82,7 +83,108 @@ export type SimpleHeaderTrailingSurfacesProps = {
 	onRetry: () => void;
 	labelForSection?: (id: number) => string;
 	labelForSubject?: (id: number) => string;
+	/**
+	 * A2 HEADER-BUDGET (operator, 2026-09-29) — the ONE derivation of which run is
+	 * on screen. It is passed IN, already derived by the header from
+	 * `describeRunState`, and rendered here as the run identity plus the
+	 * draft-visibility sentence. Nothing is re-derived: this component reads the
+	 * same `sentence` / `visibility` values the badge and `RunIdentityLine` read,
+	 * so a run cannot be named two different ways on one screen.
+	 */
+	runState: {
+		/** `null` for a pre-generation workspace or an empty grid — nothing to name. */
+		sentence: string | null;
+		visibility: string | null;
+	};
+	/**
+	 * The EXCEPTIONAL notices — the ones that are not the status chip's business,
+	 * built by the header's own `buildSimpleHeaderMessages` and handed over with
+	 * every `data-testid` intact. `[]` renders nothing.
+	 *
+	 * A2 HEADER-BUDGET — the setup-blocked paragraph
+	 * (`timetable-curriculum-readiness-message`) is deliberately NOT in this list:
+	 * §8 gives the header one status chip, that chip's label is now the short
+	 * `N setup items to fix`, and the technical diagnostic behind it is the chip
+	 * control's `@/ui` Tooltip. The header filters that one id out rather than
+	 * this component knowing about it.
+	 */
+	messages: readonly SimpleHeaderMessage[];
+	/**
+	 * The unverified-term-authority sentence, or `null`. The header already
+	 * computes it with `resolveTermAuthorityNotice`; passing the value keeps one
+	 * derivation. `null` renders nothing.
+	 */
+	termAuthorityNotice?: string | null;
 };
+
+/**
+ * A2 HEADER-BUDGET — ONE calm line under the header box: which run is on screen,
+ * whether anyone can see it, and the exceptional notices.
+ *
+ * WHY IT IS A SIBLING OF `<header>` AND NOT A THIRD ROW: §8's "Header budget"
+ * rule caps the header BOX at two calm rows, and this content used to be inside
+ * that box, which is how a header reached seven bands. It adds NO control, it
+ * renders NOTHING when it has nothing to say, and it carries no `truncate`: §8
+ * forbids a sentence cut off with an ellipsis, so a long notice wraps here rather
+ * than disappearing at 1366 px.
+ */
+function SimpleHeaderStatusBand({
+	runState,
+	messages,
+	termAuthorityNotice,
+}: {
+	runState: SimpleHeaderTrailingSurfacesProps['runState'];
+	messages: readonly SimpleHeaderMessage[];
+	termAuthorityNotice: string | null;
+}) {
+	const hasIdentity = runState.sentence != null || runState.visibility != null;
+	// The cap is the SAME `SIMPLE_HEADER_MESSAGE_LIMIT` the in-header list used, and
+	// the remainder is still COUNTED rather than silently dropped.
+	const shown = messages.slice(0, SIMPLE_HEADER_MESSAGE_LIMIT);
+	const hidden = messages.length - shown.length;
+	if (!hasIdentity && shown.length === 0 && !termAuthorityNotice) return null;
+	const toneClass = (tone: SimpleHeaderMessage['tone']) => tone === 'danger'
+		? 'text-red-700'
+		: tone === 'warning'
+			? 'text-amber-800'
+			: tone === 'good'
+				? 'text-emerald-800'
+				: 'text-muted-foreground';
+	return (
+		<div
+			role="status"
+			aria-live="polite"
+			data-testid="timetable-simple-status-band"
+			className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border/60 bg-muted/20 px-3 py-1 text-xs"
+		>
+			{runState.sentence != null ? (
+				<span data-testid="timetable-run-identity" className="text-muted-foreground">
+					<span className="font-semibold text-foreground">State:</span> {runState.sentence}
+				</span>
+			) : null}
+			{runState.visibility != null ? (
+				<span data-testid="timetable-draft-visibility" className="font-semibold text-foreground">
+					{runState.visibility}
+				</span>
+			) : null}
+			{termAuthorityNotice ? (
+				<span data-testid="timetable-term-authority-unverified" className="text-amber-800">
+					{termAuthorityNotice}
+				</span>
+			) : null}
+			{shown.map((message) => (
+				<span key={message.id} data-testid={message.id} className={`font-medium ${toneClass(message.tone)}`}>
+					{message.text}
+				</span>
+			))}
+			{hidden > 0 ? (
+				<span data-testid="timetable-status-messages-more" className="text-muted-foreground">
+					and {hidden} more
+				</span>
+			) : null}
+		</div>
+	);
+}
 
 /**
  * The header's own non-row chrome, rendered as a SIBLING of the `<header>` so the
@@ -99,12 +201,19 @@ export function SimpleHeaderTrailingSurfaces({
 	onRetry,
 	labelForSection,
 	labelForSubject,
+	runState,
+	messages,
+	termAuthorityNotice = null,
 }: SimpleHeaderTrailingSurfacesProps) {
 	return (
 		<>
 			{swapClassTimesMode != null ? (
 				<TimetableSwapClassTimesBanner mode={swapClassTimesMode} onCancel={() => onSwapClassTimesCancel?.()} />
 			) : null}
+			{/* A2 HEADER-BUDGET — the ONE calm line that used to be bands 1, 5 and 6 of
+			    the operator's seven-band header. It renders nothing when it has nothing
+			    to say, and it adds no control. */}
+			<SimpleHeaderStatusBand runState={runState} messages={messages} termAuthorityNotice={termAuthorityNotice} />
 			<SimpleGenerationBlockerSheet
 				open={blockerSheetOpen}
 				onOpenChange={onBlockerSheetOpenChange}

@@ -1,0 +1,792 @@
+/**
+ * A2 HEADER-BUDGET (operator, 2026-09-29) — the `/timetable` Simple header at the
+ * AGENTS.md §8 "Header budget", asserted on the REAL rendered component in BOTH
+ * year states.
+ *
+ * ── THE OPERATOR'S WORDS, WHICH ARE THE SPECIFICATION ─────────────────────────
+ * On live `/timetable` (active year 2022-2023) the header "has regressed … messy
+ * … we need a less is more approach and relaxed view so users don't get
+ * overwhelmed". Lane C read off the screenshot: a helper sentence under
+ * `Edit draft` / `Discard draft`; `Term: Viewi…` and `school is i…` truncated; the
+ * 468-items sentence truncated; `No schedule yet` AND `No 2022-2023 timetable yet`
+ * both shown; disabled Undo/Redo/History on a year with no schedule. The named fix:
+ * row 1 = title, tabs, ONE status chip, Generate, More; row 2 = Term, Show,
+ * Schedule for.
+ *
+ * ── WHAT THIS FILE IS, AND WHAT IT IS NOT ────────────────────────────────────
+ * Every row RENDERS the real `TimetableSimpleHeader` and reads real output. NO row
+ * asserts source text about the change: a test that only greps a file is not
+ * acceptance evidence for a user-facing change ("Done means seen"). H9 is the one
+ * exception and is labelled IN ITS OWN NAME as a range-scope source row, because
+ * its subject is "a file did not change", which no render can decide.
+ *
+ * H1 IS A **STRUCTURAL** ROW, NOT A PIXEL ROW, AND IT SAYS SO IN ITS OWN NAME.
+ * JSDOM HAS NO LAYOUT ENGINE: it cannot set a 1366×768 viewport, cannot lay out a
+ * flex row, and therefore cannot count the text bands a scheduler SEES or measure
+ * their height. Exactly as `SimpleHeaderTrailingSurfaces.tsx` records, what is
+ * decided here is the DOM SHAPE the band count follows from. The true 1366×768
+ * PIXEL count is a BROWSER row (AGENTS.md §11/§12) owned by Lane C on A4's
+ * staging, and it is not claimed here.
+ *
+ * ── WHY THE SUITE RENDERS THE WAY IT DOES (the memory record) ────────────────
+ * The first cut of this file mounted the header through a JSDOM `createRoot` for
+ * every row and died: `exitCode: -1` with no message after ~24 s, which is the
+ * heap-exhaustion signature recorded in `a2-c12-header-two-rows.test.tsx` ("two
+ * CONCURRENT live mounts of this component are enough to OOM … a 461 MB heap,
+ * `FATAL ERROR: Committing semi space failed`") and the signature that took this
+ * lane down once before, when Lane C killed a 15.3 GB run on 2026-09-29.
+ *
+ * So the harness is split by what each row actually needs:
+ *   - EVERY row EXCEPT H4 and H8 uses `renderToStaticMarkup` from
+ *     `react-dom/server`. Those rows are structural — "how many bands does the
+ *     header have", "is there an ellipsis", "what is the chip's text" — and static
+ *     markup answers all of them with NO client tree, NO effects, NO retained
+ *     nodes, and therefore nothing that can accumulate. It is also an order of
+ *     magnitude faster.
+ *   - H4 and H8 genuinely need a REAL CLICK on a real control (the packet requires
+ *     driving the production control, not a test-local handler), so they are the
+ *     only two rows that mount a client root, and `afterEach` unmounts the root
+ *     AND removes its container AND drops every portalled sibling Radix left on
+ *     the shared `document.body`.
+ *
+ * `globalThis.fetch` is stubbed once. The header's rollover-status effect calls
+ * `fetchRolloverStatus(context.schoolId)` on mount; with no stub it rejects, and a
+ * rejection that races the teardown is a classic source of a non-deterministic
+ * crash. The stub settles it deterministically instead.
+ *
+ * ── WHY EVERY IMPORT BELOW RESOLVES ON THE BASE COMMIT ───────────────────────
+ * A failing-first row is only evidence if it fails BEHAVIOURALLY. An
+ * `ERR_MODULE_NOT_FOUND`, or a test importing a module this change has not created
+ * yet, is a FALSE failing-first — the defect that burned this lane before. So this
+ * file imports ONLY modules that exist at the base `ce1257c8`, and reads the NEW
+ * shared picker constant through a NAMESPACE import of an existing module
+ * (`@/ui/select`). On the base that import succeeds and the constant is
+ * `undefined`, so H7 fails on a real assertion about a real requirement, not on a
+ * missing module.
+ */
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { afterEach, beforeEach, test } from 'node:test';
+import { act, createElement } from 'react';
+import { JSDOM } from 'jsdom';
+
+const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/timetable' });
+Object.assign(globalThis, {
+	window: dom.window,
+	document: dom.window.document,
+	HTMLElement: dom.window.HTMLElement,
+	Element: dom.window.Element,
+	DocumentFragment: dom.window.DocumentFragment,
+	HTMLInputElement: dom.window.HTMLInputElement,
+	HTMLButtonElement: dom.window.HTMLButtonElement,
+	HTMLAnchorElement: dom.window.HTMLAnchorElement,
+	SVGElement: dom.window.SVGElement,
+	Node: dom.window.Node,
+	Event: dom.window.Event,
+	CustomEvent: dom.window.CustomEvent,
+	FocusEvent: dom.window.FocusEvent,
+	KeyboardEvent: dom.window.KeyboardEvent,
+	MouseEvent: dom.window.MouseEvent,
+	PointerEvent: dom.window.PointerEvent,
+	NodeFilter: dom.window.NodeFilter,
+	MutationObserver: dom.window.MutationObserver,
+	getComputedStyle: dom.window.getComputedStyle.bind(dom.window),
+	requestAnimationFrame: (cb: FrameRequestCallback) => setTimeout(() => cb(Date.now()), 0),
+	cancelAnimationFrame: (id: number) => clearTimeout(id),
+	ResizeObserver: class { observe() {} unobserve() {} disconnect() {} },
+	DOMRect: dom.window.DOMRect,
+	IS_REACT_ACT_ENVIRONMENT: true,
+});
+Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, configurable: true });
+
+// Radix's dismissable layer calls these on every pointer event; JSDOM implements
+// none of them. Identical to the stubs in the C12/C11 header suites, so the real
+// More menu and the real blocker sheet are opened through the production path.
+(dom.window.HTMLElement.prototype as unknown as { scrollIntoView: () => void }).scrollIntoView = () => {};
+(dom.window.HTMLElement.prototype as unknown as { hasPointerCapture: () => boolean }).hasPointerCapture = () => false;
+(dom.window.HTMLElement.prototype as unknown as { releasePointerCapture: () => void }).releasePointerCapture = () => {};
+(dom.window.HTMLElement.prototype as unknown as { setPointerCapture: () => void }).setPointerCapture = () => {};
+
+/* ONE stub, set up BEFORE any mount, so the header's rollover-status effect can
+ * never race the teardown with a real network call or an unhandled rejection. */
+const fetchStub = () => Promise.resolve({
+	ok: true,
+	status: 200,
+	json: () => Promise.resolve({ drift: { status: 'aligned', message: null, recommendedAction: null, conflicts: [], unacknowledgedReconfiguredSections: 0 } }),
+});
+beforeEach(() => { globalThis.fetch = fetchStub as unknown as typeof fetch; });
+
+const { renderToStaticMarkup } = await import('react-dom/server');
+const { createRoot } = await import('react-dom/client');
+const { MemoryRouter } = await import('react-router-dom');
+const { TimetableSimpleHeader } = await import('@/components/timetable/TimetableSimpleHeader');
+const { TimetableUndoRedoControl } = await import('@/components/timetable/TimetableUndoRedoControl');
+/* NAMESPACE import on purpose — see the file header. `@/ui/select` exists at the
+ * base; only the exported constant is new, so H7 fails on an assertion, never on a
+ * module resolution. */
+const uiSelect = await import('@/ui/select') as { SELECT_TRIGGER_PICKER_CLASS?: string };
+const SHARED_PICKER_CLASS = uiSelect.SELECT_TRIGGER_PICKER_CLASS;
+
+/* ── TEARDOWN FOR THE TWO CLICK ROWS ONLY ─────────────────────────────────────
+ * The client root, its container, and every portalled sibling are released after
+ * each row, because `document.body` is shared by every row in this process and a
+ * Radix `SheetContent`/`DropdownMenuContent` left attached is both a leak and a
+ * way for one row's assertion to read another row's node. */
+let mountedRoot: { unmount: () => void } | null = null;
+let mountedHost: HTMLElement | null = null;
+afterEach(() => {
+	if (mountedRoot) { act(() => mountedRoot!.unmount()); mountedRoot = null; }
+	if (mountedHost) { mountedHost.remove(); mountedHost = null; }
+	for (const stray of [...dom.window.document.body.children]) stray.remove();
+});
+
+// ═══ RENDER HELPERS ══════════════════════════════════════════════════════════
+
+/** STATIC render — the default for every structural row. No client tree, no
+ * effects, no retained nodes. */
+function headerMarkup(context: Record<string, unknown>, undoRedoControl: unknown): string {
+	return renderToStaticMarkup(createElement(
+		MemoryRouter as never,
+		{ initialEntries: ['/timetable'] },
+		createElement(TimetableSimpleHeader as never, headerProps(context, undoRedoControl) as never),
+	));
+}
+
+/** Parse static markup into a detached tree for structural queries. The container
+ * is never attached to `document.body`, so nothing here can leak into another row
+ * even if an assertion throws. */
+function headerTree(markup: string): HTMLElement {
+	const host = dom.window.document.createElement('div');
+	host.innerHTML = markup;
+	return host;
+}
+
+/** CLIENT render — ONLY for the two rows that need a real click. */
+function mountHeader(context: Record<string, unknown>, undoRedoControl: unknown) {
+	const host = dom.window.document.createElement('div');
+	dom.window.document.body.appendChild(host);
+	mountedHost = host;
+	const root = createRoot(host);
+	mountedRoot = root;
+	act(() => { root.render(createElement(MemoryRouter as never, { initialEntries: ['/timetable'] }, createElement(TimetableSimpleHeader as never, headerProps(context, undoRedoControl) as never))); });
+	return {
+		host,
+		/** Scoped to this row's host, so a portal from another row can never satisfy
+		 * an assertion in this one. */
+		el: (id: string) => host.querySelector(`[data-testid="${id}"]`) as HTMLElement | null,
+		/** Document-wide, for the surfaces that are PORTALLED on purpose (the
+		 * blocker sheet, the More menu) and so are not inside the host. */
+		doc: (id: string) => dom.window.document.querySelector(`[data-testid="${id}"]`) as HTMLElement | null,
+		click: async (id: string) => {
+			const el = dom.window.document.querySelector(`[data-testid="${id}"]`) as HTMLElement | null;
+			assert.ok(el, `control ${id} is rendered, so it can be clicked`);
+			act(() => { el!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })); });
+			await settle();
+		},
+		/** Radix `DropdownMenu` opens on POINTERDOWN, not on `click`, so a plain click
+		 * silently does nothing and the menu assertions would pass vacuously. This is
+		 * the same production-path idiom as `a2-c12-header-rows2.test.tsx`'s
+		 * `openMenu`. */
+		openMenu: async (id: string) => {
+			const trigger = dom.window.document.querySelector(`[data-testid="${id}"]`) as HTMLElement | null;
+			assert.ok(trigger, `trigger ${id} is rendered, so the menu can be opened`);
+			act(() => { trigger!.dispatchEvent(new dom.window.PointerEvent('pointerdown', { bubbles: true, button: 0 })); });
+			await settle();
+			return dom.window.document.querySelector('[role="menu"]') as HTMLElement | null;
+		},
+	};
+}
+
+/** Radix's dismissable/presence layers settle over several microtask ticks, which
+ * is the recorded reason the committed suites flush five times after an
+ * interaction. */
+async function settle(): Promise<void> {
+	for (let index = 0; index < 5; index += 1) {
+		await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+	}
+}
+
+function headerProps(context: Record<string, unknown>, undoRedoControl: unknown) {
+	return {
+		context,
+		layoutMode: 'simple',
+		onLayoutModeChange: () => {},
+		activeTask: null,
+		onTaskChange: () => {},
+		onSetRepairOrigin: () => {},
+		readinessSheetOpen: false,
+		onReadinessSheetOpenChange: () => {},
+		swapClassTimesMode: null,
+		onSwapClassTimesStart: () => {},
+		onSwapClassTimesCancel: () => {},
+		undoRedoControl,
+		onDiscardDraft: () => {},
+	};
+}
+
+/** What the operator can SEE, as opposed to `textContent`, which also carries
+ * `sr-only` text. JSDOM has no layout, so this is the closest honest reading of
+ * "what this element shows". */
+function visibleText(host: Element): string {
+	const clone = host.cloneNode(true) as HTMLElement;
+	for (const hidden of [...clone.querySelectorAll('.sr-only, [aria-hidden="true"]')]) hidden.remove();
+	return clone.textContent ?? '';
+}
+
+// ═══ FIXTURES ═══════════════════════════════════════════════════════════════
+
+const RUN_FINISHED_AT = '2026-09-28T08:00:00.000Z';
+
+/** STATE A — the operator's live year: NO schedule. `draft` is `null`, so there is
+ * no run on screen at all. This is the state that printed BOTH "No 2022-2023
+ * timetable yet" AND "No schedule yet". */
+function stateAContext(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+	return baseContext({
+		draft: null,
+		activeGeneratedRunId: null,
+		selectedRunId: 'latest',
+		runs: [],
+		hasSelectedEntry: false,
+		editHistoryCount: 0,
+		blockingHardCount: 0,
+		hardCount: 0,
+		softCount: 0,
+		summary: { isPublished: false, unassignedCount: 0, assignedCount: 0, hardViolationCount: 0 },
+		schoolYearContext: { activeSchoolYearLabel: '2022-2023', source: 'enrollpro', activeTerm: null },
+		curriculumReadiness: { state: 'ready', message: 'ready', diagnostic: { generateAllowed: true, zeroWrite: true, blockers: [] } },
+		...overrides,
+	});
+}
+
+/** STATE B — a year with a DRAFT run: one run, not published, and no post-run
+ * comparison, so no change notice is on screen and the two target rows are the
+ * whole header. */
+function stateBContext(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+	return baseContext({
+		...stateAContext(),
+		draft: {
+			runId: 321,
+			entries: [{ entryId: 'e-tle', sectionId: 41, subjectId: 31, day: 'MONDAY', startTime: '06:00', endTime: '06:45' }],
+			unassignedItems: [],
+			violations: [],
+			summary: { isPublished: false, unassignedCount: 0, assignedCount: 118, hardViolationCount: 0 },
+			inputState: null,
+			version: 14,
+			createdAt: RUN_FINISHED_AT,
+			finishedAt: RUN_FINISHED_AT,
+		},
+		activeGeneratedRunId: 321,
+		selectedRunId: '321',
+		runs: [{ id: 321, createdAt: RUN_FINISHED_AT, durationMs: 4200, status: 'COMPLETED' }],
+		schoolYearContext: { activeSchoolYearLabel: 'SY 2026-2027', source: 'enrollpro', activeTerm: null },
+		...overrides,
+	});
+}
+
+function baseContext(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+	const noop = () => {};
+	return {
+		isPreGenerationWorkspace: false,
+		leftTab: 'sessions',
+		leftPanelRef: { current: null },
+		presentationMode: 'workflow',
+		setPresentationMode: noop,
+		handleRunChange: noop,
+		schoolId: 1,
+		schoolYearId: 1,
+		centerView: 'schedule',
+		newDraftLoading: false,
+		handleStartNewPreGenerationDraft: noop,
+		openPreGenerationWorkspace: noop,
+		returnToGeneratedRun: noop,
+		generating: false,
+		loading: false,
+		handleTriggerGenerate: noop,
+		setPublishAcknowledged: noop,
+		setShowPublishDialog: noop,
+		exitPolicyView: noop,
+		switchCenterViewWithGuard: (action: () => void) => action(),
+		enterPolicyView: noop,
+		openMapWorkspace: noop,
+		handleRefresh: noop,
+		editHistoryReadState: 'ready',
+		setShowEditHistory: noop,
+		tutorial: { start: noop, step: 0, totalSteps: 0, seen: true, open: false },
+		sectionLabel: (id: number) => `GR7 - ${id}`,
+		subjectLabel: () => 'TLE',
+		facultyLabel: () => 'Cruz, Pedro',
+		setUnassignedReasonFilter: noop,
+		requestPendingCount: 0,
+		statusColor: () => 'muted',
+		formatDuration: (value: number | null) => `${value}ms`,
+		formatTimestamp: (value: string) => value,
+		viewMode: 'section',
+		setViewMode: noop,
+		setEntityFilter: noop,
+		focusSection: noop,
+		sectionFocusId: null,
+		setSelectedEntry: noop,
+		setSelectedViolation: noop,
+		setSeverityFilter: noop,
+		enterManualEditView: noop,
+		setPreGenKbSource: noop,
+		setKbSelectedSource: noop,
+		entityFilter: 'all',
+		groupedPivotEntities: [{ label: 'Grade 7', ids: [41] }],
+		VIEW_MODE_LABELS: { section: 'Section', faculty: 'Teacher', room: 'Room' },
+		PROGRAM_FILTER_OPTIONS: [],
+		ENTRY_KIND_FILTER_OPTIONS: [],
+		WELLBEING_CODES: new Set<string>(),
+		CONFLICT_CODES: new Set<string>(),
+		DAYS: ['MONDAY'],
+		DAY_SHORT: { MONDAY: 'Mon' },
+		pivotLabel: (id: number) => `Entity ${id}`,
+		programFilter: 'all',
+		setProgramFilter: noop,
+		entryKindFilter: 'all',
+		termFilter: 2,
+		termOptions: [{ value: '1', label: 'TERM 1' }, { value: '2', label: 'TERM 2' }, { value: '3', label: 'TERM 3' }],
+		activeTermIndex: 2,
+		onTermFilterChange: noop,
+		draftPlacementCount: 0,
+		hasPublishedReturnState: false,
+		severityFilter: 'all',
+		...overrides,
+	};
+}
+
+/** The workspace's ONE Undo / Redo / History control, built exactly as
+ * `ScheduleReviewWorkspace` builds it. `hideWhenIdle` is the prop the workspace now
+ * passes for the Simple layout; on the base it is simply an unknown prop, so the
+ * control renders and H5 fails on a real assertion. */
+function undoControl(overrides: Record<string, unknown> = {}) {
+	return createElement(TimetableUndoRedoControl as never, {
+		hideWhenIdle: true,
+		editHistoryCount: 0,
+		revertLoading: false,
+		revertLastEdit: async () => {},
+		redoState: null,
+		redoVersionStale: false,
+		redoLastEdit: async () => {},
+		clearRedo: () => {},
+		setShowEditHistory: () => {},
+		undoNotice: null,
+		undoBlockedReason: null,
+		...overrides,
+	} as never);
+}
+
+/** The children of the `<header>` element that render ANY visible text. A header
+ * child that renders no visible text cannot be a band a scheduler sees, whatever
+ * element it is — the device the accepted C12 row already uses. */
+function headerBands(header: HTMLElement): HTMLElement[] {
+	return [...header.children].filter((child) => visibleText(child).trim().length > 0) as HTMLElement[];
+}
+
+const q = (host: Element, id: string) => host.querySelector(`[data-testid="${id}"]`) as HTMLElement | null;
+
+// ═══ H1 — THE HEADER BOX IS TWO ROWS ══════════════════════════════════════
+
+/** The ONE painting band of the header box, and the two rows it stacks.
+ *
+ * WHAT "TWO ROWS" MEANS HERE, STATED PLAINLY SO IT CANNOT BE MISREAD: a *band* is a
+ * child of the `<header>` element that renders any visible text, and the accepted
+ * `a2-c12-header-two-rows.test.tsx` already fixed the convention — its
+ * `headerBands()` filters on visible text and it asserts the header renders exactly
+ * one band, `timetable-simple-header-row`, which then stacks two rows. This header
+ * keeps that shape: one band, two rows. What §8's "Header budget" caps is the ROW
+ * COUNT, and that is what is asserted. */
+function headerRowStack(host: Element): { bands: HTMLElement[]; rows: HTMLElement[]; header: HTMLElement } {
+	const header = host.querySelector('[data-testid="timetable-simple-header"]') as HTMLElement;
+	assert.ok(header, 'the header renders');
+	const bands = headerBands(header);
+	const rows = bands.length === 1 ? [...bands[0].children] as HTMLElement[] : [];
+	return { bands, rows, header };
+}
+
+test('H1 STRUCTURAL (JSDOM HAS NO LAYOUT ENGINE — this is NOT a pixel row), state A: the header box stacks exactly TWO rows and nothing else', () => {
+	const { bands, rows } = headerRowStack(headerTree(headerMarkup(stateAContext(), undoControl())));
+	assert.equal(bands.length, 1,
+		`the header box paints exactly one band, the row band; it painted ${bands.length}`);
+	assert.equal(bands[0].getAttribute('data-testid'), 'timetable-simple-header-row', 'and that band is the row band');
+	assert.equal((bands[0].getAttribute('class') ?? '').includes('flex-col'), true,
+		'and it really is a column, so the row count follows from the child count');
+	assert.equal(rows.length, 2, `the row band stacks exactly two rows; it stacked ${rows.length}`);
+	assert.equal(rows[0].getAttribute('data-testid'), 'timetable-simple-header-row-1', 'row 1');
+	assert.equal(rows[1].getAttribute('data-testid'), 'timetable-simple-header-row-2', 'row 2');
+	// DISCRIMINATION: row 1 really carries the title and the tabs, so this row is
+	// not satisfied by an empty band.
+	assert.ok(q(rows[0], 'timetable-page-heading'), 'row 1 carries the page title');
+	assert.ok(q(rows[0], 'timetable-sub-nav'), 'row 1 carries the tabs');
+	// …and row 2 really carries the three pickers.
+	assert.ok(q(rows[1], 'timetable-simple-term-filter'), 'row 2 carries the Term picker');
+	assert.ok(q(rows[1], 'timetable-simple-view-mode-select'), 'row 2 carries the Show picker');
+	assert.ok(q(rows[1], 'timetable-simple-entity-select'), 'row 2 carries the Schedule for picker');
+});
+
+test('H1 STRUCTURAL (JSDOM HAS NO LAYOUT ENGINE — this is NOT a pixel row), state B: the header box still stacks exactly TWO rows with a draft on screen', () => {
+	const { bands, rows } = headerRowStack(headerTree(headerMarkup(stateBContext(), undoControl())));
+	assert.equal(bands.length, 1, `exactly one band with a draft run on screen; got ${bands.length}`);
+	assert.equal(rows.length, 2, `still exactly two rows; got ${rows.length}`);
+	assert.equal(rows[0].getAttribute('data-testid'), 'timetable-simple-header-row-1', 'row 1');
+	assert.equal(rows[1].getAttribute('data-testid'), 'timetable-simple-header-row-2', 'row 2');
+});
+
+// ═══ H2 — ONE STATUS CHIP ══════════════════════════════════════════════════
+
+test('H2 state A: exactly ONE status chip, no run-state badge, and nothing else claims there is no schedule', () => {
+	const host = headerTree(headerMarkup(stateAContext(), undoControl()));
+	const header = host.querySelector('[data-testid="timetable-simple-header"]') as HTMLElement;
+	assert.ok(q(host, 'timetable-simple-readiness-chip'), 'the readiness chip is on screen');
+	assert.equal(q(host, 'timetable-run-state-badge'), null,
+		'the SECOND chip — `timetable-run-state-badge` — is not in the Simple header at all');
+	// THE DEFECT BEING CLOSED, stated as an assertion: on the base, a year with no
+	// schedule printed BOTH `No 2022-2023 timetable yet` and `No schedule yet`. No
+	// two rendered elements may now claim there is no schedule.
+	//
+	// THE WRAPPER IS NOT A SECOND CLAIM: the merged warnings control WRAPS the
+	// readiness chip, so both carry the chip's text. Only the INNERMOST claimant
+	// counts — an element that CONTAINS another claimant is the same claim rendered
+	// through its control, not a second place the header says it.
+	const all = [...header.querySelectorAll<HTMLElement>('[data-testid]')]
+		.filter((element) => /\bno .*(timetable yet|schedule yet)\b/i.test(visibleText(element)));
+	const claims = all.filter((element) => !all.some((other) => other !== element && element.contains(other)));
+	assert.equal(claims.length, 1,
+		`exactly ONE element claims there is no schedule; ${claims.length} do: ${all.map((e) => `${e.getAttribute('data-testid')}="${visibleText(e).trim()}"`).join(' | ')}`);
+	assert.match(visibleText(claims[0]), /No 2022-2023 timetable yet/,
+		'and the surviving claim is the readiness chip\'s own truthful sentence');
+	assert.ok(q(host, 'timetable-simple-warnings-control'),
+		'the chip is still the face of the merged warnings control — no control was added or lost');
+});
+
+test('H2 state B: exactly ONE status chip, and the run-state badge is still absent with a draft on screen', () => {
+	const host = headerTree(headerMarkup(stateBContext(), undoControl()));
+	assert.ok(q(host, 'timetable-simple-readiness-chip'), 'the readiness chip is on screen');
+	assert.equal(q(host, 'timetable-run-state-badge'), null, 'still no second chip with a draft run on screen');
+});
+
+// ═══ H3 — NO ELLIPSIS, NO TRUNCATION, NO NATIVE `title` ═════════════════════
+
+function assertNoTruncation(label: string, header: HTMLElement): void {
+	const offenders: string[] = [];
+	for (const element of [header, ...header.querySelectorAll<HTMLElement>('*')]) {
+		const classes = (element.getAttribute('class') ?? '').split(/\s+/);
+		if (classes.includes('truncate') || classes.includes('lg:truncate') || classes.includes('text-ellipsis')) {
+			offenders.push(`${element.tagName.toLowerCase()}.truncate`);
+		}
+		if (element.hasAttribute('title')) offenders.push(`${element.tagName.toLowerCase()}[title]`);
+	}
+	assert.deepEqual(offenders, [], `${label}: no header element carries a truncate class or a native title`);
+	for (const element of [header, ...header.querySelectorAll<HTMLElement>('*')]) {
+		const text = visibleText(element);
+		assert.equal(/…|\.\.\./.test(text), false,
+			`${label}: no rendered text is cut off with an ellipsis (offending: ${JSON.stringify(text.slice(0, 120))})`);
+	}
+}
+
+test('H3 state A: nothing inside the header is truncated, ellipsized, or given a raw `title`', () => {
+	const host = headerTree(headerMarkup(stateAContext(), undoControl()));
+	assertNoTruncation('state A', host.querySelector('[data-testid="timetable-simple-header"]') as HTMLElement);
+});
+
+test('H3 state B: nothing inside the header is truncated, ellipsized, or given a raw `title`', () => {
+	const host = headerTree(headerMarkup(stateBContext(), undoControl()));
+	assertNoTruncation('state B', host.querySelector('[data-testid="timetable-simple-header"]') as HTMLElement);
+});
+
+// ═══ H4 — SETUP BLOCKERS: ONE SHORT LINK (a REAL CLICK, so a client root) ════
+
+/** `blockers.length === 468` — the operator's own screen. 468 is FIXTURE DATA and
+ * never a literal in the product: the label is derived from the live
+ * `diagnostic.blockers.length` this feeds through the real context. */
+function engineBlocker(index: number) {
+	return {
+		category: 'DEMAND_AUTHORITY',
+		code: 'OWNERSHIP_MISSING',
+		termIdentity: 'TERM_2030_1',
+		sectionId: 700 + index,
+		subjectId: 31,
+		subjectCode: 'TLE-7',
+		entity: `Section 7-${index} TLE-7`,
+		reason: 'OWNERSHIP_MISSING blocks generation.',
+		owningSurface: 'Teaching Load',
+		nextAction: 'Assign a qualified teacher, then re-run generation readiness.',
+	};
+}
+
+const BLOCKER_TOTAL = 468;
+
+function blockedContext(base: Record<string, unknown>): Record<string, unknown> {
+	return {
+		...base,
+		curriculumReadiness: {
+			state: 'blocked',
+			message: 'Setup is not ready: OWNERSHIP_MISSING blocks generation.',
+			diagnostic: {
+				generateAllowed: false,
+				zeroWrite: true,
+				blockers: Array.from({ length: BLOCKER_TOTAL }, (_, index) => engineBlocker(index)),
+			},
+			repair: { kind: 'navigate', href: '/teaching-load', label: 'Fix teaching load' },
+		},
+	};
+}
+
+test('H4 state A with 468 setup blockers: the ONE chip reads exactly `468 setup items to fix`, and clicking it opens the EXISTING blocker sheet', async () => {
+	const view = mountHeader(blockedContext(stateAContext()), undoControl());
+	const header = view.host.querySelector('[data-testid="timetable-simple-header"]') as HTMLElement;
+
+	// THE SHORT LABEL, and the long paragraph it replaced is GONE from the header.
+	const chip = view.el('timetable-simple-readiness-chip');
+	assert.ok(chip, 'the status chip is on screen');
+	assert.equal(visibleText(chip).trim(), `${BLOCKER_TOTAL} setup items to fix`,
+		`the chip's visible label is the short live-count link, exactly; got ${JSON.stringify(visibleText(chip).trim())}`);
+	assert.equal(view.el('timetable-curriculum-readiness-message'), null,
+		'the long setup-blocked paragraph is not a header row any more — its fact is the chip label');
+	assert.equal(visibleText(header).includes('OWNERSHIP_MISSING'), false,
+		'the raw engine diagnostic is not printed in the header');
+	assert.match(chip!.getAttribute('aria-label') ?? '', /setup items to fix/,
+		'the chip\'s aria-label still names the action and carries the live count');
+
+	// CLICKING THE REAL CONTROL OPENS THE REAL SHEET — no new component, no new
+	// route, no new fetch, driven through the production control.
+	const entry = view.el('timetable-simple-warnings-control');
+	assert.ok(entry, 'the merged warnings control is rendered');
+	assert.equal(entry!.getAttribute('data-warnings-dispatch'), 'generation-blockers',
+		'and it still owns the existing `generation-blockers` dispatch');
+	await view.click('timetable-simple-warnings-control');
+	const sheet = view.doc('timetable-generation-blocker-sheet');
+	assert.ok(sheet, 'one real click opens the existing `SimpleGenerationBlockerSheet` — the detail is still reachable');
+	assert.equal(header.contains(sheet!), false, 'the sheet is a body-level portal, never a band of the header box');
+	assert.equal(sheet!.parentElement, dom.window.document.body, 'and it really is portalled to the body');
+	assert.ok(sheet!.querySelector('[data-testid="timetable-generation-blocker-list"]'), 'and it renders the real blocker list');
+	// It really is the LIVE list, not a sample or a capped summary: the last of the
+	// 468 the fixture put in the diagnostic is present, so the sheet is not showing a
+	// truncated head.
+	const items = sheet!.querySelectorAll('[data-testid="timetable-generation-blocker-item"]');
+	assert.ok(items.length > 1, `the list has rows (${items.length})`);
+	assert.ok(visibleText(items[items.length - 1]).includes(`GR7 - ${700 + BLOCKER_TOTAL - 1}`),
+		`and its last row is the LAST of the live count, so the list is not truncated: ${JSON.stringify(visibleText(items[items.length - 1]).slice(0, 80))}`);
+	// NOT asserted here: `items.length === 468`. Materialising 468 JSDOM rows inside a
+	// portalled Radix sheet is what exhausted the heap in the first cut of this file
+	// (`exitCode: -1` after ~24 s), and the disclosure's own completeness is already a
+	// rendered row in `generation-blockers-c02.test.tsx` ("C2-a.4 the disclosure lists
+	// ALL THREE blockers in plain words, not just blockers[0]"). This row's subject is
+	// the CHIP: its label, its tooltip target and its dispatch.
+});
+
+test('H4 state B with 468 setup blockers: the same short label, and a run on screen does not change the rule', () => {
+	const host = headerTree(headerMarkup(blockedContext(stateBContext()), undoControl()));
+	const chip = q(host, 'timetable-simple-readiness-chip');
+	assert.ok(chip, 'the chip is on screen in state B too');
+	assert.equal(visibleText(chip).trim(), `${BLOCKER_TOTAL} setup items to fix`, 'the same short live-count label');
+	assert.equal(q(host, 'timetable-curriculum-readiness-message'), null, 'and still no long paragraph in the header');
+});
+
+// ═══ H5 — IDLE ACTIONS ARE HIDDEN ══════════════════════════════════════════
+
+test('H5 state A: no draft means no `Discard draft`, no undo cluster inside the header, and `More` is present', () => {
+	const host = headerTree(headerMarkup(stateAContext(), undoControl()));
+	const header = host.querySelector('[data-testid="timetable-simple-header"]') as HTMLElement;
+	assert.equal(q(host, 'timetable-draft-strip-discard'), null,
+		'`Discard draft` renders NOTHING when there is no draft on screen (state A)');
+	assert.equal(header.querySelector('[data-testid="timetable-undo-redo-control"]'), null,
+		'the Undo / Redo / History cluster is not rendered when nothing can act on it');
+	assert.ok(q(host, 'timetable-simple-more-trigger'), '`More` is still on screen — the menu is never the thing that disappears');
+	assert.equal(headerBands(header).length, 1, 'and the header box still paints only the one row band');
+	assert.equal(headerBands(header)[0].children.length, 2, 'which still stacks exactly two rows');
+});
+
+test('H5 state B, idle history: a draft with `editHistoryCount === 0` and no redo still hides the undo cluster', () => {
+	const host = headerTree(headerMarkup(stateBContext({ editHistoryCount: 0 }), undoControl({ editHistoryCount: 0 })));
+	assert.equal(q(host, 'timetable-undo-redo-control'), null,
+		'an empty edit history and no redo is "nothing to act on", so the cluster is hidden');
+	// DISCRIMINATION: the DRAFT actions themselves ARE on screen now, so this row is
+	// not passing because row 2 rendered nothing.
+	assert.ok(q(host, 'timetable-draft-strip-discard'), 'a draft exists, so `Discard draft` is on screen in state B');
+});
+
+test('H5 state B with history: `editHistoryCount === 3` renders the cluster with all three controls', () => {
+	const host = headerTree(headerMarkup(stateBContext({ editHistoryCount: 3 }), undoControl({ editHistoryCount: 3 })));
+	const cluster = q(host, 'timetable-undo-redo-control');
+	assert.ok(cluster, 'a non-empty history renders the cluster');
+	for (const id of ['timetable-visible-undo', 'timetable-visible-redo', 'timetable-visible-history']) {
+		assert.ok(cluster!.querySelector(`[data-testid="${id}"]`), `${id} is still present and reachable`);
+	}
+	// …and the controls are LIVE, which is what "renders in full whenever anything is
+	// present" has to mean.
+	const undo = cluster!.querySelector('[data-testid="timetable-visible-undo"]') as HTMLElement;
+	const history = cluster!.querySelector('[data-testid="timetable-visible-history"]') as HTMLElement;
+	assert.equal(undo.hasAttribute('disabled'), false, 'Undo is enabled with history to undo');
+	assert.equal(history.hasAttribute('disabled'), false, 'History is enabled with history to open');
+});
+
+// ═══ H6 — NO HELPER SENTENCE UNDER A BUTTON ════════════════════════════════
+
+test('H6 state B: `Edit draft` / `Discard draft` have NO visible reason, the reason is in a @/ui tooltip, and `aria-label` still carries it', () => {
+	const host = headerTree(headerMarkup(stateBContext({ hasSelectedEntry: false }), undoControl()));
+	// No selection => `Edit draft` is disabled, which is exactly the state where the
+	// operator saw a sentence printed under the button.
+	const edit = q(host, 'timetable-draft-strip-edit');
+	assert.ok(edit, '`Edit draft` is on screen in state B');
+	assert.equal(edit!.hasAttribute('disabled'), true, 'it is the disabled control under test');
+	const expected = 'Pick a class on the grid first, then choose Edit.';
+	assert.equal(q(host, 'timetable-draft-strip-edit-reason'), null,
+		'NO visible sibling reason element is rendered under `Edit draft`');
+	assert.equal(edit!.getAttribute('aria-label'), `Edit draft — ${expected}`,
+		'and the disabled control\'s aria-label still carries the reason verbatim, so nothing depends on a hover');
+	// The reason is REACHABLE: it is a `@/ui` Tooltip on the focusable wrapper the
+	// disabled button sits in, and the wrapper is in the tab order.
+	const wrapper = edit!.parentElement;
+	assert.ok(wrapper, 'the disabled button is wrapped');
+	assert.equal(wrapper!.tagName.toLowerCase(), 'span', 'in a wrapper span (a disabled button cannot fire a Radix tooltip)');
+	assert.equal(wrapper!.getAttribute('tabindex'), '0', 'and that wrapper is focusable, so the reason is reachable by keyboard');
+
+	const discard = q(host, 'timetable-draft-strip-discard');
+	assert.ok(discard, '`Discard draft` is on screen in state B');
+	assert.equal(q(host, 'timetable-draft-strip-discard-reason'), null, 'and no visible reason under `Discard draft` either');
+});
+
+test('H6 state A: `Discard draft` is absent entirely, so it can print no reason', () => {
+	const host = headerTree(headerMarkup(stateAContext(), undoControl()));
+	assert.equal(q(host, 'timetable-draft-strip-discard'), null, '`Discard draft` is not rendered in state A');
+	assert.equal(q(host, 'timetable-draft-strip-discard-reason'), null, 'so there is no reason element under it either');
+});
+
+// ═══ H7 — ONE LOOK PER CONTROL ════════════════════════════════════════════
+
+test('H7 state A: all three row-2 pickers carry the ONE shared @/ui chrome, a non-empty accessible name, and no page-local look override', () => {
+	assert.equal(typeof SHARED_PICKER_CLASS === 'string', true,
+		'`@/ui/select` exports the one shared picker chrome constant; on the base it does not exist at all');
+	const host = headerTree(headerMarkup(stateAContext(), undoControl()));
+	assertNoTruncation('state A', host.querySelector('[data-testid="timetable-simple-header"]') as HTMLElement);
+
+	const header = host.querySelector('[data-testid="timetable-simple-header"]') as HTMLElement;
+	const row2 = q(header, 'timetable-simple-header-row-2');
+	assert.ok(row2, 'row 2 exists');
+	const chromeTokens = (SHARED_PICKER_CLASS as string).split(/\s+/);
+	const triggers: Record<string, HTMLElement | null> = {
+		Term: q(header, 'timetable-simple-term-filter'),
+		Show: q(header, 'timetable-simple-view-mode-select'),
+		'Schedule for': row2.querySelector('button[role="combobox"]'),
+	};
+	for (const [name, trigger] of Object.entries(triggers)) {
+		assert.ok(trigger, `the ${name} picker trigger is rendered`);
+		const classes = (trigger!.getAttribute('class') ?? '').split(/\s+/);
+		for (const token of chromeTokens) {
+			assert.equal(classes.includes(token), true,
+				`the ${name} picker carries the shared chrome token \`${token}\`; its class is ${JSON.stringify(trigger!.getAttribute('class'))}`);
+		}
+		// §8 also requires a non-empty accessible name, and the same search behaviour
+		// for the same control.
+		const accessible = trigger!.getAttribute('aria-label') ?? trigger!.getAttribute('aria-labelledby');
+		assert.ok(accessible && accessible.trim().length > 0, `the ${name} picker has a non-empty accessible name`);
+		// …and the shared height, not the `h-8` the two selects used beside the `h-9`
+		// term picker.
+		assert.equal(classes.includes('h-9'), true, `the ${name} picker is the shared h-9 height`);
+	}
+});
+
+test('H7 state B: the two Select pickers look identical in state B too', () => {
+	assert.equal(typeof SHARED_PICKER_CLASS === 'string', true, 'the shared @/ui constant is exported');
+	const host = headerTree(headerMarkup(stateBContext(), undoControl()));
+	const chromeTokens = (SHARED_PICKER_CLASS as string).split(/\s+/);
+	for (const id of ['timetable-simple-term-filter', 'timetable-simple-view-mode-select']) {
+		const trigger = q(host, id);
+		assert.ok(trigger, `${id} is rendered`);
+		const classes = (trigger!.getAttribute('class') ?? '').split(/\s+/);
+		for (const token of chromeTokens) {
+			assert.equal(classes.includes(token), true, `${id} carries the shared token \`${token}\``);
+		}
+	}
+});
+
+// ═══ H8 — NOTHING LOST (a REAL CLICK, so a client root) ═════════════════════
+
+test('H8 state B: every action reachable before is still reachable — the real More menu, opened through the real control', async () => {
+	const view = mountHeader(stateBContext(), undoControl({ editHistoryCount: 2 }));
+	// DISCRIMINATION: the menu must really open, or the rows below would pass
+	// vacuously.
+	const menu = await view.openMenu('timetable-simple-more-trigger');
+	assert.ok(menu, 'the real More menu opens through the production trigger');
+	const rows = menu!.querySelectorAll('[role="menuitem"]');
+	assert.ok(rows.length > 0, `and it has rows (${rows.length})`);
+	for (const id of [
+		'timetable-more-generate',
+		'timetable-more-schedule-history',
+		'timetable-more-unassigned-sessions',
+		'timetable-simple-review-setup',
+		'timetable-simple-edit-draft-action',
+		'timetable-more-discard-draft',
+	]) {
+		assert.ok(menu!.querySelector(`[data-testid="${id}"]`), `${id} is still reachable from the More menu`);
+	}
+});
+
+test('H8 state A: the More menu keeps BOTH draft rows even though row 2 hides `Discard draft`', async () => {
+	// §8's rule is "hidden OR live under More". Hiding an action from row 2 loses
+	// nothing only if the More menu still carries it — this row is that check.
+	const view = mountHeader(stateAContext(), undoControl());
+	assert.equal(view.el('timetable-draft-strip-discard'), null, 'row 2 renders no `Discard draft` in state A');
+	const menu = await view.openMenu('timetable-simple-more-trigger');
+	assert.ok(menu, 'the real More menu opens through the production trigger');
+	assert.ok(menu!.querySelector('[data-testid="timetable-more-discard-draft"]'),
+		'but the More menu still carries `Discard draft`, with its existing gate and reason');
+	assert.ok(menu!.querySelector('[data-testid="timetable-simple-edit-draft-action"]'), 'and still carries `Edit draft`');
+	// `timetable-more-generate` is deliberately NOT required in state A: with no
+	// generated run the ONE solid primary IS `Generate`, and DRAFT-UX-C01's contract
+	// is that `More` does not duplicate the visible primary
+	// (`generate.visible: headerPrimary !== 'generate'`). H8 state B is the row that
+	// pins the More `Generate` row, where the primary is `Publish schedule`.
+	assert.equal(menu!.querySelector('[data-testid="timetable-more-generate"]'), null,
+		'and `More` does NOT duplicate `Generate`, because in state A Generate is the visible primary — the accepted one-primary rule');
+});
+
+// ═══ H9 — RANGE SCOPE (a source row, honestly labelled) ════════════════════
+
+/**
+ * H9 IS **NOT** A BEHAVIOURAL ROW AND IS LABELLED AS ONE IN ITS OWN NAME. It reads
+ * source files to prove the two things the packet explicitly parked — the
+ * section-switch speed work (P) and the past-year read-only view — are
+ * byte-identical across this range. Every behavioural claim in this file is made
+ * on RENDERED output; this one cannot be, because its subject is "a file did not
+ * change".
+ *
+ * The comparison is against a real commit (`git show` at the accepted base), not
+ * against a note in this file. The paths were located with a grep, not guessed:
+ * `useScheduleReviewWorkspaceState` is a hook under `src/hooks`, and
+ * `buildPastYearBackHref` / `resolvePastYearViewState` / `usePastYearTimetable`
+ * all live in `simple/pastYearViewState.ts` and `simple/usePastYearTimetable.ts`.
+ */
+const BASE_SHA = 'ce1257c815e4393f638e0c3cd19c71c561c2d1d1';
+const CLIENT_ROOT = resolve(import.meta.dirname, '../../../..');
+const REPO_ROOT = resolve(CLIENT_ROOT, '..');
+
+const SCOPE_FILES = [
+	'hooks/useScheduleReviewWorkspaceState.ts',
+	'components/timetable/simple/SimplePastYearView.tsx',
+	'components/timetable/simple/SimplePastYearReadOnlySurface.tsx',
+	'components/timetable/simple/usePastYearTimetable.ts',
+	'components/timetable/simple/pastYearViewState.ts',
+] as const;
+
+test('H9 RANGE-SCOPE ROW (NOT a behavioural row): the parked section-switch file and every past-year module are byte-identical to the base', () => {
+	// LINE ENDINGS ARE NORMALISED, AND THAT IS DELIBERATE. `git show` returns the
+	// committed blob with LF endings, while the worktree checkout is CRLF, so a raw
+	// byte comparison reports a difference on a file nobody touched — which is a
+	// false alarm, not evidence. What must be identical is the CONTENT, so both
+	// sides are normalised to LF first. (The worktree is not modified: `git status`
+	// for each of these paths is empty.)
+	const normalise = (text: string) => text.replace(/\r\n/g, '\n');
+	for (const relative of SCOPE_FILES) {
+		const atBase = execFileSync('git', ['-C', REPO_ROOT, 'show', `${BASE_SHA}:atlas-client/src/${relative}`], {
+			encoding: 'utf8',
+			maxBuffer: 32 * 1024 * 1024,
+		});
+		const onDisk = readFileSync(resolve(CLIENT_ROOT, 'src', relative), 'utf8');
+		assert.equal(normalise(onDisk), normalise(atBase),
+			`atlas-client/src/${relative} is identical to the base across this range (line endings normalised) — it is explicitly out of scope`);
+	}
+});

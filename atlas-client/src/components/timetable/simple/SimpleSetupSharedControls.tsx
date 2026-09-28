@@ -64,6 +64,35 @@ export function resolveSimpleReadiness(input: SimpleReadinessSnapshot): {
 }
 
 /**
+ * A2 HEADER-BUDGET (operator, 2026-09-29) — the ONE status chip's label when
+ * GENERATION ITSELF is blocked.
+ *
+ * THE DEFECT: the header carried a separate capped notice paragraph for this
+ * state (`timetable-curriculum-readiness-message`, a long `generationBlockedOperatorSentence`
+ * carrying entity · subject · term · session detail) in ADDITION to the chip. The
+ * operator's screenshot showed it truncated, and §8's new "Header budget" rule
+ * says a page header is two calm rows with one status chip, and "no sentence is cut
+ * off with an ellipsis".
+ *
+ * THE FIX, and it is the packet's exact wording: the chip's visible label becomes
+ * `` `${count} setup ${count === 1 ? 'item' : 'items'} to fix` `` and the click
+ * still opens the EXISTING detail. The count is the LIVE
+ * `context.curriculumReadiness.diagnostic.blockers.length` the header already
+ * computes — never a literal. The technical diagnostic is not deleted: it becomes
+ * the chip control's `@/ui` Tooltip content, which is the pattern
+ * `SimpleHeaderMessages` already used for exactly this sentence, so support can
+ * still read it without a scheduler having to read a wall of text.
+ *
+ * In EVERY other state the chip keeps its existing `readinessLabel` text byte for
+ * byte (`3 Must fix, 145 advisories`, `Ready to publish`, `No 2022-2023 timetable
+ * yet`, `Working schedule draft`, …). Only the setup-blocked state changes, and
+ * only because it is the state the operator named.
+ */
+export function setupItemsToFixLabel(blockerCount: number): string {
+	return `${blockerCount} setup ${blockerCount === 1 ? 'item' : 'items'} to fix`;
+}
+
+/**
  * The readiness chip, extracted verbatim from `TimetableSimpleHeader`
  * (previously inline JSX deriving `readinessLabel(context)` / `publishBlocked`).
  * Display-only: opening the readiness detail stays with the caller.
@@ -74,7 +103,8 @@ export function SimpleReadinessChip({
 	publishBlockedReason = '',
 	blockingHardCount,
 	softCount = 0,
-}: {
+	setupBlockerCount = 0,
+} : {
 	readiness: string;
 	publishBlocked: boolean;
 	/**
@@ -92,7 +122,42 @@ export function SimpleReadinessChip({
 	 * it. Defaults to 0 for callers that pass none.
 	 */
 	softCount?: number;
+	/**
+	 * A2 HEADER-BUDGET — the LIVE number of generation blockers, from the header's
+	 * own `context.curriculumReadiness.diagnostic.blockers.length`. `> 0` makes the
+	 * chip's visible label `N setup items to fix` (see `setupItemsToFixLabel`).
+	 * `0` — the default — leaves every other state byte-identical.
+	 */
+	setupBlockerCount?: number;
 }) {
+	// A2 HEADER-BUDGET — the ONE label for the setup-blocked state, derived once
+	// and used for both the visible text and the accessible name, so the two can
+	// never say different numbers.
+	const setupLabel = setupBlockerCount > 0 ? setupItemsToFixLabel(setupBlockerCount) : null;
+	if (setupLabel !== null) {
+		return (
+			<Badge
+				variant="outline"
+				className={cn(
+					/* `sm:shrink` (NOT `shrink-0`) is what lets this chip give up width at
+					 * 1366 px instead of pushing `Publish schedule` or `More` onto a second
+					 * line — the same reasoning as the two branches below. */
+					'h-6 min-w-0 shrink gap-1.5 rounded-full px-2 text-xs font-semibold sm:h-6 sm:shrink sm:gap-1.5 sm:px-2',
+					'border-2 border-amber-600/70 bg-amber-50 text-amber-900',
+				)}
+				data-testid="timetable-simple-readiness-chip"
+				data-readiness-state="setup-blocked"
+				data-setup-blocker-count={setupBlockerCount}
+				aria-label={`${setupLabel}: open the list of what to fix`}
+			>
+				<Info className="size-3.5 shrink-0" aria-hidden="true" />
+				{/* NO `truncate`: §8 forbids a sentence cut off with an ellipsis, and
+				    this label is six words. The chip is the elastic child of row 1. */}
+				<span data-testid="timetable-simple-setup-items-label">{setupLabel}</span>
+			</Badge>
+		);
+	}
+
 	if (publishBlocked) {
 		/* J4.1 — unplaced classes are the ROUTINE state before anyone has touched
 		 * the grid, but this chip was `h-10` (double the neutral chip), fully
@@ -126,13 +191,13 @@ export function SimpleReadinessChip({
 			<Badge
 				variant="outline"
 				className={cn(
-					/* A2 C12 / ITEM 1 — `sm:shrink-0` is what stopped this chip's own
-					 * `truncate` from ever biting: a `shrink-0` flex item is given its
-					 * full content width, so the longest label on the header could never
-					 * ellipsize. It is `sm:shrink` from `sm` up, so at 1366 px the chip
-					 * gives up width instead of pushing `Publish schedule` or `More` onto
-					 * a second line. `shrink-0` below `sm` is unchanged. */
-					'h-6 min-w-0 shrink gap-1.5 truncate rounded-full px-2 text-xs font-semibold sm:h-6 sm:shrink sm:gap-1.5 sm:px-2',
+					/* A2 HEADER-BUDGET — the chip's own `truncate` is GONE, not just its
+					 * `shrink-0`. The `sm:shrink-0` that made the truncation unreachable
+					 * was withdrawn earlier; §8 now forbids the ellipsis outright, so
+					 * there is nothing left for `truncate` to do. The chip is the ELASTIC
+					 * child of row 1 and gives up width instead of pushing `Publish
+					 * schedule` or `More` onto a second line. */
+					'h-6 min-w-0 shrink gap-1.5 rounded-full px-2 text-xs font-semibold sm:h-6 sm:shrink sm:gap-1.5 sm:px-2',
 					'border-2 border-amber-600/70 bg-amber-50 text-amber-900',
 				)}
 				data-testid="timetable-simple-readiness-chip"
@@ -141,7 +206,7 @@ export function SimpleReadinessChip({
 				aria-label={`${readiness}. ${consequence}`}
 			>
 				<Info className="size-3.5 shrink-0" aria-hidden="true" />
-				<span className="truncate" data-testid="timetable-simple-readiness-consequence">{consequence}</span>
+				<span data-testid="timetable-simple-readiness-consequence">{consequence}</span>
 			</Badge>
 		);
 	}
@@ -158,10 +223,9 @@ export function SimpleReadinessChip({
 		<Badge
 			variant={state === 'clear' ? 'secondary' : 'outline'}
 			className={cn(
-				/* A2 C12 / ITEM 1 — same reason as the blocked chip above: `sm:shrink-0`
-				 * made this badge's `truncate` unreachable, so the longest neutral label
-				 * could not give up width at 1366 px. */
-				'h-6 min-w-0 shrink gap-1.5 truncate px-2 text-xs font-semibold sm:h-6 sm:shrink sm:gap-1.5 sm:px-2',
+				/* A2 HEADER-BUDGET — same reason as the blocked chip above: §8 forbids an
+				 * ellipsized sentence, and `sm:shrink` already makes the chip elastic. */
+				'h-6 min-w-0 shrink gap-1.5 rounded-full px-2 text-xs font-semibold sm:h-6 sm:shrink sm:gap-1.5 sm:px-2',
 				state === 'blockers' && 'border-destructive/40 bg-destructive/10 text-destructive',
 				state === 'outstanding' && 'border-border bg-muted text-foreground',
 			)}
@@ -171,7 +235,7 @@ export function SimpleReadinessChip({
 			{state === 'clear'
 				? <CheckCircle2 className="size-3.5 shrink-0" aria-hidden="true" />
 				: <Info className="size-3.5 shrink-0" aria-hidden="true" />}
-			<span className="truncate">{readiness}</span>
+			<span>{readiness}</span>
 		</Badge>
 	);
 }

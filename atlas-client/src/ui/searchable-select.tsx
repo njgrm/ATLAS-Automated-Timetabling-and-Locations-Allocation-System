@@ -169,7 +169,18 @@ export function SearchableSelect({
 					aria-label={triggerLabel}
 					className={cn('min-w-[160px] justify-between font-normal', triggerClassName)}
 				>
-					<span className="truncate">{value ? selectedLabel : placeholder}</span>
+					{/* A2 HEADER-BUDGET (operator, 2026-09-29) — `truncate` is GONE from this
+				    span. This trigger is the `Schedule for` picker in the `/timetable`
+				    header's row 2, and AGENTS.md §8 forbids a sentence cut off with an
+				    ellipsis; the operator's own complaint list included exactly the kind
+				    of truncated label this produced. The trigger still bounds its own
+				    width (`min-w-[9rem] max-w-[18rem]` on the call site), and a selected
+				    entity name is short, so there is nothing to cut.
+				    NOTE FOR A5's cross-page picker sweep: this is a SHARED primitive, so
+				    the change is visible on every page that uses `SearchableSelect`. That
+				    is deliberate — §8's rule is not page-local — but it is the one
+				    cross-page effect in this commit and is called out in the handoff. */}
+				<span>{value ? selectedLabel : placeholder}</span>
 					<ChevronsUpDown className="ml-1 size-3 shrink-0 opacity-50" />
 				</Button>
 			</PopoverTrigger>
