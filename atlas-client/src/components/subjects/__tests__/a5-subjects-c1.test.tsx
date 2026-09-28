@@ -632,3 +632,261 @@ test('A5-9.1/41 PRESERVATION: a consumer that passes no search override still re
 	const wrapper = search.parentElement as HTMLElement;
 	assert.ok(hasClass(wrapper, 'sm:max-w-sm'), `the default search width changed: ${wrapper.className}`);
 });
+
+// ---------------------------------------------------------------------------
+// A5 slice 3 — item 17.1: the Subject coverage dialog.
+// ---------------------------------------------------------------------------
+
+const { SubjectCoverageSheet } = await import('../SubjectCoverageSheet');
+const { GRADE_COLORS, gradeLabel } = await import('../../../lib/grade-labels');
+
+type CoverageDetail = import('../SubjectCoverageSheet').SubjectCoverageDetail;
+
+function coverageDetail(overrides: Partial<CoverageDetail> = {}): CoverageDetail {
+	return {
+		assigned: [
+			{
+				facultyId: 7,
+				name: 'FERNANDEZ, JANELLA MARIE',
+				// The teacher's FULL grade set — deliberately wider than the two
+				// sections below, so a control cannot pass by the badge row and the
+				// chips agreeing by accident.
+				grades: [7, 9, 10],
+				load: 79,
+				sections: [
+					{ id: 1, grade: 7, name: 'Bonifacio' },
+					{ id: 2, grade: 9, name: 'Tulip' },
+				],
+			},
+		],
+		uncoveredGrades: [10],
+		programScopes: ['REGULAR'],
+		...overrides,
+	};
+}
+
+async function renderCoverage(detail: CoverageDetail): Promise<void> {
+	await render(
+		<MemoryRouter>
+			<SubjectCoverageSheet
+				subject={COVERAGE_SUBJECT}
+				loading={false}
+				detail={detail}
+				errorBySubjectId={new Map()}
+				onRetry={() => {}}
+				onClose={() => {}}
+			/>
+		</MemoryRouter>,
+	);
+}
+
+const COVERAGE_SUBJECT = {
+	id: 41,
+	code: 'SCI10',
+	name: 'Earth Science',
+	displayCode: 'SCI10',
+	outputLabel: null,
+	ownerDepartment: 'SCI',
+	allowedOwnerDepartments: [] as string[],
+	qualificationPriority: 'DEPARTMENT_FIRST' as const,
+	rotationFamily: null,
+	minMinutesPerWeek: 225,
+	preferredRoomType: 'CLASSROOM' as const,
+	isActive: true,
+	isSeedable: false,
+	isSystemManaged: false,
+	gradeLevels: [7, 9, 10],
+	interSectionEnabled: false,
+	interSectionGradeLevels: [] as number[],
+	modularGroupId: null,
+	modularOrder: null,
+	programScopes: ['REGULAR'],
+	allowedSpecializations: [] as string[],
+	requiredFeatures: [] as string[],
+	rotationTermLabel: null,
+	rotationTermRank: null,
+	rotationTermGroupId: null,
+	rotationTermCount: null,
+	updatedAt: '2026-09-27T00:00:00.000Z',
+} as never;
+
+test('A5-17.1(1): the coverage dialog is resizable at the operator bounds, and is still centered by the primitive', async () => {
+	await renderCoverage(coverageDetail());
+	const dialog = document.body.querySelector('[data-testid="subject-coverage-dialog"]') as HTMLElement | null;
+	assert.ok(dialog, 'the coverage dialog did not render');
+
+	// RESIZABLE, at the four bounds the operator specified.
+	assert.equal(dialog.style.resize, 'both', 'the dialog is not resizable (CSS `resize: both`)');
+	for (const bound of ['min-w-[500px]', 'max-w-[95vw]', 'min-h-[420px]', 'max-h-[90vh]']) {
+		assert.ok(hasClass(dialog, bound), `the dialog is missing the bound ${bound}`);
+	}
+	// It still owns its own scroll: a resize must not turn the card into a page
+	// scroll region.
+	assert.ok(hasClass(dialog, 'overflow-hidden'), 'the dialog lost overflow-hidden');
+	const scroller = document.body.querySelector('[data-testid="subject-coverage-scroll"]') as HTMLElement | null;
+	assert.ok(scroller, 'no internal scroll region');
+	for (const token of ['overflow-y-auto', 'min-h-0', 'flex-1']) {
+		assert.ok(hasClass(scroller, token), `the dialog body lost "${token}"`);
+	}
+
+	// STILL CENTERED. The primitive's own `left-[50%] top-[50%]` positioning is
+	// what the `animate-modal-in` translate keys re-centre at any size, which is
+	// why no JS re-centring was added.
+	assert.ok(hasClass(dialog, 'left-[50%]'), 'the dialog lost its horizontal centring anchor');
+	assert.ok(hasClass(dialog, 'top-[50%]'), 'the dialog lost its vertical centring anchor');
+
+	// The resize affordance is VISIBLE, not just available.
+	const grip = document.body.querySelector('[data-testid="subject-coverage-resize-grip"]') as HTMLElement | null;
+	assert.ok(grip, 'there is no visible resize grip');
+	assert.equal(grip.getAttribute('aria-hidden'), 'true', 'the decorative grip is exposed to assistive tech');
+	assert.ok(hasClass(grip, 'pointer-events-none'), 'the grip swallows the drag instead of the card receiving it');
+	assert.ok(dialog.contains(grip), 'the grip is not inside the resizable card');
+	assert.ok(grip.querySelector('svg'), 'the grip renders no icon');
+});
+
+test('A5-17.1(2): the teacher card shows the name and the load badge, and no duplicate grade row and no ASSIGNED SECTIONS subheader', async () => {
+	await renderCoverage(coverageDetail());
+	const text = document.body.textContent ?? '';
+
+	// Essentials kept.
+	assert.match(text, /FERNANDEZ, JANELLA MARIE/, 'the teacher name is gone');
+	assert.match(text, /79% Load/, 'the workload badge is gone');
+
+	// The header grade-badge row is gone. The teacher carries grades 7, 9 and 10
+	// and only TWO sections, so if the header row were still rendering there
+	// would be five `GRx` pills on screen instead of the section count.
+	const pills = Array.from(document.body.querySelectorAll('span')).filter((s) => /^GR\d+$/.test((s.textContent ?? '').trim()));
+	assert.equal(pills.length, 2, `expected exactly one grade pill per section (2), found ${pills.length}: ${pills.map((p) => p.textContent).join(', ')}`);
+
+	// The subheader text is gone.
+	assert.equal(/Assigned Sections/i.test(text), false, 'the "Assigned Sections" subheader is back');
+	assert.equal(/assigned sections/i.test(text), false, 'an "assigned sections" label is still rendered');
+});
+
+test('A5-17.1(3): each section renders a colour-coded grade pill beside the section NAME ONLY, at the shared DepEd colour', async () => {
+	await renderCoverage(coverageDetail());
+	// Selected by the operator's own chip class (`border-slate-200/80`), which
+	// no other element in the dialog carries.
+	const chips = Array.from(document.body.querySelectorAll('div.border-slate-200\\/80')) as HTMLElement[];
+	assert.equal(chips.length, 2, `expected one chip per section, found ${chips.length}`);
+
+	const expected = [
+		{ name: 'Bonifacio', grade: 7 },
+		{ name: 'Tulip', grade: 9 },
+	];
+	// The chip container is the operator's shape, verbatim.
+	const wrap = chips[0].parentElement as HTMLElement;
+	for (const token of ['flex', 'flex-wrap', 'gap-2', 'pt-2']) {
+		assert.ok(hasClass(wrap, token), `the section wrap is missing "${token}"`);
+	}
+	for (const token of ['px-2.5', 'py-1', 'rounded-lg', 'bg-slate-50', 'border-slate-200/80']) {
+		assert.ok(hasClass(chips[0], token), `the section chip is missing "${token}"`);
+	}
+
+	for (const [index, want] of expected.entries()) {
+		const chip = chips[index];
+		const pill = chip.querySelector('span') as HTMLElement;
+		const name = chip.querySelectorAll('span')[1] as HTMLElement;
+		// The grade pill text is the SHARED compact form, and its colour comes
+		// from the ONE shared palette — GR7 green, GR9 red.
+		assert.equal((pill.textContent ?? '').trim(), gradeLabel(want.grade), `the grade pill is not the shared ${gradeLabel(want.grade)}`);
+		const palette = GRADE_COLORS[String(want.grade)];
+		assert.ok(palette, 'the shared palette has no entry for this grade');
+		for (const token of palette.split(' ')) {
+			assert.ok(hasClass(pill, token), `the grade pill colour is not the shared palette token "${token}"`);
+		}
+		// THE DISCRIMINATING ROW: the name is the NAME. Before the fix the chip
+		// held the whole display string `GR7 Bonifacio`, so the grade was
+		// printed a second time as text.
+		assert.equal((name.textContent ?? '').trim(), want.name, 'the section name is not the bare section name');
+		assert.equal(/^GR\d/.test((name.textContent ?? '').trim()), false, 'the section name still carries a GRx prefix');
+		assert.ok(hasClass(name, 'text-xs') && hasClass(name, 'font-medium'), 'the section name lost its type classes');
+	}
+
+	// ITEM 17.1(4): the SAME layout for every assigned teacher, not just the
+	// first. Two teachers, different grades, and both cards must render the
+	// identical chip shape with a bare name.
+	await renderCoverage(
+		coverageDetail({
+			assigned: [
+				{
+					facultyId: 7,
+					name: 'FERNANDEZ, JANELLA MARIE',
+					grades: [7, 9],
+					load: 79,
+					sections: [{ id: 1, grade: 7, name: 'Bonifacio' }],
+				},
+				{
+					facultyId: 8,
+					name: 'SANTOS, MIGUEL',
+					grades: [10],
+					load: 55,
+					sections: [{ id: 2, grade: 10, name: 'Gold' }],
+				},
+			],
+		}),
+	);
+	const allChips = Array.from(document.body.querySelectorAll('div.border-slate-200\\/80')) as HTMLElement[];
+	assert.equal(allChips.length, 2, 'the second teacher card did not get the same section layout');
+	assert.deepEqual(
+		allChips.map((chip) => (chip.querySelectorAll('span')[1].textContent ?? '').trim()),
+		['Bonifacio', 'Gold'],
+		'a teacher card renders the section differently from the other',
+	);
+	assert.deepEqual(
+		allChips.map((chip) => (chip.querySelector('span.rounded-full')?.textContent ?? '').trim()),
+		[gradeLabel(7), gradeLabel(10)],
+		'a teacher card is missing the shared grade pill',
+	);
+	for (const token of GRADE_COLORS['10'].split(' ')) {
+		assert.ok(hasClass(allChips[1].querySelector('span.rounded-full') as HTMLElement, token), `the GR10 pill lost the shared palette token "${token}"`);
+	}
+	assert.match(document.body.textContent ?? '', /SANTOS, MIGUEL/);
+	assert.match(document.body.textContent ?? '', /55% Load/);
+});
+
+test('A5-17.1(3) EDGE + MUTANT CONTROL: a section with no usable grade shows no pill, and the palette cannot be bypassed', async () => {
+	// `grade: null` must render the name alone — a missing grade is not guessed
+	// and not rendered as a blank pill.
+	await renderCoverage(
+		coverageDetail({
+			assigned: [
+				{
+					facultyId: 9,
+					name: 'SANTOS, MIGUEL',
+					grades: [10],
+					load: 40,
+					sections: [{ id: null, grade: null, name: 'Ungraded Wing' }],
+				},
+			],
+		}),
+	);
+	const chip = document.body.querySelector('div.border-slate-200\\/80') as HTMLElement;
+	assert.ok(chip, 'the chip for the gradeless section did not render');
+	assert.equal(chip.querySelector('span.rounded-full'), null, 'a grade pill was invented for a section with no grade');
+	assert.equal((chip.textContent ?? '').trim(), 'Ungraded Wing');
+
+	// MUTANT CONTROL: the shared palette is the only source of the grade
+	// colour. Hard-coding a grade fill (the defect the AR2 watch item named)
+	// would render `bg-green-100` where the palette says `bg-green-100/80`, and
+	// the token check below is what catches it.
+	const withPalette = coverageDetail();
+	await renderCoverage(withPalette);
+	const pill = document.body.querySelector('span.rounded-full') as HTMLElement;
+	const grade = 7;
+	const palette = GRADE_COLORS[String(grade)];
+	for (const token of palette.split(' ')) {
+		assert.ok(hasClass(pill, token), `MUTANT CONTROL DID NOT FIRE: the pill does not carry the shared palette token "${token}"`);
+	}
+	// No grade fill is hard-coded anywhere in the dialog's rendered classes: the
+	// only grade-coloured classes in the surface come from the palette strings.
+	const gradeColours = Array.from(document.body.querySelectorAll('span.rounded-full'))
+		.flatMap((el) => (el.className || '').split(/\s+/).filter((c) => /^(bg|text)-(green|yellow|red|blue)-\d+/.test(c)));
+	for (const token of gradeColours) {
+		assert.ok(
+			Object.values(GRADE_COLORS).some((entry) => entry.split(' ').includes(token)),
+			`MUTANT CONTROL DID NOT FIRE: "${token}" is a hard-coded grade colour, not the shared palette's`,
+		);
+	}
+	assert.ok(gradeColours.length > 0, 'no grade colour rendered, so the palette control proved nothing');
+});

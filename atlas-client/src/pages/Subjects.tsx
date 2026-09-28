@@ -48,7 +48,6 @@ import {
 } from '@/components/admin-workspace/AdminWorkspace';
 import { resolveSubjectsReadScope } from '@/lib/subject-school-scope';
 import { buildOperatorSubjectCreatePayload } from '@/lib/subject-create-payload';
-import { gradeCompact } from '@/lib/deped-glossary';
 
 
 const PAGE_SIZES = [10, 25, 50, 100];
@@ -88,7 +87,8 @@ export default function Subjects() {
 	// Teacher coverage drilldown
 	const [coverageSubject, setCoverageSubject] = useState<Subject | null>(null);
 	const [teacherCoverage, setTeacherCoverage] = useState<Record<number, {
-		assigned: { facultyId: number; name: string; grades: number[]; load: number; sections: string[] }[]
+		// A5 (17.1): structured sections — see `SubjectCoverageDetail`.
+		assigned: { facultyId: number; name: string; grades: number[]; load: number; sections: { id: number | null; grade: number | null; name: string }[] }[]
 	}>>({});
 	const [coverageLoading, setCoverageLoading] = useState(false);
 	// Phase 2.3: per-subject coverage fetch error so the drawer can distinguish
@@ -219,14 +219,30 @@ export default function Subjects() {
 				params: { schoolId: actorSchoolId, schoolYearId },
 			});
 			
-			const assigned: { facultyId: number; name: string; grades: number[]; load: number; sections: string[] }[] = [];
+			const assigned: { facultyId: number; name: string; grades: number[]; load: number; sections: { id: number | null; grade: number | null; name: string }[] }[] = [];
 
 			for (const f of data.faculty ?? []) {
 				const isAssigned = (f.assignments ?? []).some((a: any) => a.subjectId === subjectId);
 				const load = (f as any).loadPercentage ?? 0;
 				if (isAssigned) {
 					const assignment = f.assignments.find((a: any) => a.subjectId === subjectId);
-					const sections = (assignment?.sections ?? []).map((section: any) => `${gradeCompact(section.displayOrder)} ${section.name}`);
+					/*
+					 * A5 (operator item 17.1): a section is passed as DATA.
+					 * It used to be minted as a single display string
+					 * (`` `${gradeCompact(section.displayOrder)} ${section.name}` ``)
+					 * which the dialog then rendered as text, so the grade was
+					 * printed inside the chip AND again in the header badge row. The
+					 * grade is now a number the dialog turns into a colour pill, the
+					 * name is the name, and `null` means "this section carries no
+					 * usable grade" — never a guess, and never a string to re-parse.
+					 */
+					const sections = (assignment?.sections ?? []).map((section: any) => ({
+						id: typeof section?.id === 'number' ? section.id : null,
+						grade: typeof section?.gradeLevel === 'number'
+							? section.gradeLevel
+							: (typeof section?.displayOrder === 'number' ? section.displayOrder : null),
+						name: typeof section?.name === 'string' ? section.name : '',
+					}));
 					assigned.push({ 
 						facultyId: f.id,
 						name: `${f.lastName}, ${f.firstName}`, 

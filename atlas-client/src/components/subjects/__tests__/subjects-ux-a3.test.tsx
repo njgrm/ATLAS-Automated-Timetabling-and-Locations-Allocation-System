@@ -1560,7 +1560,7 @@ test('A3-17: the coverage review surface is a centered, internally scrolling dia
 			<SubjectCoverageSheet
 				subject={subjectFixture({ rotationFamily: 'SCIENCE' })}
 				loading={false}
-				detail={{ assigned: [{ facultyId: 7, name: 'Dela Cruz, Juan', grades: [9, 10], load: 80, sections: ['9-A'] }], uncoveredGrades: [10], programScopes: ['REGULAR'] }}
+				detail={{ assigned: [{ facultyId: 7, name: 'Dela Cruz, Juan', grades: [9, 10], load: 80, sections: [{ id: 9, grade: 9, name: 'A' }] }], uncoveredGrades: [10], programScopes: ['REGULAR'] }}
 				errorBySubjectId={new Map()}
 				onRetry={() => {}}
 				onClose={() => {}}
@@ -1575,7 +1575,16 @@ test('A3-17: the coverage review surface is a centered, internally scrolling dia
 	// Not a side sheet.
 	assert.equal(/inset-y-0|right-0/.test(dialog.className), false, 'the coverage surface is still anchored to an edge');
 	// It owns its scroll, and it is bounded so it cannot push page scroll.
-	assert.match(dialog.className, /max-h-\[90svh\]/);
+	// A5 RETARGET (recorded, not deleted): item 17.1(1) specified the dialog's
+	// bounds as `min-w-[500px] max-w-[95vw] min-h-[420px] max-h-[90vh]` because
+	// the card is now resizable, so the `90svh` cap became `90vh`. The property
+	// this row protected — the dialog is height-bounded and cannot push page
+	// scroll — is asserted on the new bound below, plus all four resize bounds.
+	assert.match(dialog.className, /max-h-\[90vh\]/);
+	assert.match(dialog.className, /min-w-\[500px\]/, 'the resizable dialog has no minimum width bound');
+	assert.match(dialog.className, /max-w-\[95vw\]/, 'the resizable dialog can grow past the viewport');
+	assert.match(dialog.className, /min-h-\[420px\]/, 'the resizable dialog has no minimum height bound');
+	assert.equal(dialog.style.resize, 'both', 'the coverage dialog is not resizable');
 	assert.match(dialog.className, /overflow-hidden/);
 	const scroller = query(host, 'subject-coverage-scroll');
 	assert.ok(scroller, 'no internal scroll region');
