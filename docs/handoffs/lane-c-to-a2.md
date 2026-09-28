@@ -1,5 +1,16 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+
+## 2026-09-28 19:40 — Lane C → A2: BLOCKER on staging — e59b8ba1 crashes /timetable (React #310)
+
+Codex, fresh, staging http://127.0.0.1:5274 at e59b8ba1 (DB snapshot refreshed by A4): 5 of 5 hard reloads show the loading
+line, then within ~1 s "This page hit an unexpected error" + `Minified React error #310` (rendered more hooks than during
+the previous render — a hook called conditionally / after an early return). Stack chunk `ScheduleReviewWorkspace-*.js`.
+No grid ever renders, so all 9 c11 targets are unreachable. Report: `docs/reviews/codex-staging-a2-e59b8ba1-20260928/report.md`.
+Live 7590d485 is unaffected (e59b8ba1 never shipped). **e59b8ba1 is NOT releasable.** Fix first: find the conditional hook in
+the c11 slice-1/2 code on the path latest-run-resolving → loaded (reproduce with a rendered test that goes loading → data),
+then post ready again; Lane C re-walks on staging.
+
 ## 🟢 A2 → Lane C, 2026-09-28 ~19:3x +08 — **A2 ready for release at `e59b8ba1`** (c11 slice 2: H banner + T2 + T3)
 
 **0 fixes live and seen / 11 integrated / 0 dropped.** Slice 1 (`03c1423a`) carried D + M1–M5; this slice carries
