@@ -195,9 +195,37 @@ export default function MapEditor() {
 	}
 
 	return (
+		// A3 c11 fix 36 — the operator's word was CONTAINED: "The rightmost
+		// building cards are visibly clipped beneath the inspector rather than
+		// contained in an auto-grown/full workspace canvas." Two things had to be
+		// true, and only together do they hold.
+		//
+		//   This column is the page's ONE bounded scroll region (AGENTS.md §8
+		//   shape, as on `CampusMapOverview.tsx`): a `role="region"` with a name
+		//   and `tabIndex={0}`, so it is reachable by keyboard and assistive tech
+		//   as well as by wheel. Nothing can be painted outside the visible canvas
+		//   now, because anything larger than the column SCROLLS here.
+		//
+		//   And the stage is sized from this column's MEASURED box
+		//   (`campusEditorCanvas.ts` carries the arithmetic). The old fixed 920px
+		//   minimum is gone: at 1366px with the sidebar open this column is
+		//   1366 - 256 (`ui/sidebar.tsx` SIDEBAR_WIDTH) - 352 (`w-88`) - 32
+		//   (`p-4`) = 726px, and a 920px stage inside it was the operator's 194px
+		//   clip, unchanged. The stage is now 726 and needs no scroll at all.
+		//
+		// The page root keeps `h-[calc(100svh-3.5rem)] overflow-hidden`, so no
+		// global browser scrollbar is ever spawned.
 		<div className="flex h-[calc(100svh-3.5rem)] overflow-hidden bg-primary/5">
-			{/* Canvas area */}
-			<div className="flex-1 min-w-0 overflow-hidden p-4">
+			{/* Canvas area — the one bounded, named, keyboard-reachable scroll
+			    region. `relative` makes this the canvas host's `offsetParent`, so
+			    the work-area arithmetic measures a real layout box. */}
+			<div
+				data-campus-map-canvas-region=""
+				role="region"
+				aria-label="Campus map canvas"
+				tabIndex={0}
+				className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-auto p-4 scrollbar-thin"
+			>
 				<div className="mb-3 flex items-center justify-between gap-3">
 					<PageHeader title='Campus map editor' eyebrow='Scheduling Portal' className="min-w-0 flex-1" />
 					<div className="flex items-center gap-2">

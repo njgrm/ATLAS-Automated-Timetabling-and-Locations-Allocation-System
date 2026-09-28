@@ -26,10 +26,18 @@
  * draw, never inspected) and the REAL `MapEditor` overview branch, and reads the
  * DOCUMENT ORDER of what an operator's screen contains. Order is the whole claim
  * in item 3, and a source read cannot decide it.
+ *
+ * It also carries fix 36's two PAGE rows, which is where they belong: the canvas
+ * column's scroll-region shape and the stage's rendered width are properties of
+ * `pages/MapEditor.tsx` meeting the real editor, so they are decided by mounting
+ * the real page rather than by reading source or by the canvas-only harness.
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { mock } from 'node:test';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import type { ReactElement } from 'react';
 import { JSDOM } from 'jsdom';
@@ -61,7 +69,21 @@ Object.assign(globalThis, {
 	FocusEvent: dom.window.FocusEvent,
 	KeyboardEvent: dom.window.KeyboardEvent,
 	MouseEvent: dom.window.MouseEvent,
-	ResizeObserver: class { observe() {} unobserve() {} disconnect() {} },
+	ResizeObserver: class {
+		// Fix 36 measures its region, so this stub REPORTS like the real thing
+		// instead of doing nothing: a component that only measured on mount would
+		// otherwise pass without the observer ever being exercised.
+		constructor(private readonly callback: ResizeObserverCallback) {}
+		observe(target: Element): void {
+			const rect = target.getBoundingClientRect();
+			this.callback(
+				[{ target, contentRect: { x: 0, y: 0, width: rect.width, height: rect.height, top: 0, left: 0, right: rect.width, bottom: rect.height, toJSON: () => ({}) } } as unknown as ResizeObserverEntry],
+				this as unknown as ResizeObserver,
+			);
+		}
+		unobserve(): void {}
+		disconnect(): void {}
+	},
 	IntersectionObserver: class { observe() {} unobserve() {} disconnect() {} },
 	getComputedStyle: dom.window.getComputedStyle.bind(dom.window),
 	requestAnimationFrame: (cb: FrameRequestCallback) => setTimeout(() => cb(Date.now()), 0),
@@ -73,6 +95,19 @@ Object.assign(globalThis, {
 Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, configurable: true });
 dom.window.HTMLElement.prototype.scrollIntoView = () => {};
 dom.window.HTMLElement.prototype.hasPointerCapture = () => false;
+/**
+ * Fix 36: the editor sizes its canvas from a MEASURED box, and jsdom has no
+ * layout engine, so the harness supplies one. Every element reports the same box
+ * unless a row sets another, which is the same contract `konva-dom-render-harness`
+ * uses for the canvas controls.
+ */
+let layoutBox = { width: 0, height: 0 };
+function setLayoutBox(size: { width: number; height: number }): void {
+	layoutBox = { ...size };
+}
+dom.window.HTMLElement.prototype.getBoundingClientRect = function rect(): DOMRect {
+	return new dom.window.DOMRect(0, 0, layoutBox.width, layoutBox.height);
+};
 (dom.window as unknown as { matchMedia: (q: string) => unknown }).matchMedia = (q: string) => ({
 	matches: false, media: q, onchange: null,
 	addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {},
@@ -149,6 +184,98 @@ function documentOrder(doc: Document, needle: string): number {
 	assert.ok(index >= 0, `"${needle}" must be rendered; not found among ${all.length} elements`);
 	return index;
 }
+
+/* ── fix 36, on the real page: the scroll region and the sized stage ───────── */
+
+/** `src/components/__tests__` → the package root. */
+const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+const read = (relative: string): string => readFileSync(path.join(PKG_ROOT, relative), 'utf8');
+
+/** Tailwind's spacing scale is 0.25rem per unit and the root font is 16px, so a
+ *  spacing class is decidable rather than copied. */
+const REM_PX = 16;
+function spacingPx(cls: string): number {
+	const unit = Number.parseFloat(cls.split('-')[1] ?? '');
+	assert.ok(Number.isFinite(unit), `unparseable Tailwind spacing class: ${cls}`);
+	return (unit / 4) * REM_PX;
+}
+
+const sidebarSource = read('src/ui/sidebar.tsx');
+const sidebarRem = Number.parseFloat(/const SIDEBAR_WIDTH = '([\d.]+)rem'/.exec(sidebarSource)?.[1] ?? '');
+assert.ok(Number.isFinite(sidebarRem), 'ui/sidebar.tsx must still declare SIDEBAR_WIDTH as a rem length');
+assert.match(sidebarSource, /defaultOpen = true/, 'the sidebar must still be open by default, or this width is not the default one');
+const APP_SIDEBAR_PX = sidebarRem * REM_PX;
+const INSPECTOR_PX = spacingPx(`w-${/className="w-(\d+(?:\.\d+)?)\s/.exec(read('src/pages/MapEditor.tsx'))?.[1]}`);
+
+/** The canvas column's content width at `viewport`, from the layout the page
+ *  really renders: the app sidebar (open by default), the editor's `w-88`
+ *  inspector, and the column's own `p-4`. */
+function canvasColumnPx(viewport: number): number {
+	return viewport - APP_SIDEBAR_PX - INSPECTOR_PX - 32; // 32 = `p-4` a side
+}
+
+test('36 RENDERED: the editor canvas column is the ONE bounded, named, keyboard-reachable scroll region', async () => {
+	const doc = await mount(createElement(MapEditor), '/map?mode=editor');
+	try {
+		const region = doc.querySelector('[data-campus-map-canvas-region]');
+		assert.ok(region, 'the editor page must name its canvas region; the canvas measures that element');
+		assert.equal(region!.getAttribute('role'), 'region', 'the region must carry role="region" (AGENTS.md §8 + WCAG)');
+		assert.match(region!.getAttribute('aria-label') ?? '', /\S/, 'and be named, so it is reachable by assistive tech');
+		assert.equal(region!.getAttribute('tabindex'), '0', 'and be focusable, so it can be scrolled by keyboard');
+		const className = region!.getAttribute('class') ?? '';
+		for (const required of ['flex-1', 'min-h-0', 'min-w-0', 'overflow-auto', 'p-4']) {
+			assert.match(className, new RegExp(`(^|\\s)${required.replace(/[[\]]/g, '\\$&')}(\\s|$)`), `the region must keep \`${required}\`; got "${className}"`);
+		}
+		assert.equal(
+			doc.querySelectorAll('[role="region"]').length,
+			1,
+			'there must be exactly ONE scroll region, or reachability is ambiguous about which one to reach for',
+		);
+		// The canvas is INSIDE it, which is what makes auto-grown content
+		// scrollable instead of painted outside the visible area.
+		assert.ok(region!.querySelector('.konvajs-content'), 'the Konva canvas must be a descendant of the scroll region, or growth is unreachable');
+		// And the page root is still the bounded no-scroll shell, so no global
+		// browser scrollbar is ever spawned.
+		const root = region!.parentElement;
+		assert.match(root!.getAttribute('class') ?? '', /h-\[calc\(100svh-3\.5rem\)\]/, 'the page root must stay height-bounded');
+		assert.match(root!.getAttribute('class') ?? '', /overflow-hidden/, 'and must not scroll globally');
+	} finally {
+		await teardown();
+	}
+});
+
+test('36 RENDERED: at the real viewport widths the stage is the measured column, never a fixed 920', async () => {
+	// The whole chain, end to end, on the real page: the region box the component
+	// measures → the work-area arithmetic → the Konva canvas it actually renders.
+	// jsdom applies no Tailwind, so `getComputedStyle` reads no padding and the
+	// harness supplies the region's CONTENT width; that is the same number a
+	// browser arrives at after subtracting the `p-4` asserted above. The claim
+	// under test is that the stage IS that column — a constant 920 floor, the
+	// 320 floor, or an unmeasured collapse all fail it.
+	for (const [viewport, expected] of [[1366, 726], [1920, 1280], [1024, 384]] as const) {
+		const column = canvasColumnPx(viewport);
+		assert.equal(column, expected, `the ${viewport}px canvas column is arithmetic, not an estimate; got ${column}`);
+		setLayoutBox({ width: column, height: 640 });
+		const doc = await mount(createElement(MapEditor), '/map?mode=editor');
+		try {
+			const canvas = doc.querySelector('.konvajs-content canvas') as HTMLCanvasElement | null;
+			assert.ok(canvas, `the editor must render its Konva canvas at ${viewport}px`);
+			const stageWidth = Number.parseFloat(canvas!.style.width);
+			assert.equal(stageWidth, column, `at ${viewport}px the stage must be the ${column}px column, got ${stageWidth}`);
+			assert.notEqual(stageWidth, 920, `the old FIXED 920 stage must not survive: ${stageWidth} at ${viewport}px`);
+			// Three different columns, three different stages: no constant can
+			// satisfy the row above, which is what makes it a measurement.
+			// The host box is as large as the stage (`w-max`), so a stage larger
+			// than the column enlarges the region and scrolls, never clips.
+			const host = doc.querySelector('[data-campus-map-canvas-region] .w-max');
+			assert.ok(host, 'the canvas box must fit its stage (`w-max`), or a grown stage is clipped instead of scrollable');
+			assert.ok(host!.contains(canvas), 'and it must be the box that wraps the canvas');
+		} finally {
+			await teardown();
+			setLayoutBox({ width: 0, height: 0 });
+		}
+	}
+});
 
 test('37 RENDERED: the Campus Explorer is the TOP section and Room readiness is BELOW it', async () => {
 	const doc = await mount(createElement(CampusMapOverview, { buildings: BUILDINGS, campusImageUrl: null }));
