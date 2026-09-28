@@ -624,7 +624,33 @@ test('F2R2 RENDERED (QA-B2 re-point): the Simple header mounts the same sentence
 		withRouter,
 	);
 	assert.ok(view.has('timetable-draft-state-strip'), 'the Simple layout renders the SAME persistent state sentence');
-	assert.ok(view.text.includes('not visible to teachers until you publish'), 'and it names the run state from the one derivation');
+	/* SUPERSEDED IN PLACE — A2 HEADER-BUDGET, CORRECTION 2 (F1, 2026-09-29). The
+	 * original assertion is retained VERBATIM as a comment and is NOT run as
+	 * pass/fail (AGENTS.md §16 forbids closing a finding by editing the row that
+	 * found it):
+	 *
+	 *   assert.ok(view.text.includes('not visible to teachers until you publish'), 'and it names the run state from the one derivation');
+	 *
+	 * WHY IT IS SUPERSEDED: the design-judgement reviewer (AGENTS.md §11 gate item
+	 * 4) returned REJECT_UX on the header budget with one rubric item failing — "one
+	 * status per fact" — and measured the rendered state B band at 1366×768:
+	 * `State: Draft — teachers and students cannot see it yet. (Run 321)` in grey
+	 * followed, 14 px later and with no separator, by bold `Draft — not visible to
+	 * teachers until you publish`. "Same fact, same strip, said twice. It reads as
+	 * one run-on sentence with a font change in the middle." Both strings come from
+	 * the ONE `describeRunState` call, so the band was restating itself.
+	 *
+	 * THE REPLACEMENT below asserts the SURVIVING claim: the run's state is still
+	 * named on screen, from the one derivation, and it names both halves — what a
+	 * draft MEANS (nobody can see it) and WHICH run it is — because the surviving
+	 * sentence is the one that carries the run number. The rendering of that
+	 * sentence, the deleted restatement, and the separator that now divides it from
+	 * the amber term notice are all decided in `a2-header-budget-2026-09-29.test.tsx`
+	 * (rows `H12 F1` and `H12 F2`). */
+	assert.ok(view.text.includes('cannot see it yet'),
+		'and the header still names the run state from the one derivation, consequence and all');
+	assert.match(view.text, /\(Run \d+\)/,
+		'and the surviving sentence keeps the run number — the one thing here a scheduler can act on');
 	assert.equal((view.byLabel('Undo last manual timetable change') as HTMLButtonElement).disabled, false, 'Undo is live');
 	// DRAFT-UX-C01 (operator, 2026-09-25) — the ONE solid primary once a run exists is
 	// `Publish schedule`, so the action row renders NO Edit control. The draft's own
@@ -697,7 +723,26 @@ test('M5R RENDERED (correction 4, F4 re-point): the REAL Simple header puts the 
 	);
 	// The persistent sentence the strip is FOR is on screen, from the one derivation.
 	assert.ok(view.has('timetable-draft-state-strip'), 'the persistent strip is mounted by the REAL header');
-	assert.ok(view.text.includes('not visible to teachers until you publish'), 'and it names the run state and its audience');
+	/* SUPERSEDED IN PLACE — A2 HEADER-BUDGET, CORRECTION 2 (F1, 2026-09-29). The
+	 * original assertion is retained VERBATIM as a comment and is NOT run as
+	 * pass/fail (AGENTS.md §16 forbids closing a finding by editing the row that
+	 * found it):
+	 *
+	 *   assert.ok(view.text.includes('not visible to teachers until you publish'), 'and it names the run state and its audience');
+	 *
+	 * WHY IT IS SUPERSEDED: same finding, same reason as the F2R2 row above. The
+	 * design-judgement reviewer (AGENTS.md §11 gate item 4) failed the header budget
+	 * on "one status per fact" and ruled on the band: the draft-visibility sentence
+	 * was printed beside the run-state sentence in the SAME strip, with no
+	 * separator, saying the same thing twice. Exactly one of them was deleted — the
+	 * restatement, not the sentence that carries the run number — so the audience
+	 * fact this row names is now stated once, inside the surviving sentence, which
+	 * says a draft means "teachers and students cannot see it yet".
+	 *
+	 * THE REPLACEMENT below asserts the surviving claim; the rendering evidence is
+	 * in `a2-header-budget-2026-09-29.test.tsx` rows `H12 F1` / `H12 F2`. */
+	assert.ok(view.text.includes('cannot see it yet'),
+		'and it still names the run state AND its audience — in one sentence now, not two');
 	// The Undo is the header's own control, reachable without opening a menu — the
 	// property the superseded row could not see.
 	const undo = view.byLabel('Undo last manual timetable change');

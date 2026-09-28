@@ -26,7 +26,7 @@
 import type { ReactNode } from 'react';
 
 import { RunStateBadge, RunIdentityLine } from '@/components/timetable/RunStateBadge';
-import { TimetableDraftStateStrip, type DraftMenuAction } from '@/components/timetable/TimetableDraftStateStrip';
+import { TimetableDraftStateStrip, type DraftStripActionPair } from '@/components/timetable/TimetableDraftStateStrip';
 import { SimpleHeaderMessageList, type SimpleHeaderMessage } from '@/components/timetable/simple/SimpleHeaderMessages';
 import { SimpleTermScopeLine } from '@/components/timetable/simple/SimpleTermScopeLine';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
@@ -58,7 +58,16 @@ export type SimpleHeaderStatusStripProps = {
 	 * surfaces are one decision and cannot drift; the strip renders it and decides
 	 * nothing.
 	 */
-	draftActions?: { edit: DraftMenuAction; discard: DraftMenuAction } | null;
+	/**
+	 * A2 HEADER-BUDGET correction 2 (F4, 2026-09-29) — the strip's own pair type,
+	 * not a hand-written `{ edit, discard }` subset. `DraftStripActionPair` gained
+	 * `hasDraft` (the caller's own "there is a draft on screen" fact) in this
+	 * correction, and a structural subset here could no longer be passed to
+	 * `TimetableDraftStateStrip` at all. Naming the shared type keeps this dead
+	 * surface honest about the shape the live one takes, with no caller to update
+	 * and nothing fabricated at the call boundary.
+	 */
+	draftActions?: DraftStripActionPair | null;
 };
 
 /**

@@ -85,7 +85,52 @@ test('the ordinary Simple header hides provenance while retaining actionable dri
 	// verified, and provenance still stays out of it.
 	assert.match(source('src/components/timetable/simple/SimpleHeaderStatusStrip.tsx'), /data-testid="timetable-term-authority-unverified"/,
 		'the term-authority notice renders in the status strip the header now uses');
-	assert.match(header, /<SimpleHeaderStatusStrip/, 'and the header renders that strip, so the notice is actually reachable');
+	// ── SUPERSEDED IN PLACE, 2026-09-29, A2 HEADER-BUDGET (operator) ──
+	// The header no longer mounts `SimpleHeaderStatusStrip` at all. §8's "Header
+	// budget" caps the `<header>` BOX at two calm rows, and the status strip was
+	// the surface that made the box a third band, so the whole status line moved
+	// out of the box to `simple/SimpleHeaderTrailingSurfaces.tsx`
+	// (`SimpleHeaderStatusBand`, a SIBLING of `</header>`).
+	//
+	// The original assertion is retained VERBATIM as the record of the structural
+	// pin that no longer describes this code; it is not run as pass/fail:
+	//   assert.match(header, /<SimpleHeaderStatusStrip/, 'and the header renders that strip, so the notice is actually reachable');
+	//
+	// THE CLAIM THAT IS STILL LOAD-BEARING — and it is the same claim, only the
+	// owner moved: the term-authority notice is still RENDERED, and it is still
+	// REACHABLE from the header the route renders. A silent header about an
+	// unverified term contract is the defect this row exists to catch, and it does
+	// not care which module owns the markup. The replacement row below asserts it
+	// on the new owner. `SimpleHeaderStatusStrip.tsx` is NOT deleted: the module
+	// stays, and its `timetable-term-authority-unverified` span is still asserted
+	// on the line above, so its Expert/consumer callers are still covered.
+});
+
+test('the term-authority notice is still rendered and still reachable, now from the trailing status band', () => {
+	// The replacement for the superseded `<SimpleHeaderStatusStrip` mount pin in
+	// the row above. Same property, re-pinned to the surface that now owns it.
+	//
+	// DISCRIMINATION, stated rather than assumed: this row names the NEW owner by
+	// path, so if the notice were moved to a third module — or the header stopped
+	// rendering the surface that carries it — the first two assertions fail rather
+	// than passing by reading an empty string. That is the failure mode the
+	// original pin was written to catch, and it is preserved here.
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	const band = source('src/components/timetable/simple/SimpleHeaderTrailingSurfaces.tsx');
+	assert.match(band, /data-testid="timetable-term-authority-unverified"/,
+		'the term-authority notice renders in the trailing status band the header now uses');
+	assert.match(header, /<SimpleHeaderTrailingSurfaces/,
+		'and the header renders that surface, so the notice is actually reachable');
+	// The value is threaded, not invented: the header computes the ONE notice and
+	// hands it over, so a derived-but-dropped notice still fails here.
+	assert.match(header, /termAuthorityNotice=/, 'the header hands the band the notice it computed');
+	assert.match(header, /termAuthorityNotice=\{termAuthorityNotice\}/, 'and it is the same value, not a re-derivation');
+	// `SimpleTermScopeLine` renders the same testid for the term SCOPE line, which
+	// the Expert orientation row still uses. It is a second reachable surface, so
+	// dropping the band without keeping that path would silently silence the
+	// notice; this assertion keeps the second owner accounted for.
+	assert.match(source('src/components/timetable/simple/SimpleTermScopeLine.tsx'), /data-testid="timetable-term-authority-unverified"/,
+		'the term-scope line still renders the same notice for the Expert orientation row');
 });
 
 test('user-facing layout entry points use Expert while the stored layout key stays stable', () => {

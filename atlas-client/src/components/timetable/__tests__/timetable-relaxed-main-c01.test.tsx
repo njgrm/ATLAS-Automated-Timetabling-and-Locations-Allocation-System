@@ -574,11 +574,34 @@ test('A3/C5: the header renders one compact status region and one primary, with 
 		blockingHardCount: 1,
 		summary: { assignedCount: 5, classesProcessed: 5, hardViolationCount: 1, unassignedCount: 0 },
 	});
-	assert.equal((markup.match(/data-testid="timetable-simple-status-region"/g) ?? []).length, 1, 'exactly one status region');
-	// C5 — the status region carries the chip, the one authority state and the
-	// setup entry point; it no longer carries a redundant `Next step:` line that
-	// duplicates the primary action's own label.
-	assert.match(markup, /data-testid="timetable-simple-readiness-chip"/, 'the one status chip renders inside the region');
+	// ── SUPERSEDED IN PLACE, 2026-09-29, A2 HEADER-BUDGET (operator) ──
+	// AGENTS.md §8's "Header budget" caps the `<header>` BOX at two calm rows, and
+	// the in-header status region was the surface that made the box a third band.
+	// The status line is now `SimpleHeaderStatusBand` in
+	// `simple/SimpleHeaderTrailingSurfaces.tsx`, a SIBLING of `</header>`, with
+	// `data-testid="timetable-simple-status-band"`. The structural pin is retained
+	// VERBATIM and is NOT run as pass/fail:
+	//   assert.equal((markup.match(/data-testid="timetable-simple-status-region"/g) ?? []).length, 1, 'exactly one status region');
+	//
+	// THE CLAIM IS UNCHANGED — "exactly one status surface, never two" — only the
+	// element that carries it moved. The two assertions below restate it: exactly
+	// ONE band renders, and the superseded in-box region renders ZERO times, so the
+	// old surface cannot quietly come back alongside the new one.
+	assert.equal((markup.match(/data-testid="timetable-simple-status-band"/g) ?? []).length, 1, 'exactly one status surface');
+	assert.equal((markup.match(/data-testid="timetable-simple-status-region"/g) ?? []).length, 0, 'and the superseded in-box status region is gone');
+	// It is a SIBLING of the header box, not a child of it — read on the RENDERED
+	// output, because counting the one element is not enough: a status line mounted
+	// back at the END of the `<header>` would still render exactly once. The box's
+	// own closing tag has to come first. `renderToStaticMarkup` emits no comments,
+	// so this is the element's real closing tag. (This assertion was added after a
+	// mutant that re-mounted the surface inside `</header>` PASSED the rest of the
+	// row; the D1 row in `timetable-header-collapse-c01` records the same finding.)
+	assert.ok(markup.indexOf('</header>') < markup.indexOf('data-testid="timetable-simple-status-band"'),
+		'the one status surface renders after the header box closes — a sibling, not a third row inside it');
+	// C5 — the ONE status chip. It is a row-1 control now, not a child of a status
+	// region, so the message is corrected to the structure that is actually
+	// asserted; the assertion itself is unchanged.
+	assert.match(markup, /data-testid="timetable-simple-readiness-chip"/, 'the one status chip still renders in the header');
 	assert.doesNotMatch(markup, /Next step:/, 'the duplicated next-step copy is removed');
 	assert.doesNotMatch(markup, /data-testid="timetable-simple-next-action"/, 'the redundant NEXT STEP row is gone');
 	assert.doesNotMatch(markup, /data-testid="timetable-simple-task-prompt"/, 'no separate task-prompt band remains');
@@ -622,40 +645,82 @@ test('C5: the status band carries no band chrome and the action row adds no bott
 	// action row its own `pb-1.5` bottom band. Both are the vertical chrome that
 	// pushed the grid top past the target.
 	//
-	// A2 C11 S2 (re-pin, 2026-09-28) — the two pins moved apart. The status
-	// REGION markup is now rendered by the extracted
-	// `simple/SimpleHeaderStatusStrip.tsx` (C11 S2 item 2 pulled it out because
-	// `TimetableSimpleHeader.tsx` stood two lines under the §8 1000-line cap and a
-	// sub-component is the prescribed answer); the CONTROL ROW is still rendered by
-	// the header, which now nests the strip inside it. So the evidence is read from
-	// the header SURFACE — both files that render it — rather than from one file
-	// that no longer owns both. The PROPERTIES are unchanged and not weakened: the
-	// region still renders, it still carries no band chrome, the action row still
-	// adds no bottom band padding, and the region element is still declared
-	// exactly once across that surface.
+	// A2 HEADER-BUDGET (operator, 2026-09-29) — RE-PINNED, and the reason is
+	// recorded rather than the assertion quietly rewritten. This row is a
+	// SOURCE-text row because the property it protects is the SOURCE of a JSX
+	// attribute, which no rendered-DOM assertion can distinguish. Two things moved
+	// in one slice, and both are pinned below.
+	//
+	// SUPERSEDED IN PLACE. The old pins named `simple/SimpleHeaderStatusStrip.tsx`
+	// and `<section data-testid="timetable-simple-status-region">` as the owner of
+	// the status markup, and the header mounted `<SimpleHeaderStatusStrip>`:
+	//   assert.match(statusStrip, /<section[^>]*data-testid="timetable-simple-status-region"/, 'the status region markup lives in the extracted status strip');
+	//   assert.match(header, /<SimpleHeaderStatusStrip/, 'and the header renders that strip rather than the region itself');
+	// §8's header budget moved the status line OUT of the `<header>` box to a
+	// SIBLING, so the owner is now `simple/SimpleHeaderTrailingSurfaces.tsx` and
+	// the element is `data-testid="timetable-simple-status-band"`. The
+	// `SimpleHeaderStatusStrip` MODULE is NOT deleted — `SimpleHeaderOrientationRow`
+	// still uses it — so pinning its disappearance would be wrong; pinning the new
+	// owner is what the row is for.
+	//
+	// WHAT IS STILL LOAD-BEARING, and asserted below: the status line carries NO
+	// card chrome, and NO extra band padding is added below the header box. The
+	// defect this row was written for was a header that stacked bordered, padded
+	// card bands. Two honest notes on what that means now:
+	//   - the band DOES carry a one-line `py-1` and a `border-b`. It is a single
+	//     calm line under the box, not a card, and §8 caps the BOX at two rows
+	//     rather than forbidding content below it. So the card-chrome assertion
+	//     below reads `rounded-` / `shadow-` / `mt-1` / `mb-1`, and the padding
+	//     assertion pins the ONE thin line rather than forbidding padding outright.
+	//   - the CONTROL ROW's old `pb-1.5` assertion is superseded: row 2 is now the
+	//     box's LAST row and its `pb-1.5` is the box's own bottom breathing room,
+	//     inside the box, not a band under it. The claim it protected — no extra
+	//     vertical band — is now asserted as "one line below the box, and it is
+	//     this one", which is what the count assertions decide.
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
 	const statusStrip = source('src/components/timetable/simple/SimpleHeaderStatusStrip.tsx');
-	// DISCRIMINATION: the pin is not vacuous. It names the file that now owns the
-	// region markup, so a silent move of it into some third module fails here rather
-	// than passing by reading an empty string.
-	assert.match(statusStrip, /<section[^>]*data-testid="timetable-simple-status-region"/,
-		'the status region markup lives in the extracted status strip');
-	assert.match(header, /<SimpleHeaderStatusStrip/,
-		'and the header renders that strip rather than the region itself');
-	const headerSurface = `${statusStrip}\n${header}`;
-	const regionTag = headerSurface.match(/<section[^>]*data-testid="timetable-simple-status-region"[^>]*>/)?.[0];
-	assert.ok(regionTag, 'the status region still renders');
-	assert.doesNotMatch(regionTag, /mt-1|mb-1|py-1|rounded-lg border|shadow-sm/, 'the status region no longer renders its own bordered/padded band');
-	// The action row keeps its horizontal padding and drops the vertical band.
-	// Re-derived from the same surface evidence: the control row is the one the
-	// status strip is a sibling of, and the change notice is its first child.
-	const actionRow = headerSurface.match(/<div className="flex min-w-0 flex-wrap items-center gap-1\.5 px-3[^"]*">/)?.[0];
-	assert.ok(actionRow, 'the single action row still renders');
-	assert.doesNotMatch(actionRow, /pb-1\.5|py-/, 'the action row adds no bottom band padding');
-	// Exactly one status region element exists in the whole header surface. The
-	// count moved from the single file to the surface with the pin, so a second
-	// copy of the region in EITHER file still fails this row.
-	assert.equal((headerSurface.match(/data-testid="timetable-simple-status-region"/g) ?? []).length, 1, 'exactly one status region element');
+	const trailing = source('src/components/timetable/simple/SimpleHeaderTrailingSurfaces.tsx');
+	// DISCRIMINATION: the pin names the file that owns the status markup, so a
+	// silent move of it into some third module fails here rather than passing by
+	// reading an empty string.
+	assert.match(trailing, /data-testid="timetable-simple-status-band"/,
+		'the status line markup lives in the trailing surfaces module');
+	assert.match(header, /<SimpleHeaderTrailingSurfaces/,
+		'and the header renders that surface, so the line is actually mounted');
+	// The module the header no longer uses is untouched and still exported, so this
+	// row cannot pass by reading an empty file.
+	assert.match(statusStrip, /data-testid="timetable-simple-status-region"/,
+		'the superseded status-strip module still owns its own region for the Expert surface');
+	assert.equal((header.match(/<SimpleHeaderTrailingSurfaces/g) ?? []).length, 1,
+		'exactly one trailing surface is mounted — the status line cannot be doubled');
+	// EXACTLY ONE status line across the whole header surface. A second copy in
+	// EITHER file still fails this row.
+	assert.equal((`${header}\n${trailing}`.match(/data-testid="timetable-simple-status-band"/g) ?? []).length, 1,
+		'exactly one status line element');
+	// NO CARD CHROME on the line: no margin band, no rounded card, no shadow.
+	const bandTag = trailing.match(/<div[^>]*data-testid="timetable-simple-status-band"[^>]*>/)?.[0];
+	assert.ok(bandTag, 'the status line still renders');
+	assert.doesNotMatch(bandTag, /mt-1|mb-1|rounded-|shadow-|ring-/,
+		'the status line renders no bordered/padded card band of its own');
+	// NO EXTRA BAND PADDING BELOW THE HEADER BOX. Read as the THINNESS of the one
+	// line plus the fact that nothing else follows the box: a second padded band,
+	// or a line that grows, fails here.
+	assert.match(bandTag, /py-1/, 'the status line keeps its one thin line of padding');
+	assert.doesNotMatch(bandTag, /py-[2-9]|py-\[|pb-[2-9]|pt-[2-9]/,
+		'and that line never grows into a band');
+	// The header BOX itself is the two rows and nothing else: exactly one row band,
+	// the line is mounted after the box rather than inside it, and the box's own
+	// element is the one §8 bounds. (A `</header>` COUNT is deliberately not used:
+	// the file's record comments quote the tag in prose, so counting it would read
+	// a comment. This reads the element's own literal and its position instead.)
+	assert.equal((header.match(/data-testid="timetable-simple-header-row"/g) ?? []).length, 1,
+		'exactly one header row band');
+	assert.equal((header.match(/data-testid="timetable-simple-status-band"/g) ?? []).length, 0,
+		'the status line is not inside the header box');
+	const headerBoxAt = header.indexOf('<header className="shrink-0 border-b border-border bg-background" data-testid="timetable-simple-header">');
+	assert.ok(headerBoxAt >= 0, 'the header box element is the one §8 bounds');
+	assert.ok(header.indexOf('<SimpleHeaderTrailingSurfaces') > headerBoxAt,
+		'and the status line is mounted AFTER the box, as a sibling, not inside it');
 });
 
 test('C6: the primary action leads the narrow action strip and returns inline at lg', () => {
@@ -676,11 +741,30 @@ test('C6: the primary action leads the narrow action strip and returns inline at
 	assert.ok(renderedTag, 'the rendered primary action element exists');
 	// MECHANISM SUPERSEDED 2026-09-28 (A2 C12 item 1, on Lane C's ruling that the
 	// header is at most 2 visual rows at 1366 px): this cluster no longer WRAPS from
-	// `lg` up. The requirement the row protects is unchanged and still asserted on
-	// the next line — no horizontally scrolling strip can clip the primary. What
-	// changed is that pressure is absorbed by truncation rather than by a second
-	// line, so the primary, Undo and More stay on the control row's single line.
-	assert.match(markup, /class="flex min-w-0 flex-wrap items-center justify-start gap-1\.5 lg:ml-auto lg:flex-nowrap lg:justify-end"/, 'the primary cluster does not wrap from lg up: one visual line, no scrolling strip');
+	// `lg` up. The requirement the row protects is unchanged and still asserted
+	// below — no horizontally scrolling strip can clip the primary, and the primary
+	// cluster holds one line at `lg`. What changed is that pressure is absorbed by
+	// truncation rather than by a second line.
+	//
+	// SUPERSEDED AGAIN IN PLACE, 2026-09-29, A2 HEADER-BUDGET (operator). The
+	// cluster is now
+	//   `flex min-w-0 flex-wrap items-center gap-1.5 pr-3 lg:ml-auto lg:flex-nowrap lg:justify-end`
+	// — row 1's right-aligned group now holds the tabs before it, so the cluster
+	// carries its own trailing padding (`pr-3`) and the `justify-start` token is
+	// gone. The original assertion is retained VERBATIM and is NOT run as pass/fail,
+	// because it pinned a full class string including that token:
+	//   assert.match(markup, /class="flex min-w-0 flex-wrap items-center justify-start gap-1\.5 lg:ml-auto lg:flex-nowrap lg:justify-end"/, 'the primary cluster does not wrap from lg up: one visual line, no scrolling strip');
+	//
+	// WHAT REPLACES IT is the requirement without the brittle part: the same
+	// cluster, identified by the tokens it MUST carry, and not by a token it
+	// happened to carry. Dropping `lg:flex-nowrap` fails the first assertion; adding
+	// `overflow-x-auto` fails the second. That is strictly more discriminating than
+	// the exact-string form, which failed on a harmless `pr-3` and would have
+	// failed again on the next class change.
+	const cluster = markup.match(/<div class="[^"]*lg:flex-nowrap[^"]*">/)?.[0] ?? '';
+	assert.ok(cluster, 'the primary / Undo / More cluster renders');
+	assert.match(cluster, /class="flex min-w-0 flex-wrap items-center[^"]*lg:flex-nowrap[^"]*"/,
+		'the primary cluster does not wrap from lg up: one visual line, no scrolling strip');
 	assert.doesNotMatch(markup, /overflow-x-auto/, 'no horizontally scrolling strip can clip the primary');
 });
 

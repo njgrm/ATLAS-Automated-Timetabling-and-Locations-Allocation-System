@@ -336,6 +336,39 @@ function describeControl(element: HTMLElement): string {
 }
 
 /**
+ * A2 HEADER-BUDGET (operator, 2026-09-29) — the header's controls, SPLIT.
+ *
+ * WHY A SPLIT AND NOT A NEW TOTAL. The header element now renders 12 visible
+ * controls where it rendered 8 at the base. That is NOT a budget anyone approved:
+ * AGENTS.md §8's own text puts "title, tabs, ONE status chip, the primary action
+ * and `More`" in row 1, and the five `TimetableSubNav` tab links ARE the tabs. So
+ * the 12 is a CONSEQUENCE of the rule, and a row that asserted "≤12" would be
+ * laundering a consequence into a decision. The honest number is the split:
+ *
+ *   - 5 SUB-NAV tab links — §8 asks for them, so they are counted explicitly and
+ *     named, not absorbed into an action budget.
+ *   - 7 ACTION controls — the ones the scheduler actually operates.
+ *
+ * The ACTION cap is the number this file's rows protect, and it went DOWN by one
+ * (`Discard draft` is hidden on row 2 when there is no draft, and now lives in the
+ * `More` menu). So the action budget is asserted at 7, and the tab links are
+ * counted separately with their own explicit assertion.
+ */
+function splitHeaderControls(header: HTMLElement): { actions: HTMLElement[]; subNav: HTMLElement[] } {
+	const controls = visibleControls(header);
+	const subNav = controls.filter((element) => element.closest('[data-testid="timetable-sub-nav"]'));
+	return {
+		actions: controls.filter((element) => !element.closest('[data-testid="timetable-sub-nav"]')),
+		subNav,
+	};
+}
+
+/** The one message every "the budget holds" row in this file uses. */
+function budgetMessage(controls: HTMLElement[]): string {
+	return controls.map(describeControl).join(' | ');
+}
+
+/**
  * A2 C12 item 4 — THE REPLACEMENT for the superseded "≤6 total" claim, added
  * BESIDE it rather than in place of it (AGENTS.md §16).
  *
@@ -356,20 +389,104 @@ test('A2-C12-ITEM4 control row still carries its own six, the two draft actions 
 	const inControlRow = [...controlRow!.querySelectorAll<HTMLElement>('button, a[href], [role="combobox"], input, select')]
 		.filter((element) => !hiddenAtDesktop(element, controlRow!))
 		.map(describeControl);
+	// ── SUPERSEDED IN PART, 2026-09-29, A2 HEADER-BUDGET (operator) ──
+	// This row was ADDED by this same slice, and the premise it encoded — the
+	// draft actions live in the STATUS STRIP, not on the control row — is exactly
+	// what the header budget moved. §8's row 2 is "the Term / Show / Schedule-for
+	// pickers plus only the actions that still have something to act on", and the
+	// draft actions are now right-aligned on row 2 (`SimpleHeaderDraftActions` →
+	// `TimetableDraftStateStrip`).
+	//
+	// TWO assertions below are retained VERBATIM and are NOT run as pass/fail:
+	//
+	//   (a) the placement claim, because the node it looks for is now on the
+	//       control row by design:
+	//         for (const id of ['timetable-draft-strip-edit', 'timetable-draft-strip-discard']) {
+	//           assert.equal(controlRow!.querySelector(`[data-testid="${id}"]`) === null, true, ...);
+	//         }
+	//
+	//   (b) `timetable-draft-strip-discard` PRESENCE. This one was NOT named in the
+	//       supersession request and is recorded here so the change is not silent:
+	//       §8 also says "disabled actions with nothing to do (Undo/Redo/History/
+	//       Discard with no draft) are hidden or live under `More`", and
+	//       `SimpleHeaderDraftActions` passes `hideDiscardWhenAbsent`. On this
+	//       fixture `Discard draft` is therefore HIDDEN, not disabled-and-explained
+	//       — and the reason is real, not cosmetic: `DraftMenuAction.enabled` is
+	//       "the caller permits it AND supplied a handler", this row renders without
+	//       an `onDiscardDraft` prop, so there is nothing for the control to do.
+	//       The action is not lost; it is reachable from `More`. The replacement
+	//       `A2-C12-ITEM4R` below asserts BOTH halves, so a future change that hid
+	//       the action without leaving it reachable would fail.
+	//
+	// WHAT IS STILL LOAD-BEARING and still asserted here: the control ROW keeps its
+	// own six. Row 2 carries 4 controls on this fixture, so the budget is intact and
+	// 3 more would break it. Everything else moves to `A2-C12-ITEM4R` below.
 	assert.ok(inControlRow.length <= 6,
 		`the CONTROL ROW keeps its own budget of 6 (the two draft actions belong to the strip): got ${inControlRow.length}: ${inControlRow.join(' | ')}`);
-	for (const id of ['timetable-draft-strip-edit', 'timetable-draft-strip-discard']) {
-		assert.ok(header.querySelector(`[data-testid="${id}"]`), `${id} is visible in the header`);
-		assert.equal(controlRow!.querySelector(`[data-testid="${id}"]`), null,
-			`${id} is in the status strip, not on the control row — the row the cap protected is unchanged`);
-	}
+	assert.ok(header.querySelector('[data-testid="timetable-draft-strip-edit"]'), 'timetable-draft-strip-edit is visible in the header');
 	assert.equal([...header.querySelectorAll<HTMLElement>('button, a[href]')]
 		.filter((element) => /\bbg-primary\b/.test(element.className)).length, 1,
 		'still exactly one solid primary, and it is not a draft action');
-	for (const element of [header.querySelector<HTMLElement>('[data-testid="timetable-draft-strip-edit"]')!,
-		header.querySelector<HTMLElement>('[data-testid="timetable-draft-strip-discard"]')!]) {
-		assert.doesNotMatch(element.className, /\bbg-primary\b/, 'a draft action is never the solid primary');
+	const renderedDraftAction = header.querySelector<HTMLElement>('[data-testid="timetable-draft-strip-edit"]')!;
+	assert.doesNotMatch(renderedDraftAction.className, /\bbg-primary\b/, 'a draft action is never the solid primary');
+});
+
+test('A2-C12-ITEM4R the control row stays short, a draft action is never the solid primary, and a hidden draft action is still reachable from More', async () => {
+	// The replacement for the superseded half of `A2-C12-ITEM4` above. The three
+	// claims below are the ones the header budget did NOT move.
+	viewportWidth = 1366;
+	const header = await renderHeader(withRunContext());
+	const band = header.querySelector<HTMLElement>('[data-testid="timetable-simple-header-row"]');
+	assert.ok(band, 'the header band is present');
+	const controlRow = ([...band!.children] as HTMLElement[])[1];
+	assert.ok(controlRow, 'the control row is the band\'s second child');
+
+	// 1. THE CONTROL ROW STAYS SHORT. Row 2 is the pickers plus the actions that
+	// still have something to act on, and it must not become a second header.
+	const inControlRow = [...controlRow!.querySelectorAll<HTMLElement>('button, a[href], [role="combobox"], input, select')]
+		.filter((element) => !hiddenAtDesktop(element, controlRow!));
+	assert.ok(inControlRow.length <= 6,
+		`row 2 keeps its own budget of 6: got ${inControlRow.length}: ${inControlRow.map(describeControl).join(' | ')}`);
+
+	// 2. EXACTLY ONE SOLID PRIMARY IN THE WHOLE HEADER, and it is the LIFECYCLE
+	// one. Counted on the whole header so the tab links cannot be absorbed, and
+	// then named so a second filled button cannot appear anywhere and still pass.
+	const solid = [...header.querySelectorAll<HTMLElement>('button, a[href]')]
+		.filter((element) => /\bbg-primary\b/.test(element.className));
+	assert.equal(solid.length, 1, 'exactly one solid primary element in the whole header');
+	assert.equal(solid[0].getAttribute('data-testid'), 'timetable-simple-publish-action',
+		'and it is the lifecycle primary, not a draft or tab control');
+
+	// 3. A DRAFT ACTION IS NEVER THE SOLID PRIMARY. Asserted per element so the
+	// failure names the control.
+	const { actions, subNav } = splitHeaderControls(header);
+	const draftActions = actions.filter((element) => /\btimetable-draft-strip-/.test(element.getAttribute('data-testid') ?? ''));
+	assert.ok(draftActions.length >= 1, 'the surviving draft action is on screen (this fixture has a draft)');
+	for (const element of draftActions) {
+		assert.doesNotMatch(element.className, /\bbg-primary\b/,
+			`${describeControl(element)} is never the solid primary`);
 	}
+	assert.equal(subNav.filter((element) => /\bbg-primary\b/.test(element.className)).length, 0,
+		'and a tab link is never a filled button either');
+
+	// 4. §8's "only the actions that still have something to act on", asserted as
+	// the RULE rather than as one fixture's outcome: with no `onDiscardDraft`
+	// handler there is nothing for `Discard draft` to do, so it is HIDDEN on row 2
+	// — and the SAME action is still reachable under `More`. An action moved, not
+	// lost. A change that hid it without leaving it reachable fails here.
+	assert.equal(header.querySelector('[data-testid="timetable-draft-strip-discard"]'), null,
+		'Discard draft is hidden on row 2 when it has nothing to act on (§8)');
+	const menu = await openHeaderMore();
+	const menuDiscard = menu.querySelector<HTMLElement>('[data-testid="timetable-more-discard-draft"]');
+	assert.ok(menuDiscard, 'and the same action is still reachable from More — hidden, not lost');
+
+	// 5. Give it something to act on and it comes back on row 2, which proves the
+	// control in (4) is the header budget's rule and not a deletion.
+	viewportWidth = 1366;
+	const enabledHeader = await renderHeader(withRunContext(), { onDiscardDraft: () => {} });
+	const stripDiscard = enabledHeader.querySelector<HTMLElement>('[data-testid="timetable-draft-strip-discard"]');
+	assert.ok(stripDiscard, 'with a discard handler, Discard draft renders on row 2 again');
+	assert.doesNotMatch(stripDiscard.className, /\bbg-primary\b/, 'and it is still never the solid primary');
 });
 
 async function openHeaderMore(): Promise<HTMLElement> {
@@ -410,9 +527,19 @@ test('S1 no generated run: ≤6 visible controls, Generate is the one primary; D
 	viewportWidth = 1366;
 	const header = await renderHeader(headerContext());
 	const controls = visibleControls(header);
-	// SUPERSEDED TOTAL (was ≤6, now ≤8 = 6 control-row controls + the strip's two
-	// visible draft actions). The control row itself is asserted at 6 below.
-	assert.ok(controls.length <= 8, `expected ≤8 visible controls at ≥1280 px (6 on the control row + the strip's 2 draft actions; was ≤6 before A2 C12 item 4), got ${controls.length}: ${controls.map(describeControl).join(' | ')}`);
+	// ── SUPERSEDED, 2026-09-29, A2 HEADER-BUDGET (operator) ──
+	// The header element renders 12 visible controls on this fixture: 5 sub-nav tab
+	// links + 7 action controls. That 12 is a CONSEQUENCE of §8, not a budget — §8's
+	// own row-1 text is "title, tabs, ONE status chip, the primary action and `More`",
+	// and the five `TimetableSubNav` links ARE those tabs. Writing "≤12" here would
+	// record the consequence as if the operator had approved it.
+	//
+	// The original assertion is retained VERBATIM and is NOT run as pass/fail:
+	//   assert.ok(controls.length <= 8, `expected ≤8 visible controls at ≥1280 px (6 on the control row + the strip's 2 draft actions; was ≤6 before A2 C12 item 4), got ${controls.length}: ${controls.map(describeControl).join(' | ')}`);
+	//
+	// WHAT SURVIVES, asserted by the replacement `S1R` below: at most SEVEN ACTION
+	// controls, and the five tab links counted explicitly and separately. Every
+	// other assertion in this row still runs unchanged.
 	const generate = header.querySelector<HTMLElement>('[data-testid="timetable-simple-generate-action"]');
 	assert.ok(generate && controls.includes(generate), 'Generate is visible');
 	assert.match(generate.className, /\bbg-primary\b/, 'Generate is the solid primary when no run exists');
@@ -433,9 +560,16 @@ test('S1 run exists: Publish is the primary; Generate, Download and School infor
 	viewportWidth = 1366;
 	const header = await renderHeader(withRunContext());
 	const controls = visibleControls(header);
-	// SUPERSEDED TOTAL — see the S1 block comment. 6 control-row controls + the
-	// strip's two visible draft actions.
-	assert.ok(controls.length <= 8, `expected ≤8 visible controls at ≥1280 px, got ${controls.length}: ${controls.map(describeControl).join(' | ')}`);
+	// ── SUPERSEDED, 2026-09-29, A2 HEADER-BUDGET (operator) ──
+	// Both the cap and the exact count below are superseded; see the S1 block
+	// comment above for the full record and the replacement `S1R` row. The original
+	// assertions are retained VERBATIM and are NOT run as pass/fail:
+	//   assert.ok(controls.length <= 8, `expected ≤8 visible controls at ≥1280 px, got ${controls.length}: ...`);
+	//   assert.equal(controls.length, 8, 'the six named controls, plus the strip\'s two visible draft actions (Edit draft · Discard draft)');
+	//
+	// The header element now renders 12: 5 sub-nav tab links §8 places in row 1,
+	// plus 7 action controls. The six controls named further down are still all
+	// present and all still visible — that assertion is unchanged and still runs.
 	const publish = header.querySelector<HTMLElement>('[data-testid="timetable-simple-publish-action"]');
 	assert.ok(publish && controls.includes(publish), 'Publish is visible');
 	assert.match(publish.className, /\bbg-primary\b/, 'Publish is the solid primary once a run exists');
@@ -453,12 +587,6 @@ test('S1 run exists: Publish is the primary; Generate, Download and School infor
 		header.querySelector('[data-testid="timetable-simple-more-trigger"]'),
 	];
 	for (const element of expected) assert.ok(element && controls.includes(element as HTMLElement), `expected visible control ${element ? describeControl(element as HTMLElement) : 'missing'}`);
-	// SUPERSEDED EXACT COUNT (Lane C's item-4 ruling, 2026-09-28 — see the S1 block
-	// comment). The six named controls above are still exactly the control row's
-	// contents; the header total is now 8 because the strip ALSO shows `Edit draft`
-	// and `Discard draft`, which Lane C required to be visible. The control-row
-	// budget itself is asserted in the A2-C12-ITEM4 row added below.
-	assert.equal(controls.length, 8, 'the six named controls, plus the strip\'s two visible draft actions (Edit draft · Discard draft)');
 
 	const menu = await openHeaderMore();
 	const text = menu.textContent ?? '';
@@ -539,9 +667,19 @@ test('S2R every header dropdown keeps its accessible name AND gains a visible, n
 
 	// 1. The real intent of the superseded S2 row: the control budget is intact.
 	const controls = visibleControls(header);
-	// SUPERSEDED TOTAL — see the S1 block comment.
-	assert.ok(controls.length <= 8, `expected ≤8 visible controls at ≥1280 px, got ${controls.length}: ${controls.map(describeControl).join(' | ')}`);
-	assert.equal(controls.filter((element) => /\bbg-primary\b/.test(element.className)).length, 1, 'exactly one solid primary');
+	// ── SUPERSEDED, 2026-09-29, A2 HEADER-BUDGET (operator) ──
+	// The same cap the two S1 rows above carried; see that block comment and the
+	// `S1R` replacement row for the full record. The original assertion is retained
+	// VERBATIM and is NOT run as pass/fail:
+	//   assert.ok(controls.length <= 8, `expected ≤8 visible controls at ≥1280 px, got ${controls.length}: ...`);
+	// Restated here as the SPLIT — at most 7 action controls, with the 5 sub-nav
+	// tabs counted separately — so this row's own budget claim is not merely
+	// dropped while its label and accessible-name claims are kept below.
+	const { actions, subNav } = splitHeaderControls(header);
+	assert.equal(subNav.length, 5, 'the five §8 tab links are on screen, counted separately from the action budget');
+	assert.ok(actions.length <= 7,
+		`at most 7 action controls (plus the 5 tabs), got ${actions.length}: ${budgetMessage(actions)}`);
+	assert.equal(actions.filter((element) => /\bbg-primary\b/.test(element.className)).length, 1, 'exactly one solid primary');
 
 	// 2. Each dropdown has BOTH a visible plain label and its accessible name.
 	const expected = [
@@ -833,6 +971,128 @@ test('C1-a an unknown count omits the affected-sessions clause entirely; 0 is un
 });
 
 /* ── S1 guard — the tutorial never points at a control this change removed ── */
+
+/* ── S1R — A2 HEADER-BUDGET: the budget as the SPLIT, not as a new total ────── */
+
+test('S1R at most 7 ACTION controls plus the 5 sub-nav tabs §8 places in row 1, in BOTH run states', async () => {
+	// THE REPLACEMENT for the superseded `controls.length <= 8` cap and the
+	// superseded `controls.length === 8` exact count in the two S1 rows above.
+	//
+	// WHY NOT "≤12". The header element renders 12 visible controls on these
+	// fixtures and 12 is a CONSEQUENCE of AGENTS.md §8, not a budget anyone chose:
+	// §8's row-1 text is "title, tabs, ONE status chip, the primary action and
+	// `More`", and the five `TimetableSubNav` links ARE those tabs. Restating the
+	// cap as 12 would record that consequence as if it were an approved number, and
+	// a reviewer reading it later could not tell the two apart.
+	//
+	// THE HONEST NUMBER, therefore, is the split, and BOTH halves are asserted:
+	//   - the ACTION budget is 7. It went DOWN by one: `Discard draft` has nothing
+	//     to act on when there is no draft, so it is hidden on row 2 and lives in
+	//     `More`. The lifecycle primary swaps between `Generate` and `Publish`,
+	//     so the ACTION SET is identical in both states — which is itself
+	//     asserted, because a state that silently grew an action would pass a
+	//     per-state cap while breaking the intent.
+	//   - the 5 TAB links are counted separately and named, never absorbed into
+	//     the action budget.
+	for (const [state, context] of [
+		['A: no generated run', headerContext()],
+		['B: run present', withRunContext()],
+	] as const) {
+		viewportWidth = 1366;
+		const header = await renderHeader(context as Record<string, unknown>);
+		const { actions, subNav } = splitHeaderControls(header);
+
+		// The tabs, counted and named. §8 asks for them in row 1, so their presence
+		// here is a REQUIREMENT of the rule, not slack in the budget.
+		assert.equal(subNav.length, 5, `${state}: the five sub-nav tab links are on screen — got ${subNav.length}: ${budgetMessage(subNav)}`);
+		assert.deepEqual(
+			subNav.map((element) => element.getAttribute('data-testid')),
+			['timetable-sub-nav-schedule', 'timetable-sub-nav-draft', 'timetable-sub-nav-setup', 'timetable-sub-nav-policies', 'timetable-sub-nav-runs'],
+			`${state}: the tabs are the five the nav defines, in order`,
+		);
+		for (const link of subNav) {
+			assert.ok(link.closest('[data-testid="timetable-simple-header"]'),
+				`${state}: ${describeControl(link)} is inside the header element, which is what §8 row 1 asks for`);
+		}
+
+		// The ACTION budget. This is the number the cap existed to protect.
+		assert.ok(actions.length <= 7,
+			`${state}: at most 7 action controls (plus the 5 tabs above), got ${actions.length}: ${budgetMessage(actions)}`);
+		// The one-solid-primary contract, on the action set.
+		assert.equal(actions.filter((element) => /\bbg-primary\b/.test(element.className)).length, 1,
+			`${state}: exactly one solid primary among the actions`);
+		// A tab link is navigation, never an action, and never a filled button.
+		for (const link of subNav) {
+			assert.doesNotMatch(link.className, /\bbg-primary\b/, `${state}: ${describeControl(link)} is not a filled button`);
+		}
+	}
+
+	// THE ACTION SET IS THE SAME IN BOTH STATES, and it is exactly the seven §8
+	// names. Written out rather than counted, so the failure names the control that
+	// arrived or the one that went.
+	viewportWidth = 1366;
+	const noRun = splitHeaderControls(await renderHeader(headerContext()));
+	// `openHeaderMore` reads the CURRENT mount, so the no-run state's menu is opened
+	// here — before `withRun` replaces it.
+	const noRunMore = await openHeaderMore();
+	viewportWidth = 1366;
+	const withRun = splitHeaderControls(await renderHeader(withRunContext()));
+	const names = (set: { actions: HTMLElement[] }) => set.actions
+		.map(describeControl)
+		.map((name) => name.replace('timetable-simple-generate-action', 'LIFECYCLE-PRIMARY').replace('timetable-simple-publish-action', 'LIFECYCLE-PRIMARY'));
+	/* SUPERSEDED IN PLACE — A2 HEADER-BUDGET, CORRECTION 2 (F4, 2026-09-29).
+	 * The original assertion is retained VERBATIM as a comment and is NOT run as
+	 * pass/fail (AGENTS.md §16 forbids closing a finding by editing the row that
+	 * found it):
+	 *
+	 *   assert.deepEqual(names(withRun), names(noRun),
+	 *     `the action set does not change shape between "no run" and "run present" — got ${names(noRun).join(' | ')} vs ${names(withRun).join(' | ')}`);
+	 *
+	 * WHY IT IS SUPERSEDED, AND IT IS A CONFLICT, NOT AN IMPROVEMENT. This row's
+	 * premise is that the action set is IDENTICAL in both run states. The
+	 * design-judgement reviewer (AGENTS.md §11 gate item 4) returned REJECT_UX on
+	 * the header budget with one rubric item failing, and ruled on the very control
+	 * this equality pinned: "The disabled `Edit draft` on row 2 in state A — it
+	 * should not be there. … This slice deleted the sentence and kept the dead
+	 * button. That is the worst half of the pair kept and the better half removed.
+	 * Hide it in state A, or move it under `More`." Hiding it in state A makes the
+	 * two sets differ by exactly that one control, which is the change the reviewer
+	 * required, so the equality and the ruling cannot both stand. The ruling wins:
+	 * it is the blocking finding, and this row is a consequence of the defect it
+	 * names rather than a contract about it.
+	 *
+	 * WHAT SURVIVES, asserted immediately below: the CAP in every state, the exact
+	 * seven names in the run state, one solid primary, and — the part that matters
+	 * most — that the difference is EXACTLY the dead control and nothing else, and
+	 * that the action is still reachable in `More`. A header that dropped a
+	 * reachable verb, or that grew a control anywhere, still fails there. */
+	assert.equal(withRun.actions.length, 7,
+		`the seven §8 action controls, named: ${budgetMessage(withRun.actions)}`);
+	assert.equal(noRun.actions.length, 6,
+		`the no-run state carries the SAME six, minus the one control with nothing to do: ${budgetMessage(noRun.actions)}`);
+	// …and the difference between the two states is EXACTLY `Edit draft`, nothing
+	// else: no control arrived, and none but that one went.
+	assert.deepEqual(
+		names(withRun).filter((name) => !names(noRun).includes(name)),
+		['timetable-draft-strip-edit'],
+		'the ONLY control that appears when a run is on screen is `Edit draft` — the verb that was dead without one',
+	);
+	assert.deepEqual(
+		names(noRun).filter((name) => !names(withRun).includes(name)),
+		[],
+		'nothing disappears when a run is on screen',
+	);
+	// The action is NOT lost: with no draft on screen it is one `More` click away,
+	// which is the other half §8 allows ("hidden OR live under `More`"). This is
+	// the row's own `More` vocabulary — the draft's verb is the `Manual edit` entry.
+	assert.ok(noRunMore.querySelector('[data-testid="timetable-more-manual-edit"]'),
+		'`Edit draft` is still reachable from `More` in the no-run state — hidden on row 2, not deleted');
+	assert.equal(
+		names(withRun).filter((name) => name === 'LIFECYCLE-PRIMARY').length,
+		1,
+		'exactly one of them is the lifecycle primary, and it swaps Generate/Publish rather than adding a control',
+	);
+});
 
 test('S1 every Simple tutorial step targets a control that still renders somewhere', async () => {
 	const { readFileSync, readdirSync, statSync } = await import('node:fs');

@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 import { BUILD_NEW_DRAFT_LABEL, PUBLISHED_SCHEDULE_STAYS_IN_USE } from '@/lib/timetable-plain-language';
 import { Button } from '@/ui/button';
 import { DropdownMenuItem, DropdownMenuLabel } from '@/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import type { SimpleLifecycleKind } from '@/lib/simple-timetable-state';
 
 /* ------------------------------------------------------------------ *
@@ -137,11 +138,27 @@ export function SimpleWarningsControl({
 	readiness,
 	dispatch,
 	onClick,
+	diagnostic = null,
 	children,
-}: {
+} : {
 	readiness: string;
 	dispatch: SimpleWarningsDispatch;
 	onClick: () => void;
+	/**
+	 * A2 HEADER-BUDGET (operator, 2026-09-29) — the chip's label is now the short
+	 * `N setup items to fix`, so the long technical diagnostic it replaced
+	 * (`entity · subject · term · session reason`) is disclosed HERE, through a
+	 * `@/ui` Tooltip, instead of as a truncated paragraph in the header. `null` —
+	 * the default, and every state except the setup-blocked one — renders exactly
+	 * the control it rendered before.
+	 *
+	 * The trigger is the control ITSELF, not a wrapper: a setup-blocked state
+	 * always resolves to `dispatch === 'generation-blockers'`
+	 * (`resolveWarningsControlDispatch`), so the button is enabled and Radix
+	 * fires from it. The `dispatch === 'none'` case is disabled, and there is no
+	 * diagnostic to disclose in that state anyway.
+	 */
+	diagnostic?: string | null;
 	/** The readiness chip rendered as the control's face. */
 	children: ReactNode;
 }) {
@@ -152,20 +169,33 @@ export function SimpleWarningsControl({
 		// merged control still carried two names for one idea. The dispatch value
 		// ('readiness-sheet') and the destination are unchanged; only the words are.
 		: dispatch === 'readiness-sheet' ? 'Fix must-fix problems' : 'Review warnings';
-	return (
+	const label = dispatch === 'none' ? readiness : `${actionName}: ${readiness}`;
+	const button = (
 		<Button
 			type="button"
 			variant="ghost"
 			size="sm"
 			className="h-auto min-w-0 shrink rounded-full p-0 hover:bg-transparent hover:opacity-90 disabled:opacity-100"
 			disabled={dispatch === 'none'}
-			aria-label={dispatch === 'none' ? readiness : `${actionName}: ${readiness}`}
+			aria-label={label}
 			onClick={onClick}
 			data-testid="timetable-simple-warnings-control"
 			data-warnings-dispatch={dispatch}
 		>
 			{children}
 		</Button>
+	);
+	if (!diagnostic) return button;
+	return (
+		<TooltipProvider delayDuration={200}>
+			<Tooltip>
+				<TooltipTrigger asChild>{button}</TooltipTrigger>
+				<TooltipContent side="bottom" className="max-w-xs text-xs leading-relaxed">
+					<span className="block font-semibold">Technical detail</span>
+					<span className="mt-1 block">{diagnostic}</span>
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 }
 

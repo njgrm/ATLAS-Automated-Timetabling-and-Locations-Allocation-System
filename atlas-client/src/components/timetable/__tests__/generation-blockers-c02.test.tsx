@@ -328,29 +328,130 @@ function describeControl(element: HTMLElement): string {
 test('C2-a.1 the operator sentence states the consequence, the real count, and promises no unshown item', async () => {
 	viewportWidth = 1366;
 	const header = await renderHeader(headerContext({ curriculumReadiness: blockedReadiness() }));
+	// ── SUPERSEDED IN PLACE, 2026-09-29, A2 HEADER-BUDGET (operator) ──
+	// The `timetable-curriculum-readiness-message` paragraph is no longer rendered
+	// inside the header element. §8's "Header budget" gives the header ONE status
+	// chip and, separately, forbids a sentence under a button; the long technical
+	// paragraph was exactly such a sentence and it made the header a third band.
+	// `TimetableSimpleHeader.tsx` now FILTERS that id out of the notices it hands
+	// to the trailing band, and the fact it carried is the chip's short
+	// `N setup items to fix` label, with the diagnostic behind the chip's `@/ui`
+	// Tooltip (still pinned by `C2-a.3` below, which is untouched and passing).
+	//
+	// The original assertions are retained VERBATIM as the record of the decision
+	// being superseded; none of them is run as pass/fail, because every one of them
+	// reads a node that no longer exists:
+	//   const message = header.querySelector<HTMLElement>('[data-testid="timetable-curriculum-readiness-message"]');
+	//   assert.ok(message, 'the operator readiness sentence renders');
+	//   const text = message.textContent ?? '';
+	//   assert.match(text, /Setup needs attention before ATLAS can generate a timetable\./);
+	//   assert.match(text, /3 setup items must be fixed first/);
+	//   assert.doesNotMatch(text, /Review the item shown/i);
+	//   assert.doesNotMatch(text, /the item shown/i);
+	//   assert.match(text, /readiness chip below lists each one/);
+	//
+	// WHAT THE ROW WAS PROTECTING, and what is still true and asserted by the
+	// replacement `C2-a.1R` below: the operator-facing fact is (a) PLAIN WORDS, (b)
+	// the REAL count of the real blocker list, and (c) no claim of an item it does
+	// not show. "The readiness chip below lists each one" was the pointer to the
+	// list; that pointer is now the chip itself plus the sheet one click away, which
+	// `C2-a.8` already proves renders all THREE rows — it is deliberately NOT
+	// duplicated here.
 	const message = header.querySelector<HTMLElement>('[data-testid="timetable-curriculum-readiness-message"]');
-	assert.ok(message, 'the operator readiness sentence renders');
-	const text = message.textContent ?? '';
-	// The same contract the pre-existing failing-first control
-	// (timetable-dynamic-workspace-rendered.test.ts) pins.
-	assert.match(text, /Setup needs attention before ATLAS can generate a timetable\./);
-	// The real count of the real list, not a round one.
-	assert.match(text, /3 setup items must be fixed first/);
-	// The defect: it promised to show an item it never showed.
-	assert.doesNotMatch(text, /Review the item shown/i);
-	assert.doesNotMatch(text, /the item shown/i);
-	// And it must point at a real list rather than a publication panel.
-	assert.match(text, /readiness chip below lists each one/);
+	assert.equal(message, null,
+		'the long operator sentence is superseded by the chip label and must not return to the header box');
+});
+
+test('C2-a.1R the one status chip says the REAL blocker count in plain words, and never promises an item it does not show', async () => {
+	viewportWidth = 1366;
+	const readiness = blockedReadiness();
+	assert.equal(readiness.state, 'blocked');
+	const header = await renderHeader(headerContext({ curriculumReadiness: readiness }));
+
+	// §8's ONE status chip, and it is in the header.
+	const chip = header.querySelector<HTMLElement>('[data-testid="timetable-simple-readiness-chip"]');
+	assert.ok(chip, 'the one status chip renders in the header');
+	assert.equal(chip.getAttribute('data-readiness-state'), 'setup-blocked',
+		'it is the setup-blocked face, not a different one');
+
+	// THE REAL COUNT. Three blockers went in through the production adapter, so
+	// three must come out — a hard-coded or rounded number fails here.
+	const blockerCount = (readiness.diagnostic as { blockers?: unknown[] }).blockers?.length ?? 0;
+	assert.equal(blockerCount, 3, 'the fixture really carries three blockers');
+	const label = header.querySelector<HTMLElement>('[data-testid="timetable-simple-setup-items-label"]');
+	assert.ok(label, 'the chip renders the short setup-items label');
+	assert.equal(label.textContent?.trim(), `${blockerCount} setup items to fix`,
+		'the visible label states the real count in plain words');
+	assert.equal(chip.getAttribute('data-setup-blocker-count'), String(blockerCount),
+		'the count is the diagnostic\'s count, not a literal');
+	// ONE derivation for the visible text and the accessible name, so a screen
+	// reader is never told a different number than the sighted operator.
+	assert.match(chip.getAttribute('aria-label') ?? '', new RegExp(`^${blockerCount} setup items to fix`),
+		'the accessible name carries the same count as the visible label');
+
+	// NO TRUNCATION. §8 forbids a sentence cut off with an ellipsis, and this label
+	// is the header's shortest copy; an ellipsis here would be a regression to the
+	// `Term: Viewi…` class of defect the operator reported.
+	const chipText = label.textContent ?? '';
+	assert.doesNotMatch(chipText, /…|\.\.\./, 'the chip label is never cut off with an ellipsis');
+	// The pointer to the real list is the chip control itself, not a sentence.
+	const control = header.querySelector<HTMLElement>('[data-testid="timetable-simple-warnings-control"]');
+	assert.ok(control, 'the control that opens the list is the merged warnings control');
+	assert.equal(control.getAttribute('data-warnings-dispatch'), 'generation-blockers',
+		'and the chip is the way into the generation blockers');
+	// The old sentence's defect — promising an unshown item — cannot come back in
+	// the label's own words.
+	assert.doesNotMatch(chipText, /Review the item shown/i, 'no promise of an unshown item');
 });
 
 test('C2-a.2 no engine code, term identity or subject code reaches the operator sentence', async () => {
 	const header = await renderHeader(headerContext({ curriculumReadiness: blockedReadiness() }));
+	// ── SUPERSEDED IN PLACE, 2026-09-29, A2 HEADER-BUDGET (operator) ──
+	// Same structural move as `C2-a.1` above: the node this row read is no longer
+	// in the header. The original assertions are retained VERBATIM and are not
+	// run as pass/fail:
+	//   const message = header.querySelector<HTMLElement>('[data-testid="timetable-curriculum-readiness-message"]');
+	//   assert.ok(message);
+	//   const text = message.textContent ?? '';
+	//   for (const leaked of ['OWNERSHIP_MISSING', ...]) {
+	//     assert.doesNotMatch(text, new RegExp(leaked), `${leaked} must not reach the operator sentence`);
+	//   }
+	//
+	// THE CLAIM IS UNCHANGED AND STILL LOAD-BEARING: the operator-facing copy must
+	// not leak engine vocabulary. It now has to be asserted on the surface that
+	// replaced the sentence — the chip's visible label AND its accessible name,
+	// which is the second place the words can reach a person. The replacement
+	// `C2-a.2R` below does that, and it is strictly WIDER than the original: the
+	// original read visible text only.
 	const message = header.querySelector<HTMLElement>('[data-testid="timetable-curriculum-readiness-message"]');
-	assert.ok(message);
-	const text = message.textContent ?? '';
-	for (const leaked of ['OWNERSHIP_MISSING', 'ROOM_CAPACITY_INFEASIBLE', 'SEARCH_LIMIT_UNRESOLVED', 'TERM_2030_1', 'TERM_2030_2', 'TLE-7', 'DEMAND_AUTHORITY', 'ALGORITHM_LIMIT', 'RESOURCE_INFEASIBLE']) {
-		assert.doesNotMatch(text, new RegExp(leaked), `${leaked} must not reach the operator sentence`);
+	assert.equal(message, null, 'the superseded sentence surface is gone from the header box');
+});
+
+test('C2-a.2R no engine code, term identity or subject code reaches the chip label or its accessible name', async () => {
+	const header = await renderHeader(headerContext({ curriculumReadiness: blockedReadiness() }));
+	const chip = header.querySelector<HTMLElement>('[data-testid="timetable-simple-readiness-chip"]');
+	assert.ok(chip, 'the one status chip renders');
+	// BOTH operator-facing surfaces, not just the visible text: the original row
+	// only ever read `textContent`, so an `aria-label` built from the raw
+	// diagnostic would have passed it. That is the gap this replacement closes.
+	const surfaces: Array<[string, string]> = [
+		['the visible chip label', chip.textContent ?? ''],
+		['the chip\'s accessible name', chip.getAttribute('aria-label') ?? ''],
+	];
+	for (const [where, text] of surfaces) {
+		for (const leaked of ['OWNERSHIP_MISSING', 'ROOM_CAPACITY_INFEASIBLE', 'SEARCH_LIMIT_UNRESOLVED', 'TERM_2030_1', 'TERM_2030_2', 'TLE-7', 'DEMAND_AUTHORITY', 'ALGORITHM_LIMIT', 'RESOURCE_INFEASIBLE', 'Section 7-A TLE-7']) {
+			assert.doesNotMatch(text, new RegExp(leaked), `${leaked} must not reach ${where}`);
+		}
+		// The general shape of the leak: a snake_case engine token, a TERM_2030_x
+		// identity, or a subject code in the header's own visible copy.
+		assert.doesNotMatch(text, /_[A-Z]/, `no snake_case engine token reaches ${where}`);
+		assert.doesNotMatch(text, /TERM_/, `no raw term identity reaches ${where}`);
 	}
+	// The engineering detail is still AVAILABLE, just not in the chip's own words:
+	// it lives behind the chip's tooltip, which `C2-a.3` (untouched, passing) pins.
+	// Asserted here only as "the chip did not swallow it", because a chip that
+	// carried the raw text in a `title` would pass C2-a.3 and defeat this row.
+	assert.equal(chip.getAttribute('title'), null, 'no raw diagnostic is smuggled back in as a title attribute');
 });
 
 test('C2-a.3 the raw diagnostic stays available behind Technical detail for support', () => {
