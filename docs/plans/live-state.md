@@ -310,9 +310,67 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
-- **▶ CUTOVER TARGET, RECORDED BEFORE THE CUTOVER (AGENTS.md §13 — a pin is a commit, not a description).**
+- **▶ LIVE: `c9be17feccd08e20e6c5110be041a72dc89ee2c6` — DEPLOYED TO PRODUCTION 2026-09-29 00:3x +08 by
+  Lane A4 (train 4, `release/2026-09-28-4`). This supersedes the `CUTOVER TARGET` block below, which led the
+  cutover and is now history, and the `LIVE: 9ca7f629` block, which is the rollback basis.**
+
+  | | |
+  |---|---|
+  | **LIVE** | **`c9be17feccd08e20e6c5110be041a72dc89ee2c6`** |
+  | **Live dir** | `E:\ATLAS-worktrees\lane-a4-release-20260928-4prod` (HEAD == pin, `git status --short` empty, **0 reparse points**, own dependency trees seeded by copy from the same-pin staging release — no junction chain) |
+  | **Listeners** | 5001 → **35284** (`atlas-server\dist\server.js`), 5174 → **32376** (`ops\runtime\host.mjs`) |
+  | **Machine scope** | `ATLAS_RUNTIME_SOURCE_DIR` / `ATLAS_RUNTIME_RELEASE_SHA` both repointed; task action now `…\lane-a4-release-20260928-4prod\ops\runtime\cli.mjs start`, Running |
+  | **Rollback basis** | **`9ca7f629a7e43a0e31c6b9fada97152541c2a877`**, dir `E:\ATLAS-worktrees\lane-a4-release-20260928-2` — HEAD verified, 0 changes, both `dist`s built, live contract installed with `ROLLOVER_AUTO_SYNC_ENABLED=false`. One-step supervised reset. |
+  | **Direction** | **FORWARD.** Delta from `9ca7f629`: 54 modified, 17 added, **0 deleted** |
+  | **Scope** | **NOT client-only.** 14 `atlas-server` paths (Lane C grade-name hotfix `938de8aa`), 37 client, **0 `prisma/`** → no migration, no schema change |
+  | **Cutover** | `ops/runtime/deploy-runner.ps1`, dry run first (`mutates: false`, `secretsPrinted: false`, `Assert-LiveReleaseRecorded` **passed**), then `-Execute` → `CUTOVER_STARTED`. Audit `C:\ProgramData\ATLAS\release-audit\c9be17fe-20260928-233439\` |
+  | **Acceptance** | **DEPLOYED.** S-H1, S-W1, S-Z1, S-Z2, S-R1, S-R2, S-D1, S-B1 **all PASS**; **browser rows `S-W2` DEFERRED to Lane C** (named owner). No BLOCKING defect. |
+  | **Evidence** | `docs/handoffs/lane-c-to-a2.md`, "A4 LIVE at `c9be17fe`" |
+
+  **The zero-write row is the one train 1 could never close, and it is closed here.** Baseline captured
+  **before** quiesce: **17/17 tables**, each `count(*)` + `max(id)` + full-row `md5`, run through the repo's own
+  `Invoke-PgTool` so no password ever reached a command line. After: **0 of 17 changed**, including `audit_logs`
+  at 482 rows / max id 1033 / identical checksum. Evidence `E:\ATLAS-staging\audit\prod-c9be17fe\`.
+  Counting method is pinned: raw `count(*)` per table, all 17 listed, one row per table.
+
+  **Rollover automation is provably NOT an armed write surface — settled, do not re-open.** The supervisor
+  **contract invariant** is spread last into the child env (`ops/runtime/lib/contract.mjs:340-342`
+  `resolveInvariantEnv`, applied at `ops/runtime/lib/supervisor.mjs:51,55`), so it **overrides** the durable env
+  file. Both contracts set `ROLLOVER_AUTO_SYNC_ENABLED: "false"`, `contract.mjs:63-65` fails the start closed
+  without it, and the live runtime's own `cli.mjs status` self-reports `"false"` — read before **and** after this
+  cutover. A restart cannot reach `applyRolloverSync`. The live supervisor log confirms:
+  `[rollover-automation] Disabled via ROLLOVER_AUTO_SYNC_ENABLED=false`.
+
+  **The discriminator was chosen against a proven trap.** `atlas-server/dist/services/grade-level-resolver.js` is
+  **PRESENT 3 586 B** in this build and **ABSENT** from `9ca7f629` (`dist/services` 381 vs 378 files).
+  `dist/server.js` is **byte-identical across both builds** (3 070 B, same SHA-256) — it would have been a vacuous
+  proof, and was not used. On the live origin: `TimetableSimpleHeader-C9py2wz2.js` 200 (181 153 B), old
+  `-CPRshG2N.js` 404.
+
+  **⚠ A2 `6d034431` (P, section-switch index) is on `origin/main` and is deliberately NOT in this release.** It
+  landed on main while the live target was being built, after the pin was fixed. Per the packet's own rule it waits
+  for train 5; re-pinning would have shipped unreviewed source and invalidated a built target. Its five product
+  paths were verified byte-unchanged by the integration merge. **Next train's first passenger.**
+
+  **⚠ `origin/main` is `5c1afab3` and now contains `13d75ce6` — the A3 c11 debt is CLEARED.** Trains 2, 3 and 4 each
+  re-merged c11 by hand; the next train will not have to.
+
+  **⚠ §3 capacity overdue (dated 2026-09-29).** `E:` **22.29 GiB**, below the 25 GiB warn line. Reclaim owed before
+  the next release build, and it needs its own frozen manifest + pre-action and post-action audits. Candidates: the
+  four superseded staging copies `E:\ATLAS-staging\{7590d485…, 9ca7f629…, e59b8ba1…, bae81afb…}` (~5.9 GiB).
+  **Never touch** `lane-a4-release-20260928-2` (rollback basis) or `lane-a4-release-20260928-4prod` (live).
+
+  **Next action (single):** Lane C runs the production smoke and the two `S-W2` browser rows
+  (`/timetable`, `/teaching-load`) on `https://njgrm.buru-degree.ts.net`, and posts the result here.
+
+- **▶ SUPERSEDED — the pre-cutover TARGET RECORD follows, preserved as the record that led the cutover
+  (`ops/runtime/deploy-runner.ps1` enforces `Assert-LiveReleaseRecorded` and fails closed without it). The release
+  it named, `c9be17fe`, is now LIVE — see the block above.**
+
+- **▶ CUTOVER TARGET, recorded 2026-09-28 00:2x +08 by Lane A4 ahead of the cutover (AGENTS.md §13 — a pin is a
+  commit, not a description).**
   **Target release `c9be17fe` (full `c9be17feccd08e20e6c5110be041a72dc89ee2c6`), rollback basis
-  `9ca7f629` (`9ca7f629a7e43a0e31c6b9fada97152541c2a877`).** Recorded 2026-09-28 00:2x +08 by Lane A4, ahead of the
+  `9ca7f629` (`9ca7f629a7e43a0e31c6b9fada97152541c2a877`).** Recorded ahead of the
   cutover, because `ops/runtime/deploy-runner.ps1` enforces `Assert-LiveReleaseRecorded` and fails closed without it.
   Target dir `E:\ATLAS-worktrees\lane-a4-release-20260928-4prod` (HEAD == pin, `git status --short` empty, 0 reparse
   points, own dependency trees seeded by copy from the same-pin staging release — no junction chain). Built: server
