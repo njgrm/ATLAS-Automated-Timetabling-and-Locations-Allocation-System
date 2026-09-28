@@ -29,6 +29,12 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { DISPOSABLE_DATABASE_PATTERN, requireDisposableDatabase } from './helpers/disposable-database-guard.js';
+
+// A9 (AGENTS.md §5, 2026-09-29): fail closed BEFORE the first row is created unless
+// DATABASE_URL names a disposable atlas_restore_drill_* database. A bare `tsx --test` of this
+// file is what created 5 schools rows in the live database (2026-09-29 incident).
+requireDisposableDatabase('tt-tl-modules-contract.test.ts');
 
 let passCount = 0;
 let failCount = 0;
@@ -83,7 +89,7 @@ async function main() {
 			return '';
 		}
 	})();
-	if (!/^atlas_restore_drill_[0-9]{8}_[a-z0-9]+$/.test(targetDatabase)) {
+	if (!DISPOSABLE_DATABASE_PATTERN.test(targetDatabase)) {
 		console.error(`[FAIL] DATABASE_URL must point at a disposable atlas_restore_drill_* database; got "${targetDatabase || '<unparseable>'}".`);
 		process.exit(1);
 	}

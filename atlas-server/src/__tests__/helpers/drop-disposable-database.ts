@@ -24,9 +24,13 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import { DISPOSABLE_DATABASE_PATTERN } from './disposable-database-guard.js';
 
 const PSQL = 'D:/PostgreSQL/18/bin/psql.exe';
-const DISPOSABLE_PATTERN = /^atlas_restore_drill_[0-9]{8}_[a-z0-9]+$/;
+// A9 (2026-09-29): one definition of the disposable-name contract, shared with
+// every DB-writing suite. This file used to re-type the regex, which is how the
+// pattern could drift from the `test:server-db` runner's.
+const DISPOSABLE_PATTERN = DISPOSABLE_DATABASE_PATTERN;
 const DEFAULT_ATTEMPTS = 5;
 const DEFAULT_BASE_DELAY_MS = 300;
 

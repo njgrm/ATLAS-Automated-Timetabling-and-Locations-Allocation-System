@@ -68,6 +68,15 @@ After every output that changes code or files, suggest a conventional commit mes
 
 ---
 
+- **Bare test runs never touch live (2026-09-29).** `D:/ATLAS/atlas-server/.env` now points at `atlas_staging`; never
+  point it at the live database. DB-writing suites run only through `npm run test:server-db` (disposable
+  `atlas_restore_drill_*`), and must fail closed when the connected database name is not disposable. Incident: a bare
+  `enrollpro-rollover-automation.test.ts` run wrote 5 `schools` rows into LIVE (live-state.md 02:25).
+- **Loopback previews never talk to live (2026-09-29).** A candidate `vite preview`/`dev` for rendered proof must proxy
+  to the STAGING API: start it with `VITE_ATLAS_API=http://127.0.0.1:5101`. The default target `127.0.0.1:5001` is the
+  LIVE server: the candidate UI then reads and could write production data, and login fails on `http://127.0.0.1`
+  because live issues Secure cookies (operator saw "Failed to load subjects" / "No saved data" after logging in on :5292).
+
 ## 6. Supervised Runtime And Log Probing Rule
 
 - **Before any deployment, runtime, task, environment, or release-directory action, read `docs/reference/agent-runtime-deploy-facts.md`.** It carries the facts learned the hard way: the elevated-shell requirement, the SYSTEM supervisor and the tree-kill quiesce, the stale-state `ALREADY_RUNNING` trap, the repo-root `prisma generate` schema path, proving a deploy by fetching a chunk that only exists in the new build, the `VITE_ENROLLPRO_URL` fail-closed build guard, and the rule that only the active `ATLAS_RUNTIME_SOURCE_DIR` state file is authoritative.
@@ -302,6 +311,10 @@ work against `main` moving; a disk reading taken during a concurrent wave). A2 l
   lanes' worktrees (junction-safe; never a worktree its lane has not marked retired).
 - After each cutover A4 runs one **fresh Codex smoke** (pages render, release identity) and posts `A4 LIVE at <sha>`
   with every included lane's rows. Lane C runs the UX acceptance rows.
+- **Shipped-vs-claimed check before staging (2026-09-29):** for every lane item in the train, A4 finds the change in the
+  pinned diff (a removed string is absent from `dist`, a new label is present) and lists any claimed item it cannot find
+  as `NOT IN TRAIN`. Evidence: A6 c3 "Guided mode removed" shipped in train 5's notes but "Guided mode is active" was
+  still in `dist` and on live.
 - Fresh session per release. Packet template: `docs/prompts/templates/a4-release.md`.
 
 ---

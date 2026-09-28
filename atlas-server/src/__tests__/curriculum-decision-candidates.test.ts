@@ -28,6 +28,12 @@ import assert from 'node:assert/strict';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma.js';
 import { getDecisionCandidates } from '../services/curriculum-decision-candidates.service.js';
+import { requireDisposableDatabase } from './helpers/disposable-database-guard.js';
+
+// A9 (AGENTS.md §5, 2026-09-29): fail closed BEFORE the first row is created unless
+// DATABASE_URL names a disposable atlas_restore_drill_* database. A bare `tsx --test` of this
+// file is what created 5 schools rows in the live database (2026-09-29 incident).
+requireDisposableDatabase('curriculum-decision-candidates.test.ts');
 
 // Disposable fixtures — NEVER canonical school 1.
 const SCHOOL = 99961;

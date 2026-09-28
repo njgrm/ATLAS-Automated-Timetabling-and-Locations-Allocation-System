@@ -11,6 +11,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
+import { DISPOSABLE_DATABASE_PATTERN } from './disposable-database-guard.js';
 
 export const PSQL = 'D:/PostgreSQL/18/bin/psql.exe';
 const WORKDIR = process.cwd();
@@ -62,7 +63,7 @@ export function provisionDisposableDatabase(suffix: string): DisposableDatabase 
 	if (!sourceUrl || !sourceUrl.startsWith('postgres') || !existsSync(PSQL)) return null;
 	const source = new URL(sourceUrl);
 	const name = `atlas_restore_drill_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}_${suffix}${randomBytes(3).toString('hex')}`;
-	if (!/^atlas_restore_drill_[0-9]{8}_[a-z0-9]+$/.test(name)) {
+	if (!DISPOSABLE_DATABASE_PATTERN.test(name)) {
 		throw new Error(`disposable database name must satisfy the repository guard: ${name}`);
 	}
 	if (name === source.pathname.replace(/^\//, '')) {

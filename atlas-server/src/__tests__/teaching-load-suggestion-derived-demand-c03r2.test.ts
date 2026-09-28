@@ -46,6 +46,12 @@ import {
 import { buildDerivedDemand } from '../services/derived-demand.service.js';
 
 import { dropDisposableDatabaseWithRetry } from './helpers/drop-disposable-database.js';
+import { DISPOSABLE_DATABASE_PATTERN, requireDisposableDatabase } from './helpers/disposable-database-guard.js';
+
+// A9 (AGENTS.md §5, 2026-09-29): fail closed BEFORE the first row is created unless
+// DATABASE_URL names a disposable atlas_restore_drill_* database. A bare `tsx --test` of this
+// file is what created 5 schools rows in the live database (2026-09-29 incident).
+requireDisposableDatabase('teaching-load-suggestion-derived-demand-c03r2.test.ts');
 
 const now = new Date('2026-09-13T00:00:00.000Z');
 const SCHOOL = 1;
@@ -1240,7 +1246,7 @@ async function testDisposablePostgresApply(): Promise<void> {
 	}
 	const source = new URL(sourceUrl);
 	const disposableName = `atlas_restore_drill_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}_c03r2${randomBytes(4).toString('hex')}`;
-	check(/^atlas_restore_drill_[0-9]{8}_[a-z0-9]+$/.test(disposableName), 'disposable database name satisfies the repository guard');
+	check(DISPOSABLE_DATABASE_PATTERN.test(disposableName), 'disposable database name satisfies the repository guard');
 	check(source.pathname.replace(/^\//, '') !== disposableName, 'the configured database is never the target');
 
 	const adminEnv = { ...process.env, PGPASSWORD: decodeURIComponent(source.password) };

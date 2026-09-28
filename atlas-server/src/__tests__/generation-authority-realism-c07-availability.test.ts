@@ -28,6 +28,12 @@ import { readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 
 import { dropDisposableDatabaseWithRetry } from './helpers/drop-disposable-database.js';
+import { DISPOSABLE_DATABASE_PATTERN, requireDisposableDatabase } from './helpers/disposable-database-guard.js';
+
+// A9 (AGENTS.md §5, 2026-09-29): fail closed BEFORE the first row is created unless
+// DATABASE_URL names a disposable atlas_restore_drill_* database. A bare `tsx --test` of this
+// file is what created 5 schools rows in the live database (2026-09-29 incident).
+requireDisposableDatabase('generation-authority-realism-c07-availability.test.ts');
 
 const WORKDIR = process.cwd();
 const PSQL = 'D:/PostgreSQL/18/bin/psql.exe';
@@ -58,7 +64,7 @@ test('C07-S11. the availability freshness domain binds real faculty_availabiliti
 	const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
 	const disposableName = `atlas_restore_drill_${stamp}_c07${randomBytes(4).toString('hex')}`;
 	// Repository guard: never the configured database, never a shared target.
-	assert.match(disposableName, /^atlas_restore_drill_[0-9]{8}_[a-z0-9]+$/);
+	assert.match(disposableName, DISPOSABLE_DATABASE_PATTERN);
 	assert.notEqual(disposableName, source.pathname.replace(/^\//, ''));
 
 	const adminEnv = { ...process.env, PGPASSWORD: decodeURIComponent(source.password) };

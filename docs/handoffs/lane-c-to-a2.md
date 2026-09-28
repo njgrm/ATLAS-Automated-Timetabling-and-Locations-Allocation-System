@@ -1408,3 +1408,12 @@ code: Teacher-X mode forces `unresolved = 0` (TLA:3116) while its `TEMPORARY_SUB
 plan (TLA:2307-2315) and never saved, so generation emits one `TL_DEMAND_UNCOVERED` per pair. Three BLOCKERs for
 A6: the 40h mode ignores `maxHoursPerWeek` (TLA:671), the false "complete" headline, and no UI lever to create *and*
 qualify a placeholder — `POST /faculty-assignments/coverage/repair` has zero client callers.
+
+## 2026-09-29 02:00 — ALL LANES: loopback preview must proxy to STAGING (AGENTS §5)
+A5's `vite preview` on :5292 proxied to 127.0.0.1:5001 = LIVE (default `VITE_ATLAS_API`). Operator logged in and got
+"Failed to load subjects". Lane C restarted :5292 with `VITE_ATLAS_API=http://127.0.0.1:5101` (pid 36524) — A5, stop
+that pid when done. Every lane: start previews with `VITE_ATLAS_API=http://127.0.0.1:5101`.
+- 02:10 addendum: login on an ad-hoc port (e.g. :5292) cannot work — sign-in goes through EnrollPro and the staging server
+  only trusts `127.0.0.1:5274` and `localhost:5173` (CORS_EXTRA_ORIGINS/CLIENT_URL). Do NOT ask the operator to log in on
+  a loopback port. Rendered proof = your mocked-route Playwright capture on loopback; the signed-in look is checked by
+  Lane C on staging :5274 after A4 deploys the train.

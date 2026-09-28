@@ -39,6 +39,7 @@ import jwt from 'jsonwebtoken';
 import facultyAssignmentRouter from '../routes/faculty-assignment.router.js';
 import { prisma } from '../lib/prisma.js';
 import { withDataContext } from '../lib/data-context.js';
+import { DISPOSABLE_DATABASE_PATTERN, requireDisposableDatabase } from './helpers/disposable-database-guard.js';
 import {
 	autoFill,
 	previewOrApplyOverCapRebalance,
@@ -46,6 +47,11 @@ import {
 	type OverCapRebalanceResult,
 	type TeachingLoadCandidateRejection,
 } from '../services/teaching-load-automation.service.js';
+
+// A9 (AGENTS.md §5, 2026-09-29): fail closed BEFORE the first row is created unless
+// DATABASE_URL names a disposable atlas_restore_drill_* database. A bare `tsx --test` of this
+// file is what created 5 schools rows in the live database (2026-09-29 incident).
+requireDisposableDatabase('teaching-load-suggestion-authority-c03.test.ts');
 
 const now = new Date('2026-09-12T00:00:00.000Z');
 const SCHOOL = 1;
@@ -828,7 +834,7 @@ function disposableDatabaseName(): string | null {
 	if (!url) return null;
 	try {
 		const name = decodeURIComponent(new URL(url).pathname.replace(/^\//, ''));
-		return /^atlas_restore_drill_[0-9]{8}_[a-z0-9]+$/.test(name) ? name : null;
+		return DISPOSABLE_DATABASE_PATTERN.test(name) ? name : null;
 	} catch {
 		return null;
 	}

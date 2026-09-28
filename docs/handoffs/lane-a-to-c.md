@@ -1882,3 +1882,115 @@ paint, nothing about `njgrm.buru-degree.ts.net`. Steps are in my `lane-a-to-c` b
 **@A4:** pin f1a7913. The net diff from e1c02d94 is 30 paths, all tlas-client/tlas-server/
 configs, **no migration, no prisma/, no ops/, no seed, no env, no lockfile**. **E: free space is
 ~24 GiB, BELOW the 25 GiB warning line - run the release-directory reclaim before the build.**
+---
+
+## A5 C3 slice A - **A5 ready for release at d6310ecc** (2026-09-29 ~02:4x, from Planner A5)
+
+d6310ecc is on origin/main. Client-only, **no server / prisma / ops / lockfile / migration / env / seed**.
+**A5 does not deploy - A4 owns the release.** Slice B (Sections/Faculty/Teaching Load + the guard) is
+not in this pin; it rides the next train.
+
+**1 / 1 integrated and SEEN RENDERED on loopback. 0 live. 0 dropped.** Rendered rows are
+ISOLATED_LOCAL_BROWSER - they prove this candidate's own paint, **nothing about
+njgrm.buru-degree.ts.net**. The Tailnet rows stay yours.
+
+**What the operator asked for, and the measured proof at 1366x768** (dedicated Playwright profile,
+catch-all bort() so nothing proxied to live 5001; errorBoundary: false):
+
+| Ask | Result |
+|---|---|
+| `each filter shows its name (e.g. Grade: All, Program: All)` | **PASS** - all five: Status: All / Grade: All / Program: All / Room: All / Term: All |
+| "same height as the search box" | **PASS** - 36px = 36px, measured |
+| "even widths" | **PASS** - five triggers at **128px**; base had four widths (160/96/112/144/112) |
+| "pill-shaped while the search box ... [is] rounded rectangles" | **PASS** - one shared @/ui variant at the search box's height |
+| no global scrollbar | **PASS** - scrollHeight === clientHeight === 768; cluster 812x36, one line |
+
+Table: subject code chip dropped (row **and** mobile card); program scopes are abbreviated chips
+(BEC/STE/...), never "4 programs" and never the spelled-out name; ownership reads
+**Owned by AP, MAPEH**; the literal OWNER_DEPT: leaves the /subjects screen.
+
+**Gates:** two independent QA rounds. Round 1 CORRECTION_REQUIRED 20/16/3/1 - three BLOCKINGs
+(a flake the candidate introduced, a deleted one-line-fit guard replaced by a tautology, and the
+inert width token). Round 2 CORRECTION_REQUIRED **22/21/0/0/1** - **B1-B6 all closed on the
+reviewer's own numbers** (3-subjects 32/32 on **6/6** runs) and **the AGENTS.md SS11 rule-4 gate
+returns NO REJECT_UX on the filter row, scored on the real render**. The one remaining FAILURE was
+record integrity, not safety, and was corrected directly.
+
+**Two of my own errors, on the record because SS16 holds planner records to the same rule:**
+1. My R1 packet over-specified the filter labels as Grade: All grades when your words are
+   Grade: All. **My brief caused the 3+2 wrap it existed to prevent.** R3 restored your spec.
+2. My first "after" screenshots were **error boundaries**, and I cited one as a PASS. Withdrawn,
+   replaced, and I attributed the crash to my own fixture - a second, more specific attribution of
+   mine was also disproved by round 2 and is now marked UNATTRIBUTED.
+
+**@A4 - pin d6310ecc.** Net delta over origin/main: 16 tlas-client paths + docs, **0
+tlas-server/, 0 prisma/, 0 ops/, 0 lockfile, no env, no migration.** A3-C4-2a/2b and the
+c2b 7b controls were **re-pointed and added, never deleted** (19 asserts removed vs 104 added; QA
+traced every removal). 	est:a3-c4-copy's 1 failure is **pre-existing and identical at base**
+(SubjectFormModal.tsx raw 	itle= - my named out-of-scope file). 	sc = the same **5**
+pre-existing errors in untouched 	imetable-* files; client build exit 0. E: is 25.6 GiB - reclaim
+still owed before the next build.
+
+**@Lane C - one RELEASE CONDITION, your ruling, owner named.** The **subject table row** (program
+chips, Owned by AP, MAPEH, absent code chip) has **no rendered proof**: under a mocked /api/v1
+the catalogue loader never dispatches and owsRendered: 1 is the empty state. Per your 02:35
+ruling it is judged on **staging :5274 after you deploy train 6**, and a **REJECT_UX there sends
+it back to me.** It is recorded as deferred, never as met.
+
+---
+
+## A5 C3 slice B - **A5 ready for release at 358812cf** (2026-09-29 ~03:2x, from Planner A5)
+
+Slice A is 419277e4; **slice B is 358812cf**; together they are the whole A5 C3 cycle.
+Client + docs only: **0 tlas-server/, 0 prisma/, 0 ops/, 0 lockfile, no env, no migration.**
+**A5 does not deploy - A4 owns the release.** Both slices ride the same train.
+
+**2 / 2 integrated. Slice A seen rendered on loopback; slice B is source+test proven and NOT seen
+rendered by anyone. 0 dropped.**
+
+**What slice B did - the parent packet's "carry the same treatment to every other page":**
+13 filter controls across /sections (3), /faculty (4), /teaching-load (4 + 1) and the
+archived-year picker (1) now go through the **same shared FilterPicker** slice A built.
+
+| | BEFORE | AFTER |
+|---|---|---|
+| Distinct primitives | 1 | 1 (now the shared one everywhere) |
+| Distinct trigger **heights** | **3** (40 / 44 / 36px) | **1** (36px) |
+| Triggers that **name themselves** | **1 of 13** | **13 of 13** |
+| Page-local chrome strings | 1 (CONTROL_CHROME) | 0 |
+| Look overrides removed | - | 29 |
+| **Visible words added** | - | **0** |
+
+Plus a **guard** (	est:a5-p3-picker-guard, wired in the same commit) that fails on a swept
+filter built from @/ui/select, on a look-changing override, or on a trigger built by hand.
+
+**Two BLOCKINGs QA found and are now closed, with failing-first proof:** Enter could still select a
+disabled option (reachable on the two long lists that earn a search box), and the archived-year
+picker **claimed All on a control that offers no such choice** - it lied while loading. Both were
+regressions the slice's own comments claimed to prevent.
+
+**A finding worth your attention, @A5's own QA found it and I am not hiding it:** the guard's
+committed claim that it caught hand-rolled triggers was **false** - the probe was case-sensitive and
+missed <Button role=combobox>, the form this codebase actually writes. Fixed, and I verified the
+new pattern discriminates (catches the missed form, does not fire on a plain <Button> or a real
+<FilterPicker>). A guard that claims coverage it lacks is worse than no guard.
+
+**@A4 - pin 358812cf.** 18 paths, all tlas-client/src + docs/reviews. Boundaries verified:
+no TeachingLoad.tsx, no Sections.tsx, no components/sections/*Map*, no SubjectFormModal.tsx,
+no /timetable call site. 	sc = the same **5** pre-existing errors in untouched files; build exit 0.
+Four base-identical red suites are recorded, not fixed (3-c4-copy 18/14/**1**/3,
+3-palette-ratchet-s-e 5/**3**/2, 3-c9-operator-tokens 21/**20**/1, 	imetable-relaxed-main
+83/**79**/4) - the range adds **zero** rose and **zero** accent tokens.
+
+**@Lane C - TWO release conditions, both yours, both with me as the return address.**
+1. **The /subjects subject TABLE ROW** - program chips, Owned by AP, MAPEH, absent code chip -
+   has never been seen rendered. Judge it on **staging :5274 after you deploy this train**; a
+   REJECT_UX there sends it back to A5.
+2. **/sections, /faculty and /teaching-load have NO rendered evidence at all**, and QA scored
+   three axes **UNSCOREABLE** without a 1366 render: **no truncation**, **nothing cramped**, and
+   **case/weight harmony**. Truncation is the one I expect to fail: the trigger is a fixed **128px**
+   box, the faces got *longer* (Home room: All where /sections had a ~340px column reading
+   All home-room states), and the label span is 	runcated. **A9 and D1 are the two I would judge
+   first** - D1 (Teaching Load losing UPPERCASE) is by definition a pixel judgement and is the
+   largest visual delta in either slice. My QA did **not** treat the layout note's arithmetic as a
+   measurement and neither should you.

@@ -11,7 +11,9 @@ import { CreatePlaceholderDialog } from '@/components/faculty/CreatePlaceholderD
 import atlasApi from '@/lib/api';
 import type { FacultySummary } from '@/types';
 import { Button } from '@/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+// A5 C3 slice B: `@/ui/select`, `departmentLabel` and `GRADE_OPTIONS` left this file with the
+// four roster filters. The page builds no Radix filter of its own any more, and the option
+// vocabulary it needs now lives with the controls that offer it.
 import {
 	AdminSearchFilterToolbar,
 	AdminWorkspaceFrame,
@@ -39,9 +41,10 @@ import { useRosterScrollMemory } from '@/components/faculty/rosterScrollMemory';
 import { formatFacultyDisplayName, teacherNameSortKey } from '@/components/faculty/teacherNameDisplay';
 import { buildDuplicateNameCue, duplicateTeacherNameKey } from '@/components/faculty/duplicateTeacherNames';
 import { TeacherAttentionFilters } from '@/components/faculty/TeacherAttentionFilters';
+// A5 C3 slice B / B3: the four roster filters, extracted so this file stays under §8's
+// 1000-line cap and so the one shared picker is the only way a filter is built here.
+import { FacultyFilterRow } from '@/components/faculty/FacultyFilterRow';
 import { toast } from 'sonner';
-import { departmentLabel } from '@/lib/deped-glossary';
-import { GRADE_OPTIONS } from '@/lib/subject-constants';
 import {
 	promoteActiveSchoolYearContext,
 	resolveActiveSchoolYearContext,
@@ -752,58 +755,26 @@ return (
 					onToggleFilters={() => setShowFilters(!showFilters)}
 					hasActiveFilters={hasActiveFilters}
 				>
-						<Select value={schedulingFilter} onValueChange={(v) => setSchedulingFilter(v as typeof schedulingFilter)}>
-							<SelectTrigger className="h-10 w-44 text-sm bg-background">
-								<SelectValue placeholder="All roster states" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All roster states</SelectItem>
-								<SelectItem value="active">Active teachers</SelectItem>
-								<SelectItem value="excluded">Excluded teachers</SelectItem>
-							</SelectContent>
-						</Select>
-						<Select value={assignmentFilter} onValueChange={(v) => setAssignmentFilter(v as typeof assignmentFilter)}>
-							<SelectTrigger className="h-10 w-44 text-sm bg-background">
-								<SelectValue placeholder="All load states" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All load states</SelectItem>
-								<SelectItem value="assigned">With teaching load</SelectItem>
-								<SelectItem value="unassigned">Needs teaching load</SelectItem>
-							</SelectContent>
-						</Select>
-					{departments.length > 0 && (
-						<Select value={departmentFilter} onValueChange={(v) => setDepartmentFilter(v)}>
-							<SelectTrigger className="h-10 w-44 text-sm bg-background">
-								<SelectValue placeholder="All Departments" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All Departments</SelectItem>
-								{departments.map((d) => <SelectItem key={d} value={d}>{departmentLabel(d)}</SelectItem>)}
-							</SelectContent>
-						</Select>
-					)}
-					<Select value={String(gradeLevelFilter)} onValueChange={(v) => setGradeLevelFilter(v === 'all' ? 'all' : Number(v))}>
-						<SelectTrigger className="h-10 w-36 text-sm bg-background" data-testid="teachers-grade-filter">
-							<SelectValue placeholder="Grade taught" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All grades</SelectItem>
-							{GRADE_OPTIONS.map((g) => (
-								<SelectItem key={g} value={String(g)}>Grade {g}</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-					{hasActiveFilters && (
-						<Button
-							variant="ghost"
-							size="sm"
-							className="px-3 text-sm text-muted-foreground hover:text-foreground font-semibold"
-							onClick={clearAllFilters}
-						>
-							Reset filters
-						</Button>
-					)}
+					{/* A5 C3 slice B: the four roster filters moved to
+					    `components/faculty/FacultyFilterRow.tsx` and onto the one shared
+					    `@/ui` picker. Two reasons, in order: the file is at §8's 1000-line cap
+					    (981 physical at 419277e4) and the conversion had to land with the
+					    extraction; and the four triggers were `h-10 w-44 text-sm
+					    bg-background` — a control that existed in no other form anywhere in the
+					    product. The `More filters` disclosure around them is untouched. */}
+					<FacultyFilterRow
+						schedulingFilter={schedulingFilter}
+						onSchedulingFilterChange={(v) => setSchedulingFilter(v as typeof schedulingFilter)}
+						assignmentFilter={assignmentFilter}
+						onAssignmentFilterChange={(v) => setAssignmentFilter(v as typeof assignmentFilter)}
+						departments={departments}
+						departmentFilter={departmentFilter}
+						onDepartmentFilterChange={setDepartmentFilter}
+						gradeLevelFilter={gradeLevelFilter}
+						onGradeLevelFilterChange={setGradeLevelFilter}
+						hasActiveFilters={hasActiveFilters}
+						onClearAllFilters={clearAllFilters}
+					/>
 				</AdminSearchFilterToolbar>
 			)}
 		>

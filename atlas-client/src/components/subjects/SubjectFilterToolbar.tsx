@@ -5,7 +5,8 @@ import {
 	ROOM_TYPE_LABELS,
 } from '@/lib/subject-constants';
 import { Button } from '@/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { FilterPicker } from '@/ui/filter-picker';
+import { PICKER_CONTROL_HEIGHT_CLASS } from '@/ui/picker-trigger';
 import { AdminSearchFilterToolbar } from '@/components/admin-workspace/AdminWorkspace';
 import { TERM_FILTER_ALL, type TermFilterOption } from './subject-term-filter';
 import { gradeLabel } from '@/lib/grade-labels';
@@ -53,15 +54,40 @@ type Props = {
 };
 
 /**
- * THE TRIGGER DIMENSIONS ARE THE CONTRACT (items 9.1(3) and 41(4), verbatim):
- * `h-9 text-xs px-3 rounded-xl border border-slate-200 bg-white
- * hover:bg-slate-50 transition-colors` on every select, so the five controls and
- * the search box are one visual row. Each trigger keeps its own `w-*` so the
- * one-row width budget in the Subjects controls stays decidable from the
- * rendered classes.
+ * A5 C3 R3 §1 — the room types' SHORT trigger labels.
+ *
+ * The popover option list keeps `ROOM_TYPE_LABELS` exactly (`Science Laboratory`,
+ * `ICT / Computer Lab`) because that list has the room and that is where a scheduler reads
+ * the choices. Only the trigger's fixed rectangle is compact, so the value shown there is the
+ * same room in the short words an office already uses. No room type is renamed in either place;
+ * these are two lengths of the same nine names.
  */
-const COMPACT_SELECT =
-	'h-9 shrink-0 rounded-xl border border-slate-200 bg-white px-3 text-xs transition-colors hover:bg-slate-50';
+const ROOM_TYPE_SHORT_LABELS: Record<string, string> = {
+	CLASSROOM: 'Classroom',
+	LABORATORY: 'Laboratory',
+	COMPUTER_LAB: 'Computer lab',
+	TLE_WORKSHOP: 'Workshop',
+	LIBRARY: 'Library',
+	GYMNASIUM: 'Gymnasium',
+	FACULTY_ROOM: 'Faculty room',
+	OFFICE: 'Office',
+	OTHER: 'Other',
+};
+
+/**
+ * A5 C3 (2026-09-29) — THE TRIGGER DIMENSIONS ARE NO LONGER DECLARED HERE.
+ *
+ * The five filters were five `@/ui/select` (Radix) triggers carrying a page-local
+ * `COMPACT_SELECT` string and five different widths — `w-40`/`w-24`/`w-28`/`w-36`/`w-28`
+ * (160/96/112/144/112px). That is the "filters are pills beside rectangular pickers, widths are
+ * uneven" defect the operator screenshotted on 2026-09-29, and `AGENTS.md` §8 "One look per
+ * control" settles it: the trigger's size, border, placeholder style and search behaviour belong
+ * to `@/ui`, not to a page.
+ *
+ * So this file now names a filter and supplies its options. Height, width, radius, border, case
+ * and the option-list search box all come from `@/ui/filter-picker` + `@/ui/picker-trigger`.
+ * A future divergence is a guard failure, not a decision someone makes twice.
+ */
 
 export function SubjectFilterToolbar({
 	searchQuery,
@@ -100,13 +126,17 @@ export function SubjectFilterToolbar({
 	// so it stays, compact, in the same row; it is one `SelectItem` in this
 	// component to remove if that is ever wanted.
 	//
-	// WIDTHS (source-level arithmetic over the Tailwind width classes these
-	// elements carry — NOT a measured pixel result; jsdom has no layout engine):
-	//   search w-[240px] = 240, status w-40 = 160, grade w-24 = 96,
-	//   program w-28 = 112, room type w-36 = 144, term w-28 = 112,
-	//   reset (text) = 80, 6 gaps x 10 (gap-2.5) = 60  =>  1004px.
-	// The 1366px viewport minus the 256px expanded sidebar, the 40px page padding
-	// at `lg`, and the toolbar card's 8px inset leaves 1062px.
+	// WIDTH BUDGET at 1366 (R3 §1 arithmetic, measured from the Tailwind width classes
+	// these elements carry — NOT a rendered pixel result; jsdom has no layout engine):
+	//   search w-[240px] = 240, its gap = 10,
+	//   5 filters x w-32 (8rem) = 5 x 128 = 640,
+	//   4 cluster gaps x 10 (gap-2.5) = 40, reset (text) = 80
+	//   =>  1020px.
+	// The 1366px viewport minus the 256px expanded sidebar, the 40px page padding at
+	// `lg`, and the toolbar card's 8px inset leaves ~1062px — 42px of slack, so the
+	// cluster holds ONE line. The previous `w-52` with R1 A1's `Room type: All room
+	// types` came to 1420px and wrapped 3+2; the compact trigger is what removed the
+	// wrap, not a narrower box, a smaller font, or a filter pushed behind `More`.
 	return (
 		<AdminSearchFilterToolbar
 			searchValue={searchQuery}
@@ -121,8 +151,9 @@ export function SubjectFilterToolbar({
 			primaryFilterCount={1}
 			primaryFilterLayout="inline"
 			searchMaxWidthClassName="w-[240px] max-w-[240px]"
-			/* A5: the search box matches the compact triggers' height and type
-			   size. Default-off in the shared toolbar, so no other page moves.
+			/* A5: the search box matches the compact triggers' type size, and takes its
+			   HEIGHT from the same `@/ui` token the triggers take theirs from (R1 J3) —
+			   one `h-9`, not two hand-matched literals.
 
 			   `sm:text-xs` is NOT redundant. `@/ui` `Input` ends its base class
 			   with the responsive pair `text-base … sm:text-sm`, and
@@ -131,101 +162,99 @@ export function SubjectFilterToolbar({
 			   `sm:` variant wins. The real-browser row measured 14px and caught
 			   exactly that: a class-list assertion could not, because the
 			   class-list assertion was true. */
-			searchInputClassName="h-9 pl-9 text-xs sm:text-xs"
+			searchInputClassName={`${PICKER_CONTROL_HEIGHT_CLASS} pl-9 text-xs sm:text-xs`}
 		>
 			<div
 				className="flex min-w-0 flex-1 flex-wrap items-center gap-2.5"
 				data-testid="subjects-filter-cluster"
 			>
-				<Select
+				{/* R3 §1: the operator's own words are `Grade: All`, `Program: All` — the
+				    TRIGGER shows the filter's short name and a short value, the POPOVER keeps
+				    the full labels, and the ACCESSIBLE NAME keeps the long form composed from
+				    `ariaLabel`. R1 A1's `Grade: All grades` was the packet's own lengthening of
+				    that example, and it is what forced the cluster to wrap. This is
+				    `/timetable`'s entity picker unchanged: a compact trigger over a list of
+				    long options (R2-6 rule 5). */}
+				<FilterPicker
+					name="Status"
+					ariaLabel="Filter by subject status"
 					value={subjectStatusFilter}
 					onValueChange={(v) => onSubjectStatusFilterChange(v as SubjectStatusFilter)}
-				>
-					<SelectTrigger
-						className={`${COMPACT_SELECT} w-40`}
-						aria-label="Filter by subject status"
-						data-testid="subjects-status-filter"
-					>
-						<SelectValue placeholder="All Status" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">All Status</SelectItem>
-						<SelectItem value="active">Active</SelectItem>
-						<SelectItem value="inactive">Archived</SelectItem>
-						{/* The coverage-attention axis, folded into the one status
-						    control rather than dropped (see `SubjectStatusFilter`). */}
-						<SelectItem value="missing-coverage">Missing teacher coverage</SelectItem>
-						<SelectItem value="room-constrained">Room-constrained subjects</SelectItem>
-					</SelectContent>
-				</Select>
-				<Select value={String(gradeLevelFilter)} onValueChange={(v) => onGradeLevelFilterChange(v === 'all' ? 'all' : Number(v))}>
-					<SelectTrigger className={`${COMPACT_SELECT} w-24`} aria-label="Filter by grade level">
-						<SelectValue placeholder="All Grades" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">All Grades</SelectItem>
-						{GRADE_OPTIONS.map((g) => (
-							/* The shared compact grade form (`GR7`), the same one the
-							   grade chips and the coverage dialog use — not
+					options={[
+						{ value: 'all', label: 'All statuses' },
+						{ value: 'active', label: 'Active' },
+						{ value: 'inactive', label: 'Archived' },
+						/* The coverage-attention axis, folded into the one status
+						   control rather than dropped (see `SubjectStatusFilter`). */
+						{ value: 'missing-coverage', label: 'Missing teacher coverage' },
+						{ value: 'room-constrained', label: 'Room-constrained subjects' },
+					]}
+					shortLabels={{
+						active: 'Active',
+						inactive: 'Archived',
+						'missing-coverage': 'No coverage',
+						'room-constrained': 'Room-constrained',
+					}}
+					dataTestId="subjects-status-filter"
+				/>
+				<FilterPicker
+					name="Grade"
+					ariaLabel="Filter by grade level"
+					value={String(gradeLevelFilter)}
+					onValueChange={(v) => onGradeLevelFilterChange(v === 'all' ? 'all' : Number(v))}
+					options={[
+						{ value: 'all', label: 'All grades' },
+						...GRADE_OPTIONS.map((g) => ({
+							value: String(g),
+							/* The shared compact grade form (`GR7`), the same one
+							   the grade chips and the coverage dialog use — not
 							   `Grade 7`, and not a second spelling. */
-							<SelectItem key={g} value={String(g)}>{gradeLabel(g)}</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				<Select
+							label: gradeLabel(g),
+						})),
+					]}
+				/>
+				<FilterPicker
+					name="Program"
+					ariaLabel="Filter by program scope"
 					value={programScopeFilter}
 					onValueChange={(v) => onProgramScopeFilterChange(v)}
-				>
-					<SelectTrigger
-						className={`${COMPACT_SELECT} w-28`}
-						aria-label="Filter by program scope"
-						data-testid="subjects-program-filter"
-					>
-						<SelectValue placeholder="All Programs" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">All Programs</SelectItem>
-						{PROGRAM_SCOPE_OPTIONS.map((o) => (
-							<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
+					options={[
+						{ value: 'all', label: 'All programs' },
+						...PROGRAM_SCOPE_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+					]}
+					dataTestId="subjects-program-filter"
+				/>
 				{/*
-				 * A3-C10: Room Type and Program are DIRECT filters now. Each
-				 * trigger is the filter itself — it shows the current value, it is
-				 * labelled with `aria-label`, and it opens its OWN listbox in one
-				 * click. There is no parent control that groups the two, so there
-				 * is no disclosure click between the operator and the filter.
+				 * A3-C10, unchanged in substance: Room Type and Program are DIRECT
+				 * filters. Each trigger is the filter itself — it shows the current
+				 * value, it is named, and it opens its OWN listbox in one click. A5
+				 * C3 changes only the primitive and the chrome, never the reach: there
+				 * is still no parent control grouping the two, so there is still no
+				 * disclosure click between the operator and the filter.
 				 */}
-				<Select
+				<FilterPicker
+					name="Room"
+					ariaLabel="Filter by room type"
 					value={roomTypeFilter}
 					onValueChange={(v) => onRoomTypeFilterChange(v)}
-				>
-					<SelectTrigger
-						className={`${COMPACT_SELECT} w-36`}
-						aria-label="Filter by room type"
-						data-testid="subjects-room-type-filter"
-					>
-						<SelectValue placeholder="All Room Types" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">All Room Types</SelectItem>
-						{ALL_ROOM_TYPES.map((t) => (
-							<SelectItem key={t} value={t}>{ROOM_TYPE_LABELS[t]}</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
+					options={[
+						{ value: 'all', label: 'All room types' },
+						...ALL_ROOM_TYPES.map((t) => ({ value: t, label: ROOM_TYPE_LABELS[t] })),
+					]}
+					/* R3 §1: the popover keeps the full labels (`Science Laboratory`,
+					   `ICT / Computer Lab`); only the trigger's rectangle is compact. */
+					shortLabels={ROOM_TYPE_SHORT_LABELS}
+					dataTestId="subjects-room-type-filter"
+				/>
 				{/* A3-C9, retained as the fifth compact control — see the note above. */}
-				<Select value={termFilter} onValueChange={onTermFilterChange}>
-					<SelectTrigger className={`${COMPACT_SELECT} w-28`} aria-label="Filter by rotation term">
-						<SelectValue placeholder="All terms" />
-					</SelectTrigger>
-					<SelectContent>
-						{termOptions.map((option) => (
-							<SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
+				<FilterPicker
+					name="Term"
+					ariaLabel="Filter by rotation term"
+					value={termFilter}
+					onValueChange={onTermFilterChange}
+					options={termOptions.map((option) => ({ value: option.value, label: option.label }))}
+				/>
+
 
 				{hasActiveFilters && (
 					<Button

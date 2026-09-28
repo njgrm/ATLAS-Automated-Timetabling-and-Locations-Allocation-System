@@ -424,7 +424,21 @@ test('A5-C2B-5f: the readable label is built from the data column the API alread
 test('A5-C2B-7a: the primary department read never shows the stored OWNER_DEPT marker', () => {
 	// Mapped code — the plain name, as before.
 	const mapped = splitSubjectFeatures(['OWNER_DEPT:AP']);
-	assert.equal(ownerDepartmentRead(mapped.ownerDepartments), 'Araling Panlipunan department');
+	// A5 C3 / J7, update not delete — and a DISCLOSED deviation from R3 §2.1's "leave
+	// 7a alone". 7a's assertion is the VALUE of the primary read, and J7 (a settled R1
+	// adjudication, "the primary ownership read is a comma list, not a sentence") removes
+	// the trailing noun, so this value had to move with it. 7a's PURPOSE is untouched and
+	// still asserted below and in the rows that follow: the primary read never shows the
+	// `OWNER_DEPT:` marker. It is also now what the row renders after its own
+	// `Owned by ` prefix — "Owned by Araling Panlipunan department" was redundant and,
+	// with two departments, ungrammatical.
+	// BEFORE: 'Araling Panlipunan department'
+	assert.equal(ownerDepartmentRead(mapped.ownerDepartments), 'Araling Panlipunan');
+	assert.doesNotMatch(
+		ownerDepartmentRead(mapped.ownerDepartments),
+		/OWNER_DEPT|department/i,
+		'the primary read regained the marker or the redundant noun',
+	);
 
 	// Unmapped code — `MAPEH` is the department's real name for a school
 	// scheduler, so the code IS the readable read. The marker is a storage
@@ -446,14 +460,33 @@ test('A5-C2B-7a: the primary department read never shows the stored OWNER_DEPT m
 });
 
 /**
- * The reachability control. A3-C4-1c requires the raw marker to remain
- * reachable in an `@/ui` affordance. Demoting it off the primary line must not
- * delete it.
+ * The reachability control. A3-C4-1c requires the diagnostic to remain reachable in
+ * an `@/ui` affordance. Demoting it off the primary line must not delete it.
+ *
+ * A5 C3 / J6 RE-TITLES AND RE-POINTS THIS ROW, it is not deleted (R3 §2.1, §16). The
+ * operator's words were "no raw `OWNER_DEPT:AP` strings ANYWHERE", and this sentence is
+ * what printed them, so the `OWNER_DEPT:` prefix leaves the page entirely. What must
+ * survive — and is what the control was actually protecting — is that an officer can
+ * still see HOW ownership is recorded. That is the owning CODE, which is what a school
+ * office writes on a timetable and reads back all day.
+ *
+ * SUPERSEDED, kept visible so the evidence is not silently dropped:
+ *   - title: "the stored marker stays reachable in the detail"
+ *   - assert.match(help, /OWNER_DEPT:MAPEH/,
+ *       'the stored marker is no longer reachable anywhere');
+ *   - assert.match(help, /ATLAS records the owning code as OWNER_DEPT:MAPEH\./);
+ * Both are replaced by the code-present / marker-absent pair below.
  */
-test('A5-C2B-7b: the stored marker stays reachable in the detail', () => {
+test('A5-C2B-7b: the owning code stays reachable in the detail, and the OWNER_DEPT literal does not', () => {
 	const unmapped = splitSubjectFeatures(['OWNER_DEPT:MAPEH']);
 	const help = subjectFeatureHelp(unmapped);
-	assert.match(help, /OWNER_DEPT:MAPEH/, 'the stored marker is no longer reachable anywhere');
+	// The diagnostic survives: the owning CODE is still on screen.
+	assert.match(help, /ATLAS records the owning code as MAPEH\./, 'the owning code is no longer reachable anywhere');
+	assert.doesNotMatch(
+		help,
+		/OWNER_DEPT/,
+		'the detail still prints the storage prefix, which J6 removes from the whole page',
+	);
 	// The report also complained the page ADMITTED it had no plain name. The
 	// old sentence was "… has no plain name for that code, so it is shown as
 	// stored." — the page telling the operator there was nothing to read.
@@ -462,12 +495,12 @@ test('A5-C2B-7b: the stored marker stays reachable in the detail', () => {
 		/no plain name/,
 		'the page still admits on screen that it has nothing readable to show',
 	);
-	assert.match(help, /ATLAS records the owning code as OWNER_DEPT:MAPEH\./);
 	// A3-C4-1e/1f: no "department" noun for an unmapped code.
 	assert.doesNotMatch(help, /department/i);
 
 	// The strict, marker-bearing phrase is still exported and still behaves as
-	// A3-C4 pinned it. It is now the DETAIL, not the primary read.
+	// A3-C4 pinned it. It is no longer called by anything on `/subjects` after
+	// J6 — it remains the diagnostic form for callers that want the stored value.
 	assert.equal(ownerDepartmentPhrase(unmapped.ownerDepartments), 'OWNER_DEPT:MAPEH');
 });
 

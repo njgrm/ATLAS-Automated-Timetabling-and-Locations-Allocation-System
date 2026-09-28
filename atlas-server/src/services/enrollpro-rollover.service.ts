@@ -234,7 +234,15 @@ async function findResumableResetMarker(
 
 const SCHOOL_YEAR_ENDPOINT = '/integration/v1/school-year';
 const SECTION_ENDPOINT = '/integration/v1/sections';
-const FACULTY_ENDPOINTS = ['/integration/v1/faculty', '/integration/v1/default/faculty'];
+// A9: every faculty ingestion path must request teaching personnel explicitly.
+// Without `personnelType=TEACHING` EnrollPro returns every personnel type and the
+// sync ingests non-teaching staff as teachers. `fetchPaginatedRows` joins its
+// `page`/`limit` parameters with `&` because these paths already carry a query.
+// See docs/reference/enrollpro-teaching-personnel-api-2026-09-29.md.
+const FACULTY_ENDPOINTS = [
+	'/integration/v1/faculty?personnelType=TEACHING',
+	'/integration/v1/default/faculty?personnelType=TEACHING',
+];
 const PUBLIC_SETTINGS_ENDPOINT = '/settings/public';
 const HEALTH_ENDPOINT = '/integration/v1/health';
 const DUMMY_YEAR_RESET_CONFIRMATION_TEXT = 'RESET_DUMMY_SCHOOL_YEAR_1';
@@ -1907,7 +1915,20 @@ export async function resetDummyYearAndApplyRollover(input: ResetDummyYearInput)
 	// refuse the sync and the reset could never complete for this wedge.
 	await reconcileActiveYearMirrorLabel(input.schoolId, activeYearCheck);
 
-	const rolloverApply = await applyRolloverSync(input.schoolId, input.authToken, { facultyMode: 'prune' });
+	// A9 / operator ruling 5 (2026-09-29): this reset must NOT prune faculty.
+	// It used to pass `facultyMode: 'prune'`, which made a *year reset* silently
+	// delete every faculty mirror absent from the upstream feed. Since 1ce31887
+	// the feed is `personnelType=TEACHING`, so absent == non-teaching staff — the
+	// prune would have destroyed exactly the non-teaching mirrors and, through
+	// `FacultySubject.faculty -> FacultyMirror onDelete: Cascade`
+	// (prisma/schema.prisma:468), their years 8-10 `faculty_subjects` ownership
+	// history. Reconciliation marks those mirrors `isStale` instead
+	// ('Missing from upstream during reconciliation'), which is what every other
+	// reachable rollover path already does, and destroys no history.
+	// Explicit deletion remains available ONLY on `POST /faculty/sync/reset`
+	// (`mode: 'prune'`, faculty.router.ts:153/256), which is that route's explicit,
+	// doubly-confirmed purpose and is deliberately NOT reached from here.
+	const rolloverApply = await applyRolloverSync(input.schoolId, input.authToken, { facultyMode: 'reconcile' });
 	// The follow-up teaching-load clear stays school+year-scoped deleteMany
 	// (idempotent, atomic per transaction). Its outcome is recorded in the
 	// phase marker so a crash between apply and this transaction is

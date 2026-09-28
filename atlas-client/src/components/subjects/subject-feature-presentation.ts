@@ -19,8 +19,11 @@
  * a fabricated learning area — and because there is then no learning area to
  * name, the word "department" is withheld too (see `hasNamedOwnerDepartments`).
  *
- * The raw marker is never destroyed — every surface keeps it reachable in an
- * `@/ui` affordance (AGENTS.md §8 forbids a bare `title=`).
+ * The raw marker is never destroyed — the function that reads it
+ * (`ownerDepartmentPhrase`) is still exported and still pinned by the A3-C4 controls. A5 C3 /
+ * J6 moved it off the operator's screen: `/subjects` now names the owning CODES in both the
+ * primary read and the detail, so the storage prefix appears nowhere on that page, and the code
+ * list is the diagnostic an officer actually acts on (§8 forbids a bare `title=`).
  */
 import { departmentLabel } from '@/lib/deped-glossary';
 
@@ -32,7 +35,7 @@ export type OwnerDepartmentRef = {
 	code: string;
 	/** The canonical plain learning-area name, e.g. `Araling Panlipunan`. */
 	label: string;
-	/** The stored marker, e.g. `OWNER_DEPT:AP`, kept for diagnostics. */
+	/** The stored marker, e.g. `OWNER_DEPT:<code>`, kept for diagnostics. */
 	raw: string;
 };
 
@@ -129,7 +132,21 @@ export function ownerDepartmentPhrase(ownerDepartments: OwnerDepartmentRef[]): s
 export function ownerDepartmentRead(ownerDepartments: OwnerDepartmentRef[]): string {
 	if (ownerDepartments.length === 0) return '';
 	if (hasNamedOwnerDepartments(ownerDepartments)) {
-		return ownerDepartmentPhrase(ownerDepartments);
+		return ownerDepartmentPhrase(ownerDepartments)
+			/* A5 C3 / J7 — the trailing noun goes. This phrase is only ever rendered
+			 * after the line's own `Owned by ` prefix, so `Araling Panlipunan
+			 * department` read "Owned by Araling Panlipunan department" — redundant,
+			 * and with two departments `Araling Panlipunan and Science departments`
+			 * was a joined sentence rather than a list. It is now a comma list:
+			 * `AP, MAPEH`, `Araling Panlipunan`.
+			 *
+			 * `ownerDepartmentPhrase` itself is deliberately UNCHANGED above. It is
+			 * the STORED-MARKER phrase (`OWNER_DEPT:MAPEH` for a code the glossary
+			 * cannot expand) and A3-C4 controls 1e/1f pin that behaviour on purpose;
+			 * this function is the narrower honest read for the primary line, and
+			 * J6 (below) takes the marker out of the DETAIL so neither surface can
+			 * print it. */
+			.replace(/ departments?$/, '');
 	}
 	// No plain name is available, so the phrase withholds the "department" noun
 	// (A3-C4-1e). The code alone is still a true statement about the data, and
@@ -152,6 +169,29 @@ export function ownerDepartmentRead(ownerDepartments: OwnerDepartmentRef[]): str
  * all. Ownership, where it is known, is already stated above; the honest
  * sentence stops there.
  */
+/** A comma list of the owning CODES — `AP`, `AP and MAPEH`, `SCI, MATH and TLE`. */
+function ownerCodeList(ownerDepartments: OwnerDepartmentRef[]): string {
+	const codes = ownerDepartments.map((owner) => owner.code);
+	if (codes.length === 1) return codes[0];
+	if (codes.length === 2) return `${codes[0]} and ${codes[1]}`;
+	return `${codes.slice(0, -1).join(', ')} and ${codes[codes.length - 1]}`;
+}
+
+/**
+ * The calm, plain sentence for a subject's feature needs.
+ *
+ * A5 C3 / J6 — THIS IS THE LAST SURFACE THAT COULD PRINT THE STORED MARKER. The operator's
+ * words were "no raw `OWNER_DEPT:AP` strings anywhere", and this detail is opened straight from
+ * the row. The clause now names the owning CODES in plain words — `ATLAS records the owning codes
+ * as AP and MAPEH.` The codes were always the diagnostic; the `OWNER_DEPT:` prefix is the
+ * server's storage syntax (`subject-ownership.service.ts`), not information, so nothing is lost
+ * that an officer could act on.
+ *
+ * The consequence is deliberate and is the point of J6: `ownerDepartmentPhrase` still returns the
+ * stored marker for a code the glossary cannot expand, and it is still exported and still pinned
+ * by A3-C4 controls 1e/1f — but nothing on `/subjects` calls it any more. Reachability moves
+ * from the raw marker to the code list.
+ */
 export function subjectFeatureHelp(split: SubjectFeatureSplit): string {
 	const parts: string[] = [];
 	const { roomFeatures, ownerDepartments } = split;
@@ -162,20 +202,9 @@ export function subjectFeatureHelp(split: SubjectFeatureSplit): string {
 		);
 	}
 	if (ownerDepartments.length > 0) {
-		const raw = ownerDepartments.map((owner) => owner.raw).join(', ');
-		const counted = ownerDepartments.length === 1 ? 'this' : 'these';
-		// A5-C2B / demo-walk item 7: the unmapped branch used to read "… and has
-		// no plain name for that code, so it is shown as stored." That sentence
-		// PUT the gap on screen as the answer, so the page's own text admitted
-		// there was nothing to read. It now states the owning code, which is the
-		// true fact, and stops there. The marker itself is still spelled out —
-		// reachability is what A3-C4-1c requires, and it is why this sentence
-		// remains the DETAIL rather than the primary read.
-		parts.push(
-			hasNamedOwnerDepartments(ownerDepartments)
-				? `It is owned by the ${ownerDepartmentPhrase(ownerDepartments)}. ATLAS records ${counted} as ${raw}.`
-				: `ATLAS records the owning code as ${raw}.`,
-		);
+		const codes = ownerCodeList(ownerDepartments);
+		const counted = ownerDepartments.length === 1 ? 'code' : 'codes';
+		parts.push(`ATLAS records the owning ${counted} as ${codes}.`);
 	}
 	if (parts.length === 0) return `This subject needs no special room features.`;
 	return parts.join(' ');

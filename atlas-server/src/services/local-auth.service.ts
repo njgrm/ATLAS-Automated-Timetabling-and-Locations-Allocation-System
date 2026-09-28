@@ -328,6 +328,24 @@ async function hydrateFacultyMirrorFromEnrollProFeed(params: {
 			if (serviceToken) {
 				headers['Authorization'] = `Bearer ${serviceToken}`;
 			}
+			// A9 MANDATORY EXCEPTION — this call is deliberately NOT filtered with
+			// `personnelType=TEACHING`, unlike every faculty *ingestion* path.
+			//
+			// This lookup resolves the identity of a person who is logging IN and
+			// matches it against a feed row, then upserts a facultyMirror. Adding
+			// `personnelType=TEACHING` here would make every non-teaching staff
+			// member (registrar, admin, maintenance) unable to authenticate to
+			// ATLAS at all. That is the opposite of the intent of
+			// docs/reference/enrollpro-teaching-personnel-api-2026-09-29.md, which
+			// makes non-teaching staff *inactive as teachers*, not locked out of
+			// the system. It is also an auth-boundary change, which is HIGH under
+			// AGENTS.md §13 and therefore outside lane A9's authority.
+			//
+			// Do NOT "fix" this to match the other call sites. The correct end
+			// state is: non-teaching staff CAN log in, but their mirror goes stale
+			// at the next faculty sync and they stop counting as teachers.
+			// Regression guard: teaching-personnel-filter-a9.test.ts
+			// ("login identity lookup stays unfiltered for non-teaching staff").
 			const response = await fetch(`${enrollProApi}/integration/v1/faculty?page=${page}&limit=${pageSize}`, {
 				headers,
 				signal: AbortSignal.timeout(5000),

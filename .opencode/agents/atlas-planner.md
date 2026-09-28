@@ -75,6 +75,12 @@ make the call in the same turn. Only end when the packet's final message is due.
 Never end a run to wait for Lane C (a browser count, a ruling, a release): record the question in
 lane-a-to-c.md, assume the stricter reading of the packet, and start the next item. Lane C answers by
 continuing your session. (A2 c12 stopped 30 min for a count Lane C already had, 2026-09-28.)
+**If your final message would name a "next action" that you yourself can take, you are not done — take it.** The
+final "next action" may only be one that needs Lane C, A4 or the operator. (2026-09-29: A2 and A5 each ended a run on
+"Next action: re-take the renders / bisect the leak" — both were theirs; each cost a relaunch.)
+**Claim only what is on `main`.** A handoff's "done" list names the merged SHA per item; an item that is committed on a
+branch but not merged is "integrated: no". (2026-09-29: Guided mode removal was reported done in c3 but never merged;
+the operator saw it still live.)
 
 Return the verdict, exact commit or blocker, and one next action. Include awaited
 roles, parallel boundaries, locked successors, or a handoff path only when they

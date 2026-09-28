@@ -46,7 +46,7 @@ import { AlertTriangle, LayoutGrid, ListFilter, RotateCcw, Search, Star } from '
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
 import { Input } from '@/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { FilterPicker } from '@/ui/filter-picker';
 import { Switch } from '@/ui/switch';
 import { Label } from '@/ui/label';
 import {
@@ -57,12 +57,23 @@ import {
 import { AT_STANDARD_LABEL, BELOW_STANDARD_LABEL, EXCESS_LOAD_LABEL } from '@/lib/teaching-load-labels';
 
 /**
- * The operator's shared control chrome for this row, verbatim: one height, one
- * radius, one border, one hover. Every select in the row carries the identical
- * string so the seven controls read as one instrument instead of a set of
- * similar things.
+ * A5 C3 slice B (B4): this string used to be `CONTROL_CHROME`, "the operator's shared control
+ * chrome for this row, verbatim", applied to all seven controls so they read as one instrument.
+ * That was the right instinct and the wrong mechanism: it made a PAGE-LOCAL string the chrome of
+ * a shared control, which `AGENTS.md` §8 "One look per control" forbids, and it is why
+ * `/teaching-load`'s filters looked like no other filter in the product.
+ *
+ * The four PICKS no longer use this or anything like it — they take their chrome from
+ * `@/ui/picker-trigger` through `FilterPicker`, which is the point of the sweep. What remains
+ * are the two optional-inclusion SWITCHES, which are not pickers and are not part of the shared
+ * primitive; they keep the same height, radius, border and hover so the row still reads as one
+ * instrument, and they are named for what they actually are.
+ *
+ * The two switch LABELS keep their `uppercase tracking-tight`. R1 B4's target was the pickers'
+ * chrome and their option rows; a Switch label is a different control, and restyling it would be
+ * a change the sweep was not asked to make. Recorded here rather than left implicit.
  */
-const CONTROL_CHROME = 'h-9 rounded-xl border border-border/60 bg-background px-2.5 text-xs transition-colors hover:bg-muted/40';
+const SWITCH_CHROME = 'flex h-9 shrink-0 items-center gap-2 rounded-xl border border-border/60 bg-background px-2.5 transition-colors hover:bg-muted/40';
 
 type TeachingLoadFilterBarProps = {
 	searchQuery: string;
@@ -148,61 +159,82 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 					/>
 				</div>
 
-				<Select value={filterStatus} onValueChange={(value) => onFilterStatusChange(value as TeachingLoadStatusFilter)}>
-					<SelectTrigger aria-label="Filter by status" className={`w-40 font-bold uppercase tracking-tight ${CONTROL_CHROME}`}>
-						<div className="flex items-center gap-2">
-							<ListFilter className="size-3.5 opacity-50" />
-							<SelectValue placeholder="Status" />
-						</div>
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All status</SelectItem>
-						<SelectItem value="teaching-assigned" className="text-xs font-bold uppercase tracking-tight" disabled={(statusFacetCounts['teaching-assigned'] ?? 0) === 0}>Teaching assigned ({statusFacetCounts['teaching-assigned'] ?? 0})</SelectItem>
-						<SelectItem value="no-teaching" className="text-xs font-bold uppercase tracking-tight" disabled={(statusFacetCounts['no-teaching'] ?? 0) === 0}>No teaching load ({statusFacetCounts['no-teaching'] ?? 0})</SelectItem>
-						<SelectItem value="adviser-only" className="text-xs font-bold uppercase tracking-tight" disabled={(statusFacetCounts['adviser-only'] ?? 0) === 0}>Adviser only ({statusFacetCounts['adviser-only'] ?? 0}, subset)</SelectItem>
-					</SelectContent>
-				</Select>
+								{/* A5 C3 slice B / B2 + B4: the four selects are now the ONE shared `@/ui` picker, and the
+				    page-local `CONTROL_CHROME` string plus `font-bold uppercase tracking-tight` are GONE.
+				    Those were a page-local look applied to a shared surface, which is exactly what
+				    `AGENTS.md` section 8 "One look per control" forbids, and the reason this row shouted at an
+				    older, mouse-first scheduler while every other filter in the product sat quietly beside
+				    it. The chrome now comes from `@/ui/picker-trigger`, where every page gets it, and
+				    sentence case is what the shared variant states. No page needed a different look, so no
+				    new variant was added.
 
-				<Select value={departmentFilter} onValueChange={onDepartmentFilterChange}>
-					<SelectTrigger aria-label="Filter by department" className={`w-44 font-bold uppercase tracking-tight ${CONTROL_CHROME}`}>
-						<div className="flex items-center gap-2">
-							<LayoutGrid className="size-3.5 opacity-50" />
-							<SelectValue placeholder="Department" />
-						</div>
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All departments</SelectItem>
-						{departmentOptions.map((option) => (
-							<SelectItem key={option.value} value={option.value} disabled={option.count === 0} className="text-xs font-bold uppercase tracking-tight">{option.label} ({option.count})</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
+				    The `ListFilter` / `LayoutGrid` / `Star` glyphs inside the triggers are gone too: the
+				    shared trigger carries its own chevron, and three different icons in three sibling
+				    triggers is how one row stops reading as one instrument.
 
-				<Select value={loadFilter} onValueChange={(value) => onLoadFilterChange(value as TeachingLoadLoadFilter)}>
-					<SelectTrigger aria-label="Filter by load" className={`w-40 font-bold uppercase tracking-tight ${CONTROL_CHROME}`}>
-						<div className="flex items-center gap-2">
-							<Star className="size-3.5 opacity-50" />
-							<SelectValue placeholder="Load" />
-						</div>
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All loads</SelectItem>
-						<SelectItem value="excess" className="text-xs font-bold uppercase tracking-tight text-amber-700" disabled={!policyReady || (loadFacetCounts.excess ?? 0) === 0}>{EXCESS_LOAD_LABEL} ({policyReady ? (loadFacetCounts.excess ?? 0) : '—'})</SelectItem>
-						<SelectItem value="at-standard" className="text-xs font-bold uppercase tracking-tight text-emerald-700" disabled={!policyReady || (loadFacetCounts['at-standard'] ?? 0) === 0}>{AT_STANDARD_LABEL} ({policyReady ? (loadFacetCounts['at-standard'] ?? 0) : '—'})</SelectItem>
-						<SelectItem value="below-standard" className="text-xs font-bold uppercase tracking-tight text-sky-700" disabled={!policyReady || (loadFacetCounts['below-standard'] ?? 0) === 0}>{BELOW_STANDARD_LABEL} ({policyReady ? (loadFacetCounts['below-standard'] ?? 0) : '—'})</SelectItem>
-					</SelectContent>
-				</Select>
+				    What did NOT change: all seven controls, their order, the two inclusion switches, the
+				    draft controls, the facet counts, the disabled states (now carried through
+				    `FilterPicker`'s `disabled` option flag, which `@/ui` owns), and every option label.
+
+				    One honest subtraction, recorded rather than hidden: the three POLICY bands in the Load
+				    list were also colour-coded (amber / emerald / sky) through a per-option class. Carrying
+				    that would mean a look prop on the shared primitive for one page, which is the defect
+				    this sweep exists to remove, so the colour is gone and the WORDS carry the same fact
+				    (Excess, At standard, Below standard). Flagged for the
+				    reviewer's judgement as layout-note D1. */}
+
+				<FilterPicker
+					name="Status"
+					ariaLabel="Filter by status"
+					value={filterStatus}
+					onValueChange={(value) => onFilterStatusChange(value as TeachingLoadStatusFilter)}
+					options={[
+						{ value: 'all', label: 'All status' },
+						{ value: 'teaching-assigned', label: `Teaching assigned (${statusFacetCounts['teaching-assigned'] ?? 0})`, disabled: (statusFacetCounts['teaching-assigned'] ?? 0) === 0 },
+						{ value: 'no-teaching', label: `No teaching load (${statusFacetCounts['no-teaching'] ?? 0})`, disabled: (statusFacetCounts['no-teaching'] ?? 0) === 0 },
+						{ value: 'adviser-only', label: `Adviser only (${statusFacetCounts['adviser-only'] ?? 0}, subset)`, disabled: (statusFacetCounts['adviser-only'] ?? 0) === 0 },
+					]}
+				/>
+
+				<FilterPicker
+					name="Department"
+					ariaLabel="Filter by department"
+					value={departmentFilter}
+					onValueChange={onDepartmentFilterChange}
+					options={[
+						{ value: 'all', label: 'All departments' },
+						...departmentOptions.map((option) => ({
+							value: option.value,
+							label: `${option.label} (${option.count})`,
+							disabled: option.count === 0,
+						})),
+					]}
+				/>
+
+				<FilterPicker
+					name="Load"
+					ariaLabel="Filter by load"
+					value={loadFilter}
+					onValueChange={(value) => onLoadFilterChange(value as TeachingLoadLoadFilter)}
+					options={[
+						{ value: 'all', label: 'All loads' },
+						{ value: 'excess', label: `${EXCESS_LOAD_LABEL} (${policyReady ? (loadFacetCounts.excess ?? 0) : '—'})`, disabled: !policyReady || (loadFacetCounts.excess ?? 0) === 0 },
+						{ value: 'at-standard', label: `${AT_STANDARD_LABEL} (${policyReady ? (loadFacetCounts['at-standard'] ?? 0) : '—'})`, disabled: !policyReady || (loadFacetCounts['at-standard'] ?? 0) === 0 },
+						{ value: 'below-standard', label: `${BELOW_STANDARD_LABEL} (${policyReady ? (loadFacetCounts['below-standard'] ?? 0) : '—'})`, disabled: !policyReady || (loadFacetCounts['below-standard'] ?? 0) === 0 },
+					]}
+				/>
 
 				{/* 5 — sort order. The most-recently-hidden control, promoted. */}
-				<Select value={sortOrder} onValueChange={onSortOrderChange}>
-					<SelectTrigger aria-label="Sort teachers" className={`w-40 font-bold uppercase tracking-tight ${CONTROL_CHROME}`}>
-						<SelectValue placeholder="Sort teachers" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="load-desc" className="text-xs font-bold uppercase tracking-tight">Highest load</SelectItem>
-						<SelectItem value="load-asc" className="text-xs font-bold uppercase tracking-tight">Lowest load</SelectItem>
-					</SelectContent>
-				</Select>
+				<FilterPicker
+					name="Sort"
+					ariaLabel="Sort teachers"
+					value={sortOrder}
+					onValueChange={onSortOrderChange}
+					options={[
+						{ value: 'load-desc', label: 'Highest load' },
+						{ value: 'load-asc', label: 'Lowest load' },
+					]}
+				/>
 
 				{/* 6 and 7 — the optional-inclusion switches. Both are made
 				    compact by CHROME (h-9, px-2.5, tracking-tight, nowrap), not
@@ -211,7 +243,7 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 				    content width, so the full `Unmapped Specialization` label
 				    closes the row without wrapping. `flex-wrap` is the
 				    backstop below that. */}
-				<div className="flex h-9 shrink-0 items-center gap-2 rounded-xl border border-border/60 bg-background px-2.5 transition-colors hover:bg-muted/40">
+					<div className={SWITCH_CHROME}>
 					<Switch
 						id="show-outside-dept"
 						checked={showOutsideDept}
@@ -222,7 +254,7 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 					</Label>
 				</div>
 
-				<div className="flex h-9 shrink-0 items-center gap-2 rounded-xl border border-border/60 bg-background px-2.5 transition-colors hover:bg-muted/40">
+					<div className={SWITCH_CHROME}>
 					<Switch
 						id="show-unmapped-specialization"
 						checked={showUnmappedSpecialization}

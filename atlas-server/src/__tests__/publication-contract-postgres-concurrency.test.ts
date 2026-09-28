@@ -8,6 +8,12 @@ import type { GenerationInputSnapshot } from '../services/generation-input-snaps
 import { publishSchedule } from '../services/publication-contract.service.js';
 import { createPublishedScheduleRevision } from '../services/published-revision.service.js';
 import { runSerializablePublicationTransaction } from '../services/serializable-transaction-retry.js';
+import { DISPOSABLE_DATABASE_PATTERN, requireDisposableDatabase } from './helpers/disposable-database-guard.js';
+
+// A9 (AGENTS.md §5, 2026-09-29): fail closed BEFORE the first row is created unless
+// DATABASE_URL names a disposable atlas_restore_drill_* database. A bare `tsx --test` of this
+// file is what created 5 schools rows in the live database (2026-09-29 incident).
+requireDisposableDatabase('publication-contract-postgres-concurrency.test.ts');
 
 const DATABASE_URL = process.env.DATABASE_URL ?? '';
 const DATABASE_NAME = DATABASE_URL ? new URL(DATABASE_URL).pathname.replace(/^\//, '') : '';
@@ -18,7 +24,7 @@ const INT32_OVERFLOW = 2_147_483_648;
 type ServiceFailure = Error & { code?: string; statusCode?: number; meta?: { code?: string } };
 
 function requireDisposableTarget(): void {
-	assert.match(DATABASE_NAME, /^atlas_restore_drill_[0-9]{8}_[a-z0-9]+$/);
+	assert.match(DATABASE_NAME, DISPOSABLE_DATABASE_PATTERN);
 	assert.equal(DATABASE_NAME, EXPECTED_DATABASE, 'DATABASE_URL must match the approved disposable target');
 }
 
