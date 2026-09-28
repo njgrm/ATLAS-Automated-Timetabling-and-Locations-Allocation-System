@@ -4869,3 +4869,10 @@ Range `4c806de3` → `39b2dcc7` (accepted) → `e9a04893` (planner docs) → `19
   left for A4 (§14 gives A4 E: capacity and junction-safe reclamation).
 - **Next action (single):** A6 builds the client against the contract above; A4 puts `195b52fe` in the next
   train.
+
+## Lane C, 2026-09-29 07:25: second test-pollution repair (live and staging)
+- The 01:58 bare-test incident also left 3 fixture rows. On each DB: `enrollpro_school_year_mirrors` 565 (EnrollPro id 910101, "2029-2030", **is_active**), `section_mirrors` 1602 "Premise 7-A", `faculty_mirrors` 549 "Premise Teacher".
+- Effect: two active school years. Train 6 (the A5 c2 one-source active-term resolver) refused Teaching Load with "More than one active, non-archived school-year mirror exists"; the Codex staging walk scored 1/5.
+- Repair: backup to `D:/ATLAS-runtime-config/backups/test-pollution-20260929/{atlas-server,atlas-staging}-fixture-rows-before.json`, then a conditional delete in one transaction.
+- After: exactly one active mirror, 564 (2022-2023). Live health 200.
+- Prevention: AGENTS §14 A4 live-data invariants, and Lane C's status.sh checks the active-mirror count.

@@ -315,6 +315,11 @@ work against `main` moving; a disk reading taken during a concurrent wave). A2 l
   pinned diff (a removed string is absent from `dist`, a new label is present) and lists any claimed item it cannot find
   as `NOT IN TRAIN`. Evidence: A6 c3 "Guided mode removed" shipped in train 5's notes but "Guided mode is active" was
   still in `dist` and on live.
+- **Live-data invariants before staging (2026-09-29):** A4 counts, on the live DB, the active non-archived school-year
+  mirrors (must be exactly 1) and any mirror, section or faculty row with an id or external id of 900000 or more (test
+  fixtures; must be 0). A failure is `NO_GO(DATA)` and goes to Lane C before any deploy. Evidence: a bare test at
+  01:58 left an active fixture year (910101) on live. Train 6 then refused every Teaching Load action, and it
+  surfaced only in the Codex walk.
 - Fresh session per release. Packet template: `docs/prompts/templates/a4-release.md`.
 
 ---
