@@ -4193,3 +4193,9 @@ decidable from source. Worktrees `lane-a3-c10-{s1-sections,s3-tldensity,s4-teach
   one-line filter row with Term present, coverage-dialog drag-resize, and the filled-form
   **"Discard your changes?"** confirmation. Exact steps are posted in `docs/handoffs/lane-a-to-c.md`.
 - **Next action (single):** await A4's release of `c5aba703`; A5 then closes the Tailnet rows.
+- **Worktree disposition, 2026-09-28:** `lane-a5-subjects-c1` (branch `work/a5-subjects-c1`) and
+  `lane-a5-subjects-c1-integ` (branch `integration/a5-subjects-c1-2026-09-28`) are both
+  `RETIRE_AFTER_INTEGRATION`, retired junction-safe in the closure that pushed `c5aba703`. No branch
+  deleted; `work/a5-subjects-c1` still resolves to `d53fcf84`. **Pushed `main` tip is `c78d75b7`**,
+  which contains the A5 merge `c5aba703` **and** A2's c11 slice 2 — A4 pins its own release commit
+  naming `c5aba703`, not this tip.
