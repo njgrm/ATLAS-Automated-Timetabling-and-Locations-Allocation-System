@@ -458,17 +458,38 @@ test('D1 at ≥1366px the header uses bounded wrapping rows instead of a horizon
 	const rowClasses = classOf(tagFor(markup, 'timetable-simple-header-row'));
 	assert.match(rowClasses, /flex-col/);
 	assert.doesNotMatch(rowClasses, /wide:flex-row|wide:flex-nowrap|overflow-x-auto/);
-	assert.match(markup, /class="flex min-w-0 flex-wrap items-center gap-1\.5"/,
-		'the status line wraps rather than clipping');
-	assert.match(markup, /class="flex min-w-0 flex-wrap items-center gap-1\.5 px-3"/,
-		'controls wrap cleanly at desktop widths');
+	// MECHANISM SUPERSEDED 2026-09-28 (A2 C12 item 1, on Lane C's 21:10 ruling that
+	// the header must be at most 2 VISUAL rows at 1366 px). These two rows used to
+	// pin "the rows WRAP". The requirement they were protecting is unchanged and
+	// still asserted below: NO horizontal scrolling strip, and the control row is
+	// not an overflow surface. What changed is the mechanism — from wrapping to
+	// `lg:flex-nowrap` plus `min-w-0`/truncate on the elastic children, so a long
+	// change notice gives up width instead of pushing `Publish schedule` or `More`
+	// onto a second line. The base `flex-wrap` is retained for narrow widths.
+	// Retained, not deleted: the assertion is restated at the new mechanism and
+	// the no-scroll-strip claim is left exactly as it was.
+	assert.match(markup, /class="flex min-w-0 flex-wrap items-center gap-1\.5[^"]*"/,
+		'the status line keeps its wrapping base (narrow layouts) and does not wrap from lg up');
+	assert.match(markup, /class="flex min-w-0 flex-wrap items-center gap-1\.5 px-3 lg:flex-nowrap"/,
+		'the control row does not wrap from lg up, so it is ONE visual line at 1366 px');
 	assert.doesNotMatch(markup, /justify-start gap-1\.5 overflow-x-auto/);
+	// The new mechanism's own risk, asserted rather than assumed: if the row cannot
+	// wrap, the elastic children must be the ones that give up width, and nothing
+	// may become an overflow surface.
+	assert.match(markup, /class="flex min-w-0 flex-wrap items-center justify-start gap-1\.5 lg:ml-auto lg:flex-nowrap lg:justify-end"/,
+		'the primary / Undo / More cluster does not wrap from lg up either');
+	assert.doesNotMatch(markup, /overflow-x-auto/, 'nowrap + truncation, never a scrolling strip that clips the primary');
 });
 
 test('C1 the rendered header has no horizontal strip overflow at desktop widths', () => {
 	const markup = renderHeader(CLEAN_UNPUBLISHED);
 	assert.doesNotMatch(markup, /wide:flex-row|wide:flex-nowrap|overflow-x-auto/);
-	assert.match(markup, /class="flex min-w-0 flex-wrap items-center gap-1\.5 px-3"/);
+	// SUPERSEDED 2026-09-28 (A2 C12 item 1): the control row now carries
+	// `lg:flex-nowrap` after `px-3`, so an exact-match regex for the old class
+	// string no longer describes it. The `[^"]*` tail is the mechanical fix; the
+	// no-horizontal-strip claim above is unchanged, and the mechanism is asserted
+	// explicitly in the D1 row above.
+	assert.match(markup, /class="flex min-w-0 flex-wrap items-center gap-1\.5 px-3[^"]*"/);
 });
 
 test('D1 the mobile schedule entity sheet remains available', () => {

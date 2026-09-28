@@ -43,34 +43,41 @@
  * Every reason below is VISIBLE TEXT beside the control it explains — never a
  * `title`, never hover-only (AGENTS.md §8).
  */
-import { PencilLine, Trash2 } from 'lucide-react';
-
-import { Button } from '@/ui/button';
 import {
+	DraftActionButton,
 	DRAFT_DISCARD_REASON_NEEDS_DRAFT,
 	DRAFT_DISCARD_UNAVAILABLE,
 	DRAFT_EDIT_NEEDS_SELECTION,
 	DRAFT_EDIT_UNAVAILABLE,
 	DRAFT_PUBLISH_UNAVAILABLE,
+	type DraftMenuAction,
 	type DraftStripResolvedProps,
 } from '@/components/timetable/TimetableDraftStateStrip';
 import type { SimpleHeaderPrimary } from '@/components/timetable/simple/SimpleHeaderActions';
 
 /**
- * One action a menu may render. `visible` is whether the ROW is on screen at all
- * (a duplicate of the header's own control is not rendered twice); `enabled` is
- * the conjunction the F2 invariant is about — the caller PERMITS the action AND
- * supplied a handler. There is no combination in which `enabled` is true and the
- * row does nothing.
+ * One action a surface may render: `visible` is whether the control is on screen
+ * at all, and `enabled` is the conjunction the F2 invariant is about — the caller
+ * PERMITS the action AND supplied a handler. There is no combination in which
+ * `enabled` is true and the control does nothing.
+ *
+ * A2 C12 / ITEM 4 — the type and the CONTROL that renders it now live in
+ * `TimetableDraftStateStrip` (`DraftMenuAction`, `DraftActionButton`), because the
+ * draft strip shows the same two actions VISIBLY beside the state sentence. The
+ * type is re-exported here so every existing importer keeps its current import
+ * path, and so `DraftMenuRow` below and the strip are demonstrably the same
+ * control rather than two renderers of one idea.
  */
-export type DraftMenuAction = {
-	visible: boolean;
-	enabled: boolean;
-	/** Always a sentence, so a disabled row never greys out silently. */
-	reason: string;
-	onSelect: () => void;
-};
+export type { DraftMenuAction };
 
+/**
+ * The three resolved draft actions.
+ *
+ * A2 C12 / ITEM 4 — its `{ edit, discard }` half is `DraftStripActionPair`,
+ * exported from `TimetableDraftStateStrip` because that is where the strip's
+ * visible controls are defined. A caller that renders the strip passes
+ * `simpleDraftMenuActions` straight through; it does not re-shape the object.
+ */
 export type SimpleDraftMenuActions = {
 	/** `null` when the header's own primary IS the publication control. */
 	publish: DraftMenuAction | null;
@@ -207,29 +214,12 @@ function DraftMenuRow({
 	label: string;
 	testId: string;
 }) {
-	if (!action.visible) return null;
-	const Icon = icon === 'edit' ? PencilLine : Trash2;
-	return (
-		<span className="flex flex-col items-start gap-0.5">
-			<Button
-				variant="outline"
-				size="sm"
-				className="h-8 shrink-0 gap-1.5"
-				disabled={!action.enabled}
-				onClick={action.onSelect}
-				aria-label={action.enabled ? label : `${label} — ${action.reason}`}
-				data-testid={testId}
-			>
-				<Icon className="size-3.5" aria-hidden="true" />
-				{label}
-			</Button>
-			{action.enabled ? null : (
-				<span className="text-xs text-muted-foreground" data-testid={`${testId}-reason`}>
-					{action.reason}
-				</span>
-			)}
-		</span>
-	);
+	/* A2 C12 / ITEM 4 — the SHARED control. This was a second, private copy of the
+	 * markup the draft strip now renders for the same two actions; it is
+	 * `DraftActionButton`, so the two surfaces cannot drift on their variant, their
+	 * height, their icon, their disabled rule or the position of their visible
+	 * reason. */
+	return <DraftActionButton action={action} icon={icon} label={label} testId={testId} />;
 }
 
 /**

@@ -126,7 +126,13 @@ export function SimpleReadinessChip({
 			<Badge
 				variant="outline"
 				className={cn(
-					'h-6 min-w-0 shrink gap-1.5 truncate rounded-full px-2 text-xs font-semibold sm:h-6 sm:shrink-0 sm:gap-1.5 sm:px-2',
+					/* A2 C12 / ITEM 1 — `sm:shrink-0` is what stopped this chip's own
+					 * `truncate` from ever biting: a `shrink-0` flex item is given its
+					 * full content width, so the longest label on the header could never
+					 * ellipsize. It is `sm:shrink` from `sm` up, so at 1366 px the chip
+					 * gives up width instead of pushing `Publish schedule` or `More` onto
+					 * a second line. `shrink-0` below `sm` is unchanged. */
+					'h-6 min-w-0 shrink gap-1.5 truncate rounded-full px-2 text-xs font-semibold sm:h-6 sm:shrink sm:gap-1.5 sm:px-2',
 					'border-2 border-amber-600/70 bg-amber-50 text-amber-900',
 				)}
 				data-testid="timetable-simple-readiness-chip"
@@ -152,7 +158,10 @@ export function SimpleReadinessChip({
 		<Badge
 			variant={state === 'clear' ? 'secondary' : 'outline'}
 			className={cn(
-				'h-6 min-w-0 shrink gap-1.5 truncate px-2 text-xs font-semibold sm:h-6 sm:shrink-0 sm:gap-1.5 sm:px-2',
+				/* A2 C12 / ITEM 1 — same reason as the blocked chip above: `sm:shrink-0`
+				 * made this badge's `truncate` unreachable, so the longest neutral label
+				 * could not give up width at 1366 px. */
+				'h-6 min-w-0 shrink gap-1.5 truncate px-2 text-xs font-semibold sm:h-6 sm:shrink sm:gap-1.5 sm:px-2',
 				state === 'blockers' && 'border-destructive/40 bg-destructive/10 text-destructive',
 				state === 'outstanding' && 'border-border bg-muted text-foreground',
 			)}
