@@ -177,36 +177,55 @@ export default function MapEditor() {
 
 	if (mode === 'overview') {
 		return (
-			<>
-				{/* A3-C1 S-a — the overview sub-view's page title now comes from
-				    CampusMapOverview's own canonical PageHeader, so this branch adds
-				    nothing; adding one here would have produced two h1 elements. */}
-				<div className="fixed right-6 top-32 z-30">
-					<SmartHelpTrigger
-						title="How to review rooms"
-						description="Start with room readiness before opening the map editor."
-						steps={[
-							{ title: 'Review readiness first', body: 'The readiness list shows which rooms need capacity, type, or section review.', target: 'Room readiness' },
-							{ title: 'Open a building only when needed', body: 'Use the map to inspect a building after you know what needs attention.', target: 'Campus map' },
-							{ title: 'Check schedules after generation', body: 'Room schedule overlays appear only after a current timetable exists.', target: 'Schedule overlay' },
-							{ title: 'Edit only for setup corrections', body: 'Use Edit map when room or building setup needs to change.', target: 'Edit map' },
-						]}
-					/>
-				</div>
-				<ModeToggle mode={mode} onChange={(next) => {
-					const next2 = new URLSearchParams(searchParams);
-					if (next === 'overview') next2.delete('mode'); else next2.set('mode', 'editor');
-					setSearchParams(next2);
-				}} />
-				<CampusMapOverview buildings={buildings} campusImageUrl={campusImageUrl} />
-			</>
+			// A3 c11 fix 37 — the floating overlay cluster is GONE. The operator:
+			// "Completely remove the floating cluster containing the `Overview`,
+			// `Edit map`, and `Help` buttons from this view. Eliminate the
+			// absolute/fixed positioning wrapper causing them to hover over the
+			// top-right corner." Both were `fixed right-6` overlays pinned over the
+			// page: the `ModeToggle` (which rendered `fixed right-6 top-20`) and
+			// the `SmartHelpTrigger` (`fixed right-6 top-32`).
+			//
+			// Nothing is lost: the overview's own header now carries the single
+			// `Edit maps` action that leads to the editor, and the editor keeps its
+			// INLINE `ModeToggle` plus its inline help trigger, so the round trip
+			// between the two views is still one click in each direction — it is
+			// simply not painted over the page any more.
+			<CampusMapOverview buildings={buildings} campusImageUrl={campusImageUrl} />
 		);
 	}
 
 	return (
+		// A3 c11 fix 36 — the operator's word was CONTAINED: "The rightmost
+		// building cards are visibly clipped beneath the inspector rather than
+		// contained in an auto-grown/full workspace canvas." Two things had to be
+		// true, and only together do they hold.
+		//
+		//   This column is the page's ONE bounded scroll region (AGENTS.md §8
+		//   shape, as on `CampusMapOverview.tsx`): a `role="region"` with a name
+		//   and `tabIndex={0}`, so it is reachable by keyboard and assistive tech
+		//   as well as by wheel. Nothing can be painted outside the visible canvas
+		//   now, because anything larger than the column SCROLLS here.
+		//
+		//   And the stage is sized from this column's MEASURED box
+		//   (`campusEditorCanvas.ts` carries the arithmetic). The old fixed 920px
+		//   minimum is gone: at 1366px with the sidebar open this column is
+		//   1366 - 256 (`ui/sidebar.tsx` SIDEBAR_WIDTH) - 352 (`w-88`) - 32
+		//   (`p-4`) = 726px, and a 920px stage inside it was the operator's 194px
+		//   clip, unchanged. The stage is now 726 and needs no scroll at all.
+		//
+		// The page root keeps `h-[calc(100svh-3.5rem)] overflow-hidden`, so no
+		// global browser scrollbar is ever spawned.
 		<div className="flex h-[calc(100svh-3.5rem)] overflow-hidden bg-primary/5">
-			{/* Canvas area */}
-			<div className="flex-1 min-w-0 overflow-hidden p-4">
+			{/* Canvas area — the one bounded, named, keyboard-reachable scroll
+			    region. `relative` makes this the canvas host's `offsetParent`, so
+			    the work-area arithmetic measures a real layout box. */}
+			<div
+				data-campus-map-canvas-region=""
+				role="region"
+				aria-label="Campus map canvas"
+				tabIndex={0}
+				className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-auto p-4 scrollbar-thin"
+			>
 				<div className="mb-3 flex items-center justify-between gap-3">
 					<PageHeader title='Campus map editor' eyebrow='Scheduling Portal' className="min-w-0 flex-1" />
 					<div className="flex items-center gap-2">
@@ -220,7 +239,7 @@ export default function MapEditor() {
 								{ title: 'Return to overview', body: 'Use Overview when you only need readiness or schedule information.', target: 'Overview' },
 							]}
 						/>
-						<ModeToggle mode={mode} inline onChange={(next) => {
+						<ModeToggle mode={mode} onChange={(next) => {
 							const next2 = new URLSearchParams(searchParams);
 							if (next === 'overview') next2.delete('mode'); else next2.set('mode', 'editor');
 							setSearchParams(next2);
@@ -277,18 +296,21 @@ export default function MapEditor() {
 	);
 }
 
+/**
+ * A3 c11 fix 37 — the `fixed right-6 top-20` overlay variant is REMOVED, not
+ * merely unused: the operator asked for the floating cluster to be eliminated
+ * "and [for] the absolute/fixed positioning wrapper [to be] eliminat[ed]", and a
+ * retained `inline = false` branch is exactly the kind of thing that comes back.
+ * The editor view passes `inline`, which is now the only shape.
+ */
 function ModeToggle({
 	mode,
 	onChange,
-	inline = false,
 }: {
 	mode: 'overview' | 'editor';
 	onChange: (next: 'overview' | 'editor') => void;
-	inline?: boolean;
 }) {
-	const wrapperClass = inline
-		? 'inline-flex rounded-md border border-border bg-card p-0.5'
-		: 'fixed right-6 top-20 z-30 inline-flex rounded-md border border-border bg-card p-0.5 shadow-sm';
+	const wrapperClass = 'inline-flex rounded-md border border-border bg-card p-0.5';
 	return (
 		<TooltipProvider>
 			<div className={wrapperClass} role="tablist" aria-label="Campus map mode">

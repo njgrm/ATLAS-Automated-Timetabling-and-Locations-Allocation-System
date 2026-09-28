@@ -117,7 +117,12 @@ const getUtilizationColor = roomUtilizationColor;
 
 export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOverviewProps) {
 	const [activeView, setActiveView] = useState<'map' | 'building'>('map');
-	const [showExplorer, setShowExplorer] = useState(false);
+	// A3 c11 fix 37 — `showExplorer` is GONE. The operator's request is "Remove
+	// the `[Open map]` / `[Hide map]` button … Remove the collapsible state logic
+	// that hides or toggles the campus map", and the live audit recorded the
+	// consequence: "the interactive map (`Campus Explorer`) is currently hidden
+	// behind an `[Open map]` button, pushing the primary visual layout below a
+	// large list of rooms."
 	const [selectedId, setSelectedId] = useState<number | null>(null);
 	const [focusedRoomId, setFocusedRoomId] = useState<number | null>(null);
 	const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
@@ -375,7 +380,10 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 			<div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-3 lg:px-5">
 				<PageHeader
 					title='Campus & Rooms'
-					subtitle='Check room readiness first. Open the map only when you need room details.'
+					// A3 c11 fix 37 — the operator's replacement sentence, and the
+					// direction the page now actually has: the map is on top, so the
+					// copy points at the map first and the readiness card second.
+					subtitle='Select a building on the map to inspect rooms, or review room readiness below.'
 					source={(
 						<>
 							<Badge
@@ -390,39 +398,25 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 							</Badge>
 						</>
 					)}
+					// A3 c11 fix 37 — ONE action in the header, and it is the editor.
+					// The operator: "The top-right header action row should cleanly
+					// contain only the primary action button: `[Edit maps]`". The
+					// `secondaryActions` slot that carried `Open map` is not passed at
+					// all, so there is no second control left to render.
 					primaryAction={(
 						<Button asChild size="sm" className="h-9 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-primary-glow hover:bg-primary/90">
 							<Link to="/map?mode=editor">
 								<Pencil className="size-4" />
-								Edit rooms
+								Edit maps
 							</Link>
-						</Button>
-					)}
-					secondaryActions={(
-						<Button type="button" variant="outline" size="sm" className="h-9 gap-2 font-bold" onClick={() => setShowExplorer((value) => !value)}>
-							<MapPinned className="size-4" />
-							{showExplorer ? 'Hide map' : 'Open map'}
 						</Button>
 					)}
 					className="shrink-0"
 				/>
 
-				<RoomReadinessList buildings={buildings} roomOccupancy={scheduleReport ? roomScheduleIndicators.occupancy : undefined} />
-
-				{!showExplorer ? (
-					<Card className="rounded-2xl border-0 bg-white p-0 shadow-soft">
-						<CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-							<div className="min-w-0">
-								<p className="text-sm font-bold text-foreground">Map is available when needed</p>
-								<p className="mt-1 text-xs leading-relaxed text-muted-foreground">Most scheduling setup starts with readiness above. Open the map when you need to inspect a building or room.</p>
-							</div>
-							<Button type="button" variant="outline" className="h-10 shrink-0 gap-2 font-bold" onClick={() => setShowExplorer(true)}>
-								<MapPinned className="size-4" />
-								Show campus explorer
-							</Button>
-						</CardContent>
-					</Card>
-				) : (
+				{/* A3 c11 fix 37 — MAP FIRST. The explorer section renders
+				    unconditionally, directly beneath the page header, exactly where
+				    the operator asked for it, and the readiness card moves BELOW it. */}
 				<section className="grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(380px,0.5fr)]">
 					{/* Campus Map & Rooms Card */}
 					<Card className="overflow-hidden rounded-2xl border-0 bg-white p-0 shadow-soft-xl">
@@ -755,7 +749,14 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 						) : null}
 					</div>
 				</section>
-				)}
+
+				{/* A3 c11 fix 37 — READINESS BELOW. The operator inverted the page:
+				    "Bottom Section: Render the `Room readiness` card container
+				    directly underneath the `Campus Explorer` section." */}
+				<RoomReadinessList
+					buildings={buildings}
+					roomOccupancy={scheduleReport ? roomScheduleIndicators.occupancy : undefined}
+				/>
 			</div>
 			
 			<RoomScheduleOverlay
