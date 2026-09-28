@@ -110,6 +110,13 @@ function operatorText(host: HTMLElement): string {
 	return (clone.textContent ?? '').replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * The triggers inside ONE host element. Superseded by `allTriggers()` for the A1
+ * rows in A5 C4: a filter behind the `More filters` disclosure is portalled to
+ * `document.body`, so a host-scoped query can no longer see all five. Kept, not
+ * deleted, because it is the honest expression of "the triggers this host owns" and
+ * the superseded assertion is quoted in the A1b comment.
+ */
 function comboboxes(host: HTMLElement): HTMLElement[] {
 	return Array.from(host.querySelectorAll('[role="combobox"]')) as HTMLElement[];
 }
@@ -214,46 +221,142 @@ function toolbarFor(overrides: Record<string, unknown> = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// A1 — the five filters name themselves, in one even box, at the search height
+// A1 — the filters name themselves, in one even box, at the search height
+//
+// A5 C4, RE-POINTED (2026-09-29). Both A1 rows used to render the toolbar
+// CLOSED and assert on all five triggers at once. Three of them — Status, Room and
+// Term — now sit behind the ONE `More filters` disclosure on the packet's finding
+// ("Keep Grade and Program visible and put the other filters under 'More
+// filters'"), so a closed render can only ever see two.
+//
+// The properties these rows exist for are UNCHANGED and are now asserted over ALL
+// FIVE, with the disclosure open, because §8's "one look per control" is decided by
+// a control's LOOK and not by which row it happens to sit in:
+//   - every trigger shows its own name and a short value, and keeps its long
+//     accessible name (A1a);
+//   - every trigger is ONE even width at the shared `h-9` height (A1b).
+// That is a stronger gate than the two it replaces: the three hidden filters are now
+// proven to look identical to the two visible ones, which the old closed render
+// could not check. The two controls that stayed in the row are additionally
+// asserted to be exactly two, so the subtraction cannot silently reverse.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Real pointer sequence, the way a mouse opens a control. */
+async function press(target: Element | null): Promise<void> {
+	assert.ok(target, 'the element to press is not in the document');
+	await act(async () => {
+		const t = target as Element;
+		const init = { bubbles: true, cancelable: true, button: 0 };
+		t.dispatchEvent(new dom.window.MouseEvent('pointerdown', init));
+		t.dispatchEvent(new dom.window.MouseEvent('pointerup', init));
+		t.dispatchEvent(new dom.window.MouseEvent('click', init));
+	});
+	await act(async () => { await Promise.resolve(); });
+}
+
+/** Every `role=combobox` currently rendered, wherever the filter lives. */
+function allTriggers(): HTMLElement[] {
+	return Array.from(document.body.querySelectorAll('[role="combobox"]')) as HTMLElement[];
+}
+
+/**
+ * Open the ONE `More filters` disclosure, idempotently — it is a toggle, so a bare
+ * click in a sequence would close it again and the filters under test would vanish.
+ */
+async function openMoreFilters(): Promise<void> {
+	if (document.body.querySelector('[data-testid="subjects-status-filter"]') !== null) return;
+	await press(document.body.querySelector('[data-testid="subjects-more-filters"]'));
+	assert.ok(
+		document.body.querySelector('[data-testid="subjects-status-filter"]'),
+		'clicking `More filters` did not reveal the refinement filters',
+	);
+}
+
+/**
+ * `snapshot`, plus an INTERACTION before the read.
+ *
+ * The harness rule at the top of this file is that every assertion runs AFTER the
+ * tree is unmounted, because a throw while React is still mounted leaves the runner
+ * unable to reach an idle event loop. Opening a disclosure has to happen while the
+ * tree IS mounted, so the interaction lives here rather than in the caller's test
+ * body, and `read` still only ever returns plain data.
+ */
+async function interactiveSnapshot<T>(
+	node: React.ReactNode,
+	interact: () => Promise<void>,
+	read: (host: HTMLElement) => T,
+): Promise<T> {
+	const host = document.createElement('div');
+	document.body.appendChild(host);
+	const root: Root = createRoot(host);
+	await act(async () => { root.render(node); });
+	let value: T;
+	try {
+		await interact();
+		value = read(host);
+	} finally {
+		await act(async () => { root.unmount(); });
+		host.remove();
+	}
+	return value;
+}
+
 test('A5-C3-A1a: every trigger shows its own name and a short value, and the accessible name stays long', async () => {
-	const seen = await snapshot(toolbarFor(), (host) => comboboxes(host).map((t) => ({
+	// RED ON BASE at the disclosure step: there is no `subjects-more-filters` to
+	// press, so the two visible and the three hidden cannot both be read.
+	const seen = await interactiveSnapshot(toolbarFor(), openMoreFilters, () => allTriggers().map((t) => ({
 		visible: (t.textContent ?? '').replace(/\s+/g, ' ').trim(),
 		aria: t.getAttribute('aria-label'),
 	})));
-	assert.equal(seen.length, 5, 'the filter cluster lost or gained a control');
 	/* The operator's own defect: "two filters read only `All...` … nobody can tell what they
 	 * filter." A trigger whose visible text does not contain its own name is that defect. */
 	/* A5 C3 R3 §1: the VISIBLE face is the operator's `{ShortName}: {ShortValue}` — the
 	 * fixed rectangle holds one word, not a phrase. The full labels live in the popover and
 	 * the accessible name, which a screen reader reads with no width limit. */
 	const expected = [
-		{ visible: 'Status: All', aria: 'Filter by subject status: All statuses' },
 		{ visible: 'Grade: All', aria: 'Filter by grade level: All grades' },
 		{ visible: 'Program: All', aria: 'Filter by program scope: All programs' },
+		{ visible: 'Status: All', aria: 'Filter by subject status: All statuses' },
 		{ visible: 'Room: All', aria: 'Filter by room type: All room types' },
 		{ visible: 'Term: All', aria: 'Filter by rotation term: All terms' },
 	];
-	seen.forEach((trigger, index) => {
-		assert.equal(trigger.visible, expected[index].visible, `filter ${index} does not show its own name and a short value`);
-		assert.equal(trigger.aria, expected[index].aria, `filter ${index}: the accessible name lost its long form`);
-		assert.doesNotMatch(trigger.visible, /^All\b/, `filter ${index} still opens with a bare "All…"`);
-		assert.match(trigger.aria, /^Filter by /, `filter ${index} lost its long accessible name`);
-	});
+	assert.equal(seen.length, 5, 'the filter set lost or gained a control');
+	for (const { visible, aria } of seen) {
+		const want = expected.find((e) => e.aria === aria);
+		assert.ok(want, `a trigger lost its long accessible name: ${aria}`);
+		assert.equal(visible, want.visible, `${aria} does not show its own name and a short value`);
+		assert.doesNotMatch(visible, /^All\b/, `${aria} still opens with a bare "All…"`);
+		// A trigger with NO accessible name is the defect this row exists for, so
+		// the null is rejected here rather than handed to `assert.match`.
+		assert.ok(aria, 'a filter trigger has no accessible name at all');
+		assert.match(aria as string, /^Filter by /, `${aria} lost its long accessible name`);
+	}
+	// AND the two the row keeps are exactly the two the packet kept there, so the
+	// subtraction cannot silently reverse while this row still passes.
+	const inRow = await snapshot(toolbarFor(), (host) =>
+		host.querySelectorAll('[data-testid="subjects-filter-cluster"] [role="combobox"]').length,
+	);
+	assert.equal(inRow, 2, `expected 2 directly-visible filters, found ${inRow}`);
 });
 
 test('A5-C3-A1b: the five triggers are ONE even width, and the search input shares the height token (R1 J3)', async () => {
-	const seen = await snapshot(toolbarFor(), (host) => {
-		const triggers = comboboxes(host);
+	// A5 C4, RE-POINTED: the three filters behind the disclosure are read too, so
+	// the "one look per control" claim covers all five rather than the two the row
+	// happens to show. Superseded verbatim:
+	//   const triggers = comboboxes(host);   // the CLOSED toolbar's two triggers
+	//   assert.equal(<classes carrying h-9>.length, 5, ...)
+	const seen = await interactiveSnapshot(toolbarFor(), openMoreFilters, (host) => {
+		const triggers = allTriggers();
 		const search = host.querySelector('input[placeholder^="Search name"]') as HTMLElement | null;
 		return {
 			widths: triggers.map((t) => /(^|\s)(w-[\w-]+)/.exec(t.className)?.[2] ?? 'NONE'),
 			heights: triggers.map((t) => /(^|\s)(h-[\w-]+)/.exec(t.className)?.[2] ?? 'NONE'),
 			classes: triggers.map((t) => t.className),
+			withSharedHeight: triggers.filter((t) => /(^|\s)h-9(?:\s|$)/.test(t.className)).length,
 			searchClass: search?.className ?? 'NO_SEARCH_INPUT',
 		};
 	});
+	assert.equal(seen.widths.length, 5, `expected 5 triggers, found ${seen.widths.length}`);
 	assert.equal(new Set(seen.widths).size, 1, `the five filters carry ${new Set(seen.widths).size} different widths: ${seen.widths.join(' | ')}`);
 	assert.match(seen.widths[0] ?? '', /^w-/, `a trigger has no real width class: ${seen.classes[0]}`);
 	/* Exactly one width class each, so the old `w-40 / w-24 / w-28 / w-36 / w-28` cannot come
@@ -270,7 +373,7 @@ test('A5-C3-A1b: the five triggers are ONE even width, and the search input shar
 		assert.equal(height, 'h-9', `trigger ${index} does not use the shared height token: ${seen.classes[index]}`);
 	});
 	assert.equal(
-		seen.classes.filter((c) => /(?:^|\s)h-9(?:\s|$)/.test(c)).length,
+		seen.withSharedHeight,
 		5,
 		'every trigger must carry the shared height, with no competing height left in the class list',
 	);

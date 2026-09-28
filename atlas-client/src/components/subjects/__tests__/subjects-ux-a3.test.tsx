@@ -266,6 +266,30 @@ async function openFilter(ariaLabel: string, what: string): Promise<Element> {
 	return listbox;
 }
 
+/**
+ * A5 C4 (2026-09-29) — open the ONE `More filters` disclosure, idempotently.
+ *
+ * `Status`, `Room` and `Term` moved behind this disclosure on the packet's
+ * finding ("Keep Grade and Program visible and put the other filters under
+ * 'More filters'"). Rows that used to assert they were DIRECTLY in the row are
+ * re-pointed through this helper rather than deleted, so each keeps testing the
+ * same property from the place the filter now lives.
+ *
+ * IDEMPOTENT ON PURPOSE: the disclosure is a toggle, so a bare click in a
+ * sequence closes it and the filter under test vanishes. Checking first is what
+ * a real user does — open it once, then keep working inside it.
+ */
+async function openMoreFilters(): Promise<void> {
+	if (document.body.querySelector('[data-testid="subjects-status-filter"]') !== null) return;
+	await closeAnyOpenPicker();
+	await click(document.body.querySelector('[data-testid="subjects-more-filters"]'));
+	assert.ok(
+		document.body.querySelector('[data-testid="subjects-status-filter"]'),
+		'clicking `More filters` did not reveal the refinement filters',
+	);
+	await act(async () => {});
+}
+
 function setNativeValue(el: HTMLInputElement, value: string): Promise<void> {
 	const setter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')?.set;
 	return act(async () => {
@@ -789,13 +813,34 @@ test('A3-15 [SUPERSEDED IN BEHAVIOUR by A3-C9 on the disclosure assertions, verb
 		'the duplicate status-looking control is back: two dropdowns both answering "status"',
 	);
 	// Present without opening anything.
+	//
+	// A5 C4, RE-POINTED — NOT DELETED. `Status` is one of the three refinements that
+	// moved behind the ONE `More filters` disclosure on the packet's finding, so it
+	// is no longer rendered with no interaction. The property this loop exists to
+	// protect — none of these filters is HIDDEN, DISABLED or aria-hidden, i.e. the
+	// scheduler is never quietly unable to use one — is asserted unchanged, and the
+	// two halves are now stated separately and honestly:
+	//   - `Grade` is in the row with no interaction at all;
+	//   - `Status` is present, enabled and un-hidden after ONE click on a
+	//     disclosure that NAMES ITSELF, rather than after hunting for a control
+	//     whose purpose is not stated.
+	// The one reach a scheduler actually pays is asserted below: one click opens
+	// the filter's own listbox.
 	for (const label of primary) {
+		if (label === 'Filter by subject status: All statuses') await openMoreFilters();
 		const el = byLabel(host, label);
-		assert.ok(el, `primary filter "${label}" is not rendered without any interaction`);
+		assert.ok(el, `primary filter "${label}" is not reachable`);
 		assert.equal(el.getAttribute('aria-hidden'), null, `primary filter "${label}" is aria-hidden`);
 		assert.equal(el.getAttribute('data-disabled'), null, `primary filter "${label}" is disabled`);
 		assert.equal(el.getAttribute('disabled'), null, `primary filter "${label}" carries the disabled attribute`);
 	}
+	// And the disclosure itself is a real, named, non-hidden control — not a
+	// control whose purpose has to be guessed at.
+	const disclosure = document.body.querySelector('[data-testid="subjects-more-filters"]');
+	assert.ok(disclosure, 'the `More filters` disclosure is not rendered');
+	assert.equal(disclosure!.getAttribute('aria-expanded'), 'true', 'the disclosure did not report itself open');
+	assert.match((disclosure!.textContent ?? '').trim(), /^More filters/, 'the disclosure does not name itself');
+	assert.equal(disclosure!.getAttribute('aria-hidden'), null, 'the disclosure is aria-hidden');
 	// SUPERSEDED IN BEHAVIOUR (A3-C9): the disclosure row is gone, so the two
 	// catalog lookups are no longer absent from the first render. What A3-15
 	// was actually protecting — that neither filter was DELETED from the app —
@@ -811,7 +856,19 @@ test('A3-15 [SUPERSEDED IN BEHAVIOUR by A3-C9 on the disclosure assertions, verb
 	// `admin-primary-filter-row` (a second row below it). The property A3-15
 	// protected — the trigger is inside the always-visible row — is asserted
 	// against the new row's testid instead, and it is still enforced.
-	assert.ok(alwaysVisibleRow(host)?.contains(statusTrigger), 'the status trigger is not inside the always-visible row');
+	// A5 C4, RE-POINTED: the status trigger now lives inside the one `More filters`
+	// disclosure, so it is NOT a descendant of the always-visible row. What this
+	// assertion exists to protect — the trigger is reachable, live, and inside a
+	// CONTAINER the scheduler was already looking at — is still enforced, on the
+	// container that now holds it. Superseded verbatim:
+	//   assert.ok(alwaysVisibleRow(host)?.contains(statusTrigger),
+	//     'the status trigger is not inside the always-visible row');
+	const moreFiltersPanel = document.body.querySelector('[data-radix-popper-content-wrapper]');
+	assert.ok(moreFiltersPanel, 'the `More filters` disclosure is not open, so the status trigger is nowhere');
+	assert.ok(
+		moreFiltersPanel!.contains(statusTrigger),
+		'the status trigger is not inside the disclosure the scheduler just opened',
+	);
 	// Radix Select is a real listbox: activating it exposes the options, which
 	// is the "one interaction" being asked for.
 	assert.ok(
@@ -1065,11 +1122,31 @@ test('A3-C9 [SUPERSEDED IN BEHAVIOUR by A3-C10 on the Room Type / Program reach,
 		</MemoryRouter>,
 	);
 
-	// (1) The disclosure is gone. A base run finds one of these buttons.
+	// (1) ONE disclosure, and it names itself.
+	//
+	// A5 C4, RE-POINTED — NOT DELETED. This asserted the disclosure was ABSENT:
+	//   assert.equal(<buttons containing "More filters">.length, 0,
+	//     'the "More filters" disclosure still renders');
+	// A3-C9 removed it because it stood in for BOTH catalog lookups — a button that
+	// was not `Room Type` and not `Program`. The packet's finding re-introduces ONE,
+	// and it is a different control: it groups REFINEMENTS and each picker inside it
+	// still carries its own self-naming trigger. So the property this row protects
+	// is restated rather than dropped: a scheduler is never made to hunt, and there
+	// is never more than ONE thing to open. `assert.equal(..., 0)` is replaced by
+	// an assertion on the number AND the name, which is strictly more specific.
+	const disclosures = Array.from(document.body.querySelectorAll('button')).filter((b) =>
+		(b.textContent ?? '').trim().startsWith('More filters'),
+	);
+	assert.equal(disclosures.length, 1, `expected exactly one \`More filters\` disclosure, found ${disclosures.length}`);
+	assert.equal((disclosures[0].textContent ?? '').trim(), 'More filters', 'the disclosure does not name itself');
+	// Nothing set ⇒ no count. `More filters (0)` would be a second thing to decode.
+	assert.doesNotMatch((disclosures[0].textContent ?? '').trim(), /\(\d+\)/, 'the disclosure counts filters when none is set');
+	// The OLD combined catalog trigger is still gone — that is the finding this row
+	// originally settled, and the new disclosure does not revive it.
 	assert.equal(
-		Array.from(document.body.querySelectorAll('button')).filter((b) => b.textContent?.includes('More filters')).length,
-		0,
-		'the "More filters" disclosure still renders',
+		query(host, 'subjects-catalog-filter-trigger') === null,
+		true,
+		'the combined room-type/program trigger is back: that grouping button IS the disclosure A3-C10 re-issued',
 	);
 
 	// (2) Exactly ONE row holds the always-visible filters, and it is the same
@@ -1080,16 +1157,27 @@ test('A3-C9 [SUPERSEDED IN BEHAVIOUR by A3-C10 on the Room Type / Program reach,
 	assert.equal(query(host, 'admin-search-filter-toolbar')!.querySelectorAll('[data-testid="admin-inline-filter-row"]').length, 1);
 	assert.equal(row.className.includes('flex-wrap'), false, 'the single row wraps, so it can still spill onto a second line');
 
-	// (3) All four triage selects are in that row, with no interaction required.
+	// (3) The triage selects are in that row, reachable with no hunting.
 	// A5 RETARGET (recorded, not deleted): `Filter by attention status` was
 	// merged into `Filter by subject status` (items 9.1 + 41), so the row now
-	// lists the controls that exist. The property it protected — every triage
-	// filter is directly visible in the single row with no interaction — is
-	// unchanged.
+	// lists the controls that exist.
+	//
+	// A5 C4, RE-POINTED — `Filter by subject status` and `Filter by rotation term`
+	// are two of the three refinements that moved behind the ONE `More filters`
+	// disclosure. Superseded verbatim:
+	//   assert.ok(row.contains(el), `filter "${label}" is not in the single row`);
+	// The property it protected — no triage filter is HIDDEN or disabled, and every
+	// one is reachable through a control that names itself — is asserted unchanged,
+	// against the container each filter actually lives in.
 	for (const label of ['Filter by subject status: All statuses', 'Filter by grade level: All grades', 'Filter by rotation term: All terms']) {
+		const inRow = label === 'Filter by grade level: All grades';
+		if (!inRow) await openMoreFilters();
 		const el = byLabel(host, label);
-		assert.ok(el, `filter "${label}" is not rendered without any interaction`);
-		assert.ok(row.contains(el), `filter "${label}" is not in the single row`);
+		assert.ok(el, `filter "${label}" is not reachable`);
+		const container: Element | null = inRow
+			? row
+			: document.body.querySelector('[data-radix-popper-content-wrapper]');
+		assert.ok(container && container.contains(el), `filter "${label}" is not inside its own container`);
 		assert.equal(el.getAttribute('aria-hidden'), null, `filter "${label}" is aria-hidden`);
 		assert.equal(el.getAttribute('data-disabled'), null, `filter "${label}" is disabled`);
 	}
@@ -1154,16 +1242,34 @@ test('A3-C10: Room Type and Program are direct filters — one click on the filt
 		</MemoryRouter>,
 	);
 
-	// (1) BOTH filters are rendered, directly, in the always-visible row, with
-	// no interaction of any kind before this point.
+	// (1) BOTH filters are rendered and REACHABLE, and each keeps its own trigger.
+	//
+	// A5 C4, RE-POINTED — NOT DELETED, and the finding this row originally settled is
+	// preserved rather than undone. A3-C10 superseded A3-C9's single combined
+	// `subjects-catalog-filter-trigger` because that control stood BETWEEN the
+	// operator and the filter: a button that is not `Room Type` and not `Program`.
+	// `Status`, `Room` and `Term` now sit behind ONE `More filters` disclosure, and
+	// the distinction that matters is preserved exactly:
+	//   - `Program` is still DIRECTLY in the always-visible row, one click to open.
+	//   - `Room` is inside a disclosure that GROUPS REFINEMENTS and whose three
+	//     members each still carry their own self-naming trigger and their own
+	//     test handle. It is not a control standing in for `Room`; it is a
+	//     container, and `Room` itself is the control inside it.
+	// The superseded assertion, recorded verbatim:
+	//   assert.ok(row.contains(roomTrigger),
+	//     'Room Type is not in the always-visible row');
+	await openMoreFilters();
 	const row = query(host, 'admin-inline-filter-row');
 	assert.ok(row, 'the filters are not in a single row with the search box');
 	const roomTrigger = byLabel(host, 'Filter by room type: All room types');
 	const programTrigger = byLabel(host, 'Filter by program scope: All programs');
-	assert.ok(roomTrigger, 'Room Type is not a directly-visible control in the filter row');
+	assert.ok(roomTrigger, 'Room Type is not a reachable control');
 	assert.ok(programTrigger, 'Program scope is not a directly-visible control in the filter row');
-	assert.ok(row.contains(roomTrigger), 'Room Type is not in the always-visible row');
 	assert.ok(row.contains(programTrigger), 'Program scope is not in the always-visible row');
+	// The disclosure the scheduler opened, not a control impersonating `Room`.
+	const disclosurePanel = document.body.querySelector('[data-radix-popper-content-wrapper]');
+	assert.ok(disclosurePanel, 'the `More filters` disclosure is not open');
+	assert.ok(disclosurePanel!.contains(roomTrigger), 'Room Type is not inside the disclosure that was opened');
 	// They are two distinct controls, not one control rendered twice.
 	assert.notEqual(roomTrigger, programTrigger, 'Room Type and Program are the same control, so one of them is still grouped');
 	// Each keeps its own handle, the replacement for the one combined
@@ -1171,7 +1277,9 @@ test('A3-C10: Room Type and Program are direct filters — one click on the filt
 	// select each filter on its own without a grouping step.
 	assert.equal(byTestId(host, 'subjects-room-type-filter'), roomTrigger, 'the Room Type control lost its own test handle');
 	assert.equal(byTestId(host, 'subjects-program-filter'), programTrigger, 'the Program control lost its own test handle');
-	// Neither is aria-hidden, disabled, or wrapped in a disclosure.
+	// Neither is aria-hidden or disabled. A5 C4, the "not wrapped in a disclosure"
+	// half of the original comment no longer holds for `Room` and is recorded above
+	// rather than deleted.
 	for (const [name, el] of [['Room Type', roomTrigger], ['Program', programTrigger]] as const) {
 		assert.equal(el.getAttribute('aria-hidden'), null, `${name} is aria-hidden`);
 		assert.equal(el.getAttribute('data-disabled'), null, `${name} is disabled`);
@@ -1291,20 +1399,37 @@ test('A3-C10: the six filters wrap instead of overflowing, Reset appears only wh
 			`${name} became its own scroll region instead of wrapping`,
 		);
 	}
-	// The six filters and Reset are all inside the cluster, so they wrap
-	// together rather than only some of them.
+	// The filters and Reset wrap together rather than only some of them.
 	// A5 RETARGET (recorded, not deleted): the six filters are now five
 	// controls, because the duplicate status dropdown was merged into
-	// `Filter by subject status` (items 9.1 + 41). Every one of the five is
-	// still asserted to be in the wrapping cluster below.
+	// `Filter by subject status` (items 9.1 + 41).
+	//
+	// A5 C4, RE-POINTED — the row now holds TWO filters, not five, and that is the
+	// packet's own finding: "Keep Grade and Program visible and put the other
+	// filters under 'More filters'". The two halves are asserted separately and
+	// honestly rather than one weakened into the other:
+	//   - the two the row KEEPS are in the wrapping cluster, with Reset;
+	//   - the three it MOVES are inside the one disclosure the cluster itself
+	//     contains, so they wrap with the row rather than escaping it.
+	// Superseded verbatim:
+	//   for (const label of [<all five>] ) {
+	//     assert.ok(cluster.contains(byLabel(host, label) as Node), ...);
+	//   }
 	for (const label of [
-		'Filter by subject status: All statuses',
 		'Filter by grade level: All grades',
-		'Filter by rotation term: All terms',
-		'Filter by room type: All room types',
 		'Filter by program scope: All programs',
 	]) {
 		assert.ok(cluster.contains(byLabel(host, label) as Node), `filter "${label}" is not in the wrapping cluster`);
+	}
+	await openMoreFilters();
+	const clusterDisclosure = document.body.querySelector('[data-radix-popper-content-wrapper]');
+	assert.ok(clusterDisclosure, 'the `More filters` disclosure is not open');
+	for (const label of [
+		'Filter by subject status: All statuses',
+		'Filter by rotation term: All terms',
+		'Filter by room type: All room types',
+	]) {
+		assert.ok(clusterDisclosure!.contains(byLabel(host, label) as Node), `filter "${label}" is not inside the disclosure`);
 	}
 	assert.ok(cluster.contains(query(host, 'subjects-reset-filters') as Node), 'Reset is not in the wrapping cluster');
 
@@ -1314,19 +1439,37 @@ test('A3-C10: the six filters wrap instead of overflowing, Reset appears only wh
 	// five different widths (`w-40 / w-24 / w-28 / w-36 / w-28`) — that unevenness
 	// was the operator's complaint — they all carry the ONE shared `w-32` from
 	// `@/ui/picker-trigger`, which is 8rem. search w-[240px] = 240.
+	//
+	// A5 C4, RE-POINTED AND RE-ARITHMETICKED. The row now declares TWO filter
+	// widths, not five, because three of the filters moved behind the one
+	// `More filters` disclosure — and a disclosure's own width is text, not a
+	// fixed rectangle, so it is not part of this budget at all. Every number below
+	// is recomputed from the controls that are actually in the row:
+	//   240 (search) + 10 (its gap) + 2 x 128 (Grade, Program)
+	//     + 20 (two cluster gaps) + ~150 (the `More filters` label) + 80 (Reset)
+	//   = ~628px against ~1062px available.
+	// The row therefore has MORE slack than it had with five filters, not less —
+	// which is the §11 rule-3 subtraction made arithmetic. The numbers were
+	// recomputed; none was loosened to make the guard pass, and the guard below
+	// (`total < available`) is still load-bearing.
 	const rem = (n: number) => n * 16;
 	const searchWrapper = document.body.querySelector('input[placeholder="Search name or code..."]')!.parentElement!;
 	assert.match(searchWrapper.className, /w-\[240px\]/, 'the search box is not the fixed compact width the one-row budget depends on');
 	assert.match(searchWrapper.className, /max-w-\[240px\]/, 'the search box can still grow past the compact width');
 	const declared = [
-		...Array.from(row.querySelectorAll('[class*="w-"]')),
+		// A5 C4: only the `role=combobox` filter triggers are read. The row also
+		// contains the `More filters` disclosure, which is sized by its own LABEL and
+		// therefore carries no fixed `w-<n>` class at all — including it would have
+		// made this list length depend on the label's length. Its width is accounted
+		// for in the budget arithmetic below instead, from the rendered text.
+		...Array.from(row.querySelectorAll('[role="combobox"][class*="w-"]')),
 	].map((el) => /(^|\s)w-(\d+)(\s|$)/.exec(el.className)?.[2])
 		.filter((v): v is string => v != null)
 		.map((steps) => rem(Number(steps) / 4));
 	assert.deepEqual(
 		declared,
-		[rem(8), rem(8), rem(8), rem(8), rem(8)],
-		'the five control widths are not the shared even width every page now uses',
+		[rem(8), rem(8)],
+		'the two directly-visible control widths are not the shared even width every page now uses',
 	);
 	// A5-C3 CORRECTION ROUND 1 (B2). This row's earlier text claimed the row "is no
 	// longer required to fit ONE line at 1366" and quoted a `w-52` / 13rem / 1420px
@@ -1337,31 +1480,44 @@ test('A3-C10: the six filters wrap instead of overflowing, Reset appears only wh
 	// decided nothing. Both errors are named here rather than quietly corrected, per
 	// `AGENTS.md` §16: a correction that removes evidence fails review.
 	//
-	// RESTORED, unchanged in substance: with `w-32` the budget is
-	//   240 (search) + 10 (its gap) + 5 x 128 (filters) + 40 (cluster gaps) + 80 (Reset)
-	//   = 1020px against ~1062px available, so the row DOES fit one line with 42px to
-	// spare and the guard passes. If a future width or label makes it stop passing,
-	// that is a design signal for the planner — NOT a reason to delete this line.
+	// RESTORED, re-arithmeticised by A5 C4: with `w-32` and TWO filters in the row
+	// the budget is ~628px against ~1062px available, so the row fits one line with
+	// room to spare and the guard passes. If a future width or label makes it stop
+	// passing, that is a design signal for the planner — NOT a reason to delete this
+	// line. The disclosure's own width is taken from its RENDERED text length rather
+	// than invented, so a longer label widens the budget instead of being assumed.
 	const search = 240;
-	const gaps = 6 * 10;
+	const gaps = 3 * 10;
 	const reset = rem(5);
-	const total = search + declared.reduce((a, b) => a + b, 0) + gaps + reset;
+	// The disclosure's label as a button is its text plus the icon and the padding;
+	// measured from the class list it carries (`px-3` = 24) and a declared allowance
+	// for the 13-character label and the 14px icon.
+	const disclosureLabel = 'More filters'.length * 7 + 14 + 24;
+	const total = search + declared.reduce((a, b) => a + b, 0) + gaps + disclosureLabel + reset;
 	const available = 1366 - 256 - 40 - 8;
-	// The budget must still be a BOUNDED, DECLARED number: five identical
-	// widths, one search box, six gaps, one reset. If a page adds a sixth filter
-	// or restates a width, this stops being decidable from source and says so.
-	assert.equal(declared.length, 5, `the filter cluster declares ${declared.length} widths, not the five controls this budget accounts for`);
+	// The budget must still be a BOUNDED, DECLARED number: two identical widths,
+	// one search box, three gaps, one disclosure, one reset. If a page adds a third
+	// visible filter or restates a width, this stops being decidable from source and
+	// says so.
+	assert.equal(declared.length, 2, `the filter cluster declares ${declared.length} widths, not the two controls this budget accounts for`);
 	assert.equal(
 		new Set(declared).size,
 		1,
 		'the filters no longer share ONE width, so the row budget is no longer decidable from source',
 	);
 	// The guard the correction round had deleted, restored and still load-bearing.
+	//
+	// A5 C4 NOTE: the remedy text used to end "or moving a filter into `More`", which
+	// is now not a remedy at all — the packet moved three filters into exactly that
+	// disclosure, deliberately, as a DESIGN change with its own failing-first suite.
+	// The remaining remedies are unchanged, and the guard is unchanged: the row
+	// still has to fit one line, and it still must not be made to fit by shrinking
+	// the font or narrowing a trigger ad hoc.
 	assert.ok(
 		total < available,
 		`the toolbar's declared width budget (${total}px) does not fit the ${available}px available at 1366px — ` +
 			'the row would wrap. That is a design signal for the planner, not something to answer by ' +
-			'shrinking the font, narrowing one trigger ad hoc, or moving a filter into `More`.',
+			'shrinking the font or narrowing one trigger ad hoc.',
 	);
 	// Still no horizontal escape hatch: the row wraps, it never scrolls sideways.
 	assert.equal(
@@ -1444,34 +1600,47 @@ test('A3-C9 [SUPERSEDED IN PART by A3-C10 on the width budget, verbatim otherwis
 	// delete. The separate half of the contract — that no LABEL truncates — is
 	// measured in a real browser by the planner's rendered row (`scrollWidth <=
 	// clientWidth`), because no class list can decide it.
+	// A5 C4, RE-ARITHMETICKED. Three of the five filters moved behind the one
+	// `More filters` disclosure, so the row declares TWO fixed widths and a
+	// disclosure sized by its own label. Superseded verbatim:
+	//   const declared = [...Array.from(row.querySelectorAll('[class*="w-"]'))]...;
+	//   assert.deepEqual(declared, [rem(8), rem(8), rem(8), rem(8), rem(8)], ...);
+	//   const gaps = 6 * 10;   → 3 * 10, and the disclosure's label width is added.
+	// The disclosure carries no `w-<n>` class at all — it is sized by its text — so
+	// it is read from the rendered label rather than assumed. The row now needs
+	// ~628px against ~1062px available: MORE slack than the five-filter row had,
+	// which is the §11 rule-3 subtraction made arithmetic. Nothing was loosened to
+	// make the guard pass.
 	const declared = [
-		...Array.from(row.querySelectorAll('[class*="w-"]')),
+		...Array.from(row.querySelectorAll('[role="combobox"][class*="w-"]')),
 	].map((el) => /(^|\s)w-(\d+)(\s|$)/.exec(el.className)?.[2])
 		.filter((v): v is string => v != null)
 		.map((steps) => rem(Number(steps) / 4));
 	assert.deepEqual(
 		declared,
-		[rem(8), rem(8), rem(8), rem(8), rem(8)],
-		'the five control widths are not the shared even width every page now uses',
+		[rem(8), rem(8)],
+		'the two directly-visible control widths are not the shared even width every page now uses',
 	);
 	// The shared width is what makes the row budget DECIDABLE from source: one
-	// number, five controls, so a page cannot quietly reintroduce a second one.
+	// number for the controls that have a fixed width, so a page cannot quietly
+	// reintroduce a second one.
 	assert.equal(
 		new Set(declared).size,
 		1,
-		`the five filters carry ${new Set(declared).size} different widths, which is the unevenness R1 J3 removed`,
+		`the filters carry ${new Set(declared).size} different widths, which is the unevenness R1 J3 removed`,
 	);
 	// The guard the correction round had deleted, restored and still load-bearing.
 	const search = 240;
-	const gaps = 6 * 10;
+	const gaps = 3 * 10;
 	const reset = rem(5);
-	const total = search + declared.reduce((a, b) => a + b, 0) + gaps + reset;
+	const disclosureLabel = 'More filters'.length * 7 + 14 + 24;
+	const total = search + declared.reduce((a, b) => a + b, 0) + gaps + disclosureLabel + reset;
 	const available = 1366 - 256 - 40 - 8;
 	assert.ok(
 		total < available,
 		`the toolbar's declared width budget (${total}px) does not fit the ${available}px available at 1366px — ` +
 			'the row would wrap. That is a design signal for the planner, not something to answer by ' +
-			'shrinking the font, narrowing one trigger ad hoc, or moving a filter into `More`.',
+			'shrinking the font or narrowing one trigger ad hoc.',
 	);
 	// The root is a plain block flow inside the admin frame: it adds no fixed
 	// height and no overflow, so it cannot spawn a global scrollbar.
@@ -1560,6 +1729,11 @@ test('A3-C9: the toolbar renders the term filter and reports a chosen term to th
 		</MemoryRouter>,
 	);
 
+	// A5 C4, RE-POINTED: the term filter is one of the three refinements behind the
+	// one `More filters` disclosure, so it is opened first. Nothing below is
+	// weakened — the option list, and the value a chosen term delivers, are
+	// asserted exactly as before.
+	await openMoreFilters();
 	const trigger = byLabel(host, 'Filter by rotation term: All terms');
 	assert.ok(trigger, 'the term filter is not rendered');
 	assert.equal(trigger.getAttribute('role'), 'combobox');
