@@ -429,11 +429,18 @@ export function buildCoverDriftModel(input: {
 	// when the server did not report one.
 	const remainingCount = Math.max(serverRemaining, named.overflowCount, Math.max(0, reported - named.names.length));
 	const scope = input.driftScope ? ` (${input.driftScope})` : '';
+	// The remainder belongs in the SENTENCE, not only on the model. S6 asks for
+	// "≤10 named, plus `and N more`", and a model field no surface renders is
+	// exactly the quiet truncation this packet exists to remove — so the overflow
+	// is folded into the same list `joinClassNames` already knows how to bound.
+	const listed = { names: named.names, overflowCount: remainingCount };
 	return {
 		headline: `Teaching Load changed while you were deciding${scope}.`,
 		changedLine: named.names.length > 0
-			? `These classes are no longer the ones you previewed: ${joinClassNames(named)}.`
-			: 'The classes you previewed are no longer the ones ATLAS would assign.',
+			? `These classes are no longer the ones you previewed: ${joinClassNames(listed)}.`
+			: remainingCount > 0
+				? `The ${remainingCount} ${remainingCount === 1 ? 'class' : 'classes'} you previewed are no longer the ones ATLAS would assign.`
+				: 'The classes you previewed are no longer the ones ATLAS would assign.',
 		remainingCount,
 		retryLabel: 'Review again',
 	};

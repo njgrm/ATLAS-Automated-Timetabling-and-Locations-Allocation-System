@@ -137,15 +137,8 @@ export default function TeachingLoad() {
 		setSuggestionApplying(false);
 	}, [data.scopeKey, resetForScope]);
 
-	/*
-	 * A6 c5 — the shortage derivations, moved out whole.
-	 *
-	 * `completedSectionIds` was a 24-line inline `useMemo` and is now a call to
-	 * the pure `buildCompletedSectionIds` in `teachingLoadWorkspaceMetrics.ts`.
-	 * The move changed no behaviour: it was already a function reading arguments
-	 * and returning a set. The c5 shortage, staffing-truth and cover wiring would
-	 * otherwise have taken this page past the AGENTS.md §8 1000-line cap.
-	 */
+	// A6 c5 — the derivations below moved to `teachingLoadWorkspaceMetrics.ts`
+	// (which records the extraction and its reason); the page decides WHEN.
 	const completedSectionIds = useMemo(
 		() => buildCompletedSectionIds({
 			sections: data.allKnownSections,
@@ -417,12 +410,8 @@ export default function TeachingLoad() {
 		toast.info('All Teaching Load draft changes discarded.');
 	}, [data]);
 
-	/*
-	 * A6: the five derivations below live in
-	 * `teachingLoadWorkspaceMetrics.ts`, which keeps this page under the AGENTS.md
-	 * §8 cap. Each was already pure behind a `useMemo` formality, so the
-	 * extraction adds no authority: the page still decides WHEN to recompute.
-	 */
+	// A6: the five derivations live in `teachingLoadWorkspaceMetrics.ts`, which
+	// records the extraction; the page still decides WHEN to recompute.
 	const resolveSectionHoverDeltaMinutes = useCallback((subject: Subject, sectionId: number) => {
 		return sectionHoverDeltaMinutesFor(
 			subject,
@@ -441,13 +430,10 @@ export default function TeachingLoad() {
 		return previewLoadHoursFor(ui.loadProfile, ui.hoveredIncomingMinutes);
 	}, [ui.loadProfile, ui.hoveredIncomingMinutes]);
 
-	// Canonical truth surface. Every value is derived from the server contracts;
-	// nothing here re-computes demand, policy, or qualification authority.
-	//
-	// A6 c5: this set is declared ABOVE the shortage hook because that hook
-	// takes it as a parameter. One derivation, two consumers — the truth panel's
-	// placeholder split and the header's shortage figure — so the two cannot
-	// answer "who is a to-be-hired record" differently.
+	// Canonical truth surface, derived from the server contracts. A6 c5: declared
+	// ABOVE the shortage hook, which takes it as a parameter — one derivation, two
+	// consumers, so the truth panel and the header cannot disagree about who is a
+	// to-be-hired record.
 	const placeholderFacultyIds = useMemo(
 		() => new Set(data.faculty.filter((member) => member.isPlaceholder).map((member) => member.id)),
 		[data.faculty],
@@ -457,14 +443,9 @@ export default function TeachingLoad() {
 		return buildCoverageHeadline(data.coverageTotals);
 	}, [data.coverageTotals]);
 
-	/*
-	 * A6 c5 §1/§2/§3 — the shortage, its two corrected figures and the cover
-	 * dialog's state, from ONE hook. It sits ABOVE the repair queue because the
-	 * queue needs `outage.isLive` to know whether the shortage line is claiming
-	 * row 2. `placeholderFacultyIds` is passed IN rather than re-derived: the
-	 * truth panel below builds that set from the saved roster, and a second
-	 * derivation would be a second answer to "who is a to-be-hired record".
-	 */
+	// A6 c5 §1/§2/§3 — the shortage, its two corrected figures and the cover
+	// dialog's state, from ONE hook. It sits ABOVE the repair queue, which needs
+	// `outage.isLive` to know whether the line is claiming row 2.
 	const outage = useTeachingLoadOutage({
 		subjects: data.subjects,
 		sections: data.allKnownSections,
@@ -484,11 +465,8 @@ export default function TeachingLoad() {
 	});
 	const { cover } = outage;
 
-	/*
-	 * A6 c5 §3 + S9 — the honest "still need a real teacher" figure, ON THE
-	 * PAGE. It used to live only in the summary modal's description; its count is
-	 * `placeholder + unowned`, because a to-be-hired record is not a teacher.
-	 */
+	// A6 c5 §3 + S9 — the honest "still need a real teacher" figure, ON THE PAGE.
+	// Count is `placeholder + unowned`: a to-be-hired record is not a teacher.
 	const stillNeedRealTeacherNote = useMemo(
 		() => teachingLoadShortageNote(
 			coverageHeadline.syntheticAssigned,
@@ -823,27 +801,22 @@ export default function TeachingLoad() {
 							</div>
 						)}
 
-					{/* A3-C10-S3: the canonical truth strip, the "Next step" repair queue
-						and the archived-load control were three `shrink-0` bands here
-						and are now one compact state line inside the command strip
-						(`headerStateLine` above). FIX 38 then took the truth panel
-						out of that line entirely and into the `Load summary` dialog,
-						so the roster starts under a header whose second row is two
-						summary chips and two actions.
-
-						A6 c5: the note below is the page's OWN reading of the
-						staffing figures, and it is the FIRST thing in the workspace
-						so a scheduler who never opens a dialog still meets the honest
-						"still need a real teacher" count. `hidden` on short
-						viewports matches the rollover card above it, so the workspace
-						never grows a third band on the small screens this page is
-						graded for. */}
+					{/* A6 c5: the note below is the page's OWN reading of the staffing
+						figures, first in the workspace so a scheduler who never opens a
+						dialog still meets the honest "still need a real teacher" count.
+						`hidden` on short viewports matches the rollover card above, so
+						the workspace never grows a third band. It is deliberately NOT
+						a `shrink-0` band: it is content that scrolls with the roster,
+						and `a3-c10` T4 requires the main column to carry exactly one
+						`shrink-0` band — the out-of-fence rollover wrapper. The truth
+						strip, the "Next step" repair queue and the archived-load
+						control moved into `headerStateLine` above (A3-C10-S3 / FIX 38). */}
 
 					{outage.staffingFigures.withoutRealTeacherCount > 0 && (
 						<p
 							data-testid="teaching-load-still-need-real-teacher"
 							data-staffed-percent={outage.staffingFigures.staffedPercent}
-							className="shrink-0 px-3 pt-1 text-xs font-semibold text-muted-foreground [@media(max-height:640px)]:hidden lg:px-5"
+							className="px-3 pt-1 text-xs font-semibold text-muted-foreground [@media(max-height:640px)]:hidden lg:px-5"
 						>
 							{stillNeedRealTeacherNote}
 						</p>

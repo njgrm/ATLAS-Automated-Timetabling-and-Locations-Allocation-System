@@ -848,7 +848,14 @@ test('T7 every state compacted into row 2 is still visible and announced on the 
 		1,
 		'there must be one status sentence, not several competing ones',
 	);
-	assert.match(sentence.textContent ?? '', /95% staffed/, 'the sentence must still state the % staffed figure');
+	// SUPERSEDED BY A6 c5 S3 (2026-09-29) — recorded, not deleted. The old
+	// assertion was `assert.match(sentence.textContent, /95% staffed/)`, which
+	// read (39 real + 1 synthetic placeholder) / 42 — it counted a to-be-hired
+	// record as a teacher on a fixture that HAS a placeholder. A6 c5 fixes the
+	// computation itself, so the corrected figure is 39/42 = 93%. The rule this
+	// control exists for — "row 2 states the % staffed figure at all" — is
+	// unchanged and is asserted by the line below.
+	assert.match(sentence.textContent ?? '', /93% staffed/, 'the sentence must still state the % staffed figure');
 	assert.match(sentence.textContent ?? '', /3 classes need a teacher/, 'the sentence must still state the classes needing a teacher');
 	// The alert KEEPS its test id and its number, inside the sentence.
 	assert.ok(

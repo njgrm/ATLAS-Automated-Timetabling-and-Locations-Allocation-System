@@ -72,18 +72,45 @@ action. The slot is untouched; only the shortage's own claim-bearing content mov
 
 ### GOES from row 2
 
-1. **The `alertChip` clause** (`· Temporary substitutes: 25`, and equally
-   `· Above weekly max: N` / `· Excess teaching load: N` *when* a shortage is
-   present). Rationale recorded honestly: the packet says the line "replaces the
-   `alertChip`". Read literally that would delete the over-cap count, which is the
-   one count that blocks generation outright — a regression I will not ship. The
-   adjudication this slice makes, written as a committed control rather than as
-   prose: the shortage line replaces the **placeholder** clause (the same fact restated
-   in a second vocabulary — AGENTS.md §8 "never two chips that say the same thing"),
-   and the over-cap and excess clauses survive **only when there is no shortage**,
-   because a generation blocker must never be the thing a subtraction deletes.
-   A6 c4's `A6c4-G2-1`–`G2-3` rows and the `data-alert-key` / `data-testid`
-   contracts are untouched and still assert the alert in the no-shortage state.
+1. **The `alertChip` clause** — the whole clause, `· Temporary substitutes: 25`
+   and equally `· Above weekly max: N` / `· Excess teaching load: N`. Rationale
+   recorded honestly: the packet says the line "replaces the `alertChip`".
+
+   **AMENDED 2026-09-29 (A6 c5, the over-cap resolution). The prior wording of
+   this item said the over-cap and excess clauses "survive only when there is no
+   shortage", which described the clause as still being rendered. That was
+   imprecise about WHERE the fact lives, and imprecision here is how a blocker
+   disappears between two screens. The precise adjudication, measured and
+   committed:**
+
+   - The `alertChip` is **replaced by two things at once**: the shortage line
+     (which carries the placeholder/`Temporary substitutes: 25` clause's own
+     fact) **and the repair queue's `over-cap` item**, which stays on row 2
+     inside `stateLineSlot` and is unaffected by this slice.
+   - So **`Above weekly max: N` now lives in the repair queue, named once**:
+     `Alcantara, Roberto is over the weekly max · 32.0h used / 30h max`, with a
+     `Move classes` action. It is stated **exactly once**, not twice in two
+     vocabularies — which is §8's actual rule ("one status per fact", "never two
+     chips that say the same thing"), and a strict improvement on the
+     chip-plus-queue pair it replaces. One status per fact, never zero.
+   - **Measured, not assumed:** the queue builds its `over-cap` items
+     unconditionally, so no shortage state can suppress them, and
+     `A6C5-OVERCAP-1` mounts the REAL hook with a shortage AND an over-cap
+     teacher and asserts the item renders while the chip does not.
+     `A6C5-OVERCAP-2` asserts the no-shortage state is unchanged, chip and
+     `data-alert-key` included.
+   - The `data-alert-key` / `data-testid` contracts and the a3-c10 T7 row that
+     read them are untouched: they render this component WITHOUT the slot, which
+     is the no-shortage state, and in that state the sentence and the alert
+     render exactly as they always have.
+
+   What is NOT claimed: the `Excess teaching load: N` clause has no
+   per-teacher queue item — it is an advisory facet count, not a generation
+   blocker. In a shortage state it is therefore **withheld while a shortage is
+   being fixed**, and returns in full the moment the shortage line is not
+   claiming the row. Recorded here rather than hidden, because an advisory figure
+   that disappears with an unrelated blocker is a cheaper loss than a hard
+   blocker that does.
 2. **The `missing-load` repair-queue item** (`Assign teachers to open classes`,
    `12 open`, `12 section-subject pairs need a teacher.`, `Review subject coverage`).
    The shortage line carries that claim now, per subject, in words a primary-school

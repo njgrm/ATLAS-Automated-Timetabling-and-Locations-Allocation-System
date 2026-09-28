@@ -383,7 +383,17 @@ export function WorkspaceToolbar({
 	historyAction,
 	savedAtLabel = null,
 }: WorkspaceToolbarProps) {
-	const completenessPercent = totalPairs > 0 ? Math.round(((realAssignedPairs + syntheticPlaceholderPairs) / totalPairs) * 100) : 0;
+	/*
+	 * A6 c5 S3 — THE COMPUTATION, not the slot.
+	 *
+	 * `syntheticPlaceholderPairs` used to be ADDED into the numerator, so a
+	 * class held by a to-be-hired record counted as staffed. Suppressing the
+	 * figure while a shortage line is showing hid the slot, not the arithmetic:
+	 * any other consumer of this component would still have been told 25
+	 * classes had a teacher. A placeholder is not a teacher, so the numerator is
+	 * `realAssignedPairs` alone and the denominator is unchanged.
+	 */
+	const completenessPercent = totalPairs > 0 ? Math.round((realAssignedPairs / totalPairs) * 100) : 0;
 
 	const statusConfig = useMemo(() => {
 		if (!isOnline) return { label: 'Offline', color: 'bg-amber-500', description: 'Disconnected from the server. Changes are locked until ATLAS reconnects.' };
