@@ -23,10 +23,12 @@ import { lazy, Profiler, Suspense, useCallback, useEffect, useLayoutEffect, useM
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { ScheduledEntry } from '@/types';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
+import { describeMoveTargets, type MoveSlot } from '@/components/timetable/timetableMoveTargets';
 import { setTimetableEntryReadOnly } from '@/components/timetable/TimetableDraggableEntry';
 import { TimetableUndoRedoControl } from '@/components/timetable/TimetableUndoRedoControl';
 import { dispatchUndoByLedger, UNDO_CONFLICT_MESSAGE } from '@/components/timetable/timetableUndoRedoState';
 import { createSwapArmHandler } from '@/components/timetable/timetableSwapArming';
+import { TimetableMoveStatusLine } from '@/components/timetable/TimetableMoveStatusLine';
 import ConcurrentCommitNoticeBar from '@/components/timetable/ConcurrentCommitNoticeBar';
 import { buildScopeKey, clearScopeState, shouldClearForScopeChange } from '@/components/timetable/timetableScopeHygiene';
 import { YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
@@ -83,6 +85,20 @@ export default function ScheduleReviewWorkspace() {
 	const [teacherDepartureFacultyId, setTeacherDepartureFacultyId] = useState<number | null>(null);
 	const [teacherDepartureFocusedEntryIds, setTeacherDepartureFocusedEntryIds] = useState<Set<string> | undefined>(undefined);
 	const [simpleDetailsOpen, setSimpleDetailsOpen] = useState(false);
+	/**
+	 * C11 M1 CORRECTION (F1) — the pathname the route→view sync has actually
+	 * applied. `null` before it has applied any.
+	 *
+	 * This is the ONE signal that separates "the centre view is stale because the
+	 * URL moved" from "the centre view changed in-app and the URL never moved",
+	 * and every in-app entry (the grid's selection actions, the strip's Edit, Change
+	 * room, the Simple More menu, the RightPanel repair actions) changes the view
+	 * WITHOUT the URL. `TimetableRouteViewSync` deliberately never corrects those,
+	 * so keying the centre pane on the route alone made Manual edit, Change room
+	 * and the M2 room picker unreachable from `/timetable` — the regression the
+	 * correction closes. Threaded to `CenterWorkspace` → `CenterWorkspacePaneSurface`.
+	 */
+	const [routeAppliedPathname, setRouteAppliedPathname] = useState<string | null>(null);
 
 	const setLayoutMode = (mode: TimetableLayoutMode) => {
 		setLayoutModeState(mode);
@@ -114,11 +130,9 @@ export default function ScheduleReviewWorkspace() {
 	const currentCenterView = state.headerContext?.centerView;
 	useEffect(() => {
 		if (currentCenterView == null || currentCenterView === 'schedule') return;
-		state.setSwapClassTimesMode?.(null);
-		state.setSwapClassAEntryId?.(null);
-		state.setSwapClassBEntryId?.(null);
+		state.resetSwapClassTimesState?.();
 		setActiveSimpleTask((task) => (task === 'swap-sessions' ? null : task));
-	}, [currentCenterView, state.setSwapClassTimesMode, state.setSwapClassAEntryId, state.setSwapClassBEntryId]);
+	}, [currentCenterView, state.resetSwapClassTimesState]);
 
 	// R5 (finding A-08; ordered-term invariant 6): every component-local sheet,
 	// task, selection, and swap state is scope-bound. When school, school year,
@@ -146,18 +160,14 @@ export default function ScheduleReviewWorkspace() {
 			() => setTeacherDepartureFacultyId(null),
 			() => setTeacherDepartureFocusedEntryIds(undefined),
 			() => setSimpleDetailsOpen(false),
-			() => state.setSwapClassTimesMode?.(null),
-			() => state.setSwapClassAEntryId?.(null),
-			() => state.setSwapClassBEntryId?.(null),
+			() => state.resetSwapClassTimesState?.(),
 			() => state.setLastAutoSaveUndo?.(null),
 			// B1 — a preview bound to the previous scope must never stay actionable.
 			() => state.cancelInlinePlacement?.(),
 		]);
 	}, [
 		scopeKey,
-		state.setSwapClassTimesMode,
-		state.setSwapClassAEntryId,
-		state.setSwapClassBEntryId,
+		state.resetSwapClassTimesState,
 		state.setLastAutoSaveUndo,
 		state.cancelInlinePlacement,
 	]);
@@ -218,6 +228,25 @@ export default function ScheduleReviewWorkspace() {
 		})();
 	}, [state.setSwapClassTimesMode, state.setSwapClassAEntryId, state.setSwapClassBEntryId, state.setInlineActionStatus, state.selectedEntry, state.headerContext]);
 
+	// C11 M5 — ONE Undo / Redo / History control, built once and handed to the
+	// layout that is showing. It is the same component the Expert toolbar used to
+	// mount itself, so no new capability or endpoint is involved; only the surface
+	// moved, and Simple gains the Undo it never had.
+	const sharedUndoRedoControl = state.headerContext ? (
+		<TimetableUndoRedoControl
+			editHistoryCount={state.headerContext.editHistoryCount}
+			revertLoading={state.headerContext.revertLoading}
+			revertLastEdit={state.headerContext.revertLastEdit}
+			redoState={state.redoState ?? null}
+			redoVersionStale={state.redoVersionStale ?? false}
+			undoNotice={state.undoNotice ?? null}
+			undoBlockedReason={state.undoBlockedReason ?? null}
+			redoLastEdit={async () => { await state.redoLastEdit?.(); }}
+			clearRedo={() => state.clearRedo?.()}
+			setShowEditHistory={state.headerContext.setShowEditHistory}
+		/>
+	) : null;
+
 	// Keep route intent synchronization mounted across the no-draft loading
 	// return. It is intentionally unavailable until the guarded view contexts
 	// exist; resolving a URL never bypasses actor/year/term data-dispatch gates.
@@ -237,6 +266,7 @@ export default function ScheduleReviewWorkspace() {
 			enterRunsView={() => state.centerWorkspaceContext.setCenterView('runs')}
 			enterSetupView={() => state.centerWorkspaceContext.setCenterView('setup')}
 			leaveDialogOpen={state.dialogContext.showLeavePreGenDialog}
+			onRouteAppliedPathname={setRouteAppliedPathname}
 		/>
 	) : null;
 
@@ -280,15 +310,59 @@ export default function ScheduleReviewWorkspace() {
 	}
 	const showSchedulerChrome = isTimetableSchedulerView(state.headerContext.centerView);
 
+	/**
+	 * C11 M3 — the legal move targets in the CURRENT view, from the very slots and
+	 * entries the grid is already rendering (no new data, no new request).
+	 *
+	 * Computed live rather than only on arm, because the view can change while a move
+	 * is armed — switching term or section changes what is legal, and a target list
+	 * captured when the operator armed the move would go stale silently.
+	 */
+	const moveTargetNotice = describeMoveTargets({
+		slots: (state.centerWorkspaceContext?.timeSlots ?? []) as MoveSlot[],
+		occupants: ((state.centerWorkspaceContext?.draftEntries ?? []) as Array<{ entryId: string; day: string; startTime: string; endTime: string }>).map((candidate) => ({
+			entryId: candidate.entryId,
+			day: String(candidate.day),
+			startTime: String(candidate.startTime),
+			endTime: String(candidate.endTime),
+		})),
+		movingEntry: state.selectedEntry
+			? { entryId: state.selectedEntry.entryId, day: String(state.selectedEntry.day), startTime: String(state.selectedEntry.startTime) }
+			: null,
+	});
+
+	/**
+	 * C11 M3 (F3) — the highlight is live only while a move is actually ARMED.
+	 *
+	 * The banner's "N highlighted free time slots" is a claim about the grid, so
+	 * the grid must show exactly those cells and only then. `describeMoveTargets`
+	 * is computed for the current view whether or not a move is armed (the
+	 * no-target sentence needs it), so the ARMING flag is what keeps the cells from
+	 * glowing at all times.
+	 */
+	const moveArmed = state.centerWorkspaceContext?.kbSelectedSource?.type === 'entry';
+	const moveTargetSlotKeys = useMemo(
+		() => (moveArmed && moveTargetNotice.kind === 'targets' ? new Set(moveTargetNotice.slotKeys) : new Set<string>()),
+		[moveArmed, moveTargetNotice],
+	);
+
 	const startMoveSelectedEntry = () => {
 		if (!state.selectedEntry) return;
+		// C11 M3 — nothing legal in this view: say so in ONE sentence and offer the
+		// way out, instead of arming a move that cannot complete. The existing
+		// `Already in this slot.` guard is untouched — this does not remove it, it
+		// stops the operator arming a dead move in the first place.
+		if (moveTargetNotice.kind === 'none') {
+			state.setInlineActionStatus({ tone: 'warning', message: moveTargetNotice.sentence });
+			return;
+		}
 		state.headerContext.setKbSelectedSource({ type: 'entry', entry: state.selectedEntry });
 		state.setInlineActionStatus({
 			tone: 'loading',
 			// LANE-C C03 (B3) — on a published schedule the move is a dated change.
 			message: state.publishedChangeScope
 				? 'Select an available slot on the grid. Because this schedule is published, you will choose a start date next.'
-				: 'Select an available slot on the grid to preview this move.',
+				: `Select one of the ${moveTargetNotice.slotKeys.length} highlighted free time slots to preview this move.`,
 		});
 	};
 
@@ -394,6 +468,7 @@ export default function ScheduleReviewWorkspace() {
 				enterRunsView={() => state.centerWorkspaceContext.setCenterView('runs')}
 				enterSetupView={() => state.centerWorkspaceContext.setCenterView('setup')}
 				leaveDialogOpen={state.dialogContext.showLeavePreGenDialog}
+				onRouteAppliedPathname={setRouteAppliedPathname}
 			/>
 			{state.loading && state.draft && (
 				<div className="absolute inset-0 z-50 flex items-center justify-center bg-background/50 backdrop-blur-[2px] transition-all duration-150">
@@ -421,25 +496,20 @@ export default function ScheduleReviewWorkspace() {
 			    instead of taking a row in the layout. As a row it pushed the grid
 			    down after the first swap pick, so the second click could land on
 			    the wrong class. Opaque tones, because it now sits over the grid. */}
+			{/* C11 M3 (F3) — the status line and its ONE Cancel moved verbatim to
+			    `TimetableMoveStatusLine.tsx`: this control was RENDERED BY NO TEST
+			    (F3), and it is unreachable except through the fully composed
+			    workspace. Same testids, same tone map, same single disarm. */}
 			{state.inlineActionStatus ? (
-				<div className="relative z-30 h-0" data-testid="timetable-inline-status-anchor">
-					<div
-						role="status"
-						aria-live="polite"
-						data-testid="timetable-inline-status"
-						className={`absolute inset-x-3 top-1 rounded-md border px-3 py-1.5 text-sm shadow-sm ${
-							state.inlineActionStatus.tone === 'error'
-								? 'border-red-300 bg-red-50 text-red-800'
-								: state.inlineActionStatus.tone === 'warning'
-									? 'border-amber-300 bg-amber-50 text-amber-800'
-									: state.inlineActionStatus.tone === 'success'
-										? 'border-emerald-300 bg-emerald-50 text-emerald-800'
-										: 'border-border bg-background text-foreground'
-						}`}
-					>
-						{state.inlineActionStatus.message}
-					</div>
-				</div>
+				<TimetableMoveStatusLine
+					tone={state.inlineActionStatus.tone}
+					message={state.inlineActionStatus.message}
+					moveTargetNotice={moveTargetNotice}
+					onDisarm={() => {
+						state.headerContext.setKbSelectedSource(null);
+						state.setInlineActionStatus(null);
+					}}
+				/>
 			) : null}
 			{/* B1 — universal inline preview-before-save. Never a modal: the grid
 			    stays usable and exactly one Confirm commits the placement. */}
@@ -601,15 +671,30 @@ export default function ScheduleReviewWorkspace() {
 							state.setSwapClassAEntryId(null);
 							state.setSwapClassBEntryId(null);
 						}}
-						onSwapClassTimesCancel={() => {
-							state.setSwapClassTimesMode(null);
-							state.setSwapClassAEntryId(null);
-							state.setSwapClassBEntryId(null);
-						}}
+						/* C11 M4 — the banner Cancel runs the SAME single reset as the
+						 * review dialog's X, backdrop, Escape and Cancel buttons, so no
+						 * exit path can leave an in-progress swap standing. */
+						onSwapClassTimesCancel={() => state.resetSwapClassTimesState?.()}
+						undoRedoControl={sharedUndoRedoControl}
+						onDiscardDraft={() => state.dialogContext?.setShowResetDraftDialog(true)}
 					/>
 				) : (
 					<div className="relative shrink-0">
-						<ScheduleReviewWorkspaceHeader context={state.headerContext} />
+						{/* C11 F2 — the Expert strip now receives the workspace's REAL
+						 * actions and the single Undo instance. The first cut rendered
+						 * this header with no `onEditDraft` / `onDiscardDraft` /
+						 * `undoRedoControl`, so the strip's `Edit` and `Discard draft`
+						 * fell through to module-level no-ops — visible, enabled, silent —
+						 * and `layoutMode === 'advanced'` had no Undo at all. `onEdit` is
+						 * the SAME `enterManualEditView` the Simple strip uses and the grid's
+						 * own selection actions use, and `onDiscardDraft` is the workspace's
+						 * existing reset-draft confirmation, so no second action path exists. */}
+						<ScheduleReviewWorkspaceHeader
+							context={state.headerContext}
+							onEditDraft={() => state.headerContext.enterManualEditView('CHANGE_TIMESLOT')}
+							onDiscardDraft={() => state.dialogContext?.setShowResetDraftDialog(true)}
+							undoRedoControl={sharedUndoRedoControl}
+						/>
 						{/* R4 — Advanced gets the same visible Undo / Redo / History control as Simple. */}
 						<div className="absolute right-3 top-3 z-20 flex flex-col items-end gap-1.5">
 							<Button
@@ -623,25 +708,20 @@ export default function ScheduleReviewWorkspace() {
 							>
 								Simple view
 							</Button>
-							<div className="rounded-lg border border-border bg-background/95 px-1.5 py-1 shadow-sm">
-								<TimetableUndoRedoControl
-									editHistoryCount={state.headerContext.editHistoryCount}
-									revertLoading={state.headerContext.revertLoading}
-									revertLastEdit={state.headerContext.revertLastEdit}
-									redoState={state.redoState ?? null}
-									redoVersionStale={state.redoVersionStale ?? false}
-									undoNotice={state.undoNotice ?? null}
-									undoBlockedReason={state.undoBlockedReason ?? null}
-									redoLastEdit={async () => { await state.redoLastEdit?.(); }}
-									clearRedo={() => state.clearRedo?.()}
-									setShowEditHistory={state.headerContext.setShowEditHistory}
-								/>
-							</div>
+							{/* C11 M5 (F2) — the Expert-only Undo toolbar is still removed here,
+							    NOT duplicated: the single `sharedUndoRedoControl` instance is
+							    mounted inside the persistent draft strip, which BOTH layouts
+							    now show (the Expert one via the `undoRedoControl` prop above).
+							    So Simple gains the Undo it never had, Expert keeps its own, and
+							    the app still has exactly ONE Undo with one accessible name —
+							    the A2-TIMETABLE-CUSTODY single-surface rule. */}
 						</div>
 					</div>
 				)) : null}
 				<ScheduleReviewWorkspaceBody
 					layoutMode={layoutMode}
+					routeAppliedPathname={routeAppliedPathname}
+					moveTargetSlotKeys={moveTargetSlotKeys}
 					activeSimpleTask={activeSimpleTask}
 					onSimpleTaskChange={setActiveSimpleTask}
 					teacherDepartureEntryIds={teacherDepartureEntryIds}

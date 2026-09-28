@@ -37,9 +37,17 @@ export interface GridCellProps {
 	teacherDepartureEntryIds?: Set<string>;
 	localSandboxChangedEntryIds?: Set<string>;
 	localSandboxConflictEntryIds?: Set<string>;
-	selectedEntry: ScheduledEntry | null;
-	followUps: Set<string>;
-	onEntryClick: (entry: ScheduledEntry) => void;
+  selectedEntry: ScheduledEntry | null;
+  followUps: Set<string>;
+  /**
+   * C11 M3 (F3) — the legal MOVE-TARGET slot keys for the current view, exactly as
+   * the one `describeMoveTargets` derivation produced them, as `${day}-${startTime}`.
+   * A cell whose own key is present renders a visible target marker, so the
+   * "highlighted free time slots" the status sentence names are the cells the
+   * operator can see. Empty/absent means no move is armed and no cell is marked.
+   */
+  moveTargetSlotKeys?: ReadonlySet<string>;
+  onEntryClick: (entry: ScheduledEntry) => void;
 	subjectLabel: (id: number) => string;
 	sectionLabel: (id: number) => string;
 	gradeForSection: (sectionId: number) => number | null;

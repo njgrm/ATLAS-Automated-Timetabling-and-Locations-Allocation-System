@@ -34,6 +34,52 @@ export const SWAP_ARMED_MESSAGE = 'Swap armed. Choose the first class on the gri
 /** LANE-C C03 — arming from a class the user already selected. */
 export const SWAP_ARMED_FROM_SELECTION_MESSAGE = 'Now choose the class to swap times with.';
 
+/* ─── C11 M4 — ONE reset, and every exit path runs it ──────────────────────────
+ *
+ * The recorded defect (`report.md` defect 5): the swap review reported
+ * `Must fix: …`, and closing or cancelling it left the workspace back in an
+ * in-progress swap that then required a hard reload to clear.
+ *
+ * The cause, read off the shipped code rather than assumed. The three pieces of
+ * swap state are `swapClassTimesMode` / `swapClassAEntryId` / `swapClassBEntryId`.
+ * Before C11 the clearing of those three was open-coded at FOUR call sites — the
+ * banner Cancel, the view-change effect, the scope-change effect, and the
+ * concurrent-commit cancel — and the review dialog's own close
+ * (`closeGeneratedSwap` in `TimetablePlacementDialogs.tsx`) cleared NONE of them,
+ * because that dialog was written against a different piece of state
+ * (`regularSwapPending`) and the armed state was simply not in its scope.
+ *
+ * So the reset had no single owner: an exit path that was not one of the four
+ * silently left the armed state standing. This function gives the reset one
+ * owner and one definition of "fully reset", and each exit path calls it.
+ */
+export type SwapClassTimesSetters = {
+	setMode: (mode: 'select-first' | 'select-second' | null) => void;
+	setEntryIdA: (id: string | null) => void;
+	setEntryIdB: (id: string | null) => void;
+};
+
+/**
+ * The single definition of "the swap workflow is over".
+ *
+ * All THREE fields are cleared, because the banner and the grid both read them:
+ * clearing only the mode hides the banner while leaving a stale Class A/B behind
+ * to be re-adopted the next time the swap is armed, which is the "needs a reload"
+ * symptom. The returned value is the canonical disarmed state, so a caller can
+ * assert on it without re-reading three setters.
+ */
+export function resetSwapClassTimes(setters: SwapClassTimesSetters): SwapArmingState {
+	setters.setMode(null);
+	setters.setEntryIdA(null);
+	setters.setEntryIdB(null);
+	return { mode: null, entryIdA: null, entryIdB: null };
+}
+
+/** True only when every piece of swap state is clear — the "no reload needed" property. */
+export function isSwapClassTimesDisarmed(state: SwapArmingState): boolean {
+	return state.mode === null && state.entryIdA === null && state.entryIdB === null;
+}
+
 export type SwapArmDeps = {
 	setTask: (task: 'swap-sessions') => void;
 	setMode: (mode: 'select-first' | 'select-second' | null) => void;

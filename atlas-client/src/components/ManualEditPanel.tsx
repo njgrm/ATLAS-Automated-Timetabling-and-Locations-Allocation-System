@@ -22,6 +22,7 @@ import { Label } from '@/ui/label';
 import { ScrollArea } from '@/ui/scroll-area';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/ui/select';
 import { SearchableSelect } from '@/ui/searchable-select';
+import { freeRoomsAtSlot, NO_OTHER_ROOM_FREE, type RoomRecordLike } from '@/components/manual-edit/manual-edit-room-availability';
 import {
 	Tooltip,
 	TooltipContent,
@@ -214,6 +215,31 @@ export default function ManualEditPanel({
 		if (!pendingProposal) return;
 		await onCommit(pendingProposal, true); // always allow soft override
 	}, [pendingProposal, onCommit]);
+
+		/**
+	 * C11 M2 — the rooms free at THIS class's own day and time.
+	 *
+	 * Read from the props the panel already had (`roomMap`, `draftEntries`): the
+	 * occupied list is every entry in the run on the same day whose slot overlaps,
+	 * which is the same comparison the grid's own conflict lookup makes. No new
+	 * request, so this can never disagree with the data the grid is showing.
+	 */
+	const freeRoomOptions = useMemo(() => {
+		if (actionType !== 'CHANGE_ROOM') return [];
+		return freeRoomsAtSlot({
+			rooms: [...roomMap.values()] as RoomRecordLike[],
+			occupied: (draftEntries ?? []).map((candidate) => ({
+				roomId: Number(candidate.roomId),
+				day: String(candidate.day),
+				startTime: String(candidate.startTime),
+				endTime: String(candidate.endTime),
+			})),
+			currentRoomId: entry.roomId == null ? null : Number(entry.roomId),
+			day: String(entry.day),
+			startTime: String(entry.startTime),
+			endTime: String(entry.endTime),
+		});
+	}, [actionType, roomMap, draftEntries, entry]);
 
 	const isFormComplete = useMemo(() => {
 		if (actionType === 'CHANGE_TIMESLOT') return !!targetDay && !!targetTimeSlot;
@@ -498,6 +524,35 @@ export default function ManualEditPanel({
 										<Label htmlFor="target-room" className="text-xs">
 											Target Room
 										</Label>
+																				{/* C11 M2 — the rooms FREE at this class's own time, one click each. The
+										    full searchable `SearchableSelect` stays below it, so a room this view
+										    did not offer is still reachable. Derived from `roomMap`/`draftEntries`
+										    — no new fetch, and no second source of truth beside the grid. */}
+										{freeRoomOptions.length > 0 ? (
+											<div className="flex flex-wrap gap-1" data-testid="manual-edit-free-rooms">
+												{freeRoomOptions.map((room) => (
+													<Button
+														key={room.id}
+														type="button"
+														variant={String(targetRoomId) === String(room.id) ? 'default' : 'outline'}
+														size="sm"
+														className="h-8 px-2 text-xs"
+														onClick={() => setTargetRoomId(String(room.id))}
+														data-testid={`manual-edit-free-room-${room.id}`}
+													>
+														{room.label}
+													</Button>
+												))}
+											</div>
+										) : (
+											/* C11 M2 — the NEGATIVE case the recorded walk never got. Named
+											   plainly in one sentence, and the selection is untouched: no
+											   target is cleared and no control is dismissed, so the operator
+											   keeps the class they are working on. */
+											<p className="text-xs text-muted-foreground" data-testid="manual-edit-no-free-room">
+												{NO_OTHER_ROOM_FREE}
+											</p>
+										)}
 										<SearchableSelect
 											groups={roomSearchGroups}
 											value={targetRoomId}

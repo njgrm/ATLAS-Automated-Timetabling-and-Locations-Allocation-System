@@ -375,8 +375,29 @@ test('blocker repair actions keep 44px targets and screen-reader names', () => {
 });
 
 test('publish stays disabled with unresolved sessions across surfaces', () => {
+	// ── C11 CORRECTION 2 (QA-B1) — RE-POINTED, additively ──────────────────────
+	// C11 D extracted the Expert header's publication gate into
+	// `TimetableExpertPublishControl.tsx` (that file was at 961 of the 1000-line cap,
+	// AGENTS.md §8, and had to take the persistent draft strip). Every clause moved
+	// in the same order with the same wording, so this row's requirement — the
+	// Advanced Publish control stays disabled while sessions are unplaced — is
+	// unchanged. Retained as SUPERSEDED:
+	//   const advanced = source('src/components/timetable/ScheduleReviewWorkspaceHeader.tsx');
+	//   assert.match(advanced, /unassignedCount > 0 \|\| centerView === 'pre-generation'/);
+	// The replacement reads the file that owns the gate and proves the header still
+	// builds it from the same inputs, so the two cannot drift apart.
 	const advanced = source('src/components/timetable/ScheduleReviewWorkspaceHeader.tsx');
-	assert.match(advanced, /unassignedCount > 0 \|\| centerView === 'pre-generation'/);
+	const gate = source('src/components/timetable/TimetableExpertPublishControl.tsx');
+	assert.match(gate, /unassignedCount: number;/, 'the gate still reads the unplaced-session count');
+	assert.match(gate, /if \(input\.unassignedCount > 0\) \{[\s\S]*allowed: false,/,
+		'and still refuses to publish while any session is unplaced');
+	assert.match(gate, /if \(input\.isPreGenerationView\) \{[\s\S]*allowed: false,/,
+		'and still refuses to publish the draft workspace');
+	assert.match(gate, /disabled=\{!gate\.allowed\}/, 'the control is disabled by that one gate');
+	assert.match(advanced, /<TimetableExpertPublishControl/,
+		'the Advanced header still mounts exactly that control');
+	assert.match(advanced, /resolveExpertPublishGate\(\{/,
+		'and builds it from the header own inputs');
 	const dialog = source('src/components/timetable/modals/TimetableWorkflowDialogs.tsx');
 	assert.match(dialog, /publishUnassignedCount/);
 	// SUPERSEDED TWICE, retained verbatim and visibly marked, never deleted
@@ -432,11 +453,23 @@ test('insertion workflow stays preview-only with zero production apply', () => {
 // --- TT-UX01 operator readiness honesty (2026-09-11) ---
 
 test('TTX-01 no-run center has no write CTA and defers to the header action', () => {
+	// ── C11 CORRECTION 2 (QA-B1) — RE-POINTED, additively ──────────────────────
+	// The centre pane chain moved to `CenterWorkspacePaneSurface.tsx` (C11 F4: a
+	// test must drive a real component the product renders). All four properties
+	// survive the move — the three NEGATIVE ones are properties of the file as a
+	// whole, so they are asserted against BOTH files, and the positive one is
+	// re-pointed. Retained as SUPERSEDED:
+	//   const center = source('src/components/timetable/CenterWorkspace.tsx');
+	//   assert.match(center, /primary action above/);
 	const center = source('src/components/timetable/CenterWorkspace.tsx');
-	assert.doesNotMatch(center, /timetable-empty-primary-actions/);
-	assert.doesNotMatch(center, /Start Pre-Generation Draft/);
-	assert.doesNotMatch(center, /handleStartNewPreGenerationDraft\(\)/);
-	assert.match(center, /primary action above/);
+	const paneSurface = source('src/components/timetable/CenterWorkspacePaneSurface.tsx');
+	for (const [name, file] of [['the panel', center], ['the pane surface', paneSurface]] as const) {
+		assert.doesNotMatch(file, /timetable-empty-primary-actions/, `${name} offers no write CTA cluster`);
+		assert.doesNotMatch(file, /Start Pre-Generation Draft/, `${name} does not name its own primary verb`);
+		assert.doesNotMatch(file, /handleStartNewPreGenerationDraft\(\)/, `${name} never dispatches a draft itself`);
+	}
+	assert.match(paneSurface, /primary action above/, 'the empty centre still defers to the header primary action');
+	assert.match(center, /<CenterWorkspacePaneSurface \{\.\.\.props\}/, 'the panel renders the pane surface that does');
 });
 
 test('TTX-02 run-derived clean claims are gated on run existence', () => {

@@ -13,6 +13,7 @@ import { EMPTY_SCHEDULED_ENTRIES, getEntrySeverity, TIMETABLE_DAY_SHORT, TIMETAB
 import { TimetableCellOverflowSheet } from '@/components/timetable/TimetableCellOverflowSheet';
 import { ConflictBadgeWithTooltip, EntrySeverityIndicator, entryAccessibleName } from '@/components/timetable/TimetableGridConflictBadge';
 import { DraggableEntry, useTimetableEntryReadOnly } from '@/components/timetable/TimetableDraggableEntry';
+import { useTimetableGridPointerPreview } from '@/components/timetable/useTimetableGridPointerPreview';
 import { SandboxEntryBadge, TeacherDepartureEntryBadge } from '@/components/timetable/TimetableGridEntryBadges';
 import type { GridCellProps } from '@/components/timetable/TimetableGridCell.types';
 import {
@@ -70,6 +71,7 @@ const GridCell = memo(function GridCell({
 	localSandboxConflictEntryIds,
 	selectedEntry,
 	followUps,
+	moveTargetSlotKeys,
 	onEntryClick,
 	subjectLabel,
 	sectionLabel,
@@ -189,6 +191,14 @@ const GridCell = memo(function GridCell({
 	}
 
 	const isDropOver = isOver || (hasKbSource && isKbHovered);
+	// C11 M3 (F3) — the status line says "N highlighted free time slots", so the
+	// cells it counts MUST be marked. The keys come from the one
+	// `describeMoveTargets` derivation, never from a second list, so the grid and
+	// the sentence cannot disagree. Colour is not the signal on its own (the same
+	// rule the ceremony / blocked-window labels follow here): the cell carries a
+	// readable "Move here" cue as well as the ring, and `data-move-target` names
+	// the state for assistive technology.
+	const isMoveTarget = moveTargetSlotKeys?.has(`${day}-${startTime}`) === true;
 	const activeInfo = info ?? kbConflictInfo ?? fullPreviewInfo;
 	const isActive = activeInfo !== null;
 	const hasPlacementSource = hasKbSource || fullPreviewInfo !== null;
@@ -241,6 +251,11 @@ const GridCell = memo(function GridCell({
 			? ' ring-2 ring-emerald-400 bg-emerald-50/60'
 			: ' ring-1 ring-dashed ring-muted-foreground/20';
 	}
+	// C11 M3 (F3) — the target ring, applied UNDER the hover/conflict ring so the
+	// two never fight for the same outline.
+	const moveTargetClass = isMoveTarget
+		? ' ring-2 ring-dashed ring-emerald-500 bg-emerald-50/30'
+		: '';
 
 	return (
 		<td
@@ -248,6 +263,7 @@ const GridCell = memo(function GridCell({
 			data-start-time={startTime}
 			data-end-time={endTime}
 			data-cell-entry-ids={cellEntries.map((entry) => entry.entryId).join(' ')}
+			data-move-target={isMoveTarget ? 'true' : undefined}
 			role={hasKbSource ? 'button' : undefined}
 			tabIndex={hasKbSource ? 0 : undefined}
 			aria-label={
@@ -257,6 +273,7 @@ const GridCell = memo(function GridCell({
 			}
 			className={cn(
 				'px-1 py-1 align-top border-l border-border/30 transition-all duration-75',
+				moveTargetClass,
 				dropClass
 			)}
 			onMouseEnter={() => {
@@ -310,6 +327,18 @@ const GridCell = memo(function GridCell({
 				}
 			}}
 		>
+			{/* C11 M3 (F3) — the readable half of the target cue. Without this the
+			    ring would be the only signal, and a scheduler who cannot separate the
+			    dashed emerald outline from the conflict rings has been told nothing. */}
+			{isMoveTarget && (
+				<div
+					className="mb-0.5 flex items-center gap-1 rounded-sm bg-emerald-100 px-1 py-0.5 text-[12px] font-semibold leading-none text-emerald-900"
+					data-testid="timetable-move-target-cue"
+				>
+					<Plus className="size-2.5 shrink-0" aria-hidden="true" />
+					<span className="min-w-0 truncate">Move here</span>
+				</div>
+			)}
 			{ceremonyOverlayWithClass && (
 				<div
 					className="mb-0.5 flex items-center gap-1 rounded-sm bg-amber-100 px-1 py-0.5 text-[12px] font-semibold leading-none text-amber-800"
@@ -599,6 +628,13 @@ interface TimetableGridProps {
 	localSandboxConflictEntryIds?: Set<string>;
 	selectedEntry: ScheduledEntry | null;
 	followUps: Set<string>;
+	/**
+	 * C11 M3 (F3) — the legal MOVE-TARGET slot keys for the current view, threaded
+	 * from the ONE `describeMoveTargets` derivation in `timetableMoveTargets.ts` so
+	 * the highlighted cells and the "N highlighted free time slots" sentence cannot
+	 * disagree. Absent/empty means no move is armed and no cell is marked.
+	 */
+	moveTargetSlotKeys?: ReadonlySet<string>;
 	onEntryClick: (entry: ScheduledEntry) => void;
 	subjectLabel: (id: number) => string;
 	sectionLabel: (id: number) => string;
@@ -648,6 +684,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 	localSandboxConflictEntryIds,
 	selectedEntry,
 	followUps,
+	moveTargetSlotKeys,
 	onEntryClick,
 	subjectLabel,
 	sectionLabel,
@@ -676,115 +713,11 @@ export const TimetableGrid = memo(function TimetableGrid({
 }: TimetableGridProps) {
 	const pendingDragCellRef = useRef<{ cellId: string; source: any } | null>(null);
 	const dragCellTimerRef = useRef<number | null>(null);
-	const dragPreviewTimerRef = useRef<number | null>(null);
-	useEffect(() => {
-		if (!kbSelectedSource || !onKbPlaceStart || typeof window === 'undefined') return;
-		const announcePlacementTouch = () => onKbPlaceStart();
-		window.addEventListener('touchstart', announcePlacementTouch, { capture: true, passive: true });
-		return () => window.removeEventListener('touchstart', announcePlacementTouch, { capture: true });
-	}, [kbSelectedSource, onKbPlaceStart]);
-	useEffect(() => {
-		const cleanupPointerPreview = () => {
-			const labels = document.querySelectorAll('[data-pointer-preview-label="true"]');
-			labels.forEach((label) => label.remove());
-			const decoratedCells = document.querySelectorAll<HTMLElement>('[data-pointer-preview-status]');
-			decoratedCells.forEach((cell) => {
-				cell.removeAttribute('data-pointer-preview-status');
-				cell.classList.remove(
-					'ring-1',
-					'ring-dashed',
-					'ring-red-400/50',
-					'ring-amber-300/50',
-					'ring-emerald-300/50',
-					'bg-red-50/25',
-					'bg-amber-50/20',
-					'bg-emerald-50/10',
-				);
-			});
-		};
-		const decoratePointerPreview = (source: NonNullable<GridDragSource>) => {
-			cleanupPointerPreview();
-			let cancelled = false;
-			const cells = Array.from(
-				document.querySelectorAll<HTMLElement>('td[data-day][data-start-time][data-end-time]'),
-			);
-			let cursor = 0;
-
-			const decorateBatch = () => {
-				if (cancelled) return;
-				const end = Math.min(cursor + 14, cells.length);
-				for (; cursor < end; cursor += 1) {
-					const cell = cells[cursor];
-					const day = cell.dataset.day;
-					const startTime = cell.dataset.startTime;
-					const endTime = cell.dataset.endTime;
-					if (!day || !startTime || !endTime) continue;
-
-					const cellId = `${day}-${startTime}-${endTime}`;
-					const info = getLiveCellConflict(source, cellId) ?? getCellConflict?.(cellId) ?? null;
-					const occupiedCount = cell.querySelectorAll('[data-timetable-entry="true"]').length;
-					const mode = occupiedCount > 0 ? 'swap' : 'place';
-					const status = info?.kind === 'hard'
-						? 'blocked'
-						: info?.kind === 'soft'
-							? 'warning'
-							: mode;
-
-					cell.dataset.pointerPreviewStatus = status;
-					cell.classList.add('ring-1');
-					if (status === 'blocked') {
-						cell.classList.add('ring-red-400/50', 'bg-red-50/25');
-					} else if (status === 'warning' || mode === 'swap') {
-						cell.classList.add('ring-amber-300/50', 'bg-amber-50/20');
-					} else {
-						cell.classList.add('ring-dashed', 'ring-emerald-300/50', 'bg-emerald-50/10');
-					}
-				}
-				if (cursor < cells.length) {
-					window.requestAnimationFrame(decorateBatch);
-				}
-			};
-
-			window.requestAnimationFrame(decorateBatch);
-			return () => {
-				cancelled = true;
-				cleanupPointerPreview();
-			};
-		};
-		let cancelPreviewDecorations: (() => void) | null = null;
-		const clearPreviewTimer = () => {
-			if (dragPreviewTimerRef.current !== null) {
-				window.clearTimeout(dragPreviewTimerRef.current);
-				dragPreviewTimerRef.current = null;
-			}
-		};
-		const clearPointerPreview = () => {
-			clearPreviewTimer();
-			cancelPreviewDecorations?.();
-			cancelPreviewDecorations = null;
-			cleanupPointerPreview();
-		};
-		const handlePreviewSource = (event: Event) => {
-			const detail = (event as CustomEvent<{ source?: GridDragSource }>).detail;
-			const nextSource = detail.source ?? null;
-			clearPointerPreview();
-			if (!nextSource) {
-				return;
-			}
-			// Grid-wide guidance is useful, but calculating every visible cell in the
-			// pointer activation frame creates a visible hitch on lower-end devices.
-			// Defer pointer-drag guidance slightly; click/keyboard guidance remains immediate.
-			dragPreviewTimerRef.current = window.setTimeout(() => {
-				dragPreviewTimerRef.current = null;
-				cancelPreviewDecorations = decoratePointerPreview(nextSource);
-			}, 120);
-		};
-		window.addEventListener('atlas:timetable-drag-source', handlePreviewSource);
-		return () => {
-			clearPointerPreview();
-			window.removeEventListener('atlas:timetable-drag-source', handlePreviewSource);
-		};
-	}, [getCellConflict, getLiveCellConflict]);
+	// C11 slice 1 (F3) — the pointer-drag preview decorations moved verbatim to
+	// `useTimetableGridPointerPreview.ts` so this file could take the M3 move-target
+	// cue without breaching the 1000-line cap (AGENTS.md §8). Same event, same
+	// deferral, same classes, same cleanup.
+	useTimetableGridPointerPreview({ kbSelectedSource, onKbPlaceStart, getCellConflict, getLiveCellConflict });
 	useEffect(() => {
 		const cancelPendingCellUpdate = () => {
 			if (dragCellTimerRef.current !== null) {
@@ -923,9 +856,10 @@ export const TimetableGrid = memo(function TimetableGrid({
 												teacherDepartureEntryIds={teacherDepartureEntryIds}
 												localSandboxChangedEntryIds={localSandboxChangedEntryIds}
 												localSandboxConflictEntryIds={localSandboxConflictEntryIds}
-												selectedEntry={selectedEntry}
-												followUps={followUps}
-												onEntryClick={onEntryClick}
+											selectedEntry={selectedEntry}
+											followUps={followUps}
+											moveTargetSlotKeys={moveTargetSlotKeys}
+											onEntryClick={onEntryClick}
 												subjectLabel={subjectLabel}
 												sectionLabel={sectionLabel}
 												gradeForSection={gradeForSection}

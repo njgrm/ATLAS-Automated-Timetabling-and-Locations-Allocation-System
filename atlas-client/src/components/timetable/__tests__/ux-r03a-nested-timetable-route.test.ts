@@ -5,6 +5,7 @@ import test from 'node:test';
 
 import { resolveLegacyExportsRedirect, resolveTimetableRouteForView, resolveTimetableRouteView, resolveUrlRestoreTarget } from '../TimetableRouteViewSync';
 import { resolveRouteChrome } from '../../app-shell/navigation';
+import { CENTER_PANE_OWNER, assertCenterPaneOwnerIsRendered, centerPaneSource } from './centerPaneOwner';
 
 const clientRoot = resolve(import.meta.dirname, '../../../..');
 function source(path: string): string {
@@ -215,7 +216,14 @@ test('UX-R03a row 6: no new scroll surface, select, raw button, or sub-12px chro
 // --- Row 7: nothing is lost ---
 
 test('UX-R03a row 7: the four unrouted views stay reachable with unchanged behaviour', () => {
-	const center = source('src/components/timetable/CenterWorkspace.tsx');
+	// C11 slice 1 (F4) — the centre-pane chain moved to
+	// `CenterWorkspacePaneSurface.tsx` (the AGENTS.md §8 cap, plus F4's
+	// requirement for a rendered row on the real surface). The property decided
+	// here is UNCHANGED and no assertion was removed or weakened; only the owning
+	// module is read now, and `assertCenterPaneOwnerIsRendered()` keeps the row's
+	// teeth by pinning the new owner to the one CenterWorkspace actually renders.
+	assertCenterPaneOwnerIsRendered();
+	const center = centerPaneSource(CENTER_PANE_OWNER);
 	for (const view of ['pre-generation', 'manual-edit', 'map', 'building']) {
 		assert.ok(center.includes(`'${view}'`), `center view '${view}' must remain`);
 	}

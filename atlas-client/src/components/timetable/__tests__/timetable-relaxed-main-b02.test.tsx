@@ -41,6 +41,7 @@ import {
 	resetTimetableWarmScope,
 } from '@/lib/timetable-data/timetableServerState';
 import type { ResolvedTimetableScope } from '@/lib/timetable-data/timetableQueryKeys';
+import { CENTER_PANE_OWNER, assertCenterPaneOwnerIsRendered, centerPaneSource } from './centerPaneOwner';
 
 const clientRoot = resolve(import.meta.dirname, '../../../..');
 function source(path: string): string {
@@ -546,7 +547,14 @@ test('B3 dedupe control: an uncached read path doubles the dispatches (the mutan
 test('B4: the workspace, the skeleton and the grid region keep the no-scroll architecture', () => {
 	const workspace = source('src/components/timetable/ScheduleReviewWorkspace.tsx');
 	const skeleton = source('src/components/timetable/TimetableSkeleton.tsx');
-	const center = source('src/components/timetable/CenterWorkspace.tsx');
+	// C11 slice 1 (F4) — the centre-pane chain moved to
+	// `CenterWorkspacePaneSurface.tsx` (the AGENTS.md §8 cap, plus F4's
+	// requirement for a rendered row on the real surface). The property decided
+	// here is UNCHANGED and nothing was removed or weakened; only the owning
+	// module is read now, and `assertCenterPaneOwnerIsRendered()` pins the new
+	// owner to the one CenterWorkspace actually renders.
+	assertCenterPaneOwnerIsRendered();
+	const center = centerPaneSource(CENTER_PANE_OWNER);
 	const body = source('src/components/timetable/ScheduleReviewWorkspaceBody.tsx');
 
 	// The root of every timetable surface is height-locked to the shell.

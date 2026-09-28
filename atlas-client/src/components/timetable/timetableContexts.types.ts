@@ -258,6 +258,18 @@ export type ScheduleReviewDialogsContext = {
 	} | null;
 	regularSwapPending: any;
 	setRegularSwapPending: Dispatch<SetStateAction<any>>;
+	/**
+	 * C11 M4 — the single swap reset, threaded to the review dialog.
+	 *
+	 * The dialog's own close (`closeGeneratedSwap`) previously cleared only
+	 * `regularSwapPending`. The armed state (`swapClassTimesMode` /
+	 * `swapClassAEntryId` / `swapClassBEntryId`) lived in the workspace and was
+	 * not in the dialog's scope, so the X, the backdrop, Escape and both Cancel
+	 * buttons all returned the operator to an in-progress swap that needed a hard
+	 * reload to clear. One function, so every exit path resets all three fields
+	 * and the property is testable rather than re-asserted per control.
+	 */
+	resetSwapClassTimesState: () => void;
 	regularSwapSaving: boolean;
 	regularSwapStrategy: 'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE' | null;
 	setRegularSwapStrategy: Dispatch<SetStateAction<'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE' | null>>;

@@ -32,6 +32,9 @@ import { onProfilerRender } from '@/components/timetable/ScheduleReviewWorkspace
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 // A2-C6-TRUTH (T3a): the run identity, shared with Simple view.
 import { describeRunState, RunIdentityLine, RunStateBadge } from '@/components/timetable/RunStateBadge';
+import { resolveExpertPublishGate, TimetableExpertPublishControl } from '@/components/timetable/TimetableExpertPublishControl';
+import { resolveDraftStripPublishPlan, TimetableDraftStateStrip } from '@/components/timetable/TimetableDraftStateStrip';
+import { TimetableExpertDraftActions } from '@/components/timetable/TimetableDraftActionsSurface';
 import { ScheduleReviewInputStateBanner } from '@/components/timetable/ScheduleReviewInputStateBanner';
 import { TimetableAdvancedHeaderHelp } from '@/components/timetable/TimetableAdvancedHeaderHelp';
 import { deriveTimetableCapabilities, YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
@@ -41,6 +44,18 @@ import { resolveTermAuthorityNotice } from '@/hooks/useTimetableData';
 
 type ScheduleReviewWorkspaceHeaderProps = {
 	context: ScheduleReviewWorkspaceHeaderContext;
+	/** C11 D — the workspace's existing manual-edit entry for the selected class. */
+	onEditDraft?: () => void;
+	/** C11 D — the workspace's EXISTING reset-draft confirmation. */
+	onDiscardDraft?: () => void;
+	/**
+	 * C11 F2 — the ONE existing `TimetableUndoRedoControl` instance, handed to the
+	 * strip exactly as the Simple header receives it. The first cut removed the
+	 * Expert-only Undo toolbar but rendered this strip with no child, so `advanced`
+	 * had NO Undo; one instance through BOTH strips keeps one Undo with one
+	 * accessible name (A2-TIMETABLE-CUSTODY single-surface).
+	 */
+	undoRedoControl?: React.ReactNode;
 };
 
 function formatTaskCount(count: number, label: string): string {
@@ -88,17 +103,15 @@ function formatChangedDomains(domains: string[] | undefined): string[] {
  * settling check vs an in-progress stroke), the tone, and the label that
  * `runStateBadgeLabel` already reads from the run. The key is derived from the
  * RUN (`draft.runId` + `isDraftPublishedStrict`), never from the layout mode.
- */
-/**
- * A2-UX-STATUS-C2 / U2 + #51 — one icon, one tone and one sign token per state.
  *
- * The presentation map, the state key and both renderers now live in
- * `RunStateBadge` (A2-C6-TRUTH T3a), because Simple view is the DEFAULT view and
- * it was printing no run identity at all while Expert printed it here. Two
- * headers rendering one run's identity from one derivation is the only way
- * "which schedule is this" cannot differ between the two views of the same run.
+ * A2-C6-TRUTH (T3a) then moved the presentation map, the state key and BOTH
+ * renderers into `RunStateBadge`, because Simple view is the DEFAULT view and it
+ * was printing no run identity at all while Expert printed it here. Two headers
+ * rendering one run's identity from one derivation is the only way "which
+ * schedule is this" cannot differ between the two views of the same run — which is
+ * why the block below is a note on that shared renderer, not a second badge.
  */
-function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceHeaderProps) {
+function ScheduleReviewWorkspaceHeaderImpl({ context, onEditDraft, onDiscardDraft, undoRedoControl }: ScheduleReviewWorkspaceHeaderProps) {
 	const [showImpactPreview, setShowImpactPreview] = useState(false);
 	const [syncing, setSyncing] = useState(false);
 	const [showSyncConfirm, setShowSyncConfirm] = useState(false);
@@ -273,6 +286,19 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 	const scopeResolved = Number.isInteger(schoolId) && schoolId > 0
 		&& Number.isInteger(schoolYearId) && (schoolYearId ?? 0) > 0;
 	const isRunPublished = isDraftPublishedStrict(draft);
+
+	/**
+	 * C11 D — the ONE publication gate for this header, shared with the draft strip's
+	 * Publish control. Derived from the same fields the previous inline `disabled`
+	 * expression and tooltip ternary read, so no clause was dropped or reordered.
+	 */
+	const expertPublishGate = resolveExpertPublishGate({
+		hasDraft: draft != null,
+		isRunPublished,
+		blockingHardCount,
+		unassignedCount,
+		isPreGenerationView: centerView === 'pre-generation',
+	});
 	const latestRunFailed = !draft && runOptions[0]?.status === 'FAILED';
 	const capabilities = deriveTimetableCapabilities({
 		scopeResolved,
@@ -447,6 +473,15 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 				<span><span className="font-semibold text-foreground">Term:</span> {activeTermLabel ?? 'Term setup required'}</span>
 				<span><span className="font-semibold text-foreground">Scope:</span> {termFilter === 'all' ? 'All terms' : (termOptions.find((option) => option.value === String(termFilter))?.label ?? 'Selected term')}</span>
 				<RunIdentityLine isPreGeneration={isPreGenerationWorkspace} runId={runOnScreenId} isPublished={isRunPublished} className="text-xs text-muted-foreground" />
+				{/* C11 D, correction 2 (QA-B2) — the SAME persistent draft-state SENTENCE the
+				    Simple header renders, in the orientation row this header already has, so
+				    the two views of one run cannot disagree about whether it is a draft. The
+				    strip's three buttons were what took Simple from six visible controls to
+				    nine and put two publication controls on screen; the actions resolve onto
+				    controls this header already has — `Publish` is
+				    `TimetableExpertPublishControl` below, and Edit/Discard are in "More
+				    tools" beside them. */}
+				<TimetableDraftStateStrip visibility={runStateDescription.visibility} />
 				<span><span className="font-semibold text-foreground">Next:</span> {nextActionLabel}</span>
 			</div>
 			<div className="flex items-center gap-2 overflow-x-auto scrollbar-thin px-4 pt-2 pb-1.5 [@media(max-height:500px)]:pt-1 [@media(max-height:500px)]:pb-1">
@@ -519,35 +554,22 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 					<span className="sr-only sm:hidden">Refresh schedule</span>
 				</Button>
 
-				<TooltipProvider>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant="outline"
-								size="sm"
-								className="h-8 shrink-0 gap-1.5"
-								disabled={!draft || isRunPublished || blockingHardCount > 0 || unassignedCount > 0 || centerView === 'pre-generation'}
-								onClick={() => {
-									setPublishAcknowledged(false);
-									setShowPublishDialog(true);
-								}}
-								data-testid="timetable-advanced-publish"
-							>
-								<Send className="size-3.5" />
-								Publish
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>
-							{isRunPublished
-								? 'This run is already published. Create an effective-dated revision instead of re-publishing.'
-								: blockingHardCount > 0
-									? `Cannot publish: ${blockingHardCount} hard violation(s) remaining`
-									: unassignedCount > 0
-										? `Cannot publish: ${unassignedCount} session(s) still need placing`
-										: 'Publish this schedule'}
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
+				{/* C11 D — extracted to `TimetableExpertPublishControl.tsx`: this file was at
+				    961 physical lines against the 1000-line cap (AGENTS.md §8) and had to take
+				    the persistent draft strip. The gate is unchanged, in one place, so the
+				    header's Publish and the strip's Publish cannot disagree. */}
+				<TimetableExpertPublishControl
+					gate={expertPublishGate}
+					onPublish={() => {
+						setPublishAcknowledged(false);
+						setShowPublishDialog(true);
+					}}
+				/>
+
+				{/* C11 M5 (F2), correction 2 (QA-B2) — the single Undo instance, back in the
+				    toolbar, because the strip is a sentence now. What must not change is that
+				    there is exactly ONE (`A2-TIMETABLE-CUSTODY`), shared by both headers. */}
+				{undoRedoControl}
 
 				<TooltipProvider>
 					<Tooltip>
@@ -597,7 +619,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 
 					<DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
 					<DropdownMenuTrigger asChild>
-						<Button variant="outline" size="sm" className="h-8 shrink-0 gap-1.5">
+						<Button variant="outline" size="sm" className="h-8 shrink-0 gap-1.5" data-testid="timetable-advanced-more-tools">
 							<MoreHorizontal className="size-3.5" />
 							More tools
 						</Button>
@@ -765,10 +787,20 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 					</Tooltip>
 				</TooltipProvider>
 				<Link to="/timetabling/how-it-works" className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs text-muted-foreground hover:text-accent-foreground hover:bg-accent transition-colors">
-					<Lightbulb className="size-3.5" />
-					How It Works
-				</Link>
-						</div>
+						<Lightbulb className="size-3.5" />
+						How It Works
+					</Link>
+				{/* C11 D, correction 2 (QA-B2) — `Edit draft` / `Discard draft` in the menu this
+				    header already has; without them the two props are unreferenced and Expert
+				    has NO way to enter or discard a draft. `Publish` is not here: the toolbar's
+				    own `TimetableExpertPublishControl` is the publication control. */}
+					<TimetableExpertDraftActions
+						hasSelectedClass={hasSelectedEntry}
+						hasDraft={draft != null}
+						onEdit={onEditDraft ?? null}
+						onDiscard={onDiscardDraft ?? null}
+					/>
+					</div>
 					</DropdownMenuContent>
 				</DropdownMenu>
 
@@ -958,4 +990,10 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 	);
 }
 
+/*
+ * The orphaned comment that stood here described a test fixture and attached to no
+ * declaration. It is now also FALSE: `onEditDraft` / `onDiscardDraft` are the two
+ * actions wired into "More tools" above, and a fixture that omits them gets both
+ * rows rendered and DISABLED with a visible reason.
+ */
 export const ScheduleReviewWorkspaceHeader = memo(ScheduleReviewWorkspaceHeaderImpl);

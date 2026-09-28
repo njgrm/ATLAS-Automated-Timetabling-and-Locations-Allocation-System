@@ -1,4 +1,9 @@
 import assert from 'node:assert/strict';
+	// C11 M1 — the routed pane arms are now keyed off `paneView`, the view
+	// RESOLVED by `resolveCenterPane`, not the raw `centerView` state. The pattern
+	// accepts either name so the row still decides the property it was written for
+	// (this routed arm exists in CenterWorkspace) and is not re-broken by a future
+	// rename of the local. The assertion is updated, never dropped (AGENTS.md §16).
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
@@ -9,6 +14,7 @@ import {
 	resolveUrlRestoreTarget,
 } from '../TimetableRouteViewSync';
 import { resolveRouteChrome } from '../../app-shell/navigation';
+import { CENTER_PANE_OWNER, assertCenterPaneOwnerIsRendered, centerPaneSource } from './centerPaneOwner';
 
 const clientRoot = resolve(import.meta.dirname, '../../../..');
 const repoRoot = resolve(clientRoot, '..');
@@ -65,8 +71,15 @@ test('UX-R03e runs row 1: runs is a null-element nested child (shell stays mount
 });
 
 test('UX-R03e runs row 1: CenterWorkspace renders the runs pane from threaded run-selection state', () => {
-	const center = source('src/components/timetable/CenterWorkspace.tsx');
-	assert.match(center, /centerView === 'runs'/);
+	// C11 slice 1 (F4) — the centre-pane chain moved to
+	// `CenterWorkspacePaneSurface.tsx` (the AGENTS.md §8 cap, plus F4's
+	// requirement for a rendered row on the real surface). The property decided
+	// here is UNCHANGED and no assertion was removed or weakened; only the owning
+	// module is read now, and `assertCenterPaneOwnerIsRendered()` keeps the row's
+	// teeth by pinning the new owner to the one CenterWorkspace actually renders.
+	assertCenterPaneOwnerIsRendered();
+	const center = centerPaneSource(CENTER_PANE_OWNER);
+	assert.match(center, /(centerView|paneView) === 'runs'/);
 	assert.match(center, /<TimetableRunsPane/);
 	assert.match(center, /runs=\{runs\}/);
 	assert.match(center, /selectedRunId=\{runsSelectedId\}/);
@@ -187,8 +200,9 @@ test('UX-R03e setup row 2: setup is a null-element nested child (shell stays mou
 });
 
 test('UX-R03e setup row 2: CenterWorkspace renders the setup pane from threaded setup inputs', () => {
-	const center = source('src/components/timetable/CenterWorkspace.tsx');
-	assert.match(center, /centerView === 'setup'/);
+	assertCenterPaneOwnerIsRendered();
+	const center = centerPaneSource(CENTER_PANE_OWNER);
+	assert.match(center, /(centerView|paneView) === 'setup'/);
 	assert.match(center, /<TimetableSetupPane/);
 	assert.match(center, /inputs=\{setupInputs\}/);
 	assert.match(center, /sectionLabel=\{sectionLabel\}/);

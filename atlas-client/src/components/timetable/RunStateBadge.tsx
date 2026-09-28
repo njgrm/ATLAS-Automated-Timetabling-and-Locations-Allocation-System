@@ -69,12 +69,42 @@ export function runStateKeyOf(input: {
 	return input.isPublished ? 'published' : 'draft';
 }
 
-/** The badge and the sentence, from one derivation. */
+/**
+ * C11 D — WHO CAN SEE THIS SCHEDULE, in one sentence, from the same derivation.
+ *
+ * The recorded walk (`docs/reviews/codex-timetable-walk-20260928/report.md`,
+ * defect 3) found no way to tell a draft from a published schedule anywhere in
+ * the rendered header: `Publish schedule` sat beside `Schedule information
+ * changed` with nothing stating whether anyone could see the run.
+ *
+ * This is deliberately a FIELD OF `describeRunState`, not a second function that
+ * re-derives draft-vs-published. The two headers read the same object, so the
+ * badge, the run identity and the visibility sentence can never disagree about
+ * the run on screen — the "one fact, one place" rule this module already exists
+ * to enforce (see its header note and `runStateKeyOf`).
+ *
+ * The two sentences are deliberately different facts and must not be merged:
+ *  - `sentence`      names WHICH run is on screen ("Run 321 …"),
+ *  - `visibility`    names whether TEACHERS can see it.
+ *
+ * `null` for a pre-generation workspace: the draft workspace is not a schedule
+ * that is or is not published, so claiming a visibility state there would be a
+ * claim nothing can support. The strip renders nothing rather than guessing.
+ */
+export function runVisibilitySentence(key: RunStateKey): string | null {
+	if (key === 'planning') return null;
+	if (key === 'empty') return null;
+	return key === 'published'
+		? 'Published'
+		: 'Draft — not visible to teachers until you publish';
+}
+
+/** The badge and the sentences, from one derivation. */
 export function describeRunState(input: {
 	isPreGeneration: boolean;
 	runId: number | null | undefined;
 	isPublished: boolean;
-}): { key: RunStateKey; badgeLabel: string; sentence: string | null } {
+}): { key: RunStateKey; badgeLabel: string; sentence: string | null; visibility: string | null } {
 	const key = runStateKeyOf(input);
 	return {
 		key,
@@ -89,6 +119,7 @@ export function describeRunState(input: {
 			runId: input.runId,
 			isPublished: input.isPublished,
 		}),
+		visibility: runVisibilitySentence(key),
 	};
 }
 

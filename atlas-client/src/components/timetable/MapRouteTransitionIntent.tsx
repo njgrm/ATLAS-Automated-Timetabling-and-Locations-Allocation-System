@@ -52,6 +52,12 @@ import { resolveTimetableRouteView } from '@/components/timetable/TimetableRoute
 import { resolveTimetableLoadingIntent } from '@/components/timetable/timetable-route-loading-intent';
 
 /**
+ * The views that cannot render without something the operator selected. Reaching
+ * one of these with nothing selected is a dead end, which is what C11 M1 fixed.
+ */
+const SELECTION_DEPENDENT_VIEWS: ReadonlySet<string> = new Set(['manual-edit', 'building']);
+
+/**
  * The decision `CenterWorkspace` actually makes: render the pending map intent,
  * or enter the normal animated chain.
  *
@@ -63,18 +69,69 @@ import { resolveTimetableLoadingIntent } from '@/components/timetable/timetable-
  * single route→view authority, rather than a second path comparison. Two
  * predicates for one route is the hazard the shared mappers exist to prevent.
  *
- * Scoped to the map view on purpose. The other six routed views have the same
- * asynchronous entry, but the recorded defect is a grid of real-looking class
- * cells preceding a map; widening this to every view would blank the schedule
- * on unrelated navigations.
+ * ── C11 M1 — the route wins ONLY while the route is still being applied ───────
+ *
+ * `TimetableRouteViewSync` moves `centerView` inside a `useEffect`, so the render
+ * that first reaches the DOM for a new route still carries the PREVIOUS view. The
+ * reproduction of the recorded defect
+ * (`docs/reviews/codex-timetable-walk-20260928/report.md`, defect 1) is that
+ * disagreeing render: after `Back to Schedule` the URL is `/timetable` while
+ * `centerView` is still `manual-edit`, and the pane keyed off `centerView` paints
+ * the manual-edit panel for the grid URL. Inside `<AnimatePresence mode="wait">`
+ * that stale child is the one kept MOUNTED while the incoming one is deferred for
+ * the exit duration, so the panel is what the operator is left looking at.
+ *
+ * ── C11 M1 CORRECTION (F1) — the first cut of this override was a REGRESSION ──
+ *
+ * Keying the override on `routeView === 'schedule'` alone fires on every
+ * legitimate IN-APP entry, because no in-app entry changes the URL: every one of
+ * them calls `setCenterView` (or `enterManualEditView`, which only calls
+ * `setCenterView` — `useTimetableViewNavigation` imports no `useNavigate`) and
+ * `TimetableRouteViewSync`'s effect is gated on `appliedPathnameRef.current ===
+ * pathname`, so an in-app transition is never "corrected" back. The grid's own
+ * selection actions, the strip's Edit, Change room, the Simple More menu and the
+ * RightPanel's repair actions all became unreachable from `/timetable`, which is
+ * where the operator is by default.
+ *
+ * The signal that tells the two cases apart already exists and is already
+ * tracked: `appliedPathnameRef`, the pathname the route sync has actually
+ * applied. It is surfaced as `routeAppliedPathname` and the override now applies
+ * ONLY while the current `pathname` has not yet been applied — exactly the
+ * one-render lag window that is the recorded defect, and never a steady state the
+ * operator reached by clicking.
+ *
+ * Deliberately narrow, unchanged from the first cut: only the selection-dependent
+ * views are overridden, because a stale GRID beside a selection-dependent route is
+ * the other direction and the map branch already covers its own dangerous case.
  */
 export type CenterPaneDecision =
 	| { readonly kind: 'pending-map-intent' }
 	| { readonly kind: 'center-view'; readonly view: string };
 
-export function resolveCenterPane(pathname: string, centerView: string): CenterPaneDecision {
-	if (resolveTimetableRouteView(pathname) === 'map' && centerView !== 'map') {
+export function resolveCenterPane(
+	pathname: string,
+	centerView: string,
+	/**
+	 * C11 M1 CORRECTION (F1) — the pathname `TimetableRouteViewSync` has actually
+	 * applied to `centerView`, or `null` before it has applied any. The route
+	 * override below is gated on this so it fires only in the one-render lag
+	 * window, never on an in-app entry that never changed the URL.
+	 *
+	 * `null` — the initial, genuinely unapplied state — keeps the override ON,
+	 * which is the direct-URL-entry case the defect is about. The two-argument
+	 * form is therefore the UNAPPLIED decision and stays valid; it is no longer
+	 * the steady-state decision.
+	 */
+	routeAppliedPathname: string | null = null,
+): CenterPaneDecision {
+	const routeView = resolveTimetableRouteView(pathname);
+	if (routeView === 'map' && centerView !== 'map') {
 		return { kind: 'pending-map-intent' };
+	}
+	// C11 M1 — the route wins while it is still UNAPPLIED, and only then.
+	const routeStillUnapplied = routeAppliedPathname !== pathname;
+	if (routeStillUnapplied && routeView === 'schedule' && SELECTION_DEPENDENT_VIEWS.has(centerView)) {
+		return { kind: 'center-view', view: 'schedule' };
 	}
 	return { kind: 'center-view', view: centerView };
 }
