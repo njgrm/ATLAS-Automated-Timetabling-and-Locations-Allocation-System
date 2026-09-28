@@ -814,6 +814,144 @@ test('U3a the generate dialog copy degrades honestly on absent values', () => {
 	assert.equal(zero.classesToScheduleKnown, true, 'and it is distinguished from the absent case above');
 });
 
+// ─── A2 C5 item 4a — the residual "Locked classes kept" unmeasured 0 ─────────
+//
+// FAILING-FIRST (M4a-C), recorded at base `bd789d86` with the two source files
+// reverted to their base bytes and this test in place:
+//
+//   npx tsx --test src/lib/__tests__/timetable-truth-labels-a2.test.ts
+//
+//   ✖ A2 C5 4a: "Locked classes kept" is a tri-state, never an unmeasured 0
+//     AssertionError [ERR_ASSERTION]: an absent locked count is REPORTED ABSENT
+//     in words, never rendered as the number 0
+//       actual:   '0'
+//     expected: 'Not checked'
+//
+// `actual: '0'` is the defect this item removes. The cause was
+// `countOrZero(input.lockedClassCount)` in `buildGenerateDialogCopy`, reached
+// from `lockedClassCount={draftBoardSummary?.draft ?? 0}` in
+// `TimetableWorkflowDialogs.tsx`: an absent board summary — an intermittent 502,
+// or no authenticated school scope — printed "Locked classes kept: 0", a claim
+// that ATLAS had established nothing is locked when it had established nothing
+// at all. The headline one line above had already been converted to a tri-state
+// in c2 for exactly this reason and the secondary row was missed, so one failed
+// read produced "Classes to schedule: Not checked" directly above a confident
+// "Locked classes kept: 0".
+
+/**
+ * The production body's fact rows, keyed by their LABEL.
+ *
+ * Keyed by the label rather than by row position or a `data-known` attribute,
+ * because both of those are what this candidate ADDS: at base the rows carry
+ * neither, so a control keyed on them would fail on its own bookkeeping instead
+ * of on the false zero it exists to catch. The label is present in every
+ * revision, so this walks the real render path and finds the same row before and
+ * after the fix.
+ */
+function rowValues(lockedClassCount: number | null): Map<string, { value: string; className: string; dataKnown: string | undefined }> {
+	const found = new Map<string, { value: string; className: string; dataKnown: string | undefined }>();
+	let lastText = '';
+	const walk = (node: ReactNode): void => {
+		if (node == null || typeof node === 'boolean') return;
+		if (typeof node === 'string' || typeof node === 'number') {
+			lastText = String(node);
+			return;
+		}
+		if (Array.isArray(node)) {
+			for (const child of node) walk(child);
+			return;
+		}
+		if (isValidElement(node)) {
+			const props = node.props as { [key: string]: unknown; children?: ReactNode };
+			if (props['data-testid'] === 'timetable-generate-confirm-row-value') {
+				found.set(lastText, {
+					value: collectText(props.children).join(''),
+					className: String(props['className'] ?? ''),
+					dataKnown: props['data-known'] === undefined ? undefined : String(props['data-known']),
+				});
+			}
+			walk(props.children);
+		}
+	};
+	walk(
+		GenerateConfirmDialogBody({
+			copy: buildGenerateDialogCopy({
+				schoolYearLabel: '2031-2032',
+				termSource: 'atlas',
+				lockedClassCount,
+				classesToSchedule: null,
+			}),
+			classesToSchedule: null,
+			enforceShiftWindows: true,
+			setEnforceShiftWindows: () => {},
+		}),
+	);
+	return found;
+}
+
+test('A2 C5 4a: "Locked classes kept" is a tri-state, never an unmeasured 0', () => {
+	// M4a-A, asserted FIRST through the REAL render path, because that is the
+	// fact a scheduler reads. At base this is the assertion that fails, with
+	// `actual: '0'` — the exact false zero. The copy-module rows follow it, so the
+	// recorded failing-first output is the decisive one.
+	const lockedAbsent = rowValues(null).get(GENERATE_DIALOG_LOCKED_LABEL);
+	assert.ok(lockedAbsent, 'the rendered body carries the locked row');
+	assert.equal(
+		lockedAbsent!.value,
+		GENERATE_DIALOG_DEMAND_UNMEASURED_WORD,
+		'an absent locked count is REPORTED ABSENT in words, never rendered as the number 0',
+	);
+	assert.doesNotMatch(lockedAbsent!.value, /\d/, 'and the not-checked value contains no digit at all');
+	assert.doesNotMatch(
+		lockedAbsent!.className,
+		/font-semibold/,
+		'an unmeasured row never wears the measured-figure treatment',
+	);
+	assert.equal(lockedAbsent!.dataKnown, 'false', 'and the DOM states the neutral state, so colour is never load-bearing alone');
+
+	// M4a-A — the copy module itself, which every caller shares.
+	const absent = buildGenerateDialogCopy({ schoolYearLabel: '2031-2032', termSource: 'atlas' });
+	assert.equal(absent.lockedKnown, false, 'an absent locked count is reported as not known');
+	assert.equal(absent.classesToScheduleKnown, false, 'and so is the headline it sits under');
+	const lockedRow = absent.rows.find((row) => row.label === GENERATE_DIALOG_LOCKED_LABEL);
+	assert.ok(lockedRow, 'the locked row is present in the copy');
+	assert.equal(lockedRow!.value, GENERATE_DIALOG_DEMAND_UNMEASURED_WORD, 'and its value is the not-checked state');
+	assert.equal(lockedRow!.known, false, 'and the row carries the neutral state for the renderer');
+
+	// M4a-B — a MEASURED zero is a real answer and still reads `0`. This is why
+	// the tri-state exists: collapsing it to the neutral state would destroy a
+	// true fact.
+	const measuredZero = buildGenerateDialogCopy({ lockedClassCount: 0 });
+	assert.equal(measuredZero.lockedKnown, true, 'a measured zero IS known');
+	assert.equal(
+		measuredZero.rows.find((row) => row.label === GENERATE_DIALOG_LOCKED_LABEL)!.value,
+		'0',
+		'and it is still rendered as the number 0, because it was measured',
+	);
+	const renderedZero = rowValues(0).get(GENERATE_DIALOG_LOCKED_LABEL);
+	assert.equal(renderedZero!.value, '0', 'the rendered measured zero still reads 0');
+	assert.equal(renderedZero!.className, 'font-semibold text-foreground', 'and keeps the measured-figure treatment');
+	assert.equal(renderedZero!.dataKnown, 'true', 'and the DOM states it is known');
+
+	// A non-finite count is an absent count, never a measured one — the rule the
+	// headline already had.
+	for (const bad of [Number.NaN, Number.POSITIVE_INFINITY]) {
+		const copy = buildGenerateDialogCopy({ lockedClassCount: bad });
+		assert.equal(copy.lockedKnown, false, `a non-finite locked count (${String(bad)}) is absent, not measured`);
+		assert.doesNotMatch(copy.plainText, /NaN|Infinity/, 'and it never reaches the screen as a number');
+	}
+
+	// The call site must not re-introduce the coercion the copy module now owns.
+	const dialogs = code('src/components/timetable/modals/TimetableWorkflowDialogs.tsx');
+	assert.doesNotMatch(
+		dialogs,
+		/lockedClassCount=\{draftBoardSummary\?\.draft \?\? 0\}/,
+		'the dialog no longer coerces an absent board summary to 0 before the copy module sees it',
+	);
+	assert.match(dialogs, /lockedClassCount=\{draftBoardSummary\?\.draft \?\? null\}/, 'it passes the absence through as null');
+	assert.match(dialogs, /lockedClassCount: number \| null;/, 'and the prop type admits null, like classesToSchedule');
+});
+
 test('#56 one verb for "generate" on a published schedule', () => {
 	assert.equal(BUILD_NEW_DRAFT_LABEL, 'Build a new draft', 'the single verb, used for menu, title and button');
 	assert.equal(PUBLISHED_SCHEDULE_STAYS_IN_USE, 'Your published schedule stays in use.', 'the first line is present');

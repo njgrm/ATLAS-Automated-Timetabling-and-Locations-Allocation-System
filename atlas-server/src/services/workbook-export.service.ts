@@ -938,6 +938,15 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 			sectionRow.getCell(1).value = `GRADE ${gradeLevel} — SECTION: ${section.name}`;
 			sectionRow.getCell(1).font = { bold: true, size: 12 };
 			if (fillArgb) sectionRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillArgb } };
+			// a2-c5-map 4b — REVERTED, deliberately. This block previously restored
+			// the long C05 reference labels `No. of Learners — MALE:` and `FEMALE:`.
+			// That was a revert of an intentional, LATER decision on an OFFICIAL
+			// export, and no packet row asked for it. The bare labels below are
+			// `1b272c3e`'s deliberate form, kept here. The reasoning that motivated
+			// the long form (f29a9667's C05 parity copy) is preserved as a named
+			// successor in docs/handoffs/a2-c5-building-occupancy-and-workbook-labels.md
+			// rather than shipped inside this packet. OVERRIDING AN ACCEPTANCE ROW IS
+			// A PLANNER DECISION: flag the temptation, do not act on it.
 			sectionRow.getCell(3).value = 'MALE';
 			sectionRow.getCell(4).value = learnerCounts.get(section.externalId)?.male ?? '';
 			sectionRow.getCell(5).value = 'FEMALE';
@@ -955,7 +964,32 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 			headerRow.getCell(1).value = 'TIME';
 			headerRow.getCell(2).value = 'MINUTES';
 			WEEKDAYS.forEach((day, dayIndex) => { headerRow.getCell(dayIndex + 3).value = day; });
-			// C05 T4/M9 — unambiguous per-period teacher attribution column.
+			// C05 T4/M9 — unambiguous per-period teacher attribution.
+			//
+			// a2-c5-map 4b — the teacher is attributed in the WEEKDAY CELL, which
+			// already renders `subject\nteacher`, and there is deliberately NO
+			// separate aggregate TEACHER column. The REAL sequence, both halves of
+			// one decision:
+			//
+			//   d3900520  2026-09-24 01:38  implemented column 8 in this writer:
+			//                               `headerRow.getCell(8).value = 'TEACHER'`,
+			//                               the per-row attribution cell, and
+			//                               `printArea = A1:H...`.
+			//   2558d322  2026-09-24 16:50  the TEST-side half — removed the eighth
+			//                               column from the route test and pinned
+			//                               `getCell(8) === null`, "the redundant
+			//                               aggregate teacher column is removed".
+			//   1b272c3e  2026-09-24 17:00  the WRITER-side half — removed column 8
+			//                               from THIS file, the long learner labels,
+			//                               and narrowed the border loops to 7.
+			//
+			// So column 8 DID exist and was deliberately removed ten minutes after
+			// its test was aligned. The class-program UNIT file was never updated by
+			// that decision and stayed red; it is corrected additively at
+			// `tt-output-c03r.test.ts`. An earlier draft of this comment claimed
+			// `d3900520` "specified a column no implementation ever had", citing only
+			// the 16:50 test commit and omitting the 17:00 writer commit. That claim
+			// was FALSE and is corrected here.
 			headerRow.font = { bold: true };
 			if (fillArgb) {
 				for (let column = 1; column <= 7; column += 1) {
@@ -1013,6 +1047,20 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 
 			// C05 T4/M9 — daily totals row with exact arithmetic reconciled to the
 			// configured period structure (sum of the rendered class-period minutes).
+			//
+			// a2-c5-map 4b — REVERTED, deliberately. This row is BASE behaviour,
+			// restored. It previously carried `scheduledMinutesPerDay` in column 2
+			// (the configured class-slot structure) instead of `weekTotalMinutes`,
+			// and accumulated `dailyMinutes` from the slot minutes rather than
+			// `entry.minutes`. QA's finding: the only totals assertion in the suite
+			// (`getCell(2) === 135` and `getCell(3) === 135`) is arithmetically
+			// IDENTICAL under both implementations, so no test could discriminate
+			// and the change was unasserted. This is an OFFICIAL export, outside item
+			// 4b's stated scope, so base behaviour is restored. The analysis that the
+			// five-day `weekTotalMinutes` sum sits under a label reading "TOTAL
+			// MINUTES PER DAY" is a plausible genuine defect and is preserved, with
+			// the measured numbers, as a named successor in
+			// docs/handoffs/a2-c5-building-occupancy-and-workbook-labels.md.
 			const totalsRow = sheet.getRow(rowCursor);
 			totalsRow.getCell(1).value = 'TOTAL MINUTES PER DAY';
 			totalsRow.getCell(1).font = { bold: true };
@@ -1050,6 +1098,11 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 			.join(', ') || '________________________';
 
 		applyLandscapePrintSetup(sheet);
+		// The print area is `A1:G`, matching the seven-column grid (TIME, MINUTES,
+		// five weekdays) and the per-row border loops above. It was `A1:H` from
+		// d3900520 until 1b272c3e (2026-09-24 17:00) removed column 8; the stale
+		// `^A1:H` expectation left behind in the class-program UNIT file by that
+		// decision is corrected additively at `tt-output-c03r.test.ts`.
 		sheet.pageSetup.printArea = `A1:G${rowCursor + 7}`;
 		sheet.pageSetup.printTitlesRow = `1:${EXPORT_HEADER_LAST_ROW}`;
 		sheet.pageSetup.margins = { left: 0.2, right: 0.2, top: 0.35, bottom: 0.35, header: 0.15, footer: 0.15 };
