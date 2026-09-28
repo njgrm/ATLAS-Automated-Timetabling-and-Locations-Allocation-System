@@ -4488,60 +4488,59 @@ decidable from source. Worktrees `lane-a3-c10-{s1-sections,s3-tldensity,s4-teach
 
 ## Lane A6 — current lane (written only by Planner A6)
 
-- **Stream:** Teachers + Teaching Load, items 24.1, 23.1, 16.1, 38, 39, 40 + FIX-29, plus Lane C's
-  19:05 Teaching Load header walk (`docs/reviews/codex-teaching-load-walk-20260928/report.md`,
-  5 major / 2 minor). Source only, non-elevated, never deploys. Worktree
-  `E:/ATLAS-worktrees/lane-a6-teachers-tl`, branches `work/a6-tl-header-c2` (`26b927eb`) and
-  `integration/a6-teachers-tl-c2-2026-09-29` (`5481dcc`, on `origin/main`).
-- **Integrated and pushed 2026-09-29, `A6 ready for release at 5481dcc`** (pushed
-  `3e9d0f6c..5481dccc`). **0 fixes live and seen / 5 integrated and NOT seen rendered / 0 dropped.**
-  Cycle: candidate `cdcf30eb` on base `ad80f737`, 16 paths, all `atlas-client/src/**`. Fresh QA round 1
-  `CORRECTION_REQUIRED` **9/10/0/0** — one BLOCKING, a real degraded-data defect. Bounded correction
-  `26b927eb`, additive on the same branch. Scoped re-review `ACCEPT_READY` **8/8/0/0**; QA reproduced
-  the failing-first itself (23 tests / 21 pass / 2 fail reverted → 23/0 restored). The product tree of
-  `5481dcc` is **byte-identical** to `26b927eb`, and the integration delta is exactly those 16 paths.
-  **A4 owns the release; A6 does not deploy.**
-- **What shipped, against Lane C's own words:** the `Load summary` dialog is a vertical list with no
-  sideways scroller (was 1,189px and 2,388px of content in a 451px box); header row 2 is ONE status
-  sentence + ONE primary action, no `overflow-x-auto`, `Archived load` moved into the More menu; a
-  draft chip (`Draft — not saved` / `Saved`) and `Suggest assignments` in secondary, sentence case, no
-  letter-spaced caps; inspection is a read-only profile dialog with a separate `Edit assignments`; the
-  Sections no-match search says `No sections match '<q>'` with a working Clear search; the label is
-  `Review staff workload` over a `Staff workload audit` dialog. Header budget re-verified at **2 band
-  rows / 66px** against the 70px ceiling, and `pages/TeachingLoad.tsx` shrank **998 → 995** (the
-  inspector node moved verbatim into `TeachingLoadInspectorPanel.tsx`).
-- **Dated blocker 2026-09-29 — the five fixes are NOT seen rendered and are NOT claimed as seen.** A6's
-  loopback measurement was `UNPERFORMED`: the only available Playwright profile
-  (`C:/Users/njgro/.config/opencode/playwright-profile`) was held by another lane, and §12 forbids two
-  agents in one profile. The built client did serve 200 on `127.0.0.1:5291/teaching-load`; the preview
-  was stopped and its logs deleted, no residue. **A4 owns the post-deploy browser rows for `5481dcc`**
-  (§13) — at 1366x768 and 1920x1080 on the Tailnet: no page or row-2 horizontal scrollbar; no overlap
-  between the status sentence and any action; the draft chip and `Suggest assignments` legible; the
-  `Load summary` dialog a vertical list with every label and value visible; `No sections match '<q>'`
-  on a no-match search; and one amber `EnrollPro not reachable` line with **no** unlabelled derived
-  count beside it. No one may record these rows met without a screenshot at both widths.
-- **Dated follow-ups 2026-09-29, all NON_BLOCKING, all open:** (N-1) `refreshing` still publishes
-  `Teaching Load looks ready` / `23 of 24` over a last-saved snapshot, and a test now PINS that branch —
-  it needs a deliberate decision; (N-2) the degraded withholding is wider than declared
-  (`teacher-missing-load`'s department label is a local fact, now withheld) and narrower than the
-  titles (`…is over the weekly max`, `…has no load` survive as flat assertions); (N-3) the shared
-  status string hard-codes "EnrollPro is not reachable" in `OFFLINE`/`NONE`, beside an honest line
-  saying ATLAS is offline. Carried from QA: no timezone label on the saved-at time;
-  `teaching-load-truth-source-badge` has no live rendered assertion; `overflow-x-auto` retained in the
-  panel's unreachable default branch; `uppercase tracking-*` on non-header chrome in `SectionGridMode`
-  and the dialog; a missing space before the `·` in the alert clause (`WorkspaceToolbar.tsx:284`).
-  Also still open: `TeachingLoadModals.tsx:162` says `Draft N change(s)` with a teacher count.
-- **Housekeeping, 2026-09-29:** `pages/TeachingLoad.tsx` is **995 of 1000 lines** — the next slice here
-  needs a sub-component extraction first; do not add to it. `test:client-quality` is now **34/34** on
-  `main`: A2's `a2-c12-310fix` cleared the pre-existing `#310 ScheduleReviewWorkspace` failure A6 had
-  been carrying as a foreign blocker. `test:a3-title-strip-c3` remains **14/15** on the
-  `AdminWorkspace.tsx` 21-divs-vs-20 failure — still A2-owned, still untouched by A6.
-- **Next action (single):** hand `5481dcc` to A4 for the release with the five browser rows above as its
-  post-deploy acceptance. A6's own next cycle, only once a rendered verdict exists, is the N-1/N-2/N-3
-  degraded-copy decisions — not more header work.
-- **Worktree disposition:** `lane-a6-teachers-tl` is `RETIRE_AFTER_INTEGRATION`, **left in place for
-  A4** (§14 gives A4 E: capacity and junction-safe reclamation). Its `node_modules` is real and was
-  never junctioned. No branch deleted; `work/a6-tl-header-c2` still resolves to `26b927eb`.
+- **Stream:** Teachers + Teaching Load. Source only, non-elevated, **never deploys** (AGENTS.md §14). Current cycle
+  `a6-tl-header-budget-2026-09-29`; packet `docs/prompts/a6-tl-header-budget-impl-2026-09-29.md`. Worktree
+  `E:/ATLAS-worktrees/lane-a6-tl-header` (client `node_modules` installed, real, never junctioned), branches
+  `work/a6-tl-header-budget` and `integration/a6-c4-20260929`.
+- **Integrated and pushed 2026-09-29 — `A6 ready for release at 91a9b8fb`** (merge `52210369`, reviewed candidate
+  `b1cfd033`, evidence `405381bb`, Lane C post `3da49450`). **0 fixes live / 2 integrated, seen only on an isolated
+  loopback / 0 dropped.** Prior cycle `5481dcc` is on `main` and **still not seen rendered**.
+- **Two of Lane C's records were false, and the code now makes one true.** `docs/prompts/a4-train-2026-09-29-5.md:13`
+  and `a6-tl-header-budget-2026-09-29.md` both listed A6 `a2c4c135` as "Guided mode removed from Teaching Load".
+  `a2c4c135` is a **docs-only fold**; at `ce1257c8` `TeachingLoad.tsx:895` still rendered
+  `TeachingLoadGuidedModePlaceholder` in place of the grid. **Do not cite `a2c4c135` for Guided mode; the real SHA
+  is `2ef67e27` / `91a9b8fb`.**
+- **What changed:** Guided mode removed (component deleted, `advancedGridVisible` gate and its state deleted, 22 base
+  references → 0 production); the Teaching Load header is two calm rows per §8 with one primary action and nothing
+  truncated; Lane C's T5 doubled amber line is one. Header budget re-verified at **2 rows / 66px** against the 70px
+  ceiling. Renders in `docs/reviews/a6-tl-header-20260929/` (1366x768 and 1920x1080, healthy and degraded).
+- **Gates on the merged tree:** `test:a6-tl-header-budget` 9/9 · `test:a3-c10-tl-density` 9/9 ·
+  `test:a6-teaching-load` 29/29 · `test:client-quality` 34/34 · `test:a3-teachers-load` 43 pass / 0 fail ·
+  `test:a5-subjects-c1` 14/14 · A5 picker guards 13/13 · `typecheck` **0 in-fence** (same 5 pre-existing out-of-fence).
+- **QA, quoted honestly:** fresh round 2 `CORRECTION_REQUIRED` **11 passed / 12, blocked 0, unperformed 1**,
+  design judgement gate **PASS_UX** (it opened the PNGs and scored them; `ux-communication-rubric` does not exist in
+  this repo, so it scored against §8). **Not `ACCEPT_READY`.** The unperformed row is `test:client-suite`, which is
+  **malformed at both revisions** (`"tsx --test tsx --test …"` in `atlas-client/package.json`) and dies before
+  printing a tally. **A6 did not fix it:** repairing a shared 130-file gate mid-train is not a product lane's call
+  (§14) and could turn the repo red for other lanes. **It needs an owner.** Shipped under §11's two-round rule with
+  the finding recorded, not dropped.
+- **Integration conflict, resolved mechanically:** `TeachingLoadFilterBar.tsx` — took `origin/main` (A5 C3 slice B
+  `e8bb101b`), which had already replaced the four page-local `@/ui/select` triggers with the one shared `@/ui`
+  `FilterPicker`, a superset of this slice's intent. `91a9b8fb` re-points `A6c4-G2-6` at the primitive and marks
+  the three now-unreachable assertions **superseded, not deleted** (§16). No product code was hand-merged.
+- **Dated blocker 2026-09-29 — nothing is seen live and nothing is claimed live.** Every picture is an **isolated**
+  loopback harness (real `WorkspaceToolbar` + real `TeachingLoadRepairQueue`, hand-passed props, harness deleted
+  after capture). No session, no real roster, no full-route `/teaching-load` render, no deployed build.
+  **A4 owns the post-deploy browser rows for `91a9b8fb`** (§13) at 1366x768 and 1920x1080 on the Tailnet: the grid
+  on first paint with no `Guided` string; one amber line when EnrollPro is unreachable; no `…` on any header or
+  filter-row label; four identical shared pickers on one row. No one may record these met without a screenshot.
+- **Dated follow-ups 2026-09-29, all NON_BLOCKING, all open:** (N-4, **top**) the header's
+  `Temporary substitutes` alert renders as a `<span>`, so it advertises a control that does nothing;
+  `tl-operator-workspace-c05.test.ts:458` is red for that reason **at base and on the candidate**. (N-7) row 1
+  still carries two chips (`EnrollPro roster verified` · `Saved`) — two different claims, unchanged from base, so
+  §8's letter is for the next header pass. (N-2) `TeachingLoad.tsx` is **981** of 1000 lines; extract before the
+  next edit. (N-6) this slice and A5 C3 both edit `WorkspaceToolbar.tsx`, `TeachingLoad.tsx`,
+  `useTeachingLoadRepairQueue.ts`, `a3-teaching-load-review-c2.test.tsx` — a live conflict surface for A4.
+  `buildGuidedEmptyTeachingLoadMessage` keeps "Guided" in its name; its words are plain. Carried from c2: (N-1)
+  `refreshing` still publishes `Teaching Load looks ready` over a last-saved snapshot and a test PINS it — needs a
+  deliberate decision; (N-3) the shared status string hard-codes "EnrollPro is not reachable" beside an honest
+  ATLAS-is-offline line; `TeachingLoadModals.tsx:162` says `Draft N change(s)` with a teacher count.
+- **Next action (single, and it is A4's):** put `91a9b8fb` in the next train and run the four browser rows above on
+  staging. A6's own next cycle is `docs/prompts/a6-outage-placeholders-2026-09-29.md` — **not started, not
+  claimed**; it needs a fresh session.
+- **Worktree disposition:** `lane-a6-tl-header` is `KEEP_ACTIVE` until the release carries `91a9b8fb`; it holds the
+  installed `node_modules` the next A6 cycle reuses. `lane-a6-teachers-tl` is `RETIRE_AFTER_INTEGRATION`, left for
+  A4's junction-safe reclamation (§14). No branch deleted.
 
 ## 2026-09-28 22:31 +08 — Lane C live-data change: faculty EnrollPro ID offset (operator-approved)
 
