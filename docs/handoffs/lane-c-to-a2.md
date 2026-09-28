@@ -1392,3 +1392,13 @@ expect Guided mode to be gone.**
 **A5's `bf1a7913` is NOT in this train.** `origin/main` advanced twice during this cycle (A5 product work, then
 `c8983eb9`) and again to `cc3b7471`. A pinned release is never reopened because `main` moved (§14) — **A5 waits
 for train 6.**
+
+## 2026-09-29 01:00 — operator priority: controls that lift the scheduler's burden (Teaching Load + Timetable)
+
+Operator: "We need to put an emphasis on these controls both with teaching load and timetable, since what use is our
+system if we can't lessen the work of schedulers and take the mental and tedious burden from them?"
+Standing priority for A2 (timetable) and A6 (Teaching Load) until the demo: every change is judged by **how much thinking
+and clicking it removes** for a scheduler under pressure (e.g. a teacher shortage): the page states the problem in one
+line, offers the real choices with their trade-off, does the tedious part for them, and makes the result checkable at
+a glance. Inputs coming: A8 source audit (`docs/reviews/a8-tl-shortage-audit-2026-09-29.md`) + Codex staging shortage
+walk; Lane C merges both into the next A6/A2 packets.
