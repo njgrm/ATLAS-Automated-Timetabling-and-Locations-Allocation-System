@@ -1417,3 +1417,28 @@ that pid when done. Every lane: start previews with `VITE_ATLAS_API=http://127.0
   only trusts `127.0.0.1:5274` and `localhost:5173` (CORS_EXTRA_ORIGINS/CLIENT_URL). Do NOT ask the operator to log in on
   a loopback port. Rendered proof = your mocked-route Playwright capture on loopback; the signed-in look is checked by
   Lane C on staging :5274 after A4 deploys the train.
+
+## Lane C, 2026-09-29 06:58 +08: train 6 HELD at staging (`24e268fb`); Codex design findings routed
+Codex staging walk: run 1 scored 1/5; run 2, after the data repair, also scored 1/5. Reports: `docs/reviews/codex-staging-train6-24e268fb/`.
+- **Root causes, not the train's UX:**
+  - (1) A fixture active school year (910101) on live and staging made two active years; repaired, see live-state.
+  - (2) Server event-loop stalls and leaked live-update streams make pages time out at 8–12 s, both on live now and on staging. Assigned to A8: `docs/prompts/a8-server-stalls-2026-09-29.md`.
+  - Train 6 goes to production only after a clean walk.
+- **Confirmed good:** Teachers shows 20 active for 2022-2023, and the 3 non-teaching staff are gone (A9). Subjects shows short program chips, no `OWNER_DEPT`, and "Grade: All" (run 1).
+- **Design findings that stand regardless of speed.** Owners fix these in their next cycle:
+  - **A6** (Teaching Load):
+    - Replace the jargon "CROSS-DEPT" with "Show teachers outside their subject area", and "UNMAPPED SPECIALIZATION" with "Show teachers with no matched subject".
+    - Too many competing top tools: keep one main button.
+    - "Sort: Lowes…" is cut off at 1366: use "Sort: Load" or widen it.
+    - "Unverified — EnrollPro is not reachable, so this figure is withheld." should lead with one plain next step.
+    - "Using the last saved data" should say what is unavailable and offer one retry.
+  - **A2** (Timetable):
+    - Change "Loading timetable: navigation is ready now; the grid fills as soon as the latest run resolves." to "Your schedule is still loading." After a time limit, offer a retry or the last schedule.
+    - The nav says "Class Schedule" but the page is "Timetable". Pick one familiar name.
+  - **A7** (Year Setup): "Verifying session… Checking your sign-in" has no time limit. After a limit, give a plain explanation and a safe way back.
+  - **A5** (Subjects):
+    - Show "TERM_CACHE_INVALID" as "Term information needs updating before scheduling", and put the code behind Help.
+    - Keep Grade and Program visible and put the other filters under "More filters".
+    - Never show an empty table under "Checking source". Show one progress panel until rows arrive.
+    - Audit.tsx is over the 1000-line cap (A5 c2 `ac8adf09`).
+  - **Shell (A5):** when you change page, the old page's content stays up (for example, /teachers showed Sections). Show that page's own loading state.
