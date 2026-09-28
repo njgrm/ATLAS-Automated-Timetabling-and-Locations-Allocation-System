@@ -69,6 +69,26 @@ Rules for the planners:
 - Before Wednesday: a **demo walkthrough script** (the operator's path through the product) walked end to end on live,
   graded for older users, with every stumble fixed or listed.
 
+## CHECKPOINT 2026-09-29 00:25 (supersedes earlier checkpoints)
+
+**Live** `9ca7f629` (train 2). **Train 4 `c9be17fe`** (main 60e58567 + A3 13d75ce6: A2 24c6242c header/draft, A6 5481dcc,
+Lane C grade-name hotfix 938de8aa) passed staging 4/4 (TL suggestion 264 rows) -> **a4-train4-prod running** (session
+ses_f17acda30ffea6RmHSKhymLKZE). On LIVE: luna smoke, then tell operator "live" -> operator reruns TL suggestion 2022-2023,
+generate, publish, then EnrollPro rollovers (paused until then; operator confirms each; ATLAS auto sync is OFF -> operator
+presses Preview + Sync now per year; Lane C verifies each year: sy.cjs / fcheck.cjs in scratchpad).
+**EnrollPro reset:** school year IDs now 1.. (ATLAS keeps 8-10 as history; 9,10 not archived and invisible -> A7 fix, then
+operator archives on screen). Teacher IDs reset: live+staging faculty external_id offset +1e6 (backups in
+D:/ATLAS-runtime-config/backups/faculty-id-offset-20260928/); 23 teachers re-linked by employee_id, 23 old stale. AP subject
+repaired (rotation null, grades 7-10). EnrollPro active-term API says T3 (all 2022-23 terms past) - EnrollPro-side.
+**Lanes running:** A2 a2-c12r6 (past-year read-only timetable /timetable?schoolYearId=; P parked till after demo; 6d034431
+ready), A3 a3-c12r (Dashboard scroll, map inspector), A5 a5-c2r3 (EnrollPro timeouts: TL blank 30 s; notifications year
+labels; OWNER_DEPT codes), A6 a6-c3 (remove Guided mode FIRST, counts 23 vs 20, T5 double amber), A7 a7-c1 (School Year
+Setup plain words + list all past years + read-only links). Routing posts in lane-c-to-a2.md 22:55, 23:05, 23:20.
+**Codex:** luna@medium for fixed steps, terra@medium for UX walks; never save Subjects/setup/policy on live.
+**Heartbeat:** every 15 min, notifyOnCompletion (re-arm after restart); status.sh flags STUCK-SERVER and filters cmd.exe PIDs.
+**Operator artifact:** fix-docs QA checklist https://claude.ai/artifact/EQ6Zas4FD6GZHpu29TwjVv (republish from
+scratchpad/atlas-fix-docs-qa.html when train 4+ lands).
+
 ## CHECKPOINT 2026-09-28 20:30 (supersedes earlier checkpoints)
 
 PC rebooted ~20:15. Live `7590d485` and staging came back on their own; admin serve on :4097 restarted by the operator WITHOUT a
