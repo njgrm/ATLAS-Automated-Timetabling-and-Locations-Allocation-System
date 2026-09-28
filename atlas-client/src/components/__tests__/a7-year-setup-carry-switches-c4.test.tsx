@@ -30,7 +30,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { afterEach, mock, test } from 'node:test';
-import { act, createElement } from 'react';
+import { act, createElement, useState } from 'react';
 import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
@@ -738,4 +738,148 @@ test('C6b: all three extracted dialogs still render, with their testids and thei
 		assert.ok(sibling.includes(testid), `the sibling must own "${testid}"`);
 	}
 	assert.equal(typeof RolloverConfirmationDialogs, 'function', 'the sibling must be a real exported component');
+});
+
+/**
+ * A7-C4 REGRESSION PIN for review finding N3, and the follow-up N-F3.
+ *
+ * The §8 extraction moved these dialogs out of `RolloverGuidanceCard`, and the
+ * first move pointed both Cancel buttons at the dialogs' `onOpenChange`
+ * handler. That handler is the escape/X/overlay close path and it ALSO clears
+ * the typed confirmation text and the published acknowledgement, so routing
+ * Cancel through it silently changed behaviour on the five `RolloverGuidanceCard`
+ * mounts other lanes own. The correction restored the base semantics through two
+ * dedicated close-only props.
+ *
+ * WITHOUT THIS ROW, that defect could return with every other committed gate
+ * still green: nothing else clicks Cancel, and a source assertion cannot tell a
+ * close-only handler from a clearing one. This row is behavioural and it is the
+ * one that actually pins the property — `onRecoveryCancel` must be a SEPARATE
+ * channel from `onRecoveryOpenChange`, and clicking Cancel must fire one and not
+ * the other.
+ */
+test('CANCEL: the Cancel buttons are a close-only channel and do NOT clear the typed confirmation', async () => {
+	reset();
+	const calls: string[] = [];
+
+	// A stateful harness shaped exactly like the card's wiring: `openChange` is
+	// the clearing close path, `cancel` is the close-only one.
+	function Harness() {
+		const [open, setOpen] = useState(true);
+		const [text, setText] = useState('RESET_DUMMY_SCHOOL_YEAR_1');
+		return createElement(RolloverConfirmationDialogs as any, {
+			plainLanguageNextStep: false,
+			schoolId: SCHOOL_ID,
+			termRepair: { dialogOpen: false, confirmationText: '', scope: null, applicable: false, reason: null },
+			termPreview: null, termPreviewLoading: false, termApplying: false,
+			onTermRepairOpenChange: () => calls.push('term-open-change'),
+			onTermConfirmationTextChange: () => {}, onTermApply: () => {},
+			showRecoveryConfirm: open, recoveryConfirmText: text, recoveryAckPublished: false,
+			recovering: false,
+			recoveryClassification: { classification: 'TEST_DATA_RECOVERY_BLOCKED', schoolId: SCHOOL_ID, enrollProSchoolYearId: { id: SCHOOL_YEAR_ID, yearLabel: YEAR_LABEL }, atlasSchoolYearId: 10, conflictCode: 'SECTION_ID_COLLISION', artifactCounts: {}, blockers: [], confirmationText: 'RESET_DUMMY_SCHOOL_YEAR_1', message: 'm', canClearTestData: false, testDataMarked: false },
+			onRecoveryOpenChange: (next: boolean) => { calls.push(`open-change:${next}`); setOpen(next); setText(''); },
+			onRecoveryConfirmTextChange: setText,
+			onRecoveryAckPublishedChange: () => { calls.push('ack-change'); },
+			onRecoveryApply: () => calls.push('apply'),
+			onRecoveryCancel: () => { calls.push('cancel'); setOpen(false); },
+			showMarkTestDataConfirm: true, markTestDataAcknowledged: false, markingTestData: false,
+			onMarkTestDataOpenChange: (next: boolean) => { calls.push(`mark-open-change:${next}`); if (!next) setText(''); },
+			onMarkTestDataAcknowledgedChange: () => { calls.push('mark-ack-change'); },
+			onMarkTestData: () => calls.push('mark'),
+			onMarkTestDataCancel: () => { calls.push('mark-cancel'); },
+		});
+	}
+
+	const host = dom.window.document.createElement('div');
+	dom.window.document.body.appendChild(host);
+	hosts.push(host);
+	const root = createRoot(host);
+	roots.push(root);
+	await act(async () => { root.render(createElement(Harness)); });
+	await flush();
+
+	const typed = dom.window.document.body.querySelector('#recovery-confirmation') as HTMLInputElement | null;
+	assert.ok(typed, 'the recovery confirmation input did not render, so this row would pass vacuously');
+	assert.equal(typed.value, 'RESET_DUMMY_SCHOOL_YEAR_1', 'the harness must start with text typed into the confirmation');
+
+	// Click the recovery Cancel, identified by its position beside the apply.
+	const buttons = Array.from(dom.window.document.querySelectorAll('button'));
+	const recoveryApply = dom.window.document.body.querySelector('[data-testid="recovery-confirm-apply"]') as HTMLButtonElement;
+	assert.ok(recoveryApply, 'the recovery apply control did not render');
+	const recoveryCancel = buttons.find((b) => b.textContent?.trim() === 'Cancel' && b.compareDocumentPosition(recoveryApply) & Node.DOCUMENT_POSITION_FOLLOWING);
+	assert.ok(recoveryCancel, 'the recovery Cancel control did not render');
+	calls.length = 0;
+	click(recoveryCancel!);
+	await flush();
+
+	assert.ok(calls.includes('cancel'), `Cancel must fire the close-only channel; observed: ${JSON.stringify(calls)}`);
+	assert.equal(
+		calls.some((c) => c.startsWith('open-change:')),
+		false,
+		`Cancel must NOT go through onOpenChange, which also clears the typed text and the acknowledgement; observed: ${JSON.stringify(calls)}`,
+	);
+	assert.equal(
+		calls.includes('ack-change'),
+		false,
+		'Cancel must not clear the published acknowledgement',
+	);
+	assert.equal(typed.value, 'RESET_DUMMY_SCHOOL_YEAR_1', 'Cancel must leave the typed confirmation text in place, as it did before the extraction');
+	teardown();
+
+	// And the same for mark-as-test-data, whose Cancel used to clear the ack.
+	const markCalls: string[] = [];
+	function MarkHarness() {
+		const [open, setOpen] = useState(true);
+		return createElement(RolloverConfirmationDialogs as any, {
+			plainLanguageNextStep: false, schoolId: SCHOOL_ID,
+			termRepair: { dialogOpen: false, confirmationText: '', scope: null, applicable: false, reason: null },
+			termPreview: null, termPreviewLoading: false, termApplying: false,
+			onTermRepairOpenChange: () => {}, onTermConfirmationTextChange: () => {}, onTermApply: () => {},
+			showRecoveryConfirm: false, recoveryConfirmText: '', recoveryAckPublished: false,
+			recovering: false, recoveryClassification: null,
+			onRecoveryOpenChange: () => { markCalls.push('open-change'); },
+			onRecoveryConfirmTextChange: () => {},
+			onRecoveryAckPublishedChange: () => { markCalls.push('ack-change'); },
+			onRecoveryApply: () => {},
+			onRecoveryCancel: () => { markCalls.push('cancel'); setOpen(false); },
+			showMarkTestDataConfirm: true, markTestDataAcknowledged: true, markingTestData: false,
+			onMarkTestDataOpenChange: (next: boolean) => { markCalls.push(`mark-open-change:${next}`); },
+			onMarkTestDataAcknowledgedChange: () => { markCalls.push('mark-ack-change'); },
+			onMarkTestData: () => { markCalls.push('mark'); },
+			onMarkTestDataCancel: () => { markCalls.push('mark-cancel'); setOpen(false); },
+		});
+	}
+	const host2 = dom.window.document.createElement('div');
+	dom.window.document.body.appendChild(host2);
+	hosts.push(host2);
+	const root2 = createRoot(host2);
+	roots.push(root2);
+	await act(async () => { root2.render(createElement(MarkHarness)); });
+	await flush();
+
+	const markApply = dom.window.document.body.querySelector('[data-testid="rollover-mark-test-data-confirm"]') as HTMLButtonElement;
+	assert.ok(markApply, 'the mark-as-test-data apply control did not render, so this half would pass vacuously');
+	assert.equal(markApply.disabled, false, 'the acknowledged mark control must be enabled for this row to be meaningful');
+	const buttons2 = Array.from(dom.window.document.querySelectorAll('button'));
+	const markCancel = buttons2.find((b) => b.textContent?.trim() === 'Cancel' && b.compareDocumentPosition(markApply) & Node.DOCUMENT_POSITION_FOLLOWING);
+	assert.ok(markCancel, 'the mark-as-test-data Cancel control did not render');
+	markCalls.length = 0;
+	click(markCancel!);
+	await flush();
+	assert.ok(markCalls.includes('mark-cancel'), `mark Cancel must fire the close-only channel; observed: ${JSON.stringify(markCalls)}`);
+	assert.equal(
+		markCalls.some((c) => c.startsWith('mark-open-change:')),
+		false,
+		`mark Cancel must NOT go through onMarkTestDataOpenChange; observed: ${JSON.stringify(markCalls)}`,
+	);
+
+	// Finally, the card must actually pass these two close-only props rather
+	// than re-routing them to the clearing handler at the call site.
+	const cardSource = readFileSync(new URL('../runtime/RolloverGuidanceCard.tsx', import.meta.url), 'utf8');
+	for (const [prop, expected] of [
+		['onRecoveryCancel', 'onRecoveryCancel={() => setShowRecoveryConfirm(false)}'],
+		['onMarkTestDataCancel', 'onMarkTestDataCancel={() => setShowMarkTestDataConfirm(false)}'],
+	] as const) {
+		assert.ok(cardSource.includes(expected), `the card must pass ${prop} as a direct close-only setter: ${expected}`);
+	}
 });

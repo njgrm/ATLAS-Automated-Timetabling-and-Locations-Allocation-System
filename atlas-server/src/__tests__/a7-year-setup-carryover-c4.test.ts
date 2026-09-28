@@ -506,12 +506,17 @@ describe('A7-C4 the source year setup a new school year keeps', () => {
 	 *
 	 * WHAT IT DOES NOT PROVE, stated here rather than left implied: a call site
 	 * passing a boolean VARIABLE that evaluates to `false` would not be flagged by
-	 * this scan. The manual review that closed the gap read all six call sites of
-	 * `applyRolloverSync` — the `/rollover-sync/apply` route, `/reset-dummy-year`,
-	 * `/rollover-archive/apply`, `applyTestYearRecovery`, `resetDummyYearAndApplyRollover`
-	 * and the automation path — and found that only the first passes the object at
-	 * all, with both values taken raw off `req.body`. The behavioural row above,
-	 * not this one, is what guarantees the property.
+	 * this scan. The manual review that closed the gap read all FIVE production
+	 * call expressions of `applyRolloverSync` — `runtime.router.ts`'s
+	 * `/rollover-sync/apply` route, `archiveAndSyncActiveYear` and
+	 * `resetDummyYearAndApplyRollover` and `applyTestYearRecovery` in the
+	 * rollover service, and the automation path in
+	 * `rollover-automation.service.ts` — and found that only the first passes the
+	 * object at all, with both values taken raw off `req.body`. (The two
+	 * `/reset-dummy-year` and `/rollover-archive/apply` routes are the transport
+	 * for the second and third of those functions, not extra call sites; an
+	 * earlier draft of this comment listed them separately and so said "six".) The
+	 * behavioural row above, not this one, is what guarantees the property.
 	 *
 	 * The POSITIVE CONTROL is the part that makes it evidence: the same extractor,
 	 * fed a synthetic default-off caller, must report it. A scan that cannot go red
