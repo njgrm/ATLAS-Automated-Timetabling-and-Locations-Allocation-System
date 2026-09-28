@@ -91,7 +91,7 @@ export type SimpleHeaderTrailingSurfacesProps = {
 	 * same `sentence` / `visibility` values the badge and `RunIdentityLine` read,
 	 * so a run cannot be named two different ways on one screen.
 	 */
-	runState: {
+	runState?: {
 		/** `null` for a pre-generation workspace or an empty grid — nothing to name. */
 		sentence: string | null;
 		visibility: string | null;
@@ -107,8 +107,16 @@ export type SimpleHeaderTrailingSurfacesProps = {
 	 * `N setup items to fix`, and the technical diagnostic behind it is the chip
 	 * control's `@/ui` Tooltip. The header filters that one id out rather than
 	 * this component knowing about it.
+	 *
+	 * OPTIONAL, WITH A SAFE DEFAULT. `runState` and `messages` were introduced
+	 * required, which made this shared component throw at render for ANY caller that
+	 * predates them — the base `TimetableSimpleHeader` is exactly such a caller, and
+	 * it crashed at `reading 'sentence'`. A shared surface that is handed props by two
+	 * generations of caller must degrade to "say nothing", not throw: the band's whole
+	 * contract is that it renders NOTHING when it has nothing to say, so an absent
+	 * `runState` is just the nothing case.
 	 */
-	messages: readonly SimpleHeaderMessage[];
+	messages?: readonly SimpleHeaderMessage[];
 	/**
 	 * The unverified-term-authority sentence, or `null`. The header already
 	 * computes it with `resolveTermAuthorityNotice`; passing the value keeps one
@@ -133,7 +141,13 @@ function SimpleHeaderStatusBand({
 	messages,
 	termAuthorityNotice,
 }: {
-	runState: SimpleHeaderTrailingSurfacesProps['runState'];
+	/**
+	 * NOT optional here, even though the parent prop is. The parent DEFAULTS these
+	 * (`{ sentence: null, visibility: null }` and `[]`), so by the time the band sees
+	 * them they are always present — which is what keeps the band's own body free of
+	 * `undefined` checks while still making the parent safe for an older caller.
+	 */
+	runState: { sentence: string | null; visibility: string | null };
 	messages: readonly SimpleHeaderMessage[];
 	termAuthorityNotice: string | null;
 }) {
@@ -201,8 +215,8 @@ export function SimpleHeaderTrailingSurfaces({
 	onRetry,
 	labelForSection,
 	labelForSubject,
-	runState,
-	messages,
+	runState = { sentence: null, visibility: null },
+	messages = [],
 	termAuthorityNotice = null,
 }: SimpleHeaderTrailingSurfacesProps) {
 	return (
