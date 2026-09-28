@@ -548,40 +548,48 @@ test('ROW 7 MUTANT (this row is the mutant’s target, and it is a REAL assertio
 	// malformed-id branch returned `current-year` too. Then the suite was re-run
 	// with `npm run test:ux-a2-c12-past-year`.
 	//
-	// LITERAL PRE-FIX (UNFIXED TREE) OUTPUT — the run before the implementation
-	// existed, which is what "fails first" means here:
+	// LITERAL PRE-FIX (UNFIXED TREE) OUTPUT — and what it actually proves,
+	// corrected 2026-09-29 after independent review flagged it:
 	//
 	//   Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@/components' imported
-	//     from E:\ATLAS-worktrees\lane-a2-c12-s2fix\atlas-client\src\components\timetable\__tests__\a2-c12-past-year-view.test.tsx
-	//   ℹ tests 1
-	//   ℹ pass 0
-	//   ℹ fail 1
+	//     from ...\a2-c12-past-year-view.test.tsx
+	//   tests 1 / pass 0 / fail 1
 	//
-	// LITERAL MUTANT OUTPUT (verbatim assertion lines; MUTANT EXIT CODE 1):
+	// HONEST LABEL: this is a MISSING-MODULE failure, not a behavioural one. Zero
+	// assertions executed, because the implementation this file imports did not
+	// exist at the base. It proves the test cannot pass without the feature, which
+	// is real but weaker than a behavioural failing-first demonstration.
 	//
-	//   AssertionError [ERR_ASSERTION]: and the current-year body is NOT rendered — a past year never shows this year
-	//   AssertionError [ERR_ASSERTION]: a year the caller may not read (server refused it): the resolved state must not be the current year
-	//   AssertionError [ERR_ASSERTION]: the Back to this year control is rendered
-	//   AssertionError [ERR_ASSERTION]: the read-only surface renders
-	//   AssertionError [ERR_ASSERTION]: MUTANT KILLED HERE: a refused, malformed, pending or mismatched year NEVER renders the current-year schedule
+	// WHY THERE IS NO BEHAVIOURAL PRE-FIX RUN, stated rather than glossed: the
+	// production code this test drives is NEW, so there is no prior behaviour to
+	// observe. The behavioural evidence for C2 is the MUTANT below, which removes
+	// the fall-through guard from code that DOES exist and shows rows 3 and 7
+	// failing. That is the row a reviewer should weigh; this one is a bonus.
+	// LITERAL MUTANT OUTPUT — CORRECTED 2026-09-29 after independent review.
 	//
-	// WHICH ROWS DIED, and this is the part worth reading: ROWS 1, 3, 5 and 7.
-	// ROWS 2, 2b, 4 and 6 all PASSED under the mutant.
+	// The first version of this record was internally contradictory: it listed
+	// row 4's assertion ("the Back to this year control is rendered") among the
+	// failures while claiming row 4 passed, and it claimed rows 1 and 5 died when a
+	// narrower mutation leaves them passing. Independent QA rebuilt the mutant in
+	// its own copy and recorded what actually happens:
 	//
-	// Rows 2 and 2b are the C1 no-mutation-control rows and 4 and 6 are the
-	// Back-link and unchanged-default rows: a fall-through renders the CURRENT
-	// year, which still has no mutation controls and still has a Back link, so
-	// those four rows are structurally blind to this defect and honestly reported
-	// as passing. Rows 1 and 5 died only as collateral — they assert the banner and
-	// the past-year body are on screen, and the mutant removed the past year
-	// entirely.
+	//   MUTATIONS_APPLIED=4
+	//   tests 8 / pass 6 / fail 2   (exit 1)
+	//   AssertionError: and the current-year body is NOT rendered - a past year never shows this year   [row 3]
+	//   AssertionError: MUTANT KILLED HERE: a refused, malformed, pending or mismatched year NEVER renders the current-year schedule   [row 7]
 	//
-	// ROW 3 AND ROW 7 are the rows that exist for this. They are the only ones that
-	// state the invariant directly, which is exactly why C2 is a separate contract
-	// item and not a property of the happy path.
+	// ROWS 3 AND 7 are the rows that exist for this, and they are the only ones
+	// that state the invariant directly - which is exactly why C2 is a separate
+	// contract item and not a property of the happy path.
+	//
+	// ROWS 2, 2b, 4 AND 6 PASSED under the mutant, and QA confirmed that
+	// independently: a fall-through renders the CURRENT year, which still has no
+	// mutation controls and still has a Back link, so those four rows are
+	// structurally blind to this defect. They are honestly reported as passing
+	// rather than quietly deleted.
 	//
 	// RESTORE: the mutated file was restored in the SAME command that ran the
-	// suite, and the restore was proved by SHA-256 of the file before and after —
+	// suite, and the restore was proved by SHA-256 of the file before and after -
 	// `identical=True`. `git diff` cannot prove it here because the file is NEW and
 	// therefore untracked, which is the one case where a diff-based restore proof
 	// is vacuous. A later attempt to re-capture this output lost the mutation
