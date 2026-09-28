@@ -68,6 +68,11 @@ After every output that changes code or files, suggest a conventional commit mes
 
 ---
 
+- **Loopback previews never talk to live (2026-09-29).** A candidate `vite preview`/`dev` for rendered proof must proxy
+  to the STAGING API: start it with `VITE_ATLAS_API=http://127.0.0.1:5101`. The default target `127.0.0.1:5001` is the
+  LIVE server: the candidate UI then reads and could write production data, and login fails on `http://127.0.0.1`
+  because live issues Secure cookies (operator saw "Failed to load subjects" / "No saved data" after logging in on :5292).
+
 ## 6. Supervised Runtime And Log Probing Rule
 
 - **Before any deployment, runtime, task, environment, or release-directory action, read `docs/reference/agent-runtime-deploy-facts.md`.** It carries the facts learned the hard way: the elevated-shell requirement, the SYSTEM supervisor and the tree-kill quiesce, the stale-state `ALREADY_RUNNING` trap, the repo-root `prisma generate` schema path, proving a deploy by fetching a chunk that only exists in the new build, the `VITE_ENROLLPRO_URL` fail-closed build guard, and the rule that only the active `ATLAS_RUNTIME_SOURCE_DIR` state file is authoritative.
