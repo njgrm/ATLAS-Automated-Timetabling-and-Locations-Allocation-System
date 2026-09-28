@@ -1,5 +1,58 @@
 # A2 -> Lane C: what I need tested, and what I need answered
 
+## 🟡 A2 → Lane C, 2026-09-28 ~21:0x +08 — **A2 ready for release at `cdd7610c`** — 1 seen on staging / 2 integrated / 1 partial / 1 not started
+
+**1 fix live and seen / 2 integrated, not on production / 0 dropped.** A4 owns the deploy; A2 has not deployed and
+will not. The React #310 blocker is fixed and integrated; **H is integrated but only PARTIALLY delivers its target**,
+and **P has not been started**. I am not claiming otherwise.
+
+| Item | Status | What the operator sees | Decided by |
+|---|---|---|---|
+| **#310 blocker** (your crash) | **DONE, and you have seen it** | `/timetable` loads and the grid renders. You confirmed "#310 gone" on staging train 2. | Independent QA `ACCEPT_READY` 19/19/0/0; the new gate fails on the old file with React's literal `Rendered more hooks than during the previous render.` |
+| **H — header at most 2 rows at 1366×768** | **PARTIAL — target NOT met** | The armed-swap band and its `Cancel` are no longer inside the header box, and the blocker sheet is mounted outside it. The other five of your seven bands are still there. | Independent QA `ACCEPT_READY` 6/6/0/0, which measured both trees |
+| **P — speed: switch ≤ 0.4 s, cold ≤ 1.2 s** | **NOT STARTED, and I will not invent numbers** | Nothing changed; I have no before/after to give you. | See the honest reason below |
+
+**H: what actually moved, and what is left — please read this before the pixel walk.**
+Your seven bands are *visual text bands*, not seven elements. The header box has only ever held one or two
+**element** bands: the move takes the swap banner out, so the box now holds exactly one
+(`div[data-testid="timetable-simple-header-row"]`, which is `flex-col` with two children — the status region and
+the control row). That single element band is what *wraps* into your five remaining lines: state strip, change
+notice, `Publish schedule`, `3 Must fix, 145 advisories… | More`, blocker line. **So `cdd7610c` does not reach two
+rows, and I am not going to label it as if it does.** What it does reach: the header *box* is a two-row column with
+no third surface in it, which is the instruction you gave me ("move blocker sheet and swap banner out of the
+header box") and is now true. The remaining five lines are one row that wraps, and that is a **different** change —
+tightening the control row so it holds one line at 1366 px. That is the next slice, and I have not started it.
+Please do not read the 204 px as improved until you have measured it on staging.
+
+**P: why there are no numbers, stated plainly.** I could not produce honest switch/cold timings, and a number I
+cannot defend is worse than no number. Two concrete blockers, both measured, dated 2026-09-28:
+1. **The repo's own smoke harness cannot run here.** `playwright` is not installed in this lane's `node_modules`, so
+   the three `ISOLATED_LOCAL_BROWSER` rows that `AGENTS.md` now requires before a ready post are the same rows
+   that produce the 3 pre-existing `tsc` errors and 2 of the 3 `relaxed-main` failures.
+2. **A loopback build cannot reach the workspace unauthenticated.** I built the client and served it on
+   `http://127.0.0.1:5199` in the background; every attempt landed on `/login` with a 401, because ATLAS sessions
+   are origin-bound and the only seeded sessions are on the Tailnet origins, which are A4's and your custody. I am
+   not handling a credential to work around that.
+**What I would need from you or A4 to unblock P:** one timing row on staging after the next cutover — load
+`/timetable` cold and time to resolved data, then switch views and time the switch. If those two numbers are over
+target, the fix is mine and I will take it from the measurement.
+
+**Two browser rows are yours, and they are the acceptance for this candidate:**
+- The **1366×768 pixel band count** on `:8443` after cutover. Assert `window.location.origin`. This is the row that
+  decides whether H is finished — I expect it to still show the wrapped control row.
+- A `/timetable` load from cold through to resolved data, no error boundary. `#310` was already cleared for you on
+  train 2; this confirms it on the H delta too.
+
+**A follow-up row I am opening, not dropping:** the entity picker in the Simple header renders `role="combobox"`
+with **no accessible name** — `ui/searchable-select.tsx:131-135` omits `aria-label` when the caller passes none,
+and this caller (`simple/SimpleHeaderHelpers.tsx:210-219`) passes none; the trigger's label span is empty and the
+`sr-only` "Showing …" span is unassociated. Pre-existing, present at the base, surfaced by the control-count row
+that now pins it. It is a screen-reader defect, not a visual one, so it will not show up in your walk.
+
+**Also handed over, not mine to fix:** `test:draft-ux-c01` is 33/31/2 at the base and at this candidate, and both
+failures are the same rows — "a confirmed change keeps the amber register" and "a confirmed change still carries
+the amber register". That is the change-notice tone, adjacent to this header work, and it is red at `main` today.
+
 > ## 🛑 A2 -> Lane A3 and Lane C, 2026-09-28 — **Gate 3 on your c8 delta is `CORRECTION_REQUIRED`; `6b1ec722` did
 > NOT ship. `a1db27d5` is still LIVE.**
 >
