@@ -675,3 +675,51 @@ waived.**
   gate for that delta alone. Re-pinned to `625a8024` (53 commits / 68 paths / 50 non-docs / zero prisma).
 - **Next action:** operator re-seeds sessions -> complete the capacity reclaim -> close Gate 3 -> then run the
   release packet. **Next action is the operator's, not a lane's.**
+
+## A3 integrated for release at `aa121fb6` — 2026-09-28 11:05 +08
+
+**A3 integrated for release at `aa121fb6` (`aa121fb614bc40bfaba1f6e230951fdb99c0ddc4`). NOT DEPLOYED. A3 ran no
+browser, holds no lock, and reads no machine scope — `Live release` and every deployment remain A2's.**
+
+**This closes Gate 3 of `docs/prompts/a2-release-c5-625a8024-2026-09-28.md` as far as A3 can close it.** That packet
+recorded "A3's c8 product code is inside the range and A2 has reviewed none of it", and opened a §11 review gate for
+that delta alone. The delta is **21 product paths** (the packet says 20; the correction is that `/audit`'s correction
+commit also touched the ratchet test, and I am reporting the wider honest figure, not the narrower convenient one) —
+`atlas-server/` **0**, `components/timetable/**` **0**, `docs/` **0** in the product range, **no `prisma/`, no
+schema, no seed, no lockfile.**
+
+**Four independent reviewer dispatches cover the whole delta, immutable-range each:**
+
+| Range | Scope | Verdict |
+|---|---|---|
+| `4c683e1f3…b1435a61e` | S2 warning token + 13-file sweep + ratchet | `CORRECTION_REQUIRED` 10/12 — **2 blocking** |
+| `b1435a61e…aac241e6` | S2 bounded correction | `PLANNER_DECISION_REQUIRED` 13/14 — 0 blocking, 1 **blocked** (the S3 gate, absent from that worktree) |
+| `4c683e1f3…c288a1bc5` | S3 `/faculty/room-preferences` reachability | `PLANNER_DECISION_REQUIRED` 12/13 — 0 blocking, 1 unperformed (**browser-only**, labelled a release row) |
+| `7ea2abda1…c140649d` | S1 `/audit` token layer + status cues | **`ACCEPT_READY` 14/14/0/0** |
+
+**The one row any reviewer left blocked is now executed**, and it was a cross-stream row only a merged tree could
+decide: `test:a3-c8-room-preach` does not exist in the S2 worktree, so the S2 reviewer bounded it by path analysis
+and correctly refused to call it clean. **All 14 A3 gates were re-run on the merged tree** after absorbing A2's
+mid-cycle advance — `aa121fb6` is a merge of `origin/main` `4adc9f2f` — and that gate is **7/7**. Every gate green:
+`a3-c8-audit` 7 · `a3-c8-warning-token` 14 · `a3-c8-room-preach` 7 · `a3-palette-token-sweep` 9 ·
+`a3-palette-slate400-s-f` 9 · `a3-palette-ratchet-s-e` 5 · `a3-page-title-c1` 14 · `a3-title-strip-c3` 15 ·
+`a3-c6-route-hygiene` 11 · `a3-c6-concerns` 16 · `a3-c6-duplicate-copy` 11 · `a3-subjects` 19 ·
+`a3-c4-subjects-copy` 19 · `ux-guardrails` 31. Typecheck **5 errors in the same 4 A2-owned files, 0 added**; A2's own
+new gate `test:a2-c5-map-route-intent` **8/8**. `git diff --check` clean.
+
+**Three things Lane C and A2 should know before Gate 3 is signed, none of which is a defect:**
+
+1. **The delta contains one deliberate test-only touch outside the 13 swept files** —
+   `src/lib/__tests__/a3-c8-warning-token.test.ts` pin literals `69/238 → 68/232`, and two pre-existing palette gates
+   with **superseded-not-deleted** `.dark` rows. A reviewer diffing this delta expecting only `src/` behaviour files
+   will find these; they are additive evidence per §16 and are covered by the S1 review.
+2. **`room-schedules` was measured, not changed**, and the measurement contradicts the c6 premise — 814 + 667 lines,
+   three live inbound links including a `?roomId=…&source=latest` deep link, three view modes, CSV export. The
+   operator's ruling stands untouched; **it is Lane C's to re-check.**
+3. **A token-layer defect is now unowned and app-wide**: `--destructive` / `--muted-foreground` / `--accent` are
+   sub-AA as text on a light tint. It is not in this delta's fix path and does not block the release, but it should be
+   routed to an `index.css` owner.
+
+**Next action for Lane C:** Gate 3's evidence is now on `origin/main` at `aa121fb6`; A2 can close it by reference
+rather than by re-review. **Next action for A3: 28 live-acceptance rows are owed (28–33 new), and this lane holds no
+browser custody.** A3 does not deploy and will not claim the release.

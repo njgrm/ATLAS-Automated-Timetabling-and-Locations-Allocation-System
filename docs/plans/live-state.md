@@ -3710,3 +3710,63 @@ unchanged, **23–27 are new**. None is decidable from source, so the three new 
 browser-accepted. A3 does not deploy; the next c6 delta rides whatever release A2 ships next. Worktrees
 `lane-a3-c6-{concerns,copy,controls,integ}` `RETIRE_AFTER_INTEGRATION`, junction-safe, donor 152 before and after;
 4 branches preserved, none deleted.
+
+## Lane A3 — overnight 2026-09-28 c8 (supersedes the c6 block above; `Live release` untouched)
+
+**A3 integrated for release at `aa121fb6` (`aa121fb614bc40bfaba1f6e230951fdb99c0ddc4`). NOT DEPLOYED — A2 owns every
+deployment.** Packet c8, base `4c683e1f`; 3 streams, 3 executors, 3 fresh QAs, 3 bounded corrections; **21 product
+paths, `atlas-server/` 0, `components/timetable/**` 0, `docs/` 0** in the product range. Two pushes: `7ea2abda`
+(S2+S3) then `aa121fb6` (S1). A3 ran no browser, holds no lock, deployed nothing.
+
+**Three c6 backlog lines closed, one measured and left alone.** `/audit` off the raw palette (**28 distinct / 32
+lines → 2 / 8**, chromatic ramp **zero**, all three severities now carry an icon rather than hue alone). The missing
+**`--warning` token** now exists (four vars + a `.dark` pair, all registered in `@theme inline`; 13 named A3 files,
+161 raw occurrences swept, 0 skipped). `/faculty/room-preferences` — a 620-line privileged approval queue with **zero
+inbound links** — **linked from the sidebar**, and deliberately **without** `schedulerAccess`, so nav visibility
+matches the server's `PRIVILEGED_ROLES = {admin, officer, SYSTEM_ADMIN}` exactly; a scheduler holding only
+`timetable:read` still sees Teaching Load and still does not see this, which is a tested row.
+
+**Packet item 4 followed to the letter, not to its premise.** `room-schedules` measured, not touched. At `aa121fb6`:
+**two registrations** (`/room-schedules`, `/schedules`) for one 814-line component plus 667 lines across six
+`components/room-schedules/` files, **three live inbound links** including a `?roomId=…&source=latest` deep link, a
+rooms/teachers/sections `ViewMode`, and CSV export. A page with deep links, three view modes and export is **not
+"unfinished"** — that is a design question for the operator, and **the operator's ruling stands**; it is Lane C's to
+re-check before it is inherited again.
+
+**I caused two red gates and the reviewer caught both.** The first token candidate landed a `.dark` block that turned
+`test:a3-palette-token-sweep` and `test:a3-palette-slate400-s-f` **red** — two accepted gates written to catch exactly
+that — because the executor ran its own new test and not the ones it broke (the same failure mode as c6's
+`package.json`). Those gates' remedy ("re-verify on a rendered screen in each scheme") is **structurally impossible**
+while nothing writes a `dark` class, so both were marked superseded **in place with their original text retained**
+(§16) and a decidable replacement was put beside them. Separately, **the sweep itself shipped a live §8 violation**:
+`GRADE_BADGE['8']` in `HomeRoomAutoAssignDialog.tsx` was recoloured into a warning, turning **G8 from yellow into
+"needs attention"**. The executor had declared its sweep clean; only a fresh reviewer re-sweeping the diff for grade
+semantics found it. Restored, exempted by exact content with a control proving the exemption is narrow.
+
+**Two measurements in the accepted record were wrong, and I corrected them rather than let them stand.** The first
+handoff reported `--warning-foreground` on `--warning-muted` as ≈9.9:1; it is **8.415:1** — and the real defect was
+worse than the wrong number: `--warning` was authored for the *icon* role and reused for *body text* at 32 sites, an AA
+regression on 23 of them (4.84 → 3.13:1). Darkening lightness only (`35 76% 44%` → `35 76% 33%`) cleared every floor
+with hue and saturation untouched, and **the ratios are now computed in the test from the real token values**. The
+darkening also *fixed* a pre-existing sub-AA badge (`text-white` on the `NotificationBell` count dot, 2.148 → 5.376).
+
+**Dated backlog 2026-09-28, none blocking, one of them unowned and app-wide.** **`--destructive`,
+`--muted-foreground` and `--accent` are sub-AA as text on any light tint** (3.55 / 4.02 / 3.09:1 measured), which
+leaves three `/audit` roles below AA where base was AA — carried app-wide pairings on tokens this stream was forbidden
+to touch, and a **token-layer ticket no lane currently owns**. **`UNRESOLVED` still reaches the user** via
+`lib/audit-section-coverage.ts:125,139,154`; the blocker is the test at
+`lib/__tests__/audit-section-coverage.test.ts:63` that **asserts the leak**, not a busy file. `info` means two things:
+neutral on `/audit`, sky-blue at `AdminWorkspace.tsx:64`. **`src/ui/badge-variants.ts:17` ships raw ramps and sits
+outside the ratchet's counting roots** — a blind spot, not a pass. **`.gitignore:70` is `SMART/`**, which on
+case-insensitive Windows silently matches the tracked `atlas-client/src/components/smart/`, so any **new** file there
+is silently unaddable (`git check-ignore -v` exits 0 on a probe path; **no breach occurred in c8**). The dark-writer
+tripwire is incomplete **by design** (catches 8 of 14 probed writer shapes, missing this repo's own
+`cn(…, isDark && 'dark')` idiom at 67 call sites) and the committed comment now says so instead of claiming the gate
+"will" fire. **232 raw amber-yellow lines across 68 files** remain outside the 13-file sweep, pinned as a literal so a
+short list cannot read as a clean page.
+
+**Next action: 28 live-acceptance rows are owed and unperformed — this lane ran no browser.** Steps 1–22 are c4's list
+unchanged, 23–27 are c6's unchanged, **28–33 are new**. None is decidable from source, so all three c8 gates are
+**source-accepted only, not browser-accepted**. A3 does not deploy; the next c8 delta rides whatever release A2 ships
+next. Worktrees `lane-a3-c8-{token,reach,audit,integ}` `RETIRE_AFTER_INTEGRATION`, junction-safe; 4 branches preserved,
+none deleted.

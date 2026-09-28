@@ -2323,3 +2323,234 @@ The real row 40 was a dead module plus four self-contradictions, and that is wha
 runtime/task/env change, or companion-repo action was taken at any point in c6 or c7.** A3 ran no
 browser, held no lock, worked only in registered worktrees, deleted no branch, and pushed a range
 proven to contain only accepted commits plus A2's own absorbed docs-only advance.
+
+## 2026-09-28 c8 (Planner A3, work session 08:20 → 11:05 +08)
+
+### Morning summary — 5 lines
+
+1. Packet c8, base `4c683e1f`. **Three streams, three executors, three fresh QAs, three bounded corrections**; integrated at `7ea2abda` (S2+S3) then `aa121fb6` (S1, merged over A2's advance) and pushed to `origin/main`.
+2. **`/audit` is off the raw palette**: 28 distinct classes / 32 lines → **2 / 8**, chromatic ramp **zero**, and all three severities now carry an icon instead of relying on hue alone. QA `ACCEPT_READY` **14/14/0/0**.
+3. **The `--warning` token is real, and it caught a §8 regression in the act of being created** — the sweep had recoloured a **G8 grade badge** into "needs attention". The correction restored it and the executor's own prior handoff had overstated its contrast figure by 1.5×; both are fixed and the false figure is now pinned as rejected in the test.
+4. **`/faculty/room-preferences` had 620 lines, a live approval queue, and no door handle.** Linked from the sidebar for exactly the three roles the server authorises — a scheduler can see Teaching Load and still not see this, and that is tested.
+5. **Not live, and not deployed by me.** This lane ran no browser and holds no lock; `room-schedules` was measured, not touched. Six live-acceptance rows are owed (28–33 below).
+
+### The decision on `/faculty/room-preferences` — link it, and *how* it is linked is the substance
+
+The packet offered two options: link it, or record it unreachable-by-design. **Linked.** The
+evidence that decided it, all measured at `4c683e1f`: the page is a working officer review queue
+(summary read, preview-then-review, reviewer notes, a collaboration socket), and
+`room-preference.router.ts` guards the review mutation with
+`PRIVILEGED_ROLES = {admin, officer, SYSTEM_ADMIN}` and a 403 naming those roles. Not a stub —
+unreachable.
+
+**The load-bearing part is what was *not* added.** The sibling items in that group carry
+`schedulerAccess: true`. Adding it here would have put an approve/reject queue in front of a
+scheduler holding only `timetable:read`, who the server 403s — a **new** false errand, manufactured
+while fixing an old one. The item is `adminOnly` with no `schedulerAccess`, so `canSeeNavItem`
+resolves it to exactly the server's three roles. QA ran all six actor shapes through the real
+function: `admin`/`officer`/`SYSTEM_ADMIN` see it; `faculty`+`timetable:read`, `faculty` bare,
+`registrar`+`timetable:read`, `registrar` bare do not. A 19-line comment records why, so a later
+consistency pass cannot "fix" it.
+
+Label is `Room Preferences` — the name the shell title, the breadcrumb leaf and the page's own
+`PageHeader` already used. One destination, one name. QA confirmed exactly one nav item resolves to
+the route and that the now-redundant `routeChromeOverrides` entry cannot produce a different title
+or group for any actor or any trailing-slash path form.
+
+### `--warning` — the token, and what a ratchet pinned to three files could not see
+
+`index.css` had **no** warning token; `grep -n warning` returned nothing, so every warning state
+rendered raw `amber-*`. That is not a style preference, it is a missing token. It now exists as a
+four-var family (`--warning`, `--warning-foreground`, `--warning-muted`, `--warning-border`) plus a
+`.dark` pair, all four registered in `@theme inline`.
+
+**The `.dark` pair is defined but unreachable, and the artefact says so.** No client code writes a
+`dark` class; the pair is a real surface waiting for a toggle that does not exist. I have not
+claimed otherwise anywhere, and the tripwire that watches for the first writer is deliberately
+documented as incomplete — it catches 8 of 14 probed writer shapes and misses 6, including this
+repo's own `cn(…, isDark && 'dark')` idiom at 67 call sites. A green row there is not proof that no
+writer exists, and the comment now says that in those words rather than claiming the gate "will"
+fire.
+
+**The sweep is 13 named files, 161 raw occurrences, 0 skipped — and that is a bounded claim, not a
+finished one.** 69 files / 238 lines of raw amber-yellow remain repo-wide, pinned as a literal so
+the next lane cannot mistake a short list for a clean page. Two things are deliberately **excluded**
+and both exclusions are load-bearing, not counting artifacts: §8 grade colours (G8 is *yellow* —
+converting one is a product regression, and the test now pins `GRADE_BADGE`'s `'8'` entry), and
+`components/timetable/**`, which is A2's.
+
+**The three red gates were mine, and the lesson is the same one c6 paid for.** The first candidate
+landed a `.dark` block that turned `test:a3-palette-token-sweep` and `test:a3-palette-slate400-s-f`
+red — two accepted gates written specifically to catch it — because the executor ran its own new
+test and not the ones it had broken. Worse, those gates' remedy ("re-verify on a rendered screen in
+each scheme") is **structurally impossible** while no writer exists. The correction marks both
+assertions superseded *in place, with their original text retained* (§16) and puts a decidable
+replacement beside them: the block exists **and** nothing can select it. An undecidable demand
+replaced by a decidable invariant, not deleted.
+
+### Two defects the correction found in the sweep itself
+
+1. **A live §8 violation, created by this cycle.** `HomeRoomAutoAssignDialog.tsx` had its
+   `GRADE_BADGE` `'8'` entry rewritten to `bg-warning-muted text-warning` — **turning G8 from yellow
+   into a warning**, on a badge rendered as `G{grade}`. Caught by QA re-sweeping the whole diff for
+   grade semantics after the executor had already declared the sweep clean. Restored, exempted by
+   exact content with a control proving the exemption is narrow, and the repo-wide pins were left
+   unmoved — the corpus still means "raw colour that is a *warning* semantic".
+2. **An overstated measurement.** The first handoff reported `--warning-foreground` on
+   `--warning-muted` as ≈9.9:1; it is **8.415:1**, and the reported figure never exercised the role
+   that actually regressed. The real defect was worse than the wrong number: `--warning` was
+   authored for the *icon* role (`35 76% 44%`, 3.13:1) and then used for *body text* at 32 sites —
+   an AA regression on 23 of them. Darkening lightness only (`35 76% 33%`) brought every floor to
+   pass while leaving hue and saturation untouched, and the contrast ratios are now **computed in
+   the test from the real token values** rather than asserted in a handoff.
+
+The darkening also **fixed** a pre-existing sub-AA badge: `text-white` on the `NotificationBell`
+count dot went **2.148:1 → 5.376:1**. Recorded as an improvement, not as a cost.
+
+### `/audit` — what changed, and what I refused to change
+
+`info` has no token in this system and `index.css` was forbidden to the stream, so the third
+severity became **neutral** rather than a fourth invented hue. That is honest and it is recorded
+with its cost: `AdminWorkspace.tsx:64` still maps the same semantic role to sky-blue, so `info` is
+grey on `/audit` and blue there. The same consolidation debt exists in
+`src/ui/badge-variants.ts:17`, which still ships raw ramps — and which sits **outside this
+ratchet's counting roots**, so it is invisible to the gate. A real blind spot, recorded as one.
+
+Eight wording changes, each with old → new → reason, and an explicit list of strings inspected and
+left alone. The largest is `generation` → `scheduling review` (×4) — and I checked it rather than
+assuming: **"scheduling review" already existed at base** in four places on the same page, so the
+change makes the page match its own vocabulary instead of inventing one. The `Review and publish`
+eyebrow promised a step this page never performs; it is now `Readiness check`, which is ATLAS's own
+established phrase. No route, `data-*`, enum, `Finding.id`, `repairTarget` or the
+`focus=timetable → constraints` contract moved.
+
+**What I did not fix, and why — three items a future session must not re-derive wrongly:**
+
+- **`UNRESOLVED` still reaches the user.** It is rendered in a visible `Finding.title` from
+  `lib/audit-section-coverage.ts:125,139,154`. The blocker is **not** "a busy file": it is
+  `lib/__tests__/audit-section-coverage.test.ts:63`, a committed test that **asserts the leak** with
+  `assert.match(finding.title, /UNRESOLVED/)`. Clearing it is a test-owner action that must change
+  that assertion, and this stream may not edit existing tests.
+- **`--destructive`, `--muted-foreground` and `--accent` cannot serve as AA text colours on a light
+  tint** (3.55:1, 4.02:1, 3.09:1 measured). Three roles on `/audit` are therefore sub-AA where base
+  was AA — blocker badge 5.91→3.55, info badge 5.57→4.02, `Blockers: n` 4.83→3.78. **This is not a
+  new defect**: those exact pairings are pre-merged app-wide (13 `bg-destructive/5 text-destructive`
+  sites, `PlainLanguageNotice.tsx:18` among them) and `index.css` was forbidden. It is a real
+  **token-layer ticket that no lane currently owns**, and it is routed below.
+- **The c6 ratchet was blind to a whole page, and that is now structural, not fixed by luck.** The
+  c1 ratchets pin three files; the c8 ratchet pins a **literal 13-entry array** plus a repo-wide
+  count, and the count moved `69/238 → 68/232` only because a real page left the set. A pin that
+  moves when reality moves is doing its job.
+
+### `room-schedules` — measured, not changed, for the operator
+
+The packet ruled it unfinished and to be redesigned, and told me to record a measurement instead.
+**The measurement does not support the premise, and I am not acting on that either way — an operator
+ruling is not mine to overturn. It is Lane C's to re-check before the ruling is inherited again.**
+
+At `aa121fb6`: **two registrations** (`/room-schedules` and `/schedules`) for **one** component,
+`pages/RoomSchedules.tsx`, **814 lines**, plus **667 lines** across six `components/room-schedules/`
+files. It is **not unreachable** — `navigation.ts` gives it a nav item and a `Review and Publish`
+group, and it has **three** live inbound links including a room/teacher/section deep link
+(`?roomId=…&source=latest`) from the Dashboard's `RoomSchedulePreview` and from
+`RoomScheduleOverlay`. It reads `useSearchParams` for `roomId`, holds a `ViewMode` of
+rooms/teachers/sections, and ships CSV export. **A page that supports deep links, three view modes
+and export is not "unfinished"** — that is a design question, and a legitimate one for the operator
+to answer, but it is not the question the ruling was written against.
+
+### Ledger, terminal state as of 2026-09-28 11:05 +08
+
+**Unchanged from c6:** `QA_PASSED` 01–07, 09–26, 29–33B. `BLOCKED_PRODUCT_DECISION` **08** (A3's
+read remains **B**). `BLOCKED_SOURCE_GAP` **27, 28, 34**. c4 item 7 `BLOCKED_NOT_REPRODUCED`.
+**c8 closes no numbered finding** — it closed three *backlog lines* the c6 audit had left open:
+`/audit`'s raw palette, the missing `--warning` token, and `/faculty/room-preferences`' reachability.
+The c6 `DUPLICATE` backlog stays closed by `56f77cd0`.
+
+**New dated backlog, none blocking, all dated 2026-09-28:**
+
+- **Token layer, unowned, and the most consequential thing c8 found:** `--destructive`,
+  `--muted-foreground` and `--accent` are sub-AA as text on any light tint. It needs an
+  `index.css` owner, and it is app-wide, not a page defect. **Route to whoever owns the token layer.**
+- **`UNRESOLVED` reaches the user** via `lib/audit-section-coverage.ts:125,139,154`; the blocker is
+  the test at `lib/__tests__/audit-section-coverage.test.ts:63` that asserts it.
+- **`info` means two different things**: neutral on `/audit`, sky-blue at `AdminWorkspace.tsx:64`.
+- **`src/ui/badge-variants.ts:17` ships raw ramps and is outside the ratchet's counting roots** — a
+  blind spot, not a pass.
+- **`.gitignore:70` is `SMART/`**, which on case-insensitive Windows silently matches the tracked
+  `atlas-client/src/components/smart/`. Any **new** file there is silently unaddable. Confirmed by
+  `git check-ignore -v` (exit 0 on a probe path); **no breach occurred in c8** — no lane added a file
+  there. Dated, quantified, not fixed: another lane's decision.
+- **The dark-writer tripwire is incomplete by design** (8 of 14 shapes). Widening it is a successor
+  action, deliberately not smuggled in.
+- **232 raw amber-yellow lines across 68 files** remain outside the 13-file sweep, by design.
+- **`room-schedules`' "unfinished" premise is contradicted by the source** (above) — Lane C's to
+  re-check.
+- **Carried, unchanged:** 5 pre-existing typecheck errors in 4 A2-owned files;
+  `tt-warning-surface-realism-c07b` 43/44 on `SchedulingPolicyPane.tsx` (A2's, byte-unchanged);
+  `ManualEditPanel.tsx:519-550` raw `requiredFeatures` badges; ratchet `7d` evadable; WCAG AA on
+  `--muted`/`--secondary`; `CampusMap.tsx` and `Sections.tsx` §8 violations; `Dashboard.tsx` 966/1000.
+
+### Live-acceptance steps owed — 28–33, new, and none decidable from source
+
+Steps 1–22 are c4's list **unchanged**; 23–27 are c6's **unchanged**. This lane ran no browser and
+held no lock, so every c8 gate is **source-accepted only, not browser-accepted**.
+
+**28.** `/audit` — all three severity pills are **visually distinct without relying on hue**: a
+blocker, a warning and an info badge each show their own icon, the three tints differ, and no two
+read as the same status. The `info` badge is legible against its own card surface, which is the
+same `bg-muted` the card uses.
+
+**29.** `/audit` — the three severity pills and the verdict card read at `1366×768` with the two
+known sub-AA text roles (blocker badge, `Blockers: n`) still **legible in practice**. This is a
+release-acceptance row, not a source row: §11 forbids deciding legibility from a hex value when
+the same repo's own ratchet defers the identical `text-slate-600` question to a rendered screen.
+
+**30.** `/audit` — **no** raw ramp colour is visible on the page, and the five residual
+`text-slate-600` text roles (domain chip, why-it-matters, detail, what-is-blocked, why) read as
+ordinary body text. The three `|` separators are decorative punctuation and are *meant* to be faint.
+
+**31.** `/audit` — the header says **"Readiness check"**; no copy anywhere on the page promises a
+publish step, and the four former `generation` phrasings all read **"scheduling review"**, matching
+what the operator is told everywhere else in ATLAS.
+
+**32.** `/faculty/room-preferences` is now reachable from **Teachers and Rooms** in the sidebar, and
+the five-item group does not overflow or wrap badly at `1366×768`. **Named as a release row**: it
+needs a rendered screen, and A3 ran no browser.
+
+**33.** An **officer** sees the item; a **scheduler holding only `timetable:read`** does not, and
+still *does* see Teaching Load. Source is proven; this row exists because the 403 lives on the
+server and the nav is the only thing an operator can be shown, so the two must be seen agreeing.
+
+### Verdict for c8
+
+**Three streams integrated and pushed, from four reviewer dispatches plus combined gates at
+integration** — closing the densest un-acted-on raw-palette page in the product, the missing token
+that made "calm warning styling" unreachable, and a 620-line privileged queue that no operator
+could reach. **Two things I want on the record rather than smoothed.**
+
+**First, the sweep shipped a §8 regression and QA caught it.** A grade badge was recoloured into a
+warning, the executor had declared its own sweep clean, and only a fresh reviewer re-sweeping the
+diff for grade semantics found it. That is the second cycle running where **my executor's
+self-assessment was the weak link** (c5's F6, c6's C4, now this). The lesson generalises: an
+executor reporting "I checked for X" is a claim, and a reviewer re-deriving X is the only thing
+that makes it evidence.
+
+**Second, a reviewer is not automatically right either.** QA's own measured contrast figures for
+this candidate disagreed with the executor's, and two of the numbers in the accepted handoff were
+wrong (a false attribution for a measurement delta, and a stale token value in a contrast figure).
+No conclusion changed — but the *record* was wrong, and I have corrected it here rather than
+letting a number nobody can reproduce stand in the artefact. The c8 handoff and the accepted
+backlog lines are the corrected versions; the "9.9:1" figure appears in the test only as an
+explicitly labelled **rejected** prior claim, which is the §16 form.
+
+**Packet item 4 was followed to the letter and not to its premise.** `room-schedules` was measured
+and not touched. The measurement says the premise is false, that is recorded above for the operator
+and for Lane C, and the ruling stands until the operator changes it.
+
+**No deployment, migration, generation, publication, live-data write, browser session,
+runtime/task/env change, or companion-repo action was taken at any point in c8.** A3 ran no browser,
+held no lock, worked only in registered worktrees, deleted no branch, and pushed a range proven to
+contain only accepted commits plus A2's own absorbed product advance (`origin/main` advanced
+`4c683e1f → 4adc9f2f` mid-cycle with real timetable code; the union was verified clean and all 14
+A3 gates were re-run **on the merged tree**, which also closed the one cross-stream row the S2
+reviewer had to leave blocked because the S3 gate did not exist in its own worktree).
