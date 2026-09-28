@@ -27,7 +27,7 @@ import { Prisma } from '@prisma/client';
 
 import { canonicalStringify } from '../lib/canonical-json.js';
 import { getDataContext } from '../lib/data-context.js';
-import { normalizeGradeLevelSync } from './class-program-slot.service.js';
+import { resolveSectionGradeLevel } from './grade-level-resolver.js';
 import { computeTeachingLoadMinutes } from './faculty-assignment.service.js';
 import { HG_SUBJECT_CODE } from './hg-advisory.service.js';
 import { buildDepartmentAuthoritySourceRevision } from './department-authority.service.js';
@@ -80,16 +80,18 @@ export function normalizeCarryForwardProgramType(programType: string | null | un
 }
 
 /**
- * Resolve the authoritative grade number for a `SectionMirror` row from its
- * `gradeLevelId` using the established EnrollPro-grade normalization.
+ * Resolve the authoritative grade number for a `SectionMirror` row: the
+ * EnrollPro grade NAME first ("Grade 7"), then the legacy `gradeLevelId` map.
+ * EnrollPro re-mints grade ids on every wipe/rollover (5..8, 17..20, 1..4), so
+ * a source year and its target year rarely share ids.
  *
  * `SectionMirror.displayOrder` is presentation/ordering metadata and MUST NEVER
  * be used as grade authority: EnrollPro internal grade ids do not equal the
  * actual grade number (e.g. feed id 17 = Grade 7), and two different grades can
  * share the same display order.
  */
-export function resolveCarryForwardGrade(gradeLevelId: number): number {
-	return normalizeGradeLevelSync(gradeLevelId);
+export function resolveCarryForwardGrade(gradeLevelId: number, gradeLevelName?: string | null): number {
+	return resolveSectionGradeLevel({ gradeLevelId, gradeLevelName }, null, 'grade-first');
 }
 
 /**
@@ -107,14 +109,16 @@ export function canonicalCarryForwardSectionKey(
 
 /**
  * Canonical identity straight from a persisted `SectionMirror`-shaped row. The
- * grade is resolved from `gradeLevelId`; any `displayOrder` field is ignored.
+ * grade is resolved from `gradeLevelName`, else `gradeLevelId`; any
+ * `displayOrder` field is ignored.
  */
 export function canonicalCarryForwardSectionKeyFromMirror(section: {
 	gradeLevelId: number;
+	gradeLevelName?: string | null;
 	programType: string | null;
 	name: string;
 }): string {
-	return canonicalCarryForwardSectionKey(resolveCarryForwardGrade(section.gradeLevelId), section.programType, section.name);
+	return canonicalCarryForwardSectionKey(resolveCarryForwardGrade(section.gradeLevelId, section.gradeLevelName), section.programType, section.name);
 }
 
 export interface CarryForwardSectionCandidate {
@@ -595,7 +599,7 @@ export async function readCarryForwardSourceSnapshot(
 		}),
 		tx.sectionMirror.findMany({
 			where: { schoolId, schoolYearId: sourceYearId },
-			select: { externalId: true, name: true, gradeLevelId: true, programType: true },
+			select: { externalId: true, name: true, gradeLevelId: true, gradeLevelName: true, programType: true },
 		}),
 		tx.facultyMirror.findMany({ where: { schoolId }, select: { id: true, externalId: true, employeeId: true } }),
 		tx.subject.findMany({ where: { schoolId }, select: { id: true, code: true } }),
@@ -612,7 +616,7 @@ export async function readCarryForwardSourceSnapshot(
 			sectionMirrorId: 0,
 			externalId: section.externalId,
 			// Authoritative grade from gradeLevelId; displayOrder is never grade truth.
-			gradeLevel: resolveCarryForwardGrade(section.gradeLevelId),
+			gradeLevel: resolveCarryForwardGrade(section.gradeLevelId, section.gradeLevelName),
 			programType: section.programType,
 			name: section.name,
 		});
@@ -693,7 +697,7 @@ export async function readCarryForwardTargetSnapshot(
 	] = await Promise.all([
 		tx.sectionMirror.findMany({
 			where: { schoolId, schoolYearId: targetYearId, isActiveForScheduling: true, isStale: false },
-			select: { id: true, externalId: true, name: true, gradeLevelId: true, programType: true },
+			select: { id: true, externalId: true, name: true, gradeLevelId: true, gradeLevelName: true, programType: true },
 		}),
 		tx.facultyMirror.findMany({ where: { schoolId }, orderBy: { id: 'asc' } }),
 		tx.subject.findMany({ where: { schoolId } }),
@@ -730,7 +734,7 @@ export async function readCarryForwardTargetSnapshot(
 			sectionMirrorId: section.id,
 			externalId: section.externalId,
 			// Authoritative grade from gradeLevelId; displayOrder is never grade truth.
-			gradeLevel: resolveCarryForwardGrade(section.gradeLevelId),
+			gradeLevel: resolveCarryForwardGrade(section.gradeLevelId, section.gradeLevelName),
 			programType: section.programType,
 			name: section.name,
 		})),
@@ -790,7 +794,7 @@ export async function readCarryForwardTargetSnapshot(
 			cycle: { state: cycleRead.source.state, version: cycleRead.source.version },
 			derivedDemandRevision: derivedDemand.ok ? derivedDemand.revision : null,
 			derivedDemandBlockers: derivedDemand.ok ? [] : derivedDemand.blockers.map((blocker) => blocker.code).sort(),
-			sections: [...(sections as any[])].map((row) => ({ id: row.id, externalId: row.externalId, name: row.name, gradeLevelId: row.gradeLevelId, gradeLevel: resolveCarryForwardGrade(row.gradeLevelId), programType: row.programType })).sort((a, b) => a.id - b.id),
+			sections: [...(sections as any[])].map((row) => ({ id: row.id, externalId: row.externalId, name: row.name, gradeLevelId: row.gradeLevelId, gradeLevel: resolveCarryForwardGrade(row.gradeLevelId, row.gradeLevelName), programType: row.programType })).sort((a, b) => a.id - b.id),
 			faculty: (faculty as any[]).map((row) => ({ id: row.id, externalId: row.externalId, department: row.department, specialization: row.specialization, canTeachOutsideDepartment: row.canTeachOutsideDepartment, isClassAdviser: row.isClassAdviser, advisedSectionId: row.advisedSectionId, isActiveForScheduling: row.isActiveForScheduling, isPlaceholder: row.isPlaceholder, isStale: row.isStale, version: row.version })).sort((a, b) => a.id - b.id),
 			subjects: (subjects as any[]).map((row) => ({ id: row.id, code: row.code, minMinutesPerWeek: row.minMinutesPerWeek, programScopes: row.programScopes, gradeLevels: row.gradeLevels, allowedSpecializations: row.allowedSpecializations, ownerDepartment: row.ownerDepartment, rotationFamily: row.rotationFamily, modularOrder: row.modularOrder, termMode: row.termGroupId, isActive: row.isActive, schedulingDisposition: row.schedulingDisposition })).sort((a, b) => a.id - b.id),
 			ownership: (ownership as any[]).map((row) => ({ id: row.id, subjectId: row.subjectId, sectionId: row.sectionId, facultyId: row.facultyId })).sort((a, b) => a.id - b.id),

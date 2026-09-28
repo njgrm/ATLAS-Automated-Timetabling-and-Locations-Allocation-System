@@ -23,6 +23,7 @@ import type { ScheduledEntry } from './constraint-validator.js';
 import type { SectionsByGrade } from './section-adapter.js';
 import type { ProgramType, RoomType } from '@prisma/client';
 import { resolveCanonicalSlotsFromRows, type ClassProgramSlotRow } from './class-program-slot.service.js';
+import { normalizeGradeNumberOrLegacyId } from './grade-level-resolver.js';
 import { isSubjectAllowedForSectionProgram } from './subject-program-scope.service.js';
 import {
 	matchesSubjectOwnershipDepartment,
@@ -103,35 +104,8 @@ function normalizeSpecializationCode(value?: string | null): string {
 	return (value ?? '').trim().toUpperCase();
 }
 
-function normalizeGradeLevel(value: number): number {
-	if (!Number.isFinite(value)) return value;
-
-	// If it's already a valid actual grade number (7-10), return as-is
-	if (value >= 7 && value <= 10) return value;
-
-	// EnrollPro internal grade_level_id -> actual grade number mapping
-	// Historical IDs 5-8 and current feed IDs 17-20 map to Grades 7-10.
-	const ENROLLPRO_MAPPINGS: Record<number, number> = {
-		5: 7,
-		6: 8,
-		7: 9,
-		8: 10,
-		17: 7,
-		18: 8,
-		19: 9,
-		20: 10,
-	};
-
-	if (value in ENROLLPRO_MAPPINGS) return ENROLLPRO_MAPPINGS[value];
-
-	// If value >= 100, use modulo normalization
-	if (value >= 100) {
-		const normalized = value % 100;
-		if (normalized >= 1 && normalized <= 12) return normalized;
-	}
-
-	return value;
-}
+// Grade numbers pass through; legacy EnrollPro ids fall back to the one shared map.
+const normalizeGradeLevel = normalizeGradeNumberOrLegacyId;
 
 function gradeLevelMatches(candidates: number[] | undefined, target: number): boolean {
 	if (!Array.isArray(candidates) || candidates.length === 0) return false;

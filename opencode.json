@@ -19,6 +19,7 @@
       "D:/ATLAS/**": "allow",
       "D:/ATLAS-worktrees/**": "allow",
       "E:/**": "allow",
+      "C:/ProgramData/ATLAS/**": "allow",
       "D:/ATLAS-database-recovery/**": "allow",
       "D:/EnrollPro/**": "allow",
       "D:/AIMS/**": "allow",

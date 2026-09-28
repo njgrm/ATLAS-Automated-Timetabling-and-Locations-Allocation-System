@@ -38,7 +38,7 @@ import {
   expectedProgramForSection,
   requirementScopeKey,
 } from './school-year-offering.service.js';
-import { normalizeGradeLevelSync } from './class-program-slot.service.js';
+import { resolveSectionGradeLevel } from './grade-level-resolver.js';
 import { getTermConfig } from './term-config.service.js';
 
 const db = () => getDataContext();
@@ -218,7 +218,7 @@ export async function getDecisionCandidates(
   }
   const buckets = new Map<string, ScopeBucket>();
   for (const section of sections) {
-    const gradeLevel = normalizeGradeLevelSync(section.gradeLevelId);
+    const gradeLevel = resolveSectionGradeLevel(section, null, 'grade-first');
     if (!VALID_GRADES.has(gradeLevel)) continue;
     const programType = expectedProgramForSection(section.programType);
     const scopeKey = requirementScopeKey({

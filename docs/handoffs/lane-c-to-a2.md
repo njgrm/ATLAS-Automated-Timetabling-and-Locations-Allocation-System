@@ -1117,3 +1117,47 @@ Evidence: `docs/reviews/codex-staging-train2-9ca7f629-20260928.md` (Codex, Brave
 - **A3:** campus editor — the fixed Building summary inspector covers the Grade 10 canvas card (item 36); Dashboard still scrolls the whole document (1966 px in a 768 px viewport); first load of `/` and `/map?mode=editor&buildingId=4` showed a blank shell (timing check vs live running now — I will post the result).
 - **A5:** clicking `... coverage: n/n sections` on /subjects opens no dialog (17.1); the filter row has search + five selects, the packet says four (41).
 - **A6:** nothing failed; save-confirmation (40) and the profile subject-code sizing are still unwalked.
+
+---
+
+## Lane C -> A2 / A5 / A6 / A4, 2026-09-28 22:55 +08 — staging walk of train 3 `bae81afb`: 7 pass / 2 fail / 1 unperformed
+
+Evidence: `docs/reviews/codex-staging-train3-bae81afb-20260928.md`. **Train 3 is GO for production, but HELD** until the
+operator finishes the EnrollPro wipe + rollovers (a cutover must not restart live mid-rollover). A4: wait for Lane C's GO.
+
+- **A2:** H1/H2/A1 PASS. P still 0.82–1.17 s per section switch (target 0.4 s) — your per-entity index slice. Five
+  header sentences are clipped with no way to read the full text (no title/tooltip): give each its full text on hover.
+- **A6:** T1–T4 PASS. T5: two amber lines when EnrollPro is unreachable (saved-data status + Next step); merge into one.
+- **A5 (demo-critical):** with EnrollPro unreachable, Teaching Load's main content was **blank for 30.2 s**. The faculty
+  adapter has no timeout (`faculty-adapter.ts`). Every EnrollPro read must time out fast and fall back to saved data at
+  once; a blank page for 30 s is worse than stale data. Take this ahead of your other slices.
+
+---
+
+## Lane C -> A6, 2026-09-28 23:05 +08 — operator: remove Guided mode (FIRST in your next slice)
+
+Operator's words: "what's the deal with the guided mode thing? Just remove that please". `TeachingLoad.tsx:928` renders
+`TeachingLoadGuidedModePlaceholder` ("Guided mode is active … Open advanced grid") in place of the grid. Remove the
+placeholder and the advanced-grid gate: the grid is always shown; the repair queue stays above it. Delete the component
+and its test expectations (`tl-operator-workspace-c05.test.ts`); the empty-year status message (`buildGuidedEmptyTeachingLoadMessage`)
+may stay if its words are plain. Do this before the c3 items not yet started. Note: a Lane C hotfix is changing the
+zero-demand suggestion headline ("covers all rows and is balanced" with 0 rows) and the grade resolver — do not touch those.
+
+---
+
+## Lane C -> A7 / A6 / A5 / A2, 2026-09-28 23:20 +08 — live walk after the EnrollPro reset (3 pass / 5 fail)
+
+Evidence: `docs/reviews/codex-live-newyear-2022-2023-20260928.md` (Codex, live, read-only). Live DB: EnrollPro years
+now 1 (2022-2023, active); ATLAS keeps 8 (2029-30, archived), 9 (2030-31) and 10 (2031-32) — 9 and 10 are neither active
+nor archived, so no page shows them. Fold into your current cycle, demo-critical first:
+
+- **A7 (School Year Setup), BLOCKER:** every past school year must be listed and openable — not only archived ones.
+  Years that are neither active nor archived (9, 10) are invisible: list them as past years, and offer "Keep as history"
+  (the archive action, with its preview first, plain words). Each past year needs read-only **Timetable** and
+  **Teaching Load** links. Remove "active-year election" and "Archive and sync" wording (already in your packet).
+- **A2 (Timetable):** a past year's published timetable must open read-only (today only Teaching Load has a
+  past-year view; timetable History is disabled). Coordinate the link target with A7.
+- **A6 (Teachers/Teaching Load):** Dashboard says 23 teachers, Teachers page lists 20 active — one count, and name
+  anyone excluded and why. The "mirror / saved snapshot / source verification" warnings must say plainly what they mean.
+- **A5 (Notifications/Subjects):** every notification needs its school year; old-year publish/generate/swap notices must
+  not read as current state in the new year. Subjects shows stored codes like `OWNER_DEPT:AP` — show department names.

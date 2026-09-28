@@ -40,7 +40,7 @@ import {
 	type GenerationPreflightTeachingLoadCoverage,
 } from './generation-preflight.service.js';
 import type { CanonicalTemplateCoverage } from './class-program-slot.service.js';
-import { normalizeInternalGradeId } from './class-program-slot.service.js';
+import { resolveSectionGradeLevel } from './grade-level-resolver.js';
 import type { DerivedDemandBlocker } from './derived-demand.service.js';
 import type { DraftConsumeRejection } from './pre-generation-draft.service.js';
 import { resolvePerTermScheduleEntries, resolvePerTermUnassignedItems, type OrderedTermRef } from './per-term-schedule-resolution.service.js';
@@ -354,7 +354,7 @@ async function buildGenerationReadinessWithContext(
 				termAuthority: { format: derivedAuthority.termStructure.format, terms: derivedAuthority.termStructure.terms.map((term) => ({ identity: term.identity, order: term.order })), cachedAt: 'derived-demand-authority' },
 				validateShiftWindows: false,
 				shiftWindows: [],
-				sections: assembly.sectionsByGrade.flatMap((grade) => grade.sections.map((section) => ({ id: section.id, gradeLevel: normalizeInternalGradeId(grade.gradeLevelId), programType: normalizeProgramType(section.programType) }))),
+				sections: assembly.sectionsByGrade.flatMap((grade) => grade.sections.map((section) => ({ id: section.id, gradeLevel: resolveSectionGradeLevel(grade), programType: normalizeProgramType(section.programType) }))),
 				shapes: assembly.timetableShapeContracts,
 				rooms: assembly.rooms,
 				subjects: assembly.subjects.map((subject: any) => ({ id: subject.id, code: subject.code, schedulingDisposition: subject.schedulingDisposition })),
