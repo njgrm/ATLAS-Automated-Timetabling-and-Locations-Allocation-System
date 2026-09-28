@@ -55,6 +55,18 @@ type WorkspaceToolbarProps = {
 	 * on the trigger (see the repair queue's "N to fix" contract).
 	 */
 	stateLineSlot?: ReactNode;
+	/**
+	 * FIX 38 — the header's `Load summary` control.
+	 *
+	 * This is a SLOT, not a callback, on purpose. The toolbar owns the control's
+	 * POSITION in the action group (after `Help`, before the primary suggestion
+	 * action) and nothing else: the open flag and the dialog belong to
+	 * `TeachingLoadSummarySurface`, and the panel body belongs to the page. A
+	 * callback here would force the page to own all three, which is what pushed
+	 * it over the AGENTS.md §8 line cap and what would let the dialog's figures
+	 * drift from the page's `truthModel`.
+	 */
+	loadSummaryAction?: ReactNode;
 };
 
 /**
@@ -145,6 +157,7 @@ export function WorkspaceToolbar({
 	onSave,
 	onRetrySource,
 	stateLineSlot,
+	loadSummaryAction,
 }: WorkspaceToolbarProps) {
 	const completenessPercent = totalPairs > 0 ? Math.round(((realAssignedPairs + syntheticPlaceholderPairs) / totalPairs) * 100) : 0;
 
@@ -294,6 +307,17 @@ export function WorkspaceToolbar({
 						triggerLabel="Help"
 						className="hidden h-7 shrink-0 px-2 text-xs sm:inline-flex"
 					/>
+
+					{/* FIX 38: `Load summary`, AFTER `Help` and BEFORE the primary
+					 * suggestion action, per the requested header order.
+					 *
+					 * This component does not draw the control — the page passes
+					 * `TeachingLoadSummarySurface` here, which owns both the
+					 * `h-7` button and the dialog. What matters for the header
+					 * height model is only that it sits on row 1, and the
+					 * surface's button is `h-7`, so `ROW_1_COMMAND_PX` is
+					 * unchanged and the committed header control stays green. */}
+					{loadSummaryAction}
 
 					<Tooltip>
 					<TooltipTrigger asChild>

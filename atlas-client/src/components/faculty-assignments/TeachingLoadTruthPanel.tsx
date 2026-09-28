@@ -38,6 +38,23 @@ type TeachingLoadTruthPanelProps = {
 	 * so any other caller keeps the card treatment.
 	 */
 	inline?: boolean;
+	/**
+	 * FIX 38 — open the disclosure on first render.
+	 *
+	 * The panel's own default is COLLAPSED with a one-line summary, which is
+	 * right for a peer chip in a dense header and wrong for a modal whose
+	 * entire reason to exist is the complete breakdown: a dialog whose body is
+	 * one summary line and a collapsed disclosure is a dialog that has to be
+	 * clicked twice. `TeachingLoadSummaryDialog` passes `expanded`, so the modal
+	 * opens already showing `Classes needing a teacher`, `Total teaching hours`,
+	 * `Standard load`, `School hard cap`, `Above standard` and `Hours still
+	 * available`.
+	 *
+	 * `defaultValue` is the correct prop, not `value`: this is a DISCLOSURE
+	 * the operator can still close, not a controlled panel the page forces
+	 * open on every render.
+	 */
+	expanded?: boolean;
 };
 
 const CHIP_TONE: Record<'neutral' | 'success' | 'warning' | 'danger' | 'unknown', string> = {
@@ -108,7 +125,7 @@ function DrillDownList({ title, values, empty }: { title: string; values: string
  * explanations, and server reasons on demand. Never renders a raw diagnostic
  * wall and never invents a number for an unknown authority.
  */
-export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision = null, upstreamVerified = true, unresolvedReasons = [], inline = false }: TeachingLoadTruthPanelProps) {
+export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision = null, upstreamVerified = true, unresolvedReasons = [], inline = false, expanded = false }: TeachingLoadTruthPanelProps) {
 	const zeroLoadNames = model && isKnown(model.zeroLoadFaculty) ? model.zeroLoadFaculty.value.names : [];
 	const adviserNames = model && isKnown(model.adviserStatus) ? model.adviserStatus.value.names : [];
 	const hgExplanation = model && isKnown(model.excludedHgRows) ? model.excludedHgRows.value.explanation : '';
@@ -143,7 +160,7 @@ export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision 
 			 * existing canonical-truth contract tests keep observing the full
 			 * values while the operator sees a single compact line.
 			 */}
-			<Accordion collapsible className={inline ? 'min-w-0' : 'w-full'}>
+			<Accordion collapsible defaultValue={expanded ? 'truth' : undefined} className={inline ? 'min-w-0' : 'w-full'}>
 				<AccordionItem value="truth" className="border-b-0">
 					<AccordionTrigger
 						className={cn(

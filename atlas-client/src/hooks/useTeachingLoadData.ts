@@ -11,6 +11,7 @@ import {
 	buildPendingOwnershipMap,
 	buildEffectiveOwnershipMap,
 	buildSectionMap,
+	getAssignmentOwnershipKey,
 	normalizeDraftAssignments,
 	type FacultyAssignmentDraft,
 	type SubjectSectionOwnershipIndexEntry,
@@ -776,7 +777,62 @@ export function useTeachingLoadData() {
 		return result;
 	}, [faculty, effectiveDraftAssignmentsByFaculty, savedAssignmentsByFaculty]);
 
+	/**
+	 * FIX-40 CORRECTION (QA BLOCKING 1) — the number of TEACHERS holding a
+	 * draft. The unit is deliberate and must not be reused as a change count:
+	 * `effectiveDraftAssignmentsByFaculty` is keyed by faculty id, so
+	 * `Object.keys(...).length` is a head count.
+	 *
+	 * It is NOT renamed, because eight non-test consumers read it as a teacher
+	 * count today: the page, `WorkspaceToolbar` (the `Draft N` chip), the repair
+	 * queue, the discard-confirmation title, and this lane's controls.
+	 */
 	const activeDraftCount = useMemo(() => Object.keys(effectiveDraftAssignmentsByFaculty).length, [effectiveDraftAssignmentsByFaculty]);
+
+	/**
+	 * FIX-40 CORRECTION (QA BLOCKING 1) — the number of uncommitted LOAD
+	 * ASSIGNMENT CHANGES: how many (teacher, subject, section) pairs the save
+	 * would actually add or remove.
+	 *
+	 * WHY A SEPARATE VALUE, AND WHY IT IS DERIVED HERE. The pre-save
+	 * confirmation is a MEDIUM gate authorising a production write, and it
+	 * stated this figure as "X uncommitted load assignment changes" while `X` was
+	 * a teacher count: a three-teacher / seven-assignment draft read "You have 3
+	 * uncommitted load assignment changes". The figure has to be the one the
+	 * sentence names.
+	 *
+	 * BOTH DIRECTIONS ARE COUNTED, and that is why `savedAssignmentsByFaculty`
+	 * is read here as well as the draft. A draft that only REMOVES classes has no
+	 * pairs left in it to count; an additions-only count would report `0` for a
+	 * teacher who just dropped four classes, which is the same false-zero defect
+	 * this correction exists to remove. The count is the size of the symmetric
+	 * difference of the two pair sets, per teacher, summed.
+	 *
+	 * The unit is (teacher x subject x section) pairs — the same thing the
+	 * page's coverage headline already counts — and the pair key is the existing
+	 * `getAssignmentOwnershipKey`, so there is no second notion of pair identity.
+	 */
+	const activeDraftAssignmentChangeCount = useMemo(() => {
+		let total = 0;
+		for (const [facultyIdRaw, draftAssignments] of Object.entries(effectiveDraftAssignmentsByFaculty)) {
+			const facultyId = Number(facultyIdRaw);
+			const draftPairs = new Set<string>();
+			for (const assignment of draftAssignments) {
+				for (const sectionId of assignment.sectionIds) {
+					draftPairs.add(getAssignmentOwnershipKey(assignment.subjectId, sectionId));
+				}
+			}
+			const savedPairs = new Set<string>();
+			for (const assignment of savedAssignmentsByFaculty[facultyId] ?? []) {
+				for (const sectionId of assignment.sectionIds) {
+					savedPairs.add(getAssignmentOwnershipKey(assignment.subjectId, sectionId));
+				}
+			}
+			for (const pair of draftPairs) if (!savedPairs.has(pair)) total += 1;
+			for (const pair of savedPairs) if (!draftPairs.has(pair)) total += 1;
+		}
+		return total;
+	}, [effectiveDraftAssignmentsByFaculty, savedAssignmentsByFaculty]);
 
 	const facultyNames = useMemo(
 		() => Object.fromEntries(faculty.map((member) => [member.id, `${member.lastName}, ${member.firstName}`])),
@@ -889,6 +945,7 @@ export function useTeachingLoadData() {
 		activeSchoolYearId,
 		scopeKey,
 		activeTermIndex,
+		activeDraftAssignmentChangeCount,
 		loading,
 		saving,
 		setSaving,

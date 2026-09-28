@@ -1,8 +1,9 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, type ReactNode } from 'react';
 import {
 	ChevronDown,
 	ChevronRight,
 	AlertTriangle,
+	Eye,
 	Search,
 	Users,
 	MoreHorizontal,
@@ -99,6 +100,21 @@ type TeacherGridModeProps = {
 	workspaceStateLabel: string;
 	workspaceStateNextAction: string;
 	writeBlockedReason: string | null;
+	/**
+	 * FIX 16.1 — open the centred `Teacher Workload` review modal for ONE named
+	 * teacher.
+	 *
+	 * This replaces the page's detached bottom-right `Review teachers` button,
+	 * which opened whichever teacher happened to be selected. The caller selects
+	 * the row's teacher and opens the same modal, so the two entry points cannot
+	 * disagree about what "review" means.
+	 */
+	onReviewLoad: (facultyId: number) => void;
+	/**
+	 * FIX 40 — the page's Undo / Redo / Discard / Save group, rendered inside the
+	 * single filter row instead of a bottom sticky footer.
+	 */
+	draftControls?: ReactNode;
 };
 
 export function TeacherGridMode({
@@ -155,6 +171,8 @@ export function TeacherGridMode({
 	workspaceStateLabel,
 	workspaceStateNextAction,
 	writeBlockedReason,
+	onReviewLoad,
+	draftControls,
 }: TeacherGridModeProps) {
 	const [expandedId, setExpandedId] = useState<number | null>(selectedId);
 	const [collapsedDepts, setCollapsedDepts] = useState<Record<string, boolean>>({});
@@ -241,9 +259,10 @@ export function TeacherGridMode({
 					</div>
 				)}
 
-				{/* Fix 14/16: extracted to its own file. Status, Department, and Load
-					now sit on ONE always-visible row instead of behind a
-					`More filters` disclosure. This block adds no scroll container. */}
+				{/* Fix 14/16: extracted to its own file. Every discovery control
+					now sits on ONE always-visible row (fix 39) and this block adds
+					no scroll container. Fix 40 hands it the page's draft controls so
+					the bottom sticky footer could be deleted. */}
 				<TeachingLoadFilterBar
 					searchQuery={searchQuery}
 					onSearchQueryChange={onSearchQueryChange}
@@ -267,6 +286,7 @@ export function TeacherGridMode({
 					showUnmappedSpecialization={showUnmappedSpecialization}
 					onShowUnmappedSpecializationChange={onShowUnmappedSpecializationChange}
 					policyReady={policyReady}
+					draftControls={draftControls}
 				/>
 			</div>
 
@@ -388,7 +408,44 @@ export function TeacherGridMode({
 														</p>
 													</div>
 
-													{/* Load Signals: compact on mobile, full on desktop */}
+													{/* FIX 16.1 — the inline per-teacher review control.
+												 *
+												 * It sits in the row's own empty gap, right of the
+												 * name/department block and left of the load signals,
+												 * so opening a workload is one click on the teacher the
+												 * scheduler is already reading instead of a scroll to
+												 * a detached bottom-right button.
+												 *
+												 * `event.stopPropagation()` is LOAD-BEARING, not
+												 * defensive. The whole row above is a `div
+												 * role="button"` whose click toggles expansion; without
+												 * the stop, one click both opens the modal and expands
+												 * the row, and the expanded body is scrolled out of
+												 * sight behind the dialog.
+												 *
+												 * WCAG 2.5.3 Label in Name: the accessible name
+												 * (`Review load for DELA CRUZ, MARIA`) CONTAINS the
+												 * visible label (`Review load`), so a voice-control
+												 * user saying the visible text still reaches it. The
+												 * row stays keyboard-operable and this is a real
+												 * button, so it is in the Tab order after the row. */}
+												<Button
+													type="button"
+													variant="outline"
+													size="sm"
+													className="h-8 shrink-0 gap-1.5 px-3 text-xs font-medium"
+													data-testid="teaching-load-row-review"
+													aria-label={`Review load for ${formatFacultyDisplayName(member)}`}
+													onClick={(event) => {
+														event.stopPropagation();
+														onReviewLoad(member.id);
+													}}
+												>
+													<Eye className="size-3.5" />
+													Review load
+												</Button>
+
+												{/* Load Signals: compact on mobile, full on desktop */}
 													<div className="flex items-center gap-3 shrink-0 sm:gap-6 sm:px-4">
 														<div className="text-right">
 															{/* A3 A1: the percentage now carries a visible label beside
@@ -455,14 +512,21 @@ export function TeacherGridMode({
 																		<div className="flex-1 h-px bg-emerald-500/10" />
 																	</div>
 																	<div className="grid gap-3">
-																		{departmentQualifiedSubjects.map((subject) => (
-																			<SubjectRow
-																				key={subject.id}
-																				subject={subject}
-																				assignment={effectiveAssignmentsByFaculty[member.id]?.find((a) => a.subjectId === subject.id)}
-																				sections={sectionsBySubject[subject.id] ?? []}
-																				disabled={saving || !member.isActiveForScheduling || isReadOnlyMode}
-																				selectedFacultyId={member.id}
+												{departmentQualifiedSubjects.map((subject) => (
+													/* FIX-29: targetFacultyName below is the DISPLAY name of the
+													   teacher receiving a swap, formatted with the one shared
+													   helper so the confirmation and the roster card print the
+													   identical string. It cannot live as a comment between
+													   attributes: JSX attribute position accepts only pairs and
+													   spread expressions, so a brace-comment there is a parse
+													   error (TS1005). */
+													<SubjectRow
+														key={subject.id}
+														subject={subject}
+														assignment={effectiveAssignmentsByFaculty[member.id]?.find((a) => a.subjectId === subject.id)}
+														sections={sectionsBySubject[subject.id] ?? []}
+														disabled={saving || !member.isActiveForScheduling || isReadOnlyMode}
+														selectedFacultyId={member.id}
 																				effectiveOwnershipMap={effectiveOwnershipMap}
 																				savedConflictMap={savedConflictMap}
 																				onSetSections={onSetSections}
@@ -473,6 +537,7 @@ export function TeacherGridMode({
 																				activeFacultyIds={activeFacultyIds}
 																				onSwapSectionOwnership={onSwapSectionOwnership}
 																				selectedFacultySpecialization={member.specialization}
+																				targetFacultyName={formatFacultyDisplayName(member)}
 																				resolveSectionHoverDeltaMinutes={resolveSectionHoverDeltaMinutes}
 																				completedSectionIds={completedSectionIds}
 																			/>
@@ -488,14 +553,17 @@ export function TeacherGridMode({
 																		<div className="flex-1 h-px bg-border/40" />
 																	</div>
 																	<div className="grid gap-3">
-																		{outsideDepartmentSubjects.map((subject) => (
-																			<SubjectRow
-																				key={subject.id}
-																				subject={subject}
-																				assignment={effectiveAssignmentsByFaculty[member.id]?.find((a) => a.subjectId === subject.id)}
-																				sections={sectionsBySubject[subject.id] ?? []}
-																				disabled={saving || !member.isActiveForScheduling || isReadOnlyMode}
-																				selectedFacultyId={member.id}
+												{outsideDepartmentSubjects.map((subject) => (
+													/* Same FIX-29 contract as the qualified-subjects list above:
+													   targetFacultyName is the shared display name of the teacher
+													   receiving the swap. */
+													<SubjectRow
+														key={subject.id}
+														subject={subject}
+														assignment={effectiveAssignmentsByFaculty[member.id]?.find((a) => a.subjectId === subject.id)}
+														sections={sectionsBySubject[subject.id] ?? []}
+														disabled={saving || !member.isActiveForScheduling || isReadOnlyMode}
+														selectedFacultyId={member.id}
 																				effectiveOwnershipMap={effectiveOwnershipMap}
 																				savedConflictMap={savedConflictMap}
 																				onSetSections={onSetSections}
@@ -507,6 +575,7 @@ export function TeacherGridMode({
 																				activeFacultyIds={activeFacultyIds}
 																				onSwapSectionOwnership={onSwapSectionOwnership}
 																				selectedFacultySpecialization={member.specialization}
+																				targetFacultyName={formatFacultyDisplayName(member)}
 																				resolveSectionHoverDeltaMinutes={resolveSectionHoverDeltaMinutes}
 																				completedSectionIds={completedSectionIds}
 																			/>

@@ -137,6 +137,18 @@ function click(el: Element) {
 	});
 }
 
+/**
+ * How many times the mobile `View profile` control was clicked, per F26-1.
+ *
+ * FIX 24.1 removed the header's `Review teachers` button, which means the
+ * mobile control is now the ONLY control in `TeachingLoadInspectorTriggers`.
+ * A row that only asserts the element EXISTS is therefore asserting almost
+ * nothing — the same shape-only weakness F26-2's own note recorded. This
+ * counter makes the row click it, so "it still works" is a claim about
+ * behaviour rather than about a tag.
+ */
+let onMobileCalls = 0;
+
 const FACULTY: any = {
 	id: 9,
 	firstName: 'Maria',
@@ -529,8 +541,30 @@ test('F23-1 the teacher profile is a centred, internally scrollable dialog', () 
 	const cls = content!.getAttribute('class') ?? '';
 	assert.match(cls, /left-\[50%\]/, 'it must be horizontally centred');
 	assert.match(cls, /top-\[50%\]/, 'it must be vertically centred');
-	assert.match(cls, /overflow-y-auto/, 'it must scroll internally, not the page');
-	assert.match(cls, /max-h-\[90vh\]/, 'it must be bounded to the viewport');
+	/*
+	 * FIX 23.1 (operator, 2026-09-28) — WHERE the internal scroll lives changed.
+	 *
+	 * The former clause was `overflow-y-auto` on the CARD. The operator asked for
+	 * a resizable card, and a native resize handle does not appear on a box that
+	 * scrolls: the handle needs the element to have a resize grip, and a
+	 * scrolling box competes with it. So the card now CLIPS
+	 * (`overflow-hidden`) and the BODY inside it scrolls
+	 * (`min-h-0 flex-1 overflow-y-auto`).
+	 *
+	 * The CLAIM this row exists to defend is unchanged and is now asserted in
+	 * its new form: the profile scrolls INTERNALLY, never the page, and there is
+	 * exactly one scroll region on the surface.
+	 */
+	assert.match(cls, /\boverflow-hidden\b/, 'the card must clip, so a resize handle can exist');
+	const internalScrollers = Array.from(content!.querySelectorAll('*'))
+		.filter((el) => /\boverflow-y-auto\b/.test(el.getAttribute('class') ?? ''));
+	assert.equal(internalScrollers.length, 1, `the dialog must contain exactly one internal scroll region, found ${internalScrollers.length}`);
+	assert.match(
+		internalScrollers[0]!.getAttribute('class') ?? '',
+		/\bflex-1\b/,
+		'the scrolling body takes the leftover card height',
+	);
+	assert.match(cls, /\bmax-h-\[90vh\]/, 'it must be bounded to the viewport');
 	// The old side-drawer shape is gone.
 	assert.doesNotMatch(cls, /sm:max-w-md/);
 	assert.equal(dom.window.document.querySelector('[role="dialog"][data-state]')?.getAttribute('data-state'), 'open');
@@ -614,19 +648,27 @@ test('F23-4 the profile dialog is a real modal: outside overlay, focus scope, an
 // ─────────────────────────────────────── Fix 25 / Fix 26 (return path)
 
 test('F25-1 the review control is a button, not a link: the roster is never unmounted', () => {
-	for (const slot of ['primary', 'secondary'] as const) {
-		const host = render(
-			createElement(FacultyRosterActions as any, {
-				slot, onOpenReview: () => {}, onCreateTemporary: () => {},
-				onRefreshRoster: () => {}, syncing: false, isOnline: true, refreshing: false,
-			}),
-		);
-		assert.equal(host.querySelectorAll('a').length, 0, `${slot}: the review control must not render an anchor`);
-	}
+	// FIX 24.1: the `slot` loop is gone because the `slot` prop is gone. The two
+	// remaining roster actions are direct header buttons, so there is exactly one
+	// render to check and no anchor to produce.
+	const host = render(
+		createElement(FacultyRosterActions as any, {
+			onCreateTemporary: () => {},
+			onRefreshRoster: () => {}, syncing: false, isOnline: true, refreshing: false,
+		}),
+	);
+	assert.equal(host.querySelectorAll('a').length, 0, 'the header roster actions must not render an anchor');
 	const page = read('src/pages/Faculty.tsx');
 	// The two header navigations to a bare /teaching-load are gone.
 	assert.doesNotMatch(page, /to="\/teaching-load"/, 'the header must not navigate away from the roster');
 	assert.match(page, /<FacultyRosterActions/, 'the header must use the in-place control');
+	// FIX 24.1: with both Review buttons deleted, the page drops its whole
+	// `secondaryActions` slot, so the shared frame renders no `... More`
+	// popover for the Teachers page. This is the load-bearing half of "the
+	// `... More` button is completely removed" — a component assertion alone
+	// would still pass with a second `FacultyRosterActions` mounted in the
+	// overflow slot.
+	assert.doesNotMatch(page, /secondaryActions/, 'the Teachers page must pass no secondary action slot at all');
 });
 
 test('F25-2 opening and closing the review leaves filters, scroll, and selection unchanged', () => {
@@ -659,8 +701,6 @@ test('F25-2 opening and closing the review leaves filters, scroll, and selection
 		actionsRoot.render(
 			inRouter(
 				createElement(FacultyRosterActions as any, {
-					slot: 'primary',
-					onOpenReview: () => { reviewOpen = true; renderProfile(); },
 					onCreateTemporary: () => {},
 					onRefreshRoster: () => {},
 					syncing: false, isOnline: true, refreshing: false,
@@ -691,10 +731,28 @@ test('F25-2 opening and closing the review leaves filters, scroll, and selection
 	}
 	renderProfile();
 
-	// Open the review in place.
-	click(actionsHost.querySelector('[data-testid="faculty-review-open"]')!);
-	assert.equal(reviewOpen, true, 'precondition: the review opened in place');
-	assert.ok(dialog(), 'the review dialog is present');
+	/*
+	 * FIX 24.1: the header `Review teachers` button this control used to click
+	 * is GONE from the component, so the open side of the round trip is driven
+	 * through a plain harness button that sets the same `open` flag the page's
+	 * surviving per-row `Profile` control sets. What this control actually
+	 * defends is unchanged and is what the rest of the body asserts: the profile
+	 * sheet is a Radix PORTAL, so an open/close round trip must not disturb the
+	 * roster's markup, its scroll position, its filters, or its selection. The
+	 * close side still clicks the REAL `Close profile` button the component
+	 * renders, so the dialog under test is the production one, not a stand-in.
+	 */
+	const opener = dom.window.document.createElement('button');
+	opener.setAttribute('data-testid', 'harness-open-profile');
+	opener.textContent = 'open profile';
+	dom.window.document.body.appendChild(opener);
+	hosts.push(opener);
+	opener.addEventListener('click', () => { reviewOpen = true; renderProfile(); });
+
+	// Open the profile in place.
+	click(opener);
+	assert.equal(reviewOpen, true, 'precondition: the profile opened in place');
+	assert.ok(dialog(), 'the profile dialog is present');
 
 	// Mutate the roster WHILE the dialog is open: scroll, re-filter, re-select.
 	act(() => { roster.scrollTop = 1200; });
@@ -709,16 +767,16 @@ test('F25-2 opening and closing the review leaves filters, scroll, and selection
 
 	// The roster subtree is untouched by the portal, and the live state is intact.
 	assert.equal(roster.style.overflowY, 'auto', 'the roster still owns its own scroll container');
-	assert.equal(roster.querySelectorAll('[data-row]').length, 40, 'no row was removed by opening the review');
+	assert.equal(roster.querySelectorAll('[data-row]').length, 40, 'no row was removed by opening the profile');
 	assert.equal(selectedId, 9);
 	assert.deepEqual(filters, { query: 'dela', scheduling: 'active', assignment: 'assigned' });
 
 	// Close it.
 	click(buttonsIn(dom.window.document).find((b) => (b.textContent ?? '').trim() === 'Close profile')!);
-	assert.equal(reviewOpen, false, 'the review must close');
+	assert.equal(reviewOpen, false, 'the profile must close');
 
 	assert.equal(roster.querySelectorAll('[data-row]').length, 40, 'closing must not remove rows');
-	assert.equal(roster.innerHTML, rosterHtmlAfterMutation, 'opening then closing the review must not rewrite the roster markup');
+	assert.equal(roster.innerHTML, rosterHtmlAfterMutation, 'opening then closing the profile must not rewrite the roster markup');
 	assert.equal(roster.querySelector('[data-row="7"]')?.getAttribute('data-selected'), 'true', 'the mid-flight selection is still there after the round trip');
 	assert.equal(rosterHtmlBefore !== rosterHtmlAfterMutation, true, 'precondition: the mid-flight mutation really happened');
 	assert.equal(selectedId, 9, 'selection survives the round trip');
@@ -787,7 +845,7 @@ test('F25-4 the attention chip filters still work and are the whole leading row'
 test.skip('F24-1 the Teachers menu labels are short, specific, and cannot wrap', () => {
 	const host = render(
 		createElement(FacultyRosterActions as any, {
-			slot: 'secondary', onOpenReview: () => {}, onCreateTemporary: () => {},
+			onCreateTemporary: () => {},
 			onRefreshRoster: () => {}, syncing: false, isOnline: true, refreshing: false,
 		}),
 	);
@@ -898,7 +956,7 @@ test.skip('F24-2 the row actions stay nowrap with the longest realistic faculty 
 		'div',
 		{ 'data-testid': 'a3-f24-2-row-actions' },
 		createElement(FacultyRosterActions as any, {
-			slot: 'secondary', onOpenReview: () => {}, onCreateTemporary: () => {},
+			onCreateTemporary: () => {},
 			onRefreshRoster: () => {}, syncing: false, isOnline: true, refreshing: false,
 		}),
 	);
@@ -906,7 +964,7 @@ test.skip('F24-2 the row actions stay nowrap with the longest realistic faculty 
 		'div',
 		{ 'data-testid': 'a3-f24-2-primary-action' },
 		createElement(FacultyRosterActions as any, {
-			slot: 'primary', onOpenReview: () => {}, onCreateTemporary: () => {},
+			onCreateTemporary: () => {},
 			onRefreshRoster: () => {}, syncing: false, isOnline: true, refreshing: false,
 		}),
 	);
@@ -985,14 +1043,31 @@ test.skip('F24-2 the row actions stay nowrap with the longest realistic faculty 
 	assert.match(buttonBase, /\bshrink-0\b/, 'the shared Button base must supply shrink-0');
 	// Fix 24's own call-site tokens: defence in depth over that base, kept on
 	// purpose so these controls keep the guarantee if the base is ever trimmed.
+	// FIX 24.1: the two Review buttons are deleted, so there are now TWO authored
+	// `Button` call sites in this file's action row — the outline `Update teacher
+	// list` and the `Create temporary teacher` — not four. The count is the
+	// defence-in-depth pin: it fails loudly if a Review control is re-added
+	// without its own nowrap token, instead of silently passing.
 	const rosterActions = read('src/components/faculty/FacultyRosterActions.tsx');
 	const authored = rosterActions.match(/className="[^"]*whitespace-nowrap[^"]*"/g) ?? [];
-	assert.equal(authored.length, 4, `all four authored Button call sites must keep their own nowrap token, found ${authored.length}`);
+	assert.equal(authored.length, 2, `both authored Button call sites must keep their own nowrap token, found ${authored.length}`);
 });
 
 // ───────────────────────────────────────── Fix 14 / Fix 16 (density)
 
-test('F14-1 the three primary filters sit on ONE always-visible row', () => {
+/**
+ * ============================ SUPERSEDED (fix 39) ============================
+ *
+ * SUPERSEDED BY fix 39 — REPLACED BY `F14-1 INVERTED by fix 39` BELOW. Body
+ * retained verbatim.
+ *
+ * This row's claim was that sort and the two inclusion switches were HIDDEN
+ * behind a `More filters` disclosure. The operator removed the disclosure
+ * entirely, so the claim is now the opposite of the requirement, and the
+ * replacement row inverts it. Skipped rather than deleted so the prior claim
+ * stays on record (AGENTS.md §16).
+ */
+test.skip('F14-1 SUPERSEDED by fix 39: the three primary filters sit on ONE always-visible row', () => {
 	const host = render(
 		createElement(TeachingLoadFilterBar as any, {
 			searchQuery: '', onSearchQueryChange: () => {},
@@ -1023,6 +1098,104 @@ test('F14-1 the three primary filters sit on ONE always-visible row', () => {
 	const closed = host.textContent ?? '';
 	assert.ok(!closed.includes('Sort teachers'), 'sort must not be visible while the disclosure is closed');
 	assert.ok(!closed.includes('Unmapped Specialization'), 'the optional switches must not be visible while closed');
+});
+
+/**
+ * FIX 39 — the one-row filter contract.
+ *
+ * The operator's row is ONE continuous `flex flex-wrap items-center gap-2`
+ * carrying all seven controls in a named order, with no `More filters` button
+ * and no second row. This row is written to discriminate in both directions: it
+ * fails if a control moves BEHIND a disclosure again, and it fails if a
+ * disclosure is re-added at all.
+ */
+test('F14-1 INVERTED by fix 39: ALL SEVEN controls sit on the one always-visible row', () => {
+	const host = render(
+		createElement(TeachingLoadFilterBar as any, {
+			searchQuery: '', onSearchQueryChange: () => {},
+			filterStatus: 'all', onFilterStatusChange: () => {},
+			statusFacetCounts: { all: 5, 'teaching-assigned': 3, 'no-teaching': 1, 'adviser-only': 1, excess: 0 },
+			loadFilter: 'all', loadFacetCounts: { excess: 0, 'at-standard': 2, 'below-standard': 3 },
+			onLoadFilterChange: () => {},
+			departmentFilter: 'all', onDepartmentFilterChange: () => {},
+			departmentOptions: [{ value: 'all', label: 'All departments', count: 5 }],
+			filterAnnouncement: '', onClearTeachingLoadFilters: () => {},
+			sortOrder: 'load-desc', onSortOrderChange: () => {},
+			showFilters: false, onToggleFilters: () => {},
+			showOutsideDept: false, onToggleOutsideDept: () => {},
+			showUnmappedSpecialization: false, onShowUnmappedSpecializationChange: () => {},
+			policyReady: true,
+		}),
+	);
+
+	const primary = host.querySelector('[data-testid="teaching-load-primary-filters"]')!;
+	assert.ok(primary, 'the always-visible filter row must exist');
+	assert.match(
+		primary.getAttribute('class') ?? '',
+		/\bflex-wrap\b/,
+		'the row wraps rather than clipping on a narrow viewport',
+	);
+	assert.match(primary.getAttribute('class') ?? '', /\bflex\b/);
+	assert.match(primary.getAttribute('class') ?? '', /\bitems-center\b/);
+
+	// 1 — search, fixed at the operator's 240px.
+	const search = primary.querySelector('input[aria-label="Search teachers"]');
+	assert.ok(search, 'search must be on the primary row');
+	const searchContainer = search!.parentElement!;
+	// NOTE: no trailing `\b` — the class token ends in `]`, and a word boundary
+	// between `]` and the following space cannot exist, so `\bw-\[240px\]\b`
+	// can never match and would be a control that passes on nothing.
+	assert.match(
+		searchContainer.getAttribute('class') ?? '',
+		/w-\[240px\]/,
+		'the search container is fixed at 240px, not elastic',
+	);
+	assert.doesNotMatch(searchContainer.getAttribute('class') ?? '', /\bflex-1\b/, 'the search box must not be elastic any more');
+
+	// 2, 3, 4 — the three filter selects.
+	for (const name of ['Filter by status', 'Filter by department', 'Filter by load']) {
+		assert.ok(primary.querySelector(`[aria-label="${name}"]`), `${name} must be on the primary row, not behind a disclosure`);
+	}
+	// 5 — sort, the control the disclosure used to hide.
+	const sort = primary.querySelector('[aria-label="Sort teachers"]');
+	assert.ok(sort, 'sort must be on the primary row, not behind a disclosure');
+	// 6, 7 — both inclusion switches, by their real ids.
+	for (const id of ['show-outside-dept', 'show-unmapped-specialization']) {
+		assert.ok(primary.querySelector(`#${id}`), `switch ${id} must be on the primary row, not behind a disclosure`);
+		assert.ok(
+			primary.querySelector(`label[for="${id}"]`),
+			`switch ${id} must keep its label on the primary row`,
+		);
+	}
+
+	// The ORDER is the operator's: search, status, department, load, sort, both
+	// switches. Read as DOM order, so a re-order fails here rather than being
+	// inferred from class names.
+	const ordered = Array.from(primary.querySelectorAll('[aria-label], #show-outside-dept, #show-unmapped-specialization'))
+		.map((el) => el.getAttribute('aria-label') ?? `#${el.getAttribute('id')}`);
+	assert.deepEqual(ordered, [
+		'Search teachers',
+		'Filter by status',
+		'Filter by department',
+		'Filter by load',
+		'Sort teachers',
+		'#show-outside-dept',
+		'#show-unmapped-specialization',
+	], 'the seven controls must appear in the operator\'s order on the one row');
+
+	// The disclosure is GONE, in both forms: no second row, and no button.
+	assert.equal(
+		host.querySelector('[data-testid="teaching-load-secondary-filters"]'),
+		null,
+		'fix 39 removed the second row entirely',
+	);
+	for (const button of buttonsIn(host)) {
+		assert.doesNotMatch(
+			(button.textContent ?? '').trim(),
+			/More filters/,
+			'the `More filters` disclosure button must be removed',
+		);
+	}
 });
 
 test('F14-2 the filter bar adds NO scroll container (no-scroll architecture intact)', () => {
@@ -1070,11 +1243,11 @@ test('F14-3 the permanent desktop inspector column is gone and the modal replace
 });
 
 test('F26-1 the mobile View profile button and its Sheet are PRESERVED', () => {
-	const onMobile = () => {};
-	const onReview = () => {};
+	onMobileCalls = 0;
+	const onMobile = () => { onMobileCalls += 1; };
 	const host = render(
 		createElement(TeachingLoadInspectorTriggers as any, {
-			visible: true, onOpenMobile: onMobile, onOpenReview: onReview,
+			visible: true, onOpenMobile: onMobile,
 		}),
 	);
 
@@ -1082,6 +1255,10 @@ test('F26-1 the mobile View profile button and its Sheet are PRESERVED', () => {
 	assert.ok(mobile, 'the mobile View profile button must still exist');
 	assert.match(mobile.textContent ?? '', /View profile/, 'its label must be unchanged');
 	assert.match(mobile.getAttribute('class') ?? '', /lg:hidden/, 'it must remain the small-screen-only control');
+	// It must still be wired to the mobile open state, which is the only path to
+	// the sheet on a phone now that the desktop control is gone.
+	click(mobile);
+	assert.equal(onMobileCalls, 1, 'the mobile control must still open the sheet');
 
 	// And the Sheet it opens is still mounted on the page.
 	const page = read('src/pages/TeachingLoad.tsx');
@@ -1090,7 +1267,62 @@ test('F26-1 the mobile View profile button and its Sheet are PRESERVED', () => {
 	assert.match(page, /setMobileInspectorOpen/, 'the mobile open state must still be driven');
 });
 
-test('F26-2 the Review teachers control is desktop-only and opens the modal', () => {
+test('F26-2 INVERTED by fix 16.1: the detached desktop Review teachers control is GONE', () => {
+	// This row previously asserted the control EXISTS. The operator's item 16.1
+	// removes it, so the assertion is inverted — and it is inverted for the
+	// reason the row's own SUPERSEDED note recorded: a SHAPE-ONLY control that
+	// never clicks anything is how a labelled button shipped dead. This one now
+	// pins the ABSENCE of the detached control, which is the actual requirement.
+	const host = render(
+		createElement(TeachingLoadInspectorTriggers as any, {
+			visible: true, onOpenMobile: () => {},
+		}),
+	);
+
+	assert.equal(
+		host.querySelector('[data-testid="teaching-load-review-open"]'),
+		null,
+		'the floating bottom-right `Review teachers` button must be removed — every teacher row now carries its own `Review load` button',
+	);
+	// No button in this component may read `Review teachers` any more.
+	for (const button of buttonsIn(host)) {
+		assert.doesNotMatch(
+			(button.textContent ?? '').trim(),
+			/Review teachers/,
+			`"${(button.textContent ?? '').trim()}" must not claim the retired label`,
+		);
+	}
+	// The mobile control is the component's ONLY control, and it survives.
+	const mobile = host.querySelector('[data-testid="teaching-load-mobile-inspector-open"]');
+	assert.ok(mobile, 'the mobile View profile control must survive the removal');
+	// The page must not pass the removed `onOpenReview` prop any more.
+	const page = read('src/pages/TeachingLoad.tsx');
+	assert.doesNotMatch(page, /onOpenReview=\{\(\) => openTeacherReview/, 'the page must not bind the removed prop');
+	// And the replacement is real: the per-row control exists in the source that
+	// renders the rows, with the requested visible label.
+	const grid = read('src/components/faculty-assignments/TeacherGridMode.tsx');
+	assert.match(grid, /data-testid="teaching-load-row-review"/, 'each teacher row must carry its own review control');
+	assert.match(grid, /Review load/, 'the per-row control is labelled `Review load`');
+});
+
+/**
+ * ============================ SUPERSEDED (fix 16.1) ============================
+ *
+ * SUPERSEDED BY fix 16.1 — REPLACED BY `F26-2 INVERTED by fix 16.1` ABOVE. Body
+ * retained verbatim.
+ *
+ * The operator removed the detached bottom-right `Review teachers` control, so
+ * this row's claim — that it EXISTS and is `lg:inline-flex` — is no longer
+ * true, and the replacement row asserts the opposite. Marked skipped rather
+ * than deleted so the prior claim stays on record (AGENTS.md §16: corrections
+ * are additive, never subtractive).
+ *
+ * Its own SUPERSEDED-IN-BEHAVIOUR note below was correct and is still the
+ * reason this row could not catch the dead Next Step banner: the control was
+ * SHAPE-ONLY. It rendered the button with a STUB `onOpenReview` and never
+ * clicked it. Shape is not behaviour.
+ */
+test.skip('F26-2 SUPERSEDED by fix 16.1: the Review teachers control is desktop-only and opens the modal', () => {
 	const host = render(
 		createElement(TeachingLoadInspectorTriggers as any, {
 			visible: true, onOpenMobile: () => {}, onOpenReview: () => {},
@@ -1111,7 +1343,7 @@ test('F26-2 the Review teachers control is desktop-only and opens the modal', ()
 });
 
 const { formatFacultyDisplayName, formatFacultyStoredName } = await import('@/components/faculty/teacherNameDisplay');
-const { REFRESH_TEACHER_LIST_LABEL, temporaryTeacherActionLabel } = await import('@/components/faculty/rosterActionLabels');
+const { UPDATE_TEACHER_LIST_LABEL, temporaryTeacherActionLabel } = await import('@/components/faculty/rosterActionLabels');
 
 // ─────────────────────── c10 re-issue: the replacements for the superseded rows
 //
@@ -1165,7 +1397,7 @@ test('F22-c10-2r the shared display helper UPPERCASES, and the profile dialog us
 test('F24-c10-1r the menu labels are the ORIGINAL requested copy and carry no raw title', () => {
 	const host = render(
 		createElement(FacultyRosterActions as any, {
-			slot: 'secondary', onOpenReview: () => {}, onCreateTemporary: () => {},
+			onCreateTemporary: () => {},
 			onRefreshRoster: () => {}, syncing: false, isOnline: true, refreshing: false,
 			nextTeacherNumber: 42,
 		}),
@@ -1179,8 +1411,12 @@ test('F24-c10-1r the menu labels are the ORIGINAL requested copy and carry no ra
 
 	// `Create Temporary` -> `Create temporary teacher (Teacher X)`, X substituted.
 	assert.ok(texts.includes('Create temporary teacher (Teacher 42)'), `expected the original create copy, got ${JSON.stringify(texts)}`);
-	// `Refresh teacher roster` -> `Refresh teacher list`.
-	assert.ok(texts.includes(REFRESH_TEACHER_LIST_LABEL), `expected "${REFRESH_TEACHER_LIST_LABEL}", got ${JSON.stringify(texts)}`);
+	// `Refresh teacher roster` -> `Refresh teacher list` -> `Update teacher list`.
+	// Fix 24.1 relabels the EXISTING roster sync function; it does not add or
+	// replace a workflow, so the SAME button and the SAME `onRefreshRoster` are
+	// behind the new copy.
+	assert.equal(UPDATE_TEACHER_LIST_LABEL, 'Update teacher list');
+	assert.ok(texts.includes(UPDATE_TEACHER_LIST_LABEL), `expected "${UPDATE_TEACHER_LIST_LABEL}", got ${JSON.stringify(texts)}`);
 	// The narrowed strings are gone.
 	assert.ok(!texts.includes('Add temporary'));
 	assert.ok(!texts.includes('Refresh roster'));
@@ -1216,7 +1452,7 @@ test('F24-c10-2r the row actions stay nowrap with the longest realistic faculty 
 		'div',
 		{ 'data-testid': 'a3-c10-f24-row-actions' },
 		createElement(FacultyRosterActions as any, {
-			slot: 'secondary', onOpenReview: () => {}, onCreateTemporary: () => {},
+			onCreateTemporary: () => {},
 			onRefreshRoster: () => {}, syncing: false, isOnline: true, refreshing: false,
 			nextTeacherNumber: 7,
 		}),
@@ -1225,7 +1461,7 @@ test('F24-c10-2r the row actions stay nowrap with the longest realistic faculty 
 		'div',
 		{ 'data-testid': 'a3-c10-f24-primary-action' },
 		createElement(FacultyRosterActions as any, {
-			slot: 'primary', onOpenReview: () => {}, onCreateTemporary: () => {},
+			onCreateTemporary: () => {},
 			onRefreshRoster: () => {}, syncing: false, isOnline: true, refreshing: false,
 			nextTeacherNumber: 7,
 		}),

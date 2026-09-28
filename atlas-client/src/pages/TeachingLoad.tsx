@@ -29,8 +29,16 @@ import { TeachingLoadDraftActionBar } from '@/components/faculty-assignments/Tea
 import { TeachingLoadGuidedModePlaceholder } from '@/components/faculty-assignments/TeachingLoadGuidedModePlaceholder';
 import { TeachingLoadModals } from '@/components/faculty-assignments/TeachingLoadModals';
 import { TeachingLoadInspectorTriggers } from '@/components/faculty-assignments/TeachingLoadInspectorTriggers';
+import { TeachingLoadSummarySurface } from '@/components/faculty-assignments/TeachingLoadSummarySurface';
 import { TeachingLoadTruthPanel } from '@/components/faculty-assignments/TeachingLoadTruthPanel';
 import { buildTeachingLoadTruthModel } from '@/lib/teaching-load-authority-truth';
+import {
+	buildCoverageHeadline,
+	countTeachersAboveWeeklyMax,
+	previewLoadHoursFor,
+	reviewModalCopy,
+	sectionHoverDeltaMinutesFor,
+} from '@/components/faculty-assignments/teachingLoadWorkspaceMetrics';
 import { useTeachingLoadRepairQueue } from '@/hooks/useTeachingLoadRepairQueue';
 import { useTeachingLoadRouteIntent } from '@/hooks/useTeachingLoadRouteIntent';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
@@ -71,6 +79,8 @@ export default function TeachingLoad() {
 	const [advancedGridVisible, setAdvancedGridVisible] = useState(true);
 	const [guidedDefaultApplied, setGuidedDefaultApplied] = useState(false);
 	const [draftStatusMessage, setDraftStatusMessage] = useState('No draft changes yet. Start with the next step below.');
+	// FIX 40: `Save changes` opens a confirmation rather than committing.
+	const [saveConfirmOpen, setSaveConfirmOpen] = useState(false);
 
 	useEffect(() => {
 		if (data.schoolId && data.activeSchoolYearId) {
@@ -393,41 +403,33 @@ export default function TeachingLoad() {
 		toast.info('All Teaching Load draft changes discarded.');
 	}, [data]);
 
+	/*
+	 * A6: the five derivations below moved to
+	 * `teachingLoadWorkspaceMetrics.ts` to keep this page under the AGENTS.md §8
+	 * 1000-physical-line cap after item 38. Each was already a pure function
+	 * behind a `useMemo` / `useCallback` formality, so the extraction changes no
+	 * behaviour and adds no authority: the page still decides WHEN to recompute.
+	 */
 	const resolveSectionHoverDeltaMinutes = useCallback((subject: Subject, sectionId: number) => {
-		// Hover preview needs the effective policy; without it there is no honest preview.
-		if (!ui.policyReady || ui.workloadPolicy == null || data.selected == null) return 0;
-		return computeSectionAssignmentDeltaMinutes(
+		return sectionHoverDeltaMinutesFor(
 			subject,
 			sectionId,
-			data.effectiveAssignmentsByFaculty[data.selectedId ?? 0] ?? [],
+			data.selected,
+			data.selectedId,
+			ui.policyReady,
+			ui.workloadPolicy,
+			data.effectiveAssignmentsByFaculty,
 			data.subjects,
 			data.sectionMap,
-			resolveEffectiveLoadBaselineHours(data.selected, ui.workloadPolicy),
-			ui.workloadPolicy,
-			data.selected.maxHoursPerWeek,
 		);
 	}, [data, ui.policyReady, ui.workloadPolicy]);
 
 	const previewLoadHours = useMemo(() => {
-		return (ui.loadProfile?.creditedTotalHours ?? 0) + (ui.hoveredIncomingMinutes / 60);
+		return previewLoadHoursFor(ui.loadProfile, ui.hoveredIncomingMinutes);
 	}, [ui.loadProfile, ui.hoveredIncomingMinutes]);
 
 	const coverageHeadline = useMemo(() => {
-		if (data.coverageTotals) {
-			const assigned = Math.max(0, data.coverageTotals.assignedPairs);
-			const realAssigned = Math.max(0, data.coverageTotals.realFacultyAssignedPairs);
-			const syntheticAssigned = Math.max(0, data.coverageTotals.syntheticPlaceholderPairs);
-			const total = Math.max(0, data.coverageTotals.totalPairs);
-			return {
-				assigned,
-				realAssigned,
-				syntheticAssigned,
-				total,
-				unassigned: Math.max(0, total - (realAssigned + syntheticAssigned)),
-				rawUnassigned: data.coverageTotals.unassignedPairs,
-			};
-		}
-		return { assigned: 0, realAssigned: 0, syntheticAssigned: 0, total: 0, unassigned: 0, rawUnassigned: 0 };
+		return buildCoverageHeadline(data.coverageTotals);
 	}, [data.coverageTotals]);
 
 	const emptyActiveYearTeachingLoad = useMemo(
@@ -444,7 +446,7 @@ export default function TeachingLoad() {
 	}, [emptyActiveYearTeachingLoad, guidedDefaultApplied, data.activeSchoolYearLabel]);
 
 	const overCapCount = useMemo(
-		() => data.faculty.filter((member) => member.isActiveForScheduling && (member.actualTeachingHours ?? member.sectionTeachingHours ?? 0) > member.maxHoursPerWeek).length,
+		() => countTeachersAboveWeeklyMax(data.faculty),
 		[data.faculty],
 	);
 
@@ -547,6 +549,26 @@ export default function TeachingLoad() {
 		data.isOnline,
 	]);
 
+	/**
+	 * FIX 16.1 — the ONE production opener for a teacher workload review.
+	 *
+	 * The detached bottom-right `Review teachers` button is gone, and each row
+	 * now carries its own `Review load` button passing THAT row's faculty id, so
+	 * the two call sites differ only in whether a teacher is named: a row
+	 * selects then opens, and the repair queue (which already ran
+	 * `onSelectFaculty`) opens against the standing selection. Both land on the
+	 * same `openTeacherReview` call, so the modal, its title and its view mode
+	 * cannot disagree between the entry points.
+	 *
+	 * The select runs BEFORE the open deliberately: `reviewModalTitle` is derived
+	 * from `data.selected`, and a dialog that opened against the previous teacher
+	 * and corrected itself one render later is the defect this indirection caused.
+	 */
+	const openTeacherReviewFor = useCallback((facultyId?: number | null) => {
+		if (facultyId != null) data.setSelectedId(facultyId);
+		openTeacherReview({ setViewMode: ui.setViewMode, setReviewModalOpen });
+	}, [data.setSelectedId, ui.setViewMode]);
+
 	const {
 		activeRepairId,
 		routedRepairId,
@@ -580,7 +602,7 @@ export default function TeachingLoad() {
 			ui.setFilterStatus('all');
 			ui.setLoadFilter('all');
 		},
-		onOpenReview: () => openTeacherReview({ setViewMode: ui.setViewMode, setReviewModalOpen }),
+		onOpenReview: () => openTeacherReviewFor(null),
 		setAdvancedGridVisible,
 	});
 
@@ -640,17 +662,13 @@ export default function TeachingLoad() {
 		/>
 	);
 
-	const reviewModalTitle = ui.viewMode === 'teacher'
-		? data.selected
-			? `Teacher workload: ${data.selected.lastName}, ${data.selected.firstName}`
-			: 'Review teachers'
-		: 'Review section';
-
-	const reviewModalDescription = ui.viewMode === 'teacher'
-		? data.selected
-			? 'Teaching load, capacity, and the next safe action for this teacher.'
-			: 'Select a teacher to inspect their workload.'
-		: 'Section coverage and ownership for the selected section.';
+	// A6: moved to `teachingLoadWorkspaceMetrics.ts` with the other derivations.
+	// Returned as a PAIR so the title and the description can never come from
+	// different branches — see that function's header.
+	const { title: reviewModalTitle, description: reviewModalDescription } = reviewModalCopy(
+		ui.viewMode,
+		data.selected,
+	);
 
 	/* A3-C10-S3 — the compact state line.
 	 *
@@ -666,23 +684,19 @@ export default function TeachingLoad() {
 	 * `WorkspaceToolbar.tsx`; the committed control is
 	 * `__tests__/a3-c10-tl-header-density.test.ts`.
 	 *
-	 * NOTHING IS HIDDEN. The truth panel keeps its summary sentence, its
-	 * source-verification badge, its Details popover and its full in-DOM metric
-	 * rows; the repair queue keeps its count, its live status, its safety
-	 * `disabledReason` and its primary action; the archived-load control is
-	 * still a link to `/teaching-load/history`. Only the repair queue's prose
-	 * description moved behind a hover whose trigger already names the task,
-	 * the count and the status. */
+	 * NOTHING IS HIDDEN. The truth panel keeps every one of its figures and
+	 * testids — they moved into the `Load summary` dialog below, rendered from
+	 * the same `truthModel`; the repair queue keeps its count, its live status,
+	 * its safety `disabledReason` and its primary action; the archived-load
+	 * control is still a link to `/teaching-load/history`. Only the repair
+	 * queue's prose description moved behind a hover whose trigger already names
+	 * the task, the count and the status. */
 	const headerStateLine = (
 		<>
-			<TeachingLoadTruthPanel
-				inline
-				model={truthModel}
-				loading={data.loading || data.authorityDiagnosticsLoading}
-				sourceRevision={data.authorityDiagnostics?.sourceRevision ?? null}
-				upstreamVerified={data.degradedNotice === null}
-				unresolvedReasons={truthUnresolvedReasons}
-			/>
+			{/* FIX 38: the inline `TEACHING LOAD SUMMARY` band is removed from this
+			    row — it was the widest thing on the line and its metric rows are
+			    horizontal pill scrollers. The breakdown is unchanged and now lives in
+			    `TeachingLoadSummarySurface` below, on the SAME `truthModel`. */}
 			<TeachingLoadRepairQueue
 				items={repairQueueItems}
 				activeItemId={activeRepairId ?? routedRepairId}
@@ -759,9 +773,29 @@ export default function TeachingLoad() {
 						activeDraftCount={data.activeDraftCount}
 						saving={data.saving}
 						onSave={handleSave}
-						onRetrySource={() => data.fetchData({ forceRefresh: true })}
-						stateLineSlot={headerStateLine}
-					/>
+					onRetrySource={() => data.fetchData({ forceRefresh: true })}
+					stateLineSlot={headerStateLine}
+					// FIX 38: the toolbar owns this control's POSITION, the surface owns its
+					// open state and the dialog, and the page still BUILDS the body, so
+					// `truthModel` has exactly one producer.
+					//
+					// The panel's tag below is deliberately NOT mentioned in backticks
+					// in this comment: two committed controls locate it with a plain
+					// `indexOf` on that tag, and a prose mention would be the first
+					// match, so both would measure a comment and pass vacuously.
+					loadSummaryAction={(
+						<TeachingLoadSummarySurface>
+							<TeachingLoadTruthPanel
+								expanded
+								model={truthModel}
+								loading={data.loading || data.authorityDiagnosticsLoading}
+								sourceRevision={data.authorityDiagnostics?.sourceRevision ?? null}
+								upstreamVerified={data.degradedNotice === null}
+								unresolvedReasons={truthUnresolvedReasons}
+							/>
+						</TeachingLoadSummarySurface>
+					)}
+				/>
 					<p className="sr-only" aria-label="Teaching load workflow">
 						<span className="text-foreground">1. Choose a teacher or section</span>
 						<span aria-hidden="true" className="mx-2">→</span>
@@ -783,8 +817,10 @@ export default function TeachingLoad() {
 					{/* A3-C10-S3: the canonical truth strip, the "Next step" repair queue
 						and the archived-load control were three `shrink-0` bands here
 						and are now one compact state line inside the command strip
-						(`headerStateLine` above). The roster therefore starts
-						immediately under the two-row header.
+						(`headerStateLine` above). FIX 38 then took the truth panel
+						out of that line entirely and into the `Load summary` dialog,
+						so the roster starts under a header whose second row is two
+						summary chips and two actions.
 
 						Phase 4.1 note, still true: the standalone TeachingLoadTaskGuide
 						remains removed, and the repair queue is still the single
@@ -843,12 +879,31 @@ export default function TeachingLoad() {
 								showOutsideDept={ui.showOutsideDept}
 								onToggleOutsideDept={ui.setShowOutsideDept}
 								showUnmappedSpecialization={ui.showUnmappedSpecialization}
-								onShowUnmappedSpecializationChange={ui.setShowUnmappedSpecialization}
-								completedSectionIds={completedSectionIds}
-								workspaceStateLabel={workspaceState.label}
-								workspaceStateNextAction={workspaceState.nextAction}
-								writeBlockedReason={workspaceState.writeBlockedReason}
-							/>
+							onShowUnmappedSpecializationChange={ui.setShowUnmappedSpecialization}
+							completedSectionIds={completedSectionIds}
+							workspaceStateLabel={workspaceState.label}
+							workspaceStateNextAction={workspaceState.nextAction}
+							writeBlockedReason={workspaceState.writeBlockedReason}
+							onReviewLoad={openTeacherReviewFor}
+							draftControls={(
+								/* FIX 40: the SAME element that used to be the bottom
+								 * sticky footer, now handed to the filter row. The
+								 * component did not change identity — only its
+								 * position — so the draft gate, the undo stack and
+								 * the discard confirmation are all the same code. */
+								<TeachingLoadDraftActionBar
+									activeDraftCount={data.activeDraftCount}
+									canUndo={data.canUndo}
+									canRedo={data.canRedo}
+									isReadOnlyMode={data.isReadOnlyMode}
+									saving={data.saving}
+									onUndo={data.handleUndo}
+									onRedo={data.handleRedo}
+									onDiscard={() => setShowDiscardConfirm(true)}
+									onSave={() => setSaveConfirmOpen(true)}
+								/>
+							)}
+						/>
 						) : (
 							<SectionGridMode
 								loading={data.loading}
@@ -881,32 +936,17 @@ export default function TeachingLoad() {
 				{/* Fix 26: the permanent `hidden w-80 ... lg:block` inspector column
 					was removed here. It narrowed the workspace by 320px on every
 					large viewport. The identical content is now reachable on demand
-					via the `Review teachers` control below and the `ReviewTeachersModal`
-					in `TeachingLoadModals`. The mobile `View profile` Sheet further
-					down is deliberately preserved. */}
+					from EVERY teacher row's `Review load` button, and on small
+					screens by the preserved `View profile` control below. */}
+			</div>
 			</div>
 
-
-				<TeachingLoadDraftActionBar
-					activeDraftCount={data.activeDraftCount}
-					canUndo={data.canUndo}
-					isReadOnlyMode={data.isReadOnlyMode}
-					saving={data.saving}
-					statusMessage={draftStatusMessage}
-					writeBlockedReason={workspaceState.writeBlockedReason}
-					onUndo={data.handleUndo}
-					onDiscard={() => setShowDiscardConfirm(true)}
-					onSave={() => void handleSave()}
-				/>
-			</div>
-
-			{/* Phase 4.8: mobile inspector access. This is the legitimate small-screen
-				affordance and is PRESERVED. The desktop equivalent is now the
-				`Review teachers` modal. */}
+			{/* Phase 4.8: mobile inspector access. This is the legitimate
+				small-screen affordance and is PRESERVED. The desktop equivalent
+				is now the per-row `Review load` button. */}
 			<TeachingLoadInspectorTriggers
 				visible={advancedGridVisible}
 				onOpenMobile={() => setMobileInspectorOpen(true)}
-				onOpenReview={() => openTeacherReview({ setViewMode: ui.setViewMode, setReviewModalOpen })}
 			/>
 
 			<Sheet open={mobileInspectorOpen} onOpenChange={setMobileInspectorOpen}>
@@ -946,6 +986,12 @@ export default function TeachingLoad() {
 				reviewInspector={activeInspector}
 				reviewTitle={reviewModalTitle}
 				reviewDescription={reviewModalDescription}
+				saveChangesConfirmOpen={saveConfirmOpen}
+				onSaveChangesConfirmOpenChange={setSaveConfirmOpen}
+				onSaveChangesConfirm={() => void handleSave()}
+				pendingChangeCount={data.activeDraftAssignmentChangeCount}
+				pendingChangeTeacherCount={data.activeDraftCount}
+				pendingChangeScope=""
 			/>
 		</TooltipProvider>
 	);

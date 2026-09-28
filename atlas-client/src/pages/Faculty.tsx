@@ -563,19 +563,13 @@ export default function Faculty() {
 	const nextTeacherIntent = nextTeacherToFix ? getTeacherRepairIntent(nextTeacherToFix) : null;
 
 	/**
-	 * Fix 25 (in-page review). The former header control navigated to
-	 * `/teaching-load`, which unmounted the roster and destroyed its filters,
-	 * scroll position, and selection. It now opens the review dialog IN PLACE and
-	 * seeds it with the next teacher needing attention — the same
-	 * `nextTeacherToFix` / `nextTeacherIntent` pair the removed strip used to
-	 * display, so the repair logic survives its removal (Fix 21).
-	 *
-	 * Nothing here mutates filter state, so closing the dialog leaves the roster
-	 * exactly as it was.
+	 * FIX 24.1. The header's `Review teachers` button and its `... More` popover
+	 * are both gone, so the `openRosterReview` opener that fed them is gone with
+	 * them. The repair LOGIC is not lost: `nextTeacherToFix` /
+	 * `nextTeacherIntent` still compute and still seed the profile sheet's
+	 * primary action through `reviewLabel` on the per-row `Profile` control
+	 * below. Only the one dead header entry point is removed.
 	 */
-	const openRosterReview = useCallback(() => {
-		setProfileTarget(nextTeacherToFix);
-	}, [nextTeacherToFix]);
 
 	const openCreateTemporary = useCallback(() => {
 		setPlaceholderEditTarget(null);
@@ -687,21 +681,7 @@ return (
 			stats={teacherStats}
 			primaryActions={(
 				<FacultyRosterActions
-					slot="primary"
 					nextTeacherNumber={nextTeacherNumber}
-					onOpenReview={openRosterReview}
-					onCreateTemporary={openCreateTemporary}
-					onRefreshRoster={handleSync}
-					syncing={syncing}
-					isOnline={isOnline}
-					refreshing={refreshing}
-				/>
-			)}
-			secondaryActions={(
-				<FacultyRosterActions
-					slot="secondary"
-					nextTeacherNumber={nextTeacherNumber}
-					onOpenReview={openRosterReview}
 					onCreateTemporary={openCreateTemporary}
 					onRefreshRoster={handleSync}
 					syncing={syncing}
@@ -814,10 +794,11 @@ return (
 					roster's own state, carried a redundant `Review load` link out to
 					/teaching-load, and consumed vertical space the roster needs at
 					1366x768. Its repair-intent logic is NOT lost: `nextTeacherToFix`
-					and `nextTeacherIntent` still compute, and they now seed the in-place
-					`Review teachers` modal via `openRosterReview`. The attention chips,
-					which lived inside the same wrapper and are a real filter control,
-					are preserved and are now the whole leading row. */
+					and `nextTeacherIntent` still compute, and they still seed the
+					per-row profile's primary action through `reviewLabel`. The
+					attention chips, which lived inside the same wrapper and are a
+					real filter control, are preserved and are now the whole leading
+					row. */
 				<TeacherAttentionFilters
 					chips={attentionChips}
 					activeChipId={attentionFilter}

@@ -97,7 +97,7 @@ const {
 	actionLabelFits,
 	measureRosterActionLabel,
 	LONGEST_ROSTER_ACTION_LABEL,
-	REFRESH_TEACHER_LIST_LABEL,
+	UPDATE_TEACHER_LIST_LABEL,
 	temporaryTeacherActionLabel,
 	ACTION_LABEL_PADDING_PX,
 } = await import('@/components/faculty/rosterActionLabels');
@@ -291,7 +291,7 @@ test('F22-c10-5 the centralized formatter standardises the two out-of-fence cons
 test('F24-c10-1 the rendered labels are the ORIGINAL requested copy, verbatim', () => {
 	const host = render(
 		createElement(FacultyRosterActions as any, {
-			slot: 'secondary', onOpenReview: () => {}, onCreateTemporary: () => {},
+			onCreateTemporary: () => {},
 			onRefreshRoster: () => {}, syncing: false, isOnline: true, refreshing: false,
 			nextTeacherNumber: 42,
 		}),
@@ -304,10 +304,13 @@ test('F24-c10-1 the rendered labels are the ORIGINAL requested copy, verbatim', 
 		texts.includes('Create temporary teacher (Teacher 42)'),
 		`expected the restored create copy, got ${JSON.stringify(texts)}`,
 	);
-	// `Refresh teacher roster` -> `Refresh teacher list`.
+	// FIX 24.1 renames the refresh copy once more: `Refresh teacher list` ->
+	// `Update teacher list`. The EXISTING roster sync function is unchanged; only
+	// the label is relabelled, so the constant is renamed with it.
+	assert.equal(UPDATE_TEACHER_LIST_LABEL, 'Update teacher list');
 	assert.ok(
-		texts.includes(REFRESH_TEACHER_LIST_LABEL),
-		`expected "Refresh teacher list", got ${JSON.stringify(texts)}`,
+		texts.includes(UPDATE_TEACHER_LIST_LABEL),
+		`expected "Update teacher list", got ${JSON.stringify(texts)}`,
 	);
 	// The narrowed strings are gone.
 	assert.ok(!texts.includes('Add temporary'), 'the narrowed create copy must be gone');
@@ -321,20 +324,21 @@ test('F24-c10-1 the rendered labels are the ORIGINAL requested copy, verbatim', 
 	);
 });
 
-test('F24-c10-2 the same string source drives desktop and the mobile/menu variant', () => {
-	// Both variants are the same action, so the copy must come from one source
-	// and cannot drift. Asserted on the comment-stripped source, because the two
-	// variants render in different slots and prose must not be counted as code.
+test('F24-c10-2 the same string source drives both header buttons', () => {
+	// Both actions are the same two strings, so the copy must come from one
+	// source and cannot drift. Asserted on the comment-stripped source, because
+	// the module's own explanation of the rename history would otherwise be
+	// counted as code.
 	const source = code('src/components/faculty/FacultyRosterActions.tsx');
 	// The meaningful property is not an occurrence count (a label is legitimately
 	// read more than once, e.g. for `data-label`), it is that NEITHER copy is
 	// ever spelled out as a literal here. A literal is what allowed the desktop
 	// and menu variants to drift in the first place.
 	assert.doesNotMatch(source, /['"`]Create temporary teacher/, 'the create copy must not be duplicated as a literal');
-	assert.doesNotMatch(source, /['"`]Refresh teacher list/, 'the refresh copy must not be duplicated as a literal');
+	assert.doesNotMatch(source, /['"`]Update teacher list/, 'the update copy must not be duplicated as a literal');
 	// Both are constructed only through the shared module.
 	assert.match(source, /temporaryTeacherActionLabel\(nextTeacherNumber\)/);
-	assert.match(source, /:\s*REFRESH_TEACHER_LIST_LABEL/);
+	assert.match(source, /:\s*UPDATE_TEACHER_LIST_LABEL/);
 	// The hard-coded narrowed strings are gone from the code.
 	assert.doesNotMatch(source, /['"`]Add temporary/);
 	assert.doesNotMatch(source, /['"`]Refresh roster/);
@@ -343,7 +347,7 @@ test('F24-c10-2 the same string source drives desktop and the mobile/menu varian
 test('F24-c10-3 no raw title attribute survives on the header actions (AGENTS.md §8)', () => {
 	const host = render(
 		createElement(FacultyRosterActions as any, {
-			slot: 'secondary', onOpenReview: () => {}, onCreateTemporary: () => {},
+			onCreateTemporary: () => {},
 			onRefreshRoster: () => {}, syncing: false, isOnline: true, refreshing: false,
 			nextTeacherNumber: 42,
 		}),
@@ -358,7 +362,7 @@ test('F24-c10-3 no raw title attribute survives on the header actions (AGENTS.md
 	// The extra information moved to the @/ui Tooltip rather than being dropped.
 	assert.match(
 		read('src/components/faculty/FacultyRosterActions.tsx'),
-		/Refresh teacher list from EnrollPro/,
+		/Update the teacher list from EnrollPro/,
 		'the "from EnrollPro" detail must survive as Tooltip content',
 	);
 	// And the accessible name is the visible label (WCAG 2.5.3 Label in Name), so
@@ -371,7 +375,7 @@ test('F24-c10-3 no raw title attribute survives on the header actions (AGENTS.md
 test('F24-c10-4 the action row grows to its labels, and cannot wrap or clip them', () => {
 	const host = render(
 		createElement(FacultyRosterActions as any, {
-			slot: 'secondary', onOpenReview: () => {}, onCreateTemporary: () => {},
+			onCreateTemporary: () => {},
 			onRefreshRoster: () => {}, syncing: false, isOnline: true, refreshing: false,
 			nextTeacherNumber: 42,
 		}),
