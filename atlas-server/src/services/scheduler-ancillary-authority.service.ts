@@ -122,7 +122,11 @@ export async function resolveSchedulerAncillaryAuthority(
 		if (expectedSchoolYearId !== undefined && activeYear.id !== expectedSchoolYearId) {
 			return { verified: false, eligible: false, code: 'ACTIVE_SCHOOL_YEAR_CHANGED' };
 		}
-		const facultyUrl = `${baseUrl}/integration/v1/default/faculty?schoolYearId=${activeYear.id}`;
+		// A9: `personnelType=TEACHING` is mandatory — EnrollPro otherwise returns
+		// every personnel type, and a non-teaching staffer must never be granted
+		// scheduler ancillary authority. See
+		// docs/reference/enrollpro-teaching-personnel-api-2026-09-29.md.
+		const facultyUrl = `${baseUrl}/integration/v1/default/faculty?personnelType=TEACHING&schoolYearId=${activeYear.id}`;
 		const facultyResponse = await fetchImpl(facultyUrl, { headers, signal: AbortSignal.timeout(5_000) });
 		if (!facultyResponse.ok) return { verified: false, eligible: false, code: 'FACULTY_FEED_UNAVAILABLE' };
 		const validation = validateSchedulerAncillaryFeed(

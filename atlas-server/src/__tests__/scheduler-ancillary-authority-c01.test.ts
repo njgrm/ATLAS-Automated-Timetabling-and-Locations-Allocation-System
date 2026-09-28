@@ -103,7 +103,9 @@ test('active-year endpoint and faculty ancillary feed are fetched server-side wi
 	assert.deepEqual(result, { verified: true, eligible: true, schoolYearId: YEAR_ID });
 	assert.deepEqual(calls.map(({ url }) => url), [
 		'https://enrollpro.test/api/integration/v1/school-year',
-		`https://enrollpro.test/api/integration/v1/default/faculty?schoolYearId=${YEAR_ID}`,
+		// A9: personnelType=TEACHING is mandatory — EnrollPro otherwise returns
+		// every personnel type and non-teaching staff could gain ancillary authority.
+		`https://enrollpro.test/api/integration/v1/default/faculty?personnelType=TEACHING&schoolYearId=${YEAR_ID}`,
 	]);
 	assert.ok(calls.every(({ headers }) => new Headers(headers).get('Authorization') === 'Bearer test-only-secret'));
 });

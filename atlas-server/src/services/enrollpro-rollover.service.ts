@@ -234,7 +234,15 @@ async function findResumableResetMarker(
 
 const SCHOOL_YEAR_ENDPOINT = '/integration/v1/school-year';
 const SECTION_ENDPOINT = '/integration/v1/sections';
-const FACULTY_ENDPOINTS = ['/integration/v1/faculty', '/integration/v1/default/faculty'];
+// A9: every faculty ingestion path must request teaching personnel explicitly.
+// Without `personnelType=TEACHING` EnrollPro returns every personnel type and the
+// sync ingests non-teaching staff as teachers. `fetchPaginatedRows` joins its
+// `page`/`limit` parameters with `&` because these paths already carry a query.
+// See docs/reference/enrollpro-teaching-personnel-api-2026-09-29.md.
+const FACULTY_ENDPOINTS = [
+	'/integration/v1/faculty?personnelType=TEACHING',
+	'/integration/v1/default/faculty?personnelType=TEACHING',
+];
 const PUBLIC_SETTINGS_ENDPOINT = '/settings/public';
 const HEALTH_ENDPOINT = '/integration/v1/health';
 const DUMMY_YEAR_RESET_CONFIRMATION_TEXT = 'RESET_DUMMY_SCHOOL_YEAR_1';
