@@ -547,13 +547,13 @@ test('R1 the advanced-grid reveal control exists exactly once across the workspa
 		'TeachingLoadGuidedModePlaceholder.tsx must be deleted, not merely unrendered',
 	);
 	const page = source('src/pages/TeachingLoad.tsx');
-	assert.doesNotMatch(page, /TeachingLoadGuidedModePlaceholder/, 'the page must not import the deleted placeholder');
-	// Comments are stripped first, so this measures CODE: the A6 c4 comments in
-	// the page record the removal in prose and must not be what makes this pass
-	// or fail.
+	// Comments are stripped for BOTH page claims below. The page names the
+	// deleted component in prose, in the A6 c4 comment that records why the gate
+	// went — and a control must not be falsified by the record of its own change.
 	const pageCode = page
 		.replace(/\/\*[\s\S]*?\*\//g, ' ')
 		.replace(/^[ \t]*\/\/.*$/gm, ' ');
+	assert.doesNotMatch(pageCode, /TeachingLoadGuidedModePlaceholder/, 'the page must not import or render the deleted placeholder');
 	assert.doesNotMatch(
 		pageCode,
 		/\badvancedGridVisible\b/,
