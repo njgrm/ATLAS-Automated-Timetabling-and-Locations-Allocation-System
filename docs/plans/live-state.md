@@ -4560,3 +4560,48 @@ EnrollPro's `department` (null) back on the next sync / rollover. Durable fix = 
 ids 3/20/33 department set back to NULL on live and staging (conditional on the injected value). Per
 `docs/reference/enrollpro-teaching-personnel-api-2026-09-29.md` they are non-teaching personnel fetched because ATLAS omits
 `?personnelType=TEACHING`; A9 fixes the fetch. Year 1 ownerships: 0. Years 8-10 hold 41 historical ownerships (kept).
+
+## Lane A9 — TEACHING personnel only (written only by Lane A9)
+
+**0 fixes live and seen / 0 integrated / 0 dropped. Candidate `1ce31887` is source-verified, NOT accepted, NOT on
+`main`, NOT deployed.** Packet `a9-teaching-personnel-only-2026-09-29.md`, base `8519403e`.
+
+- **Source is correct on every source row (fresh QA `CORRECTION_REQUIRED` 14/16, 0 source defects).** All three
+  EnrollPro faculty ingestion call sites send `?personnelType=TEACHING` — `faculty-adapter.ts:94`,
+  `scheduler-ancillary-authority.service.ts:129`, `enrollpro-rollover.service.ts:243-244` (both endpoint entries);
+  repo-wide search finds no fourth. A latent double-`?` bug in `faculty-adapter.ts` that would have silently
+  fetched **unfiltered** is fixed, and QA proved the proof discriminates by reverting the separator branch in place
+  (5 pass / 1 fail, then restored byte-exact). Failing-first reproduced both sides (base 1 pass / 5 fail,
+  `actual: [101, 201, 202]` vs `expected: [101]`). All seven in-scope consumers — Faculty list, active count,
+  dashboard readiness, generation preflight, allocation, teaching-load readiness, derived demand — already exclude
+  `isStale` mirrors, so **23-vs-20 needs no source fix there**.
+- **BLOCKING 1 — INCIDENT, 2026-09-29, needs the OPERATOR, not a fix.** Running
+  `npx tsx --test src/__tests__/enrollpro-rollover-automation.test.ts` **bare** executed `prisma.school.create`
+  against a real, **non-disposable** ATLAS PostgreSQL database before failing. The suite's only protection is its
+  harness (`npm run test:server-db` → `scripts/run-db-suite.mjs`); the suite itself does not fail closed. A stale
+  premise row from an **earlier** bare run is already present (`P2002` on `(school_id, enrollpro_school_year_id)`),
+  so this has fired before. **I have not characterised or cleaned it — both are further HIGH writes.**
+  The candidate's source is unaffected.
+- **BLOCKING 2 — the preservation disclosure was false.** The executor claimed that suite fails
+  `[FAIL] DATABASE_URL is unavailable`; it actually **connects and writes**, so that waiver cannot be used and
+  the row is `BLOCKED`, not passed. Re-deriving it needs `npm run test:server-db`, which creates and drops an
+  isolated `atlas_restore_drill_*` database on the shared server — **a HIGH action requiring explicit approval
+  (§13).** Neither the executor nor QA could provision a disposable database.
+- **Amendment to packet item 1, awaiting the operator's word:** `local-auth.service.ts:349` (the login identity
+  lookup) is deliberately **NOT** filtered. Filtering it would lock every registrar/admin out of ATLAS — the exact
+  inverse of the packet's intent — and it is an auth-boundary (HIGH) change outside a product lane's authority.
+  QA judged the exception **correct**; the candidate carries a load-bearing comment plus a behavioural
+  regression test that a `NON_TEACHING` row still resolves. Packet item 1 as written says "every fetch"; it should
+  read "every faculty **ingestion** fetch".
+- **Owed to Lane C after release (posted in `docs/handoffs/lane-a-to-c.md`):** the post-release `Sync now` **must
+  run in `reconcile` mode**. `enrollpro-rollover.service.ts:1918` uses `facultyMode: 'prune'`, which **DELETES**
+  absent mirrors and cascades to `faculty_subjects` — that is the years 8-10 history (41 ownerships). No prune/reset
+  may be executed; the default reconcile path marks stale with `'Missing from upstream during reconciliation'`.
+- **Residue, 2026-09-29:** orphan stash `566c394b` (content fully absorbed in the candidate, reachable from
+  `refs/stash` only, no branch or tag contains it) — `git stash drop stash@{0}` in the A9 worktree; integrator action.
+- **Worktree disposition:** `E:/ATLAS-worktrees/lane-a9-personnel-type` = `PRESERVE_FOR_DECISION`; branch
+  `work/teaching-personnel-only` **pushed to origin at `1ce31887`** so the candidate cannot be lost. Docs-only
+  branch `docs/live-state-a9-20260929` in `E:/ATLAS-worktrees/lane-a9-docs` carries this record; **it is not on
+  `main`**, because the source it describes is not accepted.
+- **Next action (single):** the operator rules on the database incident and on running the disposable-DB harness.
+  Nothing else in A9 moves until then.

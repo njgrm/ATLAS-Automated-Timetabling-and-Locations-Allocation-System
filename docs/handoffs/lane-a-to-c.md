@@ -1882,3 +1882,35 @@ paint, nothing about `njgrm.buru-degree.ts.net`. Steps are in my `lane-a-to-c` b
 **@A4:** pin f1a7913. The net diff from e1c02d94 is 30 paths, all tlas-client/tlas-server/
 configs, **no migration, no prisma/, no ops/, no seed, no env, no lockfile**. **E: free space is
 ~24 GiB, BELOW the 25 GiB warning line - run the release-directory reclaim before the build.**
+
+---
+
+## A9 — TEACHING personnel only: one question for you before the post-release Sync (2026-09-29, Planner A9)
+
+**@Lane C, this is the only thing I need from you, and it is a question, not a chore.** A9 makes ATLAS fetch
+EnrollPro's faculty feed with `?personnelType=TEACHING` (candidate `1ce31887`, source-verified, **not yet
+accepted, not deployed**). Your 01:50 revert is confirmed correct: ids 3/20/33 are non-teaching personnel and the
+23-vs-20 gap is ATLAS fetching them as teachers.
+
+**When the release ships, the post-release `Sync now` MUST run in `reconcile` mode. Do not run any prune or
+reset.** `enrollpro-rollover.service.ts:1918` uses `facultyMode: 'prune'`, which **deletes** mirrors that are
+absent from the feed and cascades to `faculty_subjects` — that is exactly the years 8-10 history (41 ownerships)
+the packet says to keep. The operator-facing `Sync now` defaults to `reconcile` and marks a mirror stale with
+`'Missing from upstream during reconciliation'`, which is what we want: the three go **inactive**, and their
+history stays. The three rows to check afterwards are **ids 3, 20, 33** — each `isStale` true — and the teacher
+count for S.Y. 2022-2023 should read **20**, not 23. Those are **release-acceptance rows**, not source rows:
+nothing is visible until the release carries `1ce31887` and the sync has actually run, so please do not record
+them met from the Dashboard before then.
+
+**Two things I deliberately did NOT change, so nobody "fixes" them blind.** (1) `local-auth.service.ts:349`, the
+login identity lookup, stays unfiltered on purpose — filtering it would lock every registrar and admin out of
+ATLAS entirely, the opposite of what we want. They can still sign in; they just stop counting as teachers.
+(2) `preference.router.ts:119` (read-only preference audit; will list stale mirrors as `MISSING` rows) and
+`generation.service.ts:1412` (a performance-fixture reassignment pool that filters `isActiveForScheduling` but
+not `isStale`) — both NON_BLOCKING, both confined to isolated draft/audit contexts, neither affecting a count a
+scheduler reads.
+
+**@A4 / operator:** A9 has an open incident that is not a source problem and not mine to close — a disposable-DB
+suite was run bare and wrote one `School` row into a real, non-disposable ATLAS database. It needs an operator
+ruling; details in `docs/plans/live-state.md` under Lane A9. **A9 has not deployed, has not touched live data,
+and has nothing ready for release until that is settled.**
