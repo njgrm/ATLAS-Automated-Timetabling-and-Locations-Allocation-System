@@ -198,6 +198,87 @@ async function put(baseUrl: string, token: string, path: string, body: unknown) 
 	});
 }
 
+/**
+ * A8 c2 route-guard proof. `POST /faculty-assignments/coverage/repair` used to
+ * mount `authenticateWithSystemToken`; it now mounts the actor-JWT-only
+ * `authenticate`, so a machine system token is no longer an accepted writer.
+ * `4c806de3` narrowed it and nothing in the suite discriminated it, so reverting
+ * the guard left the whole server suite green. These helpers post to the real
+ * mounted route with arbitrary credential shapes, so each row names its own
+ * credential instead of sharing one token.
+ */
+const COVERAGE_REPAIR_PATH = '/api/v1/faculty-assignments/coverage/repair';
+
+/** Named rows in this block; `assertRouteGuardRowsPassed` fails if one is missing. */
+const COVERAGE_REPAIR_ROW_COUNT = 6;
+
+/** Codes `authenticate` emits. A response carrying one was rejected by AUTH. */
+const AUTH_REJECTION_CODES: readonly string[] = ['NO_TOKEN', 'INVALID_TOKEN', 'TOKEN_EXPIRED'];
+
+/** Codes the downstream defence-in-depth layers emit, NOT the auth layer. */
+const DOWNSTREAM_REJECTION_CODES: readonly string[] = [
+	'FORBIDDEN', 'ACTOR_SCHOOL_REQUIRED', 'SCHOOL_MISMATCH',
+	'SCHOOL_SCOPE_REQUIRED', 'CROSS_SCHOOL_DENIED',
+];
+
+async function postCoverageRepair(baseUrl: string, headers: Record<string, string>, body: unknown) {
+	const response = await fetch(`${baseUrl}${COVERAGE_REPAIR_PATH}`, {
+		method: 'POST',
+		headers: { 'content-type': 'application/json', ...headers },
+		body: JSON.stringify(body),
+	});
+	const text = await response.text();
+	let code: string | undefined;
+	try {
+		code = (JSON.parse(text) as { code?: string }).code;
+	} catch {
+		code = undefined;
+	}
+	return { status: response.status, code, text };
+}
+
+/** Sign a real actor JWT with the secret `withMountedRouter` installed. */
+function signActorToken(payload: Record<string, unknown>): string {
+	return jwt.sign({ authSource: 'local', ...payload }, process.env.JWT_SECRET!);
+}
+
+/**
+ * Run one named row and RECORD its outcome, so a regression control run reports
+ * every row that discriminates rather than aborting on the first. The name is
+ * the assertion's identity: a failure reports which row of the route-guard
+ * contract broke, not a bare line number. `assertRouteGuardRowsPassed` then
+ * fails the suite if any recorded row failed.
+ */
+const routeGuardRowFailures: string[] = [];
+const routeGuardRowNames: string[] = [];
+
+async function row(name: string, run: () => Promise<void>): Promise<void> {
+	routeGuardRowNames.push(name);
+	try {
+		await run();
+	} catch (error) {
+		routeGuardRowFailures.push(`${name}\n    ${(error as Error).message.split('\n').join('\n    ')}`);
+	}
+}
+
+function assertRouteGuardRowsPassed(expected: number): void {
+	// A row that silently stopped running must not read as a pass.
+	if (routeGuardRowNames.length !== expected) {
+		throw new Error(
+			`[coverage/repair route guard] expected ${expected} named rows to run, ${routeGuardRowNames.length} ran.`
+			+ ` Ran: ${routeGuardRowNames.join(' | ')}`,
+		);
+	}
+	if (routeGuardRowFailures.length === 0) {
+		console.log(`A8 c2 coverage/repair actor-JWT route guard: ${expected}/${expected} rows PASS`);
+		return;
+	}
+	throw new Error(
+		`[coverage/repair route guard] ${routeGuardRowFailures.length}/${expected} row(s) FAILED:\n`
+		+ routeGuardRowFailures.map((failure) => `  - ${failure}`).join('\n'),
+	);
+}
+
 type ManualState = { version: number; cycleVersion: number; audits: Array<Record<string, unknown>> };
 
 function manualClient(initial: ManualState, failAudit = false) {
@@ -593,7 +674,97 @@ async function run(): Promise<void> {
 	));
 	assert.deepEqual(proposalFailure.snapshot(), initialProposalState);
 
+	// A8 c2 route-guard proof for POST /coverage/repair (see the helpers above).
+	// The mounted client has no school-year mirror, so a request that IS admitted
+	// by the guard gets a clean typed domain answer (404 YEAR_MIRROR_NOT_FOUND)
+	// from the service's own re-assertion. A request the guard rejects never gets
+	// that far, so a 404 here is positive evidence the guard admitted it.
+	const repairClient = ambiguousAuthorityFixture([]).client;
+	const previousSystemToken = process.env.ATLAS_SYSTEM_TOKEN;
+	// Configured so the regression control is real: under the reverted
+	// `authenticateWithSystemToken` guard this token is a *valid* machine
+	// credential and would authenticate rather than 401.
+	process.env.ATLAS_SYSTEM_TOKEN = 'a8c2-coverage-repair-machine-token';
+	try {
+		await withMountedRouter(repairClient, async (baseUrl) => {
+			const repairBody = { schoolId: 1, schoolYearId: 9 };
+
+			await row('POSITIVE: privileged admin JWT whose actor school matches the body schoolId is admitted past the route guard', async () => {
+				const response = await postCoverageRepair(baseUrl, { authorization: `Bearer ${signActorToken({ userId: 77, role: 'admin', schoolId: 1 })}` }, repairBody);
+				assert.ok(
+					response.status !== 401,
+					`expected the guard to admit a valid admin actor JWT, got 401 ${response.code ?? response.text}`,
+				);
+				assert.ok(
+					!DOWNSTREAM_REJECTION_CODES.includes(response.code ?? ''),
+					`expected the guard to admit a matching-school admin actor JWT, got ${response.status} ${response.code ?? response.text}`,
+				);
+				// The service's own re-assertion ran, which is only reachable past
+				// the router guard.
+				assert.equal(
+					response.status === 404 && response.code === 'YEAR_MIRROR_NOT_FOUND',
+					true,
+					`expected the admitted request to reach repairActiveSubjectCoverageWithPlaceholders and get YEAR_MIRROR_NOT_FOUND, got ${response.status} ${response.code ?? response.text}`,
+				);
+			});
+
+			await row('NEGATIVE-REGRESSION: a machine system token in the bearer slot is rejected by the auth layer, not admitted as a writer', async () => {
+				const response = await postCoverageRepair(baseUrl, { authorization: `Bearer ${process.env.ATLAS_SYSTEM_TOKEN!}` }, repairBody);
+				assert.equal(
+					response.status === 401 && AUTH_REJECTION_CODES.includes(response.code ?? ''),
+					true,
+					`a machine system token must be rejected by \`authenticate\` with 401 ${AUTH_REJECTION_CODES.join('/')}; got ${response.status} ${response.code ?? response.text}. If this is a 403 the route is back on authenticateWithSystemToken, which accepts a machine system token as a privileged writer.`,
+				);
+				assert.equal(
+					!DOWNSTREAM_REJECTION_CODES.includes(response.code ?? ''),
+					true,
+					`the machine token must never be refused by the downstream scope/role layers; that means auth admitted it. Got ${response.status} ${response.code}`,
+				);
+			});
+
+			await row('NEGATIVE-REGRESSION: a machine system token in x-integration-key with no bearer is rejected by the auth layer', async () => {
+				const response = await postCoverageRepair(baseUrl, { 'x-integration-key': process.env.ATLAS_SYSTEM_TOKEN! }, repairBody);
+				assert.equal(
+					response.status === 401 && AUTH_REJECTION_CODES.includes(response.code ?? ''),
+					true,
+					`an x-integration-key machine credential must be rejected by \`authenticate\` with 401 ${AUTH_REJECTION_CODES.join('/')}; got ${response.status} ${response.code ?? response.text}. authenticateWithSystemToken accepts this header as a valid writer credential.`,
+				);
+			});
+
+			await row('NEGATIVE-ROLE: an authenticated non-privileged actor JWT is rejected by requirePrivilegedRole', async () => {
+				const response = await postCoverageRepair(baseUrl, { authorization: `Bearer ${signActorToken({ userId: 78, role: 'teacher', schoolId: 1 })}` }, repairBody);
+				assert.equal(
+					response.status === 403 && response.code === 'FORBIDDEN',
+					true,
+					`a non-privileged authenticated role must be refused by requirePrivilegedRole with 403 FORBIDDEN; got ${response.status} ${response.code ?? response.text}`,
+				);
+			});
+
+			await row('NEGATIVE-SCHOOL: a privileged JWT bound to school A is refused SCHOOL_MISMATCH for school B', async () => {
+				const response = await postCoverageRepair(baseUrl, { authorization: `Bearer ${signActorToken({ userId: 77, role: 'admin', schoolId: 1 })}` }, { schoolId: 2, schoolYearId: 9 });
+				assert.equal(
+					response.status === 403 && response.code === 'SCHOOL_MISMATCH',
+					true,
+					`a cross-school request must be refused with 403 SCHOOL_MISMATCH; got ${response.status} ${response.code ?? response.text}`,
+				);
+			});
+
+			await row('NEGATIVE-SCHOOL: a privileged JWT with no resolvable actor school is refused ACTOR_SCHOOL_REQUIRED', async () => {
+				const response = await postCoverageRepair(baseUrl, { authorization: `Bearer ${signActorToken({ userId: 77, role: 'admin' })}` }, repairBody);
+				assert.equal(
+					response.status === 403 && response.code === 'ACTOR_SCHOOL_REQUIRED',
+					true,
+					`a privileged actor with no assigned school must be refused with 403 ACTOR_SCHOOL_REQUIRED; got ${response.status} ${response.code ?? response.text}`,
+				);
+			});
+		});
+	} finally {
+		if (previousSystemToken === undefined) delete process.env.ATLAS_SYSTEM_TOKEN;
+		else process.env.ATLAS_SYSTEM_TOKEN = previousSystemToken;
+	}
+
 	console.log('GEN-ZW01 Teaching Load authority, mounted-route, audit, and rollback tests: PASS');
+	assertRouteGuardRowsPassed(COVERAGE_REPAIR_ROW_COUNT);
 }
 
 run().catch((error) => {
