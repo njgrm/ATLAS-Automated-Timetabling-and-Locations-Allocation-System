@@ -266,7 +266,7 @@ export function HomeRoomAutoAssignDialog({ open, onOpenChange, schoolId, schoolY
 										.map(([grade, items]) => (
 											<div key={grade} className="space-y-1">
 												<div className="flex items-center gap-1.5">
-													<Badge className={`text-[0.65rem] ${GRADE_COLORS[Number(grade)] ?? ''}`}>G{grade}</Badge>
+													<Badge className={`text-[0.6875rem] leading-tight ${GRADE_COLORS[Number(grade)] ?? ''}`}>G{grade}</Badge>
 													<span className="text-xs text-muted-foreground">{items.length} section{items.length !== 1 ? 's' : ''}</span>
 												</div>
 												{items.map((item) => (
@@ -274,7 +274,7 @@ export function HomeRoomAutoAssignDialog({ open, onOpenChange, schoolId, schoolY
 														<span className="font-medium flex-1 truncate">{item.sectionName}</span>
 														<span className="text-muted-foreground">→</span>
 														<span className="truncate">{item.roomName}</span>
-														<Badge variant="outline" className="text-[0.6rem] shrink-0">
+														<Badge variant="outline" className="text-[0.6875rem] leading-tight shrink-0">
 															{REASON_LABELS[item.reason] ?? item.reason}
 														</Badge>
 													</div>
@@ -293,7 +293,7 @@ export function HomeRoomAutoAssignDialog({ open, onOpenChange, schoolId, schoolY
 							<div className="space-y-1">
 								{result.skipped.map((item) => (
 									<div key={item.sectionId} className="flex items-center gap-2 rounded-md border border-warning-border bg-warning-muted px-2 py-1 text-xs">
-										<Badge className={`text-[0.65rem] ${GRADE_COLORS[item.gradeLevel] ?? ''}`}>G{item.gradeLevel}</Badge>
+										<Badge className={`text-[0.6875rem] leading-tight ${GRADE_COLORS[item.gradeLevel] ?? ''}`}>G{item.gradeLevel}</Badge>
 										<span className="font-medium flex-1 truncate">{item.sectionName}</span>
 										<span className="text-warning">{REASON_LABELS[item.reason] ?? item.reason}</span>
 									</div>

@@ -210,11 +210,11 @@ export function SectionDetailsSheet({
 							{/* Summary Stats */}
 							<div className="grid grid-cols-2 gap-4">
 								<div className="p-4 rounded-xl border bg-muted/20">
-									<p className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-wider">Assigned Classes</p>
+									<p className="text-[0.6875rem] font-bold text-muted-foreground uppercase tracking-wider">Assigned Classes</p>
 									<p className="text-2xl font-bold tabular-nums">{data.totals.assignedClassCount}</p>
 								</div>
 								<div className="p-4 rounded-xl border bg-muted/20">
-									<p className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-wider">Unassigned</p>
+									<p className="text-[0.6875rem] font-bold text-muted-foreground uppercase tracking-wider">Unassigned</p>
 									<p className={`text-2xl font-bold tabular-nums ${data.totals.unassignedClassCount > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
 										{data.totals.unassignedClassCount}
 									</p>
@@ -238,14 +238,14 @@ export function SectionDetailsSheet({
 														<div className="min-w-0">
 															<div className="flex items-center gap-2">
 																<p className="text-sm font-bold truncate leading-tight">{cls.subjectName}</p>
-																<code className="text-[0.6rem] font-mono text-muted-foreground uppercase px-1.5 py-0.5 bg-background rounded border">{cls.subjectCode}</code>
+																<code className="text-[0.6875rem] font-mono text-muted-foreground uppercase px-1.5 py-0.5 bg-background rounded border">{cls.subjectCode}</code>
 																{cls.rotationFamily && (
-																	<Badge variant="outline" className="h-4 px-1.5 text-[0.55rem] font-black uppercase bg-violet-50 text-violet-700 border-violet-200 shadow-none">
+																	<Badge variant="outline" className="text-[0.6875rem] leading-tight font-black uppercase bg-violet-50 text-violet-700 border-violet-200 shadow-none">
 																		Rotating
 																	</Badge>
 																)}
 																{resolveRotationTermLabel(cls) && (
-																	<Badge variant="outline" className="h-4 px-1.5 text-[0.55rem] font-black uppercase bg-violet-100 text-violet-900 border-violet-300 shadow-none">
+																	<Badge variant="outline" className="text-[0.6875rem] leading-tight font-black uppercase bg-violet-100 text-violet-900 border-violet-300 shadow-none">
 																		{resolveRotationTermLabel(cls)}
 																	</Badge>
 																)}
@@ -253,19 +253,19 @@ export function SectionDetailsSheet({
 															<div className="flex items-center gap-1.5 mt-1">
 																<Users className="size-3 text-muted-foreground" />
 																<span className="text-xs font-semibold text-foreground">{cls.facultyName}</span>
-																<Badge variant="outline" className={`text-[0.6rem] font-bold py-0 h-4 px-1 border-opacity-50 ${deptColor.bg} ${deptColor.text} ${deptColor.border}`}>
+																<Badge variant="outline" className={`text-[0.6875rem] leading-tight font-bold border-opacity-50 ${deptColor.bg} ${deptColor.text} ${deptColor.border}`}>
 																	{departmentLabel(cls.facultyDepartment)}
 																</Badge>
 															</div>
 														</div>
 														<div className="text-right shrink-0">
 															<p className="text-sm font-bold tabular-nums">{cls.minMinutesPerWeek} min</p>
-															<p className="text-[0.6rem] text-muted-foreground uppercase font-bold tracking-tighter">Weekly</p>
+															<p className="text-[0.6875rem] text-muted-foreground uppercase font-bold tracking-tighter">Weekly</p>
 														</div>
 													</div>
 													{cls.specializationLabel && (
 														<div className="flex items-center gap-1.5">
-															<Badge variant="outline" className="text-[0.6rem] font-bold py-0 h-4 bg-background">
+															<Badge variant="outline" className="text-[0.6875rem] leading-tight font-bold bg-background">
 																{cls.specializationLabel}
 															</Badge>
 														</div>
@@ -298,14 +298,14 @@ export function SectionDetailsSheet({
 													<div>
 														<p className="text-xs font-bold text-amber-900">{cls.subjectName}</p>
 														<div className="flex flex-wrap items-center gap-1 mt-0.5">
-															<p className="text-[0.6rem] text-amber-700/70 font-mono">{cls.subjectCode}</p>
+															<p className="text-[0.6875rem] text-amber-700/70 font-mono">{cls.subjectCode}</p>
 															{cls.rotationFamily && (
-																<Badge variant="outline" className="h-4 px-1 text-[0.55rem] font-bold uppercase bg-violet-50 text-violet-700 border-violet-200">
+																<Badge variant="outline" className="text-[0.6875rem] leading-tight font-bold uppercase bg-violet-50 text-violet-700 border-violet-200">
 																	{cls.rotationFamily}
 																</Badge>
 															)}
 															{resolveRotationTermLabel(cls) && (
-																<Badge variant="outline" className="h-4 px-1 text-[0.55rem] font-bold uppercase bg-violet-100 text-violet-900 border-violet-300">
+																<Badge variant="outline" className="text-[0.6875rem] leading-tight font-bold uppercase bg-violet-100 text-violet-900 border-violet-300">
 																	{resolveRotationTermLabel(cls)}
 																</Badge>
 															)}

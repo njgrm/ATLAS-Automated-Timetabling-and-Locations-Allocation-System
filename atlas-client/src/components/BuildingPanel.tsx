@@ -325,7 +325,7 @@ export function BuildingPanel({
 			{/* Header */}
 			<div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
 				<div>
-					<p className="text-[0.65rem] font-bold uppercase text-primary">Campus setup</p>
+					<p className="text-[0.6875rem] font-bold uppercase text-primary">Campus setup</p>
 					<h3 className="text-sm font-bold text-foreground">Building summary</h3>
 				</div>
 				<Button type="button" variant="ghost" size="icon-xs" onClick={onClose} aria-label="Close building details">
@@ -477,7 +477,7 @@ export function BuildingPanel({
 										setNewRoomFloor(floor); // Sync add-room floor with selected tab
 									}}
 									>
-										F{floor} {count > 0 && <span className="text-[0.6rem] opacity-70">({count})</span>}
+										F{floor} {count > 0 && <span className="text-[0.6875rem] opacity-70">({count})</span>}
 									</Button>
 								);
 							})}
@@ -527,7 +527,7 @@ export function BuildingPanel({
 							/>
 							<div className="grid grid-cols-2 gap-2">
 								<div>
-									<label className="text-[0.6rem] text-muted-foreground mb-1 block">Floor</label>
+									<label className="text-[0.6875rem] text-muted-foreground mb-1 block">Floor</label>
 									<Select
 										value={String(newRoomFloor)}
 										onValueChange={(v) => setNewRoomFloor(Number(v))}
@@ -545,7 +545,7 @@ export function BuildingPanel({
 									</Select>
 								</div>
 								<div>
-									<label className="text-[0.6rem] text-muted-foreground">Capacity</label>
+									<label className="text-[0.6875rem] text-muted-foreground">Capacity</label>
 									<Input
 										type="number"
 										min={1}
@@ -557,7 +557,7 @@ export function BuildingPanel({
 							</div>
 							<div className="grid grid-cols-2 gap-2">
 								<div>
-									<label className="text-[0.6rem] text-muted-foreground mb-1 block">Type</label>
+									<label className="text-[0.6875rem] text-muted-foreground mb-1 block">Type</label>
 									<Select value={newRoomType} onValueChange={(v) => setNewRoomType(v as RoomType)}>
 										<SelectTrigger className="flex h-9 w-full bg-transparent text-sm shadow-sm transition-colors">
 											<SelectValue />
@@ -570,7 +570,7 @@ export function BuildingPanel({
 									</Select>
 								</div>
 								<div>
-									<label className="text-[0.6rem] text-muted-foreground mb-1 block">Campus zone</label>
+									<label className="text-[0.6875rem] text-muted-foreground mb-1 block">Campus zone</label>
 									<Input
 										placeholder="e.g. MAIN"
 										value={newRoomZone}
@@ -754,7 +754,7 @@ export function BuildingPanel({
 								</div>
 								<div className="flex flex-wrap gap-1.5 pt-1">
 									{editingRoom.features.map(f => (
-										<Badge key={f} variant="secondary" className="text-[0.65rem] bg-sky-50 text-sky-700 border-sky-100 flex items-center gap-1">
+										<Badge key={f} variant="secondary" className="text-[0.6875rem] leading-tight bg-sky-50 text-sky-700 border-sky-100 flex items-center gap-1">
 											{f}
 											<Button
 												type="button"
@@ -845,9 +845,9 @@ function SortableRoomTile({
 			</Button>
 			<span className={`size-1.5 shrink-0 rounded-full ${room.isTeachingSpace ? 'bg-primary' : 'bg-amber-500'}`} />
 			<div className="min-w-0 flex-1">
-				<p className="truncate text-sm font-medium">{room.name}</p>
+				<p className="line-clamp-2 min-w-0 break-words text-base leading-snug font-medium">{room.name}</p>
 				<div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-					<Badge variant="outline" className="text-[0.6rem] px-1 py-0">
+					<Badge variant="outline" className="text-[0.6875rem] leading-tight">
 						{ROOM_TYPES.find((t) => t.value === room.type)?.label ?? room.type}
 					</Badge>
 					{room.capacity != null && room.capacity > 0 && (
@@ -860,7 +860,7 @@ function SortableRoomTile({
 							<Tooltip>
 								<TooltipTrigger asChild>
 									<span className="inline-flex">
-										<Badge variant="outline" className="text-[0.6rem] px-1 py-0 bg-purple-50 text-purple-700 border-purple-100">
+										<Badge variant="outline" className="text-[0.6875rem] leading-tight bg-purple-50 text-purple-700 border-purple-100">
 											{room.buildingZoneId}
 										</Badge>
 									</span>
@@ -872,16 +872,16 @@ function SortableRoomTile({
 						</TooltipProvider>
 					)}
 					{!room.isTeachingSpace && (
-						<Badge className="bg-amber-100 text-amber-700 text-[0.55rem] px-1 py-0">
+						<Badge className="bg-amber-100 text-amber-700 text-[0.6875rem] leading-tight">
 							Non-teaching
 						</Badge>
 					)}
 					{room.features && room.features.length > 0 && (
 						<div className="flex flex-wrap gap-1">
 							{room.features.slice(0, 3).map(f => (
-								<Badge key={f} className="text-[0.5rem] px-1 py-0 bg-sky-50 text-sky-700 border-sky-100">{f}</Badge>
+								<Badge key={f} className="text-[0.6875rem] leading-tight bg-sky-50 text-sky-700 border-sky-100">{f}</Badge>
 							))}
-							{room.features.length > 3 && <span className="text-[0.5rem] text-muted-foreground">+{room.features.length - 3}</span>}
+							{room.features.length > 3 && <span className="text-[0.6875rem] text-muted-foreground">+{room.features.length - 3}</span>}
 						</div>
 					)}
 				</div>
@@ -938,9 +938,9 @@ function RoomTileReadOnly({ room }: { room: Room }) {
 		>
 			<span className={`size-1.5 shrink-0 rounded-full ${room.isTeachingSpace ? 'bg-primary' : 'bg-amber-500'}`} />
 			<div className="min-w-0 flex-1">
-				<p className="truncate text-sm font-medium">{room.name}</p>
+				<p className="line-clamp-2 min-w-0 break-words text-base leading-snug font-medium">{room.name}</p>
 				<div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-					<Badge variant="outline" className="text-[0.6rem] px-1 py-0">
+					<Badge variant="outline" className="text-[0.6875rem] leading-tight">
 						{ROOM_TYPES.find((t) => t.value === room.type)?.label ?? room.type}
 					</Badge>
 					{room.capacity != null && room.capacity > 0 && (
@@ -953,7 +953,7 @@ function RoomTileReadOnly({ room }: { room: Room }) {
 							<Tooltip>
 								<TooltipTrigger asChild>
 									<span className="inline-flex">
-										<Badge variant="outline" className="text-[0.6rem] px-1 py-0 bg-purple-50 text-purple-700 border-purple-100">
+										<Badge variant="outline" className="text-[0.6875rem] leading-tight bg-purple-50 text-purple-700 border-purple-100">
 											{room.buildingZoneId}
 										</Badge>
 									</span>
@@ -965,16 +965,16 @@ function RoomTileReadOnly({ room }: { room: Room }) {
 						</TooltipProvider>
 					)}
 					{!room.isTeachingSpace && (
-						<Badge className="bg-amber-100 text-amber-700 text-[0.55rem] px-1 py-0">
+						<Badge className="bg-amber-100 text-amber-700 text-[0.6875rem] leading-tight">
 							Non-teaching
 						</Badge>
 					)}
 					{room.features && room.features.length > 0 && (
 						<div className="flex flex-wrap gap-1">
 							{room.features.slice(0, 3).map(f => (
-								<Badge key={f} className="text-[0.5rem] px-1 py-0 bg-sky-50 text-sky-700 border-sky-100">{f}</Badge>
+								<Badge key={f} className="text-[0.6875rem] leading-tight bg-sky-50 text-sky-700 border-sky-100">{f}</Badge>
 							))}
-							{room.features.length > 3 && <span className="text-[0.5rem] text-muted-foreground">+{room.features.length - 3}</span>}
+							{room.features.length > 3 && <span className="text-[0.6875rem] text-muted-foreground">+{room.features.length - 3}</span>}
 						</div>
 					)}
 				</div>
