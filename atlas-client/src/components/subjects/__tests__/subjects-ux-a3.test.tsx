@@ -1794,8 +1794,30 @@ test('A3-C9: the Subjects page filters, resets and reports the term through the 
 
 	// The header strip is gone AND the contract has a non-header home: the
 	// footer of the table the contract describes.
-	assert.match(bare, /<SubjectTermContractPopover termAuthority=\{termAuthority\} \/>/);
-	assert.match(bare, /leading=\{<SubjectTermContractPopover/);
+	//
+	// A5 C4, RE-POINTED — NOT DELETED. Both assertions below are unchanged, but
+	// the block they search MOVED: the catalog body (table shell, mobile list,
+	// pagination footer, empty state) is now `SubjectCatalogBody.tsx`, a component
+	// the page composes. A pin on a file the change is DESIGNED to move is not a
+	// pin to preserve by keeping the code in place, so the search is widened to the
+	// page AND its catalog body, and the page-only half is kept as its own
+	// assertion so the two can be told apart. What this protects — the routine
+	// year-and-terms contract is NOT gone, and its non-header home is the table
+	// footer — is exactly as protected as before.
+	const { readFileSync } = await import('node:fs');
+	const { resolve: resolvePath } = await import('node:path');
+	const catalogBody = readFileSync(
+		resolvePath(import.meta.dirname, '../SubjectCatalogBody.tsx'),
+		'utf8',
+	);
+	const bareAndBody = `${bare}\n${catalogBody}`;
+	assert.match(bareAndBody, /<SubjectTermContractPopover termAuthority=\{termAuthority\} \/>/);
+	assert.match(bareAndBody, /leading=\{<SubjectTermContractPopover/);
+	// AND the page itself still owns the contract data: the popover reads the SAME
+	// `termAuthority` the page holds, passed down as a prop, so the two cannot drift
+	// onto different authorities.
+	assert.match(bare, /termAuthority=\{termAuthority\}/);
+	assert.match(catalogBody, /termAuthority: TermAuthority \| null;/);
 });
 
 test('A3-C9: the subject grade column is colour-coded exactly like the Teachers table', async () => {
