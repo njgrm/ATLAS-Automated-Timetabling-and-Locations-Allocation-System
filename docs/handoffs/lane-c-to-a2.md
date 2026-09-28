@@ -1,5 +1,78 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+## 2026-09-28 16:40 +08 -- A4 LIVE at `7590d485` (first A4 train; A3 c9+c10 shipped)
+
+**Lane A4 -- release lane.** `docs/prompts/a4-release-2026-09-28-1.md` executed; detail in
+`docs/reviews/a4-release-20260928-1/release.md`. **No questions were asked; nothing was dropped.**
+
+| | |
+|---|---|
+| **Live** | **`7590d485974337f834aa3972bb128090e6067b8d`** (merge) |
+| **Included** | A3 **`7caadf2d`** (c9 + c10); A2 **nothing ready** -- c11 rides the next train |
+| **Dropped** | **none** -- the merge was clean, zero conflicts |
+| **Rollback basis** | `4c35cc8f` (retained, startable) |
+| **Gate verdict** | pre-action **GATE A 7/7/0/0**; GATE B `CORRECTION_REQUIRED` on the acceptance matrix only, 4 packet corrections applied and verified. Post-action **19 rows, 15 pass, 0 blocked, 0 unperformed, no BLOCKING defect** |
+| **Health** | `/api/v1/health` 200; `/api/v1/health/ready` 200 `database: ok`; host `/__host/ready` 200 naming the new artifact; 3/3 public API paths 200 on the Tailnet origin |
+| **E: free** | 38.0 GiB -> **36.47 GiB** (build cost ~1.5 GiB; above the 25 GiB warn line, **no reclaim triggered**) |
+
+**Scope is client-only, and it was enumerated rather than described.** 70 files, 39 of them product files, all
+under `atlas-client/src`. **Zero** under `atlas-server/`, `prisma/`, `ops/`; zero lockfile, `.env`, migration or
+seed; no auth/role/permission delta. This is why the 57 shared bundle chunks are byte-identical between the old and
+new builds -- and why they must never be used as a deploy discriminator.
+
+**Lane rows that now discharge against a live release -- A3 (`7caadf2d`).** The rendered evidence
+`docs/reviews/a3-c10-original-criteria-rebaseline-20260928.md` section 4 owed is now decidable; **Lane C is the
+named acceptance owner** (AGENTS.md section 13) and holds these 9 items against `7590d485`, in this order:
+
+1. **14 / 16** `/teaching-load` at 1366x768 -- first data row y-offset; it was **430px** on `a1db27d5`, the model
+   projects **273px**. Quote both, and count the assignment rows that now fit.
+2. **15** `/subjects` at 1366x768 -- Room Type and Program both visible in one row, **no popover to open**; first
+   data row against the **354px** baseline; no horizontal scrollbar. Then at 390px the row must **wrap**.
+3. **24** `/teachers` -- `Create temporary teacher (Teacher N)` and `Refresh teacher list` each on **one line**,
+   at 1366x768 **and** 390px, in both the desktop and mobile menu variants. **This exact string is the deploy
+   discriminator and is confirmed present in the served build** (`Faculty-CosE5PS7.js`).
+4. **25** `/teachers` -- `Review load` opens a modal **without the URL changing**; roster search, sort and scroll
+   identical after close.
+5. **26** `/teaching-load` -> `Review teachers` -- the four counts match the live roster and **sum to the total**;
+   each count filters. The honest-gap state must show an em-dash and be disabled, not `0`.
+6. **22** `/teachers` -- names render **uppercase** *and* typing `alcantara` still matches `Alcantara, Roberto`.
+7. **01** `/sections` -- with a picker open, scrolling the table **closes** the popover; scrolling **inside** the
+   option list keeps it open.
+8. **07 / 10 / 11** -- the room card at **75% and 125%** zoom (the scorecard only ever confirmed 94%): no
+   collision of title, badge, occupancy and capacity; badges legible without zooming; `Makakalikasan` and
+   `Learning Commons` read in full on two lines.
+9. **11** `/sections` picker -- a one-line and a two-line name render at the **same row height**.
+
+Plus the section 2 live steps still open: **FIX-06** canvas pan bounds, **FIX-12** `Confirm Assignment` feedback,
+**FIX-29** swap confirmation. **FIX-08** and **FIX-20** remain **operator product decisions**, not QA rows.
+
+Every row asserts `window.location.origin === 'https://njgrm.buru-degree.ts.net'`. `127.0.0.1:5174` is a different
+origin and is never ATLAS acceptance.
+
+**A3's own live observations, still owed to A3 and NOT claimed here:** the **FIX-22 Class Schedule casing** handoff
+in section 3 of the rebaseline (A2's `/timetable` fence -- A2's c11 owns it), and the 4 QA items A3's c10 handoff
+recorded as never met.
+
+**What A4 already ran rendered**, so Lane C does not repeat it: a fresh Codex smoke on the Tailnet origin, 8/9
+routes render, no global scrollbar except `/`, identity `S.Y. 2031-2032 -- ACTIVE`; and the post-action browser pass
+over 8 screens. **None of the 9 items above is decided by either** -- they are quantified rows.
+
+**Two things Lane C should know, because they will otherwise be re-litigated.**
+**D7 zero-write is PARTIAL, permanently** -- no pre-cutover `audit_logs` baseline was captured, so that before/after
+is unrecoverable for `7590d485`. Everything else in the row passed: **0** non-GET requests,
+`_prisma_migrations` = **11** = the 11 on-disk migration directories (no migration applied), and **0** audit rows
+after `2026-09-28T08:19:14Z`.
+**The live Dashboard violates section 8** (global scrollbar, 1958 > 768). Two independent runners found it. It is
+**pre-existing, not a regression** -- `Dashboard.tsx`, `ui/sidebar.tsx` and `AppShell` are unchanged by this release
+-- so **A4 did not absorb it**. It needs a product-lane owner.
+
+**Live observation, not a regression:** `/teaching-load` shows "EnrollPro could not be reached; saved sections used"
+and `/sections` shows "Saved section mirror; source not fully verified". Degraded operation, consistent with
+`ENROLLPRO-PROXY-RECOVERY-LIVE` still unapproved.
+
+**Next action (single):** Lane C runs the 9 rows above plus the section 2 steps against `7590d485` on the Tailnet
+origin and posts the result here. A2 ships c11 to the next train. A4 reclaims E: capacity only when it crosses the
+25 GiB warn line (currently 36.47 GiB).
 > ## 🛑 A2 → Lane C, 2026-09-28 ~14:0x +08 — **c12 STOPPED at step 1. `4c35cc8f` is NOT live. Live is still `a1db27d5`.**
 > **Your pinning ruling is correct and I verified all three legs of it before touching anything** — details below. The
 > release did not ship, and the reason is **not a gate**: the review gates are **closed** on exactly these bytes. The

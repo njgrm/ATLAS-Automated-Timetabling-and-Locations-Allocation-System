@@ -26,6 +26,47 @@ rules are what make that safe:
    `docs/handoffs/planner-session-handoff.md`, Lane B in its own handoff file, Lane C in its
    section below until a stream needs a handoff.
 
+## Lane A4 — release lane, 2026-09-28 (first A4 train)
+
+**Stream:** own the release. Merge ready SHAs into one pinned release commit, gate once, build, cut over, smoke,
+post. **A4 is the only lane that deploys and the only one that runs elevated. A4 never edits product code or tests.**
+
+- **DONE — `a4-release-2026-09-28-1` is LIVE at `7590d485`.** Merge of `4c35cc8f` with A3 `7caadf2d` (c9+c10);
+  clean merge, zero conflicts, nothing dropped. Client-only: 70 files, 39 product, **0** under `atlas-server/`,
+  `prisma/`, `ops/`. Health 200 across health/ready/host and 3/3 public API paths. `E:` 38.0 -> **36.47 GiB**,
+  no reclaim triggered. Evidence: `docs/reviews/a4-release-20260928-1/release.md`.
+- **Pre-action: GATE A 7/7/0/0; GATE B `CORRECTION_REQUIRED` on the acceptance matrix only.** Four packet
+  corrections applied and verified by a discriminating command: a **falsified** D6 marker (`workload audit` is in
+  zero chunks in *both* builds; the real one is `Workload Audit Summary`), a **missed screen** (`/map`), an
+  **under-scoped** global-token/primitive blast radius, and an **unrecorded** Lane C deferral. **No source byte
+  changed** — the matrix was wrong, not the release.
+- **Post-action QA: 19 rows, 15 pass, 0 blocked, 0 unperformed, no BLOCKING defect.** Verdict
+  `PLANNER_DECISION_REQUIRED`; release confirmed live and serving.
+- **Dated open item, NOT fixed by A4 because A4 does not edit product code — the live Dashboard violates §8**
+  (global scrollbar, 1958 > 768). Found independently by the post-action QA and by the fresh Codex smoke.
+  Attributed: `Dashboard.tsx`, `ui/sidebar.tsx`, `AppShell` unchanged by this release and the layout CSS is
+  identical in both builds, so it is **pre-existing, not a regression**. **Needs an owner in a product lane.**
+- **Dated process defect, mine — the D7 zero-write baseline was never captured.** No pre-cutover `audit_logs`
+  reading was taken, so that before/after is **unrecoverable** for `7590d485`. D7 stands **PARTIAL**, not waived
+  and not "inapplicable". Everything else in the row passed: 0 non-GET requests, `_prisma_migrations` = 11 = the
+  11 on-disk migration dirs, 0 audit rows after `2026-09-28T08:19:14Z`.
+  **Durable fix, applied to the next packet: capture the zero-write baseline BEFORE quiescing the supervisor.**
+- **Counting methods are now pinned** so the next reader cannot re-derive a different number: shared `.js` chunks
+  **57** (57/57 byte-identical — never a discriminator); `text-muted-foreground` **1322 occurrences / 213 files**;
+  `ui/dialog` direct importers **42**. `index.css`'s own comment claims "1292 across 190 files", matching none of
+  these.
+- **A4 deviation, recorded not substituted:** the cutover did **not** use `ops/runtime/deploy-runner.ps1`. A4 killed
+  the supervisor tree, repointed machine scope + the scheduled task, and ran the task. Literal steps and the
+  task-XML encoding outcome are in the evidence file.
+- **Worktrees:** `lane-a4-release-20260928-1` = **`KEEP_ACTIVE`** (it is the live runtime source dir; retiring it
+  would take the runtime down — this supersedes the packet's "retire release worktree" wording).
+  `lane-a2-release-4c35cc8f` = **`KEEP_ACTIVE`** as rollback basis. `lane-a3-c10-s2-roomcards` =
+  `PRESERVE_FOR_DECISION` (A3's, untouched).
+- **Next action (single):** Lane C runs the 9 A3 rendered rows + the rebaseline §2 steps against `7590d485` and
+  posts to `lane-c-to-a2.md`. A2 ships c11 to the next train; A4 merges it into `release/2026-09-28-2`.
+
+---
+
 ## Capacity — reclaim EXECUTED 2026-09-26 (Lane A2); the §3 warning is STILL met (dated 2026-09-26)
 
 **One directory retired: `E:\ATLAS-runtime-supervised-eb0e3038-20260925` (1.46 GiB).** `E:` went
@@ -148,6 +189,39 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
+
+- **▶ LIVE: `7590d485974337f834aa3972bb128090e6067b8d` — DEPLOYED 2026-09-28 ~16:40 +08 by Lane A4
+  (`a4-release-2026-09-28-1`, the first A4 train). Merge of the incumbent `4c35cc8f` with **A3 `7caadf2d`
+  (c9 + c10)**. A2 had nothing ready; its c11 rides the next train. Recorded by A4 in the same action as the
+  cutover, as §6 requires.**
+
+  | | |
+  |---|---|
+  | **LIVE** | **`7590d485974337f834aa3972bb128090e6067b8d`** (merge; parents `4c35cc8f` + `7caadf2d`, merge-base `6b1ec722`) |
+  | **Live dir** | `E:\ATLAS-worktrees\lane-a4-release-20260928-1` (HEAD == pin, tracked tree clean) |
+  | **Listeners** | 5001 → **3516** (`atlas-server\dist\server.js`), 5174 → **60116** (`ops\runtime\host.mjs`); supervisor **63852** |
+  | **Rollback basis** | **`4c35cc8f808aad6d6e70f17920037d46d91bf10d`**, dir `E:\ATLAS-worktrees\lane-a2-release-4c35cc8f` — retained, clean, startable, one-step supervised reset |
+  | **Direction** | **FORWARD.** `git merge-base --is-ancestor 4c35cc8f 7590d485` exits **0** |
+  | **Scope** | **client-only.** 70 files; **0** under `atlas-server/`, `prisma/`, `ops/`; **0** lockfile, `.env`, migration or seed. 39 product files, all `atlas-client/src`. No auth/role/permission delta. |
+  | **Acceptance** | **DEPLOYED, browser acceptance DEFERRED to Lane C** (named owner). D1–D6 PASS, D7 **PARTIAL**, browser rows 8/9. **No BLOCKING defect.** |
+  | **Evidence** | `docs/reviews/a4-release-20260928-1/release.md` |
+
+  **Two things the next session must not misread.**
+  **D7 zero-write is PARTIAL, permanently:** no pre-cutover `audit_logs` baseline was captured, so that before/after
+  is unrecoverable for this release. What did pass: **0** non-GET requests in the new supervisor log,
+  `_prisma_migrations` = **11** = the 11 on-disk migration dirs (no migration applied), **0** audit rows after
+  `2026-09-28T08:19:14Z`. The next A4 packet must capture the baseline **before** quiescing.
+  **`cli.mjs status` reporting `live: false` is a false-outage trap**, not a defect: `getStatus()` reads an
+  in-memory map that is empty out-of-process. Prove health over HTTP.
+
+  **Open and NOT fixed here, because A4 does not edit product code (as of 2026-09-28, found by two independent
+  runners):** the live **Dashboard violates §8** — a global browser scrollbar (1958 > 768). Attributed:
+  `Dashboard.tsx`, `ui/sidebar.tsx` and `AppShell` are unchanged by this release and the layout CSS is identical
+  in both builds, so it is **pre-existing, not a regression**. It needs an owner in a product lane.
+
+- **▶ SUPERSEDED by the `7590d485` block above — the DEPLOYMENT-PENDING line that follows is now history.**
+  It correctly described the state before this cutover; `4c35cc8f` was never deployed under it because A4 shipped a
+  merge of it with A3's c9 instead. Kept as dated history.
 
 - **▶ DEPLOYMENT-PENDING — target re-pinned to `4c35cc8f`; the review gates are now CLOSED and the remaining
   blocker is `E:` capacity, not a gate. Recorded 2026-09-28 ~14:0x +08 by Lane A2 (packet c12).**

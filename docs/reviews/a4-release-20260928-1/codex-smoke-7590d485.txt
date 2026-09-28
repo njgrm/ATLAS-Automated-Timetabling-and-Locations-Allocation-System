@@ -1,0 +1,21 @@
+Smoke result: 8/9 routes pass; dashboard has a global browser scrollbar.
+
+| Route | Result | Visible error/status text | Global scrollbar |
+|---|---|---|---|
+| `/teachers` | PASS — RENDER_OK | “Using saved data” teacher-roster fallback | No |
+| `/teaching-load` | PASS — RENDER_OK | EnrollPro could not be reached; saved sections used | No |
+| `/subjects` | PASS — RENDER_OK | “Using saved data” | No |
+| `/sections` | PASS — RENDER_OK | Saved section mirror; source not fully verified | No |
+| `/room-schedules` | PASS — RENDER_OK | None | No |
+| `/admin/year-setup` | PASS — RENDER_OK | None | No |
+| `/` | **FAIL** — RENDER_OK | None | **Yes** |
+| `/timetable` | PASS — RENDER_OK | None | No |
+| `/map` | PASS — RENDER_OK | “25 Unavailable” rooms status | No |
+
+Origin asserted first: `https://njgrm.buru-degree.ts.net` — correct. The app shell rendered; no blank page or 502 observed.
+
+Visual checks:
+- `/teachers`, `/teaching-load`, `/map`: secondary text is legible muted grey.
+- No dialog was open on those routes, so no close X was visible to contrast-check.
+- Displayed identity: `S.Y. 2031-2032 • ACTIVE`; no release SHA/version was displayed.
+- Non-blocking console warning observed: a Select switches between controlled/uncontrolled state.
