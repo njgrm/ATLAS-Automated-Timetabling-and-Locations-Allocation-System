@@ -81,6 +81,15 @@ final "next action" may only be one that needs Lane C, A4 or the operator. (2026
 **Claim only what is on `main`.** A handoff's "done" list names the merged SHA per item; an item that is committed on a
 branch but not merged is "integrated: no". (2026-09-29: Guided mode removal was reported done in c3 but never merged;
 the operator saw it still live.)
+**A shell call must return.** Never start a server or browser inside a tool call that waits for it: no
+`Start-Process -PassThru` for vite without redirected output, and never run `chrome.exe` directly (`--version` opens a
+browser and never exits). Start a dev server as its own launch (`Start-Process -WindowStyle Hidden` with
+`-RedirectStandardOutput <file>`, no `-PassThru`), poll its port with a timeout of 60 s or less, and take renders only
+with the Playwright MCP, which now gives each run its own headless browser. The tool's own `timeout` does not end a
+hung call on Windows while a grandchild holds the output. On timeout, run `taskkill /T /F /PID <pid>` to end the whole
+tree, not `$p.Kill()`. A test that never exits usually leaves a DB pool or server open; fix that in the test. (2026-09-29:
+A6 and A2 each hung about two hours, A6 on a vite start and A2 on `chrome.exe --version`. A7 hung five hours on a
+`tsx` test that its own 120 s kill did not stop.)
 
 Return the verdict, exact commit or blocker, and one next action. Include awaited
 roles, parallel boundaries, locked successors, or a handoff path only when they
