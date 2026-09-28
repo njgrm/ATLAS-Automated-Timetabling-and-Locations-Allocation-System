@@ -4469,3 +4469,9 @@ Rule from now: live browser QA never saves Subjects/setup/policy; mutation rows 
   deleted. Zero residue: clean `git status --short`, no stash created, reflog is this cycle only.
 - **Next action (single):** A4 merges `c9dd5f05` into the next release train and runs one browser smoke row for
   `/admin/year-setup` at 1366×768; Lane C takes the rendered before/after on that train.
+
+## 2026-09-29 00:18 — year 2022-2023 per-year setup copied (operator approved)
+Script `atlas-server/src/scripts/copy-year-setup-shift-windows-events.mjs --school 1 --from 10 --to 1 --apply`: +20
+grade_shift_windows, +2 policy_special_events into mirror 1 (were 0). Re-dry-run: targetExisting 20/2, toInsert 0.
+Receipt (revert with `--revert`): `D:/ATLAS-runtime-config/backups/year-setup-copy-20260929/receipt-year1.json`.
+Lane C re-runs it (from the previous year) after every rollover until A7's carry-over lands.
