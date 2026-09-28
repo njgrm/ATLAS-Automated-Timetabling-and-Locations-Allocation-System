@@ -285,6 +285,46 @@ function stateBContext(overrides: Record<string, unknown> = {}): Record<string, 
 	});
 }
 
+/** STATE C (ADDED 2026-09-29, correction 1) — a year whose run is PUBLISHED and has
+ * no follow-ups. This is the state the header budget had NO fixture for, which is
+ * how `SimplePublishedState` kept a `truncate` class on both of its sentences while
+ * H3 (the no-ellipsis row) ran on A and B only and the handoff table reported the
+ * truncation as BUILT. Reachability is the production path, not a contrivance:
+ * `resolveSimpleHeaderPrimary` returns `published` whenever a generated run exists,
+ * `isRunPublished` is true, and the workspace is not the pre-generation one. */
+function stateCContext(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+	return baseContext({
+		...stateBContext(),
+		draft: {
+			runId: 317,
+			entries: [{ entryId: 'e-tle', sectionId: 41, subjectId: 31, day: 'MONDAY', startTime: '06:00', endTime: '06:45' }],
+			unassignedItems: [],
+			violations: [],
+			summary: { isPublished: true, unassignedCount: 0, assignedCount: 133, hardViolationCount: 0 },
+			inputState: null,
+			version: 14,
+			createdAt: RUN_FINISHED_AT,
+			finishedAt: RUN_FINISHED_AT,
+		},
+		activeGeneratedRunId: 317,
+		selectedRunId: '317',
+		runs: [{ id: 317, createdAt: RUN_FINISHED_AT, durationMs: 4200, status: 'COMPLETED' }],
+		summary: { isPublished: true, unassignedCount: 0, assignedCount: 133, hardViolationCount: 0 },
+		...overrides,
+	});
+}
+
+/** STATE C+ — the same PUBLISHED run that still has follow-ups, so the longer
+ * `N follow-up items remain` sentence is on screen too. Two fixtures, because the
+ * short label and the long one are the two widths the copy can take, and the row
+ * below must hold for both. */
+function stateCFollowUpsContext(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+	return stateCContext({
+		summary: { isPublished: true, unassignedCount: 2, assignedCount: 131, hardViolationCount: 0 },
+		...overrides,
+	});
+}
+
 function baseContext(overrides: Record<string, unknown> = {}): Record<string, unknown> {
 	const noop = () => {};
 	return {
@@ -494,6 +534,54 @@ test('H3 state A: nothing inside the header is truncated, ellipsized, or given a
 test('H3 state B: nothing inside the header is truncated, ellipsized, or given a raw `title`', () => {
 	const host = headerTree(headerMarkup(stateBContext(), undoControl()));
 	assertNoTruncation('state B', host.querySelector('[data-testid="timetable-simple-header"]') as HTMLElement);
+});
+
+/* H3 state C — ADDED 2026-09-29, correction 1 of `a2-header-budget`. The row above
+ * ran on states A and B only, and the published state is the ONE state an ordinary
+ * scheduler reaches with a finished year, the one state with no rendered evidence,
+ * and the one state that still carried `truncate` on both sentences. So the row is
+ * EXTENDED, not replaced: the shared `assertNoTruncation` helper is unchanged and
+ * the A and B rows are byte-for-byte the rows QA accepted. */
+test('H3 state C (PUBLISHED, no follow-ups): nothing inside the header is truncated, ellipsized, or given a raw `title`', () => {
+	const host = headerTree(headerMarkup(stateCContext(), undoControl()));
+	const header = host.querySelector('[data-testid="timetable-simple-header"]') as HTMLElement;
+	assertNoTruncation('state C', header);
+	// DISCRIMINATION: the published surface is really on screen in this state, so
+	// the row above is not satisfied by a header that never reached the copy at
+	// all. `resolveSimpleHeaderPrimary` puts it in row 1's PRIMARY slot.
+	const published = q(header, 'timetable-simple-published-state');
+	assert.ok(published, 'the published state is the primary slot owner here');
+	assert.equal(q(header, 'timetable-simple-publish-action'), null, 'and no publish control competes with it');
+});
+
+test('H3 state C+ (PUBLISHED, 2 follow-ups): the longer follow-up sentence is rendered WHOLE, and the surface is what makes it so', () => {
+	const host = headerTree(headerMarkup(stateCFollowUpsContext(), undoControl()));
+	const header = host.querySelector('[data-testid="timetable-simple-header"]') as HTMLElement;
+	assertNoTruncation('state C+', header);
+	const published = q(header, 'timetable-simple-published-state');
+	assert.ok(published, 'the published state is the primary slot owner here');
+	// THE COPY IS WHOLE. Not "has no ellipsis" — the exact sentences, so a future
+	// change that shortens or drops one of them fails here instead of quietly
+	// winning a narrower claim. `SimpleHeaderHelpers` owns these two strings and
+	// three OTHER committed suites pin them; this row reads them from the real
+	// component rather than from a literal.
+	assert.equal(published.getAttribute('data-published-follow-ups'), '2', 'the fixture really is the follow-up state');
+	assert.equal(visibleText(published),
+		'Published schedule — 2 follow-up items remainChanges start on a date you choose',
+		'every sentence in the published surface is rendered in full');
+	assert.equal(published.getAttribute('aria-label'),
+		'Published schedule — 2 follow-up items remain. Changes start on a date you choose.',
+		'and the accessible name carries the same two sentences');
+	// THE STRUCTURAL REASON, asserted because it is load-bearing: `truncate` could
+	// never paint here because `shrink-0` gives the surface its full content width.
+	// If a future layout makes the surface elastic, THIS row is where the
+	// consequence has to be decided (a real height, or a bounded width) instead of
+	// being absorbed by putting `truncate` back.
+	const classes = (published.getAttribute('class') ?? '').split(/\s+/);
+	assert.equal(classes.includes('shrink-0'), true,
+		`the published surface must keep shrink-0, or the removed truncate becomes reachable again; got "${published.getAttribute('class')}"`);
+	assert.equal(classes.filter((token) => /^h-/.test(token)).length, 1,
+		'and it must keep exactly ONE h-* class, because timetable-header-collapse-c01 D2/D3 measure it');
 });
 
 // ═══ H4 — SETUP BLOCKERS: ONE SHORT LINK (a REAL CLICK, so a client root) ════

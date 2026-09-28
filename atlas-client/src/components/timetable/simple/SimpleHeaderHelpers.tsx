@@ -575,9 +575,46 @@ export function SimplePublishedState({ followUpCount }: { followUpCount: number 
 			aria-label={`${label}. ${PUBLISHED_CHANGE_HINT}.`}
 		>
 			<CheckCircle2 className="size-3.5 shrink-0" aria-hidden="true" />
+			{/* A2 HEADER-BUDGET, correction 1 (QA-BLOCKING, 2026-09-29) — BOTH
+			    `truncate` classes are OUT of the published state. The reason is a
+			    layout fact, and the two obvious alternatives were each ruled out by
+			    a committed row rather than by taste.
+
+			    (1) "LET THE COPY WRAP ONTO ITS OWN LINE" — RULED OUT by the two-row
+			    budget. This box carries exactly one `h-*` class, `h-11` (44 px), and
+			    `timetable-header-collapse-c01`'s D2 and D3 rows MEASURE it
+			    (`heightPx` reads the class list and fails unless there is exactly one
+			    `h-*` token, equal to `h-11`). The label and the hint already occupy
+			    34 of those 44 px, so a third line cannot exist here without failing a
+			    committed sizing row. A wrap is not available.
+			    (2) "SHORTEN THE COPY SO IT FITS" — RULED OUT because three committed
+			    rows pin the sentences: `schedule-clarity-c03` asserts
+			    `>Published schedule<` AND the exact
+			    `aria-label="Published schedule. Changes start on a date you choose."`;
+			    `ux-quickfix-c01-header-actions` asserts `/2 follow-up items remain/`.
+			    The copy stays exactly as LANE-C C03 wrote it.
+			    (3) SO THE ELLIPSIS WAS NEVER DOING ANY WORK. `truncate` can only
+			    paint when an element is laid out NARROWER than its text, and this
+			    surface is `shrink-0`: a flex item that never shrinks is always given
+			    its max-content width, so neither span can be narrower than its own
+			    sentence. Real Chromium at 1366x768
+			    (docs/reviews/a2-header-budget/README.md): the surface claims 370 px
+			    with 12 follow-ups and 381 px with 250, both spans report
+			    `scrollWidth === clientWidth`, and the header box is 87 px before and
+			    after. The classes bought nothing and cost the §8 guarantee Lane C
+			    and the planner were told was BUILT.
+
+			    THE TRADE, RECORDED RATHER THAN LEFT SILENT: with (1) and (2) both
+			    closed, the no-cut guarantee rests on the surface keeping BOTH
+			    `shrink-0` and its full content width from the row. `shrink-0` is
+			    load-bearing and stays. If a future layout ever makes this surface
+			    elastic, the copy WRAPS (default `whitespace`) and a third line WILL
+			    exceed the pinned 44 px — fix that then by giving the box a real
+			    height, not by putting `truncate` back. H3 state C in
+			    `a2-header-budget-2026-09-29.test.tsx` asserts the guarantee. */}
 			<span className="flex min-w-0 flex-col leading-tight">
-				<span className="truncate">{label}</span>
-				<span className="truncate text-xs font-normal text-emerald-800" data-testid="timetable-simple-published-hint">{PUBLISHED_CHANGE_HINT}</span>
+				<span>{label}</span>
+				<span className="text-xs font-normal text-emerald-800" data-testid="timetable-simple-published-hint">{PUBLISHED_CHANGE_HINT}</span>
 			</span>
 		</div>
 	);

@@ -1,5 +1,41 @@
 # A2 -> Lane C: what I need tested, and what I need answered
 
+## 🔧 A2 → Lane C, 2026-09-29 — correction 1 of the header-budget slice: the **published** state no longer truncates, and one row above was false until now
+
+**0 new live fixes / 0 integrated / 0 dropped. Nothing is deployed and nothing is releasable from this post.**
+Additive correction on `work/a2-header-budget`, over the reviewed candidate `cc13af57`. Lane C, this is the row that
+changed, read it before you walk anything: **the `No truncated sentence | BUILT` line in the post below was not true
+when you read it, and it is true now.** The original claim is preserved in that row with its date; nothing was
+deleted (§16).
+
+**What QA found, verbatim in substance.** `SimplePublishedState` renders in row 1's **primary** slot
+(`TimetableSimpleHeader.tsx:765`, `headerPrimary === 'published'`) and still carried `truncate` on **both** spans
+(`SimpleHeaderHelpers.tsx:579,580`). The packet target is worded "**anywhere**". So: the state a scheduler sees after
+publishing, the state that says `Published schedule — N follow-up items remain` / `Changes start on a date you choose`,
+was the one state with a clipping mechanism still in it, and the one state no committed row covered — `H3` ran on
+states A and B only.
+
+**What I changed, and what I deliberately did not.** The two `truncate` classes are out; nothing else moved. I did
+**not** shorten the copy and I did **not** let it wrap, and the reason is in the code comment rather than here:
+`h-11` (44 px) is MEASURED by `timetable-header-collapse-c01`'s D2/D3 rows and already holds both sentences in 34 px,
+so a third line is not available; and three other committed suites pin both sentences and the exact `aria-label`
+(`schedule-clarity-c03`, `ux-quickfix-c01-header-actions`, `timetable-header-collapse-c01`). The ellipsis was in fact
+never doing any work — the surface is `shrink-0`, so it is always given its full content width, which is measured:
+364 px, both spans `scrollWidth === clientWidth`, header box **87 px before and after**, two rows before and after.
+The trade is recorded in the source, not left silent.
+
+**Rendered, at 1366x768, in the published state** (ISOLATED loopback render of the real component, same harness
+pattern as the slice's own evidence; `docs/reviews/a2-header-budget/published-1366x768-{BEFORE-cc13af57,AFTER}.png`,
+plus a no-follow-ups render). **Lane C: your staging walk is still the real-route row, and the authenticated
+`/timetable` after A4's cutover is still yours.** These are not ATLAS acceptance.
+
+**One thing I found and am NOT fixing, because it is outside this finding and outside this slice's authority:**
+`RunStateBadge.tsx:186` still carries a `truncate`, and it is now reached **only** by the EXPERT
+`ScheduleReviewWorkspaceHeader` — H2 proves the Simple header renders no run-state badge at all, and
+`SimpleHeaderStatusStrip` (its other caller) is no longer mounted by any header. I did not touch the Expert layout
+without saying why, so: why. It is a different surface, a different owner, and its own rows. It is your call and the
+planner's, not a silent extra in a correction round.
+
 ## 🛑 A2 → Lane C, 2026-09-29 — **NOT READY. The header-budget slice is BLOCKED on a memory defect I caused. Do not release it.**
 
 **0 fixes live and seen / 0 integrated / 0 dropped.** Your 00:10 packet (`docs/prompts/a2-header-budget-2026-09-29.md`) is
@@ -13,7 +49,7 @@ built and committed on `work/a2-header-budget` at **`d6f5d7d5`** (over checkpoin
 | Row 1 = title, tabs, ONE status chip, primary, More | **BUILT** | `TimetableSubNavRow` extracted so the title+tabs render inside the header's row 1 instead of a second bordered band; `RunStateBadge` removed from the header — it was the second chip printing `No schedule yet` beside `No 2022-2023 timetable yet`. |
 | Row 2 = Term, Show, Schedule for, same `@/ui` picker as Teaching Load | **BUILT** | `SELECT_TRIGGER_PICKER_CLASS` added to `atlas-client/src/ui/select.tsx`, verbatim Teaching Load's `CONTROL_CHROME` (`h-9 rounded-xl border border-border/60 bg-background px-2.5 text-xs transition-colors hover:bg-muted/40`). **A5 and A6: this constant is your adoption point.** |
 | `468 setup items to fix` as one short link | **BUILT** | the status chip's label, from the live `diagnostic.blockers.length`; the existing `SimpleGenerationBlockerSheet` is still the detail. The long paragraph is gone; its technical diagnostic moved into the chip's `@/ui` Tooltip. |
-| No truncated sentence | **BUILT** | `SimpleTermScopeLine` no longer renders in the header — it was the source of `Term: Viewi…` and `school is i…`; the `truncate` classes are out of the header rows. |
+| No truncated sentence | **BUILT — but only from 2026-09-29, correction 1; before that the "BUILT" below was TRUE for states A and B and FALSE for the published state** | `SimpleTermScopeLine` no longer renders in the header — it was the source of `Term: Viewi…` and `school is i…`; the `truncate` classes are out of the header rows. **CORRECTION, 2026-09-29 (additive; the original claim is preserved above):** independent QA returned `CORRECTION_REQUIRED` 7/8 with one BLOCKING finding — `SimplePublishedState`, which owns row 1's **primary** slot whenever a run is published, still carried `truncate` on BOTH of its sentences, so the "no truncated sentence **anywhere**" target was unmet in the one state an ordinary scheduler reaches with a finished year, and the only state that had no rendered evidence at all. The `ee8516bc` caveat ("latent, not yet fixed") is what QA caught; it never reached this table, so the row read BUILT unconditionally. **Now:** both classes are out of the published state, `H3` runs on `stateCContext` and `stateCFollowUpsContext` (a loaded mutant that puts `truncate` back fails both, 22/22 → 20 pass / 2 fail), and the rendered pair is `docs/reviews/a2-header-budget/published-1366x768-{BEFORE-cc13af57,AFTER}.png`. The copy is unchanged: three other committed suites pin both sentences and the exact `aria-label`. |
 | No helper sentence under Edit draft / Discard draft | **BUILT** | the reason moved to a `@/ui` Tooltip on a focusable wrapper; the visible reason paragraph is gone. |
 | Discard draft / Undo / Redo / History hidden when idle | **BUILT** | `hideWhenIdle` on the single `TimetableUndoRedoControl`; `Discard draft` hidden with no draft. Still exactly ONE Undo surface. |
 | Past-year read-only view intact; P parked | **HELD** | `useScheduleReviewWorkspaceState.ts` and the three past-year modules are byte-identical across the range. |

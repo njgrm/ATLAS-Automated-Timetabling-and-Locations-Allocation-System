@@ -30,6 +30,55 @@ calls itself STRUCTURAL.
 `document.documentElement.scrollHeight` equals `innerHeight` (768 / 1080) on
 every render: no page scroll is introduced by the header.
 
+## The PUBLISHED state, and the correction of 2026-09-29
+
+The state the table above had no row for is the **published** state: a year whose
+run is published, which is what `resolveSimpleHeaderPrimary` puts in row 1's
+**primary** slot. Independent QA returned `CORRECTION_REQUIRED` 7/8 on `cc13af57`
+with one BLOCKING finding: `SimplePublishedState` still carried `truncate` on both
+of its sentences, while `docs/handoffs/lane-a-to-c.md` recorded the truncation as
+BUILT and the packet target is worded "**anywhere**". So the one state an ordinary
+scheduler reaches with a finished year was the one state with a clipping mechanism
+in it and no rendered evidence at all. Both classes are now out.
+
+Same harness, same fixture, same 1366x768 viewport, measured with one `evaluate`
+on each side. **BEFORE** is the `cc13af57` code path (the two `truncate` classes
+restored for the render only, then removed again for real).
+
+| | BEFORE (`cc13af57` path) | AFTER (this correction) |
+|---|---|---|
+| Render | `published-1366x768-BEFORE-cc13af57.png` | `published-1366x768-AFTER.png` (and `…-no-follow-ups.png`) |
+| `truncate` classes inside the header | **`span[truncate]`, `span[truncate text-xs font-normal text-emerald-800]`** | **none** |
+| `…` / `...` in the header's rendered text | none | none |
+| Header box height | **87 px** | **87 px** (identical) |
+| Row 1 / row 2 count | 2 rows, row 1 = 44 px | 2 rows, row 1 = 44 px (identical) |
+| Published surface box | 364 × 44 px | 364 × 44 px (identical) |
+| Both copy spans | `clientWidth === scrollWidth` (318 px) | `clientWidth === scrollWidth` (318 px) |
+| `documentElement.scrollWidth/scrollHeight` | 1366 / 768 | 1366 / 768 (no page scroll) |
+
+**Read the honest part of that table.** The geometry is IDENTICAL on both sides:
+at 1366 the ellipsis was **latent, not painted** — the surface is `shrink-0`, so
+it is always given its full content width and `truncate` had nothing to clip. The
+fix removes a hazard and makes the handoff claim true; it does not change a pixel
+of what a scheduler sees today, and this README does not claim that it does. What
+it would take to make the ellipsis actually paint is a follow-up count with more
+digits than the row has slack for, or a future layout that makes the surface
+elastic — and the trade for that case is written into the source comment rather
+than left silent.
+
+**And the strongest form of that statement, checkable in one command: the two
+renders are BYTE-IDENTICAL.** That is the point, not an accident of the
+harness, and both files are kept so the claim is verifiable rather than asserted:
+
+```
+Get-FileHash published-1366x768-BEFORE-cc13af57.png, published-1366x768-AFTER.png -Algorithm SHA256
+F026AEE9ACE13BA1DDF2EE780C1E4772AC2192004814CA16FC85417DE487B9A0   (both)
+```
+
+The third render, `published-1366x768-AFTER-no-follow-ups.png`, is the zero-
+follow-up state and differs (`723157A0…`), so the pair above is not two copies of
+one image by mistake.
+
 ## What the screenshots decide, and what they do not
 
 DECIDED by these renders, in the operator's own state (468 setup blockers) and
@@ -42,7 +91,8 @@ in the draft state:
   setup...` paragraph AND `Ready to publish`, three separate claims.
 - **No truncated sentence anywhere.** The base's `Draft — not visible ...` and
   `Term ...` and `468 setup...` all carry ellipses on screen. The candidate
-  has none.
+  has none. (The published state was the gap in this claim, and it is closed as
+  of 2026-09-29 — see the section above.)
 - **No helper sentence under a draft action.** The base prints
   `Pick a class on the grid first, then choose Edit.` under `Edit draft`. The
   candidate prints nothing; the reason moved to the tooltip.
@@ -56,9 +106,16 @@ in the draft state:
 - **The status line moved out of the box.** In state B the candidate renders one
   calm line below the header: `State: Draft — teachers and students cannot see
   it yet. (Run 321)  Draft — not visible to teachers until you publish  Term
-  setup is unverified...`. The base had the run badge, the term scope line, a
+  setup is unverified. Without an explicit term, the timetable is not loaded.`
+  The base had the run badge, the term scope line, a
   duplicated term notice, the draft sentence AND the whole setup paragraph
   competing inside one row.
+
+  *(Corrected 2026-09-29. This line previously ended `… Term setup is unverified...`,
+  which is an ellipsis the render does not show — the status band carries no
+  `truncate` and prints the sentence whole. Quoted in full, so no reader can
+  mistake the abbreviation for a UI truncation in the section about not
+  truncating.)*
 
 NOT DECIDED here, and stated so:
 
