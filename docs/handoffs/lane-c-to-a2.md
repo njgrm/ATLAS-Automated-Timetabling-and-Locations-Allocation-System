@@ -47,6 +47,63 @@ says "Generate"; the drift notice shows on the unchanged published run).
 "Teachers, rooms or subjects changed since this schedule was made. [See what changed] [Update schedule]"; name what
 changed when known; no "checked Ns ago"; **not red**; one row at 1366 px, wraps cleanly at 390 px. The same
 one-sentence-plus-one-action shape is what D's strip now uses, so H consolidates rather than re-litigates.
+## 2026-09-28 17:40 +08 -- A4 STAGING UP at `7590d485` (second, isolated ATLAS on 5101/5274)
+
+**Lane A4 -- release lane.** `docs/prompts/a4-staging-2026-09-28.md` executed. Detail and every row in
+`docs/reviews/a4-staging-20260928/pre-action.md`; operator steps in `docs/runbooks/staging.md`.
+
+> **A4 STAGING UP at `7590d485`**
+> **URL `http://127.0.0.1:5274`** (API `http://127.0.0.1:5101`) · **SHA `7590d485`** ·
+> **deploy 26.3 s** (with `-SkipBuild`; a full build adds ~2 min) ·
+> **DB snapshot 2026-09-28 17:25 +08** · **LIVE UNTOUCHED: yes**
+
+**What this is for.** A candidate can now be seen *rendered* within a minute, before it is ever proposed
+for the live runtime. It is **not** production and **not** ATLAS acceptance: loopback evidence from
+`127.0.0.1:5274` is explicitly `isolated` (A12), and the staging session cookie is origin-bound, so a
+Tailnet-seeded live session is *not* valid here.
+
+**One thing only the operator can do, and it blocks authenticated staging rows:** sign in once at
+`http://127.0.0.1:5274` in the browser profile your lane uses. Runners never type credentials. With no
+session, report `NEEDS_SESSION(<agent>/<profile>)` and continue with the other rows. Staging's
+`JWT_SECRET` is its own, so **the Tailnet live session will not work on 5274** and vice versa.
+
+**Deploying a candidate** (one command, from `E:\ATLAS-worktrees\lane-a4-staging-20260928`):
+`.\ops\staging\deploy-staging.ps1 -Sha <40-char-sha> -Execute`. It re-snapshots the database from live,
+builds, cuts over **staging only**, and health-checks. Add `-SkipBuild` for a fast re-point and
+`-SkipDbRefresh` to keep staging's own data.
+
+**Live was not touched — measured, not asserted.** Listeners still 5001 → PID **3516** and 5174 → PID
+**60116**; machine-scope `ATLAS_RUNTIME_SOURCE_DIR`/`RELEASE_SHA`/`ENV_FILE` unchanged; the live release
+tree is clean at `7590d485`; and the live `audit_logs` signature `1010|459|11` (max id | rows |
+`_prisma_migrations`) is identical before **and** after, **including re-checked after staging was up and
+serving**. Staging runs on its own contract, env file, database and scheduled task, and it can only be
+read against live, never written.
+
+**NOT ACCEPTED YET — two gates are open, and I am not claiming otherwise.**
+1. **Independent post-action QA was not run.** The dispatch was declined in this session. The staging
+   deployment above is verified only by the executor (A4). Under A11 a HIGH cycle is not closed without
+   one fresh independent reviewer. **Do not treat staging as QA-verified.**
+2. **The operator sign-in has not happened**, so no authenticated row has been exercised on staging.
+
+**Pre-action review did its job, and it earned its keep.** The first pass returned `CORRECTION_REQUIRED`
+on **8/21 passed, 2 failed** with **four BLOCKING** defects — two of which would each have killed the
+deploy outright (`pg_restore` was handed the archive as its `-f` **output** option, so it would have
+overwritten the dump it was restoring from; and probing for a non-existent scheduled task terminated the
+script under `$ErrorActionPreference='Stop'`, on exactly the first-run path). Two more were secret
+containment: the staging env file was written *before* its ACL was applied, and a full live-database dump
+with every credential in it was being left in a `BUILTIN\Users`-readable directory. Four further defects
+(B5-B8) only appeared while executing. Every one aborted before mutating anything, because the build
+phase runs before the quiesce phase. **Budget one independent pre-action review on anything that touches
+the runtime, the env, or a task — it found four real blockers in scripts that already parsed cleanly.**
+
+**One recorded deviation from the packet.** The packet suggested junctioning dependencies from "the last
+good release". I did not: the live release directory is a *numbered slot the next train reuses*, and a
+junction chain rooted at a retired release has already taken this runtime down once. Each staging release
+owns its trees instead -- 0.87 GiB, ~25 s, zero reparse points, verified.
+
+**For Lane C specifically:** the staging surface is the right place to re-run the 9 A3 rendered rows and
+any candidate that needs a browser, at `http://127.0.0.1:5274`. Staging is a **snapshot of live data as
+of 17:25**, so a row that depends on live data mutating since then still belongs on live.
 
 ## 2026-09-28 16:40 +08 -- A4 LIVE at `7590d485` (first A4 train; A3 c9+c10 shipped)
 
