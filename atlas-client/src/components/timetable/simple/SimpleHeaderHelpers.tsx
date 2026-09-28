@@ -86,7 +86,26 @@ export function readinessLabel(context: ScheduleReviewWorkspaceHeaderContext) {
 		if (unassigned > 0) return `Published with ${unassigned} follow-up item${unassigned === 1 ? '' : 's'}`;
 		return 'Published';
 	}
-	if (context.blockingHardCount > 0) return mustFixCountLabel(context.blockingHardCount);
+	/* C11 S2 (item 2) — the chip shows SEVERITY, not one number. It used to
+	 * return at the first branch that had a number, so a run with 3 must-fix AND
+	 * 145 advisories printed only "3 Must fix" and the 145 were invisible — the
+	 * bare-count shape the requirement names. The split reads
+	 * "3 Must fix, 145 advisories".
+	 *
+	 * DELIBERATELY NARROW. A zero clause is never spoken, and a run with only ONE
+	 * severity keeps its existing word, so:
+	 *   hard only -> "3 Must fix"        (unchanged)
+	 *   soft only -> "194 warnings"      (unchanged — the DRAFT-UX-C01
+	 *                                      soft-only measurement stays exact)
+	 *   both      -> "3 Must fix, 145 advisories"  (the new split)
+	 * The requirement is that both severities are VISIBLE when both exist; it is
+	 * not that a single-severity run gains a zero, and "advisories" appears only
+	 * where the two severities are being contrasted. */
+	if (context.blockingHardCount > 0) {
+		return context.softCount > 0
+			? `${mustFixCountLabel(context.blockingHardCount)}, ${advisoryCountLabel(context.softCount)}`
+			: mustFixCountLabel(context.blockingHardCount);
+	}
 	// Unresolved sessions block publish exactly like hard blockers: individual
 	// previewability is not joint feasibility, so never report ready while any
 	// session still needs fixing.
@@ -94,6 +113,18 @@ export function readinessLabel(context: ScheduleReviewWorkspaceHeaderContext) {
 	if (unassigned > 0) return `${unassigned} unresolved`;
 	if (context.softCount > 0) return `${context.softCount} warning${context.softCount === 1 ? '' : 's'}`;
 	return 'Ready to publish';
+}
+
+/**
+ * `advisoryCountLabel(145)` -> `"145 advisories"`.
+ *
+ * C11 S2 (item 2): used only inside the two-severity chip, where the reader is
+ * comparing "Must fix" against the other class of finding and needs the two nouns
+ * to be distinguishable. A soft-only run keeps "warnings", the word the grid cell
+ * and the warnings list already use for that count.
+ */
+export function advisoryCountLabel(count: number): string {
+	return `${count} advisor${count === 1 ? 'y' : 'ies'}`;
 }
 
 export function firstPivotValue(context: ScheduleReviewWorkspaceHeaderContext) {

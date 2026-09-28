@@ -59,8 +59,33 @@ test('scheduled and unassigned session drag starts share canonical context pivot
 test('the ordinary Simple header hides provenance while retaining actionable drift warnings', () => {
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
 	assert.doesNotMatch(header, /data-testid="timetable-simple-authority"/);
-	assert.match(header, /<SimpleDriftBanner/);
-	assert.match(header, /data-testid="timetable-term-authority-unverified"/);
+	// A2 C11 S2 (re-pin, 2026-09-28): the header no longer renders
+	// `<SimpleDriftBanner>` inline. It asks the ONE shared gate
+	// (`useRunChangeNotice`, `simple/SimpleHeaderChangeNoticeSlot.tsx`) for a
+	// notice node and mounts what comes back, so the banner markup moved into
+	// that module. The property this row protects is UNCHANGED — the ordinary
+	// header still surfaces actionable drift instead of going silent — and one
+	// pin cannot carry it any more, so it is now carried by the two halves that
+	// can actually break it independently:
+	//
+	//   1. the gate MOUNTS the banner (a silent slot is a silent header), and
+	//   2. the header renders the notice node it was given (a derived-but-dropped
+	//      node is exactly the defect that left the Expert header saying nothing
+	//      about a change it had the data for).
+	//
+	// Dropping either pin would let this row pass on a header that shows no drift
+	// warning at all, which is the failure it exists to catch.
+	const noticeSlot = source('src/components/timetable/simple/SimpleHeaderChangeNoticeSlot.tsx');
+	assert.match(noticeSlot, /<SimpleDriftBanner/, 'the module the header takes its notice from renders the drift banner');
+	assert.match(header, /const changeNotice = useRunChangeNotice\(/, 'the header derives the notice through that one shared gate');
+	assert.match(header, /\{changeNotice\.node\}/, 'and MOUNTS the node it returns — the warning is on screen, not derived and dropped');
+	// The unresolved-term notice moved with the status region into the extracted
+	// strip in the same slice, so its pin moves with it. Same property, same
+	// evidence: the header still says something when the term contract is not
+	// verified, and provenance still stays out of it.
+	assert.match(source('src/components/timetable/simple/SimpleHeaderStatusStrip.tsx'), /data-testid="timetable-term-authority-unverified"/,
+		'the term-authority notice renders in the status strip the header now uses');
+	assert.match(header, /<SimpleHeaderStatusStrip/, 'and the header renders that strip, so the notice is actually reachable');
 });
 
 test('user-facing layout entry points use Expert while the stored layout key stays stable', () => {

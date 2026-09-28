@@ -22,6 +22,8 @@ import { MemoryRouter } from 'react-router-dom';
 
 import { isVerifiedOrderedActiveTerm, type OrderedAcademicTerm } from '@/lib/academic-term';
 import { TimetableSimpleHeader } from '../TimetableSimpleHeader';
+import { ScheduleReviewWorkspaceHeader } from '../ScheduleReviewWorkspaceHeader';
+import { CHANGE_NOTICE_UNVERIFIED_SENTENCE } from '../simple/SimpleChangeNotice';
 import { primaryDispatchesReviewIssues } from '../simple/SimpleHeaderHelpers';
 import { TimetableGrid } from '../TimetableGrid';
 import { TimetableSubNav } from '../TimetableSubNav';
@@ -47,14 +49,48 @@ function staleRoomsInputState(): GenerationInputComparison {
 	// (see `draftWithSummary`), and a STALE comparison the server writes for THAT
 	// run is stamped after it exists. The pre-fix value, `2026-09-13`, predates the
 	// run by four years, so #59/#17 correctly refuses to read it as a drift claim
-	// about a 2031 schedule — the assertion this fixture exists for (the notice
-	// states the no-change promise) is about the STALE branch, so the comparison is
-	// put where the server would put it. The pre-fix, impossible ordering is kept
-	// as a control in `timetable-drift-banner-390-a2.test.tsx`.
+	// about a 2031 schedule. The pre-fix, impossible ordering is kept as a control
+	// in `timetable-drift-banner-390-a2.test.tsx`.
+	//
+	// A2 C11 S2 (T3e correction, 2026-09-28): the last sentence of that note was
+	// WRONG and is corrected here rather than left to mislead. This fixture is the
+	// PROVEN-CHANGE branch. Measured through the production gate
+	// (`useRunChangeNotice` -> `describeRunInputDrift` -> `deriveRunFreshness`),
+	// `checkedAt 00:05` is AFTER the run's own `createdAt 00:00` on the same day, so
+	// the comparison reconciles to `trustworthy: true` and `runDriftClaimSentence`
+	// returns a claim. The schedule really IS out of date on this fixture, so the
+	// no-change promise T3e used to demand here would have been a lie. The
+	// UNPROVEN branch is `unverifiableRoomsInputState()` below, and it is the one
+	// that carries the promise.
 	return {
 		status: 'STALE',
 		message: 'Rooms changed.',
 		actionHint: 'Review rooms.',
+		changedDomains: ['rooms'],
+		checkedAt: '2031-01-01T00:05:00.000Z',
+	} as unknown as GenerationInputComparison;
+}
+
+/**
+ * A2 C11 S2 (T3e correction, 2026-09-28) — the UNPROVEN branch.
+ *
+ * `status: 'UNKNOWN'` is ATLAS saying it could not complete the comparison. The
+ * `changedDomains` list is NON-EMPTY ON PURPOSE: a populated domain list is the
+ * only thing that could promote an UNKNOWN comparison into a change claim, and the
+ * rule says it must not. So this fixture is the discrimination for that specific
+ * failure: had the gate derived the claim from `domains.length > 0` instead of from
+ * the reconciled freshness, the banner below would name "Rooms" as changed and the
+ * promise would be gone.
+ *
+ * The `checkedAt` is the SAME post-run stamp as `staleRoomsInputState()`, so the
+ * only difference between the two fixtures is the server's own verdict. Timing is
+ * therefore not what separates the branches here — provability is.
+ */
+function unverifiableRoomsInputState(): GenerationInputComparison {
+	return {
+		status: 'UNKNOWN',
+		message: 'Could not compare this run with the current school information.',
+		actionHint: 'Try the check again.',
 		changedDomains: ['rooms'],
 		checkedAt: '2031-01-01T00:05:00.000Z',
 	} as unknown as GenerationInputComparison;
@@ -177,6 +213,37 @@ function renderHeader(overrides: Record<string, unknown> = {}): string {
 			}),
 		),
 	);
+}
+
+/**
+ * A2 C11 S2 (T3e correction) — the SECOND layout, rendered from the same context.
+ *
+ * Lane C's spec is "the Expert header gets the same one-sentence banner shape. Do
+ * not let the two layouts drift onto two different banners", and a promise that
+ * only one layout keeps is not a promise. Both headers reach the notice through
+ * the ONE `useRunChangeNotice` gate, so this helper exists to prove that, on the
+ * same fixtures, rather than to assert the wiring.
+ */
+function renderExpertHeader(overrides: Record<string, unknown> = {}): string {
+	return renderToStaticMarkup(
+		createElement(MemoryRouter, null,
+			createElement(ScheduleReviewWorkspaceHeader, {
+				context: makeContext(overrides),
+				onEditDraft: () => {},
+				onDiscardDraft: () => {},
+			}),
+		),
+	);
+}
+
+/** The ONE drift sentence a rendered header put on screen, or `null` if none. */
+function driftSentenceOf(markup: string): string | null {
+	return markup.match(/data-testid="timetable-simple-drift-message"[^>]*>([\s\S]*?)<\/span>/)?.[1] ?? null;
+}
+
+/** Word count of a whole visible drift claim, any age tail included. */
+function claimWordCount(sentence: string): number {
+	return sentence.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean).length;
 }
 
 /* ── A1 — canonical ordered-term authority, fail-closed ─────────────────── */
@@ -334,10 +401,22 @@ test('A4: the stale-input state never renders beside the verified-source authori
 	// kept, not deleted: the intent ("the notice makes the no-change promise
 	// explicit") is asserted by the replacement immediately below.
 	// assert.match(markup, /The current schedule stays unchanged while you review school information\./, 'the notice makes the no-change promise explicit');
-	assert.match(markup, /This schedule is unchanged\./,
-		'T3e: the shortened notice still makes the no-change promise explicit');
+	// SUPERSEDED (C11 S2, T3e, 2026-09-28) — the row's PREMISE is wrong for this
+	// fixture, not its wording. `staleRoomsInputState()` + draft `runId 42`
+	// reconciles to STALE WITH A CLAIMABLE DRIFT CLAIM: the comparison is stamped
+	// `2031-01-01T00:05:00.000Z` and the run's own `createdAt` is
+	// `2031-01-01T00:00:00.000Z` (`finishedAt` is null), so the comparison is
+	// provably NEWER than the run finished. On a schedule that really is out of
+	// date, "This schedule is unchanged" is not a shorter sentence — it is a false
+	// promise, which is worse than the 21 words it replaced. Kept verbatim, not
+	// deleted (AGENTS.md §16); the promise it protected is asserted on the branch
+	// that can honestly make it, by the RENDERED replacement below.
+	// assert.match(markup, /This schedule is unchanged\./,
+	// 	'T3e: the shortened notice still makes the no-change promise explicit');
 	// The age tail is part of the visible claim, so the budget is counted over
-	// the WHOLE span (sentence + ` · checked 0s ago`), not the sentence alone.
+	// the WHOLE span (sentence + any age tail), not the sentence alone. The new
+	// banner renders no age tail, and the budget is now measured over BOTH
+	// sentences below.
 	const driftMessage = markup.match(/data-testid="timetable-simple-drift-message"[^>]*>([\s\S]*?)<\/span>/)?.[1] ?? '';
 	const claimWords = driftMessage.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean).length;
 	assert.ok(claimWords > 0 && claimWords <= 12,
@@ -351,6 +430,126 @@ test('A4: the stale-input state never renders beside the verified-source authori
 	assert.match(source('src/components/timetable/TimetableSimpleHeader.tsx'), /schoolInformationLabel=\{showDriftState \? 'Check school information' : 'School information'\}/, 'the one setup action is plain and actionable (in More)');
 	assert.doesNotMatch(markup, /timetable-simple-authority/, 'the source authority line must not contradict it');
 	assert.doesNotMatch(markup, /Verified with EnrollPro/, 'the verified-source claim is suppressed while inputs are stale');
+});
+
+/**
+ * A2 C11 S2 — the RENDERED REPLACEMENT for the superseded T3e row above
+ * (2026-09-28). Superseding a row is only honest if something enforces its
+ * intent, so the intent is now asserted as a rule, on the real header, in BOTH
+ * layouts, on BOTH branches.
+ *
+ * THE LOAD-BEARING RULE: an unproven comparison must not claim a change, and must
+ * promise the schedule is unchanged.
+ *
+ * The gate is not a heuristic and these rows do not ask it to be one.
+ * `useRunChangeNotice` hands the run's OWN timing (`finishedAt`/`createdAt`) to
+ * `describeRunInputDrift`, which reconciles the comparison's `checkedAt` against
+ * it and yields FRESH / STALE / UNKNOWN. Only a comparison ATLAS can tie to the
+ * run may claim a change:
+ *
+ *   STALE (provably newer than the run finished) → the changed sentence plus the
+ *     one primary "Update schedule". The schedule really is out of date, so the
+ *     no-change promise would be a lie and is asserted ABSENT.
+ *   UNKNOWN, or a comparison ATLAS cannot reconcile to the run → the promise
+ *     sentence, NO apply action, NO alarm styling. This is the sentence T3e was
+ *     protecting, and it is now asserted where it can honestly be made.
+ *   FRESH → no notice at all (asserted by the fresh-input row above).
+ *
+ * DISCRIMINATION, per branch. Each fixture is the other's twin with exactly one
+ * field changed (`status`), and the `checkedAt` is the SAME post-run stamp on
+ * both, so timing provably cannot be what separates them. A gate that derived the
+ * claim from `changedDomains.length > 0` — the tempting shortcut, and the one the
+ * non-empty UNKNOWN fixture below is built to catch — would pass the STALE rows
+ * and fail the UNKNOWN ones; a gate that promised "unchanged" unconditionally would
+ * fail the STALE rows. The rows discriminate in BOTH directions, so neither a
+ * silent gate nor an over-promising one can pass this file.
+ *
+ * These are RENDERED rows. They read the real `TimetableSimpleHeader` and the real
+ * `ScheduleReviewWorkspaceHeader`, and every assertion is a boolean, a string or
+ * a count — no JSDOM node is ever compared with `assert.equal`.
+ */
+test('A4 RENDERED: an unproven comparison promises no change in BOTH layouts; a proven one claims it and offers Update', () => {
+	const draft = (inputState: GenerationInputComparison) => draftWithSummary(
+		{ runId: 42, hardViolationCount: 0, softViolationCount: 0, unassignedCount: 0, isPublished: false },
+		inputState,
+	);
+	const schoolYearContext = { activeSchoolYearLabel: '2030-2031', source: 'enrollpro-verified', activeTerm: null };
+	const layouts: ReadonlyArray<readonly [string, (o: Record<string, unknown>) => string]> = [
+		['Simple', renderHeader],
+		['Expert', renderExpertHeader],
+	];
+
+	for (const [layoutName, render] of layouts) {
+		// ── PROVEN CHANGE (STALE) ──────────────────────────────────────────
+		const proven = render({ draft: draft(staleRoomsInputState()), schoolYearContext });
+		assert.match(proven, /timetable-simple-input-drift/, `${layoutName}: a proven change is on screen`);
+		assert.match(proven, /data-drift-status="STALE"/, `${layoutName}: the row reports the reconciled status it was given`);
+		assert.match(proven, /data-drift-claimable="true"/, `${layoutName}: a comparison ATLAS can tie to this run MAY claim a change`);
+		assert.equal(driftSentenceOf(proven), 'Rooms changed since this schedule was made.',
+			`${layoutName}: a proven change NAMES the changed area — the server's own changedDomains, not an invented noun`);
+		assert.match(proven, /timetable-simple-regenerate-to-apply/, `${layoutName}: a proven change offers the one primary "Update schedule"`);
+		assert.equal((proven.match(/timetable-simple-regenerate-to-apply/g) ?? []).length, 1,
+			`${layoutName}: and exactly one, never a competing duplicate`);
+		// The load-bearing rule's other half, asserted as a NEGATIVE: on a schedule
+		// that really did change, the promise is a lie and must not be printed.
+		assert.doesNotMatch(proven, /This schedule is unchanged/,
+			`${layoutName}: a PROVEN change may not promise the schedule is unchanged — that is the false promise the superseded row would have forced`);
+		assert.doesNotMatch(proven, /Could not check school information/,
+			`${layoutName}: a PROVEN change is not the unverified branch either`);
+		assert.equal(/checked\b|\d+\s*(s|m|h)\s*ago/i.test(driftSentenceOf(proven) ?? ''), false,
+			`${layoutName}: the changed sentence carries no relative-age tail, so the word budget below counts the whole claim`);
+
+		// ── UNPROVEN CHANGE (UNKNOWN) ──────────────────────────────────────
+		const unproven = render({ draft: draft(unverifiableRoomsInputState()), schoolYearContext });
+		assert.match(unproven, /timetable-simple-input-drift/, `${layoutName}: an unverified state is still on screen — "not proven" is not "nothing is wrong"`);
+		assert.match(unproven, /data-drift-status="UNKNOWN"/, `${layoutName}: the row reports the reconciled status it was given`);
+		assert.match(unproven, /data-drift-claimable="false"/, `${layoutName}: an unproven comparison MAY NOT claim a change`);
+		// The sentence T3e was protecting, rendered on the branch that can make it.
+		assert.equal(driftSentenceOf(unproven), CHANGE_NOTICE_UNVERIFIED_SENTENCE,
+			`${layoutName}: ATLAS could not check, so the row promises the schedule is unchanged instead of claiming a change`);
+		assert.match(unproven, /This schedule is unchanged\./,
+			`${layoutName}: the no-change promise is explicit`);
+		// A non-empty `drift.domains` list must never, by itself, promote UNKNOWN.
+		// The fixture's `changedDomains` is ['rooms'] and the names survive in the
+		// `sr-only` detail span, so the check is that they are NOT in the sentence.
+		assert.match(unproven, /data-testid="timetable-simple-change-areas"[^>]*>Rooms</,
+			`${layoutName}: the area name is still carried for assistive tech and the detail dialog`);
+		assert.doesNotMatch(unproven, /Rooms changed/,
+			`${layoutName}: a non-empty changedDomains list does NOT by itself turn an UNKNOWN comparison into a change claim`);
+		assert.doesNotMatch(unproven, />Rooms changed since/,
+			`${layoutName}: nor does it leak the changed sentence anywhere in the row`);
+		// No apply action: there is nothing proven to apply, so the affordance is not
+		// mounted. A disabled control would still be a control offering to do it.
+		assert.doesNotMatch(unproven, /timetable-simple-regenerate-to-apply/,
+			`${layoutName}: an unproven comparison mounts NO apply action at all`);
+		assert.doesNotMatch(unproven, /Update schedule/,
+			`${layoutName}: and states the "Update schedule" verb nowhere, so the promise and the offer cannot contradict each other`);
+		assert.doesNotMatch(unproven, /timetable-simple-regenerate-preservation-note/,
+			`${layoutName}: no regeneration dialog is mounted, because nothing was triggered`);
+		// The secondary (the detail) may stay: it shows what ATLAS knows, which is
+		// not a claim and not an action on the schedule.
+		assert.match(unproven, /timetable-simple-impact-preview/,
+			`${layoutName}: the read-only detail stays available — suppressing information is not the same as being honest`);
+		// No alarm styling on the unproven branch: two confidences must not share
+		// one alarm, and nothing is wrong yet.
+		const unprovenBand = unproven.match(/<div[^>]*data-testid="timetable-simple-input-drift"[^>]*>/)?.[0] ?? '';
+		assert.match(unprovenBand, /bg-muted\/40/, `${layoutName}: the unproven row wears the calm-note styling`);
+		assert.equal(/red|destructive|amber/.test(unprovenBand), false,
+			`${layoutName}: and no alarm class of any kind`);
+
+		// ── THE 12-WORD BUDGET, OVER BOTH SENTENCES ────────────────────────
+		// The budget is counted over the WHOLE visible claim, any age tail
+		// included, and it has to hold for the promise sentence as well as the
+		// changed one — a promise that does not fit is still a promise owed.
+		for (const [branch, sentence] of [
+			['proven', driftSentenceOf(proven) ?? ''],
+			['unproven', driftSentenceOf(unproven) ?? ''],
+		] as const) {
+			const words = claimWordCount(sentence);
+			assert.ok(words > 0 && words <= 12,
+				`${layoutName}/${branch}: the whole drift claim is within the 12-word budget an older reader can hold (measured ${words} incl. any age tail)`);
+		}
+	}
 });
 
 test('A4: a fresh-input state hides routine source provenance while retaining the clean-input state', () => {
@@ -422,16 +621,41 @@ test('C5: the status band carries no band chrome and the action row adds no bott
 	// (`mt-1 mb-1 ... py-1`, so a full extra band of vertical chrome) and gave the
 	// action row its own `pb-1.5` bottom band. Both are the vertical chrome that
 	// pushed the grid top past the target.
+	//
+	// A2 C11 S2 (re-pin, 2026-09-28) — the two pins moved apart. The status
+	// REGION markup is now rendered by the extracted
+	// `simple/SimpleHeaderStatusStrip.tsx` (C11 S2 item 2 pulled it out because
+	// `TimetableSimpleHeader.tsx` stood two lines under the §8 1000-line cap and a
+	// sub-component is the prescribed answer); the CONTROL ROW is still rendered by
+	// the header, which now nests the strip inside it. So the evidence is read from
+	// the header SURFACE — both files that render it — rather than from one file
+	// that no longer owns both. The PROPERTIES are unchanged and not weakened: the
+	// region still renders, it still carries no band chrome, the action row still
+	// adds no bottom band padding, and the region element is still declared
+	// exactly once across that surface.
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
-	const regionTag = header.match(/<section[^>]*data-testid="timetable-simple-status-region"[^>]*>/)?.[0];
+	const statusStrip = source('src/components/timetable/simple/SimpleHeaderStatusStrip.tsx');
+	// DISCRIMINATION: the pin is not vacuous. It names the file that now owns the
+	// region markup, so a silent move of it into some third module fails here rather
+	// than passing by reading an empty string.
+	assert.match(statusStrip, /<section[^>]*data-testid="timetable-simple-status-region"/,
+		'the status region markup lives in the extracted status strip');
+	assert.match(header, /<SimpleHeaderStatusStrip/,
+		'and the header renders that strip rather than the region itself');
+	const headerSurface = `${statusStrip}\n${header}`;
+	const regionTag = headerSurface.match(/<section[^>]*data-testid="timetable-simple-status-region"[^>]*>/)?.[0];
 	assert.ok(regionTag, 'the status region still renders');
 	assert.doesNotMatch(regionTag, /mt-1|mb-1|py-1|rounded-lg border|shadow-sm/, 'the status region no longer renders its own bordered/padded band');
 	// The action row keeps its horizontal padding and drops the vertical band.
-	const actionRow = header.match(/<div className="flex min-w-0 flex-wrap items-center gap-1\.5 px-3[^"]*">/)?.[0];
+	// Re-derived from the same surface evidence: the control row is the one the
+	// status strip is a sibling of, and the change notice is its first child.
+	const actionRow = headerSurface.match(/<div className="flex min-w-0 flex-wrap items-center gap-1\.5 px-3[^"]*">/)?.[0];
 	assert.ok(actionRow, 'the single action row still renders');
 	assert.doesNotMatch(actionRow, /pb-1\.5|py-/, 'the action row adds no bottom band padding');
-	// Exactly one status region element exists in the whole header source.
-	assert.equal((header.match(/data-testid="timetable-simple-status-region"/g) ?? []).length, 1, 'exactly one status region element');
+	// Exactly one status region element exists in the whole header surface. The
+	// count moved from the single file to the surface with the pin, so a second
+	// copy of the region in EITHER file still fails this row.
+	assert.equal((headerSurface.match(/data-testid="timetable-simple-status-region"/g) ?? []).length, 1, 'exactly one status region element');
 });
 
 test('C6: the primary action leads the narrow action strip and returns inline at lg', () => {

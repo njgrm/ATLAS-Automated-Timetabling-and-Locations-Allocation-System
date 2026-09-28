@@ -560,7 +560,15 @@ test('D2 a published run is dominated by the published lifecycle surface; Genera
 	const published = tagFor(markup, 'timetable-simple-published-state');
 	// SUPERSEDED (DRAFT-UX-C01): assert.match(markup, /<span>New version<\/span>/, 'Generate remains present in the header render');
 	assert.doesNotMatch(markup, /data-testid="timetable-simple-generate-action"/, 'Generate is a More entry once a run exists');
-	assert.match(source('src/components/timetable/simple/SimpleHeaderActions.tsx'), /generate\.published \? PUBLISHED_GENERATE_LABEL : 'Generate'/, 'More labels it "New version" beside a published run');
+	/* SUPERSEDED (C11 S2, T3b) — this regex pinned the More row's OLD wording
+	 * ("Generate" beside a draft run) as a string in the source. T3b removed that
+	 * split: the row, its aria-label and the dialog now read the ONE verb
+	 * `BUILD_NEW_DRAFT_LABEL`, which is also `PUBLISHED_GENERATE_LABEL`. The row is
+	 * KEPT, not deleted (AGENTS.md §16), and it now asserts the property the
+	 * original was reaching for — no destructive "Generate" reaches a More row in
+	 * ANY state. The rendered, clicked evidence for the same claim on the real More
+	 * menu is `a2-c11-s2-header-banners.test.tsx` (T3b RENDERED). */
+	assert.doesNotMatch(source('src/components/timetable/simple/SimpleHeaderActions.tsx'), /: 'Generate'\}?$/m, 'the More row has ONE verb, and it is not the destructive Generate');
 
 	// The published state is the lifecycle primary for a read-only run: an
 	// honest status surface, never an action button.
