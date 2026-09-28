@@ -1,5 +1,64 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+> ## 🛑 A2 → Lane C, 2026-09-28 ~14:0x +08 — **c12 STOPPED at step 1. `4c35cc8f` is NOT live. Live is still `a1db27d5`.**
+> **Your pinning ruling is correct and I verified all three legs of it before touching anything** — details below. The
+> release did not ship, and the reason is **not a gate**: the review gates are **closed** on exactly these bytes. The
+> blocker is **`E:` capacity**, and the packet's own premise **"E: has 29 GiB; no reclaim" was true when you wrote it
+> and false when I executed it.**
+>
+> ### Your ruling, verified — not accepted on your say-so
+> 1. **`c80c085b` is not an ancestor of `4c35cc8f`** — `git merge-base --is-ancestor c80c085b 4c35cc8f` exits **1**.
+>    A3's c9 block is genuinely outside the release. (`4c35cc8f808aad6d6e70f17920037d46d91bf10d`, full SHA.)
+> 2. **B2 is test-only**: `6b1ec722..4c35cc8f` is **exactly 7 paths, all test files, 0 non-test**. The product tree is
+>    byte-identical, so Gate 3's 25-path verdict and B2's 7/7 still decide these bytes. No re-gate owed.
+> 3. **The five paths you named as voiding part of Gate 3 are byte-identical across the pin** — `atlas-client/package.json`,
+>    `atlas-client/src/index.css`, `a3-c8-warning-token.test.ts`, `palette-slate400-step2-a3-s-f.test.ts`,
+>    `palette-token-sweep-a3-s-e.test.ts`: all `SAME` by blob id between `6b1ec722` and `4c35cc8f`. They moved on `main`,
+>    which is not in this release. **So "main moving does not reopen a pinned release" holds, and I have the receipts.**
+>
+> ### What the release range actually is — enumerated per §13
+> `a1db27d5..4c35cc8f` = **112 paths, 86 non-docs**, 2 server production files. **Zero `prisma/`, zero schema, zero
+> lockfile, zero seed** (the lone grep hit is `generation-b**lock**ers-c02.test.tsx`). Nothing foreign rode along.
+>
+> ### 🛑 THE BLOCKER — `E:` is below the §3 fail-closed line, and it is not me
+> Measured `E:` free across the step: **29.198 → 22.550 → 1.454 → 38.387 → 5.769 → 5.093 → 38.502 → 24.987 → 5.877 →
+> 5.229 → 3.199 GiB.** My own `npm ci` added **278 packages / 0.201 GiB** and coincided with a **~19 GiB** drop, so the
+> consumer is not this cycle. `E:\ATLAS-worktrees` holds **44** worktrees and **A3 created six `lane-a3-c10-s*` worktrees
+> in the same second (13:35:47)**, with `lane-a3-c10-s1-sections` running `tsx --test` out of its own `node_modules` at
+> 13:50. `$RECYCLE.BIN` is 0.00 GiB, so this is not a recycle artefact. **The volume is bimodal at ~38.5 GiB / ~5 GiB,
+> and it is sitting in the low mode.** I stopped rather than build into it, because the documented failure of a full `E:`
+> is the supervisor's log writes failing — the §3 note that this has taken the live runtime down once. `D:` is stable at
+> 39.170 GiB, but §3 routes new worktrees to `E:` and `D:/ATLAS-worktrees` is legacy-retention only, so `D:` is not mine.
+>
+> **No reclaim was run, and I priced the one that was already authorised rather than spending it:** retiring my two stale
+> release dirs (`lane-a2-release-0da104f9` 1.47 GiB, `lane-a2-release-c0d91827` 1.46 GiB — both clean, both merged
+> ancestors, both inside your 09:45 grant) frees **2.93 GiB → ~6.1 GiB**: still under fail-closed, so it buys nothing and
+> §3 wants a manifest and a pre-action audit for it. **I did not touch `lane-a3-release-f426f465`** — A3 is live right
+> now. **A3's c10 reclaim is what clears this, and that owner is you and A3, not me.**
+>
+> ### Not done, deliberately, and dated 2026-09-28
+> No server or client build, no `prisma generate`, **no cutover, no deploy-runner invocation at all** (not even the dry
+> run), no supervisor/task/listener/environment change, no sign-in, no generation, no publication, no migration.
+> **The `JWT_EXPIRES_IN=7d` step never ran and `D:/ATLAS-runtime-config/atlas-server.env` was never opened, read, backed
+> up or edited** — packet step 3 sequences it *after* a healthy cutover and there is no cutover.
+>
+> ### Live, re-read read-only after the stop — healthy, and left exactly as found
+> Machine scope `a1db27d5a9c270c875868436988f5d8cef38af04` / `E:\ATLAS-worktrees\lane-a2-release-a1db27d5`; task
+> `ATLAS-Runtime-Supervisor` **Running**; listeners **5001→54908, 5174→56752**. All three identity sources agree and all
+> match the c4 record. **§6's trap was live in this session**: my inherited `Env:` read `9b28c572` / `…-9b28c572`, two
+> releases stale, and I decided nothing from it. `/api/v1/health` **200**; `/api/v1/health/ready` **200
+> `{"database":"ok"}`**; public `/api/v1/schools/1/schedules/published?date=2026-09-28` **200**, `runId=320`,
+> `termIndex=2`, `servedByFallback=false`.
+>
+> ### Next action, single
+> **Re-run c12 unchanged from step 1 once `E:` holds above 25 GiB** — same pin, same closed gates, no re-gate, same
+> `a1db27d5` rollback basis. `lane-a2-release-4c35cc8f` is `KEEP_ACTIVE` with client deps installed and nothing built
+> (0.79 GiB), so the next attempt starts from the pin rather than from a checkout. **Still 0 fixes rendered on the live
+> Tailnet; 7 integrated, none live** — the T1–T4 rows you posted are all still owed, and the run is unchanged at 320.
+>
+> **A3:** your c9 block is out of this release and needs its own gate in its own packet — it is not blocking me, and I am
+> not asking you for anything on it.
+
 > ## A2 -> Lane C, 2026-09-28 ~13:5x +08 - **c10 NOT DEPLOYED. `6b1ec722` is still NOT shippable: the range moved under it. Do not run the 4 T-row groups below.**
 >
 > **Two of c10's three substantive steps are DONE and verified. The third is blocked on an open gate, and it is
