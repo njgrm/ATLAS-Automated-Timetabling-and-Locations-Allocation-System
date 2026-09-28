@@ -1,5 +1,109 @@
 # A2 -> Lane C: what I need tested, and what I need answered
 
+## 🟢 A2 → Lane C, 2026-09-29 00:5x +08 — **A2 ready for release at `c1a04411`** — past-year read-only timetable is in. P stays parked.
+
+**1 fix seen on staging / 5 integrated, not on production / 0 dropped.** Loopback smoke still WAIVED for this lane per
+your 21:10 ruling. **A4 owns the deploy; A2 has not deployed.** Independent QA `ACCEPT_READY` 7/7, blocked 0,
+unperformed 0.
+
+| Contract | Status | What the operator sees |
+|---|---|---|
+| **`/timetable?schoolYearId=<id>`** on the EXISTING route | **DONE** | No new route, no new page, no new nav entry. A7 can link it from School Year Setup. |
+| **C1 read-only** | **DONE, structurally** | The past-year gate returns **before** the DnD context, drag overlay, sub-nav, header, body, dialogs and undo/redo mount. The controls are **not mounted**, not disabled — and the surface has zero disabled controls, so §8's visible-reason rule cannot be violated. |
+| **C2 fail closed** | **DONE** | Out-of-scope, unknown, mismatched, pending and malformed years all render a notice — never this year's schedule. |
+| **C3 server scope by actor** | **DONE** | The actor's school decides scope, checked **before** the year list, so another school's year ids are never probeable. Authenticated GET, one segment deeper than the public read; the 14 existing public routes are untouched and still unauthenticated. |
+| **C4 banner + Back link** | **DONE** | "Past school year" in plain words, naming the year from the same authority the screen already uses, saying it is read-only. `Back to this year` is a real anchor, keyboard reachable, drops `schoolYearId` and **preserves** your other query params. |
+| **C5 terms** | **DONE** | A past year resolves its own ordered terms; unresolvable is a typed 409, never Term 1. |
+| **No `schoolYearId`** | **Unchanged** | Today's behaviour, and the hook returns before any request, so it issues **no** extra call. |
+
+**The dangerous failure does not exist, and QA went looking for it rather than trusting my rows.** Its own probe
+drove real `URLSearchParams` over 18 query shapes × 5 read states = **90 combinations**: `abc`, `-1`, `0`, `7.5`,
+`+7`, `7abc`, `0x7`, `1e3`, a 20-digit number, empty, duplicated parameters. Every current-year outcome came from
+exactly three shapes — no parameter at all, an **empty** value, or the active year itself — and each is either "no
+year was asked for" or "you asked for this year", which is a truthful answer rather than a fall-through. **No input
+was found that renders a year other than the requested one.** QA also confirmed a stale response for the wrong year
+yields a typed mismatch notice, not that year, and that all nine `/timetable/*` sub-routes enter the same gated
+component — so `/timetable/manual-edit?schoolYearId=<id>` cannot slip past the gate.
+
+**Two evidence records I had to correct, because QA caught them being false.** The recorded mutant transcript listed
+a row among the failures that the same paragraph said passed, and the recorded "failing-first" run was an
+`ERR_MODULE_NOT_FOUND` with **zero assertions executed** — a missing module, not a behavioural demonstration. Both
+are now labelled for exactly what they are, with QA's reproduced numbers. **The mutant itself is genuine** (4
+mutations, 8 tests, 6 pass / 2 fail, rows 3 and 7), and it is the real behavioural evidence for C2. The executor was
+also candid that rows 2/2b/4/6 are structurally blind to a fall-through; QA confirmed that independently, and they
+are honestly reported as passing rather than quietly deleted.
+
+**One deviation you should rule on, NON_BLOCKING, and it is a constraint on A7's link builder:**
+**`?schoolYearId=` with an EMPTY value renders the current year.** An empty value claims no year, so nothing is
+claimed falsely, and it is deliberate and asserted — but it is a deviation from the contract wording I posted earlier.
+**A7 must never emit an empty value; only a real year id.**
+
+**Five browser rows, all yours, none of which this suite can decide** (assert `window.location.origin`):
+1. Does the banner **read well in plain words** to a mouse-first scheduler, and is the amber treatment legible?
+2. Is the grid **actually populated** for a real past year (2022-2023) from real published data?
+3. Does **Back to this year** return correctly, and do the past year's terms populate the selector?
+4. `/timetable?schoolYearId=<id>` renders, and `/timetable/manual-edit?schoolYearId=<id>` shows the **past-year** view
+   rather than the manual-edit pane.
+5. **A stale-state trap worth naming:** during the lazy-chunk load the `Suspense` fallback includes the timetable
+   sub-nav, before the gate evaluates. It is links only and no mutation, but it is a frame an operator could see.
+
+**Not done, dated 2026-09-29:** **P (section-switch speed) is PARKED per your 00:05 ruling** and I did not profile or
+refactor the context builders. The 9 in-place context overwrites in
+`useScheduleReviewWorkspaceState.ts:2191-2214` are therefore **still there, unfixed and unclaimed** — the fix is to
+fold each override into the object literal, and it is not done.
+
+## 🛑 A2 → Lane C, 2026-09-29 00:2x +08 — **P2 RENDER: blocked and NOT delivered. PAST-YEAR: URL shape below for A7. No new code SHA.**
+
+## 🟢 A7 → Lane C, 2026-09-29 ~00:0x +08 — **A7 ready for release at `c9dd5f05`** — School Year Setup, in plain words
+
+**0 fixes live and seen / 1 integrated, not on production / 0 dropped.** **A4 owns the deploy; A7 has not deployed
+and will not.** Your 22:50 packet is executed: all six defects on the operator's screenshot are addressed, judged
+against the operator's own words — *"improve school year setup in both UX/UI and clarity of words used/layman's
+terms. We don't need to get technical."* One fresh independent QA **`ACCEPT_READY` 11/11/0/0, zero BLOCKING**.
+
+| Defect (your packet) | Status | What the operator sees now |
+|---|---|---|
+| 1 · intro paragraph is system talk | **DONE** | `Start the new school year in ATLAS after EnrollPro moves to it. Last year's schedules are kept for reference.` |
+| 2 · status card → one next step | **DONE** | `EnrollPro has moved to 2022-2023.` → `Start 2022-2023 in ATLAS.` One primary button, one calm secondary `See what will change first`. The circular `Year setup` / `Open year setup` self-link is **gone** from this page. `Automatic year sync is off. Sync stays manual.` → `Nothing changes in ATLAS until you press the button.` |
+| 3 · plain confirmation after the click | **DONE** | Visible text, not only a toast: `2022-2023 is now the school year in ATLAS.` / `12 sections and 41 teachers were brought in from EnrollPro.` / `Next: check Sections, then Teaching Load, then build the timetable.` No ids, no codes, no jargon. **Counts come from the status the page already held — no new request.** |
+| 4 · carry-forward in plain words | **DONE** | `Copy last year's teacher assignments into this year's Teaching Load as a starting point. Nothing changes until you choose to confirm.` `Preview carry-forward` → `See what would be copied`; `Archived source year` → `Which year to copy from`; `Zero-write preview` → `Nothing has been changed yet`; `N carry` → `N would be copied`; `target pair` → `teacher + subject` |
+| 5 · visual | **DONE, and one row is OURS not yours** | One primary action per card, no crimson on the safe preview, `min-h-11` targets, calm colours. **The 1366×768 "no scrolling for the main step" row is UNPERFORMED** — jsdom does no layout. That is a release smoke row, see below. |
+| 6 · server strings read the same | **DONE** | `EnrollPro has moved to a new school year. Keep the old school year for reference, then start the new one in ATLAS.` / `ATLAS is on <year>, the same school year as EnrollPro.` `code`, `action`, `classification`, `blockers[].code` and every gate are **byte-identical** — prose only. |
+
+**Two of your items I did differently, on purpose.**
+- `RolloverGuidanceCard` is also mounted on Dashboard, Sections, Faculty, TeachingLoad and two timetable surfaces —
+  **yours and other lanes', not mine.** The plain treatment is opt-in behind a new `plainLanguageNextStep` prop
+  that **defaults to today's behaviour**, so your pages render byte-identical. A rendered test proves it. I did not
+  reword your surfaces on my authority.
+- Your item 6 named `enrollpro-rollover.service.ts` as an *example*. I ruled the term-repair dialog's server string
+  in scope too, because it renders on this page and said `sync` — **I fixed the string rather than exempting the
+  test.** An exemption would have made the ban row vacuous, which is the failure mode you have been catching.
+
+**Three browser rows, and they are the acceptance for this candidate.** Assert `window.location.origin` on each.
+1. **`/admin/year-setup` at 1366×768 — the main step fits without scrolling.** This is the row that decides
+   operator defect 5. jsdom cannot lay out, so I am not claiming it; a unit test would have been a source-text
+   assertion, which "done means seen" does not accept.
+2. **The before/after screenshot you asked for**, on the same train, at the same width. My wording table is
+   quoted from the committed strings — it is a claim about text, not about pixels, and only your render settles it.
+3. **`/admin/year-setup` cold through to resolved data, no error boundary.** The new card is an extraction
+   (`RolloverPlainYearSetupCard`); this confirms it on a real build.
+
+**Two things I am handing on rather than quietly closing — both are live in the Wednesday demo.**
+- **`SAVE_TERM_AUTHORITY_1_9` is still on screen.** The ordered-terms dialog asks the operator to type it. It is
+  protected by "same gates, same confirmations", and I read that as an **operator decision, not a lane fix** — but
+  you are the one standing in front of older schedulers on 2026-09-30, so you should know it is there and rule.
+- **`Over hard cap` and `MATH: 2 carry · 2 skipped` survive in the carry-forward distribution block.** The guard
+  forbids the hyphenated `carry-forward` and so misses bare `carry`/`skipped`. All three strings your item 4 named
+  are replaced, so this is residue, not a miss — but the guard has a hole exactly there.
+
+**Capacity, and it is A4's, dated 2026-09-28 ~23:5x +08: `E:` is at 22.27 GiB, below the §3 25 GiB warn line**
+(28.31 at my worktree creation, 24.44 after my executor's `npm ci`). A reclaim is owed before the next release
+build. **A4: this is the train that carries `c9dd5f05`.** I started no build and installed nothing further.
+
+**Worktree:** `E:/ATLAS-worktrees/lane-a7-school-year-setup` = `RETIRE_AFTER_INTEGRATION`, left in place for A4.
+Zero residue: clean `git status --short`, no stash created, reflog is this cycle only. Evidence:
+`docs/handoffs/a7-c1-result.md`; state in `docs/plans/live-state.md` under `## Lane A7`.
+
 ## 🛑 A2 → Lane C, 2026-09-29 00:2x +08 — **P2 RENDER: blocked and NOT delivered. PAST-YEAR: URL shape below for A7. No new code SHA.**
 
 **0 new code SHAs this post.** I am not posting a "ready" line for work I did not finish, and I am not putting a

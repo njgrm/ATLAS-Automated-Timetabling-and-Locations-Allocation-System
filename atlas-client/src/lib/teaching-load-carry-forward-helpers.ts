@@ -86,15 +86,15 @@ type CarryForwardSourceYearOption = { enrollProSchoolYearId: number; preservedCo
 type ReasonTone = 'carry' | 'preserved' | 'blocked' | 'review';
 
 export const CARRY_FORWARD_REASON_META: Record<CarryForwardReason, { label: string; description: string; tone: ReasonTone }> = {
-	EXACT_CARRY: { label: 'Carry forward', description: 'Empty target pair; qualified owner; within the hard cap.', tone: 'carry' },
-	ALREADY_OCCUPIED: { label: 'Already occupied', description: 'The target pair already has an owner and is preserved.', tone: 'preserved' },
-	MISSING_FACULTY: { label: 'Owner unavailable', description: 'The archived owner is no longer an active, current faculty member.', tone: 'blocked' },
-	MISSING_SECTION: { label: 'Section unavailable', description: 'No current section matches grade + program + name.', tone: 'blocked' },
-	NO_CURRENT_DEMAND: { label: 'No current demand', description: 'Reference-only, inactive, or obsolete demand.', tone: 'blocked' },
-	UNQUALIFIED: { label: 'Not qualified', description: 'The owner is not qualified under current authority.', tone: 'blocked' },
-	CAP_BLOCKED: { label: 'Over hard cap', description: 'Carrying would exceed the current hard cap on teaching minutes.', tone: 'blocked' },
-	AMBIGUOUS: { label: 'Ambiguous match', description: 'A duplicate canonical section or source pair must be resolved first.', tone: 'review' },
-	OTHER: { label: 'Other', description: 'The row could not be classified automatically.', tone: 'review' },
+	EXACT_CARRY: { label: 'Would be copied', description: 'The slot is empty, the teacher is qualified, and the hours are within the limit.', tone: 'carry' },
+	ALREADY_OCCUPIED: { label: 'Already filled', description: 'That teacher + subject already has an owner, so it is kept as it is.', tone: 'preserved' },
+	MISSING_FACULTY: { label: 'Teacher not available', description: 'The teacher from last year is no longer on the faculty.', tone: 'blocked' },
+	MISSING_SECTION: { label: 'Section not available', description: 'No section this year matches that grade, program, and name.', tone: 'blocked' },
+	NO_CURRENT_DEMAND: { label: 'Not needed this year', description: 'The subject is not taught this year any more.', tone: 'blocked' },
+	UNQUALIFIED: { label: 'Not qualified', description: 'The teacher is not qualified to teach that subject this year.', tone: 'blocked' },
+	CAP_BLOCKED: { label: 'Over the teaching limit', description: 'Copying this would give the teacher more hours than the limit allows.', tone: 'blocked' },
+	AMBIGUOUS: { label: 'Needs a person to check', description: 'Two sections or assignments look the same, so someone must choose.', tone: 'review' },
+	OTHER: { label: 'Other', description: 'This assignment could not be sorted automatically.', tone: 'review' },
 };
 
 export interface CarryForwardSummary {
@@ -119,10 +119,10 @@ export function summarizeCarryForwardPreview(preview: Pick<CarryForwardPreview, 
 		? 'preserved'
 		: 'ready';
 	const headline = totalsSummary.sourceRows === 0
-		? `No archived Teaching Load rows were found in ${sourceYear.yearLabel}.`
+		? `No teacher assignments were found in ${sourceYear.yearLabel}.`
 		: totalsSummary.carried === 0
-		? `No compatible rows can be carried from ${sourceYear.yearLabel}; every archived row is preserved, occupied, or blocked.`
-		: `${totalsSummary.carried} of ${totalsSummary.sourceRows} archived rows can be carried from ${sourceYear.yearLabel} into empty pairs in ${targetYear.yearLabel}.`;
+		? `Nothing from ${sourceYear.yearLabel} can be copied; every assignment there is already filled, already kept, or cannot be used.`
+		: `${totalsSummary.carried} of ${totalsSummary.sourceRows} teacher assignments from ${sourceYear.yearLabel} would be copied into ${targetYear.yearLabel}.`;
 	return {
 		sourceYearLabel: sourceYear.yearLabel,
 		targetYearLabel: targetYear.yearLabel,
@@ -145,7 +145,7 @@ export function carryForwardReasonCounts(preview: Pick<CarryForwardPreview, 'tot
  * it requires the separately gated, privileged runtime and explicit approval.
  */
 export const CARRY_FORWARD_APPLY_BLOCKED_MESSAGE =
-	'Apply is not available here. “Start from last year” always previews first, and any carry-forward apply requires a separate explicit approval plus the deployed runtime confirmation.';
+	'Nothing is copied here. “Start from last year” only shows you what would be copied, and copying it for real needs a separate explicit approval afterwards.';
 
 export function carryForwardApplyBlockedReason(): string {
 	return CARRY_FORWARD_APPLY_BLOCKED_MESSAGE;
@@ -161,9 +161,9 @@ export function formatCarryForwardError(error: unknown): string {
 		return maybe.response?.data?.actionHint
 			?? maybe.response?.data?.message
 			?? maybe.message
-			?? 'ATLAS could not prepare the carry-forward preview.';
+			?? 'ATLAS could not show what would be copied.';
 	}
-	return 'ATLAS could not prepare the carry-forward preview.';
+	return 'ATLAS could not show what would be copied.';
 }
 
 export function groupCarryForwardRowsByReason(rows: CarryForwardRow[]): Array<{ reason: CarryForwardReason; rows: CarryForwardRow[] }> {

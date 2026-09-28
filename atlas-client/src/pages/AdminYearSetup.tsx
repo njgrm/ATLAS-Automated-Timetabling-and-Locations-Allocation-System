@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { AlertTriangle, Archive, ArrowLeft, RefreshCcw, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Archive, ArrowLeft, CheckCircle2, RefreshCcw, ShieldAlert } from 'lucide-react';
 
 import { RolloverResetPanel } from '@/components/runtime/RolloverResetPanel';
 import { PageHeader } from '@/components/app-shell/PageHeader';
@@ -11,6 +11,7 @@ import { verifySessionToken, type RolloverStatus } from '@/lib/settings';
 import { clearAtlasAuthStorage, clearUserRoleCache, hasAnyAuthToken } from '@/lib/auth';
 import { describeSavedTermSource, describeUnresolvedTermReason, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { resolveVerifiedActiveTermIndex } from '@/lib/timetable-data/timetablePrefetch';
+import { PLAIN_INTRO, PLAIN_PAST_YEARS_HEADING, PLAIN_PAST_YEARS_HELPER, PLAIN_PAST_YEARS_LINK, plainStartedCopy } from '@/components/runtime/rollover-plain-copy';
 import type { BridgeUser } from '@/types';
 
 const ADMIN_ROLES = new Set(['admin', 'SYSTEM_ADMIN', 'officer']);
@@ -128,6 +129,9 @@ export default function AdminYearSetup() {
 	const [status, setStatus] = useState<RolloverStatus | null>(null);
 	/** A5-C2A — bumped by the year-truth retry so it really re-reads. */
 	const [yearTruthNonce, setYearTruthNonce] = useState(0);
+	// A7-C1: set only by the card's own `onApplied`, so the confirmation appears
+	// after a real apply and never on a read.
+	const [started, setStarted] = useState<RolloverStatus | null>(null);
 
 	useEffect(() => {
 		if (!hasAnyAuthToken()) {
@@ -211,58 +215,90 @@ export default function AdminYearSetup() {
 				    the content. No subtitle is invented. A3-C6 D2 removed the
 				    duplicate icon-only ghost that stood beside it, leaving the one
 				    labelled control — so this reads in the singular on purpose. */}
-					<PageHeader title='School Year Setup' />
-					<p className="text-sm text-muted-foreground" data-testid="admin-year-setup-intro">
-						This page moves the old school year to read-only history (Archive and sync) and syncs the new school year from EnrollPro. Normal setup pages link here so year actions never appear beside routine work. The advanced destructive reset is reserved for genuinely disposable test data only.
-					</p>
+				<PageHeader title='School Year Setup' />
+				<p className="text-sm text-muted-foreground" data-testid="admin-year-setup-intro">
+					{PLAIN_INTRO}
+				</p>
 
-					{/* A5-C2A — the page's own year/term truth, from the SAME canonical
+					{/* A5-C2A - the page's own year/term truth, from the SAME canonical
 					    resolver the app shell uses, so this page can never claim the
-					    active year is unresolved while the header says it is active. */}
+					    active year is unresolved while the header says it is active.
+					    Resolved 2026-09-29 against A7-C1, which owns the plain-word
+					    copy and the post-apply confirmation: both are kept, and this
+					    banner is added above them. */}
 					<YearTruthBanner schoolId={schoolId} nonce={yearTruthNonce} onRetry={() => setYearTruthNonce((n) => n + 1)} />
 
-					{/* Dismissible status banner + non-destructive Archive and sync flow.
-					    A5-C2A: the `adminHref` self-link is removed. It pointed at
-					    `/admin/year-setup` — the page the operator is already on — so it
-					    rendered a "Year setup" control beside Preview whose only effect
-					    was to reload the current route. It is a dead-looking
-					    affordance, not a destination. */}
-					{/* A5-C2A: `adminHref={null}` is what actually removes the "Year setup"
-					    self-link. Dropping the prop was NOT enough - the card defaulted
-					    it to `/admin/year-setup`, so the dead control still rendered
-					    beside Preview. The other four consumers (Dashboard, Faculty,
-					    Sections, Teaching Load) keep the default and their links. */}
-					<RolloverGuidanceCard
-						schoolId={schoolId}
-						dismissible={false}
-						allowTestDataMarking
-						adminHref={null}
-						onStatus={setStatus}
-					/>
-
-					{/* RR-09B: archived school years shown as read-only history */}
-					{status?.archivedYears?.length ? (
-						<div className="rounded-xl border border-slate-200 bg-white/80 p-4" data-testid="admin-year-setup-archived">
-							<div className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
-								<Archive className="size-4 text-muted-foreground" />
-								Archived school years
-							</div>
-							<p className="mt-1 text-xs text-muted-foreground">
-								These years are read-only history. Their schedules, sections, and teaching-load data are preserved and never win the active-year election.
-							</p>
-							<ul className="mt-2 grid gap-2 sm:grid-cols-2">
-								{status.archivedYears.map((year) => (
-									<li key={year.enrollProSchoolYearId}>
-										<Button asChild type="button" variant="outline" className="h-auto min-h-11 w-full justify-start whitespace-normal px-3 py-2 text-left" data-testid={`year-setup-history-${year.enrollProSchoolYearId}`}>
-											<Link to={`/teaching-load/history?schoolYearId=${year.enrollProSchoolYearId}`}>
-												<span><span className="font-semibold">{year.yearLabel}</span><span className="block text-xs text-muted-foreground">Open read-only Teaching Load{year.preservedCounts?.publishedGenerationRuns ? ` · ${year.preservedCounts.publishedGenerationRuns} published run(s)` : ''}</span></span>
-											</Link>
-										</Button>
-									</li>
-								))}
-							</ul>
+					{/* A7-C1 SS1.4 - the plain confirmation, in visible text and not only in
+					    a toast. It is triggered by the card's EXISTING onApplied and
+					    reads only status, which the page already holds because the card
+					    already calls loadStatus(true) after an apply. No request is added,
+					    and no number is invented: absent counts say so in plain words. */}
+					{started && status ? (
+						<div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4" data-testid="admin-year-setup-started">
+							<div className="flex items-center gap-1.5 text-sm font-semibold text-emerald-900">
+								<CheckCircle2 className="size-4" />
+								School year started
 						</div>
-					) : null}
+						<ul className="mt-2 space-y-1 text-sm text-emerald-900">
+							{plainStartedCopy({
+								yearLabel: status.enrollProActiveYear?.yearLabel ?? null,
+								sectionCount: status.counts?.sectionCount ?? null,
+								facultyCount: status.counts?.facultyCount ?? null,
+								keptYearLabels: (status.archivedYears ?? []).map((year) => year.yearLabel),
+							}).map((line) => (
+								<li key={line}>{line}</li>
+							))}
+						</ul>
+					</div>
+				) : null}
+
+				{/* Dismissible status banner + non-destructive Archive and sync flow.
+				    A7-C1: `plainLanguageNextStep` is the opt-in that makes this the
+				    only mount of the card that uses the plain treatment; Dashboard,
+				    Sections, Faculty, TeachingLoad and the timetable banners keep
+				    today's wording byte for byte.
+
+				    A5-C2A: `adminHref={null}` is what actually removes the "Year
+				    setup" self-link that sat beside Preview. Dropping the prop was
+				    NOT enough - RolloverGuidanceCard defaults `adminHref` to
+				    `/admin/year-setup`, so on this route the control rendered a link
+				    whose only effect was to reload the page the operator is already
+				    on. The other four consumers keep the default and their links.
+				    This value was re-applied on 2026-09-29 after A7-C1 reintroduced
+				    the explicit href while resolving the plain-word copy. */}
+				<RolloverGuidanceCard
+					schoolId={schoolId}
+					dismissible={false}
+					adminHref={null}
+					allowTestDataMarking
+					plainLanguageNextStep
+					onStatus={setStatus}
+					onApplied={setStarted}
+				/>
+
+				{/* RR-09B: kept school years shown as history. A7-C1 §1.6 drops the
+				    "election" sentence and the read-only technical wording; the
+				    destination, the ids in the href and the `data-testid` are unchanged. */}
+				{status?.archivedYears?.length ? (
+					<div className="rounded-xl border border-slate-200 bg-white/80 p-4" data-testid="admin-year-setup-archived">
+						<div className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+							<Archive className="size-4 text-muted-foreground" />
+							{PLAIN_PAST_YEARS_HEADING}
+						</div>
+						<p className="mt-1 text-xs text-muted-foreground">{PLAIN_PAST_YEARS_HELPER}</p>
+						<ul className="mt-2 grid gap-2 sm:grid-cols-2">
+							{status.archivedYears.map((year) => (
+								<li key={year.enrollProSchoolYearId}>
+									<Button asChild type="button" variant="outline" className="h-auto min-h-11 w-full justify-start whitespace-normal px-3 py-2 text-left" data-testid={`year-setup-history-${year.enrollProSchoolYearId}`}>
+										<Link to={`/teaching-load/history?schoolYearId=${year.enrollProSchoolYearId}`}>
+											<span><span className="font-semibold">{year.yearLabel}</span><span className="block text-xs text-muted-foreground">{PLAIN_PAST_YEARS_LINK}{year.preservedCounts?.publishedGenerationRuns ? ` · ${year.preservedCounts.publishedGenerationRuns} published timetable(s)` : ''}</span></span>
+										</Link>
+									</Button>
+								</li>
+							))}
+						</ul>
+					</div>
+				) : null}
 
 					{/* Optional audited carry-forward preview (zero-write). Apply is a
 						separate, separately approved HIGH action and is not reachable here. */}

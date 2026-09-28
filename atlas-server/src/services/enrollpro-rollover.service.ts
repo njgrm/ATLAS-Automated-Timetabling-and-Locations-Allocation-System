@@ -406,18 +406,21 @@ export function resolveMappingConflictAction(publishedResetBlocked: boolean, con
 	if (isArchiveResolvableConflict(conflictCodes)) {
 		return {
 			recommendedAction: 'RUN_ARCHIVE_AND_SYNC',
-			message: 'EnrollPro moved to a new school year. Archive the old school year and sync the new one.',
+			// A7-C1 (2026-09-28): PROSE ONLY. `recommendedAction` and every `code`
+			// are the machine contract and are unchanged; only the words an
+			// administrator reads changed.
+			message: 'EnrollPro has moved to a new school year. Keep the old school year for reference, then start the new one in ATLAS.',
 		};
 	}
 	if (publishedResetBlocked) {
 		return {
 			recommendedAction: 'REVIEW_MAPPING_CONFLICT',
-			message: 'ATLAS has dummy data using the EnrollPro year ID, but published schedule artifacts block a reset. Review migration before syncing.',
+			message: 'ATLAS has leftover data under the EnrollPro school year, and a published timetable stops it from being cleared. Check it before starting the new year.',
 		};
 	}
 	return {
 		recommendedAction: 'RESET_DUMMY_YEAR',
-		message: 'ATLAS has dummy data using the EnrollPro year ID. Reset dummy data and sync from EnrollPro.',
+		message: 'ATLAS has leftover data under the EnrollPro school year. Clear it, then start the new year from EnrollPro.',
 	};
 }
 
@@ -433,7 +436,7 @@ function buildDriftState(input: {
 	if (!input.upstreamReachable || !input.upstreamYear) {
 		return {
 			status: 'enrollpro-unreachable',
-			message: 'EnrollPro active school year could not be verified. ATLAS will keep using saved setup data until the source is reachable.',
+			message: 'ATLAS could not reach EnrollPro to check the school year. It keeps using the setup it already has.',
 			recommendedAction: 'RETRY_ENROLLPRO',
 			atlasSchoolYearId: input.atlasSchoolYearId,
 			enrollProSchoolYearId: null,
@@ -458,7 +461,7 @@ function buildDriftState(input: {
 	if (input.atlasSchoolYearId !== input.upstreamYear.id) {
 		return {
 			status: 'atlas-stale',
-			message: `EnrollPro is now on ${input.upstreamYear.yearLabel}. Sync the new school year before creating a timetable.`,
+			message: `EnrollPro has moved to ${input.upstreamYear.yearLabel}. Start ${input.upstreamYear.yearLabel} in ATLAS before building a timetable.`,
 			recommendedAction: 'RUN_ROLLOVER_SYNC',
 			atlasSchoolYearId: input.atlasSchoolYearId,
 			enrollProSchoolYearId: input.upstreamYear.id,
@@ -469,7 +472,7 @@ function buildDriftState(input: {
 
 	return {
 		status: 'aligned',
-		message: `ATLAS is aligned with EnrollPro ${input.upstreamYear.yearLabel}.`,
+		message: `ATLAS is on ${input.upstreamYear.yearLabel}, the same school year as EnrollPro.`,
 		recommendedAction: 'NONE',
 		atlasSchoolYearId: input.atlasSchoolYearId,
 		enrollProSchoolYearId: input.upstreamYear.id,
@@ -491,7 +494,7 @@ export async function findMappingConflicts(
 	if (mirror && mirror.yearLabel !== upstreamYear.yearLabel) {
 		conflicts.push({
 			code: 'YEAR_LABEL_MISMATCH',
-			message: `ATLAS already mirrors EnrollPro year ${upstreamYear.id} as ${mirror.yearLabel}, not ${upstreamYear.yearLabel}.`,
+			message: `ATLAS recorded this school year as ${mirror.yearLabel}, but EnrollPro now calls it ${upstreamYear.yearLabel}.`,
 			details: { existingYearLabel: mirror.yearLabel, enrollProYearLabel: upstreamYear.yearLabel },
 		});
 	}
@@ -507,7 +510,7 @@ export async function findMappingConflicts(
 			if (overlap === 0) {
 				conflicts.push({
 					code: 'SECTION_ID_COLLISION',
-					message: `ATLAS already has section data for school year #${upstreamYear.id}, but it does not match EnrollPro ${upstreamYear.yearLabel}.`,
+					message: `ATLAS already has section data for this school year, but it does not match EnrollPro ${upstreamYear.yearLabel}.`,
 					details: { existingSectionCount: existingSections.length, enrollProSectionCount: sectionExternalIds.size },
 				});
 			}
@@ -735,7 +738,7 @@ async function buildDummyYearResetPreview(
 			counts: emptyDummyYearCounts(),
 			blockers: [{
 				code: 'ENROLLPRO_UNAVAILABLE',
-				message: 'EnrollPro active school year must be reachable before dummy data can be reset.',
+				message: 'ATLAS must be able to reach EnrollPro before it can clear test data.',
 			}],
 		};
 	}
@@ -810,7 +813,7 @@ export async function classifyRecoveryState(
 		return {
 			...base,
 			classification: 'MANUAL_RECONFIGURE_REQUIRED',
-			message: `${status.reconfiguredSections.length} section(s) were renamed, re-graded, or re-programmed. Review and acknowledge the changes before syncing.`,
+			message: `${status.reconfiguredSections.length} section(s) changed name, grade, or program in EnrollPro. Review them before starting the new school year.`,
 			canClearTestData: false,
 		};
 	}
@@ -845,11 +848,11 @@ export async function classifyRecoveryState(
 			return {
 				...base,
 				classification: canClear ? 'TEST_DATA_RECOVERY_AVAILABLE' : 'TEST_DATA_RECOVERY_BLOCKED',
-				message: canClear
-					? `ATLAS has existing data for school year #${status.enrollProActiveYear!.id} that does not match the current EnrollPro feed. This may be leftover test data. You can clear it and re-sync from EnrollPro.`
-					: status.testDataMarked
-						? 'ATLAS has a marked test-data collision, but no clearable ATLAS-owned artifacts were found.'
-						: 'ATLAS has a section ID collision. Mark this school year as test data before recovery can be offered.',
+			message: canClear
+				? 'ATLAS has data for this school year that does not match EnrollPro. It may be leftover test data. You can clear it and start the new year from EnrollPro.'
+				: status.testDataMarked
+					? 'This school year is marked as test data, but ATLAS has nothing to clear.'
+					: 'ATLAS has leftover section data for this school year. Mark the year as test data to clear it.',
 				blockers,
 				canClearTestData: canClear,
 			};
@@ -863,7 +866,7 @@ export async function classifyRecoveryState(
 			return {
 				...base,
 				classification: 'ARCHIVE_AND_SYNC_AVAILABLE',
-				message: 'EnrollPro moved to a new school year. Archive the old school year and sync the new one. History is preserved.',
+				message: 'EnrollPro has moved to a new school year. The old school year is kept for reference.',
 				canClearTestData: false,
 			};
 		}
@@ -871,7 +874,7 @@ export async function classifyRecoveryState(
 		return {
 			...base,
 			classification: 'MANUAL_MAPPING_CONFLICT_REQUIRED',
-			message: 'ATLAS has a mapping conflict that requires manual review. This is not a test-data collision.',
+			message: 'This school year needs a person to look at it. It is not test data that can be cleared.',
 			canClearTestData: false,
 		};
 	}
@@ -880,7 +883,7 @@ export async function classifyRecoveryState(
 		return {
 			...base,
 			classification: 'AUTO_ROLLOVER_READY',
-			message: 'EnrollPro has a newer active school year. Automatic rollover sync is ready to apply.',
+			message: 'EnrollPro has moved to a newer school year. ATLAS can start it now.',
 			canClearTestData: false,
 		};
 	}
@@ -888,7 +891,7 @@ export async function classifyRecoveryState(
 	return {
 		...base,
 		classification: 'MANUAL_MAPPING_CONFLICT_REQUIRED',
-		message: 'Rollover requires manual review.',
+		message: 'This school year needs a person to look at it.',
 		canClearTestData: false,
 	};
 }
@@ -1524,7 +1527,10 @@ export async function applyRolloverSync(
 	const acknowledgedIds = new Set(options?.acknowledgeReconfiguredSectionIds ?? []);
 	const unacknowledged = preview.reconfiguredSections.filter((s) => !acknowledgedIds.has(s.externalId));
 	if (unacknowledged.length > 0) {
-		throw serviceError(409, 'SECTION_RECONFIGURATION_REVIEW_REQUIRED', `${unacknowledged.length} section(s) were renamed, re-graded, or re-programmed since the last sync. Review and acknowledge the changes before syncing.`, {
+		// A7-C1 (2026-09-28): MESSAGE PROSE ONLY. This string is rendered as the
+		// card's error line on `/admin/year-setup`. `code`, `details` (the
+		// unacknowledged section ids), the `actionHint` and the gate are unchanged.
+		throw serviceError(409, 'SECTION_RECONFIGURATION_REVIEW_REQUIRED', `${unacknowledged.length} section(s) changed name, grade, or program since ATLAS last read EnrollPro. Review them before starting the new school year.`, {
 			actionHint: 'Preview the rollover, review the reconfigured sections, then apply with the acknowledged section IDs.',
 			details: {
 				unacknowledgedSections: unacknowledged.map((s) => ({
@@ -2149,7 +2155,9 @@ async function composeResumedRecoveryPreview(
 		enrollProActiveYear: upstreamYear,
 		drift: {
 			status: aligned ? 'aligned' : 'atlas-stale',
-			message: aligned ? `ATLAS is aligned with EnrollPro ${upstreamYear.yearLabel}.` : 'ATLAS is not aligned with the EnrollPro active year.',
+			message: aligned
+				? `ATLAS is on ${upstreamYear.yearLabel}, the same school year as EnrollPro.`
+				: 'ATLAS is not on the same school year as EnrollPro.',
 			recommendedAction: aligned ? 'NONE' : 'RUN_ROLLOVER_SYNC',
 			atlasSchoolYearId,
 			enrollProSchoolYearId: upstreamYear.id,

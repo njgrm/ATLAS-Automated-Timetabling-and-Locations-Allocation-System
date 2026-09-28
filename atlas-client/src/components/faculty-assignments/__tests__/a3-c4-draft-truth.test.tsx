@@ -757,21 +757,71 @@ test('B4: "wide span" is a DIFFERENT concept and is left alone', () => {
 	assert.match(facultyRow, /Wide span/, '"Wide span" must remain; it is subject span, not hours');
 });
 
-test('B5 CROSS_LANE: the out-of-fence two-word form is reported, not edited', () => {
-	// `components/faculty/**` is NOT this stream's fence. Assert the old label is
-	// still there (we did not edit it) and pin the exact line for the owning lane
-	// so the planner can hand it over in one sentence.
+test('B5 CROSS_LANE: the out-of-fence two-word form is now CLOSED by its owning lane', () => {
+	// `components/faculty/**` was NOT this stream's fence, so B5 asserted the old
+	// label was STILL there and handed it to the owning lane in one sentence. That
+	// handover has now happened: A6 owns `components/faculty/**` and A6-C3 (Lane C
+	// item #15) routed `FacultyRow.tsx` to `BELOW_STANDARD_LABEL`.
+	//
+	// RE-BASELINED by A6-C3, 2026-09-29, deliberately — the pin was re-based to
+	// the CLOSED state rather than the assertion quietly relaxed, which is what
+	// this test's own B6 preamble asks for. The test and its name are kept, the
+	// expectation is now the opposite one, and the reason is this comment.
 	const lines = read('src/components/faculty/FacultyRow.tsx').split('\n');
 	const offenders = lines
 		.map((line, index) => ({ line: index + 1, text: line }))
 		.filter((entry) => entry.text.includes("'Below standard'"));
-	assert.ok(
-		offenders.length > 0,
-		'FacultyRow.tsx is expected to still carry "Below standard" — this stream must NOT have edited it',
+	assert.equal(
+		offenders.length,
+		0,
+		'FacultyRow.tsx must no longer carry "Below standard" — A6-C3 closed the B5 handover and routed it to BELOW_STANDARD_LABEL',
 	);
-	for (const offender of offenders) {
-		console.log(`CROSS_LANE_FOLLOWUP: atlas-client/src/components/faculty/FacultyRow.tsx:${offender.line} — ${offender.text.trim()}`);
-	}
+	assert.match(
+		lines.join('\n'),
+		/BELOW_STANDARD_LABEL/,
+		'the out-of-fence site must be routed to the canonical constant, not to a copied literal',
+	);
+	console.log('CROSS_LANE_CLOSED: atlas-client/src/components/faculty/FacultyRow.tsx is routed to BELOW_STANDARD_LABEL by A6-C3 (2026-09-29), closing the B5 handover');
+});
+
+test('B5-R: the out-of-fence site is now routed to the canonical constant', async () => {
+	// The replacement for the row above, and it is stronger than "the literal is
+	// gone": a deleted string is satisfied by deletion, while a ROUTED label is
+	// satisfied only by using the constant A3 owns, which is what stops the
+	// vocabulary drifting apart again.
+	const source = read('src/components/faculty/FacultyRow.tsx');
+	assert.match(
+		source,
+		/import \{ BELOW_STANDARD_LABEL \} from '@\/lib\/teaching-load-labels'/,
+		'the canonical constant must be imported, so the label cannot drift from the module that owns it',
+	);
+	assert.match(
+		source,
+		/label: BELOW_STANDARD_LABEL,/,
+		'the below-standard case must take its label FROM the constant',
+	);
+	assert.doesNotMatch(
+		source,
+		/['"`]Below standard['"`]/,
+		'and the two-word literal must be gone from this file entirely',
+	);
+	// And the function actually returns the canonical value for a below-standard
+	// teacher, which is the claim the source rows above cannot make on their own.
+	const { getFacultyLoadPresentation } = await import('@/components/faculty/FacultyRow');
+	const below = {
+		id: 1, firstName: 'Ana', lastName: 'Bautista', department: 'Mathematics',
+		isActiveForScheduling: true, isPlaceholder: false, isClassAdviser: false,
+		maxHoursPerWeek: 40, actualTeachingHours: 20, sectionTeachingHours: 20, policyCreditedHours: 20,
+		subjectCount: 2, sectionCount: 2, advisoryEquivalentHours: 0, ancillaryMinutesPerWeek: 0,
+		advisedSectionName: null, version: 1, assignments: [],
+	} as any;
+	const presentation = getFacultyLoadPresentation(below);
+	assert.equal(
+		presentation.label,
+		BELOW_STANDARD_LABEL,
+		'a below-standard teacher must render the canonical label the rest of the product uses',
+	);
+	assert.notEqual(presentation.label, 'Below standard', 'and never the two-word form this pin used to hold');
 });
 
 /* ------------------------------------------------------------------ *

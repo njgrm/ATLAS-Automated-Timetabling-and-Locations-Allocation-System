@@ -108,7 +108,13 @@ const { openTeacherReview, STAFF_WORKLOAD_REVIEW_LABEL } = teacherReviewEntry as
 	openTeacherReview: (s: { setViewMode: (m: 'teacher' | 'allocation') => void; setReviewModalOpen: (o: boolean) => void }) => void;
 	STAFF_WORKLOAD_REVIEW_LABEL: string;
 };
-const { reviewModalCopy } = await import('@/components/faculty-assignments/teachingLoadWorkspaceMetrics');
+const { reviewModalCopy, buildTeachingLoadWorkspaceState } = await import('@/components/faculty-assignments/teachingLoadWorkspaceMetrics');
+const {
+	isTeachingLoadSourceDegraded,
+	isTeachingLoadSourceUnverified,
+	teachingLoadUnverifiedReason,
+	teachingLoadUnverifiedStatus,
+} = await import('@/components/faculty-assignments/WorkspaceToolbar');
 const { Link } = (await import('react-router-dom')) as any;
 const { Fragment: Fragment2 } = (await import('react')) as any;
 const { ConfirmationModal } = await import('@/ui/confirmation-modal');
@@ -1296,7 +1302,20 @@ test('A6-C2-1 the `Load summary` breakdown has NO sideways scroller and stacks e
  */
 const REAL_QUEUE_COVERAGE = { coverageAssigned: 23, coverageTotal: 24, coverageUnassigned: 0, activeDraftCount: 0 };
 
-function RealRepairQueueSlot(props: { sourceDegraded: boolean; advancedGridVisible?: boolean }) {
+function RealRepairQueueSlot(props: {
+	sourceDegraded: boolean;
+	advancedGridVisible?: boolean;
+	/**
+	 * A6 C3 (QA finding B3, 2026-09-29): REQUIRED in the HARNESS, exactly as it
+	 * is in the hook. This parameter used to be optional with a
+	 * `{ dataSource: 'live', isOnline: true }` default, which meant a new row
+	 * could reach the healthy rendering by omitting a required argument — the
+	 * harness would quietly stand in for a caller's decision. There is no default
+	 * now, so TypeScript names every mount that must state the source it is
+	 * about, and a row cannot be added without saying so.
+	 */
+	sourceState: { dataSource: 'live' | 'cached' | 'refreshing' | 'none'; isOnline: boolean };
+}) {
 	const [, setAdvancedGridVisible] = useState(true);
 	const queue = useTeachingLoadRepairQueue({
 		searchParams: new URLSearchParams(),
@@ -1310,6 +1329,10 @@ function RealRepairQueueSlot(props: { sourceDegraded: boolean; advancedGridVisib
 		coverageTotal: REAL_QUEUE_COVERAGE.coverageTotal,
 		coverageUnassigned: REAL_QUEUE_COVERAGE.coverageUnassigned,
 		sourceDegraded: props.sourceDegraded,
+		// The verified source is the DEFAULT here, so the healthy rows above stay
+		// exactly as they were. Every degraded row passes the state it is actually
+		// about, because the withheld string now depends on it.
+		sourceState: props.sourceState,
 		writeBlockedReason: null,
 		onSelectFaculty: () => {},
 		onSave: () => {},
@@ -1331,7 +1354,13 @@ function RealRepairQueueSlot(props: { sourceDegraded: boolean; advancedGridVisib
 
 /** Row 2 as the page composes it: the REAL repair queue, plus the More-menu link. */
 function headerHost(overrides: Record<string, any> = {}, slotOverrides: Record<string, any> = {}, sourceDegraded = false) {
-	return render(createElement(WorkspaceToolbar as any, {
+	// A6 C3 (QA finding B3): the queue's REQUIRED `sourceState` is wired from the
+	// SAME toolbar props the row is about, because that is exactly what the page
+	// does — one `data.dataSource` / `data.isOnline` pair feeds the header and the
+	// hook. So a row that states its source on the header cannot leave the queue
+	// out, and the healthy mounts below need no special case. `slotOverrides` is
+	// spread LAST and still wins, for the rows that pin the slot explicitly.
+	const props: Record<string, any> = {
 		realAssignedPairs: 22, syntheticPlaceholderPairs: 1, unassignedPairs: 2, totalPairs: 24,
 		overCapCount: 1, excessTeachingCount: 0, policyReady: true,
 		onShowExcessTeachingLoad: () => {}, onShowTemporarySubstitutes: () => {},
@@ -1343,12 +1372,19 @@ function headerHost(overrides: Record<string, any> = {}, slotOverrides: Record<s
 		workspaceStateLabel: 'Ready', workspaceStateDescription: 'Live roster verified.',
 		workspaceStateNextAction: 'Assign the remaining classes.',
 		activeDraftCount: 0, saving: false, onSave: () => {}, onRetrySource: () => {},
+		...overrides,
+	};
+	return render(createElement(WorkspaceToolbar as any, {
+		...props,
 		// A6 C2 CORRECTION: the slot is the hook's OWN output. `slotOverrides`
 		// stays for the one caller that needs to pin a prop, and it is spread
 		// LAST so it can still override.
-		stateLineSlot: createElement(Fragment2, null, createElement(RealRepairQueueSlot as any, { sourceDegraded, ...slotOverrides })),
+		stateLineSlot: createElement(Fragment2, null, createElement(RealRepairQueueSlot as any, {
+			sourceDegraded,
+			sourceState: { dataSource: props.dataSource, isOnline: props.isOnline },
+			...slotOverrides,
+		})),
 		historyAction: createElement(Link as any, { to: '/teaching-load/history', 'data-testid': 'teaching-load-history-link' }, 'Archived load'),
-		...overrides,
 	}));
 }
 
@@ -1424,25 +1460,25 @@ test('A6-C2-3 a degraded source shows ONE amber line and NO live-looking derived
 		{
 			label: 'CACHED + read-only + degradedNotice',
 			toolbar: { dataSource: 'cached', isWorkspaceWritable: false, dataSourceNotice: 'EnrollPro could not be reached, so ATLAS is using the last saved sections.' },
-			slot: { sourceDegraded: true },
+			slot: { sourceDegraded: true, sourceState: { dataSource: 'cached', isOnline: true } },
 		},
 		// `CACHED + a real saved-at timestamp`.
 		{
 			label: 'CACHED + realSavedAt',
 			toolbar: { dataSource: 'cached', isWorkspaceWritable: false, dataSourceNotice: 'x', savedAtLabel: '2026-09-28T09:14:00.000Z' },
-			slot: { sourceDegraded: true },
+			slot: { sourceDegraded: true, sourceState: { dataSource: 'cached', isOnline: true } },
 		},
 		// `OFFLINE`: EnrollPro is not what is down, but the source is still not verified.
 		{
 			label: 'OFFLINE',
 			toolbar: { isOnline: false },
-			slot: { sourceDegraded: true },
+			slot: { sourceDegraded: true, sourceState: { dataSource: 'live', isOnline: false } },
 		},
 		// `NONE`: there is no source at all.
 		{
 			label: 'NONE',
 			toolbar: { dataSource: 'none', isWorkspaceWritable: false },
-			slot: { sourceDegraded: true },
+			slot: { sourceDegraded: true, sourceState: { dataSource: 'none', isOnline: true } },
 		},
 	];
 
@@ -1511,11 +1547,31 @@ test('A6-C2-3 a degraded source shows ONE amber line and NO live-looking derived
 		// row, so a reader is not left with a gap they must interpret.
 		const queueChip = row2.querySelector('[data-testid="teaching-load-current-repair"]');
 		assert.ok(queueChip, `${state.label}: the repair queue must still render on the degraded row`);
-		assert.match(
-			queueChip!.textContent ?? '',
-			/Unverified .* EnrollPro is not reachable/,
-			`${state.label}: the queue must name what is unknown in place of the figure`,
-		);
+		// SUPERSEDED BY A6-C3-3 (N-3), 2026-09-29: the withheld string must name
+		// the cause the page actually has. This assertion was applied to ALL FOUR
+		// states, so it demanded "EnrollPro is not reachable" from `OFFLINE` (where
+		// ATLAS is the thing that is down) and from `NONE` (where there is no source
+		// to reach) — both false. It is RETAINED, not deleted, and now scoped to the
+		// states where it is true; the replacement table below covers all four.
+		if (state.slot.sourceState.dataSource === 'cached') {
+			assert.match(
+				queueChip!.textContent ?? '',
+				/Unverified .* EnrollPro is not reachable/,
+				`${state.label}: the queue must name what is unknown in place of the figure`,
+			);
+		}
+		// A6-C3-3 (N-3), the replacement: the withheld string is per STATE, and it
+		// must not blame EnrollPro for a state EnrollPro did not cause.
+		const chipText = queueChip!.textContent ?? '';
+		if (state.slot.sourceState.isOnline === false) {
+			assert.match(chipText, /Unverified .* ATLAS is offline/, `${state.label}: the withheld string must name ATLAS, which is what is down`);
+			assert.doesNotMatch(chipText, /EnrollPro is not reachable/, `${state.label}: do not blame EnrollPro when ATLAS is offline`);
+		} else if (state.slot.sourceState.dataSource === 'none') {
+			assert.match(chipText, /Unverified .* no live Teaching Load source is available/, `${state.label}: the withheld string must name the missing source`);
+			assert.doesNotMatch(chipText, /EnrollPro/, `${state.label}: do not name EnrollPro when there is no source at all`);
+		} else {
+			assert.match(chipText, /Unverified .* EnrollPro is not reachable/, `${state.label}: the cached case keeps its established wording`);
+		}
 		assert.match(
 			queueChip!.textContent ?? '',
 			/Teaching Load not verified/,
@@ -1538,13 +1594,13 @@ test('A6-C2-3 a degraded source shows ONE amber line and NO live-looking derived
 	// rather than invented when it does not.
 	const stamped = headerHost(
 		{ dataSource: 'cached', isWorkspaceWritable: false, dataSourceNotice: 'x', savedAtLabel: '2026-09-28T09:14:00.000Z' },
-		{ sourceDegraded: true },
+		{ sourceDegraded: true, sourceState: { dataSource: 'cached', isOnline: true } },
 	);
 	const stampedLine = stamped.querySelector('[data-testid="teaching-load-degraded-notice"]')!;
 	assert.match(stampedLine.textContent ?? '', /Using saved data from /, 'a real timestamp is used when the page has one');
 	const unstamped = headerHost(
 		{ dataSource: 'cached', isWorkspaceWritable: false, dataSourceNotice: 'x' },
-		{ sourceDegraded: true },
+		{ sourceDegraded: true, sourceState: { dataSource: 'cached', isOnline: true } },
 	);
 	assert.match(
 		unstamped.querySelector('[data-testid="teaching-load-degraded-notice"]')!.textContent ?? '',
@@ -1942,4 +1998,554 @@ test('A6-C2-7b with a teacher selected the DESCRIPTION names them, and the title
 	// shared with the profile dialog and is not re-implemented per copy.
 	await outsidePointerDown(withTeacher);
 	assert.equal(portalledDialog() === null, true, 'the dialog must still dismiss on an outside pointer-down');
+});
+
+/* ================================================================== *
+ * A6 C3 SLICE 1 — the workspace-state copy builder, extracted out of
+ * `pages/TeachingLoad.tsx` (which was 995 physical lines against the
+ * AGENTS.md §8 cap of 1000).
+ *
+ * The row is table-driven over ALL SIX branches, and the expected strings are
+ * written out byte-for-byte rather than derived from the function, so a
+ * reword inside the extraction is caught here. That is the whole risk of this
+ * slice: an extraction that quietly improves a string is still a behaviour
+ * change wearing a refactor's name.
+ * ================================================================== */
+
+test('A6-C3-1-EXTRACT the extracted workspace-state builder returns all six branches verbatim', () => {
+	const BASE = {
+		isOnline: true,
+		dataSource: 'live' as const,
+		canPersistAssignments: true,
+		activeDraftCount: 0,
+		degradedNotice: null,
+		error: null,
+	};
+
+	const ROWS: Array<{ label: string; input: Record<string, any>; expected: Record<string, any> }> = [
+		{
+			label: 'OFFLINE wins over every source state',
+			input: { ...BASE, isOnline: false, dataSource: 'live' },
+			expected: {
+				label: 'Offline',
+				description: 'ATLAS is showing the last saved teaching load. Changes stay off until the connection returns.',
+				nextAction: 'Reconnect, then refresh before saving assignments.',
+				writeBlockedReason: 'Saving is off until ATLAS reconnects. Your work is safe to review.',
+			},
+		},
+		{
+			label: 'REFRESHING is its own state, not a failure',
+			input: { ...BASE, dataSource: 'refreshing' },
+			expected: {
+				label: 'Checking source',
+				description: 'ATLAS is comparing the saved workspace with EnrollPro. The last saved snapshot remains visible while this finishes.',
+				nextAction: 'Wait for verification before saving new changes.',
+				writeBlockedReason: 'Saving is off while ATLAS verifies the roster with EnrollPro.',
+			},
+		},
+		{
+			label: 'LIVE + writable, no draft',
+			input: { ...BASE },
+			expected: {
+				label: 'EnrollPro roster verified',
+				description: 'ATLAS Teaching Load draft. Assignment data was checked against EnrollPro. Draft changes can be saved.',
+				nextAction: 'Inspect one teacher or fill section coverage gaps.',
+				writeBlockedReason: null,
+			},
+		},
+		{
+			label: 'LIVE + writable, WITH a draft \u2014 the next action names the draft',
+			input: { ...BASE, activeDraftCount: 3 },
+			expected: {
+				label: 'EnrollPro roster verified',
+				description: 'ATLAS Teaching Load draft. Assignment data was checked against EnrollPro. Draft changes can be saved.',
+				nextAction: 'Save the draft changes before leaving this page.',
+				writeBlockedReason: null,
+			},
+		},
+		{
+			label: 'CACHED + writable, no notice \u2014 the default sentence is used',
+			input: { ...BASE, dataSource: 'cached' },
+			expected: {
+				label: 'ATLAS Teaching Load draft',
+				description: 'ATLAS is using synced EnrollPro section data for Teaching Load. This is expected. Draft changes can be saved.',
+				nextAction: 'Check the classes below. Refresh later to pick up any new EnrollPro changes.',
+				writeBlockedReason: null,
+			},
+		},
+		{
+			label: 'CACHED + writable + a real notice \u2014 the page\'s notice WINS over the default',
+			input: { ...BASE, dataSource: 'cached', activeDraftCount: 2, degradedNotice: 'EnrollPro could not be reached, so ATLAS is using the last saved sections.' },
+			expected: {
+				label: 'ATLAS Teaching Load draft',
+				description: 'EnrollPro could not be reached, so ATLAS is using the last saved sections.',
+				nextAction: 'Save your changes. Refresh later to pick up any new EnrollPro changes.',
+				writeBlockedReason: null,
+			},
+		},
+		{
+			label: 'CACHED + read-only',
+			input: { ...BASE, dataSource: 'cached', canPersistAssignments: false },
+			expected: {
+				label: 'Read-only saved data',
+				description: 'ATLAS can show the saved assignments, but it cannot safely save changes yet.',
+				nextAction: 'Refresh from EnrollPro before saving, suggesting, or resetting assignments.',
+				writeBlockedReason: 'Saving is off until ATLAS reconnects to EnrollPro.',
+			},
+		},
+		{
+			label: 'NONE, with a real error',
+			input: { ...BASE, dataSource: 'none', canPersistAssignments: false, error: 'The Teaching Load source returned an error.' },
+			expected: {
+				label: 'No assignment data',
+				description: 'The Teaching Load source returned an error.',
+				nextAction: 'Retry the connection before assigning teachers.',
+				writeBlockedReason: 'Saving is off because no teaching load data is available.',
+			},
+		},
+		{
+			label: 'NONE + LIVE-but-not-writable falls through to the same last branch',
+			input: { ...BASE, dataSource: 'live', canPersistAssignments: false },
+			expected: {
+				label: 'No assignment data',
+				description: 'ATLAS could not load a live source or a saved teaching load.',
+				nextAction: 'Retry the connection before assigning teachers.',
+				writeBlockedReason: 'Saving is off because no teaching load data is available.',
+			},
+		},
+	];
+
+	for (const row of ROWS) {
+		const state = buildTeachingLoadWorkspaceState(row.input as any);
+		assert.equal(state.label, row.expected.label, `${row.label}: label`);
+		assert.equal(state.description, row.expected.description, `${row.label}: description`);
+		assert.equal(state.nextAction, row.expected.nextAction, `${row.label}: nextAction`);
+		assert.equal(state.writeBlockedReason, row.expected.writeBlockedReason, `${row.label}: writeBlockedReason`);
+	}
+});
+
+test('A6-C3-1-WIRING the page CALLS the extracted builder and no longer inlines the copy', () => {
+	// The extraction is only real if the page stopped holding the strings. This
+	// row is a wiring row, not acceptance evidence for a visible change: the
+	// copy itself is byte-identical, so nothing a scheduler sees moved.
+	const page = read('src/pages/TeachingLoad.tsx');
+	assert.doesNotMatch(
+		page,
+		/label: 'No assignment data'/,
+		'the page must not carry the last branch\'s copy inline any more \u2014 the builder is the authority',
+	);
+	assert.doesNotMatch(
+		page,
+		/label: 'EnrollPro roster verified'/,
+		'no branch of the header copy may remain inline in the page',
+	);
+	assert.match(
+		page,
+		/buildTeachingLoadWorkspaceState,/,
+		'the page must import and call the extracted builder',
+	);
+	assert.match(
+		page,
+		/useMemo\(\(\) => buildTeachingLoadWorkspaceState\(/,
+		'the page still decides WHEN to recompute, through the same useMemo',
+	);
+	// And the builder really lives in the pure-derivation module that holds the
+	// page's other derivations, with no React import beside it.
+	const metrics = read('src/components/faculty-assignments/teachingLoadWorkspaceMetrics.ts');
+	assert.match(
+		metrics,
+		/export function buildTeachingLoadWorkspaceState\(/,
+		'the builder must be exported from the pure-derivation module',
+	);
+	assert.doesNotMatch(
+		metrics,
+		/^import .* from 'react'/m,
+		'the extraction target must stay React-free, or the page could hide a side effect in it',
+	);
+});
+
+/* ================================================================== *
+ * A6 C3 SLICE 2 — the c2 follow-ups N-1, N-2 and N-3.
+ *
+ * N-1  while `refreshing`, no snapshot-derived figure may be printed as if
+ *      it were live (the header alert and the queue's readiness claim).
+ * N-2  the withholding is per item, not one blanket loop: a department label
+ *      survives, every derived figure is withheld, and every TITLE is
+ *      qualified so no row asserts a snapshot state flatly.
+ * N-3  the withheld string names the cause the page actually has, instead of
+ *      always claiming EnrollPro is down.
+ * ================================================================== */
+
+test('A6-C3-3-N1 while ATLAS is CHECKING, no snapshot figure is printed as if it were live', () => {
+	// THE STATE A6 C2 MISSED. `refreshing` is deliberately not "degraded" — ATLAS
+	// is actively asking EnrollPro — so the header correctly showed
+	// `Checking EnrollPro for the latest roster…`. But the repair queue was
+	// gated on the DEGRADED predicate, so on the same row it published
+	// `Teaching Load looks ready` and `23 of 24 classes have a teacher` from the
+	// last saved snapshot, and the header's own `Above weekly max: 1` count came
+	// from that same snapshot. Three unconfirmed numbers on one row, beside the
+	// sentence saying the check is still running.
+	const host = headerHost(
+		{ dataSource: 'refreshing', dataSourceNotice: null },
+		{ sourceDegraded: false, sourceState: { dataSource: 'refreshing', isOnline: true } },
+	);
+	const row2 = host.querySelector('[data-testid="teaching-load-readiness-strip"]')!;
+	assert.ok(row2, 'row 2 must render in the refreshing state');
+	const rowText = row2.textContent ?? '';
+
+	// The honest sentence stays, and it is the ONLY status on the row.
+	assert.match(
+		rowText,
+		/Checking EnrollPro for the latest roster/,
+		'the checking sentence is the honest one and must survive',
+	);
+	assert.equal(
+		row2.querySelectorAll('[data-testid="teaching-load-degraded-notice"]').length,
+		0,
+		'a live check must NOT claim EnrollPro is unreachable (A6 C2 kept this, and it is right)',
+	);
+	// And nothing on the row asserts a snapshot-derived state.
+	assert.doesNotMatch(rowText, /Teaching Load looks ready/, 'the queue must not claim readiness mid-check');
+	assert.doesNotMatch(rowText, /23 of 24 classes have a teacher/, 'the completeness figure must be withheld mid-check');
+	assert.match(
+		rowText,
+		/Teaching Load not verified/,
+		'and the queue must state non-verification rather than readiness',
+	);
+	assert.match(
+		rowText,
+		/Unverified — ATLAS is checking EnrollPro now, so this figure is withheld\./,
+		'the withheld string must name the actual cause, not blame EnrollPro while ATLAS is only checking',
+	);
+	assert.doesNotMatch(rowText, /% staffed/, 'the staffed percentage must be withheld mid-check');
+	assert.doesNotMatch(rowText, /\b\d+ classes? need a teacher/, 'a computed open-class count must be withheld mid-check');
+	assert.doesNotMatch(rowText, /Above weekly max/, 'the over-cap count comes from the last saved snapshot and must be withheld mid-check');
+	assert.doesNotMatch(rowText, /\b100%\b/, 'never a confident 100% beside a running check');
+	assert.equal(
+		row2.querySelector('[data-testid="teaching-load-alert-over-cap"]'),
+		null,
+		'the alert count must be absent while the source is unconfirmed, not merely reworded',
+	);
+	// Not a dead row: the queue and its ONE action are still there.
+	assert.ok(row2.querySelector('[data-testid="teaching-load-current-repair"]'), 'the queue must still render while checking');
+	const action = row2.querySelector('[data-testid="teaching-load-repair-review"]') as HTMLButtonElement;
+	assert.ok(action, 'the ONE primary action must remain while checking');
+	assert.equal(action.disabled, false, 'and it must stay operable');
+});
+
+/** A real teacher with no load, and a real teacher over their own cap. */
+const MISSING_LOAD_TEACHER: any = {
+	id: 11, firstName: 'Ana', lastName: 'Bautista', department: 'Mathematics',
+	isActiveForScheduling: true, isPlaceholder: false,
+	maxHoursPerWeek: 40, actualTeachingHours: 0, sectionTeachingHours: 0, policyCreditedHours: 0,
+};
+const OVER_CAP_TEACHER: any = {
+	id: 12, firstName: 'Rene', lastName: 'Cruz', department: 'English',
+	isActiveForScheduling: true, isPlaceholder: false,
+	maxHoursPerWeek: 20, actualTeachingHours: 26, sectionTeachingHours: 26, policyCreditedHours: 26,
+};
+
+/** The REAL hook over REAL teachers, with the queue focused on one item. */
+function RealFacultyQueueHost(props: {
+	sourceState: { dataSource: 'live' | 'cached' | 'refreshing' | 'none'; isOnline: boolean };
+	activeItemId: string;
+	coverageUnassigned?: number;
+}) {
+	const [, setAdvancedGridVisible] = useState(true);
+	const queue = useTeachingLoadRepairQueue({
+		searchParams: new URLSearchParams(),
+		setSearchParams: () => {},
+		faculty: [MISSING_LOAD_TEACHER, OVER_CAP_TEACHER],
+		effectiveAssignmentsByFaculty: {},
+		activeDraftCount: 0,
+		isReadOnlyMode: false,
+		selectedId: null,
+		coverageAssigned: 6,
+		coverageTotal: 8,
+		coverageUnassigned: props.coverageUnassigned ?? 0,
+		sourceDegraded: props.sourceState.dataSource !== 'live' || !props.sourceState.isOnline,
+		sourceState: props.sourceState,
+		writeBlockedReason: null,
+		onSelectFaculty: () => {},
+		onSave: () => {},
+		onShowSubjectCoverage: () => {},
+		onShowTeachersWithoutLoad: () => {},
+		onShowOverloaded: () => {},
+		onShowPlaceholder: () => {},
+		onOpenReview: () => {},
+		setAdvancedGridVisible,
+	});
+	return createElement(TeachingLoadRepairQueue as any, {
+		items: queue.repairQueueItems,
+		// Focused by id so EVERY row can be read from the real component, not
+		// just whichever one sorts first.
+		activeItemId: props.activeItemId,
+		isReadOnly: false, saving: false, advancedGridVisible: true,
+		onPrimaryAction: queue.handleRepairPrimaryAction,
+	});
+}
+
+test('A6-C3-3-N2 the withholding is PER ITEM: a department survives, every figure and title is qualified', () => {
+	// A6 C2 withheld EVERYTHING non-draft with one blanket loop. That was too
+	// WIDE in one item and too NARROW in one state. This row pins the corrected
+	// policy on the three items it distinguishes, with real teachers rather than
+	// invented items, and the coverage figure is non-zero so the `countLabel`
+	// assertion is not vacuous.
+	const STATE = { dataSource: 'cached', isOnline: true } as const;
+	const mounted = render(createElement(RealFacultyQueueHost as any, {
+		sourceState: STATE,
+		activeItemId: 'over-cap-12',
+		coverageUnassigned: 2,
+	}));
+	const queue = mounted.querySelector('[data-testid="teaching-load-repair-queue"]')!;
+	assert.ok(queue, 'the real queue must render');
+
+	/** Re-render the same real queue focused on one item, and read that row. */
+	function rowFor(itemId: string): { text: string; actionLabel: string | null; disabled: boolean } {
+		const host = render(createElement(RealFacultyQueueHost as any, {
+			sourceState: STATE,
+			activeItemId: itemId,
+			coverageUnassigned: 2,
+		}));
+		const chip = host.querySelector('[data-testid="teaching-load-current-repair"]');
+		assert.ok(chip, `${itemId}: the item must still be in the queue, not dropped`);
+		assert.equal(
+			chip!.getAttribute('data-repair-kind'),
+			{ 'missing-load': 'missing-load', 'teacher-missing-load': 'teacher-missing-load', 'over-cap': 'over-cap' }[itemId === 'missing-load' ? 'missing-load' : (itemId === 'teacher-missing-11' ? 'teacher-missing-load' : 'over-cap')],
+			`${itemId}: the queue must still address the item by its own kind`,
+		);
+		const button = host.querySelector('[data-testid="teaching-load-repair-review"]') as HTMLButtonElement;
+		assert.ok(button, `${itemId}: the row must keep its ONE action \u2014 a withheld row must never be a dead row`);
+		return { text: chip!.textContent ?? '', actionLabel: button.getAttribute('aria-label'), disabled: button.disabled };
+	}
+
+	// (1) `teacher-missing-load` KEEPS its department. It is a label on a record
+	// already on screen, not a figure derived from the snapshot, so withholding
+	// it told the scheduler LESS and hid nothing they could not already read.
+	const missing = rowFor('teacher-missing-11');
+	assert.match(
+		missing.text,
+		/Mathematics department/,
+		'a department label on an on-screen record must survive the withholding',
+	);
+	assert.doesNotMatch(
+		missing.text,
+		/Unverified/,
+		'and it must not be replaced by the withheld string either \u2014 that was the over-reach',
+	);
+	// (4) …but its TITLE is still qualified: `… has no load` is a
+	// snapshot-derived state and must not sit flatly on the row.
+	assert.match(
+		missing.text,
+		/Last saved data \u2014 Bautista, Ana has no load/,
+		'a snapshot-derived title must be qualified, not printed as current',
+	);
+	assert.equal(missing.actionLabel, 'Assign teaching load', 'and the action must be the operator\u2019s own, unchanged');
+
+	// (2) `over-cap` loses its figure AND its qualification is explicit.
+	const overCap = rowFor('over-cap-12');
+	assert.match(
+		overCap.text,
+		/Last saved data \u2014 Cruz, Rene is over the weekly max/,
+		'the over-cap title must be qualified too',
+	);
+	assert.doesNotMatch(
+		overCap.text,
+		/\d+(\.\d+)?h used \/ \d+h max/,
+		'the snapshot figure itself must be withheld, not merely caveated',
+	);
+	assert.match(
+		overCap.text,
+		/Unverified \u2014 EnrollPro is not reachable, so this figure is withheld\./,
+		'and replaced by the withheld string, which names the real cause',
+	);
+	assert.equal(overCap.actionLabel, 'Move classes', 'the over-cap action must be untouched');
+
+	// (3) `missing-load` keeps its task and loses its count badge.
+	const open = rowFor('missing-load');
+	assert.match(
+		open.text,
+		/Last saved data \u2014 Assign teachers to open classes/,
+		'the open-class title is also snapshot-derived and must be qualified',
+	);
+	assert.doesNotMatch(
+		open.text,
+		/2 open/,
+		'the countLabel badge must be deleted while the figure is withheld',
+	);
+	assert.equal(open.actionLabel, 'Review subject coverage', 'and its action must be untouched');
+
+	// (5) NO row became a dead row, and NONE of them was dropped: the hook still
+	// produced every item it would have produced when verified.
+	for (const row of [missing, overCap, open]) {
+		assert.equal(row.disabled, false, 'a withheld row must stay operable');
+	}
+});
+
+test('A6-C3-3-N3 the withheld string names the cause the page ACTUALLY has', () => {
+	// The defect, as rendered: `OFFLINE` and `NONE` both published
+	// `Unverified \u2014 EnrollPro is not reachable`. That is false when ATLAS is the
+	// thing that is down, and false when there is no source to reach at all. An
+	// operator told "EnrollPro not reachable" while offline waits for the wrong
+	// thing to come back.
+	const STATES: Array<{ label: string; input: { dataSource: any; isOnline: boolean }; unverified: boolean; reason: string; status: string }> = [
+		{
+			label: 'LIVE + online',
+			input: { dataSource: 'live', isOnline: true },
+			unverified: false,
+			reason: 'EnrollPro not reachable',
+			status: 'Unverified \u2014 EnrollPro is not reachable, so this figure is withheld.',
+		},
+		{
+			label: 'CACHED + online',
+			input: { dataSource: 'cached', isOnline: true },
+			unverified: true,
+			reason: 'EnrollPro not reachable',
+			// BYTE-IDENTICAL to the pre-change `UNVERIFIED_STATUS` module constant.
+			status: 'Unverified \u2014 EnrollPro is not reachable, so this figure is withheld.',
+		},
+		{
+			label: 'REFRESHING + online',
+			input: { dataSource: 'refreshing', isOnline: true },
+			unverified: true,
+			reason: 'ATLAS is checking EnrollPro now',
+			status: 'Unverified \u2014 ATLAS is checking EnrollPro now, so this figure is withheld.',
+		},
+		{
+			label: 'OFFLINE',
+			input: { dataSource: 'live', isOnline: false },
+			unverified: true,
+			reason: 'ATLAS is offline',
+			status: 'Unverified \u2014 ATLAS is offline, so this figure is withheld.',
+		},
+		{
+			label: 'NONE + online',
+			input: { dataSource: 'none', isOnline: true },
+			unverified: true,
+			reason: 'no live Teaching Load source is available',
+			status: 'Unverified \u2014 no live Teaching Load source is available, so this figure is withheld.',
+		},
+		{
+			label: 'OFFLINE beats every other state',
+			input: { dataSource: 'none', isOnline: false },
+			unverified: true,
+			reason: 'ATLAS is offline',
+			status: 'Unverified \u2014 ATLAS is offline, so this figure is withheld.',
+		},
+	];
+
+	for (const state of STATES) {
+		assert.equal(
+			isTeachingLoadSourceUnverified(state.input),
+			state.unverified,
+			`${state.label}: the wider unverified predicate`,
+		);
+		assert.equal(
+			teachingLoadUnverifiedReason(state.input),
+			state.reason,
+			`${state.label}: the amber line's clause`,
+		);
+		assert.equal(
+			teachingLoadUnverifiedStatus(state.input),
+			state.status,
+			`${state.label}: the withheld sentence`,
+		);
+	}
+
+	// The one hard compatibility promise, asserted as its own comparison rather
+	// than as another table entry: the common cached case must read exactly as
+	// it read before this change.
+	assert.equal(
+		teachingLoadUnverifiedStatus({ dataSource: 'cached', isOnline: true }),
+		'Unverified \u2014 EnrollPro is not reachable, so this figure is withheld.',
+		'the cached + online withheld string must be byte-identical to the one A6 C2 printed',
+	);
+	// And the narrower predicate is UNCHANGED, including `refreshing`, so the
+	// header keeps its right to say "checking" rather than "down". This is the
+	// REAL exported function, not a copy of it.
+	//
+	// A6 C3 (QA finding B2, 2026-09-29): this used to declare a LOCAL clone of
+	// `isTeachingLoadSourceDegraded` and assert against that clone. A control that
+	// re-implements the rule it is meant to police passes whatever production
+	// does — it was vacuous, and it would have stayed green if the real predicate
+	// had been deleted. The clone is gone; the import above is the one under test.
+	// The predicate's OWN parameter type, so the table below is checked against
+	// the real signature instead of an `any` bag that would accept a renamed or
+	// dropped field. `WorkspaceToolbarProps['dataSource']` is the union the
+	// production signature uses.
+	type DegradedInput = Parameters<typeof isTeachingLoadSourceDegraded>[0];
+	const NARROW_STATES: Array<{ label: string; input: DegradedInput; degraded: boolean }> = [
+		{ label: 'LIVE + online + no notice', input: { dataSource: 'live', isOnline: true, dataSourceNotice: null }, degraded: false },
+		{ label: 'LIVE + a leftover notice', input: { dataSource: 'live', isOnline: true, dataSourceNotice: 'x' }, degraded: true },
+		{ label: 'CACHED + online', input: { dataSource: 'cached', isOnline: true, dataSourceNotice: null }, degraded: true },
+		{ label: 'REFRESHING + online', input: { dataSource: 'refreshing', isOnline: true, dataSourceNotice: null }, degraded: false },
+		{ label: 'REFRESHING + a leftover notice', input: { dataSource: 'refreshing', isOnline: true, dataSourceNotice: 'x' }, degraded: false },
+		{ label: 'NONE + online', input: { dataSource: 'none', isOnline: true, dataSourceNotice: null }, degraded: true },
+		{ label: 'OFFLINE', input: { dataSource: 'live', isOnline: false, dataSourceNotice: null }, degraded: true },
+	];
+	for (const state of NARROW_STATES) {
+		assert.equal(
+			isTeachingLoadSourceDegraded(state.input),
+			state.degraded,
+			`${state.label}: the narrow predicate must still decide the amber line — a live check is NOT a failure, and a leftover notice does not turn one into a failure`,
+		);
+	}
+	// The distinction that B1/B2 are about, stated against the two REAL
+	// functions: `refreshing` is not degraded, but it IS unverified.
+	assert.equal(
+		isTeachingLoadSourceDegraded({ dataSource: 'refreshing', isOnline: true, dataSourceNotice: null }),
+		false,
+		'a live check must never be called a failure — the header keeps its own honest wording',
+	);
+	assert.equal(
+		isTeachingLoadSourceUnverified({ dataSource: 'refreshing', isOnline: true }),
+		true,
+		'while the SAME state must still withhold the figures, which is the wider question',
+	);
+});
+
+test('A6-C3-3-WIRING the page threads the SOURCE STATE, and the hook requires it', () => {
+	const page = read('src/pages/TeachingLoad.tsx');
+	assert.match(
+		page,
+		/sourceState: \{ dataSource: data\.dataSource, isOnline: data\.isOnline \}/,
+		'the page must hand the hook the real source state, not a second boolean',
+	);
+	assert.match(
+		page,
+		/^\t\tsourceDegraded,$/m,
+		'the existing shared-predicate boolean must stay, next to it',
+	);
+	// Required, not optional: an omitted argument must not render live figures.
+	const hook = read('src/hooks/useTeachingLoadRepairQueue.ts');
+	assert.match(hook, /^\tsourceState: \{/m, 'the hook parameter must be REQUIRED');
+	assert.doesNotMatch(hook, /sourceState\?:/, 'an optional source state would reopen this defect silently');
+	// The rule has ONE implementation, and the module-level constant it replaced
+	// is gone rather than left beside the new one.
+	const toolbar = read('src/components/faculty-assignments/WorkspaceToolbar.tsx');
+	assert.match(toolbar, /export function isTeachingLoadSourceUnverified\(/, 'the wider predicate must be exported from the shared module');
+	assert.match(toolbar, /export function teachingLoadUnverifiedReason\(/, 'the cause must be written in the shared module');
+	assert.match(toolbar, /export function teachingLoadUnverifiedStatus\(/, 'and so must the withheld sentence');
+	assert.doesNotMatch(
+		hook,
+		/const UNVERIFIED_STATUS =/,
+		'the one-size-fits-all constant must be deleted, not left beside the per-state one',
+	);
+	assert.match(
+		hook,
+		/isTeachingLoadSourceUnverified\(sourceState\)/,
+		'the hook must derive the flag from the shared module rather than re-state the rule',
+	);
+	// The amber line still uses the NARROW predicate \u2014 a live check must not be
+	// called a failure.
+	assert.match(
+		toolbar,
+		/const isSourceDegraded = isTeachingLoadSourceDegraded\(\{ dataSource, isOnline, dataSourceNotice \}\)/,
+		'the amber line keeps the narrow predicate, and its call is byte-identical to before',
+	);
+	assert.match(
+		toolbar,
+		/const isSourceUnverified = isTeachingLoadSourceUnverified\(\{ dataSource, isOnline \}\)/,
+		'the wider predicate is decided once, here',
+	);
 });

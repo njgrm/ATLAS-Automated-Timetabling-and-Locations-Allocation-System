@@ -548,7 +548,7 @@ export async function resolveEnrollProTermContract(input: { schoolId: number; sc
 	if (!mirror || mirror.isArchived) {
 		return {
 			state: 'BLOCKED', source: 'none', degraded: false, code: 'TERM_YEAR_NOT_MIRRORED',
-			message: 'The requested school year is not an active ATLAS EnrollPro mirror.', contract: null,
+			message: 'The requested school year is not the school year ATLAS is on.', contract: null,
 		};
 	}
 	return resolveTermContractWithDependencies(input, {
@@ -572,7 +572,7 @@ export async function syncActiveTermContractAuthority(input: SyncInput): Promise
 		select: { id: true, isArchived: true, termContractCache: true, termContractCachedAt: true },
 	});
 	if (!mirror || mirror.isArchived) {
-		return { state: 'BLOCKED', code: 'TERM_YEAR_NOT_MIRRORED', message: 'The requested school year is not an active ATLAS EnrollPro mirror.', written: false, idempotent: false, semanticRevision: null, contract: null };
+		return { state: 'BLOCKED', code: 'TERM_YEAR_NOT_MIRRORED', message: 'The requested school year is not the school year ATLAS is on.', written: false, idempotent: false, semanticRevision: null, contract: null };
 	}
 	const now = input.now?.() ?? new Date();
 	const live = await (input.fetchLive ?? (() => fetchEnrollProTermContract(input)))();
@@ -989,9 +989,14 @@ export async function previewTermCacheSync(input: {
 		mirrorId: mirror.id,
 		state: alreadyCurrent ? 'ALREADY_CURRENT' : 'READY',
 		code: contract.activeTermState.code,
+		// A7-C1 (2026-09-28, planner ruling R1): MESSAGE PROSE ONLY. This string
+		// renders inside the `/admin/year-setup` ordered-terms dialog, so the parent
+		// packet's "server-side strings this page renders must read the same plain
+		// way" applies to it. `code`, `state`, `fingerprint`, `confirmationText`,
+		// `zeroWrite` and every gate are unchanged.
 		message: alreadyCurrent
 			? 'The saved ordered terms already match EnrollPro; no write is required.'
-			: 'Saving stores only this school year\u2019s ordered term authority. It does not sync faculty, sections, or Teaching Load.',
+			: 'Saving stores only this school year\u2019s ordered terms. It does not bring in teachers, sections, or Teaching Load.',
 		format: contract.format,
 		terms: contract.terms,
 		liveSemanticRevision: contract.semanticRevision,

@@ -43,6 +43,15 @@ function hours(minutes: number): string {
  * Optional "Start from last year" preview. It lives in Year Setup so it never
  * competes with routine daily Teaching Load work. It only ever calls the
  * zero-write preview endpoint; no apply action is reachable from here.
+ *
+ * A7-C1: the copy is plain on purpose — the demo operator is a school
+ * scheduler, not a data operator. `git grep` at base `181c08df` proved this
+ * panel is the ONLY importer of the labels it renders (the only other importer
+ * of `teaching-load-carry-forward-helpers.ts` is that module's own unit test,
+ * which asserts label LENGTH, not label text), so these strings can be changed
+ * directly with no other page affected. The machine contract is untouched: the
+ * reason CODES stay the `data-testid` and the map key, and the preview request
+ * body is byte-identical.
  */
 export function CarryForwardReviewPanel({ schoolId, activeSchoolYearId, archivedYears }: CarryForwardReviewPanelProps) {
 	const defaultSourceYearId = useMemo(() => pickDefaultSourceYear(archivedYears)?.enrollProSchoolYearId ?? null, [archivedYears]);
@@ -91,11 +100,11 @@ export function CarryForwardReviewPanel({ schoolId, activeSchoolYearId, archived
 					<Archive className="size-4 text-muted-foreground" />
 					Start from last year (optional)
 				</div>
-				<p className="mt-1 text-xs text-muted-foreground">
-					{activeSchoolYearId == null
-						? 'ATLAS needs a resolved active school year before a carry-forward preview is available.'
-						: 'No archived school year has Teaching Load history to start from yet.'}
-				</p>
+			<p className="mt-1 text-xs text-muted-foreground">
+				{activeSchoolYearId == null
+					? 'ATLAS needs a settled school year before this can be shown.'
+					: 'No past school year has a teaching load to start from yet.'}
+			</p>
 			</div>
 		);
 	}
@@ -106,38 +115,38 @@ export function CarryForwardReviewPanel({ schoolId, activeSchoolYearId, archived
 				<Archive className="size-4 text-muted-foreground" />
 				Start from last year (optional)
 			</div>
-			<p className="mt-1 text-xs text-muted-foreground">
-				Preview how compatible assignments from one archived year map into the current empty Teaching Load. This is a read-only preview; nothing is applied and archived history is never changed.
-			</p>
+		<p className="mt-1 text-xs text-muted-foreground">
+			Copy last year's teacher assignments into this year's Teaching Load as a starting point. Nothing changes until you choose to confirm.
+		</p>
 
-			<div className="mt-3 grid gap-3 sm:grid-cols-[minmax(12rem,16rem)_minmax(12rem,1fr)]">
-				<div className="space-y-1.5">
-					<Label htmlFor="carry-forward-source-year">Archived source year</Label>
-					<Select
-						value={sourceYearId ? String(sourceYearId) : ''}
-						onValueChange={(value) => {
-							setSourceYearId(Number(value));
-							setPreview(null);
-							setError(null);
-						}}
-					>
-						<SelectTrigger id="carry-forward-source-year" className="min-h-11" data-testid="carry-forward-source-select">
-							<SelectValue placeholder="Choose an archived year" />
-						</SelectTrigger>
-						<SelectContent>
-							{archivedYears.map((year) => (
-								<SelectItem key={year.enrollProSchoolYearId} value={String(year.enrollProSchoolYearId)}>
-									{year.yearLabel}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-				</div>
-				<div className="flex items-end gap-2">
-					<Button type="button" size="sm" className="min-h-11 gap-2" onClick={() => void handlePreview()} disabled={loading || !sourceYearId} data-testid="carry-forward-preview-button">
-						{loading ? <Loader2 className="size-4 animate-spin" /> : <PlayCircle className="size-4" />}
-						Preview carry-forward
-					</Button>
+		<div className="mt-3 grid gap-3 sm:grid-cols-[minmax(12rem,16rem)_minmax(12rem,1fr)]">
+			<div className="space-y-1.5">
+				<Label htmlFor="carry-forward-source-year">Which year to copy from</Label>
+				<Select
+					value={sourceYearId ? String(sourceYearId) : ''}
+					onValueChange={(value) => {
+						setSourceYearId(Number(value));
+						setPreview(null);
+						setError(null);
+					}}
+				>
+					<SelectTrigger id="carry-forward-source-year" className="min-h-11" data-testid="carry-forward-source-select">
+						<SelectValue placeholder="Choose a year" />
+					</SelectTrigger>
+					<SelectContent>
+						{archivedYears.map((year) => (
+							<SelectItem key={year.enrollProSchoolYearId} value={String(year.enrollProSchoolYearId)}>
+								{year.yearLabel}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</div>
+			<div className="flex items-end gap-2">
+				<Button type="button" size="sm" className="min-h-11 gap-2" onClick={() => void handlePreview()} disabled={loading || !sourceYearId} data-testid="carry-forward-preview-button">
+					{loading ? <Loader2 className="size-4 animate-spin" /> : <PlayCircle className="size-4" />}
+					See what would be copied
+				</Button>
 					{preview || error ? (
 						<Button type="button" variant="outline" size="sm" className="min-h-11" onClick={handleCancel} data-testid="carry-forward-cancel">
 							Cancel
@@ -160,13 +169,13 @@ export function CarryForwardReviewPanel({ schoolId, activeSchoolYearId, archived
 							<Badge variant="outline" className="gap-1">
 								{summary.sourceYearLabel} <ArrowRight className="size-3" /> {summary.targetYearLabel}
 							</Badge>
-							<Badge variant="outline">{summary.carried} carry</Badge>
-							<Badge variant="outline">{summary.skipped} skipped</Badge>
-							{zeroWriteSafe ? (
-								<Badge variant="outline" className="gap-1 text-emerald-700">
-									<ShieldCheck className="size-3" /> Zero-write preview
-								</Badge>
-							) : null}
+						<Badge variant="outline">{summary.carried} would be copied</Badge>
+						<Badge variant="outline">{summary.skipped} not copied</Badge>
+						{zeroWriteSafe ? (
+							<Badge variant="outline" className="gap-1 text-emerald-700">
+								<ShieldCheck className="size-3" /> Nothing has been changed yet
+							</Badge>
+						) : null}
 						</div>
 					</div>
 
@@ -184,13 +193,13 @@ export function CarryForwardReviewPanel({ schoolId, activeSchoolYearId, archived
 						</div>
 					) : (
 						<div className="rounded-xl border border-dashed p-3 text-xs text-muted-foreground" data-testid="carry-forward-no-rows">
-							No archived rows were returned for this school year.
+							Nothing was found for this school year.
 						</div>
 					)}
 
 					{(preview.totals.ALREADY_OCCUPIED ?? 0) > 0 ? (
 						<div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700" data-testid="carry-forward-partial-target">
-							{preview.totals.ALREADY_OCCUPIED} target pair{preview.totals.ALREADY_OCCUPIED === 1 ? ' is' : 's are'} already occupied and preserved. Carry-forward fills empty pairs only.
+							{preview.totals.ALREADY_OCCUPIED} teacher + subject slot{preview.totals.ALREADY_OCCUPIED === 1 ? ' is' : 's are'} already filled and kept. Copying only fills empty slots.
 						</div>
 					) : null}
 
@@ -220,7 +229,7 @@ export function CarryForwardReviewPanel({ schoolId, activeSchoolYearId, archived
 
 					{groups.filter((group) => group.reason === 'EXACT_CARRY').length > 0 ? (
 						<div className="rounded-xl border p-3" data-testid="carry-forward-carried-rows">
-							<p className="text-xs font-semibold text-slate-800">Rows that would carry (review before any future approval)</p>
+							<p className="text-xs font-semibold text-slate-800">Assignments that would be copied (nothing has been copied yet)</p>
 							<ul className="mt-2 space-y-1 text-xs text-muted-foreground">
 								{groups.find((group) => group.reason === 'EXACT_CARRY')!.rows.map((row) => (
 									<li key={row.sourceOwnershipId}>
