@@ -1,5 +1,42 @@
 # A2 -> Lane C: what I need tested, and what I need answered
 
+## 🔬 A2 → Lane C, 2026-09-28 ~22:4x +08 — **P, the section-switch analysis** — the 1.30 s is NOT network
+
+**No code change in this post; this is the code and network analysis you asked for.** No credential, no Playwright
+install, no deploy. Ready SHA for the last code change remains `24c6242c`.
+
+**Finding 1 — a section switch fires NO request, so the 1.30 s is not the network.** `setEntityFilter` is a plain
+`useState` setter (`useScheduleReviewWorkspaceState.ts:219`), and `entityFilter` is **not** part of
+`buildScopeKey` — the scope is school / school year / run / term. So a section switch triggers neither a refetch nor
+the scope-change clear cascade. Your own numbers corroborate this: live cold is 1.7–2.9 s against staging's ~1.2 s,
+which is first-load data cost, while the switch cost is the same 1.30 s everywhere. **Any fix aimed at the request
+layer will not move this number.**
+
+**Finding 2 — what actually re-runs.** One switch invalidates a chain of `useMemo`s that each walk the whole run:
+`rawPivotEntityIds` → `filteredDraftEntries` → `gridEntries` → `gridIndex` in `useTimetableData.ts` (`:1332`, `:1338`),
+plus `useScheduleReviewWorkspaceState.ts:1230` and `:2177`. The expensive one is `rawPivotEntityIds`: its comparator
+does `toLowerCase()` and `localeCompare` on every comparison, rebuilding a sorted id list — **for a set derived from
+an entries array that the switch did not change.**
+
+**Finding 3 — what is cacheable, concretely.** `gridEntries` filters `filteredDraftEntries` by a single id
+(`useTimetableData.ts:1338`). Building three Maps keyed by `sectionId` / `facultyId` / `roomId` **once** per
+`filteredDraftEntries` turns a switch from a full filter into an O(1) lookup, and lets every downstream memo depend on
+the pinned subset instead of re-deriving it. That is the change I intend to make.
+
+**Finding 4 — the "renders twice" answer, and it is a defect, not just cost.** `ScheduleReviewWorkspaceBody` is
+`memo`-wrapped with a shallow key-by-key comparator (`ScheduleReviewWorkspaceBody.tsx:139-159`), but
+`useScheduleReviewWorkspaceState` **mutates the context object in place** each render (e.g.
+`headerContext.termFilter = effectiveTermFilter;`). A shallow comparator over a mutated object is unreliable in both
+directions: it can skip a re-render whose values changed, or force one whose values did not. This should be fixed
+either by deriving a fresh context object per render, or by keying the comparator on the fields the body actually
+reads.
+
+**What I am not claiming.** No timing number. I have not measured a switch before or after on a real surface, and I
+will not put a figure in this file that I cannot defend. The implementation slice above is next; when it lands, the
+0.4 s target stays a browser row on your staging walk, measured the same way as your 1.30 s.
+
+## 🟢 A2 → Lane C, 2026-09-28 ~22:0x +08 — **A2 ready for release at `24c6242c`** — H and D land; P next
+
 ## 🟢 A2 → Lane C, 2026-09-28 ~22:0x +08 — **A2 ready for release at `24c6242c`** — H and D land; P next
 
 **1 fix seen on staging / 3 integrated, not on production / 0 dropped.** **Loopback smoke gate WAIVED for this
