@@ -198,7 +198,7 @@ export function AdminWorkspaceFrame({
 								{ title: 'Check source status', body: 'Confirm whether ATLAS is using live source data or a saved setup copy.', target: 'Source chip' },
 								{ title: 'Review the first issue', body: 'Use the visible list or table to find the first row needing attention.', target: 'Setup list' },
 								{ title: 'Use one action first', body: 'Press the primary row action before opening advanced details.', target: 'Primary action' },
-								{ title: 'Open filters only when needed', body: 'Use More filters to narrow long lists without crowding the page.', target: 'More filters' },
+								{ title: 'Narrow long lists', body: 'Use the filter controls in the toolbar above the list. On pages where the toolbar has a "More filters" button, the narrower lookups sit behind it.', target: 'More filters' },
 							]}
 						/>
 						{secondaryActions ? (
@@ -241,6 +241,8 @@ export function AdminSearchFilterToolbar({
 	onToggleFilters,
 	hasActiveFilters,
 	primaryFilterCount,
+	primaryFilterLayout,
+	searchMaxWidthClassName,
 	children,
 }: {
 	searchValue: string;
@@ -261,6 +263,29 @@ export function AdminSearchFilterToolbar({
 	 * renders this toolbar without the prop) keep today's collapse behaviour.
 	 */
 	primaryFilterCount?: number;
+	/**
+	 * A3-C9 (additive, default-off): WHERE the always-visible primary filters
+	 * sit.
+	 *
+	 * - `'own-row'` (the default, and what an omitted prop means): today's
+	 *   separate `admin-primary-filter-row` BELOW the search row.
+	 * - `'inline'`: inside the SAME flex row as the search input, so the whole
+	 *   toolbar is one row of controls.
+	 *
+	 * This does not change who opts in, how many children are primary, or the
+	 * disclosure's behaviour — only the placement. Every existing consumer
+	 * omits it and is byte-for-byte unchanged; the two sibling pages measured
+	 * at authoring time (`src/pages/Sections.tsx`, `src/pages/Faculty.tsx`)
+	 * never pass `primaryFilterCount` either, so they keep the full collapse.
+	 */
+	primaryFilterLayout?: 'own-row' | 'inline';
+	/**
+	 * A3-C9 (additive, default-off): the width class on the search wrapper.
+	 * Defaults to `sm:max-w-sm`, so an omitted prop renders the pre-existing
+	 * width exactly. An `inline` consumer with a wide filter set needs a narrower
+	 * search box to keep the single row inside 1366px.
+	 */
+	searchMaxWidthClassName?: string;
 	children?: ReactNode;
 }) {
 	// A3-15: split the children into the always-visible primary group and the
@@ -270,11 +295,15 @@ export function AdminSearchFilterToolbar({
 	const primaryCount = Math.min(Math.max(primaryFilterCount ?? 0, 0), childList.length);
 	const primaryChildren = childList.slice(0, primaryCount);
 	const overflowChildren = childList.slice(primaryCount);
+	// A3-C9: default-off. Resolved once so the branch below cannot disagree
+	// with the data attribute a control reads.
+	const layout = primaryFilterLayout ?? 'own-row';
+	const inline = layout === 'inline';
 	return (
-		<div className="space-y-1.5" data-testid="admin-search-filter-toolbar">
+		<div className="space-y-1.5" data-testid="admin-search-filter-toolbar" data-primary-filter-layout={layout}>
 			<div className="flex gap-2 md:items-center md:justify-between">
 				<div className="flex min-w-0 flex-1 items-center gap-2">
-					<div className="relative min-w-0 flex-1 sm:max-w-sm">
+					<div className={cn('relative min-w-0 flex-1', searchMaxWidthClassName ?? 'sm:max-w-sm')}>
 						<Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
 						<Input
 							placeholder={searchPlaceholder}
@@ -283,6 +312,17 @@ export function AdminSearchFilterToolbar({
 							className="h-8 pl-9"
 						/>
 					</div>
+					{/* A3-C9 inline layout. `flex-nowrap` + `min-w-0` on the children
+						wrapper is what makes "one row" a promise: a child that is too
+						wide shrinks or truncates inside its own width class instead
+						of pushing the toolbar onto a second row. The width budget is
+						verified by source-level arithmetic in the Subjects control,
+						not by this component. */}
+					{inline && primaryChildren.length > 0 ? (
+						<div className="flex min-w-0 flex-1 flex-nowrap items-center gap-2" data-testid="admin-inline-filter-row">
+							{primaryChildren}
+						</div>
+					) : null}
 					{overflowChildren.length > 0 ? (
 						<Button variant={filtersOpen ? 'secondary' : 'outline'} size="sm" className="h-8 shrink-0 gap-2 font-bold" onClick={onToggleFilters}>
 							<SlidersHorizontal className="size-4" />
@@ -292,7 +332,7 @@ export function AdminSearchFilterToolbar({
 					) : null}
 				</div>
 			</div>
-			{primaryChildren.length > 0 ? (
+			{!inline && primaryChildren.length > 0 ? (
 				<div className="flex flex-wrap items-center gap-2" data-testid="admin-primary-filter-row">
 					{primaryChildren}
 				</div>

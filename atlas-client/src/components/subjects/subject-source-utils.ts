@@ -98,9 +98,13 @@ const TERM_AUTHORITY_FALLBACK: TermAuthorityCopy = {
 };
 
 /**
- * Resolve calm operator copy for a term-authority state. A healthy
- * `VERIFIED_LIVE` state is routine and already has its own compact line, so it
- * resolves to an empty description and the caller keeps that line.
+ * Resolve calm operator copy for a term-authority state.
+ *
+ * A3-C9: the healthy `VERIFIED_LIVE` state is ROUTINE and now renders nothing at
+ * all in the banner — the year-and-terms contract moved to the quiet
+ * `SubjectTermContractPopover` in the table footer. It still resolves to an
+ * empty description, so the resolver stays the single place that decides which
+ * states need exception copy.
  */
 export function resolveTermAuthorityCopy(
 	termAuthority: TermAuthority | null,

@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { Button } from '@/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 
@@ -11,6 +12,16 @@ type Props = {
 	totalPages: number;
 	onPageChange: (page: number) => void;
 	onPageSizeChange: (size: number) => void;
+	/**
+	 * A3-C9 (additive, default-off): an optional control rendered at the head of
+	 * this footer's left group. Omitted renders exactly the previous markup, so
+	 * every other caller of this component is unchanged.
+	 *
+	 * It exists so the year-and-terms contract has a NON-HEADER home: this bar
+	 * sits under the rows it describes, outside the page's filter/banner region,
+	 * so showing it there costs the header nothing.
+	 */
+	leading?: ReactNode;
 };
 
 export function SubjectTablePagination({
@@ -20,10 +31,12 @@ export function SubjectTablePagination({
 	totalPages,
 	onPageChange,
 	onPageSizeChange,
+	leading,
 }: Props) {
 	return (
 		<div className="flex items-center justify-between gap-3">
 			<div className="flex items-center gap-4 text-xs text-muted-foreground font-medium">
+				{leading ? <span className="flex items-center">{leading}</span> : null}
 				<span>
 					{totalFiltered === 0
 						? 'No results'

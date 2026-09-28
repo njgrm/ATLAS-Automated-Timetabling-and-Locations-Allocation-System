@@ -18,6 +18,8 @@ import {
 } from '@/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { ROOM_TYPE_LABELS } from '@/lib/subject-constants';
+import { GRADE_COLORS } from '@/lib/grade-labels';
+import { cn } from '@/lib/utils';
 import { AccessibleInfo } from '@/components/smart/AccessibleInfo';
 import { programFullLabel } from '@/lib/deped-glossary';
 import { splitSubjectFeatures, subjectFeatureHelp, ownerDepartmentPhrase } from './subject-feature-presentation';
@@ -58,14 +60,42 @@ export function SubjectRow({
 		return rank ? `Term ${rank}` : null;
 	}, [subject.rotationTermLabel, subject.rotationTermRank]);
 
-	const gradeSummary = useMemo(() => {
-		if (!subject.gradeLevels.length) return null;
-		const sorted = [...subject.gradeLevels].sort((a, b) => a - b);
-		if (sorted.length > 2 && sorted[sorted.length - 1] - sorted[0] === sorted.length - 1) {
-			return `GR${sorted[0]}–${sorted[sorted.length - 1]}`;
+	// A3-C9: the grade column used to render ONE uncoloured string — "GR7–GR10"
+	// or "GR7, GR8" — so the DepEd grade meaning (G7 green, G8 yellow, G9 red,
+	// G10 blue, AGENTS.md §8) was invisible on the biggest catalog screen. It is
+	// now one chip per grade.
+	//
+	// THE TREATMENT IS THE TEACHERS TABLE'S, NOT A SECOND ONE. `FacultyRow`'s
+	// `FacultyAssignedGradeChips` is the same badge geometry and the same
+	// `GRADE_COLORS` token source, so a scheduler reads grade 9 as red in both
+	// tables. `GradeLevelBadge` was deliberately NOT used here: it carries a
+	// different map (borders + dark variants) and importing it would put a
+	// second palette on this surface, which is the exact defect an earlier pass
+	// in this lane had to delete and rebuild. One palette, one look.
+	//
+	// A grade outside 7-10 has no DepEd colour. It still gets a chip, in the
+	// neutral token, because dropping it would quietly delete a grade the
+	// catalog says the subject serves.
+	const gradeChips = useMemo(() => {
+		const unique = new Set<number>();
+		for (const grade of subject.gradeLevels) {
+			if (Number.isFinite(grade)) unique.add(grade);
 		}
-		return sorted.map(g => `GR${g}`).join(', ');
+		return [...unique].sort((a, b) => a - b);
 	}, [subject.gradeLevels]);
+
+	// The range wording is kept as the chips' accessible name, so a range or
+	// multi-grade subject still announces every grade it spans. A3-C9 spells the
+	// upper bound out ("GR7–GR10", not "GR7–10"): this string used to be the
+	// visible cell text, where a bare "10" was readable in context, and it is
+	// now heard without one, where it is not.
+	const gradeSummary = useMemo(() => {
+		if (!gradeChips.length) return null;
+		if (gradeChips.length > 2 && gradeChips[gradeChips.length - 1] - gradeChips[0] === gradeChips.length - 1) {
+			return `GR${gradeChips[0]}–GR${gradeChips[gradeChips.length - 1]}`;
+		}
+		return gradeChips.map((g) => `GR${g}`).join(', ');
+	}, [gradeChips]);
 
 	const roomNeedLabel = subject.preferredRoomType === 'CLASSROOM'
 		? 'Standard classroom'
@@ -149,8 +179,24 @@ export function SubjectRow({
 			{/* Col 2 — Grades / program */}
 			<td className="px-4 py-3">
 				<div className="flex flex-col gap-0.5">
-					{gradeSummary ? (
-						<span className="text-sm font-semibold text-foreground">{gradeSummary}</span>
+					{gradeChips.length > 0 ? (
+						<span
+							className="flex flex-wrap items-center gap-1"
+							data-testid="subject-grade-chips"
+							aria-label={gradeSummary ?? undefined}
+						>
+							{gradeChips.map((grade) => (
+								<span
+									key={grade}
+									className={cn(
+										'inline-flex h-4 min-w-4 items-center justify-center rounded px-1 text-[0.6rem] font-bold leading-none',
+										GRADE_COLORS[String(grade)] ?? 'bg-muted text-muted-foreground',
+									)}
+								>
+									{grade}
+								</span>
+							))}
+						</span>
 					) : (
 						<span className="text-sm text-muted-foreground">No grades</span>
 					)}
