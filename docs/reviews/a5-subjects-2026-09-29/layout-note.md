@@ -144,7 +144,7 @@ badge/chip elements; "controls" = interactive elements.
 | controls | 6 (+`Reset` when active) | 6 (+`Reset` when active) | **0** |
 | words | 11 | 11 (five × `Name: All` = 2 words, replacing 11 words of bare values) | **0** |
 | distinct widths | 5 (`160/96/112/144/112px`) | 1 (`128px`, `w-32`) | **−4** |
-| cluster content width at 1366 | 1004px (fitted one line) | **1010px** (5 × 128 + 40 gaps + 80 Reset + 240 search + 10 gap) against **~1062px** available | **+6px, still one line, 52px slack** |
+| cluster content width at 1366 | 1004px (fitted one line) | **1010px** (240 search + 10 gap + 5 × 128 + 40 cluster gaps + 80 Reset) against **~1062px** available | **+6px, one line, 52px slack** |
 | pill/rounded-rect mismatch vs Section+Teacher | 5 controls wrong | 0 | **−5** |
 | hidden extra click per short list | — | −1 click on `Grade`/`Program`/`Term` | **−1 click** |
 
@@ -156,6 +156,31 @@ trigger text is now 2 words per filter instead of 3-5, and the box is sized to h
 of them (`Program: All`, ~63px of text in a 128px rectangle). **The word count is unchanged
 against the original screen — the region still adds no words at all**, because the self-naming
 name is paid for by collapsing `All Grades` to `All`.
+
+**CORRECTION ROUND 1 (B5) — the 128px figure above was true only on paper, and the browser
+disagreed.** The planner's own loopback measurement recorded all five triggers at **160px**,
+not 128px. The cause was in the shared primitive: `SearchableSelect` composed
+`cn('min-w-[160px] justify-between font-normal', triggerClassName)`, and `min-w-*` and `w-*` are
+**different tailwind-merge groups**, so that floor did not lose to the caller's `w-32` — it
+coexisted with it, and CSS `min-width` beats `width`. Every trigger rendered at 160px whatever
+variant the page asked for: the `sm`/`md`/`fill` variants were inert, the width assertions were
+asserting a class the browser ignored, and the real cluster content width was
+5 × 160 + 40 + 80 + 240 + 10 = **1170px against ~1062px available** — i.e. the row did NOT fit
+one line, and the "52px of slack" claim in this ledger and in two test comments was false.
+
+The floor is now removed from the shared primitive — the correct place under §8, because a
+shared primitive is what silently overrode the shared variant, and a page-local `min-w-0` would
+have been a page-local override of a shared surface. `pickerTriggerClass` states `min-w-0`
+explicitly beside the width, so "this width governs" is part of the variant every page gets.
+`/timetable` is provably unaffected: its call site already passes its own `min-w-[9rem]`,
+`min-w-*` is one merge group, and the caller's floor has always won there.
+
+**Re-derived after the fix: 240 (search) + 10 (its gap) + 5 × 128 (filters) + 40 (cluster
+gaps) + 80 (Reset) = 1010px against ~1062px available. The row DOES fit one line at 1366, with
+52px of slack.** No trigger was narrowed, no font shrunk, and no filter moved into `More`. The
+load-bearing `assert.ok(total < available)` guards in `subjects-ux-a3.test.tsx`, deleted in the
+first candidate and restored here, both pass on this number. `A5-C3-B5a` / `B5b` assert the
+property a class list alone could not see: that no hard `min-w-[…]` floor survives on a trigger.
 
 **The +6 words is a region where I added visible words and removed fewer words than I added, and
 this is the explicit reason the packet gives for it (rule 3's escape clause).** R1 A1: *"each

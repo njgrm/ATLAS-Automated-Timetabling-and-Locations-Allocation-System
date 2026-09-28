@@ -1,5 +1,23 @@
 # A5 C3 slice A — rendered evidence (planner-measured, loopback, `ISOLATED_LOCAL_BROWSER`)
 
+> **WITHDRAWN IN CORRECTION ROUND 1 — READ THIS FIRST.** Every `PASS` below is VOID and is **not**
+> ATLAS acceptance. The two committed screenshots, `after-1366x768.png` and `after-1920x1080.png`,
+> both show an error boundary — *"This page hit an unexpected error — Cannot read properties of
+> undefined (reading 'length')"* with a `Reload page` button. They do not show `/subjects` at all,
+> so the §11 rule-4 `REJECT_UX` gate has no image to judge, and the filter-row table below is
+> evidence about a measurement pass whose image was never captured. The withdrawal is recorded
+> here rather than the file being deleted, per `AGENTS.md` §16.
+>
+> The measurement itself also **disproved the candidate's own width arithmetic**: it recorded all
+> five triggers at **160px**, not the 128px the ledger and two test comments claimed. That was
+> `SearchableSelect`'s `min-w-[160px]` silently overriding the `w-32` variant — QA finding B5,
+> since fixed, with the re-derived figure (1010px, one line, 52px slack) in `layout-note.md` §3.1.
+> The measurement was right and the ledger was wrong; that is now the record.
+>
+> **Re-taking these rows is the planner's.** The exact command and fixture are in the correction
+> handoff. The subject-table half stays `UNPERFORMED` under a mocked surface and needs a real-data
+> render on staging, which is A4/Lane C's surface.
+
 Harness: built `atlas-client` from candidate `911f5b3d`, served with `vite preview` on
 `http://127.0.0.1:5292`. All `/api/v1` and `/enrollpro-api/**` traffic intercepted in the browser
 and fulfilled from a fixture.

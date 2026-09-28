@@ -87,6 +87,16 @@ export function pickerTriggerClass(width: PickerTriggerWidth = 'md'): string {
 	return [
 		PICKER_CONTROL_HEIGHT_CLASS,
 		PICKER_TRIGGER_WIDTH_CLASS[width],
+		/* A5 C3 CORRECTION ROUND 1 (B5): `min-w-0` is stated HERE, in the shared
+		 * variant, and not left to the page. `min-w-*` and `w-*` are different
+		 * tailwind-merge groups, so a floor declared anywhere alongside the width
+		 * silently wins over it in CSS and the width variant becomes decorative —
+		 * which is exactly what `min-w-[160px]` did to every trigger in the first
+		 * place. Stating the neutral floor next to the width makes "this width
+		 * governs" an explicit part of the variant every page gets, and a variant
+		 * that genuinely needs a floor (a grid cell that must not collapse below
+		 * two words, say) declares it here rather than at a call site. */
+		'min-w-0',
 		'shrink-0 px-3 text-xs',
 		PICKER_TRIGGER_TYPE_CLASS,
 	].join(' ');

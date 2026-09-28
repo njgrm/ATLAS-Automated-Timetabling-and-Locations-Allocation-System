@@ -201,6 +201,32 @@ export function SearchableSelect({
 			}}
 		>
 			<PopoverTrigger asChild>
+				{/*
+				 * A5 C3 CORRECTION ROUND 1 (B5): the primitive's own `min-w-[160px]`
+				 * floor is GONE, and that is the fix.
+				 *
+				 * `min-w-*` and `w-*` are DIFFERENT tailwind-merge groups, so that floor
+				 * did not lose to a caller's `w-32` - it coexisted with it, and CSS
+				 * `min-width` beats `width`. Every trigger rendered at 160px whatever
+				 * width variant the page asked for: the `sm`/`md`/`fill` variants in
+				 * `@/ui/picker-trigger` were inert, the Subjects suites were asserting a
+				 * class the browser ignored, and the `/subjects` cluster's real content
+				 * width was 5 x 160 = 800px rather than the 5 x 128 = 640px the ledger
+				 * claimed.
+				 *
+				 * The floor is removed from the SHARED PRIMITIVE, which is the correct
+				 * place under `AGENTS.md` section 8: a shared primitive is what silently
+				 * overrode the shared variant, and a page-local `min-w-0` would have been
+				 * exactly the page-local override of a shared surface that this whole
+				 * change exists to remove. A variant that genuinely needs a floor states
+				 * it in `@/ui/picker-trigger`, where every page gets it.
+				 *
+				 * `/timetable` is unchanged and provably so: its call site already passes
+				 * its own `min-w-[9rem]`, `min-w-*` is one merge group, and the caller's
+				 * floor has always won there, so removing the base floor changes nothing
+				 * it was ever governing. `a5-c3-picker-contract.test.tsx` asserts both
+				 * halves of that.
+				 */}
 				<Button
 					id={triggerId}
 					data-testid={triggerTestId}
@@ -210,9 +236,9 @@ export function SearchableSelect({
 					aria-haspopup="listbox"
 					disabled={disabled}
 					aria-disabled={disabled}
-					aria-label={triggerLabel}
-					className={cn('min-w-[160px] justify-between font-normal', triggerClassName)}
-				>
+				aria-label={triggerLabel}
+				className={cn('justify-between font-normal', triggerClassName)}
+			>
 					<span className="truncate">{visibleLabel}</span>
 					<ChevronsUpDown className="ml-1 size-3 shrink-0 opacity-50" />
 				</Button>

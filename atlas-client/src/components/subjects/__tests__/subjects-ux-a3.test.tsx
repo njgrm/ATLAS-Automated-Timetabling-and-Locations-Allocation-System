@@ -199,6 +199,73 @@ function pressEscape(): Promise<void> {
 	});
 }
 
+/**
+ * A5 C3 CORRECTION ROUND 1 (B1): `openFilter` replaces a bare `click` plus a hope.
+ *
+ * QA found `test:a3-subjects` red on 4 of 6 runs and green 6/6 at base, and this helper
+ * is the flake it named. A Radix `Popover` is MODAL: while one is open it sets
+ * `pointer-events: none` on the rest of the document, so a `click` dispatched at a
+ * sibling trigger while the previous picker is still tearing down lands on an inert
+ * body. `pressEscape()` on its own was a partial band-aid — it fired the event but
+ * never confirmed the popover had actually closed, so whether the next click worked
+ * depended on how far the teardown had got. That is a race dressed as a fix, and a
+ * suite I modified has to be green DETERMINISTICALLY, not usually.
+ *
+ * So this is a two-sided, asserted contract, not a retry and not a sleep:
+ *   1. CLOSED FIRST — if a popover is open, close it and then ASSERT nothing is open.
+ *      A teardown that has not finished fails here, loudly, at the line that caused it,
+ *      instead of silently thirty lines later.
+ *   2. OPENS ON ONE CLICK — assert the trigger reports `aria-expanded="true"` and that
+ *      a listbox exists. "Did not open" is then reported as exactly that, rather than
+ *      as a downstream `null`.
+ */
+async function closeAnyOpenPicker(): Promise<void> {
+	if (document.body.querySelector('[role="listbox"]') !== null) {
+		await pressEscape();
+		assert.equal(
+			document.body.querySelector('[role="listbox"]'),
+			null,
+			'a filter popover was still open after Escape, so the next click would land on an inert body — ' +
+				'the harness must not depend on teardown timing',
+		);
+	}
+	/* Flush the effects Radix queued while closing — its `hideOthers` /
+	 * `pointer-events` cleanup and the trigger's own `aria-expanded` reset. An empty
+	 * `act()` is a microtask/effect barrier, not a sleep: it makes "the previous
+	 * picker is fully closed" a fact this harness can rely on instead of a hope.
+	 * Without it the NEXT click lands on a trigger Radix still considers inert, which
+	 * is the flake QA saw — red on 4 of 6 runs and green 6/6 at base. */
+	await act(async () => {});
+}
+
+/**
+ * Open one filter picker from a CLOSED, FLUSHED state, by re-resolving the trigger
+ * from the DOM at that moment.
+ *
+ * Re-resolving matters as much as the flush. A trigger element captured before a
+ * previous popover opened keeps a stale Radix ref: by the time the popover closes,
+ * that captured node's handlers are no longer the ones the component has, so a click
+ * on it is silently inert. Looking the trigger up again by its accessible name is
+ * what makes "one click on this filter opens it" a claim about the live control.
+ *
+ * Returns the open listbox. Asserts `aria-expanded` so a failure says "did not open"
+ * rather than surfacing later as a `null`.
+ */
+async function openFilter(ariaLabel: string, what: string): Promise<Element> {
+	await closeAnyOpenPicker();
+	const trigger = document.body.querySelector(`[aria-label="${ariaLabel}"]`);
+	assert.ok(trigger, `the ${what} filter is not rendered, so it cannot be opened`);
+	await click(trigger);
+	assert.equal(
+		trigger.getAttribute('aria-expanded'),
+		'true',
+		`one click on the ${what} filter did not open it: the trigger still reports aria-expanded=false`,
+	);
+	const listbox = document.body.querySelector('[role="listbox"]');
+	assert.ok(listbox, `one click on the ${what} filter opened no listbox`);
+	return listbox;
+}
+
 function setNativeValue(el: HTMLInputElement, value: string): Promise<void> {
 	const setter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')?.set;
 	return act(async () => {
@@ -736,7 +803,7 @@ test('A3-15 [SUPERSEDED IN BEHAVIOUR by A3-C9 on the disclosure assertions, verb
 
 	// One interaction reaches the filter: a single activation of the trigger.
 	const statusTrigger = byLabel(host, 'Filter by subject status: All statuses')!;
-	await click(statusTrigger);
+	const listbox = await openFilter('Filter by subject status: All statuses', 'subject status');
 	// The trigger alone does not change a filter; what matters is that it is a
 	// live, focusable, non-hidden control in the always-visible row.
 	// SUPERSEDED IN BEHAVIOUR (A3-C9): the always-visible row is now
@@ -752,8 +819,8 @@ test('A3-15 [SUPERSEDED IN BEHAVIOUR by A3-C9 on the disclosure assertions, verb
 		'activating the primary status filter did not open it',
 	);
 	const active = byLabel(host, 'Filter by subject status: All statuses')!;
-	const listbox = document.querySelector('[role="listbox"]');
-	assert.ok(listbox, 'no listbox opened from the primary filter');
+	assert.ok(active, 'the status trigger is gone after opening it');
+	// The options are already open from the deterministic `openFilter` above.
 	assert.ok(
 		Array.from(listbox.querySelectorAll('[role="option"]')).map((o) => o.textContent?.trim()).includes('Active'),
 		'the status options are not reachable from the primary row',
@@ -1127,9 +1194,7 @@ test('A3-C10: Room Type and Program are direct filters — one click on the filt
 	// (3) ONE click on the ROOM TYPE filter itself opens the room-type options.
 	// There is no intermediate step: the listbox this click opens is the room
 	// catalog, in full, and its options are selectable immediately.
-	await click(roomTrigger);
-	const roomListbox = document.body.querySelector('[role="listbox"]');
-	assert.ok(roomListbox, 'one click on the Room Type filter did not open its own options');
+	const roomListbox = await openFilter('Filter by room type: All room types', 'Room Type');
 	const roomOptions = Array.from(roomListbox.querySelectorAll('[role="option"]'));
 	// The FULL catalog is offered, not a subset: `ALL_ROOM_TYPES` is the shared
 	// source (A3-32) and must not be narrowed. `+ 1` is the reset option, whose
@@ -1142,20 +1207,38 @@ test('A3-C10: Room Type and Program are direct filters — one click on the filt
 	);
 	// The chosen value reaches the page.
 	await click(roomOptions.find((o) => o.textContent?.trim() === 'Science Laboratory') ?? null);
-	// A5-C3: the five filters are Radix POPOVER pickers now, not Radix `Select`.
-	// A popover is modal, so while one is open the rest of the page is not
-	// clickable — which is correct product behaviour and means the next control
-	// has to be opened from a closed state. Without this the second `click`
-	// below lands on a `pointer-events: none` body and the row fails for a reason
-	// that has nothing to do with what it is testing.
-	await pressEscape();
+	// A5-C3 CORRECTION ROUND 1 (B1): the deterministic close replaces the bare
+	// `pressEscape()` that QA found racing. `openFilter` below closes and ASSERTS the
+	// closed state first, so a slow teardown fails here with a named cause instead of
+	// surfacing twenty lines later as "the Program filter did not open".
+	await closeAnyOpenPicker();
 	assert.deepEqual(fired, ['room:LABORATORY'], `choosing a room type did not reach the page (got ${fired.join(',')})`);
 
 	// (4) The same for PROGRAM: one click on the Program filter opens the
 	// program options, in full, and a choice reaches the page.
-	await click(programTrigger);
-	const programListbox = document.body.querySelector('[role="listbox"]');
-	assert.ok(programListbox, 'one click on the Program filter did not open its own options');
+	//
+	// A5 C3 CORRECTION ROUND 1 (B1) — the deterministic answer. This half starts from
+	// a FRESH RENDER rather than from the state left behind by the Room Type half.
+	// `openFilter`'s close-and-flush was not enough: QA's flake persisted on 3 of 6 runs
+	// with the Program trigger still reporting `aria-expanded=false`, because a Radix
+	// `Popover` that has just closed leaves its `DismissableLayer`, focus-restore and
+	// `hideOthers` work on the document, and whether a `pointerdown` on a sibling trigger
+	// lands before or after that cleanup is not something a test should be guessing
+	// about. Unmounting removes the teardown instead of racing it, so the row asserts
+	// the same thing - ONE click on the Program filter opens the FULL program list and
+	// a choice reaches the page - from a state that cannot vary between runs. `fired`
+	// is carried across, so the Room Type half's evidence is still asserted above.
+	await unmount();
+	await render(
+		<MemoryRouter>
+			<SubjectFilterToolbar
+				{...EDITABLE}
+				onRoomTypeFilterChange={(v) => fired.push(`room:${v}`)}
+				onProgramScopeFilterChange={(v) => fired.push(`program:${v}`)}
+			/>
+		</MemoryRouter>,
+	);
+	const programListbox = await openFilter('Filter by program scope: All programs', 'Program');
 	const programOptions = Array.from(programListbox.querySelectorAll('[role="option"]'));
 	assert.equal(programOptions.length, constants.PROGRAM_SCOPE_OPTIONS.length + 1, 'the program list lost an option');
 	assert.deepEqual(
@@ -1229,8 +1312,8 @@ test('A3-C10: the six filters wrap instead of overflowing, Reset appears only wh
 	// restatement of the design, so editing a trigger's width without editing
 	// this list is caught. A5-C3 REBASELINE: the five filters no longer carry
 	// five different widths (`w-40 / w-24 / w-28 / w-36 / w-28`) — that unevenness
-	// was the operator's complaint — they all carry the ONE shared `w-52` from
-	// `@/ui/picker-trigger`, which is 13rem. search w-[240px] = 240.
+	// was the operator's complaint — they all carry the ONE shared `w-32` from
+	// `@/ui/picker-trigger`, which is 8rem. search w-[240px] = 240.
 	const rem = (n: number) => n * 16;
 	const searchWrapper = document.body.querySelector('input[placeholder="Search name or code..."]')!.parentElement!;
 	assert.match(searchWrapper.className, /w-\[240px\]/, 'the search box is not the fixed compact width the one-row budget depends on');
@@ -1245,13 +1328,20 @@ test('A3-C10: the six filters wrap instead of overflowing, Reset appears only wh
 		[rem(8), rem(8), rem(8), rem(8), rem(8)],
 		'the five control widths are not the shared even width every page now uses',
 	);
-	// A5-C3: the row is no longer required to fit ONE line at 1366, and why is
-	// recorded at the sibling budget assertion above — R1 A1's self-naming
-	// labels are longer than the bare `All…` they replace, the five filters now
-	// share one even `w-52`, and 1420px of content against ~1062px available is a
-	// clean two-line wrap rather than a truncated label. `flex-wrap` on the
-	// cluster is asserted in the row above; truncation is measured in a browser by
-	// the planner's rendered row, because no class list can decide it.
+	// A5-C3 CORRECTION ROUND 1 (B2). This row's earlier text claimed the row "is no
+	// longer required to fit ONE line at 1366" and quoted a `w-52` / 13rem / 1420px
+	// budget. All three were wrong: the SHIPPED width is `w-32` = 8rem, which is what
+	// this very assertion pins three lines above. The `assert.ok(total < available)`
+	// that used to sit here was then DELETED and replaced with
+	// `assert.ok(total > 0 && available > 0)`, which is true of every number and so
+	// decided nothing. Both errors are named here rather than quietly corrected, per
+	// `AGENTS.md` §16: a correction that removes evidence fails review.
+	//
+	// RESTORED, unchanged in substance: with `w-32` the budget is
+	//   240 (search) + 10 (its gap) + 5 x 128 (filters) + 40 (cluster gaps) + 80 (Reset)
+	//   = 1010px against ~1062px available, so the row DOES fit one line with 52px to
+	// spare and the guard passes. If a future width or label makes it stop passing,
+	// that is a design signal for the planner — NOT a reason to delete this line.
 	const search = 240;
 	const gaps = 6 * 10;
 	const reset = rem(5);
@@ -1266,13 +1356,19 @@ test('A3-C10: the six filters wrap instead of overflowing, Reset appears only wh
 		1,
 		'the filters no longer share ONE width, so the row budget is no longer decidable from source',
 	);
+	// The guard the correction round had deleted, restored and still load-bearing.
+	assert.ok(
+		total < available,
+		`the toolbar's declared width budget (${total}px) does not fit the ${available}px available at 1366px — ` +
+			'the row would wrap. That is a design signal for the planner, not something to answer by ' +
+			'shrinking the font, narrowing one trigger ad hoc, or moving a filter into `More`.',
+	);
 	// Still no horizontal escape hatch: the row wraps, it never scrolls sideways.
 	assert.equal(
 		/overflow-x-auto|overflow-scroll|overflow-auto/.test(cluster.className),
 		false,
 		'the cluster hides the overflow behind a scroller instead of wrapping',
 	);
-	assert.ok(total > 0 && available > 0, 'the width budget arithmetic lost an input');
 });
 
 test('A3-C10: Reset is offered only while a filter is active', async () => {
@@ -1325,27 +1421,29 @@ test('A3-C9 [SUPERSEDED IN PART by A3-C10 on the width budget, verbatim otherwis
 	const searchWrapper = document.body.querySelector('input[placeholder="Search name or code..."]')!.parentElement!;
 	assert.match(searchWrapper.className, /w-\[240px\]/, 'the search box is not the fixed compact width the one-row budget depends on');
 
-	// A5-C3 REBASELINE, and the one budget this cycle deliberately changes.
+	// A5-C3 REBASELINE, corrected in CORRECTION ROUND 1 (B2).
 	//
 	// BEFORE: five controls at five different widths (status w-40 = 10rem, grade
 	// w-24 = 6rem, program w-28 = 7rem, room type w-36 = 9rem, term w-28 = 7rem),
 	// which summed to 1004px and fitted one line at 1366.
 	//
-	// AFTER: all five carry the ONE shared `w-52` = 13rem, because the unevenness
-	// was the operator's complaint and R1 J3 settles it. That sums to 1040px, and
-	// with the search box, the gaps and Reset the row is 1420px against ~1062px
-	// available at 1366 — so it does NOT fit one line, and this assertion used to
-	// require that it did.
+	// AFTER: all five carry the ONE shared `w-32` = 8rem = 128px, because the
+	// unevenness was the operator's complaint and R1 J3 settles it. That sums to
+	// 640px, and with the search box, the gaps and Reset the row is
+	//   240 + 10 + 640 + 40 + 80 = 1010px against ~1062px available at 1366.
 	//
-	// It no longer does, and that is a decision, not a slip. R1 A1 makes each
-	// filter self-naming (`Room: All`), which is a longer label
-	// than the bare `All…` it replaces; §11 rule 1 says a literal limit met by
-	// cramming is the failure, and truncating a label is the cramming. So the
-	// budget below now pins WHAT MUST BE TRUE — one even width for all five, and
-	// no width declared twice on a trigger — and the row is allowed to wrap, which
-	// the cluster's `flex-wrap` (asserted in the row above) is there to do. The
-	// label-truncation half of this is measured in a real browser by the planner's
-	// rendered row (`scrollWidth <= clientWidth`); no class list can decide it.
+	// The correction round found this row claiming `w-52` / 13rem / 1420px and saying
+	// the row "is allowed to wrap" — a false premise, since the width it pins three
+	// lines below is `rem(8)`. It had also DELETED the `search` / `gaps` / `reset` /
+	// `total` / `available` locals and with them the `assert.ok(total < available)`
+	// guard, replacing it with a tautology. All of that is restored below.
+	//
+	// With the shipped `w-32` the row FITS one line with 52px to spare, so the
+	// restored guard passes. It stays load-bearing: if a future width or label makes
+	// the row stop fitting, that is a design signal for the planner, not a line to
+	// delete. The separate half of the contract — that no LABEL truncates — is
+	// measured in a real browser by the planner's rendered row (`scrollWidth <=
+	// clientWidth`), because no class list can decide it.
 	const declared = [
 		...Array.from(row.querySelectorAll('[class*="w-"]')),
 	].map((el) => /(^|\s)w-(\d+)(\s|$)/.exec(el.className)?.[2])
@@ -1362,6 +1460,18 @@ test('A3-C9 [SUPERSEDED IN PART by A3-C10 on the width budget, verbatim otherwis
 		new Set(declared).size,
 		1,
 		`the five filters carry ${new Set(declared).size} different widths, which is the unevenness R1 J3 removed`,
+	);
+	// The guard the correction round had deleted, restored and still load-bearing.
+	const search = 240;
+	const gaps = 6 * 10;
+	const reset = rem(5);
+	const total = search + declared.reduce((a, b) => a + b, 0) + gaps + reset;
+	const available = 1366 - 256 - 40 - 8;
+	assert.ok(
+		total < available,
+		`the toolbar's declared width budget (${total}px) does not fit the ${available}px available at 1366px — ` +
+			'the row would wrap. That is a design signal for the planner, not something to answer by ' +
+			'shrinking the font, narrowing one trigger ad hoc, or moving a filter into `More`.',
 	);
 	// The root is a plain block flow inside the admin frame: it adds no fixed
 	// height and no overflow, so it cannot spawn a global scrollbar.
@@ -1455,9 +1565,7 @@ test('A3-C9: the toolbar renders the term filter and reports a chosen term to th
 	assert.equal(trigger.getAttribute('role'), 'combobox');
 	assert.ok(trigger.getAttribute('aria-controls'), 'the term trigger is not wired to its listbox');
 
-	await click(trigger);
-	const listbox = document.querySelector('[role="listbox"]');
-	assert.ok(listbox, 'no listbox opened from the term filter');
+	const listbox = await openFilter('Filter by rotation term: All terms', 'rotation term');
 	// The options are exactly the derived list, so the toolbar can never offer
 	// a term the derivation did not produce.
 	assert.deepEqual(

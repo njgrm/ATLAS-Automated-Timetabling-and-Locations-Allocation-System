@@ -172,6 +172,115 @@ test('A5-C3-PICKERb: the shared variant is one composed string from @/ui, and ev
 	assert.notEqual(pickerTriggerClass('sm'), pickerTriggerClass('fill'), 'width variants collapse to one');
 });
 
+/**
+ * B5, FAILING-FIRST (correction round 1). `min-w-*` and `w-*` are different
+ * tailwind-merge groups, so a `min-w-[160px]` declared in the shared primitive
+ * coexisted with the caller's `w-32` — and CSS `min-width` beats `width`. Every
+ * trigger rendered at 160px whatever variant the page asked for: the width
+ * variants were inert, the Subjects suites were asserting a class the browser
+ * ignored, and the cluster's real content width was 160px per trigger rather
+ * than the 128px the ledger claimed.
+ *
+ * A class-list assertion cannot see this, which is the whole lesson. The old
+ * `A5-C3-A1b` row checked that all five triggers carry the SAME width class and
+ * was green while every one of them rendered wider than that class. These rows
+ * assert the property that actually decides the rendered box: that no hard
+ * `min-w-[…]` floor survives anywhere on the trigger, and that the neutral floor
+ * is the one the shared variant declares.
+ */
+test('A5-C3-B5a: no min-width floor survives on a filter trigger, so the width variant actually governs', async () => {
+	const host = document.createElement('div');
+	document.body.appendChild(host);
+	const root: Root = createRoot(host);
+	await act(async () => {
+		root.render(
+			<FilterPicker name="Grade" value="all" onValueChange={() => {}} options={[{ value: 'all', label: 'All grades' }]} />,
+		);
+	});
+	const trigger = host.querySelector('[role="combobox"]') as HTMLElement;
+	const classes = trigger.className;
+	await act(async () => { root.unmount(); });
+	host.remove();
+
+	/* The defect, stated as the thing that must never come back. */
+	assert.doesNotMatch(
+		classes,
+		/min-w-\[[^\]]*\]/,
+		`a min-width floor is on the trigger again and will override the width variant: ${classes}`,
+	);
+	/* The neutral floor the shared variant declares, and the width it governs with. */
+	assert.match(classes, /(^|\s)min-w-0(\s|$)/, 'the shared variant no longer states its neutral min-width floor');
+	assert.match(classes, /(^|\s)w-32(\s|$)/, 'the md width variant is not on the trigger');
+	/* And the primitive itself no longer composes a hard-coded floor. Scoped to the
+	 * `cn(...)` call rather than the whole file, because this comment block has to be
+	 * able to NAME the class it removed — a whole-file scan would forbid the fix from
+	 * being documented, which is how evidence quietly disappears. */
+	assert.doesNotMatch(
+		uiSource('searchable-select.tsx'),
+		/cn\([^)]*min-w-\[/,
+		'SearchableSelect re-declared its own min-width floor, which silently overrode every width variant',
+	);
+});
+
+test('A5-C3-B5b: two different width variants produce two different classes, and neither carries a hard floor', () => {
+	assert.match(pickerTriggerClass('sm'), /(^|\s)w-28(\s|$)/, 'the sm variant lost its width');
+	assert.match(pickerTriggerClass('md'), /(^|\s)w-32(\s|$)/, 'the md variant lost its width');
+	assert.match(pickerTriggerClass('fill'), /(^|\s)w-full(\s|$)/, 'the fill variant lost its width');
+	for (const width of ['sm', 'md', 'fill'] as const) {
+		assert.doesNotMatch(
+			pickerTriggerClass(width),
+			/min-w-\[[^\]]*\]/,
+			`the ${width} variant still declares a hard floor, so its width cannot govern`,
+		);
+	}
+	/* /timetable is the counter-example that proves the change is safe there: its call
+	 * site supplies its OWN min-w, and `min-w-*` is one merge group, so its floor has
+	 * always won and removing the primitive's floor changes nothing it governed. */
+	const timetable = readFileSync(
+		resolve(import.meta.dirname, '../../components/timetable/simple/SimpleHeaderHelpers.tsx'),
+		'utf8',
+	);
+	assert.match(timetable, /min-w-\[9rem\]/, '/timetable no longer declares its own min-width floor');
+	assert.doesNotMatch(timetable, /triggerClassName="[^"]*w-\d/, '/timetable no longer supplies its own width; it is the reference, not a consumer of the variants');
+});
+
+/**
+ * B3, FAILING-FIRST (correction round 1). The planner's loopback render of `/subjects`
+ * produced an error boundary reading "Cannot read properties of undefined (reading
+ * 'length')" — the exact text of `options.length` in the wrapper. Every current call
+ * site passes an array, so this row does not prove that was the cause; it proves the
+ * component must not be able to throw a PAGE away when a list is missing during a
+ * partial load. A thrown render becomes "Reload page" for a scheduler, which is a far
+ * worse outcome than an empty filter.
+ */
+test('A5-C3-B3a: a filter handed no options degrades to an empty control instead of throwing', async () => {
+	const host = document.createElement('div');
+	document.body.appendChild(host);
+	const root: Root = createRoot(host);
+	let threw: unknown = null;
+	await act(async () => {
+		try {
+			root.render(
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				<FilterPicker {...({ name: 'Grade', value: 'all', onValueChange: () => {} } as any)} />,
+			);
+		} catch (error) {
+			threw = error;
+		}
+	});
+	const trigger = host.querySelector('[role="combobox"]') as HTMLElement | null;
+	await act(async () => { root.unmount(); });
+	host.remove();
+	assert.equal(threw, null, `FilterPicker threw on a missing options list: ${String(threw)}`);
+	assert.ok(trigger, 'the filter vanished rather than rendering an empty control');
+	assert.equal(
+		(trigger.textContent ?? '').replace(/\s+/g, ' ').trim(),
+		'Grade: All',
+		'the empty filter does not still read as "Grade: All"',
+	);
+	assert.equal(trigger.getAttribute('aria-label'), 'Grade: All', 'the empty filter lost its accessible name');
+});
+
 test('A5-C3-PICKERc: the short trigger and the long accessible name are the same control, so a picker is never unnamed', async () => {
 	const host = document.createElement('div');
 	document.body.appendChild(host);

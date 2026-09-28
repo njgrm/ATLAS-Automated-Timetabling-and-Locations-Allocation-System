@@ -109,22 +109,41 @@ export function FilterPicker({
 	contentClassName,
 }: FilterPickerProps) {
 	// The `all` option is what a filter's own vocabulary calls "nothing chosen yet"; when a
+	// A5 C3 CORRECTION ROUND 1 (B3): normalise the options ONCE, here, before
+	// anything reads them.
+	//
+	// The planner's loopback render of `/subjects` produced an error boundary reading
+	// "Cannot read properties of undefined (reading 'length')" — the exact text of
+	// `options.length` on this line. Every current call site passes an array, so this
+	// is a CRASH GUARD, not a fix for a proven cause: a filter that is handed a
+	// missing list during a partial load must degrade to an empty, still-tappable
+	// control, because a thrown render takes the whole page to an error boundary and
+	// a scheduler sees "Reload page" instead of a catalogue. One `?? []` at the top of
+	// the component is the right place; scattering optional chaining at each read
+	// would leave the same trap for the next reader.
+	//
+	// The planner separately recorded that the subject table row stays UNPERFORMED
+	// under a mocked surface because `pages/Subjects.tsx` only requests the catalogue
+	// once `resolveActiveSchoolYearContext()` yields an active year. That gating is
+	// pre-existing and outside this slice; this guard is not offered as its cause.
+	const list = options ?? [];
+	// The `all` option is what a filter's own vocabulary calls "nothing chosen yet"; when a
 	// caller supplies no explicit placeholder the first option is that honest default rather
 	// than a generic `Select…`.
-	const fallbackPlaceholder = options[0]?.label ?? 'All';
-	const showSearch = searchable ?? options.length > SEARCHABLE_OPTION_THRESHOLD;
+	const fallbackPlaceholder = list[0]?.label ?? 'All';
+	const showSearch = searchable ?? list.length > SEARCHABLE_OPTION_THRESHOLD;
 
 	/* A5 C3 R3 §1 — the trigger shows the SHORT value, the popover shows the long one.
 	 * `All` is one word for the unset state whatever the option list calls it, and a value
 	 * with no short label falls back to its full label rather than rendering nothing. */
-	const selected = options.find((o) => o.value === value);
+	const selected = list.find((o) => o.value === value);
 	const shortValue = value === '' || value === allValue
 		? 'All'
 		: shortLabels?.[value] ?? selected?.label ?? value;
 
 	return (
 		<SearchableSelect
-			items={options}
+			items={list}
 			value={value}
 			onValueChange={onValueChange}
 			placeholder={placeholder ?? fallbackPlaceholder}
