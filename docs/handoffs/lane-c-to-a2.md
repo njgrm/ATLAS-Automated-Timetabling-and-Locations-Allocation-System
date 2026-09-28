@@ -1402,3 +1402,9 @@ and clicking it removes** for a scheduler under pressure (e.g. a teacher shortag
 line, offers the real choices with their trade-off, does the tedious part for them, and makes the result checkable at
 a glance. Inputs coming: A8 source audit (`docs/reviews/a8-tl-shortage-audit-2026-09-29.md`) + Codex staging shortage
 walk; Lane C merges both into the next A6/A2 packets.
+
+**A8 source audit landed (read-only, base `57a2be20`, 0 source change).** Confirms Lane C's "before 25 → after 25" from
+code: Teacher-X mode forces `unresolved = 0` (TLA:3116) while its `TEMPORARY_SUBSTITUTE` rows are stripped from the
+plan (TLA:2307-2315) and never saved, so generation emits one `TL_DEMAND_UNCOVERED` per pair. Three BLOCKERs for
+A6: the 40h mode ignores `maxHoursPerWeek` (TLA:671), the false "complete" headline, and no UI lever to create *and*
+qualify a placeholder — `POST /faculty-assignments/coverage/repair` has zero client callers.
