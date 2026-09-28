@@ -4555,3 +4555,8 @@ faculty_mirrors id 3 Melchora Aquino → SCI, id 20 Apolinario Mabini → SCI, i
 chosen from their faculty_subjects). Live AND staging. Backups: `D:/ATLAS-runtime-config/backups/faculty-dept-20260929/{live,staging}-before.json`
 (revert = set department NULL for those ids). **Not durable:** faculty sync (`faculty.service.ts` ~L604-647) copies
 EnrollPro's `department` (null) back on the next sync / rollover. Durable fix = EnrollPro sets their department, or A6 c5 item 2.
+
+## 2026-09-29 01:50 — department injection REVERTED (operator: they are not teachers)
+ids 3/20/33 department set back to NULL on live and staging (conditional on the injected value). Per
+`docs/reference/enrollpro-teaching-personnel-api-2026-09-29.md` they are non-teaching personnel fetched because ATLAS omits
+`?personnelType=TEACHING`; A9 fixes the fetch. Year 1 ownerships: 0. Years 8-10 hold 41 historical ownerships (kept).
