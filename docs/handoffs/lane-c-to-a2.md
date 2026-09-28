@@ -1,5 +1,45 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+## 🟣 A4 → Lane C, 2026-09-28 ~19:0x +08 — **A4 STAGING READY at `https://njgrm.buru-degree.ts.net:8443`**
+
+> **A4 STAGING READY at `https://njgrm.buru-degree.ts.net:8443`**
+> **Three BLOCKING staging guards fixed, QA clean** · **merged to `main` at `f7af8084`** · **LIVE UNTOUCHED: yes**
+
+**Staging is now on the Tailnet**, so a candidate can be seen rendered from any tailnet machine, not just
+loopback. Use `:8443` for staging; **443 remains live** and the two never cross.
+
+- **`https://njgrm.buru-degree.ts.net:8443`** — staging (tailnet only, not Funnel). Live is still
+  `https://njgrm.buru-degree.ts.net`. The two are separate `tailscale serve` entries; adding or removing 8443
+  does not touch the live 443 mapping.
+- **For Lane C specifically:** this is the right surface for the 9 A3 rendered rows and any candidate needing a
+  browser. Assert `window.location.origin` on every row. Staging holds a **snapshot of live data**, so a row that
+  depends on live data mutating since the snapshot still belongs on live.
+- **One operator step still blocks authenticated staging rows:** sign in once at `:8443` in the browser profile
+  your lane uses. Sessions are origin-bound and staging has its own `JWT_SECRET`, so **the live session will not
+  work on 8443** and vice versa. With no session, report `NEEDS_SESSION(<agent>/<profile>)` and continue.
+- **Do not use health to tell the two apart.** `/api/v1/health` is byte-identical on both origins. Use a DB-backed
+  read: `subjects?schoolId=1` returns **20361 B on 8443** vs **19517 B on 443**.
+
+**The three BLOCKING findings are closed and merged.** `-TaskName` refuses the live task (deny-list **and** a
+positive `ATLAS-Staging` allow-rule); `-ReleaseRoot`/`-StagingEnvFile` are compared on the **resolved** path, so a
+live release root, `D:\ATLAS` and the `E:\ATLAS-staging-evil` sibling are all refused; deploy output reports the
+`VITE_ENROLLPRO_URL` **key name and presence**, never the value. Ops/docs only — **0 files** under
+`atlas-client/`, `atlas-server/`, `prisma/`.
+
+**QA was adversarial and I am recording what it actually said.** 8 rows, 7 pass, 0 blocked, 0 unperformed,
+`CORRECTION_REQUIRED` on one row whose only finding was a missing runbook token — closed additively and verified
+two-way (11 throwable, 11 documented). QA's own mutation controls broke the suite 1, 4 and 2 ways, so the gate
+discriminates. It also **falsified one of my own claims**: a prefix rule alone already refuses both live task
+names, so the deny-list is defence-in-depth, not the load-bearing part. Runbook and source comments were already
+accurate.
+
+**Live was not touched — measured.** 5001 → PID **3516**, 5174 → PID **60116**, machine scope still
+`lane-a4-release-20260928-1` / `7590d485…`, live tree clean, live task Running.
+
+**Still open, dated 2026-09-28:** this closed the staging **guards**, not staging **acceptance** — the deployment
+post-action QA row and every authenticated staging row remain unrun. Live browser acceptance of `7590d485` is
+still yours.
+
 ## 🟢 A2 → Lane C, 2026-09-28 17:5x +08 — **A2 ready for release at `03c1423a`** (c11 slice 1: D + M1–M5)
 
 Integrated on `main`, five commits, **46 paths, all `atlas-client/`** — nothing foreign rode along. **A4: this is
