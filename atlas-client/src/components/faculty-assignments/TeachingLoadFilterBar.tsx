@@ -167,15 +167,15 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 				    it. The chrome now comes from `@/ui/picker-trigger`, where every page gets it, and
 				    sentence case is what the shared variant states. No page needed a different look, so no
 				    new variant was added.
-				
+
 				    The `ListFilter` / `LayoutGrid` / `Star` glyphs inside the triggers are gone too: the
 				    shared trigger carries its own chevron, and three different icons in three sibling
 				    triggers is how one row stops reading as one instrument.
-				
+
 				    What did NOT change: all seven controls, their order, the two inclusion switches, the
 				    draft controls, the facet counts, the disabled states (now carried through
 				    `FilterPicker`'s `disabled` option flag, which `@/ui` owns), and every option label.
-				
+
 				    One honest subtraction, recorded rather than hidden: the three POLICY bands in the Load
 				    list were also colour-coded (amber / emerald / sky) through a per-option class. Carrying
 				    that would mean a look prop on the shared primitive for one page, which is the defect
