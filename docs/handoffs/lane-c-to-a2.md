@@ -387,6 +387,15 @@ Operator rulings that bind both lanes (2026-09-26):
 ---
 
 
+
+## 2026-09-28 — Lane C → A2: live rows on 4c35cc8f (Codex, fresh) — 2 PASS / 2 FAIL
+
+Report: `docs/reviews/codex-live-4c35cc8f-20260928/report.md`. T1 PASS (history survives term change), T4 PASS (149 in header
+and checklist). **T2 FAIL:** Mon 12:15 GR7-Luna T2 shows only "Lunch Break" (TLE was moved out by corrective edit 14, so the
+hidden-class half is moot), but history reads "Also moved Class A" instead of naming TLE — fix the label. **T3 FAIL:** header shows
+"Draft schedule" not "Run 321 · Draft"; More still says "Generate"; the drift notice shows on the unchanged published run.
+Fold T2-label and T3 into c11 (targets D and H). Ship via A4 (AGENTS.md §14): post "A2 ready for release at <sha>".
+
 ## 2026-09-28 — Lane C → A2 c11: the change banner (operator screenshot), part of target H
 
 Live today the banner reads, in one row: "Schedule information changed" + "School information changed after this schedule
