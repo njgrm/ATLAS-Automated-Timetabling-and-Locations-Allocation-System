@@ -5,8 +5,31 @@ import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
 import { Input } from '@/ui/input';
 import { ScrollArea } from '@/ui/scroll-area';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { SectionRoomMapModal } from './SectionRoomMapModal';
+
+/**
+ * A3 C9 (packet item 6) — the ONE geometry every option row uses.
+ *
+ * The recorded defect (Lane C, 2026-09-28, live `a1db27d5`) was MIXED ROW
+ * HEIGHTS: a vacant option measured ~37.6px and an occupied one ~53.6px, so
+ * scanning the list read as the list jumping. The cause was `h-auto` plus a
+ * `flex flex-col` block whose occupied branch appended two extra lines, so the
+ * row took its height from its content.
+ *
+ * The cure is structural, not a content-length hope: a single fixed height
+ * (`h-12`), no vertical padding token that could add to it, content centred on
+ * one line, and no element inside the row allowed to wrap. Vacant, occupied
+ * and "Unassigned" all render this identical class, so the uniform height is
+ * an invariant of the component rather than of a particular room set.
+ *
+ * `group` is part of this constant on purpose: the occupant badge and both
+ * label lines key their hover colours off it, so the row's hover treatment
+ * cannot diverge between the vacant and occupied variants either.
+ */
+const OPTION_ROW_CLASS =
+	'w-full h-12 shrink-0 items-center px-2 text-xs transition-all rounded-md outline-none group';
 
 export type RoomOption = {
 	id: number;
@@ -135,13 +158,16 @@ export function SectionRoomPicker({
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent
-					/* A3 fix 03 — the body was a fixed w-70 (17.5rem), so a long
-					 * occupant name was clipped on the right instead of wrapping.
-					 * This is a viewport-relative cap, not a fixed width: the
-					 * popover is at least 22rem and never wider than the window. */
+					/* A3 fix 03 — the body was a fixed w-70 (17.5rem), so content
+					 * was clipped on the right instead of reflowing. This is a
+					 * viewport-relative cap, not a fixed width: the popover is at
+					 * least 22rem and never wider than the window. The occupant
+					 * label is now a single truncated line (A3 C9), and the full
+					 * name is recovered through a Tooltip and the focus hint. */
 					className="w-[min(22rem,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] p-0 shadow-xl border-border/40 flex flex-col h-100"
 					align="start"
 				>
+
 					{/* Header */}
 					<div className="shrink-0 flex items-center border-b px-2 py-1.5 bg-muted/30">
 						<Search className="ml-1 mr-2 size-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
@@ -181,11 +207,17 @@ export function SectionRoomPicker({
 						</div>
 					) : null}
 
-					{/* Options List */}
+				{/* Phase 1.4 audit fix: the listbox div owns the id that the
+					 * combobox trigger's aria-controls points to.
+					 *
+					 * A3 C9: the TooltipProvider wraps the list so every occupancy
+					 * label shares ONE provider. The provider renders no DOM, so
+					 * the picker still has exactly one popover layer (A3 fix 02)
+					 * and exactly one scroll region (A3 fix 01) at rest. */}
+					<TooltipProvider delayDuration={250}>
 					<ScrollArea className="flex-1">
-						{/* Phase 1.4 audit fix: the listbox div owns the id that the
-							combobox trigger's aria-controls points to. */}
 						<div id={listboxId} className="p-1.5" role="listbox" aria-labelledby={triggerId}>
+
 							<Button
 								type="button"
 								variant="ghost"
@@ -197,15 +229,17 @@ export function SectionRoomPicker({
 								}}
 								onFocus={() => setFocusedRoomId(null)}
 								onMouseEnter={() => setFocusedRoomId(null)}
-								className={cn(
-									'w-full justify-start px-2 py-2.5 h-auto text-xs transition-all rounded-md outline-none',
-									'hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground group',
-									value === null ? 'bg-accent/40 font-bold' : 'transparent'
-								)}
-							>
-								<Check className={cn('mr-2 size-3.5 shrink-0', value === null ? 'opacity-100' : 'opacity-0')} />
-								<span className={cn('italic transition-colors', value === null ? 'text-foreground' : 'text-muted-foreground', 'group-hover:text-primary-foreground')}>Unassigned</span>
-							</Button>
+							className={cn(
+								OPTION_ROW_CLASS,
+								'justify-start gap-2',
+								'hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground',
+								value === null ? 'bg-accent/40 font-bold' : 'transparent'
+							)}
+						>
+							<Check className={cn('size-3.5 shrink-0', value === null ? 'opacity-100' : 'opacity-0')} />
+							<span className={cn('min-w-0 truncate italic transition-colors', value === null ? 'text-foreground' : 'text-muted-foreground', 'group-hover:text-primary-foreground')}>Unassigned</span>
+						</Button>
+
 
 							{groups.length === 0 && (
 								<div className="py-8 text-center text-xs text-muted-foreground space-y-1">
@@ -239,36 +273,65 @@ export function SectionRoomPicker({
 														}}
 														onFocus={() => setFocusedRoomId(item.id)}
 														onMouseEnter={() => setFocusedRoomId(item.id)}
-														className={cn(
-															'w-full justify-start px-2 py-2 h-auto text-xs transition-all rounded-md outline-none',
-															'hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground group',
-															isSelected ? 'bg-accent/60 font-bold' : 'transparent'
-														)}
-													>
-														<Check className={cn('mr-2 size-3.5 shrink-0 text-primary group-hover:text-primary-foreground', isSelected ? 'opacity-100' : 'opacity-0')} />
-														{/* A3 fix 03 — the occupant label gets its own wrapping
-														 * line instead of competing with the room name for
-														 * width on a non-wrapping flex row. A long section name
-														 * is fully readable and the popover never overflows. */}
-														<div className="flex flex-col items-start gap-1 min-w-0 flex-1 text-left">
-															<span className="w-full truncate group-hover:text-primary-foreground">{item.name}</span>
-															<span className="text-xs text-muted-foreground/70 uppercase font-medium group-hover:text-primary-foreground/70">{item.type.replace('_', ' ')}</span>
-															{occupying ? (
-																<>
+													className={cn(
+														OPTION_ROW_CLASS,
+														'justify-start gap-2',
+														'hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground',
+														isSelected ? 'bg-accent/60 font-bold' : 'transparent'
+													)}
+												>
+													<Check className={cn('size-3.5 shrink-0 text-primary group-hover:text-primary-foreground', isSelected ? 'opacity-100' : 'opacity-0')} />
+													{/* The room's own identity: two lines, both single-line and
+													 * truncating, so neither can grow the row. */}
+													<div className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left">
+														<span className="w-full truncate group-hover:text-primary-foreground">{item.name}</span>
+														<span className="w-full truncate text-xs text-muted-foreground/70 uppercase font-medium group-hover:text-primary-foreground/70">{item.type.replace('_', ' ')}</span>
+													</div>
+													{/* A3 C9 — occupancy, re-delivered on ONE right-aligned line.
+													 *
+													 * Fix 03 put the occupant on its own wrapping line so a long
+													 * section name was readable. A uniform row height and a wrapping
+													 * label are mutually exclusive, so the legibility is re-delivered
+													 * on three legs instead of one:
+													 *   1. truncation is CSS-only, so the FULL name stays in the
+													 *      element's text and in the option's accessible name;
+													 *   2. a @/ui Tooltip (never a raw `title`, AGENTS.md §8) shows
+													 *      the full name to a pointer;
+													 *   3. the picker's existing `room-picker-occupied-hint` live
+													 *      region states the full name on focus/hover, so a keyboard
+													 *      operator never loses it either.
+													 *
+													 * The second, duplicate "Room already has a home section"
+													 * sentence is gone from the row — it was a line, and a line is
+													 * exactly what this row may no longer have. The wording and the
+													 * escalation it backed survive where they belong, in the swap
+													 * confirmation dialog and in the focused-occupant hint above.
+													 *
+													 * The cue is a grade-free status signal in the measured
+													 * `--warning` family (c8), not a solid amber block, and never
+													 * the §8 G8 yellow. */}
+													{occupying ? (
+														<Tooltip>
+															<TooltipTrigger asChild>
+																<span
+																	data-testid="room-option-occupant-full-trigger"
+																	className="ml-auto flex min-w-0 max-w-[55%] shrink items-center"
+																>
 																	<span
 																		data-testid="room-option-occupant"
-																		className={cn(
-																			"max-w-full whitespace-normal break-words text-left text-xs font-bold",
-																			isSelected ? "bg-white/10 text-white px-1.5 py-0.5 rounded border border-white/20" : "bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200"
-																		)}
+																		className="min-w-0 truncate rounded border border-warning-border bg-warning-muted px-1.5 py-0.5 text-xs font-semibold text-warning-foreground transition-colors group-hover:border-primary-foreground/30 group-hover:bg-primary-foreground/15 group-hover:text-primary-foreground"
 																	>
 																		Used by {occupying}
 																	</span>
-																	<span className="max-w-full whitespace-normal break-words text-left text-xs text-amber-700/80 group-hover:text-primary-foreground/70">Room already has a home section</span>
-																</>
-															) : null}
-														</div>
-													</Button>
+																</span>
+															</TooltipTrigger>
+															<TooltipContent data-testid="room-option-occupant-full" className="max-w-xs">
+																Used by {occupying}
+															</TooltipContent>
+														</Tooltip>
+													) : null}
+												</Button>
+
 												);
 											})}
 
@@ -277,6 +340,7 @@ export function SectionRoomPicker({
 							))}
 						</div>
 					</ScrollArea>
+					</TooltipProvider>
 
 					{/* Footer */}
 					<div className="shrink-0 p-1.5 border-t bg-muted/20">
