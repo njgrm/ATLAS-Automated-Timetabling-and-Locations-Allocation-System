@@ -190,3 +190,4 @@ Root cause is STAFFING DATA, not a code bug: after the EnrollPro wipe only 23 te
 Also missing per-year setup: 0 shift windows (year 10 had 20), 0 special events (had 2).
 Candidate 5bccb65d (branch work/hotfix-newyear-readiness-20260929): TL modal headline fix + '25 classes still need a real teacher'; atlas-qa dispatched. Data script copy-year-setup-shift-windows-events.mjs (dry-run: +20 windows, +2 events; --apply receipt, --revert) awaits operator approval.
 Rollovers PAUSED pending operator staffing decision.
+- 00:40 5bccb65d atlas-qa ACCEPT_READY (62.7k tokens; 4 TL failures pre-exist on main) → merged to main; rides next train. Rendered proof owed in that train's Codex check.
