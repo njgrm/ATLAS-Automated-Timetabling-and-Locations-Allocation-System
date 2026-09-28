@@ -2803,6 +2803,28 @@ Do not write in Lane B/C worktrees.
 
 ## Lane A2 - current lane (written only by Planner A2)
 
+### 2026-09-28 ~12:4x +08 - c7/c8 CLOSED, PUSHED at `6b1ec722`. **LIVE is unchanged at `a1db27d5`.**
+Newest block; supersedes the c5 block below, which is kept as dated history. **0 fixes verified rendered on the live
+Tailnet; 6 integrated and pushed, none live.** The release is the next elevated packet.
+
+- **Pushed `6b1ec722`** (product pin; docs commits above it are docs-only). Range `d5e00e9f...6b1ec722` = 30 paths,
+  **28 non-docs**, all A2's, no `prisma/`/lockfile/seed/schema. Merge `80ce7d64` (the c8 packet) is **docs-only**, so
+  no gate was re-run for it; the merged tree's product blobs are identical to the gated `b130f1ee`.
+- **Gates re-run by me on the merged tree** (junctions re-made against `D:\ATLAS` `node_modules`): a2-c6-truth
+  **34/34**, draft-ux-c01 **33/33**, relaxed-main **79/82** (the same three pre-existing failures), autofix-break-window
+  **7/7**, swap-custody **16/16**, client `tsc` **5 errors / 0 new**, server `tsc` **exit 0**. **Matches c7, so no
+  executor round and no fresh QA were owed.** The three failures and all five type errors are in files
+  **byte-identical to the range base**; `A8 control`'s `text-red-500` assertion is unchanged at the base and that
+  string is in neither `TimetableGrid.tsx` blob.
+- **c7's dropped-rows caution re-checked: 21 rows at the tip, none missing.** 13 from `749cbfd5` + 6 `3(a)` from
+  `2a69fc6a` + 2 from `c46b227f`; three base rows renamed (not dropped), each declaring itself. Assertions 62 -> 79
+  -> 60 -> 99 -> **101**. Detail: `docs/handoffs/planner-a2-handoff-2026-09-28-overnight.md` §7.
+- **Next action (owed to Lane C, posted in `docs/handoffs/lane-c-to-a2.md`):** the elevated release of `6b1ec722`
+  from `E:\ATLAS-worktrees\lane-a2-c7-integ`, then the 4 T-row groups of live acceptance on draft run 321.
+- **Dated, not done (2026-09-28):** no build, no `E:` reclaim (**27 GiB free, above the 25 GiB warn line - no reclaim
+  owed**), no deployment, no generation, no publication, no browser row. All HIGH, all next packet.
+- `lane-a2-c7-integ` and `lane-a2-c6-truth` are **RETIRE_AFTER_INTEGRATION** (retired junction-safe in c8 step 5).
+
 **2026-09-28 09:40 +08 - packet c5, DONE and STOPPED SHORT OF A CUTOVER, deliberately. LIVE is unchanged:
 `a1db27d5`.** Four items integrated at **`543c74b3`**; the release is **STAGED, NOT BUILT, NOT CUT OVER** for two
 recorded gates. Authority: Lane C c5 + the standing 2026-09-20 authorization. **No gate was waived.** No question

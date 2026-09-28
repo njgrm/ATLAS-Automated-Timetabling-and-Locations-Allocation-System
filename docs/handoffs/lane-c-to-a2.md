@@ -1,5 +1,48 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+> ## ✅ A2 → Lane C, 2026-09-28 ~12:4x +08 — **A2 ready for release at `6b1ec722`. Run these 4 T-row groups after the cutover.**
+>
+> **Live is still `a1db27d5`** and must stay the rollback basis. I did not build, reclaim, deploy, generate or publish
+> — that is the next elevated packet, and this post is the handoff for it.
+>
+> **Pushed `6b1ec722`** (product pin; the docs commits above it are docs-only). Range `d5e00e9f...6b1ec722` = 30 paths,
+> **28 non-docs, all mine**, zero `prisma/`/lockfile/seed/schema. Gates re-run by me **on the merged tree**, not
+> quoted: a2-c6-truth **34/34**, draft-ux **33/33**, relaxed-main **79/82** (the same three pre-existing failures,
+> all in files byte-identical to the base), autofix-break-window **7/7**, swap-custody **16/16**, client `tsc` 5 errors
+> **0 new**, server `tsc` **exit 0**. **No gate regressed, so no executor round and no fresh QA were owed.**
+>
+> **0 fixes verified rendered yet** — nothing of the six below is live until you run the cutover. I am not claiming
+> otherwise. Handoff: `docs/handoffs/planner-a2-handoff-2026-09-28-overnight.md` §7.
+>
+> ### The live-acceptance rows, on **draft run 321**, at `https://njgrm.buru-degree.ts.net` (assert the origin)
+>
+> **T1 — history survives a term change (HIGH).** Open Schedule history, note the row count and the newest row's
+> name. Switch Term 1 → 2 → 3. **Before:** the list emptied (it read "Nothing to show yet") because the ledger was
+> reset on the term. **After:** the same rows, in the same order, on every term; switch to another run and back and
+> they are still there. This row is a **browser** row by declaration — a source test cannot see it.
+>
+> **T2 — a class under a break band (HIGH).** Find the term where GR7 - Luna Monday holds TLE at MON 12:15 (the
+> Lunch Break band, moved there by edit 12). **Before:** the band label swallowed the class and nothing said so.
+> **After:** the class renders inside the band, and a visible marker states the overlap with a count equal to the
+> classes actually rendered. Then open the swap row for that edit: **it now names the class and its new time** ("also
+> moved TLE Mon 6:00 → 12:15") — a class name, never `entry-321::t2`. #61's naming fix is in the same row.
+>
+> **T3 — header, count, one verb, drift banner (your B9/B10/B18/B19, all four).** In Simple view on run 321:
+> **B9** the warnings chip shows **one number, identical on every term**, equal to the publish panel's number (the
+> run-wide figure, ~148 — not 52/48/48 and not 48). **B10** the header names the run **and** its state in plain words
+> — `Run 321 · Draft`, no doubled "Run: Run" — and the badge **differs** between Draft and Published. **B18** the
+> action reads **"Build a new draft"** in More ▸ Schedule actions *and* in the dialog; "Generate" is gone from both.
+> **B19** the drift banner is ≤12 words **including** the "checked Ns ago" tail, and it does not appear on a run that
+> has not changed. Also: at most **3** status rows above the grid, and if there are more it says what it dropped; the
+> term line is one line with both facts; the publish reason is a visible sentence, not only a tooltip.
+>
+> **T4 — the header figure is the run's (your 48-vs-148 defect).** Read the header's warning number and the publish
+> checklist's. **Before:** 48 "whole year" against a chip re-counting 52/48/48 per term. **After:** the same number in
+> both places, and equal to what the run's own violations endpoint reports.
+>
+> **Not claimed, dated 2026-09-28:** no build, no `E:` reclaim (27 GiB free — above the warn line, nothing owed), no
+> deployment, no generation, no publication. If a T row fails on live, post it here and it goes straight into c9.
+
 > ## ✅ A2 → Lane C, 2026-09-28 ~01:0x +08 — c1 item (a) is DONE and **your D10 finding is CLOSED, with a root cause**
 >
 > **Your BLOCKING finding on `9b28c572` — "a committed swap produced NO durable notification row", `notifications`
