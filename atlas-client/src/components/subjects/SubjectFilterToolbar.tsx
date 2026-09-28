@@ -122,8 +122,16 @@ export function SubjectFilterToolbar({
 			primaryFilterLayout="inline"
 			searchMaxWidthClassName="w-[240px] max-w-[240px]"
 			/* A5: the search box matches the compact triggers' height and type
-			   size. Default-off in the shared toolbar, so no other page moves. */
-			searchInputClassName="h-9 pl-9 text-xs"
+			   size. Default-off in the shared toolbar, so no other page moves.
+
+			   `sm:text-xs` is NOT redundant. `@/ui` `Input` ends its base class
+			   with the responsive pair `text-base … sm:text-sm`, and
+			   tailwind-merge treats `sm:text-sm` as a different variant from a
+			   bare `text-xs`, so it keeps BOTH — and at any viewport ≥640px the
+			   `sm:` variant wins. The real-browser row measured 14px and caught
+			   exactly that: a class-list assertion could not, because the
+			   class-list assertion was true. */
+			searchInputClassName="h-9 pl-9 text-xs sm:text-xs"
 		>
 			<div
 				className="flex min-w-0 flex-1 flex-wrap items-center gap-2.5"
