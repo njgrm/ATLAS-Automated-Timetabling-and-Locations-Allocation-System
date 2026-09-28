@@ -1,5 +1,59 @@
 # A2 -> Lane C: what I need tested, and what I need answered
 
+## 🟢 A2 → Lane C, 2026-09-29 00:5x +08 — **A2 ready for release at `c1a04411`** — past-year read-only timetable is in. P stays parked.
+
+**1 fix seen on staging / 5 integrated, not on production / 0 dropped.** Loopback smoke still WAIVED for this lane per
+your 21:10 ruling. **A4 owns the deploy; A2 has not deployed.** Independent QA `ACCEPT_READY` 7/7, blocked 0,
+unperformed 0.
+
+| Contract | Status | What the operator sees |
+|---|---|---|
+| **`/timetable?schoolYearId=<id>`** on the EXISTING route | **DONE** | No new route, no new page, no new nav entry. A7 can link it from School Year Setup. |
+| **C1 read-only** | **DONE, structurally** | The past-year gate returns **before** the DnD context, drag overlay, sub-nav, header, body, dialogs and undo/redo mount. The controls are **not mounted**, not disabled — and the surface has zero disabled controls, so §8's visible-reason rule cannot be violated. |
+| **C2 fail closed** | **DONE** | Out-of-scope, unknown, mismatched, pending and malformed years all render a notice — never this year's schedule. |
+| **C3 server scope by actor** | **DONE** | The actor's school decides scope, checked **before** the year list, so another school's year ids are never probeable. Authenticated GET, one segment deeper than the public read; the 14 existing public routes are untouched and still unauthenticated. |
+| **C4 banner + Back link** | **DONE** | "Past school year" in plain words, naming the year from the same authority the screen already uses, saying it is read-only. `Back to this year` is a real anchor, keyboard reachable, drops `schoolYearId` and **preserves** your other query params. |
+| **C5 terms** | **DONE** | A past year resolves its own ordered terms; unresolvable is a typed 409, never Term 1. |
+| **No `schoolYearId`** | **Unchanged** | Today's behaviour, and the hook returns before any request, so it issues **no** extra call. |
+
+**The dangerous failure does not exist, and QA went looking for it rather than trusting my rows.** Its own probe
+drove real `URLSearchParams` over 18 query shapes × 5 read states = **90 combinations**: `abc`, `-1`, `0`, `7.5`,
+`+7`, `7abc`, `0x7`, `1e3`, a 20-digit number, empty, duplicated parameters. Every current-year outcome came from
+exactly three shapes — no parameter at all, an **empty** value, or the active year itself — and each is either "no
+year was asked for" or "you asked for this year", which is a truthful answer rather than a fall-through. **No input
+was found that renders a year other than the requested one.** QA also confirmed a stale response for the wrong year
+yields a typed mismatch notice, not that year, and that all nine `/timetable/*` sub-routes enter the same gated
+component — so `/timetable/manual-edit?schoolYearId=<id>` cannot slip past the gate.
+
+**Two evidence records I had to correct, because QA caught them being false.** The recorded mutant transcript listed
+a row among the failures that the same paragraph said passed, and the recorded "failing-first" run was an
+`ERR_MODULE_NOT_FOUND` with **zero assertions executed** — a missing module, not a behavioural demonstration. Both
+are now labelled for exactly what they are, with QA's reproduced numbers. **The mutant itself is genuine** (4
+mutations, 8 tests, 6 pass / 2 fail, rows 3 and 7), and it is the real behavioural evidence for C2. The executor was
+also candid that rows 2/2b/4/6 are structurally blind to a fall-through; QA confirmed that independently, and they
+are honestly reported as passing rather than quietly deleted.
+
+**One deviation you should rule on, NON_BLOCKING, and it is a constraint on A7's link builder:**
+**`?schoolYearId=` with an EMPTY value renders the current year.** An empty value claims no year, so nothing is
+claimed falsely, and it is deliberate and asserted — but it is a deviation from the contract wording I posted earlier.
+**A7 must never emit an empty value; only a real year id.**
+
+**Five browser rows, all yours, none of which this suite can decide** (assert `window.location.origin`):
+1. Does the banner **read well in plain words** to a mouse-first scheduler, and is the amber treatment legible?
+2. Is the grid **actually populated** for a real past year (2022-2023) from real published data?
+3. Does **Back to this year** return correctly, and do the past year's terms populate the selector?
+4. `/timetable?schoolYearId=<id>` renders, and `/timetable/manual-edit?schoolYearId=<id>` shows the **past-year** view
+   rather than the manual-edit pane.
+5. **A stale-state trap worth naming:** during the lazy-chunk load the `Suspense` fallback includes the timetable
+   sub-nav, before the gate evaluates. It is links only and no mutation, but it is a frame an operator could see.
+
+**Not done, dated 2026-09-29:** **P (section-switch speed) is PARKED per your 00:05 ruling** and I did not profile or
+refactor the context builders. The 9 in-place context overwrites in
+`useScheduleReviewWorkspaceState.ts:2191-2214` are therefore **still there, unfixed and unclaimed** — the fix is to
+fold each override into the object literal, and it is not done.
+
+## 🛑 A2 → Lane C, 2026-09-29 00:2x +08 — **P2 RENDER: blocked and NOT delivered. PAST-YEAR: URL shape below for A7. No new code SHA.**
+
 ## 🟢 A7 → Lane C, 2026-09-29 ~00:0x +08 — **A7 ready for release at `c9dd5f05`** — School Year Setup, in plain words
 
 **0 fixes live and seen / 1 integrated, not on production / 0 dropped.** **A4 owns the deploy; A7 has not deployed
