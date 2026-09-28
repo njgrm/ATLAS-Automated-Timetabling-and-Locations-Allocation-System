@@ -1,110 +1,106 @@
 # A5 C3 slice A — rendered evidence (planner-measured, loopback, `ISOLATED_LOCAL_BROWSER`)
 
-> **WITHDRAWN IN CORRECTION ROUND 1 — READ THIS FIRST.** Every `PASS` below is VOID and is **not**
-> ATLAS acceptance. The two committed screenshots, `after-1366x768.png` and `after-1920x1080.png`,
-> both show an error boundary — *"This page hit an unexpected error — Cannot read properties of
-> undefined (reading 'length')"* with a `Reload page` button. They do not show `/subjects` at all,
-> so the §11 rule-4 `REJECT_UX` gate has no image to judge, and the filter-row table below is
-> evidence about a measurement pass whose image was never captured. The withdrawal is recorded
-> here rather than the file being deleted, per `AGENTS.md` §16.
->
-> The measurement itself also **disproved the candidate's own width arithmetic**: it recorded all
-> five triggers at **160px**, not the 128px the ledger and two test comments claimed. That was
-> `SearchableSelect`'s `min-w-[160px]` silently overriding the `w-32` variant — QA finding B5,
-> since fixed, with the re-derived figure (1010px, one line, 52px slack) in `layout-note.md` §3.1.
-> The measurement was right and the ledger was wrong; that is now the record.
->
-> **Re-taking these rows is the planner's.** The exact command and fixture are in the correction
-> handoff. The subject-table half stays `UNPERFORMED` under a mocked surface and needs a real-data
-> render on staging, which is A4/Lane C's surface.
+**SUPERSEDES the first capture. The two previously committed `after-*.png` were error-boundary
+pages and are WITHDRAWN — see §5. The images now in this directory are real `/subjects` renders.**
 
-Harness: built `atlas-client` from candidate `911f5b3d`, served with `vite preview` on
-`http://127.0.0.1:5292`. All `/api/v1` and `/enrollpro-api/**` traffic intercepted in the browser
-and fulfilled from a fixture.
+Harness: `atlas-client` built from candidate `2dc89610`, served with `vite preview` on
+`http://127.0.0.1:5292` (5292 only — **not** 5274, which is A4's staging client).
+**Dedicated profile:** a fresh `launchPersistentContext` user-data-dir, wiped at start, driven by
+`playwright-core` outside the repo. The shared MCP Playwright profile was **not** used — the
+round-1 reviewer's condition, and it also removes the §12 custody defect recorded below.
+**Catch-all:** one `page.route('**/*')` handler that fulfils the fixture or `abort()`s, so
+**nothing reaches the vite dev proxy and nothing reads live 5001**.
 
-**There is NO captured before-render, so this is an after-only capture and the reviewer is judging
-one side.** The base `f02ed64a` was built and served on `:5294` for exactly that purpose, but under
-the identical fixture the base build redirects to `/login` (its actor-school resolution differs
-from the candidate's), so no before screenshot exists. The "before" facts used in the table below
-are therefore **source-level** (base `w-40 w-24 w-28 w-36 w-28` = four distinct widths; base label
-`All Status`; the deleted `COMPACT_SELECT` chrome string) plus the operator's own screenshot. The
-executor measured and reported those from source. A reviewer wanting a true side-by-side should use
-the operator's screenshot as the before.
-**These are loopback rows. Per `AGENTS.md` §12 they are `ISOLATED_LOCAL_BROWSER` and are NOT ATLAS
-acceptance** — they prove this candidate's own rendered paint and nothing about
-`https://njgrm.buru-degree.ts.net`. The Tailnet rows stay owed to Lane C.
+## 1. PASS — the filter row, 1366x768 (`after-1366x768.png`, 183 259 B)
 
-## PASS — the filter row, measured at 1366x768 (`after-1366x768.png`)
-
-All five triggers present, one line, no wrap. Values are `element.getBoundingClientRect()`;
-`clipped` is `scrollWidth > clientWidth + 1` on the trigger button.
+`errorBoundary: false`. Filter cluster present. All values are `getBoundingClientRect()`;
+`clipped` is `scrollWidth > clientWidth + 1`.
 
 | # | `data-testid` | visible text | h | w | accessible name | clipped |
 |---|---|---|---|---|---|---|
-| 1 | `subjects-status-filter` | `Status: All` | **36** | **160** | `Filter by subject status: All statuses` | false |
-| 2 | — | `Grade: All` | **36** | **160** | `Filter by grade level: All grades` | false |
-| 3 | `subjects-program-filter` | `Program: All` | **36** | **160** | `Filter by program scope: All programs` | false |
-| 4 | `subjects-room-type-filter` | `Room: All` | **36** | **160** | `Filter by room type: All room types` | false |
-| 5 | — | `Term: All` | **36** | **160** | `Filter by rotation term: All terms` | false |
-| — | search box, `Search name or code...` | — | **36** | — | — | — |
+| 1 | `subjects-status-filter` | `Status: All` | **36** | **128** | `Filter by subject status: All statuses` | false |
+| 2 | — | `Grade: All` | **36** | **128** | `Filter by grade level: All grades` | false |
+| 3 | `subjects-program-filter` | `Program: All` | **36** | **128** | `Filter by program scope: All programs` | false |
+| 4 | `subjects-room-type-filter` | `Room: All` | **36** | **128** | `Filter by room type: All room types` | false |
+| 5 | — | `Term: All` | **36** | **128** | `Filter by rotation term: All terms` | false |
+| — | search, `Search name or code...` | — | **36** | — | — | — |
 
-Against the operator's own words (`docs/prompts/a5-subjects-table-2026-09-29.md` line 16, and
+Cluster bounding box **812 × 36 → one line, no wrap.** `documentElement.scrollHeight ===
+clientHeight === 768` (and `1080`/`1080` at 1920) — **no global browser scrollbar** (§8).
+
+Against the operator's own words (`docs/prompts/a5-subjects-table-2026-09-29.md` line 16;
 `docs/handoffs/lane-c-to-a2.md` 2026-09-29 00:15):
 
-- **"each filter names itself (e.g. `Grade: All`, `Program: All`)"** — PASS, verbatim, all five.
-  The truncated bare `All…` reading is gone.
-- **"same height as the search box"** — PASS, 36 = 36, measured, not asserted.
-- **"even widths"** — PASS, five triggers at 160px, one width. (Base was 4 distinct widths:
-  `w-40 w-24 w-28 w-36 w-28` = 160/96/112/144/112.)
-- **"filters are pill-shaped (rounded-full) while the search box and the Section/Teacher pickers
-  elsewhere are rounded rectangles"** — the five now render through one shared
-  `@/ui/picker-trigger` variant at the same height as the search box; the source-level half
-  (the deleted `COMPACT_SELECT` string) is a test row, not this one.
+- **"each filter shows its name (e.g. `Grade: All`, `Program: All`)"** — PASS, verbatim, all five.
+- **"same height as the search box"** — PASS, 36 = 36, measured.
+- **"even widths"** — PASS, five triggers at **128px**. Base was four distinct widths
+  (`w-40 w-24 w-28 w-36 w-28` = 160/96/112/144/112).
+- **"filters are pill-shaped … while the search box … [is] rounded rectangles"** — one shared
+  `@/ui/picker-trigger` variant at the search box's exact height.
 
-`document.documentElement.scrollHeight === clientHeight === 768` — **no global browser scrollbar**
-on `/subjects` at 1366x768 (`AGENTS.md` §8 No-Scroll). Also captured at 1920x1080
-(`after-1920x1080.png`).
+## 2. The `min-w` defect is now proven fixed, and the ledger's arithmetic vindicated
 
-## UNPERFORMED — the subject table row. Not a pass, and not claimed as one.
+The round-1 reviewer's B5 finding stands: `searchable-select.tsx` composed `min-w-[160px]` ahead
+of `w-32`, CSS `min-width` beat `width`, and every trigger rendered at **160px** regardless of the
+variant — so the layout note's "1010px, 52px slack, one line" was **false** (real ~1170px vs
+~1062px available) and the deleted `total < available` guard was covering a real failure.
 
-**The operator's other three table complaints — abbreviated program chips, `Owned by AP, MAPEH`
-instead of `OWNER_DEPT:AP, OWNER_DEPT:MAPEH`, and the code chip gone — have NO rendered proof in
-this cycle.** They are covered by source-level and jsdom tests only, which `AGENTS.md` §11 says is
-not acceptance evidence for a user-facing change.
+`2dc89610` removed the floor from the shared primitive. **This capture measures 128px**, which is
+`w-32` and the number the correction's ledger predicted. So:
 
-**Why, precisely:** under a fully mocked `/api/v1`, `/subjects` renders its filter row and then
-stops at the bounded empty state. `pages/Subjects.tsx:149-184` only issues a catalog request once
-`resolveActiveSchoolYearContext()` returns an `activeSchoolYearId`; with the EnrollPro public
-settings mocked the resolver does not yield one, so `GET /api/v1/subjects/scheduling-authority` is
-**never dispatched** (observed request set: `auth/me`, `runtime/context` only) and
-`setSubjects` is never called. Every fixture shape tried and the exact gate each one failed is in
-the planner's session; the honest summary is that satisfying this loader needs the real
-active-school-year / term-authority contract (A5 c2a's resolver plus A2's active-term work), not
-a hand-written fixture.
+- the corrected ledger (128px/trigger, 1010px, one line) is **right**, and
+- the **planner's earlier 160px measurement was the correct observation of a defective build**,
+  while the executor's 128px claim at the time was arithmetic that had not yet been made true.
 
-Recorded as `UNPERFORMED`, per `AGENTS.md` §16 — a mandatory row is never silently dropped, and a
-vacuous pass is not a pass. The `OWNER_DEPT` absence asserted by a source test is **not**
-corroborated here.
+Both errors are on the record because the same number was wrong in opposite directions.
 
-## Consequences for the cycle
+## 3. UNPERFORMED — the subject table row. Deferred to Lane C, by ruling.
 
-1. **§11's `REJECT_UX` judgement cannot be completed for the table row.** A reviewer who did not
-   build this compares before/after at 1366x768 — the filter row is judgeable, the table row is
-   not, because the row does not paint under a mocked surface.
-2. **The Tailnet rows are still owed** and now include four table-row items that have never been
-   seen rendered by anyone. Lane C's older-user walk is the second judge and **blocks the release
-   of this screen** (`AGENTS.md` §11 rule 4).
-3. **The single cheapest fix for both** is a real-data render: point one browser at staging
-   (which A4 already runs from a copy of live, at `:8443` / `127.0.0.1:5274`), where the catalog
-   is non-empty and `/subjects` paints its rows. That is A4's/Lane C's surface, not a lane-A5
-   deployment, and it needs no new authority.
+Program chips, `Owned by AP, MAPEH`, and the absent code chip still have **no rendered proof here**.
+`/api/v1/subjects/scheduling-authority` is not dispatched in this capture: the page reaches its
+bounded state and `rowsRendered: 1` is the **empty-state** row, not a subject row. The loader is
+gated on `resolveActiveSchoolYearContext()`, which a live EnrollPro or a real staging database
+satisfies and a hand-written fixture does not.
 
-## Non-blocking findings recorded by the planner (not fixed here)
+**Lane C ruled 02:35 that this is accepted as deferred**: the table row is judged on **staging
+`:5274` after A4 deploys train 6**, and a `REJECT_UX` there **returns it to Lane A5**. Carried as a
+release condition, not as a satisfied row.
 
-- `vite preview` applies the **dev** proxy config, so an unmocked `/api/v1` path on a loopback
-  preview is proxied to **127.0.0.1:5001 — the live server**. A loopback evidence run therefore
-  needs a catch-all `abort()`/fulfil, or it silently reads production. Observed live here as a
-  real `401 INVALID_TOKEN` on `auth/me`; no write was issued and no live data was mutated.
-- The Playwright profile in use is **shared**: a second tab belonging to another lane
-  (`A2 measurement harness`) was open in the same profile. `AGENTS.md` §12 — one agent per
-  browser profile at a time. Flagged to the lanes, not resolved here.
+## 4. What this capture does NOT prove
+
+- No **before** image exists. The base `f02ed64a` was built and served for exactly that purpose but
+  redirects to `/login` under the same fixture, so a reviewer compares against the operator's
+  screenshot and the base's source-level widths, not a side-by-side.
+- The jsdom rows remain **not** a substitute for a render (§11).
+
+## 5. WITHDRAWN — the first capture, and why the crash was the fixture
+
+The first two committed images (22 414 B / 26 235 B) rendered *"This page hit an unexpected error —
+Cannot read properties of undefined (reading 'length')"*. The previous version of this file cited
+one of them as a PASS. **That citation was false.**
+
+Root cause, now established by a real render: it was **the planner's fixture, not the candidate**.
+The mocked `termAuthority.contract` omitted `schoolYear`, so `SubjectTermAuthorityBanner` /
+`SubjectTermContractPopover` read `contract.schoolYear.yearLabel` off `undefined`
+(`components/subjects/SubjectTermAuthorityBanner.tsx:113`, `SubjectTermContractPopover.tsx:77,81,89`).
+With `contract.schoolYear = { yearLabel: '2031-2032' }` supplied the page renders clean and
+`errorBoundary: false`. The candidate's `filter-picker.tsx` `options ?? []` hardening is real and
+independent — a misuse guard, **not** the fix for this crash. No product defect is claimed, and
+none was found here.
+
+## 6. Harness findings (backlog, recorded not fixed)
+
+- **`vite preview` applies the dev proxy.** An unmocked `/api/v1` path on a loopback preview is
+  proxied to the **live server on 5001**. Round 1 observed a real read-only `401` that way. Any
+  loopback evidence run needs a catch-all `abort()`. This one had one.
+- **§12 custody defect.** The single shared MCP Playwright profile had another lane's tab open
+  during round 1. This capture used a dedicated profile; the shared-profile issue is still open
+  across lanes.
+- A test that throws with a React tree mounted leaves the child at exit `-1` with a bare
+  `test failed`; an open Radix `Popover` is modal and `aria-hidden`s its siblings.
+
+## 7. Zero residue
+
+Throwaway render harness deleted (§2). `node_modules` is gitignored. Preview stopped, port 5292
+confirmed free. Live `5001`/`5174` and staging `5101`/`5274` observed listening throughout and
+never addressed. No push, no deploy, no database, no runtime or task change.
