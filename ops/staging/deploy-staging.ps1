@@ -125,7 +125,8 @@ if ($ServerPort -eq $ClientPort) { Fail 'Staging server and client ports must di
 if (-not (Test-Path -LiteralPath $LiveEnvFile)) { Fail "Live env file not found: $LiveEnvFile" }
 if (-not (Test-Path -LiteralPath $ContractTemplate)) { Fail "Staging contract template not found: $ContractTemplate" }
 
-$repoRoot    = (Invoke-Native 'git' @('-C', $PSScriptRoot, 'rev-parse', '--show-toplevel')).Trim()
+$repoRoot = (Invoke-Native 'git' @('-C', $PSScriptRoot, 'rev-parse', '--show-toplevel')).Trim()
+
 $releaseDir  = Join-Path $ReleaseRoot $Sha
 $taskCommand = Join-Path $ReleaseRoot 'staging-supervisor.cmd'
 $activeFile  = Join-Path $ReleaseRoot 'active-release.txt'
@@ -134,6 +135,18 @@ $auditDir    = 'C:\ProgramData\ATLAS\staging-audit'
 $liveMap  = Get-AtlasEnvMap -Path $LiveEnvFile
 $liveConn = Get-PgConnection $liveMap
 if ($StagingDatabase -ceq $liveConn.Database) { Fail 'Staging database name equals the live database name. Refusing.' }
+
+# The EnrollPro origin used for the client bundle must never be an empty string:
+# vite.config.ts fails the build closed without VITE_ENROLLPRO_URL, and an empty
+# override would otherwise travel silently through the parameter into the build.
+# Default to the LIVE value so the staging bundle is built against the same
+# companion origin as production and cannot diverge from it.
+if ([string]::IsNullOrWhiteSpace($EnrollProOrigin)) {
+    $EnrollProOrigin = $liveMap['ENROLLPRO_PROXY_ORIGIN']
+}
+if ([string]::IsNullOrWhiteSpace($EnrollProOrigin)) {
+    Fail 'EnrollPro origin is empty: neither -EnrollProOrigin nor the live env file supplied one. Refusing to build a bundle with dead companion SSO surfaces.'
+}
 
 if (-not $DependencySourceDir) {
     $machineSource = [Environment]::GetEnvironmentVariable('ATLAS_RUNTIME_SOURCE_DIR', 'Machine')

@@ -89,9 +89,9 @@ if (-not $Execute) { exit 0 }
 
 # ------------------------------------------------------------------- audit dir
 # Restrict the audit directory to the same principals as the live env file, so a
-# transcript of run metadata is not world-readable.
-if (-not (Test-Path -LiteralPath $AuditRoot)) { New-Item -ItemType Directory -Force -Path $AuditRoot | Out-Null }
-Set-Acl -LiteralPath $AuditRoot -AclObject (Get-Acl -LiteralPath $LiveEnvFile)
+# transcript of run metadata is not world-readable, while keeping create/write for
+# the owning identity. Each audit FILE ends with the strict ACL.
+$null = Initialize-ProtectedDirectory -Path $AuditRoot -ReferenceAclFile $LiveEnvFile
 $stamp   = Get-Date -Format 'yyyyMMdd-HHmmss'
 $logPath = Join-Path $AuditRoot "refresh-db-$stamp.log"
 
@@ -116,9 +116,9 @@ $null = Invoke-PgTool -PgBin $PgBin -Tool 'psql.exe' -EnvMap $liveMap -Database 
     -Arguments @('-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-c',
         "select pg_terminate_backend(pid) from pg_stat_activity where datname = '$StagingDatabase' and pid <> pg_backend_pid();")
 $null = Invoke-PgTool -PgBin $PgBin -Tool 'psql.exe' -EnvMap $liveMap -Database 'postgres' `
-    -Arguments @('-v', 'ON_ERROR_STOP=1', '-c', "drop database if exists `"$StagingDatabase`";")
+    -Arguments @('-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-c', "drop database if exists `"$StagingDatabase`";")
 $null = Invoke-PgTool -PgBin $PgBin -Tool 'psql.exe' -EnvMap $liveMap -Database 'postgres' `
-    -Arguments @('-v', 'ON_ERROR_STOP=1', '-c', "create database `"$StagingDatabase`";")
+    -Arguments @('-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-c', "create database `"$StagingDatabase`";")
 
 # The archive is the POSITIONAL argument to pg_restore. `-f` is pg_restore's
 # OUTPUT-file option, so passing the dump path to `-f` makes pg_restore overwrite
@@ -139,7 +139,7 @@ $log.Add("liveAfter=$after")
 $log.Add("signaturesEqual=$($before -ceq $after)")
 $log.Add("stagingMatchesLive=$($stagingSignature -ceq $after)")
 $log.Add("finishedAtUtc=$((Get-Date).ToUniversalTime().ToString('o'))")
-[System.IO.File]::WriteAllLines($logPath, $log)
+$null = Write-ProtectedFile -Path $logPath -Lines $log -ReferenceAclFile $LiveEnvFile
 
 $liveUnchanged = ($before -ceq $after)
 $stagingMatches = ($stagingSignature -ceq $after)

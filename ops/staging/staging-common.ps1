@@ -53,12 +53,13 @@ function Invoke-PgPipeline {
     foreach ($tool in $dump, $restore) { if (-not (Test-Path -LiteralPath $tool)) { throw "PG_TOOL_MISSING: $tool" } }
 
     $conn = Get-PgConnection $EnvMap
-    $previous = @{ PGPASSWORD = $env:PGPASSWORD; PGUSER = $env:PGUSER; PGHOST = $env:PGHOST; PGPORT = $env:PGPORT }
+    $previous = @{ PGPASSWORD = $env:PGPASSWORD; PGUSER = $env:PGUSER; PGHOST = $env:PGHOST; PGPORT = $env:PGPORT; PGDATABASE = $env:PGDATABASE }
     try {
         $env:PGPASSWORD = $conn.Password
         $env:PGUSER     = $conn.User
         $env:PGHOST     = $conn.Host
         $env:PGPORT     = [string]$conn.Port
+        $env:PGDATABASE = $conn.Database
         $quote = { param($a) if ($a -match '[\s"]') { '"' + $a + '"' } else { $a } }
         $left  = (@($dump)    + $DumpArguments)    | ForEach-Object { & $quote $_ }
         $right = (@($restore) + $RestoreArguments) | ForEach-Object { & $quote $_ }
@@ -71,6 +72,7 @@ function Invoke-PgPipeline {
         $env:PGUSER     = $previous.PGUSER
         $env:PGHOST     = $previous.PGHOST
         $env:PGPORT     = $previous.PGPORT
+        $env:PGDATABASE = $previous.PGDATABASE
     }
     if ($LASTEXITCODE -ne 0) {
         $text = (($out | Select-Object -Last 12) -join "`n") -replace [regex]::Escape($conn.Password), '***'
@@ -197,12 +199,19 @@ function Invoke-PgTool {
         PGUSER     = $env:PGUSER
         PGHOST     = $env:PGHOST
         PGPORT     = $env:PGPORT
+        PGDATABASE = $env:PGDATABASE
     }
     try {
         $env:PGPASSWORD = $conn.Password
         $env:PGUSER     = $conn.User
         $env:PGHOST     = $conn.Host
         $env:PGPORT     = [string]$conn.Port
+        # PGDATABASE must always be set. psql silently falls back to the USER NAME
+        # when neither -d nor PGDATABASE is present, which produced
+        # `FATAL: database "atlas_user" does not exist` on a call that simply
+        # forgot -d. Setting it here means a missing -d is harmless rather than
+        # a wrong-database error.
+        $env:PGDATABASE = $db
         $previousPreference = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'
         try {
@@ -215,6 +224,7 @@ function Invoke-PgTool {
         $env:PGUSER     = $previous.PGUSER
         $env:PGHOST     = $previous.PGHOST
         $env:PGPORT     = $previous.PGPORT
+        $env:PGDATABASE = $previous.PGDATABASE
     }
     if ($LASTEXITCODE -ne 0) {
         $text = ($out -join "`n")
@@ -357,19 +367,39 @@ function Write-StagingEnvFile {
     foreach ($key in $Map.Keys) { $lines.Add("$key=$($Map[$key])") }
     $text = ($lines -join "`r`n") + "`r`n"
 
-    # ORDER MATTERS, and this was a reviewed BLOCKING defect once already.
-    # Create the file EMPTY, restrict it to the live file's ACL, and only then
-    # write the secret. The reverse order leaves a fresh JWT secret and the live
-    # database password in a file carrying the directory's inherited DACL, which
-    # on this host grants `NT AUTHORITY\Authenticated Users: Modify` and
-    # `BUILTIN\Users: ReadAndExecute` until the Set-Acl runs -- and lets a local
-    # user pre-create the name, since Modify on the directory includes create.
+    # ORDER MATTERS, and this has been a reviewed BLOCKING defect twice now.
+    #
+    # 1. The naive order (write, then Set-Acl) leaves a fresh JWT secret and the
+    #    live database password in a file carrying the directory's inherited
+    #    DACL -- on this host `NT AUTHORITY\Authenticated Users: Modify` and
+    #    `BUILTIN\Users: ReadAndExecute` -- and lets a local user pre-create the
+    #    name, since Modify on the directory includes create.
+    # 2. But the strict order (Set-Acl, then write) is ALSO impossible: the live
+    #    ACL grants Read+Synchronize only, so the write is denied outright. That
+    #    was the second BLOCKING finding.
+    #
+    # So: create the file EMPTY, restrict it to the live ACL immediately, then
+    # grant ONLY the current identity write access, write, and re-apply the strict
+    # ACL. The secret is never on disk under the permissive inherited DACL, and
+    # the final ACL is byte-equivalent to the live file's.
     if (-not (Test-Path -LiteralPath $Path)) {
         [System.IO.File]::WriteAllText($Path, '')
     }
     $liveAcl = Get-Acl -LiteralPath $LiveEnvFile
     Set-Acl -LiteralPath $Path -AclObject $liveAcl
-    [System.IO.File]::WriteAllText($Path, $text)
+
+    $current = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    $writable = Get-Acl -LiteralPath $Path
+    $writable.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
+        $current.Name,
+        [System.Security.AccessControl.FileSystemRights]::Write,
+        [System.Security.AccessControl.AccessControlType]::Allow)))
+    Set-Acl -LiteralPath $Path -AclObject $writable
+    try {
+        [System.IO.File]::WriteAllText($Path, $text)
+    } finally {
+        Set-Acl -LiteralPath $Path -AclObject $liveAcl
+    }
     return $Path
 }
 
@@ -394,6 +424,92 @@ function Get-StagingLaunchEnvironment {
         ATLAS_RUNTIME_RELEASE_SHA = $ReleaseSha
         ATLAS_RUNTIME_ENV_FILE    = $EnvFile
     }
+}
+
+function Initialize-ProtectedDirectory {
+    <#
+    .SYNOPSIS
+        Create a directory restricted to a reference ACL, plus create/write for
+        the current identity so files can be created inside it.
+    .DESCRIPTION
+        The reference file ACL grants Read+Synchronize only, so applying it to a
+        DIRECTORY removes the owner's ability to create anything inside it and the
+        first audit-file write fails with 'Access to the path ... is denied'. The
+        directory therefore carries the reference ACEs plus a single Modify rule
+        for the current identity. Every file created inside is written through
+        Write-ProtectedFile and ends with the strict reference ACL, so the extra
+        directory right never applies to file contents.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [Parameter(Mandatory)][string] $ReferenceAclFile
+    )
+    if (-not (Test-Path -LiteralPath $Path)) { New-Item -ItemType Directory -Force -Path $Path | Out-Null }
+    $acl = Get-Acl -LiteralPath $ReferenceAclFile
+    Set-Acl -LiteralPath $Path -AclObject $acl
+    $current = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    $dirAcl = Get-Acl -LiteralPath $Path
+    $dirAcl.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
+        $current.Name,
+        [System.Security.AccessControl.FileSystemRights]::Modify,
+        [System.Security.AccessControl.InheritanceFlags]::ContainerInherit,
+        [System.Security.AccessControl.PropagationFlags]::None,
+        [System.Security.AccessControl.AccessControlType]::Allow)))
+    Set-Acl -LiteralPath $Path -AclObject $dirAcl
+    return $Path
+}
+
+function Write-ProtectedFile {
+    <#
+    .SYNOPSIS
+        Write sensitive text to a file whose final ACL equals a reference file's.
+
+    .DESCRIPTION
+        The reference ACL on this host grants Read+Synchronize only, which makes
+        both naive orders wrong, and both were real BLOCKING failures here:
+
+          * write, then Set-Acl  -- the content exists under the directory's
+            inherited DACL (`Authenticated Users: Modify`, `BUILTIN\Users:
+            ReadAndExecute`) until Set-Acl runs, and a local user can pre-create
+            the name because Modify on the directory includes create.
+          * Set-Acl, then write  -- denied outright: the strict ACL carries no
+            write right for anyone, including the owner.
+
+        So: create the file EMPTY, restrict it immediately, grant ONLY the current
+        identity write access, write, then re-apply the strict ACL. The sensitive
+        content is never on disk under a permissive DACL, and the final ACL is
+        byte-equivalent to the reference file's.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [Parameter(Mandatory)][string[]] $Lines,
+        [Parameter(Mandatory)][string] $ReferenceAclFile
+    )
+
+    $dir = Split-Path -Parent $Path
+    if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+    if (-not (Test-Path -LiteralPath $Path)) { [System.IO.File]::WriteAllText($Path, '') }
+
+    $referenceAcl = Get-Acl -LiteralPath $ReferenceAclFile
+    Set-Acl -LiteralPath $Path -AclObject $referenceAcl
+
+    $current = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    $writable = Get-Acl -LiteralPath $Path
+    $writable.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
+        $current.Name,
+        [System.Security.AccessControl.FileSystemRights]::Write,
+        [System.Security.AccessControl.AccessControlType]::Allow)))
+    Set-Acl -LiteralPath $Path -AclObject $writable
+    try {
+        [System.IO.File]::WriteAllLines($Path, $Lines)
+    } finally {
+        Set-Acl -LiteralPath $Path -AclObject $referenceAcl
+    }
+    return $Path
 }
 
 function Test-Administrator {

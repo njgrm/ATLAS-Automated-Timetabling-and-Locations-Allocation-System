@@ -97,7 +97,69 @@ around the refresh rather than against the fixed 09:01:18Z baseline, which a con
 sign-in would perturb), **N9** (no live key value begins or ends with a quote), **N11**
 (claim 4 softened above).
 
-## Round 2 acceptance rows added by the reviewer
+## Round 1.5 — execution-time defects found by the executor, all fail-closed, all fixed additively
+
+The executor ran the corrected scripts and hit four further defects. Every one
+aborted before touching live, which is the design working: three aborted during
+the build phase, which runs **before** the quiesce.
+
+| ID | Symptom | Root cause | Fix |
+|---|---|---|---|
+| **B5** | `vite` failed the client build: `Missing required production build configuration: VITE_ENROLLPRO_URL` | The executor passed `-EnrollProOrigin ''`, and the parameter was used verbatim. An empty override therefore travelled silently into a production build instead of being rejected. | An empty `-EnrollProOrigin` now **falls back to the live env file's** `ENROLLPRO_PROXY_ORIGIN` and fails closed if neither supplies one. |
+| **B6** | `Access to the path '…\atlas-staging.env' is denied.` | Round 1's B3 fix ordered create-empty → `Set-Acl` → write. But the live ACL grants **Read+Synchronize only**, so the write was denied outright. B3's fix was necessary and insufficient. | `Write-ProtectedFile`: create empty → `Set-Acl` → grant **only the current identity** write → write → re-apply the strict ACL. |
+| **B7** | `psql: FATAL: database "atlas_user" does not exist` | `psql` **silently falls back to the user name** when neither `-d` nor `PGDATABASE` is present. The `drop`/`create database` calls omitted `-d`. | `PGDATABASE` is now always injected, and every call passes `-d` explicitly. A missing `-d` is harmless rather than a wrong-database error. |
+| **B8** | `Access to the path '…\refresh-db-….log' is denied.` | Applying the strict read-only ACL to the audit **directory** removed the owner's ability to create files in it. | `Initialize-ProtectedDirectory`: reference ACEs + a single Modify rule for the current identity; every file inside still ends with the strict ACL. |
+
+Two executor errors, not script defects, both caught by the scripts' own guards:
+a mistyped SHA (caught by `git cat-file -t`, exit 128) and the B5 empty
+parameter. Neither reached a mutation.
+
+## Round 1.5 result — all rows
+
+| # | Row | Result |
+|---|---|---|
+| X1 | `E:` free ≥ 25 GiB | PASS — 35.29 → 33.77 during seeding, **31.37 GiB** after the build |
+| X2 | registered worktree at the SHA, HEAD == SHA | PASS — `E:/ATLAS-staging/7590d485…`, HEAD matches, 0 reparse points |
+| X3 | contract 5101/5274, rollover **false**, `ATLAS_SUPERVISED` true | PASS — validated by executing the real `loadContract()` |
+| X4 | staging `DATABASE_URL` db == `atlas_staging` ≠ live | PASS — `atlas_staging` vs `atlas_recovery_clean_rebuild_20260905` |
+| X5 | staging `JWT_SECRET` ≠ live | PASS — boolean comparison, no value printed |
+| X6 | staging env ACL == live env ACL | PASS — the three ACEs are byte-identical |
+| X7 | no machine-scope write | PASS — machine scope still names the live source dir, release and env file; no staging variables exist at machine scope |
+| X8 | zero reparse points in the release dir | PASS — 0 |
+| X9 | `atlas_staging` created and populated | PASS — `SNAPSHOT_REFRESHED`, staging signature `1010\|459\|11` == live |
+| X10 | live DB signature unchanged | PASS — `1010\|459\|11` before **and** after the refresh |
+| X11 | live listeners unchanged | PASS — 5001→3516, 5174→60116, identical to the pre-action baseline |
+| X12 | live machine scope unchanged | PASS |
+| X13 | staging task registered, SYSTEM, at startup | PASS — `ATLAS-Staging-Supervisor`, Enabled, Running, `Run As User: SYSTEM` |
+| X14 | staging liveness 200 | PASS |
+| X15 | staging readiness 200 | PASS |
+| X16a | `/__host/live` 200 | PASS |
+| X16 | `/__host/ready` 200 | PASS |
+| X17 | DB-backed read 200 | PASS — `/api/v1/subjects?schoolId=1` → 200 |
+| X18a | no staging traffic to live 5001 | PASS — `/api` proxied through 5274 returns 200 with **no** established connection to 5001; `buildTargets()` independently yields `ATLAS_HOST_API_TARGET=http://127.0.0.1:5101` |
+| X19 | deploy ≤ 10 min | PASS — **26.3 s** with `-SkipBuild`; a full build adds ~2 min |
+| X20 | operator signs in at 5274 once | **NOT PERFORMED** — operator action. A4 does not type credentials. Unauthenticated render verified instead. |
+| **M1** | live `audit_logs` re-checked after staging is up | PASS — still `1010\|459\|11` |
+| **M2** | live release tree unmodified | PASS — HEAD `7590d485…`, `git status --short` empty |
+| **M3** | staging server read the staging env + release dir | PASS — from the supervisor log: `path=D:\ATLAS-runtime-config\atlas-staging.env`, `sourceDir=E:\ATLAS-staging\7590d485…`, `keyCount=18` |
+
+### Rendered evidence (unauthenticated, `isolated`)
+
+`http://127.0.0.1:5274` → redirects to `/login`, title **ATLAS**, origin asserted
+`http://127.0.0.1:5274`, real login form (3 inputs, `Sign In`), **0 console
+errors**. This is loopback `isolated` evidence and is **not** ATLAS production
+acceptance (§12).
+
+### Tailnet path — decided, not built
+
+`tailscale` is present and the node is `100.88.55.125 njgrm`. A Tailnet path was
+**not** added. Reasons: the packet's stated need — "http://127.0.0.1:5274 on this
+PC (Codex's Brave runs here)" — is already met; exposing a production-data copy to
+the Tailnet is a runtime configuration change that is itself HIGH and would need
+its own authorization; and the staging session cookie is origin-bound, so a
+Tailnet origin would need its own seeding anyway. Reversible later in one command.
+
+## Round 2 — acceptance rows added by the pre-action reviewer
 
 | # | Row | Harness | Why added |
 |---|---|---|---|
