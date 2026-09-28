@@ -35,6 +35,26 @@
  * and that is what row 1's first assertion gates.
  *
  * Run: `npm run test:a3-c8-audit`
+ *
+ * ── DATED BACKLOG (recorded, deliberately NOT fixed here) — 2026-09-28 ────────────
+ * Two `info` inconsistencies survive this sweep. Both are real consolidation items and
+ * neither is corrected by this stream, for a stated reason in each case.
+ *
+ *   1. `src/components/admin-workspace/AdminWorkspace.tsx:64` still maps the `info` tone to
+ *      `border-sky-200 bg-sky-50 text-sky-700`. So `info` is NEUTRAL on `/audit` (this
+ *      lane made it neutral) and SKY-BLUE on the admin workspace — the same semantic name
+ *      renders two different colours in two places. NOT FIXED HERE: that file is another
+ *      lane's sweep file carrying the same kind of pinned corpus count this stream had to
+ *      re-pin, and editing it would move a pin that is not this lane's to move. The fix
+ *      belongs to whichever lane owns that file, and must move its pin deliberately.
+ *   2. `src/ui/badge-variants.ts:17` still ships a raw ramp in a SHARED primitive:
+ *      `warning: 'bg-amber-100 text-amber-800'` (and `:18` `danger: 'bg-red-100 text-red-800'`).
+ *      Every consumer of `<Badge variant="warning">` therefore still renders raw amber,
+ *      so the warning family is not actually centralised. NOT FIXED HERE: it is a shared
+ *      primitive whose blast radius is every badge in the product, which is its own packet
+ *      and its own review. Note also that `src/ui/**` is OUTSIDE the counting scope of
+ *      `a3-c8-warning-token.test.ts` (roots are `pages` and `components`), so this raw
+ *      amber is invisible to that ratchet — a real blind spot, not a passing grade.
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -102,6 +122,17 @@ const EXPECTED_TOKEN_PREFIXES = [
 ] as const;
 
 test('row 1: Audit.tsx holds zero raw chromatic ramp classes, and the token families are really used', () => {
+	// ── F1, STATED WITH ITS LIMIT (record accuracy, 2026-09-28) ────────────────────
+	// "Zero raw classes" is met for the CHROMATIC RAMP ONLY. This row must never be read
+	// as "Audit.tsx carries no raw Tailwind classes": the page still holds 8 raw
+	// `text-slate-*` lines, asserted deliberately by row 1b. The residual slate is held
+	// by TWO ACCEPTED GATES in files outside this stream's scope —
+	// `palette-token-sweep-a3-s-e.test.ts:193` and `palette-slate400-step2-a3-s-f.test.ts:184`,
+	// both `['src/pages/Audit.tsx', 8]` — plus the global equalities `EXPECTED_TOTAL = 95`
+	// (s-e:178) and `EXPECTED_IN_SCOPE_RESIDUAL = 68` (s-e:181, s-f:172). Those files are
+	// S-E/S-F's to move; this stream may not edit them, so the honest statement is
+	// "chromatic ramp tokenised, slate residual held by two external gates" — NOT
+	// "the page is fully tokenised".
 	const chromatic = [...new Set(auditSource.match(CHROMATIC_RE) ?? [])].sort();
 	assert.deepEqual(
 		chromatic,
@@ -124,7 +155,13 @@ test('row 1: Audit.tsx holds zero raw chromatic ramp classes, and the token fami
 });
 
 test('row 1b: the raw-neutral residue is EXACTLY the 8 occurrences two other lanes pin, and only the two pinned shades', () => {
-	// The pin: palette-token-sweep:189 and palette-slate400-step2-a3-s-f:184 both assert 8.
+	// The pin: palette-token-sweep-a3-s-e:193 and palette-slate400-step2-a3-s-f:184 both assert 8.
+	// (Row 1 of this file previously cited `palette-token-sweep:189`; that line number is
+	// STALE and was corrected here to the actual 193 — a citation that points at the wrong
+	// line is not evidence, it is a rumour.) The two global equalities these two files also
+	// carry are `EXPECTED_TOTAL = 95` (s-e:178) and `EXPECTED_IN_SCOPE_RESIDUAL = 68`
+	// (s-e:181, s-f:172); note that 68 there is a raw-neutral count and is unrelated to the
+	// 68 files in the a3-c8-warning-token corpus pin, which is a different measurement.
 	const rawNeutrals = [...auditSource.match(/\btext-(?:slate|zinc|gray|neutral|stone)-\d{2,3}\b/g) ?? []];
 	assert.equal(
 		rawNeutrals.length,

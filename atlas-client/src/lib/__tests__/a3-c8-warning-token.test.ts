@@ -310,13 +310,34 @@ test('CONTROL: the grade exemption is load-bearing, not a hole in the detector',
 	);
 });
 
-test('repo-wide remaining raw amber/yellow count is pinned at 69 files / 238 lines', () => {
+test('repo-wide remaining raw amber/yellow count is pinned at 68 files / 232 lines', () => {
 	// Derivation, pinned rather than remembered: baseline at 4c683e1f3 was 82 files /
 	// 333 lines repo-wide and 95 lines inside these 13, so sweeping all 13 to zero leaves
 	// 82 - 13 = 69 files and 333 - 95 = 238 lines. Moving either literal is a deliberate
 	// act, never a side effect of an unrelated edit.
-	const PINNED_REMAINING_FILES = 69;
-	const PINNED_REMAINING_LINES = 238;
+	//
+	// ── RE-PINNED 2026-09-28 by stream `a3-c8-audit` (packet c8 item 1) ─────────────
+	//   files  69 -> 68
+	//   lines 238 -> 232
+	// Derivation, re-measured in the same commit rather than carried from a handoff: the
+	// scope, exclusions and counting method in this file were replayed verbatim over the
+	// base corpus (`pages/Audit.tsx` read at 7ea2abda, every other file from the tree) and
+	// over the candidate corpus. `pages/Audit.tsx` was the ONLY file to leave the set and it
+	// contributed EXACTLY 6 lines (6 -> 0). No file entered the set and no other file's line
+	// count moved: `git diff --name-only 7ea2abda..HEAD` under the corpus roots reduces to
+	// `atlas-client/src/pages/Audit.tsx` and nothing else. It needed NO exemption — the
+	// amber/yellow it carried was warning-semantic, so it left the corpus on its merits.
+	// `pages/Audit.tsx` is not in SWEPT_FILES above (it belongs to `a3-c8-audit`, not to the
+	// 13 files S2 swept), so the swept-files row is unaffected by this re-pin.
+	//
+	// STANDING RULE for the next lane: move these two literals DELIBERATELY, with the
+	// per-file delta measured and pasted. Do NOT widen the corpus scope, do NOT change the
+	// counting method, do NOT add an exemption to absorb a file, and do NOT touch any other
+	// constant to make a red row green. If a file had to be EXEMPTED to make this row pass,
+	// that exemption is the defect and belongs in a report, not in this file. A pin that is
+	// merely consistent with the tree is a description, not evidence.
+	const PINNED_REMAINING_FILES = 68;
+	const PINNED_REMAINING_LINES = 232;
 
 	const files = remainingFiles();
 	const lines = files.reduce(
