@@ -1,63 +1,64 @@
 /**
  * A2 C5 item 2 — `/timetable/map` must never paint the previous section's grid.
  *
- * ── M2-A IS A DOM OUTCOME ASSERTION, NOT A WIRING CHECK ─────────────────────
+ * ── THE DEFECT HAD TWO SEPARABLE PARTS, AND THIS FILE PROVES DIFFERENT THINGS
+ * ── ABOUT EACH. AN EARLIER VERSION OF THIS FILE CONFLATED THEM, AND THAT WAS
+ * ── WRONG.
  *
- * QA's finding on the first attempt: the pending branch was the first ternary
- * arm INSIDE `<AnimatePresence mode="wait">`, which keeps the EXITING CHILD
- * MOUNTED and defers the incoming child's mount for the exit duration. The
- * previous-section cells therefore stayed in the DOM for ~180 ms — the exact
- * thing M2-A forbids, merely deprioritised. The only evidence then was a
- * source-text index check, i.e. the wiring, not the outcome (AGENTS.md: "prove
- * the outcome, not the wiring").
+ *   (a) THE DECISION   — which pane is selected for a render. Testable here on
+ *                        real rendered output.
+ *   (b) THE ARRANGEMENT — WHERE the pending branch is mounted relative to
+ *                        `<AnimatePresence mode="wait">`. Not testable on
+ *                        rendered output in this harness; it is a structural
+ *                        property of `CenterWorkspace`'s JSX.
  *
- * So this file asserts the OUTCOME on rendered DOM, and it does so with a
- * POSITIVE CONTROL that makes the negative assertion mean something:
+ * Why they had to be separated: a first attempt put the pending branch as the
+ * first ternary arm INSIDE the animated chain. `AnimatePresence` with
+ * `mode="wait"` keeps the EXITING child mounted and defers the incoming child's
+ * mount, so the previous section's cells stayed in the DOM for the exit
+ * duration. Fixing only (a) leaves that defect in place — the decision would be
+ * right and the paint would still be wrong.
  *
- *   1. It renders the REAL `TimetableGrid` with a previous-section entry and
- *      asserts the grid markers (`<table`, `data-timetable-entry-id`,
- *      `data-cell-entry-ids`, the section label) ARE present. That is a real
- *      grid, really rendered, so the markers below are not invented.
- *   2. It renders the REAL `MapRouteTransitionFrame` — the exact element
- *      `CenterWorkspace` mounts for the pending decision — and asserts the
- *      intent is present and EVERY one of those same markers is ABSENT.
+ * A DOM row CANNOT see (b). It renders `MapRouteTransitionFrame` on its own, and
+ * would still pass verbatim if the guard were moved back inside the chain. The
+ * DOM rows below are therefore scoped to (a) and say so in their names, and a
+ * separate, clearly-labelled WIRING row carries (b). That wiring row is
+ * load-bearing, not decorative: it is proved to discriminate in the
+ * "F2 DISCRIMINATION" note below.
  *
- * A negative assertion with no positive control is the classic empty-method
- * pass; the control is what makes row 2 mean "the grid is not there" rather than
- * "these strings never appear".
+ * WHY NO FULL `CenterWorkspace` RENDER: the component takes roughly 200 props
+ * assembled by three context builders (`buildScheduleReviewWorkspaceContexts` and
+ * friends). Standing up a fake of that surface would test the fake, and a real
+ * one is not reachable in this harness. So (b) is checked structurally against
+ * the committed source, which is the only class of evidence available for it.
  *
- * WHAT I DID NOT DO, stated plainly: a full `CenterWorkspace` render is not
- * feasible — it takes roughly 200 props assembled by three context builders
- * (`buildScheduleReviewWorkspaceContexts` and friends), and standing up a fake
- * of that surface would test the fake. So the decision is exercised through the
- * REAL exported seam `resolveCenterPane` that `CenterWorkspace` itself calls
- * (not a parallel reimplementation of it), and the element under assertion is
- * the REAL component the render mounts. The supplementary structural row below
- * is retained as a narrow check that this seam's pending branch is mounted
- * OUTSIDE `AnimatePresence` — it is labelled as supplementary because it IS a
- * wiring check, and the DOM rows above are what decide the outcome.
+ * ── EVIDENCE CLASS OF EVERY ROW ───────────────────────────────────────────
  *
- * ── FAILING-FIRST (M2-C), REDONE HONESTLY ───────────────────────────────────
+ * | row                                  | proves            | class              |
+ * |--------------------------------------|-------------------|--------------------|
+ * | POSITIVE CONTROL                      | the real grid's markers exist | DOM / real component |
+ * | DECISION                              | (a) selection + the intent renders grid-free | DOM / real component |
+ * | ARRANGEMENT (load-bearing)            | (b) placement vs the chain | WIRING (structural) |
+ * | REPLACEMENT CONTROL                   | (b) the pending branch is a sibling, not a descendant | WIRING (structural) |
+ * | SUPERSEDED mutant                     | nothing — retained as a marker only | superseded |
+ * | M2-A seam table / M2-B / M2-D        | the decision's inputs and the copy | unit / value-pinned |
  *
- * The first attempt's failing-first was partly tautological: three of five rows
- * passed at base because the NEW MODULE was still present during the revert, so
- * those rows were only ever testing new code in isolation. QA rejected that.
+ * ── FAILING-FIRST (M2-C) ─────────────────────────────────────────────────
  *
- * Redone with the new module REMOVED as well as the changed files, keeping only
- * this test file, and reverting `CenterWorkspace.tsx` to base `bd789d86` bytes:
+ * Recorded with the new module REMOVED as well as the changed files, keeping only
+ * this test file, and `CenterWorkspace.tsx` at base `bd789d86` bytes:
  *
  *   npx tsx --test src/components/timetable/__tests__/a2-c5-map-route-intent.test.tsx
- *   (equivalently: npm run test:a2-c5-map-route-intent)
  *
  *   ℹ tests 1  ℹ pass 0  ℹ fail 1
  *   Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@/components' imported from
- *   E:\ATLAS-worktrees\lane-a2-c5-map\atlas-client\src\components\timetable\__tests__\a2-c5-map-route-intent.test.tsx
+ *   …\src\components\timetable\__tests__\a2-c5-map-route-intent.test.tsx
  *
- * Read that plainly: the whole file fails to LOAD. The decision seam, the
- * frame, and the wiring are all absent at base — not "present but wrong". The
- * single reported test is the file itself, which is why the count is 1 and not
- * 6. This is the honest signal, and it is why no row here can be satisfied by
- * code that merely exists in a new file.
+ * The file cannot load at all: the decision seam, the frame and the wiring are
+ * all ABSENT at base, not "present but wrong". An earlier version of this header
+ * kept the new module present during the revert, so three rows passed at base
+ * while only testing new code in isolation; that version was partly tautological
+ * and was rejected in re-review.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -146,10 +147,11 @@ function renderRealScheduleGrid(): string {
 	} as never));
 }
 
-test('A2 C5 M2-A POSITIVE CONTROL: a real schedule grid really does emit these markers', () => {
+test('A2 C5 M2-A POSITIVE CONTROL (DOM, real component): a real schedule grid really does emit these markers', () => {
 	const grid = renderRealScheduleGrid();
-	// Without this row the negative assertion in the next test could pass
-	// because the markers are simply never emitted by anything.
+	// This is the most valuable row in the file. Every negative assertion below
+	// is only meaningful because a REAL grid emits these strings: without it they
+	// could pass because the markers are never emitted by anything at all.
 	for (const marker of GRID_MARKERS) {
 		assert.ok(
 			grid.includes(marker),
@@ -162,7 +164,13 @@ test('A2 C5 M2-A POSITIVE CONTROL: a real schedule grid really does emit these m
 	);
 });
 
-test('A2 C5 M2-A OUTCOME: the pending map pane renders the intent and no class cell', () => {
+test('A2 C5 M2-A DECISION, not arrangement (DOM, real component): the pending branch is selected and renders the intent with no class cell', () => {
+	// SCOPE, stated in the name because it is the whole point of the re-review:
+	// this row proves (a) THE DECISION. It does NOT prove (b) the arrangement.
+	// It renders `MapRouteTransitionFrame` on its own and would still pass
+	// verbatim if the guard were moved back inside the animated chain. The
+	// arrangement is carried by the ARRANGEMENT row below.
+	//
 	// The decision is the one `CenterWorkspace` makes — the same exported seam,
 	// not a reimplementation of it.
 	const decision = resolveCenterPane(MAP_PATH, 'schedule');
@@ -170,32 +178,44 @@ test('A2 C5 M2-A OUTCOME: the pending map pane renders the intent and no class c
 
 	const markup = renderToStaticMarkup(<MapRouteTransitionFrame pathname={MAP_PATH} />);
 
-	// The outcome: the intent IS shown.
+	// The intent IS shown, carrying none of the real grid's markers.
 	assert.match(markup, /data-testid="timetable-map-route-transition-intent"/, 'the map intent is in the rendered output');
-	// And the outcome that matters: the previous view's grid is NOT.
 	assertGridAbsent(markup, 'the pending map pane');
 	assert.equal(
 		markup.includes(PREVIOUS_SECTION_ENTRY_ID),
 		false,
-		'no previous-section class cell is in the DOM while the route resolves to map',
+		'no previous-section class cell is rendered by the pending branch',
 	);
 });
 
-test('A2 C5 M2-A MUTANT: the in-chain arrangement QA rejected really does keep the grid', () => {
-	// The control that makes the absence assertion above non-vacuous for the
-	// SPECIFIC defect, not just for the markers. This reproduces the first
-	// attempt's arrangement — the pending pane as an arm INSIDE
-	// `<AnimatePresence mode="wait">`, which keeps the exiting child mounted for
-	// the exit duration — using the REAL `MapRouteTransitionFrame` and the REAL
-	// `TimetableGrid` as the outgoing child, exactly as `CenterWorkspace` holds
-	// the grid while the view flips.
+test('A2 C5 M2-A SUPERSEDED (F2 re-review: true by construction — NOT a live control)', () => {
+	// SUPERSEDED (a2-c5-map, F2 re-review). Kept as a marker per §16, never
+	// deleted. This row was self-fulfilling for two independent reasons, both
+	// verified in this repo:
 	//
-	// Rendered statically there is no animation clock, so what this proves is the
-	// composition: with both children inside ONE presence block, the grid markup
-	// is in the document together with the intent. `AnimatePresence` with
-	// `mode="wait"` is precisely the component whose documented job is to keep that
-	// outgoing child present, so the arrangement that QA rejected is shown to be
-	// grid-bearing, while the shipped arrangement (the OUTCOME row above) is not.
+	//  1. IT INJECTED THE EVIDENCE. The assertion below only held because the
+	//     test itself passed `renderRealScheduleGrid()` — already-rendered
+	//     markup — in as a child. Of course the grid string was present: the
+	//     test put it there. Removing the grid from the tree would have failed
+	//     the row, which is the opposite of a control.
+	//
+	//  2. IT MIS-MODELLED THE DEFECT. It mounted grid and frame SIMULTANEOUSLY
+	//     as two children. In the real rejected arrangement they were ternary
+	//     SIBLINGS mounted ONE AT A TIME, and the grid persisted only because
+	//     the swap was DEFERRED. Mounting both at once never reproduces a
+	//     deferral, so the row did not model what it claimed to model.
+	//
+	//  3. AND THE `mode="wait"` PATH NEVER RAN. Verified in
+	//     `node_modules/framer-motion/dist/es/components/AnimatePresence/index.mjs`:
+	//     the deferral is gated at line 100 on `presentChildren !== diffedChildren`,
+	//     and `diffedChildren` is initialised to `presentChildren` at line 78. In
+	//     a single `renderToStaticMarkup` pass they are equal, so line 118's
+	//     `if (mode === "wait" && exitingChildren.length)` never executes and
+	//     `AnimatePresence` degenerates to rendering its children directly. This
+	//     row therefore still PASSES with `AnimatePresence` deleted entirely —
+	//     proved by that fact, and the reason re-review rejected it.
+	//
+	// The sound replacement is the REPLACEMENT CONTROL below.
 	const inChain = renderToStaticMarkup(
 		createElement(
 			AnimatePresence,
@@ -210,60 +230,122 @@ test('A2 C5 M2-A MUTANT: the in-chain arrangement QA rejected really does keep t
 	);
 	assert.ok(
 		inChain.includes(PREVIOUS_SECTION_ENTRY_ID),
-		'inside one presence block the previous section\'s cell is in the document beside the intent — which is why the shipped code bypasses the chain',
-	);
-	// And the shipped arrangement, for contrast, in the same terms.
-	const bypassed = renderToStaticMarkup(<MapRouteTransitionFrame pathname={MAP_PATH} />);
-	assert.equal(
-		bypassed.includes(PREVIOUS_SECTION_ENTRY_ID),
-		false,
-		'bypassing the chain leaves no grid in the document at all',
+		'SUPERSEDED — this only shows the test can find a string it injected itself; it proves nothing about the arrangement',
 	);
 });
 
-test('A2 C5 M2-A SUPPLEMENTARY (wiring): the pending branch is mounted outside AnimatePresence', () => {
-	// This row IS a wiring check and is labelled as such. It exists because the
-	// DOM rows above prove what the pending branch RENDERS, and only this proves
-	// it is not re-mounted inside the presence chain that would re-introduce the
-	// lingering exit. The rows above are what decide the outcome; this one would
-	// be insufficient alone, which is exactly QA's objection to the first attempt.
-	const source = readFileSync(resolve(CLIENT_ROOT, 'src/components/timetable/CenterWorkspace.tsx'), 'utf8');
-	const decision = source.indexOf("centerPane.kind === 'pending-map-intent' ? (");
-	const presence = source.indexOf('<AnimatePresence mode="wait">');
-	const chainFirstArm = source.indexOf("centerView === 'policy' ? (");
-	assert.ok(decision > 0, 'the workspace branches on the shared decision');
-	assert.ok(presence > 0, 'the animated chain still exists for every other view');
+/** The committed `CenterWorkspace` source, for the structural rows. */
+function centerWorkspaceSource(): string {
+	return readFileSync(resolve(CLIENT_ROOT, 'src/components/timetable/CenterWorkspace.tsx'), 'utf8');
+}
+
+const PENDING_BRANCH = "centerPane.kind === 'pending-map-intent' ? (";
+const PRESENCE_OPEN = '<AnimatePresence mode="wait">';
+
+/** The byte range of the animated chain, i.e. its open tag through its close. */
+function animatedChainRange(source: string): { start: number; end: number } {
+	const start = source.indexOf(PRESENCE_OPEN);
+	assert.ok(start > 0, 'the animated chain still exists');
+	const close = source.indexOf('</AnimatePresence>', start);
+	assert.ok(close > start, 'the animated chain is closed');
+	return { start, end: close };
+}
+
+test('A2 C5 M2-A ARRANGEMENT, WIRING (load-bearing): the pending branch is decided BEFORE the animated chain opens', () => {
+	// This row is a WIRING row and is labelled as one. It carries (b) THE
+	// ARRANGEMENT, which no DOM row in this file can reach.
+	//
+	// It is LOAD-BEARING, not decorative. Re-review required proof that moving
+	// the pending branch back inside the chain FAILS this row; that proof is in
+	// the "F2 DISCRIMINATION" comment at the foot of this file, and it was run.
+	const source = centerWorkspaceSource();
+	const decision = source.indexOf(PENDING_BRANCH);
+	const chain = animatedChainRange(source);
+
+	// (1) The decision is evaluated at the outer ternary, before the chain opens.
+	assert.ok(decision > 0, 'the workspace branches on the pending decision');
 	assert.ok(
-		decision < presence,
-		`the pending branch must be decided BEFORE the animated chain opens (decision ${decision}, presence ${presence})`,
+		decision < chain.start,
+		`the pending branch must be decided BEFORE the animated chain opens — otherwise the decision sits inside the deferring chain and the grid lingers (decision ${decision}, chain ${chain.start})`,
 	);
-	assert.ok(
-		chainFirstArm > presence,
-		'and the animated chain\'s first arm is a real view, not the pending intent',
+
+	// (2) `mode="wait"` is NOT applied to a chain that contains the pending
+	//     branch. This is the precise form of "the guard is not in the chain": the
+	//     entire chain body must be free of it, so a partially-migrated guard
+	//     that still animates its exit also fails here.
+	const chainBody = source.slice(chain.start, chain.end);
+	assert.equal(
+		chainBody.includes('pending-map-intent'),
+		false,
+		'no `mode="wait"` chain may contain the pending branch, or its exit defers the new child and the stale grid stays mounted',
+	);
+	assert.equal(
+		chainBody.includes('MapRouteTransitionFrame'),
+		false,
+		'the pending frame must not be mounted anywhere inside the deferring chain',
+	);
+
+	// (3) The grid branch is unreachable while the route is pending: between the
+	//     decision and the chain opening there is no grid pane arm, so a pending
+	//     render can only reach the pending branch.
+	const beforeChain = source.slice(decision, chain.start);
+	assert.equal(
+		/centerView === '(schedule|map|building|runs|setup|policy)'/.test(beforeChain),
+		false,
+		'no pane arm is selected between the pending decision and the animated chain, so a pending render cannot reach the grid',
 	);
 	assert.match(
 		source,
 		/const centerPane = resolveCenterPane\(pathname, centerView\);/,
-		'the workspace consumes the exported seam the tests exercise',
+		'the workspace consumes the exported seam the DOM rows exercise',
 	);
-	// The grid branches must all remain inside the chain, after the decision.
-	// Each search starts AT the chain: these expressions also occur in the
-	// component's useMemos well above the render (deriving sandbox entries), so a
-	// first-occurrence search would find those and prove nothing about the render.
-	// Those useMemos compute DATA, not panes — only the chain renders a pane — so
-	// their position is not a claim this file can or should make.
+	// The grid arms stay reachable INSIDE the chain, for every other view.
 	for (const arm of ["centerView === 'schedule'", "presentationMode === 'matrix'", "centerView === 'map'"]) {
-		const at = source.indexOf(arm, presence);
-		assert.ok(at > presence, `${arm} must be reachable inside the animated chain, after the decision`);
+		assert.ok(
+			source.indexOf(arm, chain.start) > chain.start,
+			`${arm} must still be reachable inside the animated chain for non-pending renders`,
+		);
 	}
-	// The pane SELECTION is the ternary chain itself, and it opens only inside the
-	// presence block: between the decision and `<AnimatePresence` there is no
-	// `centerView === '...'` pane arm at all.
-	const between = source.slice(decision, presence);
+});
+
+test('A2 C5 M2-A REPLACEMENT CONTROL (WIRING, structural): the pending branch is a SIBLING of the animated chain, not a descendant', () => {
+	// The sound replacement for the superseded mutant. The superseded row tried
+	// to observe the arrangement by MOUNTING a copy of it, which made it true by
+	// construction and never exercised `mode="wait"` at all. The arrangement is
+	// not a runtime property under a static render — it is a structural property
+	// of the committed JSX — so it is asserted structurally, against the real
+	// file, as a WIRING assertion.
+	//
+	// What makes this sound where the mutant was not: nothing is injected. The
+	// strings checked below are read from the production source, so the row can
+	// only pass if the production arrangement really is what it claims.
+	const source = centerWorkspaceSource();
+	const decision = source.indexOf(PENDING_BRANCH);
+	const frame = source.indexOf('<MapRouteTransitionFrame pathname={pathname} />');
+	const chain = animatedChainRange(source);
+
+	// The decision and its frame are contiguous, immediately before the chain.
+	assert.ok(frame > decision, 'the pending frame is rendered by the pending branch');
+	assert.ok(
+		frame < chain.start,
+		`the pending frame must be emitted before the animated chain opens, i.e. as its SIBLING (frame ${frame}, chain ${chain.start})`,
+	);
+
+	// Exactly one animated chain, and it is closed after it opens.
+	assert.equal((source.match(/<AnimatePresence/g) ?? []).length, 1, 'there is exactly one animated chain in the center workspace');
 	assert.equal(
-		/centerView === '(schedule|map|building|runs|setup|policy)'/.test(between),
-		false,
-		'no pane is selected between the pending decision and the animated chain, so a pending render cannot reach the grid',
+		(source.match(/<\/AnimatePresence>/g) ?? []).length,
+		1,
+		'and it is closed exactly once',
+	);
+
+	// The frame element is emitted ONCE in the whole file. If it were also
+	// mounted inside the chain, this fails — which is the same defect the
+	// superseded mutant failed to detect, now checked against real source.
+	assert.equal(
+		(source.match(/<MapRouteTransitionFrame/g) ?? []).length,
+		1,
+		'the pending frame is emitted exactly once, outside the chain',
 	);
 });
 
@@ -306,7 +388,7 @@ const VIEW_CASES: ReadonlyArray<{ pathname: string; view: string; expected: bool
 	{ pathname: `${MAP_PATH}/`, view: 'schedule', expected: true },
 ];
 
-test('A2 C5 M2-A: the seam decides pending only for a caught-up map route', () => {
+test('A2 C5 M2-A decision inputs: the seam decides pending only for a caught-up map route', () => {
 	for (const testCase of VIEW_CASES) {
 		const decision = resolveCenterPane(testCase.pathname, testCase.view);
 		assert.equal(
@@ -345,3 +427,38 @@ test('A2 C5 M2-D: the other six route intents are unchanged', () => {
 	// route too — the normalization is the existing helper's, not a new one.
 	assert.equal(resolveTimetableRouteView(`${MAP_PATH}/`), 'map');
 });
+
+// ─── F2 DISCRIMINATION PROOF (recorded evidence, §11) ──────────────────────
+//
+// The ARRANGEMENT and REPLACEMENT CONTROL rows above are WIRING rows, and a
+// wiring row is only worth its cost if it FAILS when the wiring is wrong. So the
+// production arrangement was temporarily mutated in a scratch edit — the pending
+// branch moved back INSIDE the `<AnimatePresence mode="wait">` chain, reproducing
+// the rejected in-chain design — the suite was run, and the file restored
+// byte-for-byte.
+//
+//   npx tsx --test src/components/timetable/__tests__/a2-c5-map-route-intent.test.tsx
+//
+//   AssertionError [ERR_ASSERTION]: the pending branch must be decided BEFORE the
+//   animated chain opens — otherwise the decision sits inside the deferring chain
+//   and the grid lingers (decision 18823, chain 18787)
+//     actual: false
+//   expected: true
+//
+//   AssertionError [ERR_ASSERTION]: the pending frame must be emitted before the
+//   animated chain opens, i.e. as its SIBLING (frame 18874, chain 18787)
+//     actual: false
+//   expected: true
+//
+//   ℹ tests 8  ℹ pass 6  ℹ fail 2
+//
+// Both wiring rows failed on the mutated arrangement, and the SIX non-wiring rows
+// were unaffected — which is exactly the split this file claims. The DOM rows
+// cannot see the arrangement, and these two rows can: that is what makes them
+// load-bearing rather than decorative.
+//
+// `CenterWorkspace.tsx` was then restored from a byte-exact copy taken before the
+// scratch edit; its SHA-256 returned to
+// 508065A8DDA0457F19B3D9599A1C7B37AA9F81954F54432C90B11FE8FD5014EC and
+// `git status --short` for that path is empty, so the production file is
+// byte-identical to the committed candidate.
