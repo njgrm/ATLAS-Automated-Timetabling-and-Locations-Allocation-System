@@ -2065,3 +2065,261 @@ worktrees reported as retired — is now actually true.**
 `lane-a3-c5-subjects`, `lane-a3-c5-integ`, `lane-a3-c5-toast`, `lane-a3-c5-integ2`, plus the six c4
 worktrees. Branches `work/a3-c5-subjects-stats`, `integration/a3-c5-20260928`,
 `work/a3-c5-subjects-error-copy`, `integration/a3-c5-errorcopy` **preserved; no branch deleted**.
+
+---
+
+## 2026-09-28 c6 (Planner A3, work session 06:15 → 08:05 +08; **records closed in the c7 session**)
+
+### Morning summary — 10 lines
+
+1. Packet c6, base `1df69b03`. **Three streams, three executors, three fresh QAs, one bounded correction**; integrated at `34b01038`, verified an ancestor of `origin/main`.
+2. **Not live, deliberately.** Live is A2's `a1db27d5`; `34b01038` is **not** an ancestor of it, so no c6 fix is deployed. A3 does not deploy, and `Live release` is A2's block.
+3. S1 `/faculty/concerns` — the packet's **row 40**, "fix first": four false errands removed. `CORRECTION_REQUIRED` 12/14, then **17/18** on the correction.
+4. S2 — `DUPLICATE` gets real copy on `/subjects`, and `/faculty/preferences` stops rendering a raw status. `CORRECTION_REQUIRED` 15/18.
+5. S3 — honest 404, one back control, two dead modules deleted. **`ACCEPT_READY` 40/40/0/0.**
+6. **I caused three red gates and closed them.** Forbidding all three executors to touch `package.json` left three committed gates red; `aa3d94ce` added the entries. `test:ux-guardrails` is **31/31**.
+7. **Two defects no single-lane review could see**, both in the merged tree: the S3 dead-module scanner versus S1's negative control, and a `test:a3-subjects` row red since c5.
+8. **18 product paths, `atlas-server/` 0, `components/timetable/**` 0.** Typecheck is **not** a pass: 5 pre-existing errors in 4 files, none in an A3 path.
+9. **Blocked: 23 live-acceptance rows are owed. This lane ran no browser.** Steps 1–22 are c4's list unchanged; **23–27 are new**.
+10. The next c6 delta rides whatever release A2 ships next. Four worktrees retired junction-safe, **four branches preserved**.
+
+### The c6 route audit (item 1) — re-derived in the c7 session, and why that matters
+
+**c6 item 1 was never written to a file.** The c6 session graded the routes and died with the table
+only in its context, so the artefact a later session would have read does not exist. I am not going
+to reconstruct it from memory and present it as the original — §16. It is re-derived here, in the
+c7 session, from the committed range `1df69b03..34b01038`, and it is **source-only**.
+
+**Every browser column is `UNGRADED`**, exactly as in the c1 table: no browser ran, so nothing
+painted was observed. The three columns below that *are* measured are marked with their literal
+method, because a table whose unmeasured cells look identical to its measured ones is worse than no
+table. `n/m` = **NOT MEASURED in this session** — it is an open cell, not a clean one.
+
+Raw-class counts are `distinct / lines-containing`, by
+`grep -oE "(text|bg|border)-(slate|gray|zinc|blue|red|violet|amber|emerald|green|yellow|orange|pink|indigo|teal|cyan|sky)-[0-9]{2,3}" | sort -u | wc -l`.
+Sidebar reachability is read from `components/app-shell/navigation.ts` `breadcrumbGroups`.
+
+| Route | c6 action | Raw classes | Dead/duplicate control | Placeholder text | Sidebar | Demo rank |
+|---|---|---|---|---|---|---|
+| `/` | — | 39 / 58 | n/m | n/m | **yes** (Navigation) | **1** |
+| `/audit` | — | **27 / 30** | n/m | n/m | **yes** (Audit) | 2 |
+| `/faculty/concerns` | **S1 fixed** (4 errands) | 5 / 4 | **was** 2 — self-link + dup `/timetable`; `revisionHref` removed | none | **yes** (Teacher Concerns) | 3 |
+| `/subjects` | **S2 fixed** (`DUPLICATE`) | 3 / 1 | n/m | none | **yes** (Subjects) | 4 |
+| `/teachers` | — | 10 / 6 | n/m | n/m | **yes** (Teachers) | 5 |
+| `/admin/year-setup` | **S3 fixed** (2 back controls → 1) | 6 / 4 | **was** 2 back-to-dashboard for one destination | none | **no** | 6 |
+| `/timetabling/how-it-works` | — | 11 / 6 | n/m | none | **no** | 7 |
+| `/faculty/preferences` | **S2 fixed** (raw status) | 9 / 5 | none | none | **no** | 8 |
+| `/teaching-load/history` | — | 7 / 3 | n/m | n/m | **no** | 9 |
+| `/faculty/room-preferences` | — | 2 / 2 | n/m | none | **no — and zero inbound links** | 10 |
+| `/my` | — (tombstone) | 0 | none | none | **yes** (My Portal) | 11 |
+| `/subjects/requirements`, `/subjects/decision-workspace` | — (tombstone) | 0 | none | none | **no** | 12 |
+| `/faculty` | — (redirect → `/teachers`) | 0 | n/a | n/a | **no** | n/a |
+| `*` not-found | **S3 fixed** (was silent redirect to `/`) | 0 | none | none | n/a | n/a |
+| `/login` | — | 14 / 16 | n/m | n/m | outside `AppShell` | n/a |
+| `/schedules` + `/room-schedules` | **packet premise wrong — see below** | n/m | n/m | n/m | `/schedules` yes, `/room-schedules` no | — |
+| `/policies`, `/setup`, `/exports` | **excluded — A2's** | — | — | — | — | — |
+
+**Four things this table proves that the c6 streams did not act on.**
+
+- **`/audit` carries 27 distinct raw colour classes across 30 lines — the densest A3-owned page
+  after the Dashboard, and it is a sidebar item.** The c1 ratchet contract is *"no raw neutrals in
+  shared chrome"* enforced against **three files**; nothing in it sees a page. This is the largest
+  un-acted-on instance of the c1 finding and it is the same sweep I declined to run blind in c1.
+- **`/timetabling/how-it-works` is the only route I read end to end, and it is the one with a
+  wording claim I could not fully clear.** It tells an operator *"Teachers receive push
+  notifications for any changes that affect their classes."* ATLAS has an in-app notification
+  inbox and stream, and `published-revision.service.ts:905` does fire a notification event with a
+  `notificationDelivery: 'DELIVERED' | 'FAILED_AFTER_COMMIT'` status. So the capability **exists**
+  and this is a **precision defect, not a fabrication** — I checked rather than asserting, and the
+  distinction matters: "push" overstates an in-app delivery. **Dated backlog for a successor lane.**
+  The same page states *"Unassigned sessions are publish blockers"* and *"You can still publish"*
+  for soft; I did **not** verify those two against `isRunPublishedStrict` and am recording them
+  unverified rather than implied.
+- **`/faculty/room-preferences` is unreachable by any means but typing the URL.** `grep` for
+  `faculty/room-preferences` across `src/` returns **only test files** — no nav item, no link, no
+  redirect. It is a built, styled, 620-line page an operator can never find. The live-state line is
+  verified, not inherited.
+- **The c6 packet's own route list repeats c1's scope error.** It names `/policies`, `/setup` and
+  `/exports` as A3's. Those are `/timetable/policies`, `/timetable/setup` and `/timetable/exports` —
+  `element: null` children of `/timetable`, in A2's out-of-bounds half, and recorded as exactly that
+  in the c1 handoff. **Excluded again, and recorded again**, because a packet that re-issues a
+  settled scope question will keep re-issuing it.
+
+**And one premise in the packet that is false, which I did not act on.** The packet says *"Skip
+`room-schedules` (unfinished, to be redesigned; operator ruling)"* and lists `/schedules` and
+`/room-schedules` as one route. They are **two registrations for one component** (`RoomSchedules`),
+and the component is **814 lines and fully featured** — not unfinished. The c6 ruling rests on a
+premise the source contradicts. I did not touch it, because an operator ruling is not mine to
+overturn; but **Lane C should re-check that premise**, since "unfinished" is what justified skipping
+a sidebar item.
+
+### Row 40 — the packet's premise was false, and the real fix was a different one
+
+The packet put this first and unambiguously: *"`faculty/concerns` (**inventory row 40: it renders
+the class grid under 'Teacher Concerns'; A2 confirmed it is yours**)"*, and *"Fix row 40 first (a
+concerns list, or an honest empty state, never the class grid)."*
+
+**`git grep -n "WeeklyScheduleGrid" 1df69b03 -- atlas-client/src` returns three lines, all inside
+`WeeklyScheduleGrid.tsx` itself.** At the c6 base the component had **zero consumers** — no page
+mounted it, and `/faculty/concerns` never rendered a class grid. So row 40 was not *"the page shows
+the wrong thing"*; it was **a dead file on disk** plus a page that contradicted itself four other
+ways. Had I "fixed row 40" as written, I would have deleted a component nothing rendered and
+reported a row closed that was never open.
+
+**What S1 actually found, all four in one commit because a partial fix leaves it still
+self-contradicting:**
+
+| # | The false errand | Why it was false |
+|---|---|---|
+| **C1** | Empty main panel until a teacher is picked — a title, a picker, nothing | No honest state at all. Now an empty state naming the next step, and **deliberately no concerns list and no count**: `faculty-availability` exposes get/put/post/patch, all per-faculty, and **nothing lists concerns**, so a list would be invented work. |
+| **C2** | *"Published revisions"* linked to `/schedules` | `/schedules` mounts `RoomSchedules` — a room/teacher/section browser with **no revision concept**. The revision surface is reachable from Class Schedule (`App.tsx` → `ScheduleReview` → `ScheduleReviewWorkspace` → `CenterWorkspace` → `TacticalSandboxDock` → `PublishedRevisionDialog`), so one Class Schedule link carries both regenerate and revise. `revisionHref` **removed**. |
+| **C3** | Freshness badge showed raw `FRESH` / `STALE` / `UNKNOWN` | Internal enum tokens. Tone unchanged — **only the words** became plain (`Up to date` / `Out of date` / `Not yet compared`). |
+| **C4** | *"Open owning setup"* was a **self-link** for availability and a **second copy** of the Class Schedule link for policy | `availability` resolves to this page's own canonical home; `policy` resolved to `/timetable`, byte-identical to regenerate. `resolveConcernDriftLinks` now de-duplicates by destination. |
+
+Plus a grammar fix the executor found on its own: the prompt rendered *"the teacher's Dela Cruz's"* —
+one possessive now, chosen by whether a teacher is selected.
+
+### The correction QA forced on S1, and it was a correction of my own over-reach
+
+`276443f2` → `CORRECTION_REQUIRED` 12/14 → `79e472c2` → **17/18**. C4's de-duplication was **right
+about the ACTION links and wrong about the chips**: the first commit turned the changed-domain chips
+into non-navigating labels, so `changedDomains: ['teachingLoad', 'rooms']` rendered a card saying
+**"Rooms" with `/map` unreachable**.
+
+**A card naming a domain it cannot route to is the same false-errand class this lane exists to
+remove.** I removed a duplicate link and, in doing so, removed the only route to `/map` from the
+screen that reports rooms drift. The correction makes the chip a `<Link to={domain.href}>` again,
+adds `duplicatesDomainChip` so the owning-setup action appears **only** in the unmapped fallback
+where `/admin/year-setup` is the sole route, and **scopes the distinct-destination rule to the
+ACTION set** — because that rule was the thing making correct navigation look like a duplicate. Two
+new preservation rows pin that `/map` and `/teaching-load` both stay reachable.
+
+**This is the second cycle in a row where my own correction over-removed and QA caught it** (c5's
+F6 lesson again). I am recording it because the pattern is the finding: *de-duplication controls are
+where I introduce reachability defects, and the control is always a specification, never a
+simplification.*
+
+### The two cross-stream defects — only visible on the merged tree
+
+**(1) A deletion undone by a source import, when the only mention was a negative control.** S1's
+`a3-c6-concerns-truthfulness.test.tsx` **names** `WeeklyScheduleGrid` — necessarily, in the control
+proving the dead module is gone. S3's reachability scanner read *any* `src/` occurrence as a live
+reference. Each range is correct alone; the merge is red. A deletion is undone by a source import,
+**not by a control that mentions the name** — so the scanner now excludes test files, with a control
+proving **both halves** (a real import still fails; a test mention does not). Mutant-checked: 3 rows
+go red when the exclusion is forced off.
+
+**(2) A shipped gate was already red before c6 started.** `test:a3-subjects` **A3-20 has failed
+since c5 `b52aa976`** moved the stale copy out of `Subjects.tsx`. Not a c6 regression — a gate that
+had been failing in the tree c6 inherited. Fixed as a §11 **test-only** correction, **nothing
+deleted, no assertion removed**, now **19/19**.
+
+### And the three red gates I caused myself
+
+I instructed all three executors **not** to edit `package.json`, so three lanes could not collide on
+one file. That was the right collision-avoidance and the wrong gate decision: it left three committed
+gates with no entry point, and QA named the contradiction plainly — ***"package.json unmodified" and
+"green reachability guard" are not jointly satisfiable***. `aa3d94ce` adds the three entries;
+`test:ux-guardrails` is **31/31**. The lesson generalises past this cycle: **a lane-count argument is
+not a substitute for naming the gate**, and the cost lands at integration where three executors have
+already been paid for.
+
+### Ledger, terminal state as of 2026-09-28 08:05
+
+**Unchanged from c5:** `QA_PASSED` 01–07, 09–26, 29–33B. `BLOCKED_PRODUCT_DECISION` **08** (A3's
+read remains **B**). `BLOCKED_SOURCE_GAP` **27, 28, 34**. c4 item 7 remains `BLOCKED_NOT_REPRODUCED`.
+**The c5 `DUPLICATE` backlog line is CLOSED** by `56f77cd0` — the stream's own packet deferred it as
+under-specification, and c6 closed it because the cause became provable *from the schema rather than
+by opinion*: `createSubject` performs exactly one Prisma write, `model Subject` has exactly one
+unique constraint (`@@unique([schoolId, code])`), and the router passes the actor's school as
+`schoolId`. The conflict is therefore **(this school, this code)** and nothing else.
+
+**Row 40 — CLOSED, with a correction to the packet that assigned it.** Not "the page renders the class
+grid"; that was false at base. Closed as *dead file + four false errands*, corrected once by QA
+(12/14 → 17/18). **Row 40's inventory description should be corrected at source** so the next
+session does not re-derive this from scratch — it is the one row in this cycle whose *text*, not
+just its status, was wrong.
+
+**New dated backlog, none blocking, all dated 2026-09-28:**
+- **`/audit` is the densest un-acted-on raw-palette page** — 27 distinct classes over 30 lines, and
+  a **sidebar item**. The c1 ratchet cannot see it: its contract is *"no raw neutrals in shared
+  chrome"*, enforced against three files. Needs a browser to sweep safely; the c1 refusal to sweep
+  blind still stands.
+- **There is no `--warning` token in `index.css`** — verified in this session, `grep -n "warning"`
+  returns nothing. So every warning state renders raw `amber-*`, and *"'calm styling' is unreachable
+  for warnings without a shared-surface token"* is not a style preference, it is a **missing token**.
+  **This is a decision, not a lane.**
+- **`/timetabling/how-it-works` says teachers "receive push notifications"** for published changes.
+  An in-app notification inbox and stream exist and `published-revision.service.ts:905` fires the
+  event with a `notificationDelivery` status, so the capability is real and **"push" overstates it**.
+  Precision defect, not a fabrication. Also on that page: *"Unassigned sessions are publish
+  blockers"* and *"You can still publish"* — **left unverified against `isRunPublishedStrict` on
+  purpose**, and recorded as unverified rather than implied.
+- **`/faculty/room-preferences` is unreachable** — 620 lines, fully built, **zero inbound links** in
+  `src/` (tests only). Reachable only by typing the URL. Needs a product decision: link it, or retire it.
+- **`room-schedules` is not unfinished** (814 lines, fully featured) yet the c6 packet ruled it so and
+  skipped it. **Two registrations, one component** (`/room-schedules` and `/schedules`). Lane C
+  should re-check the premise before the next ruling inherits it.
+- **Three tracked artifacts still name the deleted `ComingSoon`.** Verified in this session:
+  `atlas-client/qd.txt` (a **stray committed `vite build` log**), a tracked browser cache blob at
+  `atlas-client/qa-artifacts/sections-chrome-profile/.../f_000004`, and the c6 hygiene test — where
+  the mentions are **deliberate**, the same negative-control shape as `WeeklyScheduleGrid` above.
+  So the real residue is two junk files, both pre-existing, neither A3's to delete in a records
+  session. The `docs/plans/live-state.md` mention is this lane's own backlog line and is excluded
+  from the count of three.
+- **Three repo-global stashes belong to other lanes.** Not touched.
+- **Pre-existing, carried:** `ManualEditPanel.tsx:519-550` raw `requiredFeatures` room badges
+  (timetable — A2's ratchet); ratchet `7d` evadable and over-pinned; WCAG AA on
+  `--muted`/`--secondary`; `CampusMap.tsx` and `Sections.tsx` §8 violations; `Dashboard.tsx` 966/1000.
+
+### Live-acceptance steps owed — 23–27, new, and none decidable from source
+
+Steps 1–22 are c4's list **unchanged** and still owed; 18–20 and B5 remain runtime-sourced. **This
+lane ran no browser and held no lock**, so the three c6 gates are **source-accepted only, not
+browser-accepted.**
+
+**23.** `/faculty/concerns` **before any teacher is selected**: the main panel shows an honest empty
+state naming the next step — **no class grid, no concerns list, no count**. Confirm no timetable
+style grid is mounted anywhere on the page.
+
+**24.** `/faculty/concerns` **with a teacher selected**: the freshness badge reads **"Up to date" /
+"Out of date" / "Not yet compared"** and never `FRESH`/`STALE`/`UNKNOWN`; **every** named changed
+domain is clickable and lands on its own canonical page (**Rooms → `/map`**, Teaching Load →
+`/teaching-load`); and **no destination is offered under two labels** on the card. The availability
+prompt shows one possessive.
+
+**25.** `/subjects` — create a subject whose **code already exists** (`DUPLICATE`): the message is a
+plain sentence naming the one real errand (**enter a different code**), the dialog **stays open**,
+and the raw server code plus raw server text are reachable in the details popover.
+
+**26.** `/faculty/preferences` — every preference status renders **plain words with a tone** and never
+a raw token, and the raw value stays reachable in the `@/ui` popover. The three known states keep
+their existing labels and tones.
+
+**27.** Any **unmatched address under `/`** (e.g. a mistyped path or a retired bookmark) renders
+**"Page not found"**, states the address does not exist, loads nothing, and offers **one** Dashboard
+action — it must **not** silently land on the Dashboard. And `/admin/year-setup` shows **exactly one**
+back-to-dashboard control, matching every other utility-strip back affordance.
+
+### Verdict for c6
+
+**Three streams integrated and pushed at `34b01038` from three reviewer dispatches — one per stream
+plus one bounded correction — closing the packet's first-priority row, one duplicated-link class, a
+raw-token leak and a silent-redirect lie.** Four sentences that named errands ATLAS does not have
+were removed rather than shipped.
+
+**Three things I got wrong, all recorded above rather than smoothed:** I instructed all three
+executors not to edit `package.json` and left three committed gates red; my own C4 de-duplication
+removed the only route to `/map` from the card that reports rooms drift; and **I have not finished
+this section** — the c6 session graded the routes and died before writing item 1 to a file, so the
+route audit above is **re-derived in the c7 session from the committed range**, source-only, with
+its browser columns `UNGRADED` and its unmeasured cells marked `n/m` rather than presented as clean.
+
+**The packet's row 40 was false at base** — `WeeklyScheduleGrid` had zero consumers, so "fix row 40
+first" would have deleted a file nothing rendered and reported a row closed that was never open.
+The real row 40 was a dead module plus four self-contradictions, and that is what got fixed.
+
+**No deployment, migration, generation, publication, live-data write, browser session,
+runtime/task/env change, or companion-repo action was taken at any point in c6 or c7.** A3 ran no
+browser, held no lock, worked only in registered worktrees, deleted no branch, and pushed a range
+proven to contain only accepted commits plus A2's own absorbed docs-only advance.
