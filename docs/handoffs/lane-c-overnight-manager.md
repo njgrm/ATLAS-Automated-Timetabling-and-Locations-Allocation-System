@@ -69,6 +69,46 @@ Rules for the planners:
 - Before Wednesday: a **demo walkthrough script** (the operator's path through the product) walked end to end on live,
   graded for older users, with every stumble fixed or listed.
 
+## CHECKPOINT 2026-09-29 01:15 (supersedes earlier checkpoints)
+
+**LIVE `c9be17fe` (train 4)** since ~00:40: grade-name hotfix + A2 24c6242c + A6 5481dcc + A3 13d75ce6. Luna smoke 3/3
+(TL suggestion 2022-2023 = 264 rows). Rollback `9ca7f629`. **Next train candidates:** A2 6d034431 (index), A7 c9dd5f05
+(School Year Setup plain words) + A7 c2 (past years list/Keep as history/read-only links, running `a7-c2`), A2 past-year
+view (running a2-c12r6; its TEST HAS AN INFINITE LOOP - reached 15 and 37 GB, crashed dwm/Brave/Codex; posted to A2).
+**01:20 update:** Codex applied TL 2022-2023 on live (239 assigned, 25 substitutes, 11 over 30h). Timetable GENERATE DISABLED:
+468 setup blockers (docs/reviews/codex-live-year1-flow-20260929.md). Lane C executor (hotfix-newyear-readiness) diagnosing:
+code bug vs per-year setup to inherit (year 1 has 0 grade_shift_windows vs 20 in year 10) vs operator decisions; also the
+wrong zero-demand headline with 264 rows. Rollovers stay PAUSED until year 1 can generate.
+
+**Codex job running (bfld2f932 waiter, terra@medium):** on LIVE applies TL, generates, publishes 2022-2023 + older-user UX
+review -> scratchpad/codex-qa/live-year1-flow/report.md. Then route findings, then operator does next EnrollPro rollover
+(Preview + Sync now; Lane C verifies with sy.cjs / fcheck.cjs).
+**Memory guard:** scratchpad/memguard.ps1 runs DETACHED (CIM, hidden), kills node >4 GB private (not server.js/staging/a4
+release), log memguard.log. Check commit charge before Codex runs.
+**Lanes:** A2 a2-c12r6 (past-year view; P parked), A3 a3-c12r, A5 a5-c2r3, A6 a6-c3 (Guided mode removal first), A7 a7-c2.
+Waiters: re-arm with await.sh after restart. Heartbeat every 15 min with notifyOnCompletion (re-arm after restart).
+**Operator artifact:** https://claude.ai/artifact/EQ6Zas4FD6GZHpu29TwjVv (update: train 4 items now live).
+
+## CHECKPOINT 2026-09-29 00:25 (supersedes earlier checkpoints)
+
+**Live** `9ca7f629` (train 2). **Train 4 `c9be17fe`** (main 60e58567 + A3 13d75ce6: A2 24c6242c header/draft, A6 5481dcc,
+Lane C grade-name hotfix 938de8aa) passed staging 4/4 (TL suggestion 264 rows) -> **a4-train4-prod running** (session
+ses_f17acda30ffea6RmHSKhymLKZE). On LIVE: luna smoke, then tell operator "live" -> operator reruns TL suggestion 2022-2023,
+generate, publish, then EnrollPro rollovers (paused until then; operator confirms each; ATLAS auto sync is OFF -> operator
+presses Preview + Sync now per year; Lane C verifies each year: sy.cjs / fcheck.cjs in scratchpad).
+**EnrollPro reset:** school year IDs now 1.. (ATLAS keeps 8-10 as history; 9,10 not archived and invisible -> A7 fix, then
+operator archives on screen). Teacher IDs reset: live+staging faculty external_id offset +1e6 (backups in
+D:/ATLAS-runtime-config/backups/faculty-id-offset-20260928/); 23 teachers re-linked by employee_id, 23 old stale. AP subject
+repaired (rotation null, grades 7-10). EnrollPro active-term API says T3 (all 2022-23 terms past) - EnrollPro-side.
+**Lanes running:** A2 a2-c12r6 (past-year read-only timetable /timetable?schoolYearId=; P parked till after demo; 6d034431
+ready), A3 a3-c12r (Dashboard scroll, map inspector), A5 a5-c2r3 (EnrollPro timeouts: TL blank 30 s; notifications year
+labels; OWNER_DEPT codes), A6 a6-c3 (remove Guided mode FIRST, counts 23 vs 20, T5 double amber), A7 a7-c1 (School Year
+Setup plain words + list all past years + read-only links). Routing posts in lane-c-to-a2.md 22:55, 23:05, 23:20.
+**Codex:** luna@medium for fixed steps, terra@medium for UX walks; never save Subjects/setup/policy on live.
+**Heartbeat:** every 15 min, notifyOnCompletion (re-arm after restart); status.sh flags STUCK-SERVER and filters cmd.exe PIDs.
+**Operator artifact:** fix-docs QA checklist https://claude.ai/artifact/EQ6Zas4FD6GZHpu29TwjVv (republish from
+scratchpad/atlas-fix-docs-qa.html when train 4+ lands).
+
 ## CHECKPOINT 2026-09-28 20:30 (supersedes earlier checkpoints)
 
 PC rebooted ~20:15. Live `7590d485` and staging came back on their own; admin serve on :4097 restarted by the operator WITHOUT a
@@ -143,3 +183,11 @@ Metrics: `docs/handoffs/workflow-metrics.md` (trend review 1 at 19:55). Demo: We
 | 2026-09-27 23:10 | A3 | `ses_f1cdb5976ffeZApJg9uYqJopdx` (c0 done) | **ACCEPT**, 0 BLOCKING / 4 NON_BLOCKING; `1e417694` integrated, NOT live (live `c0d91827`) | c1 `overnight-a3-ui-ux-2026-09-28-c1.md` | UX-R02–R05/R03c not reached; #52 + B5 unperformed; #53 undeployed |
 | 2026-09-27 22:00 | A2 | `ses_f1ccfb677ffe2OdBUU7IleK4hV` (elevated) | running | — | packet c0 `overnight-a2-timetable-2026-09-27.md` |
 | 2026-09-27 22:00 | A3 | `ses_f1cdb5976ffeZApJg9uYqJopdx` | running | — | packet c0 `overnight-a3-ui-ux-2026-09-27.md` |
+
+## 00:30 — year 2022-2023 generation diagnosis (executor, 193k tokens / 78 tools)
+
+Root cause is STAFFING DATA, not a code bug: after the EnrollPro wipe only 23 teachers are active (23 stale); 23 × 30 h = exactly the 920 sessions needed, zero slack; only 2 MAPEH teachers. 355 items = 25 substitute-only class/subject pairs (MAPEH ×18 sections + MATH/ESP/SCI_BIO/TLE_ICT in S19/S20); 105 = owners at weekly limit; 8 hard violations (TLE rotation load measured differently TL vs generator — unverified, watch). Teachers #3, #20, #33 have no department → auto-match skips them (0 load).
+Also missing per-year setup: 0 shift windows (year 10 had 20), 0 special events (had 2).
+Candidate 5bccb65d (branch work/hotfix-newyear-readiness-20260929): TL modal headline fix + '25 classes still need a real teacher'; atlas-qa dispatched. Data script copy-year-setup-shift-windows-events.mjs (dry-run: +20 windows, +2 events; --apply receipt, --revert) awaits operator approval.
+Rollovers PAUSED pending operator staffing decision.
+- 00:40 5bccb65d atlas-qa ACCEPT_READY (62.7k tokens; 4 TL failures pre-exist on main) → merged to main; rides next train. Rendered proof owed in that train's Codex check.

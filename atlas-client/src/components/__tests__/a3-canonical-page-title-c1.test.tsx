@@ -98,6 +98,8 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { JSDOM } from 'jsdom';
 
+import { installCanvasShim } from './konva-dom-render-harness';
+
 import { PageHeader } from '@/components/app-shell/PageHeader';
 import { resolveRouteChrome } from '@/components/app-shell/navigation';
 import Audit from '@/pages/Audit';
@@ -113,6 +115,24 @@ const CLIENT_ROOT = resolve(HERE, '../../..');
 
 function source(path: string): string {
 	return readFileSync(resolve(CLIENT_ROOT, path), 'utf8');
+}
+
+/**
+ * A source file with its COMMENTS removed, so a source-text assertion can only
+ * be decided by code that would compile.
+ *
+ * The defect this prevents is specific and observed: a control that greps a file
+ * for an identifier turns red because the file's own comment block explains the
+ * change, and would stay green if the identifier came back. Comments are replaced
+ * by a single space so that removing a comment cannot join two tokens into one
+ * (the `hide map` / `Open map` pair in a quoted example is exactly that risk).
+ * String literals are left alone — the identifiers under test are not quoted, and
+ * over-stripping would corrupt the JSX this file also renders.
+ */
+function codeOnly(text: string): string {
+	return text
+		.replace(/\/\*[\s\S]*?\*\//g, ' ')
+		.replace(/(^|[^:])\/\/[^\n]*/g, '$1');
 }
 
 // --- JSDOM harness -----------------------------------------------------------
@@ -157,6 +177,16 @@ Object.assign(globalThis, {
 
 const { createRoot } = await import('react-dom/client');
 const { act } = await import('react');
+// A3 c11 fix 37 — the `/map` OVERVIEW now renders the campus map board on open
+// (the `Open map` toggle is gone, per the operator's fix 37), so the rendered
+// surfaces below reach react-konva where they previously did not. The file's own
+// recorded limitation — "react-konva needs a real canvas; JSDOM has none" — is
+// handled the same way this cycle's own controls handle it: a 2D sink is attached
+// so the canvas can be created, and NOTHING here inspects what it draws. Every
+// assertion in this file is about the h1 and the action order, and none of them is
+// weakened by the canvas being drawable.
+installCanvasShim(dom.window as unknown as { HTMLCanvasElement: { prototype: Record<string, unknown> } });
+
 const { MemoryRouter, Route, Routes } = await import('react-router-dom');
 
 async function renderInJsdom(path: string, Component: () => unknown): Promise<string> {
@@ -486,22 +516,48 @@ test('PageHeader renders primaryAction before secondaryActions, and /map depends
 	// This assertion exists so the order is captured rather than silent — if a
 	// future stream edits PageHeader, this goes red instead of the order shifting
 	// again without a record.
+	// ── SUPERSEDED (A3 c11 fix 37), retained in place as history ──────────────
+	// These three asserted the /map-SPECIFIC pairing recorded by A3-C1: `Edit
+	// rooms` as the primary action and `showExplorer ? 'Hide map' : 'Open map'` as
+	// the secondary. The operator's own fix 37 removed the map toggle outright
+	// ("Remove the `[Open map]` / `[Hide map]` button from the header action
+	// area. Remove the collapsible state logic"), and renamed the remaining
+	// action to `Edit maps` ("The top-right header action row should cleanly
+	// contain only the primary action button: `[Edit maps]`"), so there is no
+	// secondary action left on /map to pair with. Nothing was deleted: the
+	// PageHeader ORDER contract this test is named for is re-asserted immediately
+	// below, and /map's replacement is asserted beside it.
+	//   was: assert.ok(primaryAt > 0 && secondaryAt > primaryAt, ...)
+	//   was: assert.match(overview.slice(primaryAt, secondaryAt), /Edit rooms/)
+	//   was: assert.match(overview.slice(secondaryAt), /showExplorer \? 'Hide map' : 'Open map'/)
 	const overview = source('src/components/campus-map/CampusMapOverview.tsx');
-	const primaryAt = overview.indexOf('primaryAction={(');
-	const secondaryAt = overview.indexOf('secondaryActions={(');
-	assert.ok(primaryAt > 0 && secondaryAt > primaryAt, '/map must pass the room editor as primaryAction and the map toggle as secondaryActions');
-	assert.match(overview.slice(primaryAt, secondaryAt), /Edit rooms/);
-	assert.match(overview.slice(secondaryAt), /showExplorer \? 'Hide map' : 'Open map'/);
+	// The three replacement assertions below read the component's CODE, not its
+	// comments. The file documents this very change in prose, and a raw grep
+	// matches its own explanation — which is how a source-text control ends up
+	// red for a comment and green for a regression. `codeOnly` strips comments
+	// first so the assertion can only be decided by an identifier that compiles.
+	const overviewCode = codeOnly(overview);
+	assert.match(overviewCode, /primaryAction=\{\(/, 'REPLACEMENT: /map still passes its single primary action');
+	assert.doesNotMatch(
+		overviewCode,
+		/secondaryActions=/,
+		'REPLACEMENT: the `Open map` secondary action is gone, as the operator asked',
+	);
+	assert.doesNotMatch(overviewCode, /showExplorer/, 'REPLACEMENT: so is the collapse state that drove it');
+	assert.match(overviewCode, /Edit maps/, "REPLACEMENT: the surviving action is the operator's Edit maps label");
 
+	// The PageHeader ORDER contract itself, unchanged and still load-bearing: a
+	// primary action still renders before secondary actions. /map no longer uses
+	// the secondary slot, so this is exercised with a neutral pair.
 	const html = renderToStaticMarkup(createElement(PageHeader, {
 		title: 'Campus & Rooms',
-		primaryAction: createElement('button', { type: 'button' }, 'Edit rooms'),
-		secondaryActions: createElement('button', { type: 'button' }, 'Open map'),
+		primaryAction: createElement('button', { type: 'button' }, 'Edit maps'),
+		secondaryActions: createElement('button', { type: 'button' }, 'Some other action'),
 	}));
 	assert.equal(h1Count(html), 1);
 	assert.equal(primaryActionCount(html), 1);
 	assert.ok(
-		html.indexOf('Edit rooms') < html.indexOf('Open map'),
+		html.indexOf('Edit maps') < html.indexOf('Some other action'),
 		'the primary action must render before the secondary actions',
 	);
 });

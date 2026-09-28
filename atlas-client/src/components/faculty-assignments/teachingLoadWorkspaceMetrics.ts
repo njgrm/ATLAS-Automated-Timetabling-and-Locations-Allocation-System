@@ -143,6 +143,81 @@ export function sectionHoverDeltaMinutesFor(
 }
 
 /**
+ * A6 C3 SLICE 1 — the workspace's ONE header state: what the page is working
+ * from, in the page's own words.
+ *
+ * This was a 55-line `useMemo` inside `pages/TeachingLoad.tsx`, which put the
+ * file 5 lines under the AGENTS.md §8 1000-physical-line cap. It was already a
+ * pure function wearing a `useMemo` as a formality — seven `data.*` fields in,
+ * four strings out, no React, no API — so it moved here with EVERY string
+ * byte-for-byte. No copy was reworded in that move, and the branches are still
+ * in the same order, because this slice is an extraction and nothing else. The
+ * copy itself is A6 C3's later business, decided on its own evidence.
+ */
+export type TeachingLoadWorkspaceState = {
+	label: string;
+	description: string;
+	nextAction: string;
+	writeBlockedReason: string | null;
+};
+
+export function buildTeachingLoadWorkspaceState(input: {
+	isOnline: boolean;
+	dataSource: 'live' | 'cached' | 'refreshing' | 'none';
+	canPersistAssignments: boolean;
+	activeDraftCount: number;
+	degradedNotice: string | null;
+	error: string | null;
+}): TeachingLoadWorkspaceState {
+	if (!input.isOnline) {
+		return {
+			label: 'Offline',
+			description: 'ATLAS is showing the last saved teaching load. Changes stay off until the connection returns.',
+			nextAction: 'Reconnect, then refresh before saving assignments.',
+			writeBlockedReason: 'Saving is off until ATLAS reconnects. Your work is safe to review.',
+		};
+	}
+	if (input.dataSource === 'refreshing') {
+		return {
+			label: 'Checking source',
+			description: 'ATLAS is comparing the saved workspace with EnrollPro. The last saved snapshot remains visible while this finishes.',
+			nextAction: 'Wait for verification before saving new changes.',
+			writeBlockedReason: 'Saving is off while ATLAS verifies the roster with EnrollPro.',
+		};
+	}
+	if (input.dataSource === 'live' && input.canPersistAssignments) {
+		return {
+			label: 'EnrollPro roster verified',
+			description: 'ATLAS Teaching Load draft. Assignment data was checked against EnrollPro. Draft changes can be saved.',
+			nextAction: input.activeDraftCount > 0 ? 'Save the draft changes before leaving this page.' : 'Inspect one teacher or fill section coverage gaps.',
+			writeBlockedReason: null,
+		};
+	}
+	if (input.dataSource === 'cached' && input.canPersistAssignments) {
+		return {
+			label: 'ATLAS Teaching Load draft',
+			description: input.degradedNotice ?? 'ATLAS is using synced EnrollPro section data for Teaching Load. This is expected. Draft changes can be saved.',
+			nextAction: input.activeDraftCount > 0 ? 'Save your changes. Refresh later to pick up any new EnrollPro changes.' : 'Check the classes below. Refresh later to pick up any new EnrollPro changes.',
+			writeBlockedReason: null,
+		};
+	}
+	if (input.dataSource === 'cached') {
+		return {
+			label: 'Read-only saved data',
+			description: input.degradedNotice ?? 'ATLAS can show the saved assignments, but it cannot safely save changes yet.',
+			nextAction: 'Refresh from EnrollPro before saving, suggesting, or resetting assignments.',
+			writeBlockedReason: 'Saving is off until ATLAS reconnects to EnrollPro.',
+		};
+	}
+	return {
+		label: 'No assignment data',
+		description: input.error ?? 'ATLAS could not load a live source or a saved teaching load.',
+		nextAction: 'Retry the connection before assigning teachers.',
+		writeBlockedReason: 'Saving is off because no teaching load data is available.',
+	};
+}
+
+/**
  * The review dialog's title and description, for the selected teacher OR the
  * selected section.
  *

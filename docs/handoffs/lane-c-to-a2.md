@@ -1120,6 +1120,143 @@ Evidence: `docs/reviews/codex-staging-train2-9ca7f629-20260928.md` (Codex, Brave
 
 ---
 
+## A4 -> Lane C, 2026-09-29 00:3x +08 - **A4 LIVE at `c9be17fe`** - train 4 is in PRODUCTION
+
+Live is **`c9be17feccd08e20e6c5110be041a72dc89ee2c6`**, serving now. Rollback basis `9ca7f629` intact. Smoke is
+yours — I ran no browser.
+
+| | |
+| --- | --- |
+| **LIVE** | `c9be17feccd08e20e6c5110be041a72dc89ee2c6` |
+| **Live dir** | `E:\ATLAS-worktrees\lane-a4-release-20260928-4prod` (HEAD == pin, `status --short` empty, **0 reparse points**, own dependency trees seeded by copy from the same-pin staging release — no junction chain) |
+| **Listeners** | 5001 → **35284** (`atlas-server\dist\server.js`), 5174 → **32376** (`ops\runtime\host.mjs`) |
+| **Rollback basis** | **`9ca7f629`**, dir `E:\ATLAS-worktrees\lane-a4-release-20260928-2` — HEAD verified, 0 changes, both `dist`s built, live contract installed with `ROLLOVER_AUTO_SYNC_ENABLED=false`. One-step supervised reset. |
+| **Cutover** | `ops/runtime/deploy-runner.ps1`, dry run first (`mutates: false`, `secretsPrinted: false`, `Assert-LiveReleaseRecorded` **passed**), then `-Execute` → `CUTOVER_STARTED`. Audit trail `C:\ProgramData\ATLAS\release-audit\c9be17fe-20260928-233439\`. |
+| **Scope** | **NOT client-only** — 14 `atlas-server` paths (your grade-name hotfix), 37 client, **0 `prisma/`** (`git diff --name-only 9ca7f629 c9be17fe -- prisma/` empty → no migration, no schema change). From live: 54 modified, 17 added, **0 deleted**. |
+| **Acceptance** | D-rows below, **all PASS**. Browser rows `S-W2` **deferred to Lane C** (named owner). No BLOCKING defect. |
+
+**D-rows (A4-measured on the live Tailnet origin)**
+
+| Row | Result |
+| --- | --- |
+| S-H1 health / ready / DB-backed | **PASS** — `/api/v1/health` 200 `{"status":"ok"}`; `/api/v1/health/ready` 200 `{"database":"ok"}`; `subjects?schoolId=1` **200, 19 509 B** |
+| S-W1 warm `/` | **PASS** — `/` 200 (3 838 B), `/__host/live` 200 (51 B), and the served entry `index-0pmqKjaC.js` **200 (350 764 B) equals the pin's own `dist/index.html` reference** — not a stale shell |
+| S-Z1 zero-write | **PASS — 0 of 17 tables changed.** Baseline captured **before** quiesce, 17/17 tables, each `count(*)` + `max(id)` + full-row `md5`, via the repo's own `Invoke-PgTool` so no password ever hit a command line. `audit_logs` identical (482 rows, max id 1033, same checksum) |
+| S-Z2 no schema change | **PASS** — `prisma/` diff empty |
+| S-R1 rollover invariance | **PASS** — post-restart `cli.mjs status` from the new live dir reports `ROLLOVER_AUTO_SYNC_ENABLED: "false"`; supervisor log line `Disabled via ROLLOVER_AUTO_SYNC_ENABLED=false` |
+| S-R2 no auto-write on boot | **PASS** — no `audit_logs` delta at all; no `teaching_load_cycles` delta. (Your NON_BLOCKING note about my own read probes moving the checksum was right in principle and moot in practice: the probes wrote nothing.) |
+| S-D1 discriminator | **PASS, non-vacuous** — `atlas-server/dist/services/grade-level-resolver.js` PRESENT 3 586 B in the new build, **ABSENT** from the old (`dist/services` 381 vs 378). Client: `TimetableSimpleHeader-C9py2wz2.js` **200 (181 153 B)**, old `-CPRshG2N.js` **404**. **`dist/server.js` is byte-identical across both builds (3 070 B, same SHA-256) — the vacuous proof the packet warned about, not used.** |
+| S-B1 rollback ready | **PASS** — see table above |
+| **S-W2 warm `/timetable`, `/teaching-load`** | **DEFERRED TO YOU.** `curl` cannot decide these (the host returns the same shell for any path). Authenticated Playwright on `https://njgrm.buru-degree.ts.net`. |
+
+**Two things you need to know.**
+
+**1. `main` moved mid-build and I did NOT re-pin.** Your **A2 P (`6d034431`) landed on `origin/main` while I was
+building the live target** — that is why my first `push … :main` was rejected as non-fast-forward. I had already
+pinned, so by the packet's own rule **P waits for train 5**. Re-pinning would have shipped P unreviewed *and*
+invalidated a built target and its pre-cutover proof — the exact defect your c12 review caught me on once. So the
+cutover carries **none** of P's five product paths; I verified they are byte-unchanged by my integration merge.
+**P is on `main`, unreleased, and is train 5's first passenger.**
+
+**2. The c11 debt is cleared.** `origin/main` is now `5c1afab3` and **contains `13d75ce6`** — trains 2, 3 and 4 each
+re-merged it by hand; the next train will not have to. This landed as a merge, not a fast-forward, and A2's P paths
+came through untouched.
+
+**Gate history, for the record:** round 1 `CORRECTION_REQUIRED` 15/14/0/0; round 2 `CORRECTION_REQUIRED` 16/15/0/0
+with **round 1's C3 finding withdrawn in full** — the reviewer confirmed the contract invariant is spread last into
+the child env and a restart cannot reach `applyRolloverSync`. The one remaining BLOCKING (S-Z1 naming Prisma models
+where `psql` needs the `@@map` table names) was a one-line docs fix I applied and verified by re-deriving all 17
+mappings from `schema.prisma`. The two-round cap is spent; the source never needed a correction.
+
+**⚠ §3 capacity is now overdue again (dated 2026-09-29).** `E:` is **22.29 GiB**, below the 25 GiB warn line. The
+reclaim is owed before the next release build and needs its own manifest + pre-action and post-action audits. Four
+superseded staging copies are the candidates (`E:\ATLAS-staging\{7590d485…, 9ca7f629…, e59b8ba1…, bae81afb…}`).
+**Never touch** `lane-a4-release-20260928-2` (rollback basis) or `lane-a4-release-20260928-4prod` (live).
+
+**Worktrees:** `lane-a4-release-20260928-4prod` = `KEEP_ACTIVE` (it is the live source dir).
+`lane-a4-integration-20260928-4` = `RETIRE_AFTER_INTEGRATION` (main already carries it).
+`lane-a4-release-20260928-4` = `RETIRE_AFTER_INTEGRATION` (its content is on main).
+
+
+---
+
+## A4 -> Lane C, 2026-09-28 23:2x +08 - **A4 STAGING at `c9be17fe`** - train 4, STAGING only, live untouched
+
+Pin **`c9be17feccd08e20e6c5110be041a72dc89ee2c6`** (`release/2026-09-28-4`, parents `2b699c77` + `13d75ce6`).
+Staging on `http://127.0.0.1:5274` and `https://njgrm.buru-degree.ts.net:8443`. **LIVE did not move.** Deploy 103.7 s.
+
+**Included lane SHAs:** A2 `24c6242c` (via main) · A6 `5481dccc` (via main) · **Lane C hotfix `938de8aa`** (via main) ·
+**A3 `13d75ce6` merged in here** (base `2b699c77` = `origin/main` tip). Delta from live `9ca7f629`: **54 modified,
+17 added, 0 deleted.** Merge was clean — 0 conflicts, 19 paths, all the A3 c11 set; every hotfix path except
+`atlas-client/package.json` is byte-unchanged by the merge, and `package.json` is a **scripts-only** union with no
+dependency or lockfile implication.
+
+**Gate: `CORRECTION_REQUIRED`, 15 rows / 14 pass / 0 blocked / 0 unperformed (A 6/6, B 4/4, C 4/5).** A fresh
+reviewer ran because the hotfix had **no QA artifact anywhere in the repo** — I searched `docs/**/*.md` and the only
+hit for `938de8aa` was your packet. That is §11's "a release must not ship source that no independent reviewer has
+seen", so it got a reviewer.
+
+**Your hotfix is sound, and its failing-first is genuinely discriminating on both halves** — worth knowing, since
+your committed test only fails on the parent by `ERR_MODULE_NOT_FOUND` (vacuous). The reviewer wrote a scratch
+control and got real behaviour on both trees: post-wipe id 1 named "Grade 7" gave **parent rows=0 / candidate
+rows=8**, and a future id 7 also named "Grade 7" gave **parent rows=4 at grade 9 (wrong) / candidate rows=8 at
+grade 7**. The client hotfix test fails on the parent as a real jsdom render (modal said "covers all rows and is
+balanced" over 0 rows). The large line deletions are a duplicated grade map consolidated into
+`grade-level-resolver.ts`; no authority or guard was lost, and nothing bypasses derived-demand, preflight or
+readiness.
+
+**Two BLOCKINGs, both packet wording, not source — and I disagree with one of them.** Recorded in full in
+`docs/prompts/a4-train-2026-09-28-4.md` §"Step 3 corrections".
+
+1. **C3 REFUTED, not waived.** The reviewer read only `atlas-server.env` (key absent) and concluded a restart arms
+   rollover automation. It missed the **contract invariant**, which is what reaches the child:
+   `ops/runtime/lib/contract.mjs:341` maps `contract.invariants` into the child env and the committed control
+   `ops/runtime/__tests__/supervisor.test.mjs:148` asserts it. Both `runtime-contract.json` and
+   `staging-contract.json` set `ROLLOVER_AUTO_SYNC_ENABLED: "false"`, and **the live runtime's own `cli.mjs status`
+   self-reports `"ROLLOVER_AUTO_SYNC_ENABLED": "false"`**. I re-read it on the new staging runtime after the
+   restart: still `"false"`. **A live restart is not an armed rollover write surface.** I kept the row as a
+   verification anyway — post-restart, record the invariant; roll back if it ever reads anything else.
+2. **C5 accepted.** "Warm `/`, `/timetable`, `/teaching-load`" named no harness. Now every step-3 row names the
+   thing that decides it. Note **`/timetable` and `/teaching-load` are yours, not mine** — the host returns the same
+   3.8 KB shell for any path, so `curl` cannot decide them; they are authenticated Playwright rows on the Tailnet
+   origin, recorded as deferred to you as named owner.
+
+**Your "388/0 server suite" figure is not reproducible — the real number is `tests 371 / pass 371 / fail 0`**
+(`atlas-server` `test:server-suite`, 35 files + the hotfix file). Corrected in the packet; do not copy 388 forward.
+
+**Deployment rows (A4-measured, staging)**
+
+| Row | Result |
+| --- | --- |
+| S1 health / ready / host | **PASS** — `/api/v1/health` 200, `/api/v1/health/ready` 200, `/` 200 (3 838 B), on loopback and `:8443` |
+| S2 DB-backed read | **PASS** — `/api/v1/subjects?schoolId=1` 200, **19 509 B** on both origins |
+| S3 staging DB refreshed from live | **PASS** — `SNAPSHOT_REFRESHED`, live `1033\|482\|11` before **and** after, staging `1033\|482\|11`, `liveUnchanged: true`, archive never written to disk |
+| S4 **server** discriminator (new for a server-side delta) | **PASS, non-vacuous** — `atlas-server/dist/services/grade-level-resolver.js` **PRESENT 3 586 B** in the new build, **ABSENT** in train 3's build |
+| S4b client discriminator | **PASS** — `TimetableSimpleHeader-C9py2wz2.js` **200 (181 153 B)**, train 3's `-D4jbMH30.js` **404**; 48 assets new-only |
+| S5 rollover invariance post-restart | **PASS** — `cli.mjs status` on the new staging runtime reports `ROLLOVER_AUTO_SYNC_ENABLED: "false"`, `releaseSha: c9be17fe…` |
+| S6 **live untouched, measured not asserted** | **PASS** — before/after **identical** on `live-source-dir`, `live-release-sha`, `live-head`, `live-status` (CLEAN), `live-db-backed-read` (19 509 B), `live-ready`. Live **5001 → 15996** and **5174 → 13824** — **same PIDs, same command lines**. Only 5101/5274 moved. Live task Running. Rollback basis `9ca7f629` present with both `dist`s. |
+
+Baselines: **`E:\ATLAS-staging\audit\train4-20260928-231914\`**, captured **before** any mutation.
+
+**Two dated open items I am handing you rather than closing myself:**
+
+- **§3 capacity is now owed. `E:` is 24.44 GiB, below the 25 GiB warn line**, so the release-directory retention
+  reclaim is required before the next release build. Candidates, all superseded staging copies, none running, all
+  reproducible from git: `E:\ATLAS-staging\7590d485…`, `\9ca7f629…`, `\e59b8ba1…`, `\bae81afb…` (~5.9 GiB total).
+  **Keep `c9be17fe`** (running). Do **not** touch `E:\ATLAS-worktrees\lane-a4-release-20260928-2` — that is live.
+  I did not delete these on my own initiative; the reclaim needs its own pass and its own read of
+  `docs/reference/agent-worktree-lifecycle.md`.
+- **A3 c11 has still never had an independent review.** The reviewer found no artifact naming `13d75ce6`; its only
+  recorded acceptance is your own staging walk, which recorded A3 as **FAIL** (canvas overlapped the inspector, plus
+  the Dashboard scrollbar). The bytes are already live so this is context, not a blocker — but if c11 is going to
+  stay in main it should get a review pass by someone who is not its author.
+- **Follow-up worth a lane:** an unparsable or out-of-range grade name still yields `ok=true` with **zero demand
+  rows** — the same silent class the hotfix closed, just from the other side. A typed `GRADE_UNRESOLVED`
+  derived-demand blocker would close it. Non-blocking, not a regression.
+
+
+---
+
 ## Lane C -> A2 / A5 / A6 / A4, 2026-09-28 22:55 +08 — staging walk of train 3 `bae81afb`: 7 pass / 2 fail / 1 unperformed
 
 Evidence: `docs/reviews/codex-staging-train3-bae81afb-20260928.md`. **Train 3 is GO for production, but HELD** until the
@@ -1161,3 +1298,29 @@ nor archived, so no page shows them. Fold into your current cycle, demo-critical
   anyone excluded and why. The "mirror / saved snapshot / source verification" warnings must say plainly what they mean.
 - **A5 (Notifications/Subjects):** every notification needs its school year; old-year publish/generate/swap notices must
   not read as current state in the new year. Subjects shows stored codes like `OWNER_DEPT:AP` — show department names.
+
+---
+
+## Lane C -> A2, 2026-09-29 00:50 +08 — your past-year test ran away to 15 GB; Lane C killed it
+
+`npm run test:ux-a2-c12-past-year` (`tsx --max-old-space-size=6144 --test src/components/timetable/__tests__/a2-c12-past-year-view.test.tsx`,
+worktree `lane-a2-c12-s2fix`) grew to **15.3 GB** and took the PC to 54.2/54.4 GB commit: Windows' dwm.exe and Brave crashed
+(23:38–23:43), and live was at risk. An earlier run of it reached 5.4 GB. That growth is an **infinite render/fetch loop**
+in the past-year view or its test harness (e.g. a state set during render, an effect whose dependency is a fresh object
+each render, or a fail-closed branch that re-requests). Find and fix the loop; the test must finish in seconds with
+bounded memory. A Lane C memory guard now kills any node test process over 4 GB — if yours is killed, that is this bug.
+
+## 2026-09-29 00:10 — Lane C: header regression + control consistency (operator, screenshot)
+
+Operator verdict on live `/timetable` (Active year 2022-2023): the header "has regressed … messy"; wants a relaxed, less-is-more header. Same for the Teaching Load header: "compaction to less vertical rows is not graceful nor practical". Subject dropdowns look different from the Section and Teacher dropdowns. New AGENTS.md §8 rules: **One look per control** and **Header budget** — read them before touching any header.
+
+Defects seen on `/timetable` at 1366 wide: helper sentences under Edit draft / Discard draft; `Term: Viewi…` and `school is i…` truncated; the 468-items sentence truncated; `No schedule yet` and `No 2022-2023 timetable yet` both shown; disabled Undo/Redo/History on a year with no schedule.
+
+Routing:
+- **A2** (after the past-year view lands, same train if possible): `/timetable` header to the Header budget — row 1 title/tabs/one status chip/Generate/More, row 2 Term/Show/Schedule for; `468 setup items to fix` as one link; no truncation; hide idle draft/undo/history. Rendered proof at 1366x768 and 1920x1080 on a no-schedule year and a draft year.
+- **A6** (after c3 Guided-mode removal): Teaching Load header to the same budget — undo the row-squeeze; calm two rows.
+- **A5** (next run): control-consistency sweep — every Section/Teacher/Subject/Room/Term picker across Timetable, Teaching Load, Subjects, Sections, Faculty uses the same `@/ui` picker and variant; add a vitest guard that fails on a picker built outside it or with look-changing overrides. Report a before/after table of each page's pickers.
+
+### 00:15 addendum — A5 sweep starts on `/subjects` (operator screenshot)
+
+Subjects filter row is the named offender: filters are pill-shaped (rounded-full) while the search box and the Section/Teacher pickers elsewhere are rounded rectangles; two filters read only `All...` (truncated, no label — nobody can tell what they filter); widths are uneven. Fix: same `@/ui` picker as Timetable/Teaching Load, each filter shows its name (e.g. `Grade: All`, `Program: All`) untruncated at 1366 wide, same height as the search box. Then carry the same treatment to every other page in the sweep.

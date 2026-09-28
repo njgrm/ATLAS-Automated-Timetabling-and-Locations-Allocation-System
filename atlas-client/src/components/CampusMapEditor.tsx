@@ -1,5 +1,5 @@
 import Konva from 'konva';
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Group, Layer, Line, Rect, Stage, Text, Transformer } from 'react-konva';
 import { DoorOpen, ImageOff, Minus, MousePointer2, Plus, Redo2, RotateCcw, Save, Square, Undo2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
@@ -15,6 +15,21 @@ import {
 	MAP_TRANSFORMER_STROKE,
 	getPrimaryCanvasColor,
 } from '@/components/campus-map/campusMapPalette';
+// A3 c11 fix 36 — every number the canvas decision needs, as pure functions, in
+// one place with the geometry contract that explains them. See the module header
+// for the 1366px arithmetic that reproduces the operator's clip.
+import {
+	MIN_HEIGHT,
+	MIN_WIDTH,
+	alignmentGuides,
+	canvasWorkArea,
+	clampBuildingToCanvas,
+	campusEditorCanvasSize,
+	drawRectFromPointer,
+	nextZoomScale,
+	smartLabelRotation,
+	transformOrigin,
+} from '@/components/campus-map/campusEditorCanvas';
 
 type EditorBuilding = Building & { dirty?: boolean; isNew?: boolean };
 
@@ -36,48 +51,9 @@ type CampusMapEditorProps = {
 
 type Tool = 'select' | 'add';
 
-const MIN_WIDTH = 60;
-const MIN_HEIGHT = 40;
-const CANVAS_WIDTH = 920;
-const CANVAS_HEIGHT = 580;
-
 const COLORS = CALM_BUILDING_COLORS;
 
-/**
- * Smart-threshold label rotation:
- * - |angle| <= 20°: keep text upright (counter-rotate fully)
- * - |angle| > 20°: let text ride with the building (no correction)
- */
-function smartLabelRotation(buildingRotation: number): number {
-	const absAngle = Math.abs(buildingRotation % 360);
-	const effective = absAngle > 180 ? 360 - absAngle : absAngle;
-	return effective <= 20 ? -(buildingRotation ?? 0) : 0;
-}
-
 let tempIdCounter = -1;
-
-/** Map each resize anchor to the opposite (fixed) anchor */
-const OPPOSITE_ANCHORS: Record<string, string> = {
-	'top-left': 'bottom-right',
-	'top-center': 'bottom-center',
-	'top-right': 'bottom-left',
-	'middle-left': 'middle-right',
-	'middle-right': 'middle-left',
-	'bottom-left': 'top-right',
-	'bottom-center': 'top-center',
-	'bottom-right': 'top-left',
-};
-
-/** Compute local (unrotated) offset of a named anchor within a rectangle */
-function anchorLocalOffset(w: number, h: number, anchor: string): { x: number; y: number } {
-	let x = 0;
-	let y = 0;
-	if (anchor.includes('right')) x = w;
-	else if (anchor.includes('center')) x = w / 2;
-	if (anchor.includes('bottom')) y = h;
-	else if (anchor.startsWith('middle')) y = h / 2;
-	return { x, y };
-}
 
 export function CampusMapEditor({
 	schoolId,
@@ -99,6 +75,61 @@ export function CampusMapEditor({
 	const [saving, setSaving] = useState(false);
 	const [campusImage, setCampusImage] = useState<HTMLImageElement | null>(null);
 	const [hoveredBuildingId, setHoveredBuildingId] = useState<number | null>(null);
+	// A3 c11 fix 36 — the canvas size is MEASURED, from the page's scroll region
+	// (see `campusEditorCanvas.ts` for the 1366px arithmetic). Measuring the
+	// host's own box instead would feed the stage's size back into itself; the
+	// region is bounded by the page root, so its box is independent of the stage.
+	const canvasHostRef = useRef<HTMLDivElement>(null);
+	const statusBarRef = useRef<HTMLDivElement>(null);
+	const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+	const canvas = useMemo(
+		() => campusEditorCanvasSize({ containerWidth: containerSize.width, containerHeight: containerSize.height, buildings }),
+		[containerSize.width, containerSize.height, buildings],
+	);
+	const { width: CANVAS_WIDTH, height: CANVAS_HEIGHT } = canvas;
+
+	useEffect(() => {
+		const host = canvasHostRef.current;
+		if (!host) return;
+		// The page names its canvas column (`pages/MapEditor.tsx`); a canvas
+		// mounted outside one is unmeasured, and takes the named floor.
+		const region = host.closest('[data-campus-map-canvas-region]') as HTMLElement | null;
+		const measure = () => {
+			if (!region) {
+				setContainerSize({ width: 0, height: 0 });
+				return;
+			}
+			const rect = region.getBoundingClientRect();
+			// Read the region's own padding rather than assuming it, so the
+			// arithmetic follows the page's `p-4` instead of a copy of it.
+			const style = getComputedStyle(region);
+			const px = (value: string): number => {
+				const n = Number.parseFloat(value);
+				return Number.isFinite(n) && n > 0 ? n : 0;
+			};
+			setContainerSize(
+				canvasWorkArea({
+					regionWidth: rect.width,
+					regionHeight: rect.height,
+					paddingTop: px(style.paddingTop),
+					paddingRight: px(style.paddingRight),
+					paddingBottom: px(style.paddingBottom),
+					paddingLeft: px(style.paddingLeft),
+					// `offsetTop`/`offsetHeight` are layout boxes that do not move
+					// with the stage, so subtracting them is not a feedback loop.
+					contentAbove: host.offsetTop,
+					contentBelow: statusBarRef.current?.offsetHeight ?? 0,
+				}),
+			);
+		};
+		measure();
+		// Observed: the region, whose box the page root bounds. The host is NOT
+		// observed — its height follows the stage, so observing it would close a
+		// loop that grows the canvas to fit its own growth.
+		const observer = new ResizeObserver(measure);
+		observer.observe(region ?? host);
+		return () => observer.disconnect();
+	}, []);
 
 	// Draw-to-create state
 	const [isDrawing, setIsDrawing] = useState(false);
@@ -201,12 +232,7 @@ export function CampusMapEditor({
 			if (!stage) return;
 			const pointer = stage.getRelativePointerPosition();
 			if (!pointer) return;
-
-			const x = Math.min(drawStart.x, pointer.x);
-			const y = Math.min(drawStart.y, pointer.y);
-			const width = Math.abs(pointer.x - drawStart.x);
-			const height = Math.abs(pointer.y - drawStart.y);
-			setDrawRect({ x, y, width, height });
+			setDrawRect(drawRectFromPointer(drawStart, pointer));
 		},
 		[isDrawing, drawStart],
 	);
@@ -224,17 +250,24 @@ export function CampusMapEditor({
 			setDrawStart(null);
 			setDrawRect(null);
 
-			// Only create if rect is large enough
-			if (drawRect.width < MIN_WIDTH || drawRect.height < MIN_HEIGHT) return;
+		// Only create if rect is large enough
+		if (drawRect.width < MIN_WIDTH || drawRect.height < MIN_HEIGHT) return;
 
-			const newBuilding: EditorBuilding = {
-				id: tempIdCounter--,
-				name: `Building ${buildings.length + 1}`,
-				shortCode: null,
-				x: drawRect.x,
-				y: drawRect.y,
-				width: drawRect.width,
-				height: drawRect.height,
+		// A3 c11 fix 36, option 3 — a drawn building is CONTAINED by the same clamp.
+		const placed = clampBuildingToCanvas(
+			{ x: drawRect.x, y: drawRect.y, width: drawRect.width, height: drawRect.height },
+			CANVAS_WIDTH,
+			CANVAS_HEIGHT,
+		);
+
+		const newBuilding: EditorBuilding = {
+			id: tempIdCounter--,
+			name: `Building ${buildings.length + 1}`,
+			shortCode: null,
+			x: placed.x,
+			y: placed.y,
+			width: placed.width,
+			height: placed.height,
 				rotation: 0,
 				color: COLORS[buildings.length % COLORS.length],
 				floorCount: 1,
@@ -249,15 +282,27 @@ export function CampusMapEditor({
 			onSelect(newBuilding.id);
 			setTool('select');
 		},
-		[isDrawing, drawRect, buildings, onBuildingsChange, onSelect],
+		[isDrawing, drawRect, buildings, onBuildingsChange, onSelect, CANVAS_WIDTH, CANVAS_HEIGHT],
 	);
 
 	const handleDragEnd = useCallback(
 		(buildingId: number, e: Konva.KonvaEventObject<DragEvent>) => {
 			const node = e.target;
 			// Snap to integer coordinates to prevent sub-pixel drift
-			const snappedX = Math.round(node.x());
-			const snappedY = Math.round(node.y());
+			let snappedX = Math.round(node.x());
+			let snappedY = Math.round(node.y());
+			// A3 c11 fix 36, option 3 — a DRAG is contained, by the same single
+			// clamp the draw-create and resize/rotate paths use. Drag was the one
+			// way the operator could still put a building outside the work area,
+			// which made containment rest on auto-grow alone.
+			const dragged = buildings.find((b) => b.id === buildingId);
+			const contained = clampBuildingToCanvas(
+				{ x: snappedX, y: snappedY, width: dragged?.width ?? node.width(), height: dragged?.height ?? node.height() },
+				CANVAS_WIDTH,
+				CANVAS_HEIGHT,
+			);
+			snappedX = contained.x;
+			snappedY = contained.y;
 			node.x(snappedX);
 			node.y(snappedY);
 			onPushHistory();
@@ -271,7 +316,7 @@ export function CampusMapEditor({
 			setDimTooltip(null);
 			setGuides([]);
 		},
-		[buildings, onBuildingsChange, onPushHistory],
+		[buildings, onBuildingsChange, onPushHistory, CANVAS_WIDTH, CANVAS_HEIGHT],
 	);
 
 	const handleDragMove = useCallback(
@@ -282,43 +327,10 @@ export function CampusMapEditor({
 			const building = buildings.find((b) => b.id === buildingId);
 			if (!building) return;
 
-			const SNAP_THRESHOLD = 5;
-			const newGuides: { x?: number; y?: number }[] = [];
-
-			// Check alignment with other buildings
-			for (const other of buildings) {
-				if (other.id === buildingId) continue;
-
-				// Vertical guides (left-left, right-right, left-right, right-left, center-center)
-				const edges = [
-					{ dragEdge: dragX, otherEdge: other.x }, // left-left
-					{ dragEdge: dragX + building.width, otherEdge: other.x + other.width }, // right-right
-					{ dragEdge: dragX, otherEdge: other.x + other.width }, // left-right
-					{ dragEdge: dragX + building.width, otherEdge: other.x }, // right-left
-					{ dragEdge: dragX + building.width / 2, otherEdge: other.x + other.width / 2 }, // center-center
-				];
-				for (const { dragEdge, otherEdge } of edges) {
-					if (Math.abs(dragEdge - otherEdge) < SNAP_THRESHOLD) {
-						newGuides.push({ x: otherEdge });
-					}
-				}
-
-				// Horizontal guides (top-top, bottom-bottom, top-bottom, bottom-top, center-center)
-				const hEdges = [
-					{ dragEdge: dragY, otherEdge: other.y },
-					{ dragEdge: dragY + building.height, otherEdge: other.y + other.height },
-					{ dragEdge: dragY, otherEdge: other.y + other.height },
-					{ dragEdge: dragY + building.height, otherEdge: other.y },
-					{ dragEdge: dragY + building.height / 2, otherEdge: other.y + other.height / 2 },
-				];
-				for (const { dragEdge, otherEdge } of hEdges) {
-					if (Math.abs(dragEdge - otherEdge) < SNAP_THRESHOLD) {
-						newGuides.push({ y: otherEdge });
-					}
-				}
-			}
-
-			setGuides(newGuides);
+			setGuides(alignmentGuides(
+				{ x: dragX, y: dragY, width: building.width, height: building.height },
+				buildings.filter((b) => b.id !== buildingId),
+			));
 			setDimTooltip({
 				x: dragX + building.width / 2,
 				y: dragY - 20,
@@ -343,38 +355,26 @@ export function CampusMapEditor({
 			const newHeight = Math.max(MIN_HEIGHT, Math.round(building.height * Math.abs(scaleY)));
 			const newRotation = Math.round(rotation * 10) / 10;
 
-			let snappedX: number;
-			let snappedY: number;
-
-			// Anchored resize: compute origin so the opposite handle stays put.
-			// The fixed anchor's stage position is derived from the pre-transform
-			// (integer) state, so rounding the new origin does not accumulate drift.
-			const anchor = activeAnchorRef.current;
-			const fixedAnchorName = anchor ? OPPOSITE_ANCHORS[anchor] : null;
-
-			if (fixedAnchorName) {
-				const oldRad = ((building.rotation ?? 0) * Math.PI) / 180;
-				const oldCos = Math.cos(oldRad);
-				const oldSin = Math.sin(oldRad);
-				const oldOff = anchorLocalOffset(building.width, building.height, fixedAnchorName);
-				// Fixed anchor in stage coords from pre-transform integers
-				const fixedX = building.x + oldOff.x * oldCos - oldOff.y * oldSin;
-				const fixedY = building.y + oldOff.x * oldSin + oldOff.y * oldCos;
-
-				const newRad = (newRotation * Math.PI) / 180;
-				const newCos = Math.cos(newRad);
-				const newSin = Math.sin(newRad);
-				const newOff = anchorLocalOffset(newWidth, newHeight, fixedAnchorName);
-				// Derive origin: fixedPoint = origin + rotatedOffset → origin = fixedPoint − rotatedOffset
-				snappedX = Math.round(fixedX - (newOff.x * newCos - newOff.y * newSin));
-				snappedY = Math.round(fixedY - (newOff.x * newSin + newOff.y * newCos));
-			} else {
-				// Pure rotation or unknown anchor — just snap the node's position
-				snappedX = Math.round(node.x());
-				snappedY = Math.round(node.y());
-			}
+			// Anchored resize: the origin that keeps the OPPOSITE handle fixed.
+			const origin = transformOrigin({
+				building,
+				activeAnchor: activeAnchorRef.current,
+				nodeX: node.x(),
+				nodeY: node.y(),
+				newWidth,
+				newHeight,
+				newRotation,
+			});
+			let snappedX = origin.x;
+			let snappedY = origin.y;
 
 			// Reset scale to 1 and apply computed dimensions to prevent drift
+			// A3 c11 fix 36, option 3 — a resize/rotate keeps the opposite anchor
+			// fixed AND stays inside the canvas, by the same single clamp.
+			const contained = clampBuildingToCanvas({ x: snappedX, y: snappedY, width: newWidth, height: newHeight }, CANVAS_WIDTH, CANVAS_HEIGHT);
+			snappedX = contained.x;
+			snappedY = contained.y;
+
 			node.scaleX(1);
 			node.scaleY(1);
 			node.width(newWidth);
@@ -402,7 +402,7 @@ export function CampusMapEditor({
 			);
 			setDimTooltip(null);
 		},
-		[buildings, onBuildingsChange, onPushHistory],
+		[buildings, onBuildingsChange, onPushHistory, CANVAS_WIDTH, CANVAS_HEIGHT],
 	);
 
 	const handleTransform = useCallback(
@@ -568,7 +568,7 @@ export function CampusMapEditor({
 					<div className="inline-flex items-center gap-1">
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Button variant="outline" size="icon-xs" onClick={() => setScale((s) => Math.min(s + 0.15, 2.5))} aria-label="Zoom in">
+								<Button variant="outline" size="icon-xs" onClick={() => setScale((s) => nextZoomScale(s, 0.15))} aria-label="Zoom in">
 									<Plus className="size-3.5" />
 								</Button>
 							</TooltipTrigger>
@@ -576,7 +576,7 @@ export function CampusMapEditor({
 						</Tooltip>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Button variant="outline" size="icon-xs" onClick={() => setScale((s) => Math.max(s - 0.15, 0.4))} aria-label="Zoom out">
+								<Button variant="outline" size="icon-xs" onClick={() => setScale((s) => nextZoomScale(s, -0.15))} aria-label="Zoom out">
 									<Minus className="size-3.5" />
 								</Button>
 							</TooltipTrigger>
@@ -708,11 +708,15 @@ export function CampusMapEditor({
 				</TooltipProvider>
 			</div>
 
-			{/* Canvas */}
+			{/* Canvas. The Stage is sized from the MEASURED work area by
+			    `campusEditorCanvasSize`, so the ground spans the workspace to the
+			    left of the inspector and grows for content beyond it. Growth is
+			    reachable, never clipped: `w-max` makes THIS box as large as the
+			    stage, so an over-sized stage enlarges the region (which scrolls)
+			    instead of being cut here. */}
 			<div
-				className={`overflow-hidden rounded-lg border border-border bg-muted/30 ${
-					tool === 'add' ? 'cursor-crosshair' : ''
-				}`}
+				ref={canvasHostRef}
+				className={`w-max overflow-hidden rounded-lg border border-border bg-muted/30 ${tool === 'add' ? 'cursor-crosshair' : ''}`}
 			>
 				<Stage
 					ref={stageRef}
@@ -734,7 +738,7 @@ export function CampusMapEditor({
 					onMouseUp={handleStageMouseUp}
 					onWheel={(event) => {
 						event.evt.preventDefault();
-						setScale((current) => Math.max(0.4, Math.min(2.5, current + (event.evt.deltaY < 0 ? 0.1 : -0.1))));
+						setScale((current) => nextZoomScale(current, event.evt.deltaY < 0 ? 0.1 : -0.1));
 					}}
 				>
 					<Layer>
@@ -938,8 +942,10 @@ export function CampusMapEditor({
 				</Stage>
 			</div>
 
-			{/* Status bar */}
-			<div className="flex items-center justify-between text-[0.75rem] text-muted-foreground ">
+			{/* Status bar. Its own height is subtracted from the work area, so the
+			    default layout fits the canvas exactly instead of growing a
+			    scrollbar out of the bar itself. */}
+			<div ref={statusBarRef} className="flex items-center justify-between text-[0.75rem] text-muted-foreground ">
 				<span>
 					{tool === 'add' && isDrawing
 						? 'Release to place — minimum size 60×40'

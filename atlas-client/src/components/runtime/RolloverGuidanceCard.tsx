@@ -40,6 +40,8 @@ import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { PlainYearSetupCard } from './RolloverPlainYearSetupCard';
+import { plainYearSetupCopy } from './rollover-plain-copy';
 
 /**
  * `RolloverGuidanceCard` -- school-year status banner.
@@ -64,6 +66,16 @@ type RolloverGuidanceCardProps = {
 	adminHref?: string;
 	/** Enables the marker flow only inside the protected year-setup surface. */
 	allowTestDataMarking?: boolean;
+	/**
+	 * A7-C1 §3 — opt-in plain-language next step for `/admin/year-setup`.
+	 *
+	 * DEFAULTS TO CURRENT BEHAVIOUR, and that default is load-bearing: this card
+	 * is also mounted on Dashboard, Sections, Faculty, TeachingLoad and two
+	 * timetable surfaces that other lanes own, and a plain rewrite there would
+	 * change accepted copy on pages this packet does not own. `AdminYearSetup` is
+	 * the only caller that passes it.
+	 */
+	plainLanguageNextStep?: boolean;
 	onApplied?: (status: RolloverStatus) => void;
 	onStatus?: (status: RolloverStatus) => void;
 };
@@ -154,6 +166,7 @@ export function RolloverGuidanceCard({
 	dismissible = true,
 	adminHref = '/admin/year-setup',
 	allowTestDataMarking = false,
+	plainLanguageNextStep = false,
 	onApplied,
 	onStatus,
 }: RolloverGuidanceCardProps) {
@@ -327,10 +340,14 @@ export function RolloverGuidanceCard({
 			setPendingReconfiguredIds(null);
 			onStatus?.(result);
 			onApplied?.(result);
-			toast.success(`Synced ${result.enrollProActiveYear?.yearLabel ?? 'the active school year'} from EnrollPro.`);
+			toast.success(plainLanguageNextStep
+				? `${result.enrollProActiveYear?.yearLabel ?? 'The new school year'} is now the school year in ATLAS.`
+				: `Synced ${result.enrollProActiveYear?.yearLabel ?? 'the active school year'} from EnrollPro.`);
 		} catch (err: any) {
 			const code = err?.response?.data?.code ?? err?.code;
-			const message = err?.response?.data?.message ?? err?.message ?? 'ATLAS could not sync the new school year.';
+			const message = err?.response?.data?.message ?? err?.message ?? (plainLanguageNextStep
+				? 'ATLAS could not start the new school year.'
+				: 'ATLAS could not sync the new school year.');
 			if (code === 'SECTION_RECONFIGURATION_REVIEW_REQUIRED') {
 				const details = err?.response?.data?.details ?? err?.details;
 				const unacknowledged = details?.unacknowledgedSections ?? [];
@@ -364,10 +381,14 @@ export function RolloverGuidanceCard({
 			setRecoveryAckPublished(false);
 			setRecoveryClassification(null);
 			await loadStatus(true);
-			toast.success('Test-year data cleared and EnrollPro sync applied.');
+			toast.success(plainLanguageNextStep
+				? `Leftover test data cleared and ${(result.sync as RolloverStatus | undefined)?.enrollProActiveYear?.yearLabel ?? 'the new school year'} started in ATLAS.`
+				: 'Test-year data cleared and EnrollPro sync applied.');
 			onApplied?.(result.sync as RolloverStatus);
 		} catch (err: any) {
-			const message = err?.response?.data?.message ?? err?.message ?? 'ATLAS could not clear test-year data.';
+			const message = err?.response?.data?.message ?? err?.message ?? (plainLanguageNextStep
+				? 'ATLAS could not clear the leftover test data.'
+				: 'ATLAS could not clear test-year data.');
 			setError(message);
 			toast.error(message);
 		} finally {
@@ -385,7 +406,9 @@ export function RolloverGuidanceCard({
 			setShowMarkTestDataConfirm(false);
 			setMarkTestDataAcknowledged(false);
 			await loadStatus(true);
-			toast.success(`School year #${schoolYearId} is marked as test data. Review the cleanup scope before continuing.`);
+			toast.success(plainLanguageNextStep
+				? 'This school year is marked as test data. Review what would be cleared before continuing.'
+				: `School year #${schoolYearId} is marked as test data. Review the cleanup scope before continuing.`);
 		} catch (err: any) {
 			const message = err?.response?.data?.message ?? err?.message ?? 'ATLAS could not mark this school year as test data.';
 			setError(message);
@@ -408,14 +431,18 @@ export function RolloverGuidanceCard({
 			const result = await applyArchiveAndSync(schoolId);
 			setArchivePreview(null);
 			await loadStatus(true);
-			toast.success(
-				result.archivedYears.length > 0
+			toast.success(plainLanguageNextStep
+				? (result.archivedYears.length > 0
+					? `Kept ${result.archivedYears.map((year) => year.yearLabel).join(', ')} for reference and started ${result.enrollProActiveYear.yearLabel} in ATLAS.`
+					: `${result.enrollProActiveYear.yearLabel} is now the school year in ATLAS.`)
+				: (result.archivedYears.length > 0
 					? `Archived ${result.archivedYears.map((year) => year.yearLabel).join(', ')} and synced ${result.enrollProActiveYear.yearLabel} from EnrollPro. History is preserved.`
-					: `Synced ${result.enrollProActiveYear.yearLabel} from EnrollPro.`,
-			);
+					: `Synced ${result.enrollProActiveYear.yearLabel} from EnrollPro.`));
 			onApplied?.(result.sync);
 		} catch (err: any) {
-			const message = err?.response?.data?.message ?? err?.message ?? 'ATLAS could not archive the old school year.';
+			const message = err?.response?.data?.message ?? err?.message ?? (plainLanguageNextStep
+				? 'ATLAS could not keep the old school year and start the new one.'
+				: 'ATLAS could not archive the old school year.');
 			setError(message);
 			toast.error(message);
 		} finally {
@@ -462,7 +489,9 @@ export function RolloverGuidanceCard({
 			await loadStatus(true);
 			toast.success(`Saved ordered terms for ${result.yearLabel}.`);
 		} catch (err: any) {
-			const message = err?.response?.data?.message ?? err?.message ?? 'ATLAS could not save the ordered terms.';
+			const message = err?.response?.data?.message ?? err?.message ?? (plainLanguageNextStep
+				? 'ATLAS could not save the terms.'
+				: 'ATLAS could not save the ordered terms.');
 			setError(message);
 			setTermRepair((current) => ({ ...current, applying: false }));
 			toast.error(message);
@@ -524,6 +553,77 @@ export function RolloverGuidanceCard({
 					>
 						{termApplying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
 						Save terms
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+
+	// A7-C1: hoisted so the plain Year Setup branch can render the same two
+	// dialogs instead of a second, drifting copy. Identical behaviour: the same
+	// open state, the same reset-on-close, the same typed confirmation gate, the
+	// same `data-testid`s. Only the PROSE differs, and only in plain mode.
+	const recoveryConfirmDialog = (
+		<Dialog open={showRecoveryConfirm} onOpenChange={(open) => {
+			setShowRecoveryConfirm(open);
+			if (!open) {
+				setRecoveryConfirmText('');
+				setRecoveryAckPublished(false);
+			}
+		}}>
+			<DialogContent className="w-[calc(100%-2rem)] sm:max-w-md" hideClose={recovering}>
+				<DialogHeader>
+					<DialogTitle>{plainLanguageNextStep ? 'Clear leftover test data and start the new year' : 'Clear test data and sync EnrollPro'}</DialogTitle>
+					<DialogDescription>
+						{plainLanguageNextStep
+							? 'This will delete ATLAS data for this school year and start the new school year from EnrollPro. This action cannot be undone.'
+							: `This will delete ATLAS-owned data for school year #${recoveryClassification?.enrollProActiveYear?.id} and re-sync from EnrollPro. This action cannot be undone.`}
+					</DialogDescription>
+				</DialogHeader>
+				{recoveryClassification?.publishedResetBlocked ? (
+					<div className="flex items-start gap-2 text-sm text-warning">
+						<Checkbox id="recovery-ack-published" checked={recoveryAckPublished} onCheckedChange={(checked) => setRecoveryAckPublished(checked === true)} disabled={recovering} />
+						<Label htmlFor="recovery-ack-published" className="leading-5">I acknowledge that published schedule artifacts exist for this school year and will be cleared.</Label>
+					</div>
+				) : null}
+				<div className="space-y-2">
+					<Label htmlFor="recovery-confirmation">Type <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">{recoveryClassification?.confirmationText}</code> to confirm</Label>
+					<Input id="recovery-confirmation" value={recoveryConfirmText} onChange={(event) => setRecoveryConfirmText(event.target.value)} placeholder={recoveryClassification?.confirmationText ?? ''} disabled={recovering} autoComplete="off" />
+				</div>
+				<DialogFooter>
+					<Button type="button" variant="outline" size="sm" onClick={() => setShowRecoveryConfirm(false)} disabled={recovering}>Cancel</Button>
+					<Button type="button" size="sm" onClick={() => void handleRecoveryApply()} disabled={recovering || recoveryConfirmText !== recoveryClassification?.confirmationText || (Boolean(recoveryClassification?.publishedResetBlocked) && !recoveryAckPublished)} data-testid="recovery-confirm-apply">
+						{recovering ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+						{plainLanguageNextStep ? 'Yes, erase and start the new year' : 'Clear and sync'}
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+
+	const markTestDataConfirmDialog = (
+		<Dialog open={showMarkTestDataConfirm} onOpenChange={(open) => {
+			setShowMarkTestDataConfirm(open);
+			if (!open) setMarkTestDataAcknowledged(false);
+		}}>
+			<DialogContent className="w-[calc(100%-2rem)] sm:max-w-md" hideClose={markingTestData}>
+				<DialogHeader>
+					<DialogTitle>Mark school year as test data</DialogTitle>
+					<DialogDescription>
+						{plainLanguageNextStep
+							? 'Mark this school year as test data only when its ATLAS data is disposable test data. This enables a separate cleanup review; it does not clear anything now.'
+							: `Mark school year #${recoveryClassification?.enrollProActiveYear?.id} only when its ATLAS data is disposable test data. This enables a separate cleanup review; it does not clear anything now.`}
+					</DialogDescription>
+				</DialogHeader>
+				<div className="flex items-start gap-2 text-sm text-warning">
+					<Checkbox id="mark-test-data-confirmation" checked={markTestDataAcknowledged} onCheckedChange={(checked) => setMarkTestDataAcknowledged(checked === true)} disabled={markingTestData} />
+					<Label htmlFor="mark-test-data-confirmation" className="leading-5">I confirm that this school year contains only disposable test data.</Label>
+				</div>
+				<DialogFooter>
+					<Button type="button" variant="outline" size="sm" onClick={() => setShowMarkTestDataConfirm(false)} disabled={markingTestData}>Cancel</Button>
+					<Button type="button" size="sm" onClick={() => void handleMarkTestData()} disabled={markingTestData || !markTestDataAcknowledged} data-testid="rollover-mark-test-data-confirm">
+						{markingTestData ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+						Mark test data
 					</Button>
 				</DialogFooter>
 			</DialogContent>
@@ -596,6 +696,59 @@ export function RolloverGuidanceCard({
 	// dismissible: they stay visible until the year status changes. The
 	// dismiss action only applies to non-blocking banners.
 	if (isDismissed && !isBlocking && !termRepairNeeded) return null;
+
+	// A7-C1 §3 — the opt-in plain branch for `/admin/year-setup`. Everything
+	// below is a separate return so the existing card body above stays
+	// byte-identical for the five mounts this packet does not own. The handlers,
+	// gates, requests and typed confirmations are the card's own; only the
+	// rendered words and the action count differ.
+	if (plainLanguageNextStep) {
+		return (
+			<>
+				<PlainYearSetupCard
+					loading={loading}
+					status={status}
+					copy={plainYearSetupCopy({
+						loading,
+						driftStatus: currentDrift,
+						recommendedAction: status?.drift.recommendedAction ?? null,
+						yearLabel: status?.enrollProActiveYear?.yearLabel ?? null,
+						canApply,
+						pendingReconfigured: Boolean(pendingReconfiguredIds),
+						showArchiveFlow,
+						termRepairNeeded,
+						recoveryClassification: recoveryClassification?.classification ?? null,
+						canOfferTestDataMarking,
+						canClearTestData: recoveryClassification?.classification === 'TEST_DATA_RECOVERY_AVAILABLE',
+					})}
+					archivePreview={archivePreview}
+					archivePreviewLoading={archivePreviewLoading}
+					termBadgeLabel={termRepairNeeded ? termAuthorityView.badgeLabel : null}
+					recoveryClassification={recoveryClassification}
+					canOfferTestDataMarking={canOfferTestDataMarking}
+					error={error}
+					previewing={previewing}
+					applying={applying}
+					archiving={archiving}
+					termPreviewLoading={termPreviewLoading}
+					termApplying={termApplying}
+					markingTestData={markingTestData}
+					onPreview={() => void handlePreview()}
+					onStartYear={() => {
+						if (showArchiveFlow) void handleArchiveAndSync();
+						else if (pendingReconfiguredIds) void handleAcknowledgeAndApply();
+						else void handleApply();
+					}}
+					onSaveTerms={() => void handleTermRepair()}
+					onOpenRecoveryConfirm={() => setShowRecoveryConfirm(true)}
+					onOpenMarkTestDataConfirm={() => setShowMarkTestDataConfirm(true)}
+				/>
+				{termRepairDialog}
+				{recoveryConfirmDialog}
+				{markTestDataConfirmDialog}
+			</>
+		);
+	}
 
 	return (
 		<>
@@ -789,63 +942,8 @@ export function RolloverGuidanceCard({
 			</CardContent>
 		</Card>
 		{termRepairDialog}
-		<Dialog open={showRecoveryConfirm} onOpenChange={(open) => {
-			setShowRecoveryConfirm(open);
-			if (!open) {
-				setRecoveryConfirmText('');
-				setRecoveryAckPublished(false);
-			}
-		}}>
-			<DialogContent className="w-[calc(100%-2rem)] sm:max-w-md" hideClose={recovering}>
-				<DialogHeader>
-					<DialogTitle>Clear test data and sync EnrollPro</DialogTitle>
-					<DialogDescription>
-						This will delete ATLAS-owned data for school year #{recoveryClassification?.enrollProActiveYear?.id} and re-sync from EnrollPro. This action cannot be undone.
-					</DialogDescription>
-				</DialogHeader>
-				{recoveryClassification?.publishedResetBlocked ? (
-					<div className="flex items-start gap-2 text-sm text-warning">
-						<Checkbox id="recovery-ack-published" checked={recoveryAckPublished} onCheckedChange={(checked) => setRecoveryAckPublished(checked === true)} disabled={recovering} />
-						<Label htmlFor="recovery-ack-published" className="leading-5">I acknowledge that published schedule artifacts exist for this school year and will be cleared.</Label>
-					</div>
-				) : null}
-				<div className="space-y-2">
-					<Label htmlFor="recovery-confirmation">Type <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">{recoveryClassification?.confirmationText}</code> to confirm</Label>
-					<Input id="recovery-confirmation" value={recoveryConfirmText} onChange={(event) => setRecoveryConfirmText(event.target.value)} placeholder={recoveryClassification?.confirmationText ?? ''} disabled={recovering} autoComplete="off" />
-				</div>
-				<DialogFooter>
-					<Button type="button" variant="outline" size="sm" onClick={() => setShowRecoveryConfirm(false)} disabled={recovering}>Cancel</Button>
-					<Button type="button" size="sm" onClick={() => void handleRecoveryApply()} disabled={recovering || recoveryConfirmText !== recoveryClassification?.confirmationText || (Boolean(recoveryClassification?.publishedResetBlocked) && !recoveryAckPublished)} data-testid="recovery-confirm-apply">
-						{recovering ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-						Clear and sync
-					</Button>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
-		<Dialog open={showMarkTestDataConfirm} onOpenChange={(open) => {
-			setShowMarkTestDataConfirm(open);
-			if (!open) setMarkTestDataAcknowledged(false);
-		}}>
-			<DialogContent className="w-[calc(100%-2rem)] sm:max-w-md" hideClose={markingTestData}>
-				<DialogHeader>
-					<DialogTitle>Mark school year as test data</DialogTitle>
-					<DialogDescription>
-						Mark school year #{recoveryClassification?.enrollProActiveYear?.id} only when its ATLAS data is disposable test data. This enables a separate cleanup review; it does not clear anything now.
-					</DialogDescription>
-				</DialogHeader>
-				<div className="flex items-start gap-2 text-sm text-warning">
-					<Checkbox id="mark-test-data-confirmation" checked={markTestDataAcknowledged} onCheckedChange={(checked) => setMarkTestDataAcknowledged(checked === true)} disabled={markingTestData} />
-					<Label htmlFor="mark-test-data-confirmation" className="leading-5">I confirm that this school year contains only disposable test data.</Label>
-				</div>
-				<DialogFooter>
-					<Button type="button" variant="outline" size="sm" onClick={() => setShowMarkTestDataConfirm(false)} disabled={markingTestData}>Cancel</Button>
-					<Button type="button" size="sm" onClick={() => void handleMarkTestData()} disabled={markingTestData || !markTestDataAcknowledged} data-testid="rollover-mark-test-data-confirm">
-						{markingTestData ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-						Mark test data
-					</Button>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
+		{recoveryConfirmDialog}
+		{markTestDataConfirmDialog}
 		</>
 	);
 }

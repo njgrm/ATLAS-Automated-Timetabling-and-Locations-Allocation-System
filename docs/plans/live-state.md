@@ -26,6 +26,53 @@ rules are what make that safe:
    `docs/handoffs/planner-session-handoff.md`, Lane B in its own handoff file, Lane C in its
    section below until a stream needs a handoff.
 
+## Lane A4 — release lane, 2026-09-28 (train 4; trains 1–3 below as history)
+
+- **STAGING IS UP at `c9be17fe` (train 4) — isolated ATLAS on 5101 (API) / 5274 (client).**
+  `http://127.0.0.1:5274` and `https://njgrm.buru-degree.ts.net:8443`. Branch `release/2026-09-28-4`,
+  parents `2b699c77` (origin/main tip) + `13d75ce6`. Deploy **103.7 s**, DB refreshed from live
+  (`SNAPSHOT_REFRESHED`, `1033|482|11` before and after, `liveUnchanged: true`).
+  Baselines captured **before** any mutation: `E:\ATLAS-staging\audit\train4-20260928-231914\`.
+- **Included:** A2 `24c6242c` and A6 `5481dccc` and **Lane C hotfix `938de8aa`** (all via `origin/main`), plus
+  **A3 `13d75ce6`** merged in. Delta from live `9ca7f629`: **54 modified, 17 added, 0 deleted.** Merge clean, 0
+  conflicts; every hotfix path except `atlas-client/package.json` byte-unchanged by it, and `package.json` is a
+  scripts-only union.
+- **⚠ A3 c11 is STILL not on `origin/main`** (2026-09-28, re-verified at train 4: `merge-base --is-ancestor
+  13d75ce6 origin/main` exits 1). Trains 2 and 3 each had to re-merge it by hand. This is now a repeating tax on
+  every train and it should land on `main`.
+- **Gate: `CORRECTION_REQUIRED`, 15 rows / 14 pass / 0 blocked / 0 unperformed (A 6/6, B 4/4, C 4/5).** Dispatched
+  because the hotfix had **no QA artifact anywhere in the repo** — the only hit for `938de8aa` in `docs/**/*.md`
+  was the packet. Source came back sound: failing-first genuinely discriminating on both halves (the committed
+  server test only fails on the parent by `ERR_MODULE_NOT_FOUND`, which is vacuous; a scratch control showed
+  parent rows=0 / candidate rows=8 on the post-wipe case and parent grade 9 / candidate grade 7 on a colliding
+  id). No authority lost in the large line deletions.
+- **Rollover automation is NOT an armed write surface — the pre-action reviewer's BLOCKING C3 is refuted, not
+  waived.** The reviewer read `atlas-server.env` (key absent) and missed the **contract invariant** that actually
+  reaches the child: `ops/runtime/lib/contract.mjs:341` maps `contract.invariants` into the child env, and the
+  committed control `ops/runtime/__tests__/supervisor.test.mjs:148` asserts it. Both `runtime-contract.json` and
+  `staging-contract.json` set `ROLLOVER_AUTO_SYNC_ENABLED: "false"`, and **the live runtime's own `cli.mjs status`
+  self-reports `"false"`** (re-read on live and on the new staging runtime after restart). **What proves it:** both
+  contract files' `invariants`, and the runtime's own status output. This settles the recurring
+  "is a restart armed?" question — the contract decides, not the env file.
+- **Accepted C5 correction:** every step-3 acceptance row now names its deciding harness, recorded in
+  `docs/prompts/a4-train-2026-09-28-4.md` §"Step 3 corrections". `/timetable` and `/teaching-load` are **not**
+  decidable by `curl` (the host returns the same shell for any path) — they are Lane C's authenticated Playwright
+  rows on the Tailnet origin.
+- **Corrected figure: the hotfix's "388/0 server suite" is not reproducible. It is `tests 371 / pass 371 / fail 0`** via
+  `atlas-server` `test:server-suite`. Do not copy 388 forward.
+- **LIVE UNTOUCHED, measured (2026-09-28 23:2x +08):** 5001 → **15996**, 5174 → **13824** — same PIDs, same command
+  lines before and after; machine scope, live tree (CLEAN at `9ca7f629`), DB-backed read (19 509 B) and ready all
+  byte-identical; live task Running. Only 5101/5274 moved. Rollback basis `9ca7f629` present with both `dist`s.
+- **⚠ §3 CAPACITY RECLAIM IS NOW OWED (dated 2026-09-28).** `E:` is **24.44 GiB — below the 25 GiB warn line**
+  (30.43 → 25.97 → 24.44 across trains 3 and 4). The retention reclaim is required **before the next release build**.
+  Candidates: the four superseded staging copies `E:\ATLAS-staging\{7590d485…, 9ca7f629…, e59b8ba1…,
+  bae81afb…}` (~5.9 GiB) — none running, all reproducible from git. **Keep `c9be17fe`** (running). **Never touch
+  `E:\ATLAS-worktrees\lane-a4-release-20260928-2`** — that is live. A4 did not delete these on its own initiative;
+  the reclaim needs its own pass and its own read of `docs/reference/agent-worktree-lifecycle.md`.
+- **Next action (single):** Lane C walks staging at `c9be17fe` (Teaching Load suggestion for 2022-2023 must now
+  propose rows) and continues this session with **GO**. At that GO, A4 executes step 3 against the corrected row
+  set — and **first lands the release line on `main`**, or train 5 re-merges c11 again.
+
 ## Lane A4 — release lane, 2026-09-28 (first A4 train)
 
 - **STAGING IS UP at `7590d485` — a second, isolated ATLAS on 5101 (API) / 5274 (client).**
@@ -263,10 +310,107 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
-- **▶ STAGING (second, isolated ATLAS) is up at `7590d485` on 5101/5274 since 2026-09-28 ~17:35 +08 by
-  Lane A4 — this does NOT change the LIVE release named below.** Loopback only: `http://127.0.0.1:5274`.
-  Own env file, own `atlas_staging` database (a dump snapshot of live), own scheduled task, own dependency
-  trees, and its own `JWT_SECRET` so no session crosses the two origins. **Two gates are still open — the
+- **▶ LIVE: `c9be17feccd08e20e6c5110be041a72dc89ee2c6` — DEPLOYED TO PRODUCTION 2026-09-29 00:3x +08 by
+  Lane A4 (train 4, `release/2026-09-28-4`). This supersedes the `CUTOVER TARGET` block below, which led the
+  cutover and is now history, and the `LIVE: 9ca7f629` block, which is the rollback basis.**
+
+  | | |
+  |---|---|
+  | **LIVE** | **`c9be17feccd08e20e6c5110be041a72dc89ee2c6`** |
+  | **Live dir** | `E:\ATLAS-worktrees\lane-a4-release-20260928-4prod` (HEAD == pin, `git status --short` empty, **0 reparse points**, own dependency trees seeded by copy from the same-pin staging release — no junction chain) |
+  | **Listeners** | 5001 → **35284** (`atlas-server\dist\server.js`), 5174 → **32376** (`ops\runtime\host.mjs`) |
+  | **Machine scope** | `ATLAS_RUNTIME_SOURCE_DIR` / `ATLAS_RUNTIME_RELEASE_SHA` both repointed; task action now `…\lane-a4-release-20260928-4prod\ops\runtime\cli.mjs start`, Running |
+  | **Rollback basis** | **`9ca7f629a7e43a0e31c6b9fada97152541c2a877`**, dir `E:\ATLAS-worktrees\lane-a4-release-20260928-2` — HEAD verified, 0 changes, both `dist`s built, live contract installed with `ROLLOVER_AUTO_SYNC_ENABLED=false`. One-step supervised reset. |
+  | **Direction** | **FORWARD.** Delta from `9ca7f629`: 54 modified, 17 added, **0 deleted** |
+  | **Scope** | **NOT client-only.** 14 `atlas-server` paths (Lane C grade-name hotfix `938de8aa`), 37 client, **0 `prisma/`** → no migration, no schema change |
+  | **Cutover** | `ops/runtime/deploy-runner.ps1`, dry run first (`mutates: false`, `secretsPrinted: false`, `Assert-LiveReleaseRecorded` **passed**), then `-Execute` → `CUTOVER_STARTED`. Audit `C:\ProgramData\ATLAS\release-audit\c9be17fe-20260928-233439\` |
+  | **Acceptance** | **DEPLOYED.** S-H1, S-W1, S-Z1, S-Z2, S-R1, S-R2, S-D1, S-B1 **all PASS**; **browser rows `S-W2` DEFERRED to Lane C** (named owner). No BLOCKING defect. |
+  | **Evidence** | `docs/handoffs/lane-c-to-a2.md`, "A4 LIVE at `c9be17fe`" |
+
+  **The zero-write row is the one train 1 could never close, and it is closed here.** Baseline captured
+  **before** quiesce: **17/17 tables**, each `count(*)` + `max(id)` + full-row `md5`, run through the repo's own
+  `Invoke-PgTool` so no password ever reached a command line. After: **0 of 17 changed**, including `audit_logs`
+  at 482 rows / max id 1033 / identical checksum. Evidence `E:\ATLAS-staging\audit\prod-c9be17fe\`.
+  Counting method is pinned: raw `count(*)` per table, all 17 listed, one row per table.
+
+  **Rollover automation is provably NOT an armed write surface — settled, do not re-open.** The supervisor
+  **contract invariant** is spread last into the child env (`ops/runtime/lib/contract.mjs:340-342`
+  `resolveInvariantEnv`, applied at `ops/runtime/lib/supervisor.mjs:51,55`), so it **overrides** the durable env
+  file. Both contracts set `ROLLOVER_AUTO_SYNC_ENABLED: "false"`, `contract.mjs:63-65` fails the start closed
+  without it, and the live runtime's own `cli.mjs status` self-reports `"false"` — read before **and** after this
+  cutover. A restart cannot reach `applyRolloverSync`. The live supervisor log confirms:
+  `[rollover-automation] Disabled via ROLLOVER_AUTO_SYNC_ENABLED=false`.
+
+  **The discriminator was chosen against a proven trap.** `atlas-server/dist/services/grade-level-resolver.js` is
+  **PRESENT 3 586 B** in this build and **ABSENT** from `9ca7f629` (`dist/services` 381 vs 378 files).
+  `dist/server.js` is **byte-identical across both builds** (3 070 B, same SHA-256) — it would have been a vacuous
+  proof, and was not used. On the live origin: `TimetableSimpleHeader-C9py2wz2.js` 200 (181 153 B), old
+  `-CPRshG2N.js` 404.
+
+  **⚠ A2 `6d034431` (P, section-switch index) is on `origin/main` and is deliberately NOT in this release.** It
+  landed on main while the live target was being built, after the pin was fixed. Per the packet's own rule it waits
+  for train 5; re-pinning would have shipped unreviewed source and invalidated a built target. Its five product
+  paths were verified byte-unchanged by the integration merge. **Next train's first passenger.**
+
+  **⚠ `origin/main` is `5c1afab3` and now contains `13d75ce6` — the A3 c11 debt is CLEARED.** Trains 2, 3 and 4 each
+  re-merged c11 by hand; the next train will not have to.
+
+  **⚠ §3 capacity overdue (dated 2026-09-29).** `E:` **22.29 GiB**, below the 25 GiB warn line. Reclaim owed before
+  the next release build, and it needs its own frozen manifest + pre-action and post-action audits. Candidates: the
+  four superseded staging copies `E:\ATLAS-staging\{7590d485…, 9ca7f629…, e59b8ba1…, bae81afb…}` (~5.9 GiB).
+  **Never touch** `lane-a4-release-20260928-2` (rollback basis) or `lane-a4-release-20260928-4prod` (live).
+
+  **Next action (single):** Lane C runs the production smoke and the two `S-W2` browser rows
+  (`/timetable`, `/teaching-load`) on `https://njgrm.buru-degree.ts.net`, and posts the result here.
+
+- **▶ SUPERSEDED — the pre-cutover TARGET RECORD follows, preserved as the record that led the cutover
+  (`ops/runtime/deploy-runner.ps1` enforces `Assert-LiveReleaseRecorded` and fails closed without it). The release
+  it named, `c9be17fe`, is now LIVE — see the block above.**
+
+- **▶ CUTOVER TARGET, recorded 2026-09-28 00:2x +08 by Lane A4 ahead of the cutover (AGENTS.md §13 — a pin is a
+  commit, not a description).**
+  **Target release `c9be17fe` (full `c9be17feccd08e20e6c5110be041a72dc89ee2c6`), rollback basis
+  `9ca7f629` (`9ca7f629a7e43a0e31c6b9fada97152541c2a877`).** Recorded ahead of the
+  cutover, because `ops/runtime/deploy-runner.ps1` enforces `Assert-LiveReleaseRecorded` and fails closed without it.
+  Target dir `E:\ATLAS-worktrees\lane-a4-release-20260928-4prod` (HEAD == pin, `git status --short` empty, 0 reparse
+  points, own dependency trees seeded by copy from the same-pin staging release — no junction chain). Built: server
+  `tsc` exit 0, client `vite` exit 0, `atlas-server/dist/server.js` and `atlas-client/dist/index.html` present.
+  **Scope: NOT client-only** — 14 `atlas-server` paths (the Lane C grade-name hotfix `938de8aa`), 37 client paths,
+  **0 `prisma/`** (`git diff --name-only 9ca7f629 c9be17fe -- prisma/` is empty, so no migration and no schema
+  change). Delta from `9ca7f629`: 54 modified, 17 added, **0 deleted**. Direction FORWARD. Rollback is a one-step
+  supervised reset to the `9ca7f629` dir, verified present, clean, startable, both `dist`s built, live contract
+  installed with `ROLLOVER_AUTO_SYNC_ENABLED=false`.
+  **Discriminator is non-vacuous and was chosen against a proven trap:** `atlas-server/dist/services/grade-level-resolver.js`
+  is **PRESENT 3 586 B** in this build and **ABSENT** from the live build (`dist/services` 381 files vs 378).
+  `dist/server.js` is **byte-identical** across both builds (3 070 B, same SHA-256), so it would have been a
+  vacuous proof — it is not used.
+
+- **▶ STAGING is up at `c9be17fe` on 5101/5274 since 2026-09-28 23:2x +08 by Lane A4 (train 4) — this does
+  NOT change the LIVE release named below.** `http://127.0.0.1:5274` and `https://njgrm.buru-degree.ts.net:8443`.
+  Own env file, own `atlas_staging` database (refreshed from live this deploy: `SNAPSHOT_REFRESHED`,
+  `1033|482|11` both sides), own scheduled task, own dependency trees, own `JWT_SECRET`, and a contract invariant
+  that keeps rollover automation off. Pin `c9be17fe` = `origin/main` tip `2b699c77` (A2 `24c6242c`, A6 `5481dccc`,
+  Lane C grade-name hotfix `938de8aa`) **+ A3 `13d75ce6` merged in**. Delta from live: 54 modified, 17 added,
+  **0 deleted**. **Server-side release**: 14 `atlas-server` paths, 0 `prisma/`. Gate `CORRECTION_REQUIRED`
+  15/14/0/0 — source sound, both BLOCKINGs were packet wording, corrected. **Live measured untouched.**
+  Still open: no authenticated staging row has run. Detail: the Lane A4 section above.
+
+- **▶ LIVE: `9ca7f629a7e43a0e31c6b9fada97152541c2a877` — DEPLOYED 2026-09-28 ~20:2x +08 by Lane A4 (train 2,
+  `a4-release-2026-09-28-2`).** **This corrects the `7590d485` "LIVE" entry below, which is now history. What proves
+  it:** machine-scope `ATLAS_RUNTIME_RELEASE_SHA=9ca7f629…` and `ATLAS_RUNTIME_SOURCE_DIR=
+  E:\ATLAS-worktrees\lane-a4-release-20260928-2`, the `ATLAS-Runtime-Supervisor` task action, and both listener
+  command lines — all agree, re-measured 2026-09-28 23:2x +08 and unchanged across trains 3 and 4. Listeners
+  5001 → **15996**, 5174 → **13824**. Rollback basis `4c35cc8f`. **⚠ Its release line was never merged to
+  `origin/main`** — trains 3 and 4 each re-merged A3 c11 by hand. Open integration debt, not a live incident.
+
+- **▶ SUPERSEDED by the `9ca7f629` block above — the `LIVE: 7590d485` entry below is now history.** Preserved
+  unaltered as the record of the release live between ~16:40 and ~20:2x +08.
+
+- **▶ SUPERSEDED: STAGING at `7590d485` (train 1) — superseded by train 2 (`9ca7f629`), train 3 (`bae81afb`) and
+  train 4 (`c9be17fe`), which is what is serving now.**
+
+- **▶ SUPERSEDED by the `7590d485` block above — the following entry is the train-1 STAGING record.**
+
   independent post-action QA dispatch was declined and the operator has not signed in — so staging is
   NOT QA-verified.** Detail and rows: `docs/reviews/a4-staging-20260928/pre-action.md`; operator steps:
   `docs/runbooks/staging.md`; source on branch `work/a4-staging-20260928` at `834f1ad3` (pushed, not yet
@@ -4278,3 +4422,50 @@ grades [7,8,9,10] (like FIL/ENG/MATH/ESP/MAPEH and every repo seed). Before-row 
 `D:/ATLAS-runtime-config/backups/faculty-id-offset-20260928/subject-4-before-{live,staging}.json`. With the grade-name
 hotfix, live 2022-2023 demand = 264 pairs / 552 lines (138 per grade). Subject edits are not audited — gap noted.
 Rule from now: live browser QA never saves Subjects/setup/policy; mutation rows run on staging.
+
+## Lane A7 — School Year Setup, 2026-09-28 (new lane, source only; A4 deploys)
+
+- **c1 INTEGRATED and PUSHED at `c9dd5f05`** (merge of `0b57ffc4` over `a2c4c135`; `origin/main` confirmed —
+  `git merge-base --is-ancestor 7ba884bb origin/main` exits 0). **NOT deployed. A4 owns every deploy; A7 has
+  not deployed and will not.** 14 paths: 11 product + 3 docs. 9 client, 2 server.
+- **What it is.** The operator's words (2026-09-28): *"we really need to improve school year setup in both UX/UI
+  and clarity of words used/layman's terms. We don't need to get technical."* The Wednesday 2026-09-30 demo runs
+  four live EnrollPro rollovers through `/admin/year-setup` in front of older schedulers. All six defects in the
+  Lane C packet are addressed: one-sentence intro, one clear next step with ONE primary button, a visible
+  post-click confirmation (year + sections + teachers + next step, read from the status the page already holds —
+  **no request added**), carry-forward in layman's terms, "Archived school years" → "Past school years" with the
+  election sentence gone, and server drift/sync messages rewritten to match. Before → after table: ~75 strings in
+  `docs/handoffs/a7-c1-result.md`.
+- **Behaviour unchanged, and that is the load-bearing claim.** Same endpoints, request bodies, gates, typed
+  confirmation phrases and branch conditions; server change is `message` prose only (`code`, `action`,
+  `classification`, `blockers[].code` byte-identical). **Blast-radius control:** `RolloverGuidanceCard` is also
+  mounted on Dashboard, Sections, Faculty, TeachingLoad and two timetable surfaces other lanes own, so the plain
+  treatment is opt-in behind `plainLanguageNextStep`, **defaulting to current behaviour**; a rendered test proves
+  the non-plain mount still produces today's strings.
+- **Gates, on the merged tree `c9dd5f05`:** `test:a7-year-setup-plain-words` 10/10 · `test:ux-guardrails` 31/31 ·
+  `test:client-quality` 34/34 · `test:dup-read-callers` 75/75 · **client `tsc` 0 errors** (base was 5, all
+  A2-owned; the A3 c11 merge cleared them) · `git diff --check` clean · all 11 product files byte-identical to the
+  reviewed candidate. **One fresh independent QA: `ACCEPT_READY` 11/11/0/0, zero BLOCKING**, including its own
+  failing-first control (injecting a banned word turned the suite red).
+- **The jargon ban is enforced, not asserted.** 11 reachable states rendered in jsdom; `sync`/`mirror`/`election`/
+  `drift`/`archive`/`carry-forward`/`dummy` and any `#<digits>` id are refused in rendered text. Two scope rulings
+  are recorded with today's date: **R1** the term-contract message prose IS in scope (fixed, not exempted — a test
+  exemption would have made the ban vacuous), and **R2** `archivePreview.summary`/`syncPlan` stay machine data with
+  plain wording built client-side.
+- **Awaiting a browser row, not a fix (2026-09-28).** jsdom does no layout, so two claims are **UNPERFORMED**:
+  the main step fitting **1366×768 without scrolling** (operator defect 5), and the one rendered screenshot Lane C
+  asked for. Both are release browser-smoke rows. I am not calling them closed.
+- **Two items I am routing, not fixing.** N6: the ordered-terms dialog still shows the typed phrase
+  `SAVE_TERM_AUTHORITY_1_9` to the demo audience — that is an operator decision, not a lane fix. N4: the
+  distribution block still reads `Over hard cap` / `MATH: 2 carry · 2 skipped`; residue, because the guard forbids
+  the hyphenated `carry-forward` and not bare `carry`. **Both are live in the demo if nobody routes them.**
+- **Capacity, measured, and it is A4's call (2026-09-28 ~23:5x +08): `E:` 22.27 GiB — BELOW the §3 25 GiB warn
+  line** (it was 28.31 at my worktree creation and 24.44 after the executor's `npm ci`). §3 requires the
+  release-directory retention reclaim **before the next release build**; §14 gives A4 E: capacity. **A4: a reclaim
+  is owed before you build the train that carries `c9dd5f05`.** I started no build and installed nothing further.
+- **Worktree:** `E:/ATLAS-worktrees/lane-a7-school-year-setup` = `RETIRE_AFTER_INTEGRATION`, **left in place for
+  A4** — junction-safe only (`cmd /c rmdir` its `node_modules` junction first; its trees are real, never
+  junctioned). Branches `work/a7-school-year-setup-c1` and `integration/a7-c1-20260928` both resolve; no branch
+  deleted. Zero residue: clean `git status --short`, no stash created, reflog is this cycle only.
+- **Next action (single):** A4 merges `c9dd5f05` into the next release train and runs one browser smoke row for
+  `/admin/year-setup` at 1366×768; Lane C takes the rendered before/after on that train.
