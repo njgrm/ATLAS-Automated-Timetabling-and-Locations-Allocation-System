@@ -43,6 +43,7 @@ import jwt from 'jsonwebtoken';
 import { assertResolvedPerTermParity } from '../services/per-term-schedule-resolution.service.js';
 
 import { dropDisposableDatabaseWithRetry } from './helpers/drop-disposable-database.js';
+import { DISPOSABLE_DATABASE_PATTERN } from './helpers/disposable-database-guard.js';
 
 const WORKDIR = process.cwd();
 const PSQL = 'D:/PostgreSQL/18/bin/psql.exe';
@@ -266,7 +267,7 @@ before(async () => {
 	if (!RUNNABLE) return;
 	source = new URL(SOURCE_URL!);
 	disposableName = `atlas_restore_drill_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}_synct${randomBytes(4).toString('hex')}`;
-	assert.match(disposableName, /^atlas_restore_drill_[0-9]{8}_[a-z0-9]+$/, 'disposable name must satisfy the repository guard');
+	assert.match(disposableName, DISPOSABLE_DATABASE_PATTERN, 'disposable name must satisfy the repository guard');
 	assert.notEqual(disposableName, source.pathname.replace(/^\//, ''), 'must never target the configured database');
 	adminEnv = { ...process.env, PGPASSWORD: decodeURIComponent(source.password) };
 	targetUrl = (() => {

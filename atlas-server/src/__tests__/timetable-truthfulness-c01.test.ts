@@ -36,6 +36,12 @@ import { withDataContext } from '../lib/data-context.js';
 import type { GenerationInputSnapshot } from '../services/generation-input-snapshot.service.js';
 import { buildViolationReport } from '../services/generation.service.js';
 import { publishSchedule } from '../services/publication-contract.service.js';
+import { DISPOSABLE_DATABASE_PATTERN, requireDisposableDatabase } from './helpers/disposable-database-guard.js';
+
+// A9 (AGENTS.md §5, 2026-09-29): fail closed BEFORE the first row is created unless
+// DATABASE_URL names a disposable atlas_restore_drill_* database. A bare `tsx --test` of this
+// file is what created 5 schools rows in the live database (2026-09-29 incident).
+requireDisposableDatabase('timetable-truthfulness-c01.test.ts');
 
 const DATABASE_URL = process.env.DATABASE_URL ?? '';
 const DATABASE_NAME = DATABASE_URL ? new URL(DATABASE_URL).pathname.replace(/^\//, '') : '';
@@ -255,7 +261,7 @@ async function seedPublishableSchool(): Promise<{ runId: number; snapshot: Gener
 }
 
 before(async () => {
-	assert.match(DATABASE_NAME, /^atlas_restore_drill_[0-9]{8}_[a-z0-9]+$/, 'DATABASE_URL must point at the runner-approved disposable database');
+	assert.match(DATABASE_NAME, DISPOSABLE_DATABASE_PATTERN, 'DATABASE_URL must point at the runner-approved disposable database');
 	assert.ok(process.env.JWT_SECRET, 'JWT_SECRET must be configured (the runner supplies a test value)');
 	server = http.createServer(app);
 	await new Promise<void>((resolve) => server?.listen(0, '127.0.0.1', () => resolve()));
