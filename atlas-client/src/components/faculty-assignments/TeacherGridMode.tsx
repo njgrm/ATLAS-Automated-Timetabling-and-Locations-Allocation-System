@@ -29,6 +29,7 @@ import { SubjectRow } from './SubjectRow';
 import { TeacherLoadReadout } from './TeacherLoadReadout';
 import { TeachingLoadFilterBar } from './TeachingLoadFilterBar';
 import { formatFacultyDisplayName } from '@/components/faculty/teacherNameDisplay';
+import { formatTeacherWorkloadInitials } from '@/components/faculty-assignments/facultyInitials';
 import { countDistinctSections } from '@/lib/teaching-load-counts';
 import {
 	buildTeacherWorkloadAuditSnapshot,
@@ -353,7 +354,11 @@ export function TeacherGridMode({
 													onClick={() => handleTeacherClick(member.id)}
 												>
 													<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary border border-primary/10">
-														{member.firstName?.[0] ?? ''}{member.lastName?.[0] ?? ''}
+														{/* Same helper as `WorkloadInspector` and the audit rows. The
+								    inline `[0]` indexing this replaces read as empty text for a
+								    blank given name; the helper is total. See
+								    `facultyInitials.ts` for why it is local for now. */}
+												{formatTeacherWorkloadInitials(member)}
 													</div>
 													
 													{/* Name + department: always visible, never collapsed behind initials */}

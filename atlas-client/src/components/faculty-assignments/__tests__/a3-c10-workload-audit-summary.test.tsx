@@ -556,8 +556,16 @@ test('S5-11 SOURCE GUARD: the inline initials pattern is gone and the summary is
 	assert.match(inspectorSource, /formatTeacherWorkloadInitials\(selected\)/,
 		'WorkloadInspector must use the one shared helper');
 
-	const modalSource = read('src/components/faculty-assignments/ReviewTeachersModal.tsx');
-	assert.match(modalSource, /overflow-hidden/, 'the dialog body must not scroll as a whole page');
+	// The roster row and the audit row must not be a second convention: with a
+	// helper in the fence, the inline pattern must be gone from every surface
+	// that renders a faculty avatar.
+	const gridSource = read('src/components/faculty-assignments/TeacherGridMode.tsx');
+	assert.doesNotMatch(gridSource, /firstName\?\.\[0\]/,
+		'TeacherGridMode must not render roster avatars by inline indexing');
+	assert.match(gridSource, /formatTeacherWorkloadInitials\(member\)/,
+		'TeacherGridMode must use the same helper as the inspector and the summary');
+
+	const modalSource = read('src/components/faculty-assignments/ReviewTeachersModal.tsx');	assert.match(modalSource, /overflow-hidden/, 'the dialog body must not scroll as a whole page');
 	assert.match(modalSource, /min-h-0 flex-1 overflow-y-auto/,
 		'the pane that holds long content must be the internal scroll region');
 	assert.match(modalSource, /shrink-0/, 'the header and footer must not scroll away with the content');
