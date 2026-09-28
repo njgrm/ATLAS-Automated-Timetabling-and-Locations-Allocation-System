@@ -46,3 +46,24 @@ cues; 5.2 Campus & Rooms rooms read "Unavailable", not a bare 0% (contrast: the 
 | L1 | **A cutover appears to sign every browser out.** Both the A2 Playwright profile (B9–B22 all NEEDS_SESSION after `a1db27d5`) and Lane C's Chrome profile (redirected to `/login` at 07:00, signed in at 01:35) lost their "remember me" session across the cutover. Lane C saw the same after `c5a9e832` on 2026-09-27. If sessions do not survive a server restart, a deploy during the demo signs the presenter out. A2: confirm whether the session store or signing secret changes per release. | HIGH (demo risk; verify) |
 
 Rows B9–B22 on `a1db27d5` are UNPERFORMED (no session in either profile). `subagent_tokens` 65,581.
+
+## Morning live checks on `a1db27d5` (09:30–09:45, Lane C Chrome, GR7 - Luna)
+
+**Term 2 Monday displaced:** 6:00–6:45 empty (TLE on Tue–Fri), MAPEH at Mon 6:45, SCIENCE at Mon 7:30; Terms 1/3 intact.
+Schedule history reads "Nothing to show yet …"; no run number or state label on the page. → A2 c6 item 1.
+
+| Row | Verdict | Evidence |
+|---|---|---|
+| B9 | **FAIL** | Warnings chip T1 52 / T2 48 / T3 48; publish panel says "Warnings to review (whole year): 48" |
+| B10 | **FAIL** | No run/state line in the page header; "Generated schedule · run 321" only inside the publish panel |
+| B11 | UNPERFORMED | No badge pair found; published run not reachable in the view |
+| B12/B15 | PASS | Build dialog ≈42 words, one close control |
+| B13 | PASS | "Problems listed below are scoped to TERM 2; the publish gate above is always the whole year." |
+| B16, B20, B22 | UNPERFORMED | not reached (budget) |
+| B17 | PASS | headings "Schedule actions", "Daily tasks (4 items)", "Expert tools (3 items)"; cue "More items below. Scroll down to see all of them."; 673.6 px |
+| B18 | **FAIL** | menu says "Generate"; dialog title and button say "Build a new draft" |
+| B19 | FAIL (UX) | banner still shows on this run: "School information changed after this schedule was made. The current schedule stays unchanged while you review school information. · checked Xs ago" |
+| B21 | PASS | visible "1 warning"; name "Select MAPEH for GR7 - Luna, Tue 7:30 AM, 1 warning" |
+
+Header audit: "Class Schedule" twice; the "Active Term: T2" chip sits beside an independent Term selector; six rows of
+messages and controls before the grid. `subagent_tokens` 92,153 + 100,995.

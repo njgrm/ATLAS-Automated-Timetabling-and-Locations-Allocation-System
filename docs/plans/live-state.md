@@ -2803,6 +2803,69 @@ Do not write in Lane B/C worktrees.
 
 ## Lane A2 - current lane (written only by Planner A2)
 
+**2026-09-28 09:40 +08 - packet c5, DONE and STOPPED SHORT OF A CUTOVER, deliberately. LIVE is unchanged:
+`a1db27d5`.** Four items integrated at **`543c74b3`**; the release is **STAGED, NOT BUILT, NOT CUT OVER** for two
+recorded gates. Authority: Lane C c5 + the standing 2026-09-20 authorization. **No gate was waived.** No question
+was asked and none was needed.
+
+- **L1 (HIGH, demo risk) is FALSIFIED, and the proposed auth fix is DECLINED.** A release or restart does **not**
+  invalidate a remember-me session: verification is stateless (`authenticate.ts:100-114`), the signing secret is
+  release-independent (machine-scope env outside every release dir; `contract.mjs:230` reads only `refPath`), neither
+  live release dir has a `.env`, the client persists the token 3 ways origin-scoped, there is no refresh credential,
+  and decisively **`git diff --name-only d31bfacb a1db27d5` touches no auth file at all**. The real defect is that
+  **"remember me" is a misnomer** - `JWT_EXPIRES_IN ?? '8h'` with the key absent from the 17-key durable env, so the
+  credential dies at 8h while the UI promises 30 days, and the expiry then wipes the remembered token. The
+  independent pre-action review **ruled the 9x TTL widening unacceptable** (no per-session record, so the only kill
+  switch is rotating `JWT_SECRET` for every user; credential is JS-readable and in `localStorage`) and caught that
+  `Login.tsx` never posted `rememberMe`, so the feature was **dead on arrival while its decisive row still passed**.
+  **c5's conditional was not met, so no auth change ships.**
+- **My own causal claim is WITHDRAWN, not smoothed over.** I asserted the 8h cliff explains the ~07:00 sign-out; it
+  does not survive arithmetic (01:35->07:00 is 5h25m; the last `LOCAL_LOGIN_SUCCESS` 09-27 15:08:51 + 8h = 23:08,
+  ~2.5h *before* the profile was seen working) and `local-auth.service.ts:775` mints **unaudited**, so the mint time
+  is unknown. **8h theory UNPROVEN, not refuted.** Deciding evidence: read the expired token's `exp`/`iat`.
+- **What L1 did ship** is zero-risk: `ops/runtime/__tests__/signing-secret-stability.test.mjs` (`08d95b38`, 1 file,
+  no production change) - the resolved signing secret is byte-identical across two release `sourceDir`s, with a
+  **negative control** so it cannot pass a constant-returning loader, failing-first proven with two mutants.
+  Planner-verified 2/2, exit 0.
+- **Items 2/4a fixed; item 3 took the honest branch; item 4b's premise was wrong.** #52: the pending map route
+  bypasses the `AnimatePresence` chain, so the stale grid is never rendered, and the arrangement was proven to
+  discriminate under mutation. #53: **nothing changed** - a real occupancy is not derivable here (self-referential
+  denominator, no verified ordered active term, `termIndex` optional); evidence committed at
+  `docs/handoffs/a2-c5-building-occupancy-and-workbook-labels.md`. 4a: "Locked classes kept" is a tri-state
+  (failing-first `actual: '0', expected: 'Not checked'`). 4b: it is **4 failing tests in one file**, and the
+  `TEACHER` column was **deliberately removed** by `1b272c3e` (17:00) with `2558d322` (16:50) as its test-side half -
+  corrected additively; `test:server-suite` 365/361/4 -> **365/365**.
+- **Two decisions recorded as mine:** (a) item 4b was **split**, not "fixed" - the candidate had silently overridden
+  an acceptance row on a premise I disproved with commit evidence, so I reverted the label restoration and the
+  unasserted export arithmetic (no test could discriminate it) and corrected a false historical claim committed in
+  **five** places; **correcting an acceptance row is a planner decision**; (b) **the `Env:` trap is live right now** -
+  this shell's process-scope `ATLAS_RUNTIME_SOURCE_DIR` reads `…lane-a2-release-9b28c572` while machine scope, the
+  task action and the live listeners all say `a1db27d5`, and `9b28c572` is a reclaim candidate.
+- **Release gates, both OPEN.** (1) **No session**: `GET /api/v1/auth/me` -> **401** (independently reproduced);
+  `/timetable` -> `/login` is a **browser-harness** row, not reproducible over raw HTTP. **B9-B22 remain
+  UNPERFORMED, not waived.** (2) **Capacity fails closed**: `E:` 26.84 GiB, a ~14 GiB build projects to **12.84 GiB**,
+  below the 15 GiB line. The policy-safe reclaim reaches only **14.88 GiB projected - still short**, so more reclaim
+  is owed than my first draft claimed. My first reclaim plan breached the retention policy by proposing to retire
+  `c0d91827` (accepted **#2 back**); the review caught it and rev 2 keeps it.
+- **Pre-action release review: `CORRECTION_REQUIRED` (12/34), all ten applied in rev 2.** It confirmed both recorded
+  decisions and caught three artefacts that would have broken or voided the cutover: the named D4 chunk **cannot
+  exist** (a test file is not bundled), the named literal `Not checked` is **present in both builds**, and the
+  record step omitted the **`origin/main` push** that `Assert-LiveReleaseRecorded` reads.
+- **Baseline correction:** client typecheck is **1** pre-existing error, server **0**. The **5-error / 4-file figure
+  in earlier A2 packets does not reproduce and is withdrawn.** 14 client failures + 1 `Open Review readiness` are
+  pre-existing, proven by a base re-run with byte-offset equality.
+- Handoff: `docs/handoffs/planner-a2-handoff-2026-09-28-overnight.md` (**c5 section**). Release packet (re-pinned):
+  `docs/prompts/a2-release-c5-625a8024-2026-09-28.md`. L1 packet (verdict + declined fix):
+  `docs/prompts/a2-c5-l1-session-lifetime-2026-09-28.md`.
+- **⚠ GATE 3, opened 2026-09-28 09:45 +08 — THREE gates, not two.** A3 pushed its c8 **product** code (20
+  non-docs paths incl. `atlas-client/src/index.css` and two `.opencode/` files) to `origin/main` *after* the c5
+  release packet was written; the union merge absorbed it and the target is re-pinned to **`625a8024`** (53 commits,
+  68 paths, 50 non-docs, zero `prisma/`/lockfile/seed, still one comment-only server file). **A2 has reviewed none of
+  it.** Per §11 the packet now carries **Gate 3**: one fresh independent review of **A3's c8 delta alone**, and the
+  cutover must not execute on `CORRECTION_REQUIRED`. **The release is therefore not ready to cut over even after
+  Gates 1 and 2 clear.** This is the "never describe a range from the candidates you happened to review" rule
+  catching the cycle mid-flight; the range was re-enumerated rather than reused.
+
 Timetable custody (operator, 2026-09-26). A2 owns the timetable surface, its packets, the client-delta release,
 the acceptance rows and the section 7 term guard. Worktree `E:\ATLAS-worktrees\lane-a2-timetable-custody`
 (`work/a2-timetable-custody`), `KEEP_ACTIVE`. Never paste the credential value; never run a history purge.

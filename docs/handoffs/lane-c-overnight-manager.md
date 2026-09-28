@@ -69,6 +69,16 @@ Rules for the planners:
 - Before Wednesday: a **demo walkthrough script** (the operator's path through the product) walked end to end on live,
   graded for older users, with every stumble fixed or listed.
 
+## Operator decisions carried (2026-09-28)
+
+- **Sessions:** option C now — `JWT_EXPIRES_IN=7d` in `D:/ATLAS-runtime-config/atlas-server.env` (the default in
+  `local-auth.service.ts:10` is `8h`) plus a live restart, done by Lane C through an elevated maintenance task **after
+  A2's current run**, with the env file backed up and its read-only ACL restored byte-identical. **Option A** (a real
+  "remember me": about 1 h access tokens, a hashed, rotating, revocable 30-day refresh token in an HttpOnly cookie, a
+  migration) is **after Wednesday 2026-09-30**; then remove the 7d setting. Until then planners do only the work that
+  completes ATLAS for the demo.
+- The admin `opencode serve` restarts after A2's current run to load `steps: 250`.
+
 ## Cycle log (newest first)
 
 | When (+08) | Lane | Run / session | Verdict | Next packet | Notes |

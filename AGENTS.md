@@ -146,6 +146,7 @@ Classify by behaviour and authority, not ease of rollback. User-facing or produc
 | Tier | Required loop |
 | --- | --- |
 | **LOW** — non-authorising docs, copy-only, test-only, or mechanically provable non-behavioural source | `executor self-check → planner review`. **No independent QA. No auditor.** |
+| **VISUAL** — user-facing wording, layout, styling, tooltips, empty/loading states, with **no** data, state, auth, route-target or API change (operator, 2026-09-28) | `executor → rendered evidence (loopback screenshot or live row) → planner integration`. **No separate review round; no failing-first unit test required.** A copy change that alters what a number or status *claims* is MEDIUM. |
 | **MEDIUM** — production wiring, cross-layer shape, concurrency | `executor → one fresh QA → planner integration`. Auditor only if QA returns ambiguity, or the integration has genuinely overlapping changes. |
 | **HIGH** — migration, destructive or production-data write, auth boundary, deployment, generation, publication, live apply | `independent packet review → explicit approval → executor → independent post-action QA`. Completion auditor only for irreversible writes, deployment failure, conflicting evidence, or publication. |
 
@@ -165,6 +166,22 @@ Classify by behaviour and authority, not ease of rollback. User-facing or produc
 - **One writer per stream.** Before dispatch the planner names the stream owner and worktree; no second planner or agent writes there until the owner releases it. Two planners on one stream is a custody defect, not parallelism.
 - **A release must not ship source that no independent reviewer has seen.** A lane that implements *and integrates* its own work leaves the next consumer holding unreviewed production behaviour. When a release would carry such a delta, its packet opens with a review gate for **that delta alone** — one fresh reviewer, the source range and the packet lint in the same pass — and the deployment must not execute on `CORRECTION_REQUIRED`. Precedent: an actor-school residual lane was merged with no committed review evidence; the release packet that would have deployed it carried that review as a gate, and the reviewer reproduced a failing-first control before the deployment ran.
 
+### Done means seen (operator, 2026-09-28)
+
+- **A user-facing fix is done when it is seen rendered** — on the live Tailnet after release, or on a loopback build of
+  the candidate before it — with the before and after quoted or screenshotted. Unit and source tests support that
+  proof; they never replace it. **A test that only asserts source text (a string, an import, a prop name in a file) is
+  not acceptance evidence for a user-facing change.** Evidence from the 2026-09-27/28 night: #62 passed 7/7 tests while
+  the live warnings chip still changed with the term (B9); "Build a new draft" passed QA while the menu still said
+  "Generate" (B18); about 13,400 test lines and 6,200 doc lines shipped against about 4,400 product lines, and the
+  worst live defect (Term 2 Monday rearranged with an empty history) passed every gate.
+- **Scope packets by screen, demo path first:** each item names the route, what the user sees now (quoted) and what
+  they must see after. Grade user-facing work for older, mouse-first schedulers: fewer words, one verb per action, a
+  visual cue beside every status, less is more.
+- **Release small and often.** Once candidates are integrated, ship them within hours, not at the end of a night. A
+  VISUAL-only release keeps the D-rows (health, discriminators, zero-write, public matrix) plus **one browser smoke
+  row per changed screen**; the full browser row set is for releases that carry MEDIUM/HIGH work.
+
 ### Gates that have actually caught defects — keep these
 
 For MEDIUM and HIGH work, read `docs/reference/agent-verification-gates.md` and apply only the gates relevant to the change. Production-path proof, failing-first proof, scope authority, and zero-write rejection stay mandatory when applicable. Live browser evidence never proves undeployed source bytes.
@@ -179,6 +196,8 @@ Before any browser, UX/UI, responsive, authenticated, or cross-app evidence task
 
 - **Sessions are seeded, not typed.** Each agent's browser profile holds a "remember me" session (30-day cookie) that the operator seeds by logging in once per profile. Agents reuse it; QA-account login audit rows are expected and need no authorization. With no valid session, report `NEEDS_SESSION(<agent>/<profile>)` in one line and continue with the other rows — the operator re-seeds in about a minute. An agent whose own tool rules allow it may log in with the QA account; one whose rules forbid entering passwords relies on the seeded session.
 - **Ordinary UI mutations are allowed** when an acceptance row needs them (save, apply, toggle, upload, download). Generation, publication, deletion, anything that changes the published run, and account/SSO/role changes stay HIGH under §13 (the standing authorization covers them with its gates).
+- **Sessions last 8 hours** (2026-09-28): "Remember me" is not implemented (the login never sends it; the token has no refresh), so re-seed each profile at the start of a working day and within 8 hours of a demo. A deploy does **not** sign users out.
+- **One signed-in profile per lane** (A2, A3, Lane C Chrome, Codex). An **elevated** browser locks its profile against a non-elevated agent; never share one profile across an elevated and a non-elevated lane.
 - One agent per browser profile at a time; separate profiles per agent may run in parallel. Live Tailnet evidence never proves undeployed source bytes.
 - **Never echo a credential value** into a prompt, log, doc, commit, screenshot or transcript. Observed 2026-09-23: the QA credential was found in 8 plaintext files plus an agent transcript, because the credential file wraps values in markdown backticks and a naive parse submitted them literally.
 - Observed 2026-09-25: three consecutive releases shipped `PARTIAL (AUTH_SESSION_REQUIRED)` because this section required an authorized login while also forbidding a credential "in a browser field". Operator-approved relaxation, 2026-09-25.
@@ -228,7 +247,7 @@ Do not maintain a per-transition register, state machine, lease table, or receip
 
 **If more than one lane co-maintains this file, partition it into lane-owned sections** and edit only your own — plus the live-release block when you deploy. Disjoint regions merge cleanly, so two planners can work in parallel without a custody defect; a second writer inside your section is one.
 
-**Keep each lane section under ~40 lines: current stream, dated blockers, next action.** Move finished-cycle narrative into the lane's handoff when the cycle closes. Queue and "what remains" lists are blocker lines too — date them. On 2026-09-25 the file had grown to 1,340 lines, and an undated queue in it assigned a lane to `warning-readability-c01`, integrated four days earlier.
+**Keep each lane section under ~30 lines: current stream, dated blockers, next action** (operator, 2026-09-28: tightened from ~40). **A planner reads only the `Live release` block and its own lane section**, never the whole file. **A cycle handoff is one page or less**; evidence goes in `docs/reviews/`, linked, not pasted. Move finished-cycle narrative into the lane's handoff when the cycle closes. Queue and "what remains" lists are blocker lines too — date them. On 2026-09-25 the file had grown to 1,340 lines, and an undated queue in it assigned a lane to `warning-readability-c01`, integrated four days earlier.
 
 ---
 
@@ -242,6 +261,20 @@ Do not maintain a per-transition register, state machine, lease table, or receip
 - **Three verification tiers:** executor focused gates → independent review of the decisive subset plus adversarial production-path checks → combined gates once at integration. Do not repeat a tier without a source or environment change.
 - **Use the cheapest model that can do the job.** Escalate for architecture, conflicting candidates, security, concurrency, or a HIGH action. A model label never substitutes for evidence.
 - **Do not reload this directive from disk** when it is already in context; use targeted reads only to recover a specific rule.
+
+- **Measure visible outcomes** (operator, 2026-09-28): every cycle handoff starts with the count of user-facing
+  fixes **verified rendered on the live Tailnet**, then what is integrated but not yet live. Tallies of gates passed
+  are secondary.
+
+### Agent tool hygiene (earned 2026-09-27/28)
+
+- **Never run a server or watcher in a foreground shell command**; start it in the background and stop it when done
+  (a foreground review server hung a planner for 2.5 h).
+- Define every PowerShell variable before use (the bash tool may reuse one PowerShell session), and give
+  `[System.IO.File]` absolute paths (relative paths resolve against the process CWD, `D:\ATLAS`).
+- Use the Write/Edit tools for long appends, never heredocs, and never an Edit that escapes backticks.
+- Remove a worktree junction-safe: `cmd /c rmdir` its `node_modules` junction first, then non-forced
+  `git worktree remove`, then `git worktree prune`.
 
 ### Token economy — coordination is context
 
