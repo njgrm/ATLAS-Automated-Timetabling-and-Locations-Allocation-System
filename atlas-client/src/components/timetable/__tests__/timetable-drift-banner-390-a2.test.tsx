@@ -135,7 +135,13 @@ test('A2-5 item 5: the message takes its own line below sm, so the actions wrap 
 	// the `sm` breakpoint it now claims a full line (the same idiom the
 	// neighbouring Simple filter row uses), and from `sm` up it returns to the
 	// existing `flex-1` inline share, so no larger viewport moves.
-	const message = markup.match(/<span class="([^"]*basis-full[^"]*)">([^<]*School information changed)/);
+	// A2-C6-TRUTH (T3e) put a `data-testid` on this span so the word-budget row
+	// measures the operator's sentence and not the whole band, and React renders
+	// JSX attributes in source order — so the markup now opens
+	// `<span data-testid=... class=...>`. The locator is re-pointed at that exact
+	// form, which is strictly MORE selective than the old `<span class=` anchor:
+	// it now names the very element the fix is about.
+	const message = markup.match(/<span data-testid="timetable-simple-drift-message" class="([^"]*basis-full[^"]*)">([^<]*School information changed)/);
 	assert.ok(message, 'the drift message must carry the small-viewport full-line class');
 	assert.match(message[1], /w-full/, 'below sm the message claims the full line width');
 	assert.match(message[1], /basis-full/, 'below sm the message claims a full flex basis');
@@ -187,8 +193,10 @@ test('A2-5 item 5: mutant — the pre-fix shrinkable message fails this control'
 	// up it must return to the pre-change inline share.
 	const control = (className: string): boolean => /w-full/.test(className) && /basis-full/.test(className) && /sm:w-auto/.test(className) && /sm:flex-1/.test(className);
 	assert.equal(control(preFixMessage), false, 'the pre-fix message would squeeze the actions into its column');
-	// And the shipped class list passes.
-	const message = renderBanner().match(/<span class="([^"]*basis-full[^"]*)">/);
+	// And the shipped class list passes. The locator carries the same
+	// `data-testid` anchor as the positive row above, for the same reason: the
+	// span's attribute order changed when A2-C6-TRUTH (T3e) addressed it.
+	const message = renderBanner().match(/<span data-testid="timetable-simple-drift-message" class="([^"]*basis-full[^"]*)">/);
 	assert.ok(message);
 	assert.equal(control(message[1]), true);
 	assert.notEqual(message[1], preFixMessage);

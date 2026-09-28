@@ -98,7 +98,13 @@ test('production-shape parity: run-wide counts come from the persisted run summa
 
 	// Real consumer: the workspace gate reads those run-wide summary fields.
 	const state = readFileSync(resolve(clientRoot, 'src/hooks/useScheduleReviewWorkspaceState.ts'), 'utf8');
-	assert.match(state, /deriveRunWideReadiness\(summary, violations\)/);
+	// A2-C6-TRUTH added a THIRD argument: the persisted run-wide block is now
+	// passed in as `violationReport?.counts?.runWide`, because the validator's
+	// own per-block run-wide counts are the stronger producer. The first two
+	// arguments are unchanged, so this is re-pinned to the whole current call —
+	// strictly more selective than the old two-argument form, not looser: it now
+	// also pins WHICH producer is passed, which is the whole point of the row.
+	assert.match(state, /deriveRunWideReadiness\(summary, violations, violationReport\?\.counts\?\.runWide \?\? null\)/);
 	assert.match(state, /const hardCount = runWideReadiness\.hardCount/);
 	assert.match(state, /const softCount = runWideReadiness\.softCount/);
 

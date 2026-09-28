@@ -668,7 +668,13 @@ test('WIRING: every production consumer uses the shared helpers, so none can dri
 	assert.match(rail, /WEEKLY_UNPLACED_BADGE_LABEL/, 'the left-rail badge uses the shared badge label');
 	assert.doesNotMatch(rail, /\?\? 0\} unassigned/, 'and the ambiguous badge wording is gone');
 
-	const header = source('src/components/timetable/ScheduleReviewWorkspaceHeader.tsx');
+	// A2-C6-TRUTH (T3a) moved the run sentence, the badge and both `data-testid`s
+	// out of `ScheduleReviewWorkspaceHeader.tsx` into `RunStateBadge.tsx`, which
+	// the header now renders (`<RunIdentityLine/>` + `<RunStateBadge/>`). The row
+	// is about the Expert run line using the shared helpers, so it is asserted on
+	// the module that now holds them; the rendered wiring is covered separately by
+	// `timetable-run-identity-a2.test.tsx` and `timetable-a2-c6-truth.test.ts`.
+	const header = source('src/components/timetable/RunStateBadge.tsx');
 	assert.match(header, /runStateSentence/, 'the Expert header renders the one run line');
 	assert.match(header, /runStateBadgeLabel/, 'and the truthful heading badge');
 	assert.match(header, /data-testid="timetable-run-identity"/, 'the line is addressable, so a browser row can find it');

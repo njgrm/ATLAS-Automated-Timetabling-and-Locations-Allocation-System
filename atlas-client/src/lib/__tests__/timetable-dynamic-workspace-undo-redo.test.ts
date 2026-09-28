@@ -234,7 +234,12 @@ test('R4 history shows actor/time/type/counts with a per-row revert affordance',
 	assert.match(dialogs, /hardCount/);
 	assert.match(dialogs, /timetable-edit-history-revert/);
 	// Only the head edit can be reverted; the server CAS rejects older ones.
-	assert.match(dialogs, /Only the latest edit can be reverted/);
+	// A2-C7 moved this sentence out of the dialog and into the shared
+	// `timetable-edit-history-truth` module, which the dialog calls through
+	// `editHistoryRevertBlockedReason` — so the sentence's home is now that
+	// module, not the JSX. Re-pointed, not relaxed: the exact literal is still
+	// pinned, at the file that owns the wording.
+	assert.match(source('src/lib/timetable-edit-history-truth.ts'), /Only the latest edit can be reverted/);
 });
 
 test('R4 pre-generation placement undo arms the same operation-bound route', () => {

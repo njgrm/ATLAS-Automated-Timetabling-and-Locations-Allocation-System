@@ -503,8 +503,19 @@ test('J2 P4 the edit history reads as plain actions, names no actor id, and uses
 	assert.doesNotMatch(document.body.innerHTML, /\stitle=/, 'no native title attribute may survive');
 	assert.match(rendered, /Revert this edit/, 'the revert action keeps its plain label');
 	// The explanation is still available, through the @/ui Tooltip primitive.
+	//
+	// A2-C7 (QA `ses_f19df5126ffewpENLFnzt1xbsp` F2) renamed the local
+	// `revertReason` to `revertBlockedReason` and gave the tooltip content an
+	// addressable `data-testid`, and the `null` contract now gates the CONTENT
+	// rather than leaving an empty node. The pinned literal is re-pointed at that
+	// exact current form: the reason is still carried by a @/ui `TooltipContent`,
+	// now with the identifier that means "explain why this is blocked".
 	const dialogSource = readFileSync(resolve(clientRoot, 'src/components/timetable/modals/TimetableAssignmentDialogs.tsx'), 'utf8');
-	assert.match(dialogSource, /<TooltipContent>\{revertReason\}<\/TooltipContent>/, 'the reason moved into the Tooltip primitive');
+	assert.match(
+		dialogSource,
+		/<TooltipContent data-testid="timetable-edit-history-revert-reason">\s*\{revertBlockedReason\}\s*<\/TooltipContent>/,
+		'the reason moved into the Tooltip primitive',
+	);
 });
 
 test('J2 P4 mutant: the pre-fix actor attribution fails this control', () => {

@@ -415,7 +415,11 @@ test('drawer blocker items carry plain-language next steps, never raw codes', ()
 });
 
 test('failed newest run is named explicitly instead of looking like no history', () => {
-	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	// A2-C6-TRUTH (T3f) moved the status rows out of `TimetableSimpleHeader.tsx`
+	// into `simple/SimpleHeaderMessages.tsx` (the cap + honest `and N more`
+	// region), so BOTH the testid and the sentence now live there. The header
+	// still owns the `latestRunFailed` condition that feeds the row.
+	const header = source('src/components/timetable/simple/SimpleHeaderMessages.tsx');
 	assert.match(header, /timetable-last-generation-failed-message/);
 	assert.match(header, /The last schedule build did not finish/);
 });
@@ -454,8 +458,18 @@ test('TTX-04 deciding readiness copy is visible on mobile and not hard-truncated
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
 	assert.doesNotMatch(header, /hidden max-w-xl truncate text-xs text-muted-foreground sm:block/);
 	assert.doesNotMatch(header, /hidden max-w-xl truncate text-xs font-medium text-red-700 sm:block/);
-	assert.match(header, /data-testid="timetable-curriculum-readiness-message"/);
-	assert.match(header, /data-testid="timetable-last-generation-failed-message"/);
+	// A2-C6-TRUTH (T3f) moved these two rows into `SimpleHeaderMessages.tsx`,
+	// which renders the whole status region and caps it at three visible rows
+	// plus an honest `and N more`. The addressable testid is no longer a literal
+	// `data-testid="..."` attribute in source: the builder now returns rows whose
+	// `id` IS the testid, and the row component binds `data-testid={message.id}`.
+	// So the pinned literal is the id each row is constructed with — same string,
+	// current form. The id -> `data-testid` binding and the rendered attribute
+	// are asserted on the real surface by `timetable-a2-c6-truth.test.ts` (row
+	// ids) and `timetable-dynamic-workspace-rendered.test.ts` (markup).
+	const headerMessages = source('src/components/timetable/simple/SimpleHeaderMessages.tsx');
+	assert.match(headerMessages, /id: 'timetable-curriculum-readiness-message'/);
+	assert.match(headerMessages, /id: 'timetable-last-generation-failed-message'/);
 });
 
 test('TTX-05 run-dependent More items are disabled with an accessible reason', () => {

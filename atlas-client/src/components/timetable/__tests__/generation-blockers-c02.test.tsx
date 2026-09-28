@@ -356,8 +356,16 @@ test('C2-a.2 no engine code, term identity or subject code reaches the operator 
 test('C2-a.3 the raw diagnostic stays available behind Technical detail for support', () => {
 	// C2-a.4 of the packet: support detail may exist; it must simply not be the
 	// only place the information lived. The tooltip keeps the engine sentence.
+	//
+	// A2-C6-TRUTH (T3f) moved the status rows out of `TimetableSimpleHeader.tsx`
+	// into `simple/SimpleHeaderMessages.tsx` (the cap + honest `and N more`
+	// region), so the literal `Technical detail` label now lives in that file,
+	// while the header keeps the `setupBlockedDiagnostic` VALUE the tooltip is
+	// fed with. Both reads are kept: this row is about the tooltip surviving the
+	// move, not about which file spells it.
 	const headerSource = source('src/components/timetable/TimetableSimpleHeader.tsx');
-	assert.match(headerSource, /Technical detail/, 'the support tooltip is retained');
+	const headerMessagesSource = source('src/components/timetable/simple/SimpleHeaderMessages.tsx');
+	assert.match(headerMessagesSource, /Technical detail/, 'the support tooltip is retained');
 	assert.match(headerSource, /setupBlockedDiagnostic/, 'the raw diagnostic still backs the tooltip');
 });
 
