@@ -194,7 +194,15 @@ export function buildTeacherWorkloadAuditSnapshot(
 		const byBucket = BUCKET_ORDER[left.bucket] - BUCKET_ORDER[right.bucket];
 		if (byBucket !== 0) return byBucket;
 		if (left.actualHours !== right.actualHours) return right.actualHours - left.actualHours;
-		return left.displayName.localeCompare(right.displayName);
+		// A3-C10 QA finding F6: the tie-break is an ORDER, so it must not read a
+		// display-layer value. `displayName` is UPPERCASE by Fix 22 and is only
+		// ever rendered; ordering on it would couple the sort to a presentation
+		// decision. The row already carries the STORED name parts (see
+		// `firstName`/`lastName` above), so the key is built from those, in the
+		// same `Last First` shape as `teacherNameSortKey`.
+		const leftKey = `${left.lastName} ${left.firstName}`.trim();
+		const rightKey = `${right.lastName} ${right.firstName}`.trim();
+		return leftKey.localeCompare(rightKey);
 	});
 
 	const total = counts.underloaded + counts.balanced + counts.overloaded;

@@ -73,9 +73,16 @@ export function formatFacultyStoredName(faculty: NameLike | null | undefined): s
  * The sort/search key for a teacher: stored casing, `Last First` (no comma) so
  * it compares directly against a lower-cased query token.
  *
- * A name is UPPERCASE here for the same reason the roster lower-cases the query
- * before comparing: casing must not influence matching order. It is derived from
- * the STORED fields, so it matches the stored value, not the displayed one.
+ * Casing must not influence matching order, which is why the roster lower-cases
+ * the query before comparing. This key is therefore LEFT IN STORED CASING and is
+ * the value the lower-casing is applied to — it does NOT uppercase anything.
+ * (A3-C10 QA finding F3: an earlier version of this docstring said "A name is
+ * UPPERCASE here", which described the opposite of the code three lines below. The
+ * code was right; the sentence was the trap, because an editor "fixing" either
+ * side would have broken either sort stability or the stored-value contract.)
+ *
+ * It is derived from the STORED fields, so it matches the stored value, never the
+ * displayed one. Any ordering that needs a display value must not use this.
  */
 export function teacherNameSortKey(faculty: NameLike | null | undefined): string {
 	return `${tidy(faculty?.lastName)} ${tidy(faculty?.firstName)}`.trim();

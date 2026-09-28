@@ -30,7 +30,7 @@
  * afterwards, verified by SHA-256.
  */
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -614,8 +614,14 @@ test('a3 c10 control: the picker introduces no global browser scrollbar and no r
  * it named was LF. See committedBlob() above. */
 test('a3 c10 control: the file under test is the committed one, LF-normalised', () => {
 	const src = committedBlob('src/components/sections/SectionRoomPicker.tsx');
+	// A real locator: a bad path makes `git cat-file` exit 128 and `execFileSync`
+	// throw, so this row fails loudly rather than passing on an empty read. The
+	// length floor is the check that it read the component and not a stub.
+	assert.ok(src.length > 5000, `the committed blob must be the component, not a stub: ${src.length} bytes`);
 	assert.equal(src.includes('\r\n'), false, 'the committed component blob must be LF');
-	assert.ok(src.length > 0);
-	// A cheap, stable anchor for the handoff's SHA-256 line.
-	assert.equal(typeof createHash('sha256').update(src).digest('hex'), 'string');
+	assert.ok(src.includes('SectionRoomPicker'), 'the committed blob must be the component under test');
+	// A3-C10 QA finding F4: this line previously asserted
+	// `typeof createHash(...).digest('hex') === 'string'`, which can never fail —
+	// `digest` always returns a string. The handoff's SHA-256 anchor does not need
+	// a test row; the two assertions above are the row, and both bite.
 });
