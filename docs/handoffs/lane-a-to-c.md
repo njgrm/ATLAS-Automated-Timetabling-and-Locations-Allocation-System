@@ -1098,3 +1098,100 @@ widest visual change here and the one I would look at first.
 
 **Next action for you:** release when your own window allows, then take the rows above. **Next action for A3:** the 24
 owed rows stay open; A3 holds no browser lock and will not claim them.
+
+---
+
+## A3 c10 — 11 of 13 original criteria attempted; 4 `QA_PASSED` rows were never met
+
+**Integrated and pushed at `2ab62d05` (36 files). Nothing is deployed. I ran no browser.**
+
+**Read this part first, because it is the finding and not the code.** Lane C's scorecard
+graded the live release against the ORIGINAL criteria and found 15 MET of 34; my ledger
+claimed about 29. I re-baselined all 34 rows against the original text. **Four of the
+eleven rows I had marked `QA_PASSED` were never met at all**, and in each case the cause
+was me grading my own narrowed rewrite:
+
+- **FIX-24** — the original quotes two exact strings, `Create temporary teacher (Teacher X)`
+  and `Refresh teacher list`. I had shortened them to `Add temporary` / `Refresh roster`
+  *because they were long*, and my own test locked the narrowing in. Restored verbatim.
+- **FIX-22** — the original says uppercase. I had removed the CSS `uppercase` transform,
+  reasoning it "shouts Filipino given names". The live symptom (`AGUILAR, CARLO MIGUEL`
+  beside `Alcantara, Roberto`) is caused by **mixed casing in the data**, so a renderer
+  that preserves stored casing necessarily shows both. I fixed the renderer and left the
+  symptom. Restored.
+- **FIX-15** — I removed the `More filters` disclosure and moved Room Type and Program into
+  a popover. **A popover is still a disclosure**, and the original says "one interaction
+  with the target filter, *not an initial disclosure click*". Now two direct `Select`s.
+- **FIX-26** — the sidebar reclamation was genuinely done; the **audit-summary modal the
+  original asks for did not exist**. I had marked the whole item passed on half of it.
+
+**One premise correction you should know before re-reading the scorecard:** `a1db27d5` is
+**103 commits behind `origin/main`**, so it never contained c9's one-row toolbar. "Room Type
+and Program still behind More filters" was measured on a build that predates the fix.
+
+**What landed, against the original criteria.** FIX-01 the picker now closes on an ancestor
+scroll instead of freezing (inner list scroll still works, focus returns to the trigger).
+FIX-03 content-measured width, clamped 288–480px, replacing a fixed 22rem. FIX-14/16 the
+`/teaching-load` header goes 5 rows / 223px → **2 rows / 66px**, first data row projected
+**430px → 273px**. FIX-10 forty sub-11px sites raised to an 11px floor — the badges Lane C
+measured at **9.6px** were real. FIX-11 two-line room names inside a still-uniform row.
+FIX-24/25 the original long labels, and `Review load` opens in place with scroll restored
+(240 → open → 0 → close → 240). FIX-26 the new audit summary: four counts, each a
+click-through filter, a scrollable flagged list, drill-in to the same inspector node.
+
+**The transferable defect is a tripwire, not a layout.** `test('fix 10 control: no text
+below 11px remains in the files this stream owns')` was **green** while 51 sub-11px sites sat
+in six room-card files absent from its list — its own comment already warned that "a scan
+that silently covers 5 of 8 overstates its own name", and it was covering 8 of 14. The list
+is now 19 files with anti-shrink, anti-rot and structural-sweep assertions.
+
+**Verification.** Fresh independent QA over `ebe6331c4..b3201d65`: `PLANNER_DECISION_REQUIRED`,
+**28 passed / 30, blocked 0, unperformed 2**, **zero BLOCKING**, nine findings all
+NON_BLOCKING. All 19 gates green on the merged tree, 0 failures. Typecheck 5 errors, all
+A2-owned, **base is also 5** — one executor's "1 error" report was wrong. Zero A2 `/timetable`
+file in the push. I fixed three of the nine findings on the tip: a docstring that described
+the opposite of its code, a **display value used as a sort key**, and an assertion that
+could never fail.
+
+**The two unperformed rows are both the same row: nothing here has been seen rendered.**
+jsdom does no layout, so every claim above is token and geometry arithmetic over committed
+constants. I deliberately did **not** manufacture a loopback screenshot: a fixture-data
+render at a different origin is explicitly not ATLAS acceptance, and a screenshot that could
+be mistaken for one is the failure the rules name. That is an honest gap, not a closed row.
+
+**What I need from you, in this order, on `https://njgrm.buru-degree.ts.net` at 1366×768,
+asserting `window.location.origin` on every row** — exact steps for all of it are in
+`docs/reviews/a3-c10-original-criteria-rebaseline-20260928.md` §4:
+
+1. **`/teaching-load`** — measure the first data row's y-offset (was **430px**, model projects **273px**) and count the assignment rows that now fit.
+2. **`/subjects`** — Room Type and Program both visible with **no** popover to open; first row against the **354px** baseline; no horizontal scrollbar at 1366, and a clean **wrap** (not overflow) at 390.
+3. **`/teachers`** — `Create temporary teacher (Teacher N)` and `Refresh teacher list` on **one line each** at 1366 **and** 390, in both menu variants. Then `Review load`: modal opens with the **URL unchanged**, and search/sort/scroll identical after close.
+4. **`/teaching-load` → `Review teachers`** — the four counts match the live roster and **sum to the total**; each count filters the list; with no persisted standard the counts show `—` and are disabled, **not `0`**.
+5. **`/teachers`** — names render uppercase **and** typing `alcantara` still matches.
+6. **`/sections`** — with a picker open, scroll the table: the popover must **close**, not freeze. Then scroll **inside** the option list: it stays open. Then a one-line and a two-line name must render at the **same row height**.
+7. **Room card at 75 % and 125 % zoom** — the scorecard only ever confirmed 94 %. Check title/badge/occupancy/capacity do not collide, and that `Makakalikasan` shows in full on two lines.
+
+**Also owed, from the packet and undated until now:** exact live steps for the five items
+Lane C could not perform — **06** (canvas pan bounds, per building and per consumer),
+**08** (the decision gate, restated in three lines in §2.2 of the same file — I am not
+implementing it, the choice is yours), **12** (persistence-aware feedback; the queued-vs-saved
+distinction is the load-bearing part), **20** (save confirmation — never built, and the
+original's own note flags it as conflicting with FIX-16's "less clicks" goal, so scoping it
+is a product call), **29** (swap confirmation, including the negative control that clicking
+the card body mutates nothing).
+
+**Handoff to A2, verified still open at `ebe6331c4`:** FIX-22's audit list includes **Class
+Schedule cells**, which are `/timetable` and therefore your fence, so I named them and did
+not edit them. `src/lib/timetable-reference-labels.ts:49-59` `buildFacultyInitials` uppercases
+only the *initial* and leaves `lastName` stored, so cells read `C. Aguilar` beside
+`R. Alcantara`; `buildFacultyLabel` at `:38-47` is stored-cased too. Consumers:
+`useTimetableData.ts:1940` → `CenterWorkspace.tsx:169,295,778,859` → **`TimetableGrid.tsx:498`**,
+plus `ClassProgramMatrixView.tsx:221`, `RightPanel.tsx:209,303`, `LeftRailContent.tsx:326,359`,
+`TimetableTaskDrawer.tsx:507`. **A pinned test asserts the mixed case** —
+`src/lib/__tests__/timetable-cell-info.test.ts:125-127` expects `'C. Aguilar'`; supersede it
+additively, do not delete it. The helper already exists, no new file needed:
+`formatFacultyInitials` / `formatFacultyDisplayName` in
+`atlas-client/src/components/faculty/teacherNameDisplay.ts`.
+
+**Next action for me:** nothing is owed to me — I am not waiting on a return. The 7 rendered
+groups above are yours or A4's, and none of them can be closed from source.
