@@ -23,6 +23,7 @@ import { lazy, Profiler, Suspense, useCallback, useEffect, useLayoutEffect, useM
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { ScheduledEntry } from '@/types';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
+import { describeMoveTargets, type MoveSlot } from '@/components/timetable/timetableMoveTargets';
 import { setTimetableEntryReadOnly } from '@/components/timetable/TimetableDraggableEntry';
 import { TimetableUndoRedoControl } from '@/components/timetable/TimetableUndoRedoControl';
 import { dispatchUndoByLedger, UNDO_CONFLICT_MESSAGE } from '@/components/timetable/timetableUndoRedoState';
@@ -114,11 +115,9 @@ export default function ScheduleReviewWorkspace() {
 	const currentCenterView = state.headerContext?.centerView;
 	useEffect(() => {
 		if (currentCenterView == null || currentCenterView === 'schedule') return;
-		state.setSwapClassTimesMode?.(null);
-		state.setSwapClassAEntryId?.(null);
-		state.setSwapClassBEntryId?.(null);
+		state.resetSwapClassTimesState?.();
 		setActiveSimpleTask((task) => (task === 'swap-sessions' ? null : task));
-	}, [currentCenterView, state.setSwapClassTimesMode, state.setSwapClassAEntryId, state.setSwapClassBEntryId]);
+	}, [currentCenterView, state.resetSwapClassTimesState]);
 
 	// R5 (finding A-08; ordered-term invariant 6): every component-local sheet,
 	// task, selection, and swap state is scope-bound. When school, school year,
@@ -146,18 +145,14 @@ export default function ScheduleReviewWorkspace() {
 			() => setTeacherDepartureFacultyId(null),
 			() => setTeacherDepartureFocusedEntryIds(undefined),
 			() => setSimpleDetailsOpen(false),
-			() => state.setSwapClassTimesMode?.(null),
-			() => state.setSwapClassAEntryId?.(null),
-			() => state.setSwapClassBEntryId?.(null),
+			() => state.resetSwapClassTimesState?.(),
 			() => state.setLastAutoSaveUndo?.(null),
 			// B1 — a preview bound to the previous scope must never stay actionable.
 			() => state.cancelInlinePlacement?.(),
 		]);
 	}, [
 		scopeKey,
-		state.setSwapClassTimesMode,
-		state.setSwapClassAEntryId,
-		state.setSwapClassBEntryId,
+		state.resetSwapClassTimesState,
 		state.setLastAutoSaveUndo,
 		state.cancelInlinePlacement,
 	]);
@@ -217,6 +212,25 @@ export default function ScheduleReviewWorkspace() {
 			clearSelection: () => state.headerContext?.setSelectedEntry(null),
 		})();
 	}, [state.setSwapClassTimesMode, state.setSwapClassAEntryId, state.setSwapClassBEntryId, state.setInlineActionStatus, state.selectedEntry, state.headerContext]);
+
+	// C11 M5 — ONE Undo / Redo / History control, built once and handed to the
+	// layout that is showing. It is the same component the Expert toolbar used to
+	// mount itself, so no new capability or endpoint is involved; only the surface
+	// moved, and Simple gains the Undo it never had.
+	const sharedUndoRedoControl = state.headerContext ? (
+		<TimetableUndoRedoControl
+			editHistoryCount={state.headerContext.editHistoryCount}
+			revertLoading={state.headerContext.revertLoading}
+			revertLastEdit={state.headerContext.revertLastEdit}
+			redoState={state.redoState ?? null}
+			redoVersionStale={state.redoVersionStale ?? false}
+			undoNotice={state.undoNotice ?? null}
+			undoBlockedReason={state.undoBlockedReason ?? null}
+			redoLastEdit={async () => { await state.redoLastEdit?.(); }}
+			clearRedo={() => state.clearRedo?.()}
+			setShowEditHistory={state.headerContext.setShowEditHistory}
+		/>
+	) : null;
 
 	// Keep route intent synchronization mounted across the no-draft loading
 	// return. It is intentionally unavailable until the guarded view contexts
@@ -280,15 +294,44 @@ export default function ScheduleReviewWorkspace() {
 	}
 	const showSchedulerChrome = isTimetableSchedulerView(state.headerContext.centerView);
 
+	/**
+	 * C11 M3 — the legal move targets in the CURRENT view, from the very slots and
+	 * entries the grid is already rendering (no new data, no new request).
+	 *
+	 * Computed live rather than only on arm, because the view can change while a move
+	 * is armed — switching term or section changes what is legal, and a target list
+	 * captured when the operator armed the move would go stale silently.
+	 */
+	const moveTargetNotice = describeMoveTargets({
+		slots: (state.centerWorkspaceContext?.timeSlots ?? []) as MoveSlot[],
+		occupants: ((state.centerWorkspaceContext?.draftEntries ?? []) as Array<{ entryId: string; day: string; startTime: string; endTime: string }>).map((candidate) => ({
+			entryId: candidate.entryId,
+			day: String(candidate.day),
+			startTime: String(candidate.startTime),
+			endTime: String(candidate.endTime),
+		})),
+		movingEntry: state.selectedEntry
+			? { entryId: state.selectedEntry.entryId, day: String(state.selectedEntry.day), startTime: String(state.selectedEntry.startTime) }
+			: null,
+	});
+
 	const startMoveSelectedEntry = () => {
 		if (!state.selectedEntry) return;
+		// C11 M3 — nothing legal in this view: say so in ONE sentence and offer the
+		// way out, instead of arming a move that cannot complete. The existing
+		// `Already in this slot.` guard is untouched — this does not remove it, it
+		// stops the operator arming a dead move in the first place.
+		if (moveTargetNotice.kind === 'none') {
+			state.setInlineActionStatus({ tone: 'warning', message: moveTargetNotice.sentence });
+			return;
+		}
 		state.headerContext.setKbSelectedSource({ type: 'entry', entry: state.selectedEntry });
 		state.setInlineActionStatus({
 			tone: 'loading',
 			// LANE-C C03 (B3) — on a published schedule the move is a dated change.
 			message: state.publishedChangeScope
 				? 'Select an available slot on the grid. Because this schedule is published, you will choose a start date next.'
-				: 'Select an available slot on the grid to preview this move.',
+				: `Select one of the ${moveTargetNotice.slotKeys.length} highlighted free time slots to preview this move.`,
 		});
 	};
 
@@ -437,7 +480,27 @@ export default function ScheduleReviewWorkspace() {
 										: 'border-border bg-background text-foreground'
 						}`}
 					>
-						{state.inlineActionStatus.message}
+						<div className="flex items-center gap-2">
+							<span className="min-w-0">{state.inlineActionStatus.message}</span>
+							{/* C11 M3 — ONE Cancel for the move. It clears the armed source
+							    and the status together, so the operator is never left in an
+							    armed move with no exit — the defect the walk recorded. */}
+							{moveTargetNotice.kind === 'none' ? (
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									className="h-7 shrink-0 px-2 text-xs"
+									data-testid="timetable-move-no-target-cancel"
+									onClick={() => {
+										state.headerContext.setKbSelectedSource(null);
+										state.setInlineActionStatus(null);
+									}}
+								>
+									Cancel
+								</Button>
+							) : null}
+						</div>
 					</div>
 				</div>
 			) : null}
@@ -601,11 +664,12 @@ export default function ScheduleReviewWorkspace() {
 							state.setSwapClassAEntryId(null);
 							state.setSwapClassBEntryId(null);
 						}}
-						onSwapClassTimesCancel={() => {
-							state.setSwapClassTimesMode(null);
-							state.setSwapClassAEntryId(null);
-							state.setSwapClassBEntryId(null);
-						}}
+						/* C11 M4 — the banner Cancel runs the SAME single reset as the
+						 * review dialog's X, backdrop, Escape and Cancel buttons, so no
+						 * exit path can leave an in-progress swap standing. */
+						onSwapClassTimesCancel={() => state.resetSwapClassTimesState?.()}
+						undoRedoControl={sharedUndoRedoControl}
+						onDiscardDraft={() => state.dialogContext?.setShowResetDraftDialog(true)}
 					/>
 				) : (
 					<div className="relative shrink-0">
@@ -623,20 +687,12 @@ export default function ScheduleReviewWorkspace() {
 							>
 								Simple view
 							</Button>
-							<div className="rounded-lg border border-border bg-background/95 px-1.5 py-1 shadow-sm">
-								<TimetableUndoRedoControl
-									editHistoryCount={state.headerContext.editHistoryCount}
-									revertLoading={state.headerContext.revertLoading}
-									revertLastEdit={state.headerContext.revertLastEdit}
-									redoState={state.redoState ?? null}
-									redoVersionStale={state.redoVersionStale ?? false}
-									undoNotice={state.undoNotice ?? null}
-									undoBlockedReason={state.undoBlockedReason ?? null}
-									redoLastEdit={async () => { await state.redoLastEdit?.(); }}
-									clearRedo={() => state.clearRedo?.()}
-									setShowEditHistory={state.headerContext.setShowEditHistory}
-								/>
-							</div>
+							{/* C11 M5 — the Expert-only Undo / Redo / History control was
+							    REMOVED here, not duplicated. It is now rendered once inside
+							    the persistent draft strip, which both layouts show, so Simple
+							    finally has an Undo (the recorded defect) and the app still
+							    has exactly ONE Undo with one accessible name — the
+							    A2-TIMETABLE-CUSTODY single-surface rule. */}
 						</div>
 					</div>
 				)) : null}

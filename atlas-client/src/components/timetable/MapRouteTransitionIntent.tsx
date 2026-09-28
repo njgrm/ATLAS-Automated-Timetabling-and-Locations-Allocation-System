@@ -52,6 +52,12 @@ import { resolveTimetableRouteView } from '@/components/timetable/TimetableRoute
 import { resolveTimetableLoadingIntent } from '@/components/timetable/timetable-route-loading-intent';
 
 /**
+ * The views that cannot render without something the operator selected. Reaching
+ * one of these with nothing selected is a dead end, which is what C11 M1 fixed.
+ */
+const SELECTION_DEPENDENT_VIEWS: ReadonlySet<string> = new Set(['manual-edit', 'building']);
+
+/**
  * The decision `CenterWorkspace` actually makes: render the pending map intent,
  * or enter the normal animated chain.
  *
@@ -63,18 +69,39 @@ import { resolveTimetableLoadingIntent } from '@/components/timetable/timetable-
  * single route→view authority, rather than a second path comparison. Two
  * predicates for one route is the hazard the shared mappers exist to prevent.
  *
- * Scoped to the map view on purpose. The other six routed views have the same
- * asynchronous entry, but the recorded defect is a grid of real-looking class
- * cells preceding a map; widening this to every view would blank the schedule
- * on unrelated navigations.
+ * ── C11 M1 — the route wins when it says the GRID ─────────────────────────────
+ *
+ * `TimetableRouteViewSync` moves `centerView` inside a `useEffect`, so the render
+ * that first reaches the DOM for a new route still carries the PREVIOUS view. The
+ * reproduction of the recorded defect
+ * (`docs/reviews/codex-timetable-walk-20260928/report.md`, defect 1) is that
+ * disagreeing render: after `Back to Schedule` the URL is `/timetable` while
+ * `centerView` is still `manual-edit`, and the pane keyed off `centerView` paints
+ * the manual-edit panel for the grid URL. Inside `<AnimatePresence mode="wait">`
+ * that stale child is the one kept MOUNTED while the incoming one is deferred for
+ * the exit duration, so the panel is what the operator is left looking at.
+ *
+ * So when the route says the schedule and the view still names a
+ * selection-dependent pane, the ROUTE decides and the grid renders. This is the
+ * same fix shape as the map case above — one decision, taken from the route, in
+ * the same seam — not a third mechanism, and it is deliberately narrow: only the
+ * selection-dependent views are overridden, because a stale GRID beside a
+ * selection-dependent route is the other direction and the map branch already
+ * covers its own dangerous case.
  */
 export type CenterPaneDecision =
 	| { readonly kind: 'pending-map-intent' }
 	| { readonly kind: 'center-view'; readonly view: string };
 
 export function resolveCenterPane(pathname: string, centerView: string): CenterPaneDecision {
-	if (resolveTimetableRouteView(pathname) === 'map' && centerView !== 'map') {
+	const routeView = resolveTimetableRouteView(pathname);
+	if (routeView === 'map' && centerView !== 'map') {
 		return { kind: 'pending-map-intent' };
+	}
+	// C11 M1 — `/timetable` means the grid. A selection-dependent pane is only
+	// reachable through its own route, so it never survives a return to the grid.
+	if (routeView === 'schedule' && SELECTION_DEPENDENT_VIEWS.has(centerView)) {
+		return { kind: 'center-view', view: 'schedule' };
 	}
 	return { kind: 'center-view', view: centerView };
 }

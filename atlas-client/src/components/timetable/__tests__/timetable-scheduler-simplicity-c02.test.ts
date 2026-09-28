@@ -149,7 +149,16 @@ test('nested timetable pages keep focused routes without duplicating scheduler c
 	const workspace = source('src/components/timetable/ScheduleReviewWorkspace.tsx');
 	const center = source('src/components/timetable/CenterWorkspace.tsx');
 	assert.match(workspace, /const showSchedulerChrome = isTimetableSchedulerView\(state\.headerContext\.centerView\)/);
-	assert.match(center, /centerView === 'setup'|centerView === 'policy'|centerView === 'runs'/);
+	// C11 M1 — the routed sub-page arms are now keyed off `paneView`, the RESOLVED
+	// view from `resolveCenterPane`, not the raw `centerView` state. The assertion
+	// is updated rather than dropped (AGENTS.md §16: evidence is additive, never
+	// subtractive) and it is now STRONGER: it pins both the three routed arms AND
+	// that the chain consumes the decision, so a future change cannot quietly go
+	// back to keying off the lagging state that caused the stale-panel defect.
+	assert.match(center, /paneView === 'setup'|paneView === 'policy'|paneView === 'runs'/);
+	assert.match(center, /const centerPane = resolveCenterPane\(pathname, centerView\);/);
+	assert.match(center, /const paneView = centerPane\.kind === 'center-view' \? centerPane\.view : centerView;/);
+	assert.match(center, /\{centerPane\.kind === 'pending-map-intent' \? \(/);
 	assert.match(workspace, /h-\[calc\(100svh-3\.5rem\)\]/);
 	assert.match(center, /min-h-0 overflow-auto|flex-1 min-h-0/);
 });

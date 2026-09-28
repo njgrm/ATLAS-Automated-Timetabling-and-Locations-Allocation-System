@@ -1,4 +1,9 @@
 import assert from 'node:assert/strict';
+	// C11 M1 — the routed pane arms are now keyed off `paneView`, the view
+	// RESOLVED by `resolveCenterPane`, not the raw `centerView` state. The pattern
+	// accepts either name so the row still decides the property it was written for
+	// (this routed arm exists in CenterWorkspace) and is not re-broken by a future
+	// rename of the local. The assertion is updated, never dropped (AGENTS.md §16).
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
@@ -28,6 +33,44 @@ function timetableRouteBlock(): string {
 }
 
 // --- Row 1: the four routes render the same mounted shell with their own view ---
+
+
+/**
+ * C11 M1 — first index matching a PATTERN, not a literal.
+ *
+ * The routed pane arms are keyed off `paneView`, the view RESOLVED by
+ * `resolveCenterPane`, and the rows below accept either local name. A literal
+ * `indexOf` could not express that alternation, which is why these rows moved to
+ * a pattern search. The property each row decides is unchanged: the arm exists,
+ * and the empty state follows the with-selection arm.
+ */
+function firstMatchIndex(text: string, pattern: RegExp, from = 0): number {
+	pattern.lastIndex = 0;
+	const match = pattern.exec(text.slice(from));
+	if (!match) return -1;
+	return match ? from + match.index : -1;
+}
+
+/**
+ * C11 M1 — the JSX block that OWNS one empty-state testid.
+ *
+ * The manual-edit empty state was extracted out of `CenterWorkspace.tsx` into its
+ * own module for the 1000-line component cap, so "bound the block by walking out
+ * to the enclosing `<motion.div>`" no longer finds a wrapper for it: the extracted
+ * component is a top-level `return (` in its own file. These rows still decide the
+ * SAME properties (no raw `<select>`, no raw `<button>`, no scroll surface, no
+ * `title`, no `<details>`) against whatever module owns the testid, so the helper
+ * bounds by the `motion.div` when there is one and otherwise returns the whole
+ * extracted module. The assertion is updated, never dropped (AGENTS.md §16).
+ */
+function emptyStateBlockAround(text: string, testid: string): string {
+	const anchor = text.indexOf(testid);
+	assert.ok(anchor >= 0, `${testid} must exist`);
+	const blockStart = text.lastIndexOf('<motion.div', anchor);
+	const blockEnd = text.indexOf('</motion.div>', anchor);
+	if (blockStart >= 0 && blockEnd > blockStart) return text.slice(blockStart, blockEnd);
+	return text;
+}
 
 test('UX-R03b row 1: the four remaining center views are null-element nested children', () => {
 	const block = timetableRouteBlock();
@@ -71,11 +114,15 @@ test('UX-R03b row 1: each new route resolves to its own center view, with traili
 
 test('UX-R03b row 2: manual-edit without a selection shows a truthful empty state', () => {
 	const center = source('src/components/timetable/CenterWorkspace.tsx');
-	const withEntry = center.indexOf("centerView === 'manual-edit' && selectedEntry");
-	const emptyOnly = center.indexOf(") : centerView === 'manual-edit' ? (");
+	const withEntry = firstMatchIndex(center, /(?:centerView|paneView) === 'manual-edit' && selectedEntry/);
+	const emptyOnly = firstMatchIndex(center, /\) : (?:centerView|paneView) === 'manual-edit' \? \(/);
 	assert.ok(withEntry >= 0, 'the manual-edit pane must still require a selection');
 	assert.ok(emptyOnly > withEntry, 'the empty state must follow the with-entry branch');
-	const block = center.slice(emptyOnly, center.indexOf(") : centerView === 'map' ? (", emptyOnly));
+	// C11 M1 — the empty state was EXTRACTED to `CenterWorkspaceManualEditEmpty.tsx`
+	// (the header-sized cap, AGENTS.md §8, plus the added one-line hint). The row
+	// decides the same properties against the real extracted module, and the
+	// ordering assertions above still hold in `CenterWorkspace` itself.
+	const block = source('src/components/timetable/CenterWorkspaceManualEditEmpty.tsx');
 	assert.match(block, /data-testid="timetable-manual-edit-empty-state"/);
 	assert.match(block, /No class selected for manual edit/);
 	// The copy names how to reach the pane: the schedule grid + selection actions.
@@ -84,7 +131,7 @@ test('UX-R03b row 2: manual-edit without a selection shows a truthful empty stat
 	// UX-R03b correction: the way back navigates (URL matches the shown view)
 	// instead of setting view state — never a fabricated selection either.
 	assert.match(block, /asChild/);
-	assert.match(block, /<Link to="\/timetable">/);
+	assert.match(block, /<Link to="\/timetable"[^>]*>/);
 	assert.doesNotMatch(block, /setCenterView/);
 	assert.doesNotMatch(block, /onClick/);
 	assert.doesNotMatch(block, /setSelectedEntry/);
@@ -93,11 +140,11 @@ test('UX-R03b row 2: manual-edit without a selection shows a truthful empty stat
 
 test('UX-R03b row 2: building without a selection shows a truthful empty state', () => {
 	const center = source('src/components/timetable/CenterWorkspace.tsx');
-	const withBuilding = center.indexOf("centerView === 'building' && selectedMapBuilding");
-	const emptyOnly = center.indexOf(") : centerView === 'building' ? (");
+	const withBuilding = firstMatchIndex(center, /(?:centerView|paneView) === 'building' && selectedMapBuilding/);
+	const emptyOnly = firstMatchIndex(center, /\) : (?:centerView|paneView) === 'building' \? \(/);
 	assert.ok(withBuilding >= 0, 'the building pane must still require a selection');
 	assert.ok(emptyOnly > withBuilding, 'the empty state must follow the with-building branch');
-	const block = center.slice(emptyOnly, center.indexOf(") : presentationMode === 'matrix'", emptyOnly));
+	const block = center.slice(emptyOnly, firstMatchIndex(center, /\) : presentationMode === 'matrix'/, emptyOnly));
 	assert.match(block, /data-testid="timetable-building-empty-state"/);
 	assert.match(block, /No building selected/);
 	// The copy names how to reach the pane: the map + building selection.
@@ -225,14 +272,18 @@ test('UX-R03b row 6: the timetable map has its route and the standalone editor i
 // --- Row 7: layout and primitives ---
 
 test('UX-R03b row 7: the new empty states add no scroll surface, select, raw button, or sub-12px chrome', () => {
-	const center = source('src/components/timetable/CenterWorkspace.tsx');
+	// C11 M1 — the manual-edit empty state was EXTRACTED to its own module (the
+	// 1000-line cap, AGENTS.md §8). Each testid is therefore resolved against the
+	// file that now owns it, so this row still checks the block it was written for
+	// — no raw select, no raw button, no scroll surface, no `title` — wherever
+	// that block lives. The assertions are updated, never dropped (§16).
+	const emptyStateSources: Record<string, string> = {
+		'timetable-manual-edit-empty-state': source('src/components/timetable/CenterWorkspaceManualEditEmpty.tsx'),
+		'timetable-building-empty-state': source('src/components/timetable/CenterWorkspace.tsx'),
+	};
 	for (const testid of ['timetable-manual-edit-empty-state', 'timetable-building-empty-state']) {
-		const anchor = center.indexOf(testid);
-		assert.ok(anchor >= 0, `${testid} must exist`);
-		const blockStart = center.lastIndexOf('<motion.div', anchor);
-		const blockEnd = center.indexOf('</motion.div>', anchor);
-		assert.ok(blockStart >= 0 && blockEnd > blockStart, `${testid} block must be bounded`);
-		const block = center.slice(blockStart, blockEnd);
+		const center = emptyStateSources[testid];
+		const block = emptyStateBlockAround(center, testid);
 		assert.doesNotMatch(block, /<select\b/);
 		assert.doesNotMatch(block, /<button[\s>]/);
 		assert.doesNotMatch(block, /overflow-auto/);
@@ -281,18 +332,20 @@ test('UX-R03b correction: URL entry to pre-generation lands on the Draft queue t
 });
 
 test('UX-R03b correction: empty-state way-backs navigate so the URL matches the shown view', () => {
-	const center = source('src/components/timetable/CenterWorkspace.tsx');
+	// C11 M1 — the manual-edit empty state now lives in its own extracted module
+	// (the 1000-line cap, AGENTS.md §8), so each testid is resolved against the
+	// file that owns it. The property decided here is unchanged: the way back
+	// NAVIGATES, so the URL always matches the shown view.
+	const emptyStateSources: Record<string, string> = {
+		'timetable-manual-edit-empty-state': source('src/components/timetable/CenterWorkspaceManualEditEmpty.tsx'),
+		'timetable-building-empty-state': source('src/components/timetable/CenterWorkspace.tsx'),
+	};
 	for (const [testid, route] of [
 		['timetable-manual-edit-empty-state', '/timetable'],
 		['timetable-building-empty-state', '/timetable/map'],
 	] as Array<[string, string]>) {
-		const anchor = center.indexOf(testid);
-		assert.ok(anchor >= 0, `${testid} must exist`);
-		const blockStart = center.lastIndexOf('<motion.div', anchor);
-		const blockEnd = center.indexOf('</motion.div>', anchor);
-		assert.ok(blockStart >= 0 && blockEnd > blockStart, `${testid} block must be bounded`);
-		const block = center.slice(blockStart, blockEnd);
-		assert.match(block, new RegExp(`<Link to="${route.replace(/\//g, '\\/')}">`));
+		const block = emptyStateBlockAround(emptyStateSources[testid], testid);
+		assert.match(block, new RegExp(`<Link to="${route.replace(/\//g, '\\/')}"`));
 		assert.match(block, /asChild/);
 		assert.doesNotMatch(block, /setCenterView/);
 		assert.doesNotMatch(block, /onClick/);

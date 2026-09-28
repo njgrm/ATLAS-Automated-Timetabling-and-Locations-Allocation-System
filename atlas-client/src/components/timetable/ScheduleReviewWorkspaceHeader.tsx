@@ -32,6 +32,8 @@ import { onProfilerRender } from '@/components/timetable/ScheduleReviewWorkspace
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 // A2-C6-TRUTH (T3a): the run identity, shared with Simple view.
 import { describeRunState, RunIdentityLine, RunStateBadge } from '@/components/timetable/RunStateBadge';
+import { resolveExpertPublishGate, TimetableExpertPublishControl } from '@/components/timetable/TimetableExpertPublishControl';
+import { resolveDraftStripPublishPlan, TimetableDraftStateStrip } from '@/components/timetable/TimetableDraftStateStrip';
 import { ScheduleReviewInputStateBanner } from '@/components/timetable/ScheduleReviewInputStateBanner';
 import { TimetableAdvancedHeaderHelp } from '@/components/timetable/TimetableAdvancedHeaderHelp';
 import { deriveTimetableCapabilities, YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
@@ -41,6 +43,10 @@ import { resolveTermAuthorityNotice } from '@/hooks/useTimetableData';
 
 type ScheduleReviewWorkspaceHeaderProps = {
 	context: ScheduleReviewWorkspaceHeaderContext;
+	/** C11 D — the workspace's existing manual-edit entry for the selected class. */
+	onEditDraft?: () => void;
+	/** C11 D — the workspace's EXISTING reset-draft confirmation. */
+	onDiscardDraft?: () => void;
 };
 
 function formatTaskCount(count: number, label: string): string {
@@ -98,7 +104,7 @@ function formatChangedDomains(domains: string[] | undefined): string[] {
  * headers rendering one run's identity from one derivation is the only way
  * "which schedule is this" cannot differ between the two views of the same run.
  */
-function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceHeaderProps) {
+function ScheduleReviewWorkspaceHeaderImpl({ context, onEditDraft, onDiscardDraft }: ScheduleReviewWorkspaceHeaderProps) {
 	const [showImpactPreview, setShowImpactPreview] = useState(false);
 	const [syncing, setSyncing] = useState(false);
 	const [showSyncConfirm, setShowSyncConfirm] = useState(false);
@@ -273,6 +279,19 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 	const scopeResolved = Number.isInteger(schoolId) && schoolId > 0
 		&& Number.isInteger(schoolYearId) && (schoolYearId ?? 0) > 0;
 	const isRunPublished = isDraftPublishedStrict(draft);
+
+	/**
+	 * C11 D — the ONE publication gate for this header, shared with the draft strip's
+	 * Publish control. Derived from the same fields the previous inline `disabled`
+	 * expression and tooltip ternary read, so no clause was dropped or reordered.
+	 */
+	const expertPublishGate = resolveExpertPublishGate({
+		hasDraft: draft != null,
+		isRunPublished,
+		blockingHardCount,
+		unassignedCount,
+		isPreGenerationView: centerView === 'pre-generation',
+	});
 	const latestRunFailed = !draft && runOptions[0]?.status === 'FAILED';
 	const capabilities = deriveTimetableCapabilities({
 		scopeResolved,
@@ -443,6 +462,25 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 	return (
 		<Profiler id="Header" onRender={onProfilerRender}>
 			<div className="shrink-0 border-b border-border bg-background">
+			{/* C11 D — the SAME persistent draft strip the Simple header renders. One
+			    component, one `describeRunState` derivation, one Undo — so the two views
+			    of one run cannot disagree about whether it is a draft. Rendered before
+			    the header rows so it is present in BOTH headers, never conditional. */}
+			<TimetableDraftStateStrip
+				visibility={runStateDescription.visibility}
+				editEnabled={hasSelectedEntry}
+				editBlockedReason={hasSelectedEntry ? null : 'Pick a class on the grid first, then choose Edit.'}
+				discardEnabled={draft != null}
+				publishEnabled={expertPublishGate.allowed}
+				publishBlockedReason={expertPublishGate.allowed ? null : expertPublishGate.reason}
+
+				onEdit={onEditDraft ?? noopEditDraft}
+				onDiscardDraft={onDiscardDraft ?? noopDiscardDraft}
+				onPublish={() => {
+					setPublishAcknowledged(false);
+					setShowPublishDialog(true);
+				}}
+			/>
 			<div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border/60 bg-muted/20 px-4 py-1.5 text-xs text-muted-foreground" data-testid="timetable-scheduler-orientation">
 				<span><span className="font-semibold text-foreground">Term:</span> {activeTermLabel ?? 'Term setup required'}</span>
 				<span><span className="font-semibold text-foreground">Scope:</span> {termFilter === 'all' ? 'All terms' : (termOptions.find((option) => option.value === String(termFilter))?.label ?? 'Selected term')}</span>
@@ -519,35 +557,17 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 					<span className="sr-only sm:hidden">Refresh schedule</span>
 				</Button>
 
-				<TooltipProvider>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant="outline"
-								size="sm"
-								className="h-8 shrink-0 gap-1.5"
-								disabled={!draft || isRunPublished || blockingHardCount > 0 || unassignedCount > 0 || centerView === 'pre-generation'}
-								onClick={() => {
-									setPublishAcknowledged(false);
-									setShowPublishDialog(true);
-								}}
-								data-testid="timetable-advanced-publish"
-							>
-								<Send className="size-3.5" />
-								Publish
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>
-							{isRunPublished
-								? 'This run is already published. Create an effective-dated revision instead of re-publishing.'
-								: blockingHardCount > 0
-									? `Cannot publish: ${blockingHardCount} hard violation(s) remaining`
-									: unassignedCount > 0
-										? `Cannot publish: ${unassignedCount} session(s) still need placing`
-										: 'Publish this schedule'}
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
+				{/* C11 D — extracted to `TimetableExpertPublishControl.tsx`: this file was at
+				    961 physical lines against the 1000-line cap (AGENTS.md §8) and had to take
+				    the persistent draft strip. The gate is unchanged, in one place, so the
+				    header's Publish and the strip's Publish cannot disagree. */}
+				<TimetableExpertPublishControl
+					gate={expertPublishGate}
+					onPublish={() => {
+						setPublishAcknowledged(false);
+						setShowPublishDialog(true);
+					}}
+				/>
 
 				<TooltipProvider>
 					<Tooltip>
@@ -957,5 +977,9 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		</Profiler>
 	);
 }
+
+/** A fixture that omits these still renders the strip; it edits and discards nothing. */
+const noopEditDraft = () => {};
+const noopDiscardDraft = () => {};
 
 export const ScheduleReviewWorkspaceHeader = memo(ScheduleReviewWorkspaceHeaderImpl);

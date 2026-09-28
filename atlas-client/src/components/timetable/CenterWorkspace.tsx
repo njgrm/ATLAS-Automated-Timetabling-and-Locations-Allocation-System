@@ -1,13 +1,14 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, Profiler } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
-import { AlertTriangle, Building2, CalendarClock, ChevronLeft, Loader2, Lock, MapPin, MousePointerClick, Play } from 'lucide-react';
+import { AlertTriangle, Building2, CalendarClock, ChevronLeft, Loader2, Lock, MapPin, Play } from 'lucide-react';
 import { onProfilerRender } from './ScheduleReviewWorkspace';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 
 import { ClassProgramMatrixView } from '@/components/timetable/ClassProgramMatrixView';
 import { MapRouteTransitionFrame, resolveCenterPane } from '@/components/timetable/MapRouteTransitionIntent';
 import { GridScrollMemory } from '@/components/timetable/GridScrollMemory';
+import { CenterWorkspaceManualEditEmpty } from '@/components/timetable/CenterWorkspaceManualEditEmpty';
 import { TimetableGrid } from '@/components/timetable/TimetableGrid';
 import { ROOM_TYPE_LABELS } from '@/lib/subject-constants';
 import { buildUnassignedKey } from '@/lib/timetable-utils';
@@ -443,6 +444,12 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 	// would leave the stale grid in the DOM for ~180 ms. See
 	// MapRouteTransitionIntent for the recorded cause and the no-new-copy rule.
 	const centerPane = resolveCenterPane(pathname, centerView);
+	// C11 M1 — every arm of the chain below keys off THIS, not off `centerView`.
+	// The route→view sync moves `centerView` in an effect, so for one render the URL
+	// and the view disagree; keying off the decision means the disagreeing render
+	// cannot paint a stale selection-dependent pane over the grid. This is the same
+	// seam the map pending case uses — one decision, not a second mechanism.
+	const paneView = centerPane.kind === 'center-view' ? centerPane.view : centerView;
 
 	return (
 		<ResizablePanel
@@ -463,7 +470,7 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 				<MapRouteTransitionFrame pathname={pathname} />
 			) : (
 			<AnimatePresence mode="wait">
-				{centerView === 'policy' ? (
+				{paneView === 'policy' ? (
 					<motion.div
 						key="policy"
 						initial={{ opacity: 0, y: 8 }}
@@ -486,7 +493,7 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 							/>
 						</Suspense>
 					</motion.div>
-				) : centerView === 'runs' ? (
+				) : paneView === 'runs' ? (
 					<motion.div
 						key="runs"
 						initial={{ opacity: 0, y: 8 }}
@@ -507,7 +514,7 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 							/>
 						</Suspense>
 					</motion.div>
-				) : centerView === 'setup' ? (
+				) : paneView === 'setup' ? (
 					<motion.div
 						key="setup"
 						initial={{ opacity: 0, y: 8 }}
@@ -527,7 +534,7 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 							/>
 						</Suspense>
 					</motion.div>
-				) : centerView === 'manual-edit' && selectedEntry ? (
+				) : paneView === 'manual-edit' && selectedEntry ? (
 					<motion.div
 						key="manual-edit"
 						initial={{ opacity: 0, y: 8 }}
@@ -563,11 +570,11 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 							/>
 						</Suspense>
 					</motion.div>
-				) : centerView === 'manual-edit' ? (
-					// UX-R03b — selection-dependent honesty: entered without a
-					// selection (e.g. direct URL entry to /timetable/manual-edit).
-					// Never a blank center surface and never a fabricated entry:
-					// name how to reach the pane and offer the way back.
+				) : paneView === 'manual-edit' ? (
+					// C11 M1 — extracted to `CenterWorkspaceManualEditEmpty.tsx`: this file
+					// was at 981 physical lines against the 1000-line cap (AGENTS.md §8) and
+					// had to take the one-line hint, so the block moved out rather than
+					// growing here. The rendered result is unchanged apart from that hint.
 					<motion.div
 						key="manual-edit-empty"
 						initial={{ opacity: 0, y: 8 }}
@@ -576,32 +583,9 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 						transition={{ duration: 0.18 }}
 						className="flex flex-col min-h-0 h-full"
 					>
-						<div className="flex min-h-0 flex-1 items-center justify-center p-4">
-							<div className="max-w-md space-y-3 text-center" data-testid="timetable-manual-edit-empty-state">
-								<MousePointerClick className="mx-auto size-10 text-muted-foreground/30" />
-								<p className="text-sm font-medium">No class selected for manual edit</p>
-								<p className="text-xs text-muted-foreground">
-									Select a class on the schedule grid first, then open Move, Change room, or Swap from the selection actions to edit it here.
-								</p>
-								{/* LANE-C C03 (B3) — a published schedule is changed from a date, not here. */}
-								{isDraftPublished ? (
-									<p className="text-sm text-foreground" data-testid="timetable-manual-edit-published-note">
-										This schedule is published. Go back to the schedule, click a class, then choose “Choose a new time”, “Change room” or “Swap with another class”. ATLAS checks the change and you pick the date it starts.
-									</p>
-								) : null}
-								{/* UX-R03b correction: navigate instead of setting view state,
-								    so the URL always matches the shown view; the route→view
-								    sync then drives the guarded transition. */}
-								<Button asChild variant="outline" size="sm" className="h-7 text-xs">
-									<Link to="/timetable">
-										<ChevronLeft className="size-3.5" />
-										Back to Schedule
-									</Link>
-								</Button>
-							</div>
-						</div>
+						<CenterWorkspaceManualEditEmpty isDraftPublished={isDraftPublished} />
 					</motion.div>
-				) : centerView === 'map' ? (
+				) : paneView === 'map' ? (
 					<motion.div
 						key="map-view"
 						initial={{ opacity: 0, y: -8 }}
@@ -637,7 +621,7 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 							/>
 						</Suspense>
 					</motion.div>
-				) : centerView === 'building' && selectedMapBuilding ? (
+				) : paneView === 'building' && selectedMapBuilding ? (
 					<motion.div
 						key={`building-${selectedMapBuilding.id}`}
 						initial={{ opacity: 0, y: -8 }}
@@ -728,7 +712,7 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 							</div>
 						</div>
 					</motion.div>
-				) : centerView === 'building' ? (
+				) : paneView === 'building' ? (
 					// UX-R03b — selection-dependent honesty: entered without a
 					// selected building (e.g. direct URL entry to
 					// /timetable/building). Never a blank center surface and
@@ -760,9 +744,9 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 							</div>
 						</div>
 					</motion.div>
-				) : presentationMode === 'matrix' && (centerView === 'schedule' || centerView === 'pre-generation') && (centerView === 'pre-generation' ? draftBoard != null : draft != null) ? (
+				) : presentationMode === 'matrix' && (paneView === 'schedule' || paneView === 'pre-generation') && (paneView === 'pre-generation' ? draftBoard != null : draft != null) ? (
 					<motion.div
-						key={centerView === 'pre-generation' ? 'pre-generation-matrix' : 'schedule-matrix'}
+						key={paneView === 'pre-generation' ? 'pre-generation-matrix' : 'schedule-matrix'}
 						initial={{ opacity: 0, y: -8 }}
 						animate={{ opacity: 1, y: 0 }}
 						exit={{ opacity: 0, y: -8 }}
@@ -779,12 +763,12 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 							entryContextLabel={entryContextLabel}
 							onEntryClick={handleEntryClick}
 							selectedEntryId={selectedEntry?.entryId ?? null}
-							header={<Badge variant="secondary" className="h-5 px-1.5 text-xs">{centerView === 'pre-generation' ? 'Pre-Generation Matrix' : 'Generated Matrix'}</Badge>}
+							header={<Badge variant="secondary" className="h-5 px-1.5 text-xs">{paneView === 'pre-generation' ? 'Pre-Generation Matrix' : 'Generated Matrix'}</Badge>}
 						/>
 					</motion.div>
 				) : (
 					<motion.div
-						key={centerView === 'pre-generation' ? 'pre-generation-grid' : 'schedule-grid'}
+						key={paneView === 'pre-generation' ? 'pre-generation-grid' : 'schedule-grid'}
 						initial={{ opacity: 0, y: -8 }}
 						animate={{ opacity: 1, y: 0 }}
 						exit={{ opacity: 0, y: -8 }}
@@ -792,9 +776,9 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 						className="flex-1 min-w-0 flex flex-col min-h-0"
 					>
 						<GridScrollMemory scrollTopRef={gridScrollTopRef} className="flex-1 min-h-0">
-							{(centerView === 'pre-generation' ? draftBoard != null : draft != null) ? (
+							{(paneView === 'pre-generation' ? draftBoard != null : draft != null) ? (
 								<div className="p-4">
-									{centerView === 'pre-generation' ? (
+									{paneView === 'pre-generation' ? (
 										<div className="mb-3 flex min-w-0 items-center gap-2">
 											{entityFilter && entityFilter !== 'all' ? (
 												<TooltipProvider delayDuration={300}>
@@ -831,7 +815,7 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 									) : null}
 									{/* LANE-C C03 (B9) — an empty draft grid said nothing, so it read
 									    as the published schedule vanishing. Say what this view is. */}
-									{centerView === 'pre-generation' && sandboxGridEntries.length === 0 ? (
+									{paneView === 'pre-generation' && sandboxGridEntries.length === 0 ? (
 										<p className="mb-3 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground" data-testid="timetable-draft-empty-note">
 											Nothing is placed in this draft yet. The draft is a separate working copy: the published schedule is not shown here and does not change. Place classes from the list on the left, or use Generate to build a new version.
 										</p>
@@ -883,7 +867,7 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 									<div className="max-w-md text-center space-y-3">
 										<CalendarClock className="mx-auto size-10 text-muted-foreground/30" />
 										<p className="text-sm text-muted-foreground" data-testid="timetable-empty-state-message">
-											{centerView === 'pre-generation'
+											{paneView === 'pre-generation'
 												? (newDraftLoading
 													// LANE-C C03 (B9) — while the draft loads, say so instead of "empty".
 													? 'Loading the draft…'
@@ -896,7 +880,7 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 								</div>
 							)}
 						</GridScrollMemory>
-						{centerView === 'pre-generation' && preGenPending && (
+						{paneView === 'pre-generation' && preGenPending && (
 							<div className="shrink-0 border-t border-border bg-muted/20 px-3 py-2 space-y-1.5">
 								<div className="flex flex-wrap items-center gap-2 text-xs">
 									<Lock className="size-3 text-primary shrink-0" />

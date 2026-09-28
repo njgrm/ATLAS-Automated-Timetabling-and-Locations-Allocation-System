@@ -245,7 +245,7 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 		confirmPreviewLoading, confirmPreviewError, confirmDisplacedPlacement, openSwapPrompt,
 		confirmAllowDailyOverride, confirmSaving, commitConfirmPlacement,
 		showSwapConfirm, setShowSwapConfirm, setSwapAction, swapAction, swapSaving, executeSwapAction, swapPreview,
-		regularSwapPending, setRegularSwapPending, regularSwapPreview, regularSwapStrategy, setRegularSwapStrategy, regularSwapSaving, executeRegularSwap,
+		regularSwapPending, setRegularSwapPending, regularSwapPreview, regularSwapStrategy, setRegularSwapStrategy, regularSwapSaving, executeRegularSwap, resetSwapClassTimesState,
 		showSoftConfirm, setShowSoftConfirm, softConfirmWarnings, commitLoading, formatConstraintMessage,
 		setPendingCommitProposal, setPreviewResult, setSoftConfirmWarnings, setDragItem, pendingCommitProposal, commitEdit,
 		subjectLabel, sectionLabel, formatFacultyInitials, roomLabelShort,
@@ -384,8 +384,17 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 		setSwapAction(null);
 		restoreReviewFocus();
 	};
+	/**
+	 * C11 M4 — ONE exit for the swap review, and it resets the ARMED state too.
+	 *
+	 * This is the close used by the X, the backdrop, Escape, the blocked-state
+	 * Cancel and the footer Cancel, so all five run the same reset and no exit
+	 * path can be added later that forgets the armed fields. See
+	 * `timetableSwapArming.resetSwapClassTimes` for the recorded defect.
+	 */
 	const closeGeneratedSwap = () => {
 		setRegularSwapPending(null);
+		resetSwapClassTimesState();
 		restoreReviewFocus();
 	};
 

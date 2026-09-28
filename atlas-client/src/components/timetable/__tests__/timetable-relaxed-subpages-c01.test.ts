@@ -1,4 +1,9 @@
 import assert from 'node:assert/strict';
+	// C11 M1 — the routed pane arms are now keyed off `paneView`, the view
+	// RESOLVED by `resolveCenterPane`, not the raw `centerView` state. The pattern
+	// accepts either name so the row still decides the property it was written for
+	// (this routed arm exists in CenterWorkspace) and is not re-broken by a future
+	// rename of the local. The assertion is updated, never dropped (AGENTS.md §16).
 import test from 'node:test';
 
 import { isTimetableSchedulerView } from '../TimetableRouteViewSync';
@@ -23,7 +28,7 @@ test('TIMETABLE-RELAXED-SUBPAGES-C01: workspace gates full scheduler header and 
 
 	const center = readFileSync(resolve(import.meta.dirname, '..', 'CenterWorkspace.tsx'), 'utf8');
 	for (const view of ['policy', 'runs', 'setup']) {
-		assert.match(center, new RegExp(`centerView === '${view}'`), `${view} must have an explicit non-grid branch`);
+		assert.match(center, new RegExp(`(?:centerView|paneView) === '${view}'`), `${view} must have an explicit non-grid branch`);
 	}
 	assert.match(center, /<TimetableGrid/);
 });

@@ -17,6 +17,7 @@ import {
 import { Link } from 'react-router-dom';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { runAnchorLabel } from '@/lib/timetable-plain-language';
+import { MANUAL_EDIT_NEEDS_SELECTION_REASON } from '@/components/timetable/CenterWorkspaceManualEditEmpty';
 // A2-C6-TRUTH (T1b): which sentence the Schedule history entry may print.
 import { editHistoryEmptyStateMessage, type EditHistoryReadState } from '@/lib/timetable-edit-history-truth';
 import { cn } from '@/lib/utils';
@@ -186,6 +187,8 @@ export function SimpleMoreMenuContent({
 	const historyReadState: EditHistoryReadState = context.editHistoryReadState ?? 'idle';
 	const historyReadable = historyReadState === 'ready' && context.editHistoryCount > 0;
 	const dayOptionsVisible = Boolean(context.policyAlignmentWarning) || context.hiddenRowCount > 0;
+	// C11 M1 — the manual-edit pane is selection-dependent, so the menu entry is too.
+	const hasSelectedClass = context.hasSelectedEntry;
 	const helpAndDisplayCount = (onOpenTutorial ? 1 : 0) + (dayOptionsVisible ? 1 : 0) + 1;
 	return (
 		<div className="space-y-2">
@@ -362,11 +365,41 @@ export function SimpleMoreMenuContent({
 						Campus map
 					</Link>
 				</DropdownMenuItem>
-				<DropdownMenuItem asChild className="h-9 gap-2 text-xs" data-testid="timetable-more-manual-edit">
-					<Link to="/timetable/manual-edit" onClick={onClose}>
-						<MousePointerClick className="size-3.5" aria-hidden="true" />
-						Manual edit
-					</Link>
+				{/* C11 M1 — this entry used to be a bare `<Link to="/timetable/manual-edit">`.
+				    It opened a pane that needs a selected class, so with nothing selected
+				    it always landed on the empty state, and the recorded walk
+				    (`report.md` defect 1) could not get back to the grid from there.
+
+				    Two changes, both from the same decision:
+				      - WITH a class selected it is an in-app control, so the selection
+				        travels with it through the existing `enterManualEditView` (the
+				        same entry the grid's own selection actions use) instead of being
+				        dropped at a route boundary.
+				      - WITHOUT one it says why, in the visible reason line the Schedule
+				        history entry above already uses — a disabled entry whose
+				        explanation needs a hover is silence for a mouse-and-keyboard
+				    operator (AGENTS.md §8, and the A2-TIMETABLE-CUSTODY-R2 precedent). */}
+				<DropdownMenuItem
+					className={cn('gap-2 text-xs', hasSelectedClass ? 'h-9' : 'h-auto min-h-9 items-start py-1.5 data-[disabled]:opacity-100')}
+					disabled={!hasSelectedClass}
+					data-testid="timetable-more-manual-edit"
+					onSelect={(event) => {
+						event.preventDefault();
+						onClose();
+						context.enterManualEditView('CHANGE_TIMESLOT');
+					}}
+				>
+					<MousePointerClick className="size-3.5" aria-hidden="true" />
+					{hasSelectedClass ? (
+						<span>Manual edit</span>
+					) : (
+						<span className="flex flex-col">
+							<span className="text-muted-foreground">Manual edit</span>
+							<span className="text-xs text-muted-foreground" data-testid="timetable-more-manual-edit-reason">
+								{MANUAL_EDIT_NEEDS_SELECTION_REASON}
+							</span>
+						</span>
+					)}
 				</DropdownMenuItem>
 				<DropdownMenuItem asChild className="h-9 gap-2 text-xs" data-testid="timetable-more-building">
 					<Link to="/timetable/building" onClick={onClose}>
