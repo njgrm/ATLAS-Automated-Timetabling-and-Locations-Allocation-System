@@ -1,30 +1,55 @@
 /**
- * A2-C6-TRUTH — failing-first proof for the four truthfulness defects measured
- * live on `a1db27d5` against draft run 321 on 2026-09-28.
+ * A2-C6-TRUTH / A2-C7 — failing-first proof for the truthfulness defects
+ * measured live on `a1db27d5` against draft run 321 on 2026-09-28.
  *
- * EVERY ROW HERE RENDERS OR EVALUATES A VALUE. No row asserts source text, a
- * symbol's presence, or "the effect was called": the run-identity lane's own
- * note records why that distinction is load-bearing — c5's reviewer caught a
- * wiring-only assertion passing while the row it claimed to protect was deleted.
+ * WHAT THIS FILE DECIDES, HONESTLY (corrected 2026-09-28 after fresh QA
+ * `ses_f19d2dd03ffePT8XACF7EV1dxU`, findings B1 and B2).
  *
- *   T1a/T1d  the ledger is REFILLED, measured on the real `editHistory` value
- *             after a real term change and a real run re-selection, driven
- *             through the same reducer the hook uses.
+ * This header previously claimed "EVERY ROW HERE RENDERS OR EVALUATES A
+ * VALUE. No row asserts source text" and was FALSE at the tip: two rows carry
+ * labelled source-text DRIFT GUARDS. It also advertised a row `T1d` that has
+ * never existed, and mis-described `T1a` as a measurement when it is a guard.
+ * Both are corrected here rather than left, because a header that overstates its
+ * own evidence is the same defect class this file exists to close — an artifact
+ * asserting something false about the product.
+ *
+ * The rows that RENDER or DERIVE a real value, and therefore decide behaviour:
+ *
  *   T1b      the empty-run sentence is reachable ONLY from a `ready` read of
- *             zero rows, measured on the rendered menu entry.
+ *             zero rows, and the dialog's sentence is the same derivation the
+ *             More-menu entry reads.
  *   T1c      a failed read is a state, not a zero.
  *   T2a      a swap row names the class the auto-fix relocated, from the
  *             RECORDED payload (the live `manual_schedule_edits` id 12 shape).
- *   T2d      the row's revert control announces its name once.
+ *   T2d      the revert tooltip's reason, over every branch of the derivation —
+ *             six real `editHistoryRevertBlockedReason` calls.
  *   T3a      Simple view names the run and whether anyone can see it.
  *   T3b/T3c  one line, two facts, and no invented term.
  *   T3f      the status region is capped and says what it dropped.
  *   T3g      the publish control says why, in place.
  *   T4       the header figure equals the number the run's own violations
  *             endpoint reports — the 48-vs-148 defect.
+ *   3(a)     the blocked-window cell renders the class it holds and states the
+ *             collision with a count that matches what is rendered.
+ *
+ * The rows that are LABELLED DRIFT GUARDS — source-text assertions that stop a
+ * call or a derivation from being deleted. They are NOT acceptance evidence
+ * (AGENTS.md §11) and each says so at its own row:
+ *
+ *   T1a      the two run-scoped handlers call the ledger refill, and the
+ *             scope-wide reset does not. T1a's OUTCOME is a
+ *             DEPLOYMENT-ACCEPTANCE (browser) row — see the row.
+ *   T2d      three further assertions on the dialog component's own text, added
+ *             with F2's fix. Two of the three were measured failing-first
+ *             against the pre-fix component; the third is NON-DISCRIMINATING by
+ *             design and is labelled so.
+ *
+ * `T1d` is gone from this list because no such row exists. The run-re-selection
+ * half of T1a is covered by the `T1a GUARD` row, which asserts on
+ * `handleRunChange`.
  *
  * Run: `npm run test:a2-c6-truth` (wired in atlas-client/package.json in the same
- * commit, and added to `test:client-suite`).
+ * commit).
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -80,6 +105,20 @@ const FOUR_ROWS: ManualEditRecord[] = [12, 13, 14, 15].map((id) => ({
 }));
 
 test('T1a GUARD (not an outcome row): both run-scoped handlers refill, and the scope reset does not', () => {
+	// PRE-FIX PROOF, kept. QA `ses_f19d2dd03ffePT8XACF7EV1dxU` (N1) noted that
+	// `legacyTermChangeState` and `FOUR_ROWS` were left declared and uncalled by
+	// the T1a rewrite, and warned that deleting them would remove the defect's own
+	// record. They are reinstated here, at the row they belong to.
+	//
+	// The defect, as the pre-fix state machine computed it: a term change left
+	// the ledger at ZERO rows for a run the server answers with four. That value
+	// is what the empty-run sentence was printed from, and it is the reason the
+	// refill exists.
+	assert.equal(legacyTermChangeState(FOUR_ROWS).length, 0,
+		'PRE-FIX PROOF: the pre-fix term change left the ledger at 0 rows for a run the server answers with 4');
+	assert.equal(FOUR_ROWS.length, 4,
+		'the run the packet measured: `manual_schedule_edits` 12, 13, 14 and 15 on run 321');
+
 	// HONEST SCOPE — read this before treating T1a as proven.
 	//
 	// The c6 candidate's version of this row asserted a literal against its own
@@ -351,22 +390,28 @@ test('T2d FAILING-FIRST: a revert control announces its name once, and a tooltip
 		/Reopen this schedule/,
 		'the disabled control says what to do about it, in words the label cannot carry',
 	);
-	// Whatever the branch, the name is announced once. Decided by the REAL
-	// component, not by a test-local string: Radix renders the tooltip trigger
-	// regardless of whether there is tooltip CONTENT (QA `ses_f19df5126ffewpENLFnzt1xbsp`
-	// F2 measured exactly that), so "the label is one string" is not a property of
-	// the component and asserting it on a local constant proved nothing. What the
-	// component must guarantee is that the label is rendered by the BUTTON, once.
+	// Whatever the branch, the name is announced once. The three assertions
+	// below are LABELLED DRIFT GUARDS on the dialog component's own text, not
+	// acceptance evidence (AGENTS.md §11): a source-text read cannot decide what
+	// a component renders. The load-bearing assertions in this row are the six
+	// `editHistoryRevertBlockedReason` calls above, which decide a real derived
+	// value. The guards exist so the F2 fix cannot be quietly deleted.
+	//
+	// Discriminating power, measured by fresh QA
+	// `ses_f19d2dd03ffePT8XACF7EV1dxU` against the pre-fix component:
+	//   conditional TooltipContent  FAIL -> PASS
+	//   no fallback string           FAIL -> PASS
+	//   label occurs once            PASS on the pre-fix too  <- NON-DISCRIMINATING
 	const dialogSource = readFileSync(
 		new URL('../modals/TimetableAssignmentDialogs.tsx', import.meta.url),
 		'utf8',
 	);
-	assert.equal((dialogSource.match(/^\s*Revert this edit\s*$/gm) ?? []).length, 1,
-		'the label appears exactly once in the dialog component, as the button text');
 	assert.match(dialogSource, /\{revertBlockedReason !== null && \(\s*<TooltipContent/,
-		'the tooltip CONTENT is conditional, so a live control really has none — the `null` contract is honoured, not merely documented');
+		'DRIFT GUARD (discriminates): the tooltip CONTENT is conditional, so a live control really has none — the `null` contract is honoured, not merely documented');
 	assert.doesNotMatch(dialogSource, /revertBlockedReason \?\? '/,
-		'no second hard-coded fallback string survives beside the derivation');
+		'DRIFT GUARD (discriminates): no second hard-coded fallback string survives beside the derivation');
+	assert.equal((dialogSource.match(/^\s*Revert this edit\s*$/gm) ?? []).length, 1,
+		'DRIFT GUARD (NON-DISCRIMINATING by design, recorded as such): the label occurs once as button text. This passed on the pre-fix component too, so it does not guard the F2 defect; it records the label-count invariant so a future edit that renders the label twice is caught by a human reading this label, not by a false green.');
 });
 
 /* ------------------------------------------------------------------ *

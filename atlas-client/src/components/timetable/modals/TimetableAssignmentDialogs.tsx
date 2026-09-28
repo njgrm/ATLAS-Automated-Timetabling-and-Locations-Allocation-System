@@ -256,7 +256,7 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 								)}
 								{!isRevert && !isUndone && (
 									<div className="mt-2 flex items-center justify-end">
-											{/* J2 (P4) + AGENTS.md section 8: the native `title`
+									{/* J2 (P4) + AGENTS.md section 8: the native `title`
 									 * attribute is forbidden for extra information. The
 									 * explanation moves to the @/ui Tooltip primitive, and
 									 * per the A2-C7 corrections it appears ONLY on a disabled
