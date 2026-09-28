@@ -1117,9 +1117,21 @@ test('A7-C2 R6 fail-closed: with the flag false the Timetable link disappears an
 		source.includes('PLAIN_TIMETABLE_YEAR_UNAVAILABLE'),
 		'the card must still own the fail-closed sentence, so setting the flag back to false restores it',
 	);
+	// QA N2: the retained half is a SOURCE assertion and cannot prove the card
+	// CALLS the helper. This pins the indirection — the card must branch on the
+	// helper's RETURN VALUE, not read the flag itself — so a card that stopped
+	// consulting the helper cannot pass on the strength of these two strings
+	// alone. The render above proves the helper's return value reaches the DOM.
+	// A full scoped re-render with the flag mocked to false is still owed and is
+	// recorded as a follow-up row, not claimed here.
 	assert.ok(
-		source.includes('plainTimetableYearHref('),
-		'the card must gate the link on the helper, not on its own copy of the flag',
+		/timetableHref\s*\?/.test(source),
+		'the card must branch on plainTimetableYearHref()\'s return value, not on its own copy of the flag',
+	);
+	assert.equal(
+		/\bTIMETABLE_READS_SCHOOL_YEAR_PARAM\b/.test(source),
+		false,
+		'the card must not read the flag directly; one source of truth is the whole point of the helper',
 	);
 });
 

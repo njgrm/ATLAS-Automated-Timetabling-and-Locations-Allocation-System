@@ -42,6 +42,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { resolvePastYearReadScope } from '../services/past-year-timetable-scope.js';
+import { buildActorSchoolYearIds } from '../routes/published-schedule.router.js';
 
 const ACTOR_SCHOOL_ID = 1;
 const OTHER_SCHOOL_ID = 2;
@@ -62,9 +63,22 @@ const yearRows = [
 	{ enrollProSchoolYearId: 8, id: 4001, yearLabel: '2022-2023' },
 ];
 
-/** The exact expression the real route uses to build its allowed set. */
+/**
+ * The ROUTE'S OWN expression, imported — not a copy of it.
+ *
+ * A7-C3 QA B1: this used to be a local `.map((row) => row.enrollProSchoolYearId)`
+ * hand-copied into the test. QA switched the real route to the internal primary
+ * key and the row named "the past-year link id and the id the server accepts are
+ * the same number" STILL PASSED, because the test was validating its own copy.
+ * Only a substring grep over the route source went red, and a grep cannot tell
+ * code from a comment quoting it.
+ *
+ * So the helper is now named and exported by the route, and the rows below run
+ * against it. If the route ever switches id space, these rows go red on their own
+ * merits and the grep is no longer carrying the claim.
+ */
 function actorSchoolYearIdsAsTheRouterBuildsThem(rows: typeof yearRows): number[] {
-	return rows.map((row) => row.enrollProSchoolYearId);
+	return buildActorSchoolYearIds(rows);
 }
 
 test('A7-C3: the past-year link id and the id the server accepts are the same number', () => {
@@ -130,19 +144,26 @@ test('A7-C3: the year-row links are built from the same field, so they cannot di
 });
 
 /**
- * The live-route half. This is the row that would have caught the original worry,
- * and it is a source assertion on ONE narrow fact rather than a test of user-facing
- * behaviour — labelled as such on purpose. It asks a single question: does the real
- * published-schedule route still derive its allowed ids from `enrollProSchoolYearId`?
- * If A2 ever switches that, the link becomes unsafe and this goes red.
+ * SUPERSEDED by the imported `buildActorSchoolYearIds` above — kept, not deleted
+ * (AGENTS.md §16: corrections are additive).
+ *
+ * This row asserted that the live route still derives its allowed ids from
+ * `enrollProSchoolYearId` by grepping the route source. QA B1 showed it is
+ * load-bearing but WEAK: an exact-substring match cannot distinguish real code
+ * from a comment quoting the line, so a comment could keep the suite green
+ * through a real id-space switch. The imported helper now proves the same fact
+ * behaviourally. The grep is retained only as a naming/typo tripwire.
  */
-test('A7-C3: the live route still derives its allowed year ids from enrollProSchoolYearId', () => {
+test('A7-C3 (naming tripwire, superseded as the id-space proof): the route still names the helper and the id field', () => {
 	const routeSource = readFileSync(new URL('../routes/published-schedule.router.ts', import.meta.url), 'utf8');
 	assert.ok(
-		routeSource.includes('actorSchoolYearIds: yearRows.map((row) => row.enrollProSchoolYearId)'),
-		'the published-schedule route no longer builds its allowed ids from enrollProSchoolYearId. '
-			+ 'If that changed, the two id spaces may have diverged: set '
-			+ 'TIMETABLE_READS_SCHOOL_YEAR_PARAM back to false until the spaces are proved equal again.',
+		routeSource.includes('actorSchoolYearIds: buildActorSchoolYearIds(yearRows)'),
+		'the route must actually CALL the named helper; if the call site was replaced with an inline '
+			+ 'expression again, the imported-helper proof above is no longer testing this route.',
+	);
+	assert.ok(
+		routeSource.includes('export function buildActorSchoolYearIds('),
+		'the helper must stay exported, or this test cannot import the route\'s own expression.',
 	);
 });
 

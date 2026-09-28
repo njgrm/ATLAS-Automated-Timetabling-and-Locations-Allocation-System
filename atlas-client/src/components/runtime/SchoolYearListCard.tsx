@@ -154,12 +154,16 @@ function YearRow({ schoolId, year, onKept }: YearRowProps) {
 			{/* Item 3: the existing read-only Teaching Load link, unchanged, plus
 			    the Timetable link on the SAME id (R6).
 
-			    A7-C3: the Timetable link is offered for PAST years only. The route is
-			    a past-year read scope, and asked for the CURRENT year it answers with
-			    a notice rather than a timetable — so linking it there would be a
-			    control that goes nowhere. The current year already has the ordinary
-			    timetable route from the nav. The Teaching Load link is NOT restricted:
-			    it is the existing read-only history view and behaves for every year. */}
+			    A7-C3: the Timetable link is offered for PAST years only. The CORRECT
+			    reason, after QA B2 caught the first version of this comment asserting
+			    something false: the current year is already one nav click away on the
+			    ordinary `/timetable`, and the past-year scope REFUSES it server-side
+			    with a typed 409 `NOT_A_PAST_SCHOOL_YEAR` — so linking it here would
+			    spend a doomed request. It is not a dead link: the client answers the
+			    current year from its own active year and renders the current
+			    timetable, which is why this is a tidiness cut, not a capability cut.
+			    The Teaching Load link is NOT restricted: it is the existing read-only
+			    history view and behaves for every year. */}
 			<div className="mt-2 flex flex-wrap items-center gap-2">
 				<Button asChild type="button" variant="outline" size="sm" className="min-h-11">
 					<Link to={plainTeachingLoadYearHref(year.enrollProSchoolYearId)} data-testid={`year-setup-tl-${year.enrollProSchoolYearId}`}>

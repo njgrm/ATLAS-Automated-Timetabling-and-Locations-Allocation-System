@@ -675,6 +675,29 @@ router.get(
 // and a year whose contract does not resolve is a typed 409, never a Term 1.
 //
 // A past year with nothing published is a TYPED 404, never the current year.
+
+/**
+ * A7-C3: the set of school-year ids this school owns, in the ONE id space the
+ * rest of the read path uses.
+ *
+ * ATLAS has two school-year id spaces — the EnrollPro year id
+ * (`enrollProSchoolYearId`) and the internal `enrollProSchoolYearMirror.id` — and
+ * they are NOT equal numbers. `resolvePastYearReadScope` is handed this set, so
+ * this function decides which id space the past-year route accepts.
+ *
+ * It is exported and named so the id-space proof can exercise the ROUTE'S OWN
+ * expression instead of a test-local copy of it. A7-C3 QA B1 found that a
+ * hand-copied `.map((row) => row.enrollProSchoolYearId)` in the test stayed green
+ * when this route was switched to the internal key, so the "the link and the
+ * server agree" rows were proving nothing. Behaviour is unchanged: this is the
+ * same expression, hoisted and named.
+ */
+export function buildActorSchoolYearIds(
+	yearRows: readonly { enrollProSchoolYearId: number }[],
+): number[] {
+	return yearRows.map((row) => row.enrollProSchoolYearId);
+}
+
 router.get(
 	'/schools/:schoolId/school-years/:schoolYearId/schedules/published/history',
 	authenticate,
@@ -693,7 +716,7 @@ router.get(
 				actorSchoolId,
 				requestedSchoolId: req.params.schoolId,
 				requestedSchoolYearId: req.params.schoolYearId,
-				actorSchoolYearIds: yearRows.map((row) => row.enrollProSchoolYearId),
+				actorSchoolYearIds: buildActorSchoolYearIds(yearRows),
 				activeSchoolYearId: await resolveActiveSchoolYearId(actorSchoolId),
 			});
 			if (!scope.ok) {
