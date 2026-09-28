@@ -194,6 +194,10 @@ non-risks; A3 marked 4 items QA_PASSED against its own narrowed rewrites.
   cannot be marked met. Lane C's live walk against the original text is the verdict.
 - **The cycle metric is fixes seen live.** A handoff opens with "N fixes live and seen / M integrated / K dropped".
   Self-corrections of the planner's own records go in one line, not a section.
+- **Real-route smoke before "ready".** A lane's ready post must include a loopback Playwright run (built client, mocked
+  `/api/v1`, `ISOLATED_LOCAL_BROWSER`) that loads every route the slice touched from loading to resolved data and fails
+  on any error boundary or console error. Evidence 2026-09-28: `e59b8ba1` passed 41/41 jsdom QA and crashed `/timetable`
+  on staging with React #310 on every load.
 - **Staging first.** Once staging exists (§14 A4), a candidate counts as ready only after it renders on staging and
   the lane's rows pass there; production then needs only the A4 smoke.
 
