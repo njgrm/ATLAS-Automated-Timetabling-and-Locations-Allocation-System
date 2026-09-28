@@ -949,9 +949,15 @@ test('A3-C9 [SUPERSEDED IN BEHAVIOUR by A3-C10 on the Room Type / Program reach,
 	// Program, and it stands between the operator and both of them. The
 	// replacement asserts the two filters as their own directly-visible
 	// controls and asserts this grouping trigger is GONE.
+	//
+	// The comparison is on a BOOLEAN on purpose. `assert.equal(<dom element>,
+	// null)` makes node:assert build a diff of the element, which recurses into
+	// the whole jsdom document and dies with `RangeError: Array buffer
+	// allocation failed` instead of reporting the message — a control that
+	// "fails" for the wrong reason proves nothing on a reviewer.
 	assert.equal(
-		query(host, 'subjects-catalog-filter-trigger'),
-		null,
+		query(host, 'subjects-catalog-filter-trigger') === null,
+		true,
 		'the combined room-type/program trigger is back: that grouping button IS the disclosure FIX-15 re-issued',
 	);
 
@@ -969,8 +975,8 @@ test('A3-C9 [SUPERSEDED IN BEHAVIOUR by A3-C10 on the Room Type / Program reach,
 	// regression cannot come back silently; the replacement control walks each
 	// filter on its own, from a first click that is already on that filter.
 	assert.equal(
-		query(host, 'subjects-catalog-filter'),
-		null,
+		query(host, 'subjects-catalog-filter') === null,
+		true,
 		'the combined catalog popover is back: its options are what FIX-15 re-issued asked to be directly visible',
 	);
 	// What A3-C9 was actually protecting — that the FULL catalog is offered and
@@ -1163,7 +1169,9 @@ test('A3-C10: Reset is offered only while a filter is active', async () => {
 	// only when that flag is true. Asserted on BOTH values, because a control
 	// that is always rendered passes a one-sided control.
 	const off = await render(<MemoryRouter><SubjectFilterToolbar {...EDITABLE} hasActiveFilters={false} /></MemoryRouter>);
-	assert.equal(query(off, 'subjects-reset-filters'), null, 'Reset is offered with no filter active');
+	// Boolean comparison on purpose: `assert.equal(<dom node>, null)` builds an
+	// assert diff of the node and blows up jsdom instead of reporting the message.
+	assert.equal(query(off, 'subjects-reset-filters') === null, true, 'Reset is offered with no filter active');
 	const on = await render(<MemoryRouter><SubjectFilterToolbar {...EDITABLE} hasActiveFilters /></MemoryRouter>);
 	assert.ok(query(on, 'subjects-reset-filters'), 'Reset is not offered while a filter is active');
 	await click(query(on, 'subjects-reset-filters'));
