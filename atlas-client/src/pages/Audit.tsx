@@ -6,6 +6,7 @@ import {
 	Box,
 	CheckCircle2,
 	Clock,
+	Info,
 	Loader2,
 	RefreshCw,
 	Search,
@@ -70,16 +71,88 @@ type FindingGroup = {
 	emptyBody: string;
 };
 
-function severityClassName(severity: FindingSeverity): string {
-	if (severity === 'blocker') return 'border-red-200 bg-red-50 text-red-700';
-	if (severity === 'warning') return 'border-amber-200 bg-amber-50 text-amber-700';
-	return 'border-sky-200 bg-sky-50 text-sky-700';
+/**
+ * A3-C8 S1 — the three severity treatments, in the app's semantic tokens.
+ *
+ * Every severity carries THREE independent signals, not one: a hue, a word, and an
+ * ICON. The icon is what makes the cue survive a reader who cannot separate the
+ * hues, and it is rendered from this one map at both badge sites, so a fourth
+ * severity can never be added without also getting a shape.
+ *
+ * `info` is deliberately NEUTRAL rather than a fourth hue. The obvious candidate was
+ * to carry the old `sky` over, but `sky` has no token in this system, and inventing
+ * one would (a) put a new colour family in a stylesheet this lane may not touch and
+ * (b) risk collapsing `info` into the ready/`accent` role, which is the one hue that
+ * already means "this is fine". `index.css` warns about exactly that collapse
+ * ("two meanings never collapse into one shade"). A neutral grey pill plus a
+ * different icon is both calmer and unambiguous.
+ *
+ * MEASURED CONTRAST (HSL from the merged `:root` values; see the handoff):
+ *   text-warning-foreground on bg-warning-muted .... 8.415:1  AA pass (gated row)
+ *   text-destructive on bg-destructive/5 over white .. 3.70:1  below AA 4.5
+ *   text-muted-foreground on bg-muted .............. 4.268:1  below AA 4.5
+ * The two sub-AA figures are properties of the MERGED tokens, not choices made here,
+ * and both pairings are the app's own established convention (see
+ * faculty-shared/PlainLanguageNotice.tsx:18 and the global --muted/--muted-foreground
+ * pair). `border-warning-border` on bg-warning-muted is 2.081:1, the pinned debt, so
+ * no severity here is distinguished by its border alone: border, surface and text
+ * move together, and the icon moves independently.
+ */
+export const SEVERITY_TREATMENT: Record<FindingSeverity, { label: string; className: string; Icon: typeof ShieldCheck }> = {
+	blocker: {
+		label: 'Blocks readiness',
+		className: 'border-destructive/30 bg-destructive/5 text-destructive',
+		Icon: XCircle,
+	},
+	warning: {
+		label: 'Needs review',
+		className: 'border-warning-border bg-warning-muted text-warning-foreground',
+		Icon: AlertTriangle,
+	},
+	info: {
+		label: 'Check source',
+		className: 'border-border bg-muted text-muted-foreground',
+		Icon: Info,
+	},
+};
+
+/**
+ * The single badge renderer for severity. Both call sites use it, which is what
+ * makes "every severity has a non-colour cue at every render site" structural
+ * rather than a convention someone has to remember.
+ *
+ * The icon is `aria-hidden`: the word beside it already carries the meaning, so a
+ * screen reader reads "Blocks readiness", not "circle-x Blocks readiness". It is
+ * there for the sighted reader who cannot use the hue.
+ */
+export function SeverityBadge({ severity }: { severity: FindingSeverity }) {
+	const { label, className, Icon } = SEVERITY_TREATMENT[severity];
+	return (
+		<Badge variant="outline" className={`rounded-full ${className}`}>
+			<Icon className="size-3 shrink-0" aria-hidden="true" />
+			{label}
+		</Badge>
+	);
 }
 
-function severityLabel(severity: FindingSeverity): string {
-	if (severity === 'blocker') return 'Blocks readiness';
-	if (severity === 'warning') return 'Needs review';
-	return 'Check source';
+/**
+ * A3-C8 S1 — the `focus` search-param contract, extracted so it is directly testable.
+ *
+ * Behaviour is unchanged, including the part that is easy to lose: an unrecognised
+ * `focus` still falls through to the FIRST GROUP WITH FINDINGS (not the first group
+ * in the list), so `/audit` with no query still opens on something actionable.
+ * `focus=timetable` still resolves to `constraints` — it is a legacy alias from
+ * before the room-preferences work renamed the surface, and `/timetable` links are
+ * Lane A2's, so the alias is the compatibility half of that contract.
+ */
+export function resolveFocusGroupId(
+	focus: string | null,
+	groups: ReadonlyArray<{ id: string; findings: ReadonlyArray<unknown> }>,
+): string {
+	if (focus === 'timetable') return 'constraints';
+	if (focus && groups.some((group) => group.id === focus)) return focus;
+	const firstGroupWithFindings = groups.find((group) => group.findings.length > 0);
+	return firstGroupWithFindings?.id ?? 'teacher-assignments';
 }
 
 export default function Audit() {
@@ -386,7 +459,7 @@ export default function Audit() {
 		...gaps.map((subject, index) => ({
 			id: `assignment-gap-${subject.id}-${index}`,
 			title: `${subject.name} has no qualified teacher`,
-			blockedLabel: 'Subject coverage is not ready for generation.',
+			blockedLabel: 'Subject coverage is not ready for scheduling review.',
 			detail: `Required coverage: ${(subject.allowedSpecializations || []).join(', ') || 'listed specialization'}.`,
 			why: 'ATLAS needs at least one qualified teacher before this subject can be placed reliably.',
 			actionLabel: 'Review teaching load',
@@ -453,7 +526,7 @@ export default function Audit() {
 			id: `source-degraded-${index}-${reason}`,
 			title: reason,
 			blockedLabel: dataSource === 'none' ? 'The readiness report cannot finish.' : 'This finding may be based on saved evidence.',
-			detail: dataSource === 'none' ? 'This evidence is required before ATLAS can finish the readiness report.' : 'The report is using saved ATLAS evidence for this domain.',
+			detail: dataSource === 'none' ? 'This evidence is required before ATLAS can finish the readiness report.' : 'The report is using data saved in ATLAS for this domain.',
 			why: 'Officers need to know whether a finding is backed by live data or saved data.',
 			actionLabel: 'Check setup source',
 			route: reason.toLowerCase().includes('subject') ? '/subjects' : reason.toLowerCase().includes('teacher') || reason.toLowerCase().includes('teaching') ? '/teachers' : '/sections',
@@ -480,7 +553,7 @@ export default function Audit() {
 			description: 'Teacher coverage, qualifications, and load balance.',
 			icon: UserMinus,
 			findings: assignmentFindings,
-			blockedLabel: 'Teacher coverage can block generation.',
+			blockedLabel: 'Teacher coverage can block scheduling review.',
 			why: 'ATLAS needs the right teacher assigned to each subject-section pair before the timetable can be trusted.',
 			primaryActionLabel: 'Fix teacher assignments',
 			primaryRoute: assignmentFindings[0]?.route ?? '/teaching-load',
@@ -496,7 +569,7 @@ export default function Audit() {
 			description: 'Sections missing required class coverage.',
 			icon: BookX,
 			findings: sectionFindings,
-			blockedLabel: 'Incomplete sections can block generation.',
+			blockedLabel: 'Incomplete sections can block scheduling review.',
 			why: 'A section with a missing subject-teacher pair cannot produce a complete class program.',
 			primaryActionLabel: 'Assign missing coverage',
 			primaryRoute: sectionFindings[0]?.route ?? '/teaching-load',
@@ -545,21 +618,21 @@ export default function Audit() {
 			icon: RefreshCw,
 			findings: sourceFindings,
 			blockedLabel: 'Readiness evidence needs confirmation.',
-			why: 'Officers need a clear source state before deciding whether setup is ready for generation or publish.',
+			why: 'A clear source state tells officers whether setup is ready for scheduling review.',
 			primaryActionLabel: 'Check source records',
 			primaryRoute: sourceFindings[0]?.route ?? '/sections',
 			repairTarget: sourceFindings[0]?.repairTarget ?? 'sections',
 			secondaryActionLabel: 'Refresh report',
 			secondaryRoute: '/audit',
 			emptyTitle: 'Evidence source looks usable',
-			emptyBody: dataSource === 'live' ? 'The report is based on live upstream-backed evidence.' : 'The report is based on saved ATLAS evidence with no missing domains reported.',
+			emptyBody: dataSource === 'live' ? 'The report is based on the latest data from EnrollPro.' : 'The report is based on data saved in ATLAS, with no missing domains reported.',
 		},
 	];
 
 	const blockerCount = findingGroups.reduce((total, group) => total + group.findings.filter((finding) => finding.severity === 'blocker').length, 0);
 	const warningCount = findingGroups.reduce((total, group) => total + group.findings.filter((finding) => finding.severity === 'warning').length, 0);
 	const avgLoad = faculty.reduce((sum, facultyMember) => sum + (facultyMember.loadPercentage ?? 0), 0) / (faculty.length || 1);
-	const sourceLabel = dataSource === 'live' ? 'Live upstream-backed' : dataSource === 'cached' ? 'ATLAS saved evidence' : 'No saved evidence';
+	const sourceLabel = dataSource === 'live' ? 'Live from EnrollPro' : dataSource === 'cached' ? 'Saved in ATLAS' : 'No saved data';
 	const priorityFindings = findingGroups
 		.flatMap((group) => group.findings)
 		.sort((left, right) => {
@@ -567,35 +640,39 @@ export default function Audit() {
 			return rank[left.severity] - rank[right.severity];
 		})
 		.slice(0, 3);
-	const defaultGroupId = (() => {
-		const focus = searchParams.get('focus');
-		if (focus === 'timetable') return 'constraints';
-		if (focus && findingGroups.some((group) => group.id === focus)) return focus;
-		const firstGroupWithFindings = findingGroups.find((group) => group.findings.length > 0);
-		return firstGroupWithFindings?.id ?? 'teacher-assignments';
-	})();
+	const defaultGroupId = resolveFocusGroupId(searchParams.get('focus'), findingGroups);
 	const verdict = dataSource === 'none'
 		? {
 			label: 'Cannot check readiness yet',
 			detail: 'ATLAS could not load enough setup evidence to complete this report.',
 			icon: AlertTriangle,
-			className: 'border-amber-200 bg-amber-50 text-amber-900',
-			iconClassName: 'bg-amber-100 text-amber-700',
+			// The panel's hue, tint and icon circle all come from the warning family, so the
+			// card reads as the same object as a `warning` severity badge. The text colour is
+			// deliberately NOT set here: Card supplies text-card-foreground, which keeps the
+			// heading legible where the three deep ramp shades used to carry the meaning by
+			// text colour alone. (Named deliberately, not as literals: this file's raw-amber
+			// detector counts LINES, so writing a retired shade name in a comment would pin a
+			// phantom occurrence.)
+			className: 'border-warning-border bg-warning-muted',
+			iconClassName: 'bg-warning text-warning-muted',
 		}
 		: blockerCount === 0
 			? {
 				label: 'Ready for scheduling review',
 				detail: 'No readiness blockers were found in the loaded evidence. Review warnings before moving forward.',
 				icon: CheckCircle2,
-				className: 'border-emerald-200 bg-emerald-50 text-emerald-900',
-				iconClassName: 'bg-emerald-100 text-emerald-700',
+				// --accent-muted is a CSS var but is NOT mapped to a --color-* utility in
+				// @theme inline, so bg-accent-muted emits no CSS. The alpha form does, and
+				// bg-accent/10 is the same pale green the token describes.
+				className: 'border-accent/30 bg-accent/10',
+				iconClassName: 'bg-accent text-accent-foreground',
 			}
 			: {
 				label: 'Needs fixes before scheduling',
 				detail: `${blockerCount} readiness blocker${blockerCount === 1 ? '' : 's'} must be fixed before scheduling review is reliable.`,
 				icon: XCircle,
-				className: 'border-red-200 bg-red-50 text-red-900',
-				iconClassName: 'bg-red-100 text-red-700',
+				className: 'border-destructive/30 bg-destructive/5',
+				iconClassName: 'bg-destructive text-destructive-foreground',
 			};
 
 	const VerdictIcon = verdict.icon;
@@ -625,7 +702,7 @@ export default function Audit() {
 									<p className="mt-2 text-sm text-muted-foreground">ATLAS is checking the setup evidence officers need before scheduling review.</p>
 									<div className="mt-4 grid gap-2 sm:grid-cols-2">
 										{AUDIT_DOMAINS.map((domain) => (
-											<div key={domain} className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm font-medium text-slate-600">
+											<div key={domain} className="flex items-center gap-2 rounded-xl bg-muted px-3 py-2 text-sm font-medium text-slate-600">
 												<ShieldCheck className="size-4 text-primary" />
 												{domain}
 											</div>
@@ -645,7 +722,7 @@ export default function Audit() {
 			<header className="shrink-0 px-6 pt-5 lg:px-8">
 				<PageHeader
 					title='Audit'
-					eyebrow='Review and publish'
+					eyebrow='Readiness check'
 					subtitle='See what ATLAS checked, what blocks readiness, and which setup page fixes each issue.'
 					source={(
 						<Badge variant="outline" className="rounded-full border-primary/20 bg-white px-3 py-1 text-primary">
@@ -663,9 +740,9 @@ export default function Audit() {
 				<div className="mt-4 flex flex-wrap items-center gap-4 overflow-x-auto rounded-2xl border border-primary/10 bg-white px-4 py-3 text-sm shadow-soft scrollbar-none">
 					<span className="font-semibold text-foreground">Checked: <span className="font-normal text-muted-foreground">{AUDIT_DOMAINS.length} domains</span></span>
 					<span className="text-slate-200">|</span>
-					<span className="font-semibold text-foreground">Blockers: <span className={blockerCount > 0 ? 'font-normal text-red-600' : 'font-normal text-emerald-600'}>{blockerCount}</span></span>
+					<span className="font-semibold text-foreground">Blockers: <span className={blockerCount > 0 ? 'font-normal text-destructive' : 'font-normal text-accent'}>{blockerCount}</span></span>
 					<span className="text-slate-200">|</span>
-					<span className="font-semibold text-foreground">Warnings: <span className="font-normal text-amber-600">{warningCount}</span></span>
+					<span className="font-semibold text-foreground">Warnings: <span className="font-normal text-warning">{warningCount}</span></span>
 					<span className="text-slate-200">|</span>
 					<span className="font-semibold text-foreground">Average roster load: <span className="font-normal text-muted-foreground">{avgLoad.toFixed(1)}%</span></span>
 				</div>
@@ -698,9 +775,9 @@ export default function Audit() {
 					</Card>
 
 					{dataSource === 'none' && (
-						<div className="rounded-2xl border border-amber-200 bg-white p-5 shadow-soft">
+						<div className="rounded-2xl border border-warning-border bg-white p-5 shadow-soft">
 							<div className="flex items-start gap-3">
-								<AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600" />
+								<AlertTriangle className="mt-0.5 size-5 shrink-0 text-warning" />
 								<div>
 									<p className="font-bold text-foreground">No complete readiness evidence is available.</p>
 									<p className="mt-1 text-sm text-muted-foreground">Refresh this report, then check Sections, Subjects, Teachers, and Teaching Load if evidence is still missing.</p>
@@ -722,9 +799,9 @@ export default function Audit() {
 							</div>
 							<div className="grid gap-2 lg:grid-cols-3">
 								{priorityFindings.map((finding) => (
-									<div key={finding.id} className="flex min-h-28 flex-col justify-between rounded-xl border border-slate-100 bg-slate-50 p-3">
-										<div>
-											<Badge variant="outline" className={`rounded-full ${severityClassName(finding.severity)}`}>{severityLabel(finding.severity)}</Badge>
+								<div key={finding.id} className="flex min-h-28 flex-col justify-between rounded-xl border border-border bg-muted p-3">
+									<div>
+										<SeverityBadge severity={finding.severity} />
 											<p className="mt-2 text-sm font-bold text-foreground">{finding.title}</p>
 										</div>
 										<Button asChild variant="outline" size="sm" className="mt-3 justify-between rounded-xl bg-white">
@@ -750,13 +827,13 @@ export default function Audit() {
 									placeholder="Search findings..."
 									value={searchQuery}
 									onChange={(event) => setSearchQuery(event.target.value)}
-									className="h-10 rounded-xl bg-slate-50 pl-9"
+									className="h-10 rounded-xl bg-muted pl-9"
 								/>
 							</div>
 						</div>
 
 						<Tabs defaultValue={defaultGroupId} className="flex min-h-0 flex-col">
-							<TabsList className="flex h-auto w-full flex-wrap justify-start gap-2 bg-slate-100 p-1">
+							<TabsList className="flex h-auto w-full flex-wrap justify-start gap-2 bg-muted p-1">
 								{findingGroups.map((group) => {
 									const GroupIcon = group.icon;
 									return (
@@ -773,18 +850,18 @@ export default function Audit() {
 								const visibleFindings = filterFindings(group.findings);
 								return (
 									<TabsContent key={group.id} value={group.id} className="mt-4 focus-visible:ring-0">
-										<div className="rounded-2xl border border-slate-100 bg-slate-50/70">
-											<div className="border-b border-slate-100 px-4 py-3">
+										<div className="rounded-2xl border border-border bg-muted/70">
+											<div className="border-b border-border px-4 py-3">
 												<p className="font-bold text-foreground">{group.label}</p>
 												<p className="text-sm text-muted-foreground">{group.description}</p>
 											</div>
-											<div className="grid gap-3 border-b border-slate-100 bg-white px-4 py-4 lg:grid-cols-[1fr_auto] lg:items-center">
+											<div className="grid gap-3 border-b border-border bg-white px-4 py-4 lg:grid-cols-[1fr_auto] lg:items-center">
 												<div className="grid gap-3 text-sm md:grid-cols-2">
-													<div className="rounded-xl bg-slate-50 px-3 py-2">
+													<div className="rounded-xl bg-muted px-3 py-2">
 														<p className="text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">What is blocked</p>
 														<p className="mt-1 font-semibold text-foreground">{group.blockedLabel}</p>
 													</div>
-													<div className="rounded-xl bg-slate-50 px-3 py-2">
+													<div className="rounded-xl bg-muted px-3 py-2">
 														<p className="text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">Why it matters</p>
 														<p className="mt-1 text-slate-600">{group.why}</p>
 													</div>
@@ -806,20 +883,20 @@ export default function Audit() {
 												</div>
 											</div>
 											<ScrollArea className="max-h-[46svh] min-h-72">
-												<div className="divide-y divide-slate-100 bg-white">
+												<div className="divide-y divide-border bg-white">
 													{visibleFindings.length === 0 ? (
 														<div className="px-6 py-16 text-center">
-															<ShieldCheck className="mx-auto mb-3 size-10 text-emerald-500/40" />
+															<ShieldCheck className="mx-auto mb-3 size-10 text-accent/40" />
 															<p className="font-bold text-foreground">{searchQuery ? 'No matching findings' : group.emptyTitle}</p>
 															<p className="mx-auto mt-1 max-w-lg text-sm text-muted-foreground">{searchQuery ? 'Clear the search to see the full report.' : group.emptyBody}</p>
 														</div>
 													) : (
-														<Accordion type="single" collapsible className="w-full divide-y divide-slate-100">
+														<Accordion type="single" collapsible className="w-full divide-y divide-border">
 															{visibleFindings.map((finding) => (
 																<AccordionItem key={finding.id} value={finding.id} className="border-b last:border-b-0">
 																	<AccordionTrigger className="px-4 py-4 hover:no-underline [&[data-state=open]]:bg-muted/10">
 																		<div className="flex flex-wrap items-center gap-2">
-																			<Badge variant="outline" className={`rounded-full ${severityClassName(finding.severity)}`}>{severityLabel(finding.severity)}</Badge>
+																			<SeverityBadge severity={finding.severity} />
 																			<span className="font-bold text-foreground text-sm text-left">{finding.title}</span>
 																		</div>
 																	</AccordionTrigger>
