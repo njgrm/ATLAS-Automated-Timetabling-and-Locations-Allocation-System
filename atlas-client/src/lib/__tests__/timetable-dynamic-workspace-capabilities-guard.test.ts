@@ -22,9 +22,61 @@ test('R7 Simple task definitions consume the shared capability gates', () => {
 });
 
 test('R7 Simple publish action reads the publication gate, not a local count', () => {
+	// SOURCE-SHAPE ROW, restated 2026-09-29 (executor A2). The load-bearing claim
+	// is UNCHANGED — neither the publish task nor the swap task may be built from
+	// a local count; both read the shared capability gate. Only the FILE holding
+	// each read moved, and it moved inside this range: the header kept the
+	// publication gate, and when the two-row header extracted the task dispatcher
+	// the swap gate went with it.
+	// SUPERSEDED 2026-09-29 (authority: AGENTS.md §8 "Header budget", the A2
+	// header-budget range) — the two assertions below pinned BOTH reads to the
+	// header's own source text. Retained verbatim, per AGENTS.md §16
+	// (corrections are additive, never subtractive). The swap read now lives in
+	// `SimpleHeaderTasks.ts`, which the header imports as `createSimpleTaskStarter`.
+	// const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	// assert.match(header, /gates\.publication\.enabled/);
+	// assert.match(header, /gates\.swap\.enabled/);
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
 	assert.match(header, /gates\.publication\.enabled/);
-	assert.match(header, /gates\.swap\.enabled/);
+});
+
+test('R7 [source shape, restated 2026-09-29] neither Simple task action is built from a local count', () => {
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	const tasks = source('src/components/timetable/simple/SimpleHeaderTasks.ts');
+
+	// PUBLICATION — still the header, still the shared gate, on BOTH the
+	// lifecycle action and the task-dispatch plan that routes to it. A local
+	// count could satisfy neither: the value is `gates.publication.enabled` itself.
+	assert.match(
+		header,
+		/shouldDispatchSimplePublish\(capabilities\.gates\.publication\.enabled, isRunPublished\)/,
+		'the publish ACTION is gated on the shared capability gate, not a local count',
+	);
+	assert.match(
+		header,
+		/resolvePublishTaskDispatch\(plan\.kind === 'publish-task' \? capabilities\.gates\.publication\.enabled : false\)/,
+		'and so is the task-dispatch PLAN that opens it',
+	);
+
+	// SWAP — asserted on the BRANCH BODY, so the other two gate reads in the same
+	// function cannot stand in for this one and the row still fails if the swap
+	// gate read is deleted.
+	const swapBranch = tasks.match(/if \(task === 'swap-sessions'\) \{([\s\S]*?)\n\t\}/);
+	assert.ok(swapBranch, 'the swap task must still have its own dispatch branch');
+	assert.match(
+		swapBranch![1],
+		/if \(!capabilities\.gates\.swap\.enabled\) return;/,
+		'the swap TASK is gated on the shared capability gate, not a local count',
+	);
+
+	// and the header still hands that gate-bearing starter the capabilities object
+	const starter = header.match(/createSimpleTaskStarter\(\{([\s\S]*?)\n\t\}\);/);
+	assert.ok(starter, 'the header must build the task starter');
+	assert.match(
+		starter![1],
+		/\r?\n\t\tcapabilities,\r?\n/,
+		'the starter receives the capabilities the swap gate is read from',
+	);
 });
 
 test('R7 room-request review is reachable from Simple without a second authority', () => {
