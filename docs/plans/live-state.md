@@ -4205,28 +4205,54 @@ decidable from source. Worktrees `lane-a3-c10-{s1-sections,s3-tldensity,s4-teach
 - **Stream:** Teachers + Teaching Load, items 24.1, 23.1, 16.1, 38, 39, 40 + FIX-29, plus Lane C's
   19:05 Teaching Load header walk (`docs/reviews/codex-teaching-load-walk-20260928/report.md`,
   5 major / 2 minor). Source only, non-elevated, never deploys. Worktree
-  `E:/ATLAS-worktrees/lane-a6-teachers-tl`, branches `work/a6-teachers-tl` (`4706ba65`) and
-  `integration/a6-teachers-tl-2026-09-28`.
-- **Integrated and pushed 2026-09-28, `A6 ready for release at 6498c322`** (pushed
-  `b517c9fe..6498c322`, fast-forward). Product range `abe0153a..4706ba65` on base `5c566dba`, 25
-  paths. **0 fixes live and seen / 7 integrated / 0 dropped.** Fresh QA `ACCEPT_READY` 23 → 19/0/4,
-  one BLOCKING, bounded correction, scoped re-review **22/22/0/0**. Combined gates on the merged tree
-  all green; `typecheck` 5 errors, **0 in A6 files** (A2-owned, 3 × missing `playwright`).
+  `E:/ATLAS-worktrees/lane-a6-teachers-tl`, branches `work/a6-tl-header-c2` (`26b927eb`) and
+  `integration/a6-teachers-tl-c2-2026-09-29` (`5481dcc`, on `origin/main`).
+- **Integrated and pushed 2026-09-29, `A6 ready for release at 5481dcc`** (pushed
+  `3e9d0f6c..5481dccc`). **0 fixes live and seen / 5 integrated and NOT seen rendered / 0 dropped.**
+  Cycle: candidate `cdcf30eb` on base `ad80f737`, 16 paths, all `atlas-client/src/**`. Fresh QA round 1
+  `CORRECTION_REQUIRED` **9/10/0/0** — one BLOCKING, a real degraded-data defect. Bounded correction
+  `26b927eb`, additive on the same branch. Scoped re-review `ACCEPT_READY` **8/8/0/0**; QA reproduced
+  the failing-first itself (23 tests / 21 pass / 2 fail reverted → 23/0 restored). The product tree of
+  `5481dcc` is **byte-identical** to `26b927eb`, and the integration delta is exactly those 16 paths.
   **A4 owns the release; A6 does not deploy.**
-- **Dated blocker 2026-09-28 — Lane C's 19:05 spec is NOT REACHED.** 5 major live in A6's fence, and
-  **three sit in code `6498c322` just changed**, so the before/after is unknown: (1) the 1070px header
-  status/action rail overflows and hides the warning chip under `Assign`; (2) `% staffed 100%` /
-  `0` beside `Unknown number of classes` in the saved-data path; (3) the summary's two horizontal
-  scrollers — item 38 moved it into a dialog but bounded only the vertical axis, **so this may not
-  have moved at all**; (4) the card's inline destructive-looking assignment editor; (5) the Sections
-  tab's wrong empty state after a no-match search. Minors 6 and 7 are already addressed by items 40
-  and 16.1. A6's c1 spent its two review rounds on the seven packet items; this was posted, not
-  absorbed.
-- **Dated residual 2026-09-28, NON_BLOCKING, no third round:** `TeachingLoadModals.tsx:162` discard
-  dialog still says `Draft N change(s)` with a teacher count; the new change-count arithmetic is
-  source-shape-pinned, not executed; `pages/TeachingLoad.tsx` is **full at 998 lines** against
-  `client-quality`'s strict `< 1000` row — do not add to it.
-- **Next action (single):** dispatch the next A6 cycle at Lane C's **Major 3 then Major 1**, because
-  both touch code this release changed and A6 will not guess which way they moved.
+- **What shipped, against Lane C's own words:** the `Load summary` dialog is a vertical list with no
+  sideways scroller (was 1,189px and 2,388px of content in a 451px box); header row 2 is ONE status
+  sentence + ONE primary action, no `overflow-x-auto`, `Archived load` moved into the More menu; a
+  draft chip (`Draft — not saved` / `Saved`) and `Suggest assignments` in secondary, sentence case, no
+  letter-spaced caps; inspection is a read-only profile dialog with a separate `Edit assignments`; the
+  Sections no-match search says `No sections match '<q>'` with a working Clear search; the label is
+  `Review staff workload` over a `Staff workload audit` dialog. Header budget re-verified at **2 band
+  rows / 66px** against the 70px ceiling, and `pages/TeachingLoad.tsx` shrank **998 → 995** (the
+  inspector node moved verbatim into `TeachingLoadInspectorPanel.tsx`).
+- **Dated blocker 2026-09-29 — the five fixes are NOT seen rendered and are NOT claimed as seen.** A6's
+  loopback measurement was `UNPERFORMED`: the only available Playwright profile
+  (`C:/Users/njgro/.config/opencode/playwright-profile`) was held by another lane, and §12 forbids two
+  agents in one profile. The built client did serve 200 on `127.0.0.1:5291/teaching-load`; the preview
+  was stopped and its logs deleted, no residue. **A4 owns the post-deploy browser rows for `5481dcc`**
+  (§13) — at 1366x768 and 1920x1080 on the Tailnet: no page or row-2 horizontal scrollbar; no overlap
+  between the status sentence and any action; the draft chip and `Suggest assignments` legible; the
+  `Load summary` dialog a vertical list with every label and value visible; `No sections match '<q>'`
+  on a no-match search; and one amber `EnrollPro not reachable` line with **no** unlabelled derived
+  count beside it. No one may record these rows met without a screenshot at both widths.
+- **Dated follow-ups 2026-09-29, all NON_BLOCKING, all open:** (N-1) `refreshing` still publishes
+  `Teaching Load looks ready` / `23 of 24` over a last-saved snapshot, and a test now PINS that branch —
+  it needs a deliberate decision; (N-2) the degraded withholding is wider than declared
+  (`teacher-missing-load`'s department label is a local fact, now withheld) and narrower than the
+  titles (`…is over the weekly max`, `…has no load` survive as flat assertions); (N-3) the shared
+  status string hard-codes "EnrollPro is not reachable" in `OFFLINE`/`NONE`, beside an honest line
+  saying ATLAS is offline. Carried from QA: no timezone label on the saved-at time;
+  `teaching-load-truth-source-badge` has no live rendered assertion; `overflow-x-auto` retained in the
+  panel's unreachable default branch; `uppercase tracking-*` on non-header chrome in `SectionGridMode`
+  and the dialog; a missing space before the `·` in the alert clause (`WorkspaceToolbar.tsx:284`).
+  Also still open: `TeachingLoadModals.tsx:162` says `Draft N change(s)` with a teacher count.
+- **Housekeeping, 2026-09-29:** `pages/TeachingLoad.tsx` is **995 of 1000 lines** — the next slice here
+  needs a sub-component extraction first; do not add to it. `test:client-quality` is now **34/34** on
+  `main`: A2's `a2-c12-310fix` cleared the pre-existing `#310 ScheduleReviewWorkspace` failure A6 had
+  been carrying as a foreign blocker. `test:a3-title-strip-c3` remains **14/15** on the
+  `AdminWorkspace.tsx` 21-divs-vs-20 failure — still A2-owned, still untouched by A6.
+- **Next action (single):** hand `5481dcc` to A4 for the release with the five browser rows above as its
+  post-deploy acceptance. A6's own next cycle, only once a rendered verdict exists, is the N-1/N-2/N-3
+  degraded-copy decisions — not more header work.
 - **Worktree disposition:** `lane-a6-teachers-tl` is `RETIRE_AFTER_INTEGRATION`, **left in place for
-  A4** (§14 gives A4 E: capacity and junction-safe reclamation). No branch deleted.
+  A4** (§14 gives A4 E: capacity and junction-safe reclamation). Its `node_modules` is real and was
+  never junctioned. No branch deleted; `work/a6-tl-header-c2` still resolves to `26b927eb`.
