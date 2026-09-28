@@ -1280,3 +1280,64 @@ to it.
 **Next action for me:** dispatch the executor on the packet; three slice commits, then one fresh
 QA over the lane range, then integrate. I will post `A5 ready for release at <sha>` plus the live
 rows per slice. Nothing is owed back to me at this point.
+
+---
+
+## `A5 ready for release at c5aba703` — 2026-09-28 (Planner A5, non-elevated, source only)
+
+`A5 ready for release at c5aba703`. On `origin/main`. **Not deployed — A4 owns every release.**
+Product range `7f06f853..d53fcf84`, merged onto `bf50359f` at merge `c5aba703`; 19 paths, **no
+conflicts**. Fresh independent QA `ACCEPT_READY` **16/16/0/0**, blocked 0, unperformed 0, no BLOCKING
+findings.
+
+**Per the operator's own words** (`docs/reviews/operator-fixes-20260928/fix-1.1.docx` /
+`fix-2.docx`), not a narrower rewrite:
+
+- **34 + 35 — DONE.** The shared tooltip primitive now mounts `TooltipPrimitive.Content` inside
+  `TooltipPrimitive.Portal` with `z-50` and a dark readable bubble. This is the whole fix on
+  **every** table and it needed **zero changes to Sections, Teachers or Teaching Load files** —
+  `AdminTableShell`'s `overflow-auto`/`overflow-hidden` wrapper was the clipping ancestor, not their
+  header components. QA proved the portal load-bearing rather than reading the comment: portal
+  removed in a scratch copy → the lane's own suite goes **11 pass / 3 fail**.
+- **9.1 — DONE.** The two dropdowns that both answered "status" are merged into one control with
+  **five** options spanning **both** axes (subject status *and* attention/coverage), applied as both
+  predicates; Reset restores everything. Rendered row 4 confirms it really reaches both.
+- **41 — DONE.** One compact row at 1366 (search + four selects), clean wrap at 900px, no page
+  scrollbar. **The Term filter stays a fifth select**, per your decision — rendered row 3 counts
+  five triggers and names Term.
+- **17.1 — DONE.** Coverage dialog: resizable (a real mouse drag grows it, it stays centred),
+  `min-w-[500px] max-w-[95vw] min-h-[420px] max-h-[90vh]`, teacher name **+ load**, no duplicate
+  grade row, `[GRx] name` grade-pill section chips.
+- **FIX-20 — DONE** (your item, `lane-a-to-c.md:127`). On a **filled** subject form, Cancel — and
+  Escape, overlay click, the corner X and the page `onOpenChange` route — now **preserve the
+  fields** through a confirmation; on an **untouched** form it closes immediately with no
+  confirmation. Rendered wording: **"Discard your changes?"** / "This subject form has changes you
+  have not saved. Discard them and close the form, or cancel to keep editing." · `Cancel` ·
+  `Discard changes`. It reuses the existing `@/ui` `confirmation-modal.tsx` — nothing new invented.
+
+**Rendered rows are `ISOLATED_LOCAL_BROWSER`, not ATLAS acceptance.** Loopback `127.0.0.1:5203`
+preview of the candidate's own build, every `/api/v1/**` mocked in-process; row 10 asserts no write
+was ever requested and nothing escaped the mocks. Per AGENTS.md §12 a loopback row can never stand
+in for the Tailnet origin.
+
+**The ATLAS-origin rows below are still owed, and no source gate can close them.** A4, at cutover:
+on `/subjects`, hover a sortable column header and confirm the bubble is dark, fully above the table
+and not clipped; open **All Status** and confirm it filters both axes and Reset restores; confirm
+the filter row is one line with the Term select present; open the coverage dialog and drag-resize
+it; then start an edit, type a subject name, Cancel, and confirm the fields are still there behind
+"Discard your changes?".
+
+**A3-20 supersession — recorded, additive, and QA-adjudicated.** `subjects-ux-a3.test.tsx` had a
+control asserting `closes === 1` after Cancel on a form it had just **edited** — exactly what
+FIX-20 forbids. Nothing was deleted: assertions went **290 → 302**, `closes === 1` is re-proven on
+an untouched form in a second render, and the supersession note sits above the test. QA verified no
+assertion or control was deleted anywhere in the range.
+
+**Two NON_BLOCKING follow-ups, neither owed now:** (F2) the action-shaped tooltip *copy* reaches
+Subjects only — `AdminDataTable.tsx:328` still restates the accessible name on `/teachers`, so a
+later migration onto `SortableColumnHeader` would give copy parity; (F1) the discriminating
+assertion for the portal is structural rather than the paint pair — disclosed by the executor and
+confirmed by QA, and the paint pair guards viewport-overflow/occlusion, which the structural check
+cannot see.
+
+**Next action for me:** nothing is waiting on me. The Tailnet rows above are A4's after release.

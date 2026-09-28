@@ -4153,26 +4153,30 @@ decidable from source. Worktrees `lane-a3-c10-{s1-sections,s3-tldensity,s4-teach
 
 ## Lane A5 — current lane (written only by Planner A5)
 
-- **Stream:** `A5-SUBJECTS-C1` — operator items **34+35** (shared sortable-header tooltip), **9.1**
-  (duplicate status filters), **41** (Subjects compact filter row), **17.1** (Subject coverage
-  dialog). Packet `docs/prompts/a5-subjects-2026-09-28-c1.md`. Worktree
-  `E:/ATLAS-worktrees/lane-a5-subjects-c1`, branch `work/a5-subjects-c1`, base `7f06f853`
-  (= `origin/main`). **I am the sole writer of that worktree.**
-- **Tier:** MEDIUM (user-facing source, no data/auth/deploy). Loop is
-  `executor → one fresh QA → planner integration`. **I never deploy** (A4 does, §14).
+- **Stream:** `A5-SUBJECTS-C1` — **INTEGRATED at `c5aba703`, ready for release, NOT deployed.**
+  Operator items **34+35**, **9.1**, **41**, **17.1** from `docs/reviews/operator-fixes-20260928/`,
+  plus Lane C's **FIX-20** (`lane-a-to-c.md:127`). Product range `7f06f853..d53fcf84` merged onto
+  `bf50359f`; 19 paths, no conflicts. Fresh QA `ACCEPT_READY` **16/16/0/0**. I never deploy (§14).
+- **Fixes live and seen: 0** (Tailnet is A4's release). Integrated and rendered on an isolated
+  loopback build: **5 of 5** — 10/10 Playwright rows green, 98/98 unit rows green on the merged
+  tree, build green, typecheck 1 pre-existing error (`timetable-truth-labels-a2.test.ts:523`,
+  blob byte-identical at base). Dropped: 0.
+- **Gate discipline earned this cycle (2026-09-28), worth keeping:** the inherited uncommitted work
+  **deleted** the tooltip `Portal`, which reintroduces items 34/35 verbatim; measured `11 pass / 3
+  fail`, so it was reverted rather than reviewed as a change. The committed
+  `test:visual:a5-subjects-c1` script pointed at a **`.gitignore`d spec** — a gate no clone could
+  run — fixed with the repo's own `!` pattern. And a **class-list assertion was TRUE while the
+  rendered paint was WRONG** (`@/ui` `Input`'s trailing `sm:text-sm` beat bare `text-xs` through
+  tailwind-merge; the browser measured 14px), so item 41's row asserts measured `fontSize`.
 - **Ownership:** I own the shared `ui/tooltip.tsx` primitive and the new
-  `components/table/SortableColumnHeader.tsx`. A3/A6 must not touch the primitive. My Subjects
-  files: `pages/Subjects.tsx`, `components/subjects/*`. Cross-lane notice posted in
-  `docs/handoffs/lane-a-to-c.md` (as of 2026-09-28) for the two shared-file touches.
-- **Blockers:** none as of 2026-09-28. Not yet done: no slice committed; no QA dispatched; nothing
-  integrated; **0 fixes seen rendered**. Proof owed: the rendered row per item, quoted, on a
-  loopback build of the candidate (isolated — never on the Tailnet, which is A4's release and still
-  serves an older SHA).
-- **Note for A3/A6 (as of 2026-09-28):** fixing the tooltip primitive with a body **portal** fixes
-  items 34/35 on Sections, Teachers and Teaching Load with **no change to their files** — the
-  clipping came from `AdminTableShell`'s `overflow-auto` wrapper, not from their header components.
-  I therefore am not editing `SectionsSortableHeader.tsx`, `AdminDataTable.tsx` or anything in
-  `faculty-assignments/`. The new `SortableColumnHeader` is offered to them, not required.
-- **Next action (single):** dispatch `atlas-executor` for the three slices in packet order
-  (34+35 → 9.1 → 41 → 17.1), then one fresh QA over `7f06f853..<candidate>`, then integrate and
-  post `A5 ready for release at <sha>` + the live rows.
+  `components/table/SortableColumnHeader.tsx`; A3/A6 must not touch the primitive. My Subjects
+  files: `pages/Subjects.tsx`, `components/subjects/*`. Cross-lane notice + the release post are in
+  `docs/handoffs/lane-a-to-c.md`.
+- **Dated backlog 2026-09-28, NON_BLOCKING, unowned:** `AdminDataTable.tsx:328` still restates the
+  accessible name as the tooltip *copy*, so the action-shaped wording reaches Subjects only — a
+  later migration onto `SortableColumnHeader` would give `/teachers` copy parity.
+- **Owed and not decidable from source:** the ATLAS-origin rows on `https://njgrm.buru-degree.ts.net`
+  after A4 ships `c5aba703` — header bubble dark/above/unclipped, All Status filtering both axes,
+  one-line filter row with Term present, coverage-dialog drag-resize, and the filled-form
+  **"Discard your changes?"** confirmation. Exact steps are posted in `docs/handoffs/lane-a-to-c.md`.
+- **Next action (single):** await A4's release of `c5aba703`; A5 then closes the Tailnet rows.
