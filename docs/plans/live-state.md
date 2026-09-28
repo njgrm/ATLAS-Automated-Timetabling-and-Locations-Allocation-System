@@ -3603,3 +3603,47 @@ reclaimed below.
 the live release, zero reparse points, zero borrowers, zero live processes; 4.57 GiB freed (E: 31.20 -> 35.77 GiB).
 **`lane-a2-release-0da104f9` is PRESERVE_FOR_DECISION, not reclaimed:** its `atlas-server/node_modules` is the active
 **dependency donor** for the `KEEP_ACTIVE` custody worktree, and capacity was never pressing.
+
+## Lane A3 — overnight 2026-09-28 c6 (supersedes the c4 block above; `Live release` untouched)
+
+**A3 integrated for release at `34b01038` (`34b01038de4339e78130ad3d777d8e6f50899198`). NOT DEPLOYED — A2 owns every
+deployment.** Packet c6, base `1df69b03`; 3 streams, 3 executors, 3 fresh QAs, 1 bounded correction; 18 paths,
+`atlas-server/` 0, `components/timetable/**` 0, `docs/` 0 in the product range.
+
+**Not live, deliberately.** Live is `a1db27d5` (A2, 06:41 +08); `merge-base --is-ancestor 34b01038 a1db27d5` exits 1
+and `PreferenceStatusBadge.tsx` is absent from it, so no c6 fix is deployed. I read no machine scope and touched no
+supervisor, because I do not deploy and `Live release` is A2's block.
+
+**Verdicts.** S1 `/faculty/concerns` four false errands (packet row 40) — `CORRECTION_REQUIRED` 12/14, then **17/18**
+on the correction. S2 `DUPLICATE` copy + raw preference status — `CORRECTION_REQUIRED` 15/18. S3 honest 404, one back
+control, two dead modules — **`ACCEPT_READY` 40/40/0/0**.
+
+**I caused three red gates and closed them.** I told all three executors not to edit `package.json` so three lanes
+could not collide on one file; that left three committed gates red, and QA named the contradiction plainly:
+"package.json unmodified" and "green reachability guard" are not jointly satisfiable. `aa3d94ce` adds the three gate
+entries; `test:ux-guardrails` is **31/31**.
+
+**Two defects no single-lane review could see.** (1) *Cross-stream collision:* S1's test **names** the deleted
+`WeeklyScheduleGrid` in a negative control; S3's scanner read any `src/` occurrence as a live reference. Each range
+is right alone, merged one is red — a deletion is undone by a source import, not by a control that mentions the name,
+so the scanner now excludes test files, with a control proving both halves. Mutant-checked (3 rows red when forced
+off). (2) *A shipped gate was red before I started:* `test:a3-subjects` A3-20 has failed since c5 `b52aa976` moved
+the stale copy out of `Subjects.tsx`; fixed as a §11 test-only correction, nothing deleted, now **19/19**.
+
+**Merged-tree gates, all measured, 0 fail:** 16/16, 11/11, 11/11, 31/31, 19/19, 26/26, 60/60, 58/58, 35/35, 14/14,
+5/5, 7/7, 19/19, 14/14, 7/7, 1/1, 15/15, 15 pass / 0 fail / 3 pre-existing skips. **Typecheck is NOT a pass: 5 errors
+in 4 files**, all pre-existing in A2 timetable tests and one `lib/` test, none in an A3 path. Re-measured after merging
+A2's docs-only `00726a5b`; every product blob re-proved byte-identical to its reviewed candidate.
+
+**Dated backlog 2026-09-28, none blocking.** `room-schedules` is **not** unfinished (814 lines, fully featured) yet the
+c6 ruling skips it as such and I left it alone — Lane C should re-check that premise; `/room-schedules` and
+`/schedules` are two registrations for one component. `/faculty/room-preferences` has **zero inbound links**. There
+is **no `--warning` token** in `index.css`, so every warning state is raw `amber-*` and "calm styling" is unreachable
+for warnings without a shared-surface token — a decision, not a lane. Three tracked artifacts still name the deleted
+`ComingSoon`. Three repo-global stashes belong to other lanes.
+
+**Next action: 23 live-acceptance rows are owed and unperformed — this lane ran no browser.** Steps 1–22 are c4's list
+unchanged, **23–27 are new**. None is decidable from source, so the three new gates are source-accepted only, not
+browser-accepted. A3 does not deploy; the next c6 delta rides whatever release A2 ships next. Worktrees
+`lane-a3-c6-{concerns,copy,controls,integ}` `RETIRE_AFTER_INTEGRATION`, junction-safe, donor 152 before and after;
+4 branches preserved, none deleted.
