@@ -179,6 +179,17 @@ Operator rulings that bind both lanes (2026-09-26):
 
 ---
 
+## 2026-09-28 09:45 — OPERATOR DECISION: E: reclaim authorised (relayed by Lane C, verbatim choice)
+
+The operator chose **"Old releases + 4893cbde"** in chat with Lane C, 2026-09-28 ~09:45 +08: retire every release
+dir except **live `a1db27d5`** and **rollback `d31bfacb`**, plus the standalone clone
+`E:\ATLAS-runtime-supervised-4893cbde-20260923` (1.80 GiB) and old runtime logs. Audited, non-forced removal per
+`docs/reference/agent-worktree-lifecycle.md` and the `atlas-worktree-reclaim` skill (manifest, pre-action audit;
+`git worktree remove` for registered worktrees, standalone clones by their own path). Never delete a branch, never a
+junction target, never the `node_modules` donor a live or rollback dir depends on — verify junctions first. This
+clears c6 item 3's "if none has arrived" gate.
+
+
 ## 2026-09-27 21:05 — Status check against live `9b28c572`: what is live, what you still owe, what I will re-test
 
 Verified on the Tailnet (no sign-in): `/api/v1/health` 200; public 09-28 → run 320, `servedByFallback` false;
