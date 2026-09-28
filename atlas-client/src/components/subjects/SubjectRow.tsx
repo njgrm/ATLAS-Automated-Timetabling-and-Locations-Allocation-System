@@ -22,7 +22,7 @@ import { GRADE_COLORS } from '@/lib/grade-labels';
 import { cn } from '@/lib/utils';
 import { AccessibleInfo } from '@/components/smart/AccessibleInfo';
 import { programFullLabel } from '@/lib/deped-glossary';
-import { splitSubjectFeatures, subjectFeatureHelp, ownerDepartmentPhrase } from './subject-feature-presentation';
+import { splitSubjectFeatures, subjectFeatureHelp, ownerDepartmentRead } from './subject-feature-presentation';
 import type { Subject, SubjectCoverageRow } from '@/types';
 
 interface SubjectRowProps {
@@ -119,7 +119,13 @@ export function SubjectRow({
 		[subject.requiredFeatures],
 	);
 	const roomFeatureCount = featureSplit.roomFeatures.length;
-	const ownerPhrase = ownerDepartmentPhrase(featureSplit.ownerDepartments);
+	// A5-C2B / demo-walk item 7: the PRIMARY read names the department (or, for
+	// a code the glossary cannot expand, the department code) and never prints
+	// the stored `OWNER_DEPT:` marker the operator reported seeing. The marker
+	// stays reachable in the `AccessibleInfo` detail below, which is built from
+	// `featureHelp` — so this moves the marker off the primary line rather than
+	// removing it from reachability.
+	const ownerPhrase = ownerDepartmentRead(featureSplit.ownerDepartments);
 	const featureHelp = useMemo(
 		() => subjectFeatureHelp(featureSplit),
 		[featureSplit],
@@ -286,19 +292,34 @@ export function SubjectRow({
 				)}
 			</td>
 
-			{/* Col 6 — Action: text primary + More menu */}
-			<td className="px-4 py-3 text-right">
-				<div className="flex items-center justify-end gap-2">
-					<Button
-						variant="outline"
-						size="sm"
-						className="h-8 gap-1.5 px-2.5 text-xs font-bold"
-						onClick={() => onShowCoverage(subject)}
-						aria-label={`Review teacher coverage for ${subject.name}`}
-					>
-						<Users className="size-3.5" />
-						Review coverage
-					</Button>
+		{/* Col 6 — Action: text primary + More menu.
+
+			A5-C2B / demo-walk item 7: at the 1366px supported desktop viewport the
+			six-column table overflowed its scroll box, so this cell — the row's
+			ONLY action — sat beyond the right edge behind a horizontal scrollbar.
+
+			Two changes, both layout-only:
+			  1. `sticky right-0` pins the cell to the right edge of
+			     `AdminTableShell`'s `flex-1 min-h-0 overflow-auto` box. The action
+			     is therefore in view at EVERY table width, with or without
+			     horizontal scroll. The cell carries an opaque background and a
+			     left border so scrolled content never shows through it.
+			  2. The visible label drops to one word. The accessible name keeps
+			     "Review teacher coverage for <subject>", so nothing is lost to a
+			     screen reader, and the shorter label is what buys the width back
+			     on the desktop table rather than trading the bug for a new one. */}
+		<td className="sticky right-0 z-10 border-l border-border/40 bg-white px-4 py-3 text-right">
+			<div className="flex items-center justify-end gap-2">
+				<Button
+					variant="outline"
+					size="sm"
+					className="h-8 gap-1.5 px-2.5 text-xs font-bold"
+					onClick={() => onShowCoverage(subject)}
+					aria-label={`Review teacher coverage for ${subject.name}`}
+				>
+					<Users className="size-3.5" />
+					Review
+				</Button>
 
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>

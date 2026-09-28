@@ -171,6 +171,13 @@ export default function Audit() {
 	const [activeYearSource, setActiveYearSource] = useState<ActiveYearSource>('cache');
 	const [dataSource, setDataSource] = useState<DataSource>('none');
 	const [degradedReasons, setDegradedReasons] = useState<string[]>([]);
+	// A5-C2B / demo-walk item 4. WHEN THIS REPORT'S EVIDENCE WAS READ. The
+	// blocker count below is computed from the rows these requests returned, so
+	// it is only meaningful against the moment they were read; without a
+	// timestamp the number floats free of any scope and collides with the
+	// Dashboard's published/verified state. Stamped at the same point
+	// `setDataSource` is set, i.e. once the evidence is actually in hand.
+	const [evidenceReadAt, setEvidenceReadAt] = useState<Date | null>(null);
 
 	const { actorSchoolId } = useActorSchoolScope();
 
@@ -295,6 +302,7 @@ export default function Audit() {
 
 			const isUpstreamBacked = activeYearSource === 'enrollpro' && sectionSource === 'enrollpro';
 			setDataSource(isUpstreamBacked ? 'live' : 'cached');
+			setEvidenceReadAt(new Date());
 			setDegradedReasons(reasons);
 			if (!isUpstreamBacked || reasons.length > 0) {
 				toast.warning('Readiness report is using saved ATLAS evidence.');
@@ -633,6 +641,46 @@ export default function Audit() {
 	const warningCount = findingGroups.reduce((total, group) => total + group.findings.filter((finding) => finding.severity === 'warning').length, 0);
 	const avgLoad = faculty.reduce((sum, facultyMember) => sum + (facultyMember.loadPercentage ?? 0), 0) / (faculty.length || 1);
 	const sourceLabel = dataSource === 'live' ? 'Live from EnrollPro' : dataSource === 'cached' ? 'Saved in ATLAS' : 'No saved data';
+
+	// A5-C2B / demo-walk item 4, second half. "Average roster load: 56.6%" was a
+	// number with no target, no meaning and no decision attached. Three facts
+	// make it answerable, and all three come from the repository rather than
+	// from this page:
+	//   * the DENOMINATOR is `policyCreditedHours / maxHoursPerWeek`
+	//     (`faculty-assignment.service.ts:5833`), i.e. a percentage of each
+	//     teacher's own maximum weekly hours — not of 40, which may be wrong for
+	//     a teacher whose cap is set to 30;
+	//   * the ATLAS allocation standard is 30h against the DepEd 40h maximum
+	//     (`teaching-load-helpers.ts` `REAL_FACULTY_STANDARD` /
+	//     `REAL_FACULTY_HARD_CAP`), which is 75% on that same denominator;
+	//   * so a single number can be graded, and the grade gets a decision.
+	const ROSTER_LOAD_STANDARD_PERCENT = 75;
+	const rosterLoadVerdict = avgLoad >= 100
+		? { state: 'At or over the weekly maximum', needsAction: true, hint: 'At least one teacher is at or over their maximum weekly hours. Check Teaching Load.' }
+		: avgLoad >= ROSTER_LOAD_STANDARD_PERCENT
+			? { state: 'At or above the 30-hour standard', needsAction: false, hint: 'Teaching hours are filled to the standard. Nothing to fix here.' }
+			: { state: 'Below the 30-hour standard', needsAction: true, hint: 'Teaching hours are not fully assigned yet. Fix the teacher-coverage items above and this rises.' };
+
+	// A5-C2B / demo-walk item 4, first half. The blocker count is a CLIENT-SIDE
+	// count of `severity === 'blocker'` across `findingGroups`, and each finding
+	// is a finding about a SETUP INPUT — sections, subject ownership, room
+	// availability, teacher qualifications, saved-vs-live data. None of them
+	// reads, or judges, a published schedule. The sentence this replaces named a
+	// count and then said scheduling review was unreliable until it was fixed,
+	// which read beside the Dashboard's "Schedule is published" as a
+	// contradiction about the SAME object — and the report is right, it was one.
+	// (The superseded wording is preserved verbatim in
+	// `docs/reviews/codex-demo-walk-20260928/report.md`, so it is not repeated
+	// here as a literal: a copy of the old string sitting in a comment is a trap
+	// for the next reader and for the guard that checks this page.)
+	//
+	// The two facts that resolve it are a SCOPE (what the blockers are about) and
+	// a DATE (what the evidence was read from), and both are stated here rather
+	// than inferred by the reader. The Dashboard's published claim is not
+	// touched — it is another lane's surface — so this page explains itself.
+	const evidenceReadAtLabel = evidenceReadAt
+		? evidenceReadAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+		: null;
 	const priorityFindings = findingGroups
 		.flatMap((group) => group.findings)
 		.sort((left, right) => {
@@ -669,7 +717,7 @@ export default function Audit() {
 			}
 			: {
 				label: 'Needs fixes before scheduling',
-				detail: `${blockerCount} readiness blocker${blockerCount === 1 ? '' : 's'} must be fixed before scheduling review is reliable.`,
+				detail: `${blockerCount} readiness blocker${blockerCount === 1 ? '' : 's'} in the setup records. Fix them before you rely on a new schedule for the next year.`,
 				icon: XCircle,
 				className: 'border-destructive/30 bg-destructive/5',
 				iconClassName: 'bg-destructive text-destructive-foreground',
@@ -744,8 +792,29 @@ export default function Audit() {
 					<span className="text-slate-200">|</span>
 					<span className="font-semibold text-foreground">Warnings: <span className="font-normal text-warning">{warningCount}</span></span>
 					<span className="text-slate-200">|</span>
-					<span className="font-semibold text-foreground">Average roster load: <span className="font-normal text-muted-foreground">{avgLoad.toFixed(1)}%</span></span>
+					{/* A5-C2B / demo-walk item 4: the percentage now carries its
+						target, its denominator and its decision. The label is the
+						longest of the four because it is the one that was missing —
+						"56.6%" on its own told a scheduler nothing. */}
+					<span className="font-semibold text-foreground">
+						Average roster load:{' '}
+						<span className="font-normal text-muted-foreground">{avgLoad.toFixed(1)}% of each teacher's maximum weekly hours</span>
+					</span>
 				</div>
+				<p data-testid="audit-roster-load-verdict" className="mt-2 text-xs text-muted-foreground">
+					<span className={rosterLoadVerdict.needsAction ? 'font-semibold text-foreground' : 'font-semibold text-accent'}>
+						{rosterLoadVerdict.state}.
+					</span>{' '}
+					Target is {ROSTER_LOAD_STANDARD_PERCENT}% (30 hours against a 40-hour maximum). {rosterLoadVerdict.hint}
+				</p>
+				{/* A5-C2B / demo-walk item 4, scope and date of the blocker count. */}
+				<p data-testid="audit-blocker-scope" className="mt-2 text-xs text-muted-foreground">
+					<span className="font-semibold text-foreground">About that blocker number:</span>{' '}
+					these are findings about your setup records — sections, subject ownership, room availability, teacher
+					qualifications and saved-vs-live data
+					{evidenceReadAtLabel ? ` — read ${evidenceReadAtLabel}` : ''}. They are not findings about a
+					published schedule, so a published schedule can stand while this count is above zero.
+				</p>
 			</header>
 
 			<div className="flex-1 min-h-0 overflow-auto px-6 pb-6 pt-4 lg:px-8">

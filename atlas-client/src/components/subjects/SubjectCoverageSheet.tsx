@@ -24,7 +24,7 @@ import { programFullLabel } from '@/lib/deped-glossary';
 import { ROOM_TYPE_LABELS } from '@/lib/subject-constants';
 import { roomAuthoritySemantics } from '@/lib/room-authority-copy';
 import { AccessibleInfo } from '@/components/smart/AccessibleInfo';
-import { splitSubjectFeatures, subjectFeatureHelp, ownerDepartmentPhrase } from './subject-feature-presentation';
+import { splitSubjectFeatures, subjectFeatureHelp, ownerDepartmentRead } from './subject-feature-presentation';
 import type { Subject } from '@/types';
 
 export type SubjectCoverageDetail = {
@@ -98,7 +98,7 @@ export function SubjectCoverageSheet({
 	// features here; ownership is reported separately as a plain department.
 	const subjectFeatureSplit = splitSubjectFeatures(subject?.requiredFeatures);
 	const subjectRoomFeatures = subjectFeatureSplit.roomFeatures;
-	const subjectOwnerPhrase = ownerDepartmentPhrase(subjectFeatureSplit.ownerDepartments);
+	const subjectOwnerPhrase = ownerDepartmentRead(subjectFeatureSplit.ownerDepartments);
 	return (
 		<Dialog open={!!subject} onOpenChange={(open) => !open && onClose()}>
 			<DialogContent
@@ -362,13 +362,15 @@ export function SubjectCoverageSheet({
 											<span className="font-bold text-primary">{subjectRoomFeatures.join(', ')}</span>
 										</p>
 									) : null}
-									{/* A3-C4: ownership is a department, not a room feature. The raw
-										OWNER_DEPT code stays reachable in the @/ui tooltip. */}
-									{subjectOwnerPhrase ? (
-										<p className="text-sm font-medium">
-											Owned by the <span className="font-bold text-primary">{subjectOwnerPhrase}</span>.
-										</p>
-									) : null}
+								{/* A3-C4 + A5-C2B: ownership is a department, not a room
+									feature. The primary line reads as a department name (or the
+									department code where the glossary has no plain name); the raw
+									OWNER_DEPT marker stays reachable in the @/ui detail below. */}
+								{subjectOwnerPhrase ? (
+									<p className="text-sm font-medium">
+										Owned by <span className="font-bold text-primary">{subjectOwnerPhrase}</span>.
+									</p>
+								) : null}
 									{subject && (subjectRoomFeatures.length > 0 || subjectFeatureSplit.ownerDepartments.length > 0) ? (
 										<AccessibleInfo
 											label={`How room features and ownership are recorded for ${subject.name}`}

@@ -246,6 +246,46 @@ export default function OfficerRoomPreferences() {
 			hiddenCount: Math.max(0, sorted.length - 3),
 		};
 	}, [presence]);
+
+	// A5-C2B / demo-walk item 6 — the filters are the reason the queue can look
+	// empty when it is not. The page loads with `SUBMITTED` + `PENDING` already
+	// selected, so "no requests" was shown with no statement of what was
+	// excluded, and a scheduler could not tell a genuinely empty queue from a
+	// filtered one.
+	//
+	// The names are the option labels the operator just read in the two
+	// dropdowns, so the empty state and the filters cannot drift apart. The
+	// search term is named too, because it filters client-side in a different
+	// place and is just as invisible when it is doing the work.
+	const STATUS_FILTER_LABELS: Record<string, string> = {
+		ALL: 'all submissions',
+		DRAFT: 'draft',
+		SUBMITTED: 'submitted',
+	};
+	const DECISION_FILTER_LABELS: Record<string, string> = {
+		ALL: 'all decisions',
+		PENDING: 'pending',
+		APPROVED: 'approved',
+		REJECTED: 'rejected',
+	};
+	const activeFilterParts = useMemo(() => {
+		const parts: string[] = [];
+		// The page's resting state is SUBMITTED + PENDING. Treating those two as
+		// "no filter" would hide the very state the operator reported, so any
+		// value other than the two `ALL`s is named, including the defaults.
+		if (statusFilter !== 'ALL') parts.push(STATUS_FILTER_LABELS[statusFilter] ?? statusFilter.toLowerCase());
+		if (decisionFilter !== 'ALL') parts.push(DECISION_FILTER_LABELS[decisionFilter] ?? decisionFilter.toLowerCase());
+		const search = searchQuery.trim();
+		if (search) parts.push(`matching "${search}"`);
+		return parts;
+	}, [decisionFilter, searchQuery, statusFilter]);
+	const hasActiveFilters = activeFilterParts.length > 0;
+	const clearAllFilters = useCallback(() => {
+		setStatusFilter('ALL');
+		setDecisionFilter('ALL');
+		setSearchQuery('');
+	}, []);
+	const activeFilterLabel = activeFilterParts.join(' and ');
 	const presenceByConnection = useMemo(() => new Map(presence.map((person) => [person.connectionId, person])), [presence]);
 	const remoteEntrySelectionCounts = useMemo(() => {
 		const counts = new Map<string, number>();
@@ -392,50 +432,65 @@ export default function OfficerRoomPreferences() {
 					</Button>
 				</div>
 
-				<div className='flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-sm shadow-sm'>
-					<span className='font-medium text-foreground'>Current working schedule</span>
-					<span className='text-muted-foreground'>Version {summary?.runVersion}</span>
-					<span className='text-border/60'>•</span>
-					<span className='text-muted-foreground'>{summary?.counts.total ?? 0} requests</span>
-					<span className='text-border/60'>•</span>
-					<span className='text-muted-foreground'>{summary?.counts.pending ?? 0} pending</span>
-					<span className='text-border/60'>•</span>
-					<span className='text-muted-foreground'>{summary?.counts.approved ?? 0} approved</span>
-					<span className='text-border/60'>•</span>
-					<span className='text-muted-foreground'>{summary?.counts.rejected ?? 0} rejected</span>
-					{collaborationConnected && compactPresence.visible.length === 0 && (
-						<>
-							<span className='text-border/60'>•</span>
-							<span className='text-muted-foreground'>No active collaborators yet</span>
-						</>
-					)}
-					{!collaborationConnected && (
-						<>
-							<span className='text-border/60'>•</span>
-							<span className='text-muted-foreground'>Realtime disconnected; SSE updates remain active</span>
-							{collaborationLastError && <span className='text-muted-foreground'>({collaborationLastError})</span>}
-						</>
-					)}
-					{compactPresence.visible.length > 0 && (
-						<>
-							<span className='text-border/60'>•</span>
-							<div className='flex items-center gap-1'>
-								{compactPresence.visible.map((person) => {
-													const label = person.displayName ?? `${person.role} #${person.userId}`;
-									const initials = label.slice(0, 2).toUpperCase();
-									return (
-										<Badge key={person.connectionId} variant='outline' className='gap-1'>
-											<span className='inline-flex size-4 items-center justify-center rounded-full border border-current text-[0.55rem]'>
-												{initials}
-											</span>
-											{person.viewMode === 'FACULTY_ACTIVE_DRAFT' ? 'Draft' : 'Queue'}
-										</Badge>
-									);
-								})}
-								{compactPresence.hiddenCount > 0 && <Badge variant='outline'>+{compactPresence.hiddenCount}</Badge>}
-							</div>
-						</>
-					)}
+				{/* A5-C2B / demo-walk item 6: the lead line is the queue itself, and the
+					run/collaboration detail drops to a secondary status line beneath
+					it. A scheduler opening an empty queue was previously greeted by
+					"Current working schedule — Version 7 … 0 requests … No active
+					collaborators yet", which reads as five findings about a timetable
+					that is merely quiet. One verb, one number: the queue. */}
+				<div className='rounded-2xl border border-border bg-card px-4 py-3 text-sm shadow-sm'>
+					<p className='font-semibold text-foreground'>
+						{filteredRequests.length === 0
+							? 'No room requests'
+							: `${filteredRequests.length} room request${filteredRequests.length === 1 ? '' : 's'}`}
+					</p>
+					{hasActiveFilters && (
+						<p data-testid='room-requests-active-filters' className='mt-1 text-xs text-muted-foreground'>
+							Showing {activeFilterLabel}.
+						</p>
+					)}					<p className='mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground'>
+						<span>Working schedule Version {summary?.runVersion}</span>
+						<span aria-hidden='true'>•</span>
+						<span>{summary?.counts.total ?? 0} in this filter</span>
+						<span aria-hidden='true'>•</span>
+						<span>{summary?.counts.pending ?? 0} pending</span>
+						<span aria-hidden='true'>•</span>
+						<span>{summary?.counts.approved ?? 0} approved</span>
+						<span aria-hidden='true'>•</span>
+						<span>{summary?.counts.rejected ?? 0} rejected</span>
+						{collaborationConnected && compactPresence.visible.length === 0 && (
+							<>
+								<span aria-hidden='true'>•</span>
+								<span>No active collaborators yet</span>
+							</>
+						)}
+						{!collaborationConnected && (
+							<>
+								<span aria-hidden='true'>•</span>
+								<span>Realtime disconnected; SSE updates remain active{collaborationLastError ? ` (${collaborationLastError})` : ''}</span>
+							</>
+						)}
+						{compactPresence.visible.length > 0 && (
+							<>
+								<span aria-hidden='true'>•</span>
+								<span className='flex items-center gap-1'>
+									{compactPresence.visible.map((person) => {
+										const label = person.displayName ?? `${person.role} #${person.userId}`;
+										const initials = label.slice(0, 2).toUpperCase();
+										return (
+											<Badge key={person.connectionId} variant='outline' className='gap-1'>
+												<span className='inline-flex size-4 items-center justify-center rounded-full border border-current text-[0.55rem]'>
+													{initials}
+												</span>
+												{person.viewMode === 'FACULTY_ACTIVE_DRAFT' ? 'Draft' : 'Queue'}
+											</Badge>
+										);
+									})}
+									{compactPresence.hiddenCount > 0 && <Badge variant='outline'>+{compactPresence.hiddenCount}</Badge>}
+								</span>
+							</>
+						)}
+					</p>
 				</div>
 
 				<div className='flex flex-wrap items-center gap-3'>
@@ -460,6 +515,17 @@ export default function OfficerRoomPreferences() {
 							<SelectItem value='REJECTED'>Rejected</SelectItem>
 						</SelectContent>
 					</Select>
+					{hasActiveFilters && (
+						<Button
+							variant='outline'
+							size='sm'
+							data-testid='room-requests-clear-filters'
+							onClick={clearAllFilters}
+							className='h-9'
+						>
+							Clear filters
+						</Button>
+					)}
 				</div>
 			</div>
 
@@ -506,9 +572,48 @@ export default function OfficerRoomPreferences() {
 							);
 						})()
 					))}
-					{filteredRequests.length === 0 && (
-						<div className='rounded-2xl border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground'>No room requests match the current filters.</div>
-					)}
+				{filteredRequests.length === 0 && (
+					/* A5-C2B / demo-walk item 6: the headline is the QUEUE, and the
+					 * filter that produced it is named on the next line. The report
+					 * asked for both — lead with "No room requests" and move the
+					 * run/collaboration detail down — and separately for the empty
+					 * state to name the filter. Putting the filter INSIDE the
+					 * headline would have satisfied the second and broken the
+					 * first, so they are two lines: what is true of the queue, then
+					 * why it is empty. The old copy — "No room requests match the
+					 * current filters." — named the mechanism ("filters") without
+					 * saying which ones, so a non-empty queue read as an empty one. */
+					<div
+						data-testid='room-requests-empty'
+						className='rounded-2xl border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground'
+					>
+						<p className='font-semibold text-foreground text-base'>No room requests</p>
+						{hasActiveFilters && (
+							<>
+								<p className='mt-2 text-sm text-foreground'>No {activeFilterLabel} room requests.</p>
+								<p className='mt-1 text-xs text-muted-foreground'>
+									The filters above are hiding the rest of the queue.
+								</p>
+							</>
+						)}
+						{!hasActiveFilters && (
+							<p className='mt-1 text-xs text-muted-foreground'>
+								Nothing is waiting for review in this school year.
+							</p>
+						)}
+						{hasActiveFilters && (
+							<Button
+								variant='outline'
+								size='sm'
+								data-testid='room-requests-empty-clear-filters'
+								onClick={clearAllFilters}
+								className='mt-4'
+							>
+								Clear filters
+							</Button>
+						)}
+					</div>
+				)}
 				</div>
 			</div>
 
