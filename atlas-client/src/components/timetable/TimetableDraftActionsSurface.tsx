@@ -17,7 +17,9 @@
  * three actions resolved onto controls the headers ALREADY have:
  *
  *   - `Edit`    → Simple: the EXISTING `More` menu, beside `Discard draft`
- *                 (`SimpleEditDraftAction`); Expert: the `More tools` menu, beside
+ *                 (a `DropdownMenuItem` in `SimpleMoreMenuContent`; see the note
+ *                 above `ExpertDraftMenuActions` for why it is not defined here);
+ *                 Expert: the `More tools` menu, beside
  *                 the actions it belongs with. DRAFT-UX-C01 (operator,
  *                 2026-09-25) keeps the Simple header's ONE solid primary as
  *                 `Publish schedule` once a run exists, so the draft's own verb
@@ -44,7 +46,6 @@
 import { PencilLine, Trash2 } from 'lucide-react';
 
 import { Button } from '@/ui/button';
-import { GatedAction } from '@/components/timetable/simple/SimpleHeaderHelpers';
 import {
 	DRAFT_DISCARD_REASON_NEEDS_DRAFT,
 	DRAFT_DISCARD_UNAVAILABLE,
@@ -132,57 +133,29 @@ export function resolveSimpleDraftMenuActions(input: {
 }
 
 /**
- * C11 D, correction 2 (QA-B2) — the draft's own verb: `Edit draft`.
+ * C11 D, CORRECTION 4 (F1) — `SimpleEditDraftAction` is GONE, and this comment is
+ * the record of why.
  *
- * This control MOVED here from the Simple header's ONE primary slot, which
- * reversed DRAFT-UX-C01 (operator, 2026-09-25) — see
- * `resolveSimpleHeaderPrimary`, which now keeps `Publish schedule` as the solid
- * primary once a run exists. It is MOVED, not rewritten: this is the only
- * definition of the control in the workspace, now rendered as an entry of the
- * More menu that is already on screen, beside `Discard draft`.
+ * It rendered `Edit draft` as a bare `<Button>` inside `DropdownMenuContent`, so the
+ * row carried `role=null` and no `tabindex`: Radix roving focus skipped the draft's
+ * own verb, a keyboard user could not reach it while the menu was open, and — unlike
+ * both its siblings in the same group — it never called `onClose()`, so clicking it
+ * left the More menu open. The reviewer measured exactly that on the rendered Simple
+ * header: 15 sibling rows with `role="menuitem"`, this one with `role=null`.
  *
- * Its blocked reason is printed BESIDE the control, not only on hover or in a
- * `title` (AGENTS.md §8) — the same shape `SimplePublishAction` and the
- * `Discard draft` entry use.
+ * The row now lives in `SimpleMoreMenuContent` as a real `DropdownMenuItem`, beside
+ * `Publish schedule` and `Discard draft`, and `SimpleMoreMenuContent` is its ONLY
+ * renderer — which is also why the dead `primary` prop could go with it: it was the
+ * vestige of the reverted primary-swap design, its only caller passed
+ * `primary={false}`, and inside a menu row it has no variant to choose. One
+ * definition, one renderer; the alternative would have been a second, divergent
+ * definition of the same verb.
+ *
+ * The blocked reason did not move with the element: `SimpleMoreMenuContent` prints
+ * it as VISIBLE TEXT inside the row, which is where `Publish schedule` and
+ * `Discard draft` already print theirs (AGENTS.md §8 — never a `title`, never
+ * hover-only).
  */
-export function SimpleEditDraftAction({
-	enabled,
-	disabledReason,
-	primary,
-	onClick,
-}: {
-	enabled: boolean;
-	disabledReason: string | null;
-	primary: boolean;
-	onClick: () => void;
-}) {
-	const reason = enabled ? null : disabledReason;
-	return (
-		<span className="flex min-w-0 flex-col items-start gap-0.5">
-			<GatedAction disabled={!enabled} reason={reason}>
-				<Button
-					type="button"
-					variant={primary ? 'default' : 'outline'}
-					size="sm"
-					className="h-11 gap-1.5 px-3 text-sm"
-					disabled={!enabled}
-					aria-label={reason ? `Edit draft — ${reason}` : 'Edit draft'}
-					onClick={onClick}
-					data-testid="timetable-simple-edit-draft-action"
-				>
-					<PencilLine className="size-3.5" aria-hidden="true" />
-					<span>Edit draft</span>
-				</Button>
-			</GatedAction>
-			{reason ? (
-				<p className="max-w-[22rem] text-xs font-medium text-muted-foreground" data-testid="timetable-edit-draft-blocked-reason">
-					{reason}
-				</p>
-			) : null}
-		</span>
-	);
-}
-
 export type ExpertDraftMenuActions = {
 	edit: DraftMenuAction;
 	discard: DraftMenuAction;

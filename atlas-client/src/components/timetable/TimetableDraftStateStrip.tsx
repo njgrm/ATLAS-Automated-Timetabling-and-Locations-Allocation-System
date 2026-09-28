@@ -24,8 +24,9 @@
  * they resolved onto controls the headers ALREADY have, in the one-primary +
  * one-secondary shape DRAFT-UX-C01 established:
  *
- *   - `Edit`      → the header's own PRIMARY action slot when a draft exists
- *                   ("Edit draft"), replacing that state's primary verb;
+ *   - `Edit`      → the `More` menu each header ALREADY has, beside `Discard draft`
+ *                   (NOT the primary slot — see the note on `TimetableDraftStateStrip`
+ *                   below);
  *   - `Publish`   → the header's own publication control, exactly one on screen;
  *   - `Discard`   → the existing More menu, with a visible reason when disabled.
  *
@@ -192,18 +193,32 @@ export const DRAFT_DISCARD_REASON_NEEDS_DRAFT = 'There is no draft on this sched
  * what remains here is the one thing neither header had: a draft state that is
  * always on screen, from the one shared derivation.
  *
- * `children` is the single Undo / Redo / History control (M5) — the ONE instance
- * in the whole workspace, handed to both headers by
- * `ScheduleReviewWorkspace`. It is still a child of this component so the two
- * layouts can never drift onto two Undo surfaces, but the strip itself adds no
- * control of its own.
+ * `children` is DEAD and is kept only for one more correction cycle, so this
+ * correction stays additive: NEITHER header passes it (`TimetableSimpleHeader` and
+ * `ScheduleReviewWorkspaceHeader` both render `<TimetableDraftStateStrip
+ * visibility={…} />` with no children — the single Undo / Redo / History control is
+ * the header's own toolbar control, the one instance the M5 single-surface rule
+ * counts). It is retained solely so the pre-existing `M5` row in
+ * `a2-c11-draft-actions.test.tsx`, which constructs the strip WITH children, keeps
+ * running; that row is marked SUPERSEDED beside its replacement, which renders the
+ * REAL header. Remove the prop and that row together — do not remove the prop alone,
+ * and do not let a dead prop keep a JSDoc claim about the layout.
+ *
+ * This JSDoc previously claimed two things the code stopped doing: that `children`
+ * was "the single Undo … handed to both headers", and that `Edit` occupies "the
+ * header's own PRIMARY action slot". Both were true of the pre-correction design
+ * and were reverted: `Edit draft` is a More-menu row and the ONE solid primary is
+ * `Publish schedule` (DRAFT-UX-C01, operator, 2026-09-25).
  */
 export function TimetableDraftStateStrip({
 	visibility,
 	children,
 }: {
 	visibility: string | null;
-	/** The single existing Undo / Redo / History control (M5). */
+	/**
+	 * DEAD: no production caller passes it (see the note above). Kept only so the
+	 * superseded `M5` row still compiles and runs.
+	 */
 	children?: React.ReactNode;
 }) {
 	return (

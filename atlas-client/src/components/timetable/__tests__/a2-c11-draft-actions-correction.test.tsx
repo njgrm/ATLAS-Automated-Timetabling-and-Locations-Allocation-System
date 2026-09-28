@@ -645,14 +645,68 @@ test('F2R2 RENDERED (QA-B2 re-point): the Simple header mounts the same sentence
 	const discard = menu.querySelector('[data-testid="timetable-more-discard-draft"]') as HTMLElement;
 	assert.ok(discard, 'Discard draft is in the menu');
 	assert.equal(cannotAct(discard), false, 'Discard is enabled because a draft exists AND a handler WAS supplied');
-	edit.click();
-	discard.click();
-	// The menu published no second `Publish`: with the primary holding the
-	// publication verb, the menu's own row is not rendered at all.
+	// CORRECTION 4 (F1) — read while the menu is still OPEN, which is where this claim is
+	// true. It used to be read AFTER the two clicks below, when `Edit draft` could not
+	// close the menu; now that it does, a post-close read would run against a detached
+	// tree and pass for the wrong reason. Moving the read EARLIER keeps the assertion
+	// and makes it decide something.
 	assert.equal(menu.querySelector('[data-testid="timetable-more-publish"]'), null,
-		'and the menu adds no second publication control');
+		'the menu publishes no second `Publish`: with the primary holding the publication verb, the menu’s own row is not rendered at all');
+	edit.click();
+	// CORRECTION 4 (F1) — and this is the only change to the CLICK SEQUENCE, forced by
+	// the defect being fixed: `Edit draft` is a real menu item now, so it CLOSES the
+	// menu exactly as `Discard draft` always did, and a closed menu DETACHES its rows.
+	// The Discard click therefore happens in a FRESH open. Nothing is removed and
+	// nothing is weakened — both actions are still clicked on the real rendered row and
+	// both must still dispatch exactly once.
+	const reopened = await view.openMenu('timetable-simple-more-trigger');
+	const discardAgain = reopened.querySelector('[data-testid="timetable-more-discard-draft"]') as HTMLElement;
+	assert.ok(discardAgain, 'Discard draft is in the reopened menu');
+	assert.equal(cannotAct(discardAgain), false, 'and is still enabled — a fresh menu, not a cached node');
+	discardAgain.click();
 	act(() => { (view.byLabel('Undo last manual timetable change') as HTMLElement).dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })); });
 	assert.deepEqual([discarded, reverted], [1, 1], 'and both dispatch their real actions');
+});
+
+test('M5R RENDERED (correction 4, F4 re-point): the REAL Simple header puts the single Undo on screen with the draft sentence, and ONE click reverts', async () => {
+	// The row this replaces constructed `TimetableDraftStateStrip` WITH `children` — a
+	// shape NO production caller uses, because both headers render
+	// `<TimetableDraftStateStrip visibility={…} />` and the single Undo is the header's
+	// own toolbar control. So the old row could not detect a regression in where Undo
+	// actually lands. This one mounts the REAL header, exactly as the workspace does,
+	// and pins the two things the operator sees: the sentence and the Undo, on one
+	// screen, with the Undo live.
+	const { TimetableSimpleHeader } = await import('@/components/timetable/TimetableSimpleHeader');
+	let reverted = 0;
+	const view = renderIn(
+		createElement(TimetableSimpleHeader, {
+			context: headerContextStub(),
+			layoutMode: 'simple',
+			onLayoutModeChange: () => {},
+			activeTask: null,
+			onTaskChange: () => {},
+			onSetRepairOrigin: () => {},
+			readinessSheetOpen: false,
+			onReadinessSheetOpenChange: () => {},
+			swapClassTimesMode: 'inactive',
+			onSwapClassTimesStart: () => {},
+			onSwapClassTimesCancel: () => {},
+			undoRedoControl: await undoRedoControl(() => { reverted += 1; }),
+		} as any),
+		withRouter,
+	);
+	// The persistent sentence the strip is FOR is on screen, from the one derivation.
+	assert.ok(view.has('timetable-draft-state-strip'), 'the persistent strip is mounted by the REAL header');
+	assert.ok(view.text.includes('not visible to teachers until you publish'), 'and it names the run state and its audience');
+	// The Undo is the header's own control, reachable without opening a menu — the
+	// property the superseded row could not see.
+	const undo = view.byLabel('Undo last manual timetable change');
+	assert.ok(undo, 'the single Undo the workspace builds is on screen, not buried in a menu');
+	assert.equal((undo as HTMLButtonElement).disabled, false, 'and it is live with one edit in the draft');
+	assert.equal(view.host.querySelectorAll('[data-testid="timetable-draft-state-strip"]').length, 1,
+		'and there is exactly ONE strip, so there is one Undo surface per layout');
+	act(() => { (undo as HTMLElement).dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })); });
+	assert.equal(reverted, 1, 'ONE click reverts the last edit — no second step, no dialog');
 });
 
 test('F2R3 RENDERED (QA-B2 re-point): no draft action can EVER be an enabled control whose handler does nothing', async () => {
@@ -761,6 +815,206 @@ test('F2R3 RENDERED (QA-B2 re-point): no draft action can EVER be an enabled con
 			}
 		}
 	}
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CORRECTION 4 (F1 + F2) — the More menu, measured as an operator meets it
+// ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * The five group boxes, and the heading each one prints its claimed row count on.
+ * `data-more-group` is the heading's own hook, so the claim is read out of the DOM
+ * rather than out of the formula that produced it.
+ */
+const MORE_GROUPS: ReadonlyArray<{ readonly testId: string; readonly label: string }> = [
+	{ testId: 'timetable-simple-more-daily-tasks', label: 'Daily tasks' },
+	{ testId: 'timetable-simple-more-expert-tools', label: 'Expert tools' },
+	{ testId: 'timetable-simple-more-help', label: 'Help & display' },
+	{ testId: 'timetable-simple-more-tools', label: 'Tools' },
+	{ testId: 'timetable-simple-more-schedule-data', label: 'Schedule data' },
+];
+
+/** The number of rows a heading CLAIMS, read off the rendered heading. */
+function claimedRows(menu: HTMLElement, label: string): number {
+	// Matched on the ATTRIBUTE VALUE rather than inside a CSS attribute selector: the
+	// label `Help & display` contains `&`, which JSDOM's selector engine mishandles
+	// inside a quoted attribute value. Reading `getAttribute` is both exact and immune.
+	const heading = [...menu.querySelectorAll('[data-more-group]')]
+		.find((el) => el.getAttribute('data-more-group') === label) ?? null;
+	assert.ok(heading, `the ${label} group renders its heading`);
+	const stated = /(\d+)\s+items?$/.exec((heading!.textContent ?? '').trim());
+	assert.ok(stated, `the ${label} heading states a row count in words, so it can be checked against the rows`);
+	return Number(stated![1]);
+}
+
+/**
+ * The number of rows a group RENDERS, counted in the DOM.
+ *
+ * A "row" is whatever the operator can act on or read as an entry: a Radix menu
+ * item (including the ones rendered `asChild` onto a `Link`), a button, or the run
+ * selector. `Help & display` additionally owns two PANEL rows — Day options and
+ * Status key — which are not menu items; each is counted as the single row its
+ * heading counts it as. Day options are absent in every state measured here (no
+ * policy-alignment warning, no hidden rows), which the row asserts as a
+ * precondition rather than leaving to chance.
+ */
+function renderedRows(group: Element): number {
+	const PANEL_ROWS = new Set(['timetable-more-day-options', 'timetable-more-status-key']);
+	const panels = [...group.querySelectorAll('[data-testid]')]
+		.filter((el) => PANEL_ROWS.has(el.getAttribute('data-testid') ?? '')).length;
+	return group.querySelectorAll('[role="menuitem"], button, [role="combobox"]').length + panels;
+}
+
+test('CORRECTION 4 (F1) RENDERED: on the REAL Simple More menu, Edit draft is a MENU ITEM that is keyboard-reachable and CLOSES the menu', async () => {
+	// The measured defect, on the real surface: all 15 sibling rows carried
+	// `role="menuitem"`, and `Edit draft` carried `role=null` and no `tabindex` — a
+	// bare `<Button>` inside `DropdownMenuContent`. Two consequences a keyboard
+	// operator meets, and both are asserted here:
+	//   1. Radix roving focus SKIPS it, so the draft's own verb is unreachable while
+	//      the menu is open;
+	//   2. it never called `onClose()`, so clicking it left the menu open — while
+	//      `Discard draft`, in the same group, correctly closed it.
+	const { TimetableSimpleHeader } = await import('@/components/timetable/TimetableSimpleHeader');
+	let entered = 0;
+	const view = renderIn(
+		createElement(TimetableSimpleHeader, {
+			context: { ...headerContextStub(), enterManualEditView: () => { entered += 1; } },
+			layoutMode: 'simple',
+			onLayoutModeChange: () => {},
+			activeTask: null,
+			onTaskChange: () => {},
+			onSetRepairOrigin: () => {},
+			readinessSheetOpen: false,
+			onReadinessSheetOpenChange: () => {},
+			swapClassTimesMode: 'inactive',
+			onSwapClassTimesStart: () => {},
+			onSwapClassTimesCancel: () => {},
+			onDiscardDraft: () => {},
+		} as any),
+		withRouter,
+	);
+
+	const menu = await view.openMenu('timetable-simple-more-trigger');
+	// The precondition that makes claim 1 non-vacuous: the SIBLINGS in the same group
+	// are real menu items. If they were not, "Edit draft is one too" would prove
+	// nothing about Edit draft.
+	const discard = menu.querySelector('[data-testid="timetable-more-discard-draft"]') as HTMLElement;
+	assert.ok(discard, 'its group sibling `Discard draft` is in the same open menu');
+	assert.equal(discard.getAttribute('role'), 'menuitem', 'and IS a menu item, so the comparison is real');
+
+	const edit = menu.querySelector('[data-testid="timetable-simple-edit-draft-action"]') as HTMLElement;
+	assert.ok(edit, 'Edit draft is in the menu');
+	// (1) ANNOUNCED and REACHABLE. A Radix menu item carries `role="menuitem"` AND a
+	// `tabindex` from the roving-focus collection; the bare `<Button>` carried neither,
+	// which is exactly what the reviewer measured (`role=null`, `tabindex=null`).
+	assert.equal(edit.getAttribute('role'), 'menuitem', 'Edit draft carries role="menuitem"');
+	assert.notEqual(edit.getAttribute('tabindex'), null,
+		'and a tabindex, so Radix roving focus INCLUDES it — the bare Button had none, which is why arrow keys skipped the draft verb');
+	// It is the same element as the row beside it, not a control dressed as one.
+	assert.equal(edit.tagName, discard.tagName, 'and it is the same element as its menu-item sibling');
+
+	// (2) KEYBOARD ACTIVATION — the path a bare `<Button>` inside a menu never had. A
+	// Radix menu item turns Enter into a selection; a plain button does not listen for
+	// it at all, so this assertion is exactly the one the pre-correction row cannot
+	// pass. Activated bare, as the existing F2R2 row activates its menu rows; the row
+	// was checked both ways and decides identically wrapped and unwrapped, so nothing
+	// here depends on the harness's batching.
+	edit.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+	assert.equal(entered, 1, 'Enter on the menu row dispatches the draft edit EXACTLY once');
+	assert.equal(dom.window.document.querySelector('[role="menu"]'), null,
+		'and it CLOSES the menu, the way `Discard draft` already did — pre-correction the menu stayed open');
+
+	// (2b) The same claim for a POINTER, in a FRESH open — a closed menu has detached its
+	// rows, so the row is re-acquired rather than reused.
+	const reopened = await view.openMenu('timetable-simple-more-trigger');
+	const editAgain = reopened.querySelector('[data-testid="timetable-simple-edit-draft-action"]') as HTMLElement;
+	assert.ok(editAgain, 'Edit draft is in the reopened menu');
+	editAgain.click();
+	assert.equal(entered, 2, 'one click dispatches it exactly once, and not twice');
+	assert.equal(dom.window.document.querySelector('[role="menu"]'), null, 'and closes the menu — pre-correction it stayed open');
+});
+
+test('CORRECTION 4 (F2) RENDERED: EVERY group heading claims exactly the rows its own group renders, in every run state', async () => {
+	// #50 — a heading that names a row count its own group does not have IS the
+	// recorded defect. The reviewer's measurement of this range, base `0fd9e3ef` →
+	// candidate `4594a3ce`:
+	//
+	//   group          base claims/renders      candidate claims/renders
+	//   daily-tasks    4 / 3  (pre-existing)     5 / 3 DRAFT,PUBLISHED · 6 / 3 no-run
+	//   tools          4 / 4  OK                 4 / 6 DRAFT,PUBLISHED · 4 / 7 no-run
+	//
+	// Cause: `draftActionCount` was added to `dailyTaskCount` while the draft rows
+	// were appended to TOOLS, whose heading was a hard-coded `itemCount={4}`. Each
+	// heading is now derived from the rows its own group renders, and this row
+	// measures the RENDERED DOM rather than re-deriving the formula.
+	const { TimetableSimpleHeader } = await import('@/components/timetable/TimetableSimpleHeader');
+	// Three REAL run states, built by spreading the shared stub — `headerContextStub()`
+	// takes no arguments, so an override passed to it would be silently DROPPED and the
+	// three arms would be the same menu, which is what this row must never be.
+	const DRAFT_CONTEXT = headerContextStub();
+	const RUN_STATES: ReadonlyArray<{ readonly name: string; readonly context: Record<string, any> }> = [
+		// A run exists and is not published: the header's ONE solid primary is
+		// `Publish schedule`, so the menu renders NO `Publish schedule` row.
+		{ name: 'DRAFT', context: DRAFT_CONTEXT },
+		{
+			name: 'PUBLISHED',
+			// `isRunPublishedStrict` reads `summary.isPublished`, so this is the one
+			// strict marker — the same path production uses.
+			context: { ...DRAFT_CONTEXT, draft: { runId: 7, entries: [SELECTED_ENTRY], summary: { isPublished: true } } },
+		},
+		{
+			// No run at all: the primary is `Generate`, so the menu renders its own
+			// `Publish schedule` row as well — the state with the MOST rows.
+			name: 'no-run',
+			context: { ...DRAFT_CONTEXT, draft: null, activeGeneratedRunId: null, selectedRunId: 'latest' },
+		},
+	];
+	const toolsRowCount: number[] = [];
+	for (const state of RUN_STATES) {
+		const view = renderIn(
+			createElement(TimetableSimpleHeader, {
+				context: state.context,
+				layoutMode: 'simple',
+				onLayoutModeChange: () => {},
+				activeTask: null,
+				onTaskChange: () => {},
+				onSetRepairOrigin: () => {},
+				readinessSheetOpen: false,
+				onReadinessSheetOpenChange: () => {},
+				swapClassTimesMode: 'inactive',
+				onSwapClassTimesStart: () => {},
+				onSwapClassTimesCancel: () => {},
+				onDiscardDraft: () => {},
+			} as any),
+			withRouter,
+		);
+		const menu = await view.openMenu('timetable-simple-more-trigger');
+		// Precondition for the panel accounting in `renderedRows`: no policy-alignment
+		// warning and no hidden rows, so `Help & display` renders no Day-options block.
+		assert.equal(menu.querySelector('[data-testid="timetable-more-day-options"]'), null,
+			`${state.name}: no Day options block, so the Help & display panel rows are exactly Status key`);
+
+		for (const group of MORE_GROUPS) {
+			const box = menu.querySelector(`[data-testid="${group.testId}"]`);
+			assert.ok(box, `${state.name}: the ${group.label} group renders`);
+			const claimed = claimedRows(menu, group.label);
+			const rendered = renderedRows(box!);
+			assert.equal(claimed, rendered,
+				`${state.name} / ${group.label}: the heading claims ${claimed} rows and the group renders ${rendered}`);
+		}
+		// The rows that made this range's regression visible are named, so the count
+		// above cannot be satisfied by a menu that quietly lost the draft rows.
+		assert.equal(menu.querySelector('[data-testid="timetable-simple-edit-draft-action"]') !== null, true,
+			`${state.name}: the draft rows are still in the menu — the heading counts rows that exist, it does not pass by hiding them`);
+		toolsRowCount.push(renderedRows(menu.querySelector('[data-testid="timetable-simple-more-tools"]')!));
+	}
+	// The row-counting above is only worth anything if the three arms are three
+	// DIFFERENT menus. `no-run` is the state whose primary is `Generate`, so the menu
+	// renders its OWN `Publish schedule` row and Tools gains exactly one row over the
+	// two states whose primary already holds that verb. If this ever collapses to
+	// three equal numbers, one arm has stopped being the state it claims to be.
+	assert.deepEqual(toolsRowCount, [6, 6, 7],
+		'DRAFT and PUBLISHED render the draft rows only, and no-run renders those PLUS the menu’s own Publish schedule row');
 });
 
 test('F2 WIRING: the no-op fall-throughs are gone and the one Undo is constructed once and handed to BOTH headers', () => {

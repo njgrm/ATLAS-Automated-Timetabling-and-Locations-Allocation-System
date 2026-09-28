@@ -9,6 +9,7 @@ import {
 	ListChecks,
 	MapPin,
 	MousePointerClick,
+	PencilLine,
 	RefreshCw,
 	Send,
 	Settings2,
@@ -25,7 +26,6 @@ import { editHistoryEmptyStateMessage, type EditHistoryReadState } from '@/lib/t
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
-import { SimpleEditDraftAction } from '@/components/timetable/TimetableDraftActionsSurface';
 import { RefreshSetupNamesButton } from '@/components/timetable/simple/SimpleSetupSharedControls';
 import { SimpleDayOptions } from '@/components/timetable/simple/SimpleDayOptions';
 import { STATUS_ITEMS } from '@/components/timetable/TimetableStatusLegend';
@@ -208,14 +208,28 @@ export function SimpleMoreMenuContent({
 	// the group does not have.
 	const hasUnassignedRunTasks = (context.summary?.unassignedCount ?? 0) > 0;
 	const hasPendingRequests = context.requestPendingCount > 0;
-	// C11 correction 2 (QA-B2) — the two D actions the header handed to this menu.
-	// Derived from the SAME conditions that render the rows, so the heading cannot
-	// claim rows the group does not have (#50).
-	const draftActionCount = (draftActions?.publish?.visible ? 1 : 0) + (draftActions?.discard?.visible ? 1 : 0);
-	const dailyTaskCount = 1 + 1 + 1 + (unassignedEntry ? 1 : 0)
+	// C11 correction 4 (F2, #50) — the draft rows are counted ONCE, here, and then
+	// each heading counts ONLY the rows its OWN group renders. Previously
+	// `dailyTaskCount` added the draft rows to the DAILY TASKS group while the rows
+	// were appended to TOOLS, and `Tools` kept a hard-coded `itemCount={4}` — so the
+	// menu claimed 5/3 rows for Daily tasks against 3, and 4 against 6 or 7 rendered.
+	// A heading that names a row count its own group does not have IS the recorded
+	// #50 defect, and this range regressed it in every run state.
+	const draftPublishRow = draftActions?.publish?.visible ? 1 : 0;
+	const draftEditRow = draftActions?.edit?.visible ? 1 : 0;
+	const draftDiscardRow = draftActions?.discard?.visible ? 1 : 0;
+	// One term per rendered row: the unassigned entry, the unresolved-placement row,
+	// `Swap sessions`, `Teacher leaving / Reassign load`, the room-request row. The
+	// `place-unresolved` row is CONDITIONAL, so a fixed `+1` for it was the base
+	// 4/3 offset; it is counted from the same condition that renders it now.
+	const dailyTaskCount = (unassignedEntry ? 1 : 0)
 		+ (hasUnassignedRunTasks ? 1 : 0)
-		+ (hasPendingRequests ? 1 : 0)
-		+ draftActionCount;
+		+ 1
+		+ 1
+		+ (hasPendingRequests ? 1 : 0);
+	// The four unconditional Tools rows — Teacher concerns · Campus map · Manual edit
+	// · Building view — plus whatever draft rows this group actually renders.
+	const toolsCount = 1 + 1 + 1 + 1 + draftPublishRow + draftEditRow + draftDiscardRow;
 	const expertToolCount = (hideReviewIssues ? 0 : 1) + 3;
 	// A2-C6-TRUTH (T1b): the entry's own state comes from the last READ, not from
 	// a row count that a failed or unfinished read also produces.
@@ -385,7 +399,7 @@ export function SimpleMoreMenuContent({
 			{/* A5 — /map, /manual-edit and /building stay in-flow tools, but each is
 			    now reachable from a labelled control on the index (no orphan route). */}
 			<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-tools">
-				<MoreGroupHeading label="Tools" itemCount={4} />
+				<MoreGroupHeading label="Tools" itemCount={toolsCount} />
 				{/* S2 — the scheduler concern workspace is reachable from Simple's More
 				    menu as a real link (no state dispatch, no header prop change). */}
 				<DropdownMenuItem asChild className="h-9 gap-2 text-xs" data-testid="timetable-more-teacher-concerns">
@@ -478,12 +492,37 @@ export function SimpleMoreMenuContent({
 					</DropdownMenuItem>
 				) : null}
 				{draftActions?.edit?.visible ? (
-					<SimpleEditDraftAction
-						primary={false}
-						enabled={draftActions.edit.enabled}
-						disabledReason={draftActions.edit.reason}
-						onClick={draftActions.edit.onSelect}
-					/>
+					/* C11 correction 4 (F1) — this row was a bare `<Button>`, so it carried
+					   `role=null` and no `tabindex`: Radix roving focus skipped the draft's
+					   own verb, and a keyboard user could not reach it while the menu was
+					   open. It is now a real `DropdownMenuItem` — the same element its two
+					   siblings in this group are — so it is announced, reachable and
+					   activatable from the keyboard, and it closes the menu on the way out
+					   (the defect: `Discard draft` closed, `Edit draft` did not). Its blocked
+					   reason is still VISIBLE TEXT beside the row, never a `title` and never
+					   hover-only (AGENTS.md §8), and its `data-testid` is unchanged. */
+					<DropdownMenuItem
+						className={cn('gap-2 text-xs', draftActions.edit.enabled ? 'h-9' : 'h-auto min-h-9 items-start py-1.5 data-[disabled]:opacity-100')}
+						disabled={!draftActions.edit.enabled}
+						data-testid="timetable-simple-edit-draft-action"
+						onSelect={(event) => {
+							event.preventDefault();
+							onClose();
+							draftActions.edit?.onSelect();
+						}}
+					>
+						<PencilLine className="size-3.5" aria-hidden="true" />
+						{draftActions.edit.enabled ? (
+							<span>Edit draft</span>
+						) : (
+							<span className="flex flex-col">
+								<span className="text-muted-foreground">Edit draft</span>
+								<span className="text-xs text-muted-foreground" data-testid="timetable-edit-draft-blocked-reason">
+									{draftActions.edit.reason}
+								</span>
+							</span>
+						)}
+					</DropdownMenuItem>
 				) : null}
 				{draftActions?.discard?.visible ? (
 					<DropdownMenuItem

@@ -163,7 +163,6 @@ test('D2 SUPERSEDED (QA-B2): the strip no longer renders Publish, Edit or Discar
 });
 
 test('D2R RENDERED (QA-B2 re-point): the draft strip is a SENTENCE and adds no control; the actions live on the headers own controls', async () => {
-	const { SimpleEditDraftAction } = await import('@/components/timetable/TimetableDraftActionsSurface');
 	const { SimplePublishAction } = await import('@/components/timetable/simple/SimpleHeaderHelpers');
 	const { resolveSimpleDraftMenuActions } = await import('@/components/timetable/TimetableDraftActionsSurface');
 	const calls: string[] = [];
@@ -214,14 +213,18 @@ test('D2R RENDERED (QA-B2 re-point): the draft strip is a SENTENCE and adds no c
 		'Publish renders in the menu ONLY when the primary slot is not the publication control — so there is exactly one publication control on screen');
 	assert.equal(menu.edit.enabled, true, 'Edit draft is reachable in the menu, enabled for a selected class WITH a handler');
 	assert.equal(menu.discard.enabled, true, 'and Discard is enabled for a draft with a handler');
-	// The moved renderer is the one the menu shows, and it dispatches its own action.
-	const renderedEdit = renderIn(createElement(SimpleEditDraftAction, {
-		primary: false,
-		enabled: menu.edit.enabled,
-		disabledReason: menu.edit.enabled ? null : menu.edit.reason,
-		onClick: menu.edit.onSelect,
-	}));
-	renderedEdit.click('timetable-simple-edit-draft-action');
+	// SUPERSEDED (correction 4, F1) — the DOM half of this row. It used to RENDER
+	// `SimpleEditDraftAction` and click the rendered control. That component is gone: it
+	// drew a bare `<Button>` inside `DropdownMenuContent`, so the row carried `role=null`,
+	// was skipped by Radix roving focus, and left the More menu open — and keeping a
+	// second definition of `Edit draft` here would have been exactly the "two renderers"
+	// defect this file's header comment is about. `SimpleMoreMenuContent` is the ONE
+	// renderer, and the row that now decides its DOM half opens the REAL More menu on the
+	// REAL Simple header (`CORRECTION 4 (F1) RENDERED` in
+	// `a2-c11-draft-actions-correction.test.tsx`, the same committed
+	// `test:ux-a2-c11-draft-actions` script). The dispatch this row proved is still
+	// proved here, from the resolver the menu row calls — unchanged by the correction.
+	menu.edit.onSelect();
 	menu.discard.onSelect();
 	assert.deepEqual(calls, ['publish', 'edit', 'discard'],
 		'each action dispatches its own action exactly once — the strip owns none of them, and the header owns only Publish');
@@ -598,7 +601,21 @@ test('M2 RENDERED: with no other room free, the one sentence shows and the selec
 		'the panel is still acting on the SELECTED class, so the operator did not lose their selection');
 });
 
-test('M5 RENDERED: Undo sits in the persistent draft strip and one click reverts the last edit', async () => {
+/*
+ * M5 SUPERSEDED (correction 4, F4) — KEPT, STILL RUNNING, NOT WEAKENED.
+ *
+ * The row below constructs the strip WITH `children` — the ONE shape no production
+ * caller uses. Both headers render `<TimetableDraftStateStrip visibility={…} />` and
+ * nothing else, so this row proved the strip can hold an Undo child while the real
+ * Undo placement went unpinned. It could not detect a regression in where the single
+ * Undo actually lands.
+ *
+ * The replacement is `M5R RENDERED` in `a2-c11-draft-actions-correction.test.tsx`
+ * (same committed `test:ux-a2-c11-draft-actions` script): it renders the REAL
+ * `TimetableSimpleHeader`, finds the Undo the workspace really builds, and clicks it.
+ * Nothing was deleted (AGENTS.md §16).
+ */
+test('M5 SUPERSEDED (correction 4, F4): Undo sits in the persistent draft strip and one click reverts the last edit', async () => {
 	const { TimetableUndoRedoControl } = await import('@/components/timetable/TimetableUndoRedoControl');
 	let reverted = 0;
 	const view = renderIn(createElement(
