@@ -62,10 +62,10 @@ export function SectionsStatusBanners({
 				</div>
 			)}
 			{(stateStatus === 'unavailable' || syncError) && (
-				<div className="shrink-0 mx-4 mt-2 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300 lg:mx-5">
-					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
-					<span className="flex-1 font-semibold text-amber-900">{cacheNotice ?? (syncError ? 'EnrollPro is temporarily unavailable.' : 'Enrollment service unavailable.')}</span>
-					<Button size="sm" variant="outline" onClick={onSync} disabled={syncing || !isOnline} className="shrink-0 h-7 border-amber-300 hover:bg-amber-100 text-amber-900 font-bold"><RefreshCw className={`mr-1.5 size-3 ${syncing ? 'animate-spin' : ''}`} /> Retry Sync</Button>
+				<div className="shrink-0 mx-4 mt-2 flex items-center gap-2 rounded-lg border border-warning-border bg-warning-muted px-3 py-2 text-sm text-warning-foreground shadow-sm animate-in fade-in duration-300 lg:mx-5">
+					<AlertTriangle className="size-4 shrink-0 text-warning" />
+					<span className="flex-1 font-semibold text-warning-foreground">{cacheNotice ?? (syncError ? 'EnrollPro is temporarily unavailable.' : 'Enrollment service unavailable.')}</span>
+					<Button size="sm" variant="outline" onClick={onSync} disabled={syncing || !isOnline} className="shrink-0 h-7 border-warning-border hover:bg-warning/10 text-warning-foreground font-bold"><RefreshCw className={`mr-1.5 size-3 ${syncing ? 'animate-spin' : ''}`} /> Retry Sync</Button>
 				</div>
 			)}
 			{stateStatus === 'ok' && editStatus.tone !== 'ready' && (
@@ -74,7 +74,7 @@ export function SectionsStatusBanners({
 					className={cn(
 						"pointer-events-none shrink-0 mx-4 mt-2 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm shadow-sm animate-in fade-in duration-300 lg:mx-5",
 						editStatus.tone === 'queued' && 'border-sky-200 bg-sky-50 text-sky-900',
-						editStatus.tone === 'checking' && 'border-amber-200 bg-amber-50 text-amber-900',
+						editStatus.tone === 'checking' && 'border-warning-border bg-warning-muted text-warning-foreground',
 						// Phase 0C.1: blocked uses the destructive semantic token so the
 						// G9 grade red stays reserved for grade-level meaning only.
 						editStatus.tone === 'blocked' && 'border-destructive/30 bg-destructive/10 text-destructive',

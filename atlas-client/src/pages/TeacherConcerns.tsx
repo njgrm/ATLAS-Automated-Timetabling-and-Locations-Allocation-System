@@ -304,12 +304,12 @@ export default function TeacherConcerns() {
 					)}
 
 					{termUnresolved && actorSchoolId != null && schoolYearId != null && (
-						<Card className='rounded-2xl border-amber-200 bg-amber-50'>
+						<Card className='rounded-2xl border-warning-border bg-warning-muted'>
 							<CardContent className='flex items-start gap-3 py-6'>
-								<AlertTriangle className='mt-0.5 size-5 text-amber-700' aria-hidden='true' />
+								<AlertTriangle className='mt-0.5 size-5 text-warning' aria-hidden='true' />
 								<div>
-									<p className='text-sm font-semibold text-amber-900'>Active ordered term unresolved</p>
-									<p className='mt-1 text-xs leading-relaxed text-amber-800/90'>
+									<p className='text-sm font-semibold text-warning-foreground'>Active ordered term unresolved</p>
+									<p className='mt-1 text-xs leading-relaxed text-warning-foreground/90'>
 										Availability is term-scoped. Resolve the active ordered term before recording or reviewing a concern;
 										writes stay disabled rather than defaulting to Term 1.
 									</p>

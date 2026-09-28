@@ -43,7 +43,7 @@ const sourceToneClass: Record<SmartSourceTone, string> = {
 	live: 'border-emerald-200 bg-emerald-50 text-emerald-700',
 	saved: 'border-sky-200 bg-sky-50 text-sky-700',
 	checking: 'border-primary/20 bg-primary/5 text-primary',
-	warning: 'border-amber-200 bg-amber-50 text-amber-800',
+	warning: 'border-warning-border bg-warning-muted text-warning-foreground',
 	unavailable: 'border-destructive/20 bg-destructive/10 text-destructive',
 	neutral: 'border-border bg-muted text-muted-foreground',
 };
@@ -351,12 +351,12 @@ export function SmartDegradedState({
 	testId?: string;
 }) {
 	return (
-		<Card className="rounded-2xl border-amber-200 bg-amber-50 shadow-soft" data-testid={testId ?? 'smart-degraded-state'}>
-			<CardContent className="flex items-start gap-3 px-4 py-4 text-amber-950">
-				<ServerOff className="mt-0.5 size-5 shrink-0 text-amber-700" />
+		<Card className="rounded-2xl border-warning-border bg-warning-muted shadow-soft" data-testid={testId ?? 'smart-degraded-state'}>
+			<CardContent className="flex items-start gap-3 px-4 py-4 text-warning-foreground">
+				<ServerOff className="mt-0.5 size-5 shrink-0 text-warning" />
 				<div className="min-w-0 flex-1">
 					<p className="font-bold">{title}</p>
-					<p className="mt-1 text-sm leading-relaxed text-amber-900/80">{body}</p>
+					<p className="mt-1 text-sm leading-relaxed text-warning-foreground/80">{body}</p>
 					{action ? <div className="mt-3">{action}</div> : null}
 				</div>
 			</CardContent>

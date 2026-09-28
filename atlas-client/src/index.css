@@ -88,6 +88,40 @@
 	--secondary: 220 14% 96%;
 	--secondary-foreground: 222 47% 11%;
 
+	/* ─── Warning family (A3-C8) — "needs attention", deliberately NOT alarming.
+	   Saturation is pulled below Tailwind amber-* (76% vs 92-96%) and the hue held at
+	   35deg, so a warning banner reads as informational friction rather than a
+	   failure. It stays a full four-role family so two meanings never collapse into
+	   one shade:
+	     --warning             amber — body text, icons, accents, solid attention dots
+	     --warning-foreground  deeper amber — body/label text on a surface
+	     --warning-muted       pale amber — the panel surface behind a warning
+	     --warning-border      the tint of the surface's own border
+	   Red stays reserved: --destructive and the DepEd grade ramp (G9 red per
+	   AGENTS.md §8) are untouched, and a yellow warning never reads as G8.
+
+	   ── CONTRAST CONTRACT (measured; enforced by test:a3-c8-warning-token) ──
+	   --warning carries BODY TEXT at 32 of its call sites, not only icons, so it
+	   is contrast-tuned to 4.5:1 rather than to 3:1. A3-C8r1 darkened it from
+	   35 76% 44% (3.132:1 on --warning-muted, 3.295:1 on white — a measured WCAG AA
+	   FAIL at 23 sites) to the value below. Hue 35 and saturation 76 are UNCHANGED;
+   only lightness moved 44% -> 33%, which is what keeps it the same calm amber
+   rather than a red or a brown or a desaturated grey.
+
+	     --warning            5.111:1 on --warning-muted   5.376:1 on white
+	     --warning-foreground 8.415:1 on --warning-muted
+	     --warning-border     2.081:1 on --warning-muted — BELOW the 3:1 UI floor,
+	                          deliberately. It is a decorative hairline on a panel whose
+	                          text already sits at 5.1:1, and WCAG 1.4.11 exempts purely
+	                          decorative boundaries. Reaching 3:1 needs 41 78% 40%
+	                          (#b68316), which converts a tint into a heavy rule — a role
+	                          change, so it is NOT done here. The base border-amber-200 on
+	                          bg-amber-50 was 1.201:1, so this is carried debt, improved. ─── */
+	--warning: 35 76% 33%;
+	--warning-foreground: 28 62% 26%;
+	--warning-muted: 44 92% 96%;
+	--warning-border: 41 78% 50%;
+
 	/* ─── Default accent: emerald (SMART scheduling portal identity).
 	   May be overridden at runtime by applyEnrollProAccentTheme() when a
 	   school sets a custom brand color in EnrollPro. ─── */
@@ -126,6 +160,51 @@
 	--sidebar-ring: var(--accent-ring);
 }
 
+/* ─── Warning family, dark pair (A3-C8) — DEFINED BUT NOT REACHABLE TODAY.
+   There is no theme toggle in the client: nothing writes a `dark` class onto
+   <html>/<body> (no classList/add('dark') writer exists in src/), and
+   index.css had no dark token surface at all before A3-C8. So these four
+   overrides are a real, greppable, tested surface that no running code path
+  currently selects. They are defined ahead of the toggle on purpose, and
+  they must not be read as evidence that dark mode ships today. A future
+  session that adds a `dark`-class writer turns the superseded rows in
+  palette-token-sweep-a3-s-e.test.ts and palette-slate400-step2-a3-s-f.test.ts
+  back into a real rendered-screen demand; that gate is the tripwire.
+
+  STATED LIMITS OF THAT TRIPWIRE (measured 2026-09-28, planner-verified). The
+  writer scan is a pattern match over atlas-client/src (.ts/.tsx/.css), not a
+  build-graph proof. It CATCHES: classList add/toggle/remove, a template-literal
+  or double-quoted class attribute, setAttribute('class'), a theme provider
+  applying a colorScheme. It MISSES, among others: a computed class name such as
+  cn('card', isDark && 'dark') — which is this repo's own idiom at 67 call sites
+  in 50 files — a clsx({ dark }) object form, a single-quoted brace attribute
+  className={'dark'}, dataset.theme = 'dark', a third-party ThemeProvider, and
+  any writer in a .js file. So the tripwire is a real guard, NOT a complete one,
+  and a green row here must never be read as proof that no writer exists.
+  Widening the pattern is dated backlog, not a silent improvement.
+
+   The SURFACE tokens invert (pale -> dark, dark text -> light amber). The
+   ACCENT does not simply flip, because --warning has two live roles and in a
+   dark scheme they are not symmetric:
+     · icon/accent on the dark surface, which needs >= 3:1 (WCAG 1.4.11);
+     · solid bg-warning badge carrying `text-white` (NotificationBell:93),
+       which needs >= 4.5:1 or the count is unreadable.
+   Against a 0.0223-luminance surface those two demands admit a narrow but real
+   overlap (accent luminance 0.1669-0.1833), and 40 88% 32% sits inside it:
+     --warning on --warning-muted  3.058:1  (UI floor 3:1)
+     text-white on bg-warning      4.751:1  (AA 4.5:1)
+   A3-C8r1's 42 88% 62% sat outside that window: the badge read 1.687:1. As a
+   side effect the accent is now 4.037:1 against --warning-foreground instead of
+   1.434:1, so an icon is no longer the same lightness as the label beside it.
+   --warning-border is left at 1.934:1 here for the same reason as in :root:
+   a decorative hairline, and a light border on a dark panel is not an upgrade. ─── */
+.dark {
+	--warning: 40 88% 32%;
+	--warning-foreground: 45 92% 86%;
+	--warning-muted: 30 42% 15%;
+	--warning-border: 34 48% 29%;
+}
+
 @theme inline {
 	--font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
 	--font-heading: 'Poppins', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
@@ -152,6 +231,10 @@
 	--color-accent-foreground: hsl(var(--accent-foreground));
 	--color-destructive: hsl(var(--destructive));
 	--color-destructive-foreground: hsl(var(--destructive-foreground));
+	--color-warning: hsl(var(--warning));
+	--color-warning-foreground: hsl(var(--warning-foreground));
+	--color-warning-muted: hsl(var(--warning-muted));
+	--color-warning-border: hsl(var(--warning-border));
 	--color-border: hsl(var(--border));
 	--color-input: hsl(var(--input));
 	--color-ring: hsl(var(--ring));

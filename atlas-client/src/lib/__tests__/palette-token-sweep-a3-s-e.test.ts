@@ -397,13 +397,206 @@ test('control 2: no dark token layer can make the equivalence scheme-dependent',
 		);
 	}
 
-	// And nothing may ever put the class on: index.css wires the dark: variant to `.dark *`, so the
-	// variant is inert while no element carries the class.
-	assert.doesNotMatch(
+	// ── SUPERSEDED 2026-09-28 by a3-c8-warning-token (A3-C8r1) ────────────────────
+	// ORIGINAL ROW, RETAINED VERBATIM, NOW INVERTED TO PASS:
+	//
+	//   assert.doesNotMatch(
+	//     cssSource,
+	//     /\.dark\s*\{/,
+	//     'index.css now contains a `.dark` selector block. Re-verify this sweep on a rendered screen.',
+	//   );
+	//
+	// ORIGINAL INTENT: correct and worth keeping. A `.dark` block that redefined --foreground
+	// or --muted-foreground would make this sweep scheme-dependent, and a source-level proof
+	// would stop being sufficient. The rows immediately above (each token declared exactly
+	// once, and no `.dark` block touching those two names) still enforce that intent and are
+	// UNCHANGED — only the blanket "there is no `.dark` block at all" clause is superseded.
+	//
+	// WHY IT IS UNDECIDABLE TODAY: the row demands a rendered screen "in each scheme", but
+	// there is no second scheme. No file under atlas-client/src writes a `dark` class onto an
+	// element, so `.dark` is never selected and the demand has no screen to be decided on.
+	// A gate that cannot be run is not a gate.
+	//
+	// INTRODUCED BY: b1435a61e ("refactor(client): add a warning token family and sweep 13 A3
+	// files onto it"), which added the `.dark { --warning* }` pair at index.css:154 as a
+	// defined-but-unreached surface. QA returned this row red on candidate b1435a61e.
+	// SUPERSEDED BY: this commit (A3-C8r1), which replaces it with the decidable invariant
+	// immediately below.
+	//
+	// AGENTS.md §16: a correction is additive to evidence, never subtractive. The original
+	// assertion text and its failure message are kept visible above, and the replacement is
+	// added BESIDE it, not in place of it.
+	assert.match(
 		cssSource,
-	 /\.dark\s*\{/,
-		'index.css now contains a `.dark` selector block. Re-verify this sweep on a rendered screen.',
+		/\.dark\s*\{/,
+		'index.css no longer contains a `.dark` selector block, so this superseded row no longer describes the file. The replacement row below (`no file under src writes a dark class`) still holds and still gates the dark pair.'
 	);
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * REPLACEMENT for the superseded row in `control 2`, A3-C8r1, 2026-09-28.
+ *
+ * The superseded row asked for a rendered screen. This asks for the thing a rendered
+ * screen was standing in for, and which is decidable from source: that the `.dark` block
+ * is present, that it defines a real dark pair, and that NO code can select it. While the
+ * last part is true the pair is provably inert, so the source-level proof this file has
+ * always rested on is still sufficient — and the moment a writer appears, this row goes
+ * red and the rendered-screen demand becomes both possible and necessary.
+ *
+ * Strictly stronger than the original: the original only noticed that a `.dark` block
+ * existed. This one checks the block's CONTENT, checks that it actually diverges from
+ * `:root`, and checks the whole `src` tree for a writer.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Files deliberately excluded from the dark-writer scan, with the reason.
+ *
+ * `__tests__` is excluded because a test file cannot put a class on a rendered element: it
+ * is not shipped, not mounted, and its fixture strings routinely spell `dark` in prose
+ * (this very file does, in the superseded row above). Without the exclusion the scan
+ * detects its own evidence and the row is permanently, meaninglessly red. This is the one
+ * exclusion, it is narrow, and it is stated here rather than buried in a filter.
+ */
+const DARK_WRITER_SCAN_EXCLUDE = /(?:^|[\\/])__tests__[\\/]/;
+
+/**
+ * A STANDALONE `dark` class token — not `dark:`, not `darkMode`, not `darkModePreview`.
+ *
+ * The distinction is load-bearing and was found by running this scan, not by reasoning about
+ * it. `index.css:9` declares `@custom-variant dark (&:is(.dark *))`, and five files use 45
+ * `dark:` variants (GradeLevelBadge, timetable/GeneratedUnassignedPanel,
+ * timetable/RightPanel, timetable/ScheduleReviewWorkspace.constants, ui/button-variants).
+ * Those are styles GATED ON a `.dark` class, not code that PUTS one on an element. Matching
+ * them as writers would report a false alarm and train a future session to ignore the row.
+ */
+const DARK_CLASS_TOKEN = /(?<![\w:-])dark(?![\w:-])/;
+
+/** Class-attribute carriers whose value may legitimately hold a `dark` token. */
+const CLASS_ATTR = /\b(?:className|class)\s*=\s*(?:\{`[^`]*`\}|"[^"]*"|'[^']*')/g;
+
+/** The ways client code can actually PUT a `dark` class on an element. */
+const DARK_WRITER_PATTERNS: { label: string; re: RegExp }[] = [
+	{
+		label: "classList.add/toggle/remove('dark')",
+		re: /classList\s*\.\s*(?:add|toggle|remove)\s*\(\s*[^)]*['"`]dark['"`]/,
+	},
+	{
+		label: "setAttribute('class', ...) adding a standalone `dark`",
+		re: /setAttribute\s*\(\s*['"`]class['"`]\s*,[^)]*(?<![\w:-])dark(?![\w:-])/,
+	},
+	{
+		label: 'a theme provider applying colorScheme to the document',
+		re: /(?:documentElement|document\.body|root)[\s\S]{0,40}colorScheme|style\s*=\s*\{\{[^}]*colorScheme/,
+	},
+];
+
+/** Every `dark`-class writer under atlas-client/src. Empty means the `.dark` block is inert. */
+function darkClassWriters(): string[] {
+	const out: string[] = [];
+	const walk = (dir: string): void => {
+		for (const entry of readdirSync(dir)) {
+			const child = join(dir, entry);
+			if (statSync(child).isDirectory()) {
+				walk(child);
+				continue;
+			}
+			if (!/\.(?:ts|tsx|css)$/.test(entry)) continue;
+			const abs = child.split(sep).join('/');
+			if (DARK_WRITER_SCAN_EXCLUDE.test(abs)) continue;
+			const source = readFileSync(child, 'utf8');
+			source.split(/\r?\n/).forEach((line, i) => {
+				const where = `${relative(CLIENT_ROOT, child)}:${i + 1}`;
+				for (const { label, re } of DARK_WRITER_PATTERNS) {
+					if (re.test(line)) out.push(`${where} (${label})`);
+				}
+				// A class attribute whose value holds a standalone `dark` token.
+				CLASS_ATTR.lastIndex = 0;
+				for (const attr of line.match(CLASS_ATTR) ?? []) {
+					if (DARK_CLASS_TOKEN.test(attr)) out.push(`${where} (a class attribute holding \`dark\`)`);
+				}
+			});
+		}
+	};
+	walk(join(CLIENT_ROOT, 'src'));
+	return out;
+}
+
+test('REPLACEMENT (A3-C8r1): the .dark block is a real dark pair AND no code can select it', () => {
+	// 1. The block exists and carries all four warning tokens...
+	const dark = cssSource.match(/\.dark\s*\{([\s\S]*?)\n\}/);
+	assert.ok(dark, 'index.css has no .dark scope block');
+	const root = cssSource.match(/:root\s*\{([\s\S]*?)\n\}/);
+	assert.ok(root, 'index.css has no top-level :root block');
+	for (const name of ['--warning', '--warning-foreground', '--warning-muted', '--warning-border']) {
+		const darkVal = dark[1].match(new RegExp(`^\\s*${name}:\\s*(.+?);`, 'm'))?.[1];
+		const rootVal = root[1].match(new RegExp(`^\\s*${name}:\\s*(.+?);`, 'm'))?.[1];
+		assert.ok(darkVal, `.dark does not define ${name}`);
+		assert.ok(rootVal, `:root does not define ${name}`);
+		// 2. ...with values that actually DIFFER from :root. A copy is not a dark ramp.
+		assert.notEqual(
+			darkVal,
+			rootVal,
+			`.dark ${name} is identical to :root (${darkVal}); the dark pair is a copy, not a ramp.`
+		);
+	}
+
+	// 3. And nothing in src can put the class on an element, which is what makes 1 and 2
+	//    provable rather than merely asserted.
+	const writers = darkClassWriters();
+	assert.deepEqual(
+		writers,
+		[],
+		'a dark-class writer now exists, so the `.dark` block is REACHABLE and a rendered-screen ' +
+			'review in each scheme is required — including this sweep. Offenders: ' +
+			writers.join(', ') +
+			'. This is the tripwire the superseded row above was reaching for; do not silence it.'
+	);
+});
+
+test('CONTROL (A3-C8r1): the dark-writer scan CAN detect a writer, and is not fooled by `dark:` variants', () => {
+	// A replacement row is only as good as its ability to go red. Fabricate one writer in
+	// each shape and prove every one is caught.
+	const writers: [string, string][] = [
+		['classList.add', `document.documentElement.classList.add('dark')`],
+		['classList.toggle', `root.classList.toggle('dark', next)`],
+		['setAttribute', `el.setAttribute('class', cn('card dark'))`],
+		['colorScheme on the document', `document.documentElement.style.colorScheme = 'dark';`],
+		['className holding a standalone dark', `return <div className="rounded p-2 dark" />;`],
+	];
+	for (const [label, line] of writers) {
+		const viaPatterns = DARK_WRITER_PATTERNS.filter(({ re }) => re.test(line));
+		CLASS_ATTR.lastIndex = 0;
+		const viaClassAttr = (line.match(CLASS_ATTR) ?? []).some((a) => DARK_CLASS_TOKEN.test(a));
+		assert.ok(
+			viaPatterns.length > 0 || viaClassAttr,
+			`the fabricated ${label} writer "${line}" was not detected by any pattern; the replacement row cannot go red`
+		);
+	}
+
+	// The negative side, or the control proves nothing. Each of these is a real shape that
+	// appears in this repo today and must NOT be reported as a writer.
+	const notWriters: [string, string][] = [
+		['a `dark:` Tailwind variant gated on the class', `className={\`border p-1 dark:bg-gray-900 dark:text-gray-300\`}`],
+		['an identifier merely containing "dark"', `root.classList.add('darkModePreview')`],
+		['converted warning markup', `className="bg-warning-muted text-warning"`],
+		['the EnrollPro settings FIELD, not a theme application', `colorScheme: Record<string, unknown> | null;`],
+	];
+	for (const [label, line] of notWriters) {
+		const viaPatterns = DARK_WRITER_PATTERNS.filter(({ re }) => re.test(line));
+		CLASS_ATTR.lastIndex = 0;
+		const viaClassAttr = (line.match(CLASS_ATTR) ?? []).some((a) => DARK_CLASS_TOKEN.test(a));
+		assert.deepEqual(
+			viaPatterns.map((p) => p.label),
+			[],
+			`false positive on ${label}: ${line}`
+		);
+		assert.equal(viaClassAttr, false, `false positive on ${label} via the class-attribute check: ${line}`);
+	}
+
+	// The scan is scoped to src/ and skips only __tests__ — assert that boundary is real, so
+	// the exclusion cannot quietly become "everything".
+	assert.ok(DARK_WRITER_SCAN_EXCLUDE.test('src/lib/__tests__/anything.test.ts'), 'the __tests__ exclusion is not active');
+	assert.ok(!DARK_WRITER_SCAN_EXCLUDE.test('src/components/app-shell/AppShell.tsx'), 'the exclusion is broader than __tests__');
 });
 
 test('control 3: every in-scope file is free of the two swept classes', () => {

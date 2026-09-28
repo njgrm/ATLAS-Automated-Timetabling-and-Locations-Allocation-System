@@ -114,7 +114,7 @@ const DISMISS_STORAGE_PREFIX = 'atlas.rollover-banner.dismissed.';
 
 const DRIFT_BADGE: Record<string, string> = {
 	aligned: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-	'atlas-stale': 'border-amber-200 bg-amber-50 text-amber-700',
+	'atlas-stale': 'border-warning-border bg-warning-muted text-warning',
 	'enrollpro-unreachable': 'border-slate-200 bg-slate-50 text-slate-700',
 	'mapping-conflict': 'border-red-200 bg-red-50 text-red-700',
 };
@@ -545,7 +545,7 @@ export function RolloverGuidanceCard({
 			<div
 				className={cn(
 					'flex min-h-8 items-center gap-2 rounded-xl border px-2.5 py-1 text-xs shadow-none',
-					isBlocking ? 'border-amber-200 bg-amber-50/70 text-amber-800' : 'border-slate-200 bg-white/80 text-slate-700',
+					isBlocking ? 'border-warning-border bg-warning-muted/70 text-warning-foreground' : 'border-slate-200 bg-white/80 text-slate-700',
 					status?.drift.status === 'aligned' && !termAuthorityView.needsRepair && 'border-emerald-100 bg-emerald-50/60 text-emerald-700',
 				)}
 				data-testid="rollover-guidance-card"
@@ -602,7 +602,7 @@ export function RolloverGuidanceCard({
 		<Card
 			className={cn(
 				'border-dashed shadow-none',
-				isBlocking ? 'border-amber-200 bg-amber-50/70' : 'border-slate-200 bg-white/80',
+				isBlocking ? 'border-warning-border bg-warning-muted/70' : 'border-slate-200 bg-white/80',
 			)}
 			data-testid="rollover-guidance-card"
 		>
@@ -686,17 +686,17 @@ export function RolloverGuidanceCard({
 					</div>
 				) : null}
 				{recoveryClassification?.classification === 'TEST_DATA_RECOVERY_AVAILABLE' ? (
-					<div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+					<div className="space-y-2 rounded-md border border-warning-border bg-warning-muted p-3 text-xs text-warning-foreground">
 						<p className="font-medium">{recoveryClassification.message}</p>
 						{recoveryClassification.artifactCounts ? (
-							<ul className="ml-3 list-disc space-y-0.5 text-amber-700">
+							<ul className="ml-3 list-disc space-y-0.5 text-warning">
 								{Object.entries(recoveryClassification.artifactCounts).filter(([, v]) => (v as number) > 0).map(([key, count]) => (
 									<li key={key}>{key}: {String(count)}</li>
 								))}
 							</ul>
 						) : null}
 						{recoveryClassification.blockers.length > 0 ? (
-							<ul className="ml-3 list-disc space-y-0.5 text-amber-700">
+							<ul className="ml-3 list-disc space-y-0.5 text-warning">
 								{recoveryClassification.blockers.map((b) => (
 									<li key={b.code}>{b.message}</li>
 								))}
@@ -708,7 +708,7 @@ export function RolloverGuidanceCard({
 					</div>
 				) : null}
 				{canOfferTestDataMarking ? (
-					<div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+					<div className="space-y-2 rounded-md border border-warning-border bg-warning-muted p-3 text-xs text-warning-foreground">
 						<p className="font-medium">{recoveryClassification.message}</p>
 						<p>Mark only a disposable test year. Marking enables a separate review before any data is cleared.</p>
 						<Button type="button" size="sm" variant="outline" onClick={() => setShowMarkTestDataConfirm(true)} data-testid="rollover-banner-mark-test-data">
@@ -717,7 +717,7 @@ export function RolloverGuidanceCard({
 					</div>
 				) : null}
 				{status?.reconfiguredSections?.length ? (
-					<div className="space-y-1 text-xs text-amber-700">
+					<div className="space-y-1 text-xs text-warning">
 						<p className="font-medium">{status.reconfiguredSections.length} section(s) changed name, grade, or program since the last sync:</p>
 						<ul className="ml-3 list-disc space-y-0.5">
 							{status.reconfiguredSections.slice(0, 5).map((s) => (
@@ -804,7 +804,7 @@ export function RolloverGuidanceCard({
 					</DialogDescription>
 				</DialogHeader>
 				{recoveryClassification?.publishedResetBlocked ? (
-					<div className="flex items-start gap-2 text-sm text-amber-700">
+					<div className="flex items-start gap-2 text-sm text-warning">
 						<Checkbox id="recovery-ack-published" checked={recoveryAckPublished} onCheckedChange={(checked) => setRecoveryAckPublished(checked === true)} disabled={recovering} />
 						<Label htmlFor="recovery-ack-published" className="leading-5">I acknowledge that published schedule artifacts exist for this school year and will be cleared.</Label>
 					</div>
@@ -833,7 +833,7 @@ export function RolloverGuidanceCard({
 						Mark school year #{recoveryClassification?.enrollProActiveYear?.id} only when its ATLAS data is disposable test data. This enables a separate cleanup review; it does not clear anything now.
 					</DialogDescription>
 				</DialogHeader>
-				<div className="flex items-start gap-2 text-sm text-amber-700">
+				<div className="flex items-start gap-2 text-sm text-warning">
 					<Checkbox id="mark-test-data-confirmation" checked={markTestDataAcknowledged} onCheckedChange={(checked) => setMarkTestDataAcknowledged(checked === true)} disabled={markingTestData} />
 					<Label htmlFor="mark-test-data-confirmation" className="leading-5">I confirm that this school year contains only disposable test data.</Label>
 				</div>
