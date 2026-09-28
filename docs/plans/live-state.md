@@ -4418,14 +4418,31 @@ decidable from source. Worktrees `lane-a3-c10-{s1-sections,s3-tldensity,s4-teach
   `client-quality` 34/34, `a3-c4/c5-subjects` 33/33, `tsc` the same 5 pre-existing errors, build
   exit 0, `git diff --check` clean. `test:a3-c4-copy` **18/14/1/3 — the 1 is pre-existing**
   (`SubjectFormModal.tsx` raw `title=`, the named out-of-scope file), identical at base.
-- **⚠ Still owed and NOT claimed: the rendered `after` images, and therefore the §11 `REJECT_UX`
-  gate.** The filter row's measurements are real but were captured in a session whose screenshots
-  crashed, so they stand uncorroborated until re-taken. **The subject table row — program chips,
-  `Owned by AP, MAPEH`, absent code chip — has no rendered proof at all and stays
-  `UNPERFORMED`**: under a mocked `/api/v1` the catalogue loader is gated on
-  `resolveActiveSchoolYearContext()` and `/subjects/scheduling-authority` is never dispatched. The
-  cheapest fix for both is a **real-data render against staging** (A4's copy of live), not another
-  mocked one.
+- **Rendered `after` images LANDED 2026-09-29 at `a1b06eda`** (supersedes the withdrawn
+  error-boundary pair). Dedicated `launchPersistentContext` profile, wiped at start, with a
+  single `page.route('**/*')` catch-all that fulfils or `abort()`s, so nothing proxied to live
+  5001. Measured at 1366x768: **`errorBoundary: false`**, five triggers `Status: All` / `Grade: All`
+  / `Program: All` / `Room: All` / `Term: All`, each **h 36 w 128**, none clipped, search **h 36**,
+  cluster box **812x36 = one line**, `scrollHeight === clientHeight === 768`. **This also proves the
+  B5 fix: 128px = `w-32`, where the defective build rendered 160px.**
+- **QA round 2: `CORRECTION_REQUIRED`, mandatory 22 / passed 21 / blocked 0 / unperformed 0 /
+  FAILED 1 — and the single failure is RECORD INTEGRITY, not safety, authority, test or design.**
+  B1-B6 **all CLOSED on the reviewer's own numbers** (`a3-subjects` **32/32 on 6/6 consecutive
+  runs**, `18/18`, `14/14`, `16/16`, `11/11`, `33/33`, tsc the same 5 pre-existing, build exit 0).
+  **§11 rule 4 returns no `REJECT_UX` on the filter row** — every axis PASS, scored on the real
+  1366x768 render against the operator's words, with the missing base render disclosed as the limit
+  on the comparison half. The one BLOCKING was a **disproved causal claim**: the evidence file
+  attributed the withdrawn crash to `contract.schoolYear.yearLabel`, which cannot yield the recorded
+  `reading 'length'` text. **Corrected directly by the planner under §11** (docs/comment only, no
+  third round): cause marked **UNATTRIBUTED**, the two `.length` sites that can produce it named,
+  the source comment disowned. The verified conclusion stands — **fixture, not candidate**.
+  → **slice A is SHIPPED, not dropped.**
+- **⚠ RELEASE CONDITION — the subject table row, deferred by Lane C's 02:35 ruling, OWNER NAMED.**
+  Program chips, `Owned by AP, MAPEH` and the absent code chip still have **no rendered proof**:
+  `/api/v1/subjects/scheduling-authority` is undispatched under a fixture and `rowsRendered: 1` is
+  the empty-state row. **Owner: Lane C, who judges it on staging `:5274` after A4 deploys train 6;
+  a `REJECT_UX` there RETURNS IT TO LANE A5.** Recorded as a deferred condition, **never as a
+  satisfied row** — QA round 2 verified no place claims it met.
 - **Dated harness findings 2026-09-29, NON_BLOCKING backlog, not fixed here:** a test that throws
   with a React tree still mounted leaves the child at exit `-1` with a bare `test failed`; an open
   Radix `Popover` is modal and `aria-hidden`s its siblings, silently emptying the next test's DOM.

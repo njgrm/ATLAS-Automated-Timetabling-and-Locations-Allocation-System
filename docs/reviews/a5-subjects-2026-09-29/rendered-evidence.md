@@ -79,14 +79,23 @@ The first two committed images (22 414 B / 26 235 B) rendered *"This page hit an
 Cannot read properties of undefined (reading 'length')"*. The previous version of this file cited
 one of them as a PASS. **That citation was false.**
 
-Root cause, now established by a real render: it was **the planner's fixture, not the candidate**.
-The mocked `termAuthority.contract` omitted `schoolYear`, so `SubjectTermAuthorityBanner` /
-`SubjectTermContractPopover` read `contract.schoolYear.yearLabel` off `undefined`
-(`components/subjects/SubjectTermAuthorityBanner.tsx:113`, `SubjectTermContractPopover.tsx:77,81,89`).
-With `contract.schoolYear = { yearLabel: '2031-2032' }` supplied the page renders clean and
-`errorBoundary: false`. The candidate's `filter-picker.tsx` `options ?? []` hardening is real and
-independent — a misuse guard, **not** the fix for this crash. No product defect is claimed, and
-none was found here.
+**Verified conclusion (round-2 review, independently):** the cause was **the planner's fixture, not
+the candidate.** `schoolYear` is required in the client term-authority contract type, so the
+consuming components are not defective, and the candidate's new `ProgramScopeChips.tsx:49`
+(`scopes.length`) never rendered in that capture because the page was in the empty state. The
+`options ?? []` hardening in `filter-picker.tsx` is real, independent, and correctly described as a
+**misuse guard, not the fix**.
+
+**The exact attribution is UNATTRIBUTED, and an earlier draft of this file got it wrong.** That
+draft claimed `contract.schoolYear.yearLabel` (at `SubjectTermAuthorityBanner.tsx:113`,
+`SubjectTermContractPopover.tsx:77,81,89`) as the root cause, "established by a real render". That
+claim **cannot** be right: reading `.yearLabel` off `undefined` throws `reading 'yearLabel'`, not
+the `reading 'length'` text the withdrawn images actually show. The two sites that **can** produce
+the recorded text, both reading `.length` off fixture-supplied objects, are
+`SubjectTermAuthorityBanner.tsx:56` (`rawMessage.length`, which renders before line 113) and
+`SubjectTermContractPopover.tsx:58` (`contract.terms.length`). **Neither is confirmed** — the
+difference was not isolated. The correction is additive: the false claim is withdrawn here and the
+two candidates are named; the verified conclusion above stands unchanged.
 
 ## 6. Harness findings (backlog, recorded not fixed)
 

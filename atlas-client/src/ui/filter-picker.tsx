@@ -113,14 +113,21 @@ export function FilterPicker({
 	// anything reads them.
 	//
 	// The planner's loopback render of `/subjects` produced an error boundary reading
-	// "Cannot read properties of undefined (reading 'length')" — the exact text of
-	// `options.length` on this line. Every current call site passes an array, so this
-	// is a CRASH GUARD, not a fix for a proven cause: a filter that is handed a
-	// missing list during a partial load must degrade to an empty, still-tappable
-	// control, because a thrown render takes the whole page to an error boundary and
-	// a scheduler sees "Reload page" instead of a catalogue. One `?? []` at the top of
-	// the component is the right place; scattering optional chaining at each read
-	// would leave the same trap for the next reader.
+	// "Cannot read properties of undefined (reading 'length')".
+	//
+	// THE CAUSE OF THAT BOUNDARY IS NOT ATTRIBUTED AND IS NOT THIS LINE. A5 C3 QA
+	// round 2 disproved an earlier claim that it was, and named two sites that can
+	// produce the recorded text on fixture-supplied objects instead:
+	// `SubjectTermAuthorityBanner.tsx:56` (`rawMessage.length`) and
+	// `SubjectTermContractPopover.tsx:58` (`contract.terms.length`). Neither is
+	// confirmed — the difference was not isolated. What IS established is that the
+	// candidate is not the cause, and that this line is a CRASH GUARD for a misuse
+	// TypeScript already prevents — not a fix for a proven cause. It stays because a
+	// filter handed a missing list during a partial load must degrade to an empty,
+	// still-tappable control: a thrown render takes the whole page to an error
+	// boundary and a scheduler sees "Reload page" instead of a catalogue. One
+	// `?? []` at the top of the component is the right place; scattering optional
+	// chaining at each read would leave the same trap for the next reader.
 	//
 	// The planner separately recorded that the subject table row stays UNPERFORMED
 	// under a mocked surface because `pages/Subjects.tsx` only requests the catalogue
