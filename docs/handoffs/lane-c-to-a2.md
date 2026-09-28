@@ -1107,3 +1107,64 @@ release lag / differs — live defect`. Order: (1) the committed manual-edit run
 - **Owed, dated, not waived:** the D10 grid-gesture half, the stale-selection sub-row in two contexts, and the
   Wednesday demo walkthrough. **Generation and publication are now separate HIGH gates** - I struck the publish
   grant from the release packet, because a deploy packet must not carry them on an authority claim.
+
+---
+
+## A4 -> Lane C, 2026-09-28 20:35 +08 — **A4 STAGING at `9ca7f629` (release train 2026-09-28-2)**
+
+**0 fixes live and seen on production / 4 lanes' ready work integrated into staging / 0 dropped.**
+**Production was NOT deployed. Live `7590d485` did not move — measured, not asserted.**
+
+**Pinned staging SHA: `9ca7f629a7e43a0e31c6b9fada97152541c2a877`**, branch `release/2026-09-28-2` (pushed to
+`origin`), base `e869b7b5` = `origin/main` tip, second parent A3 `13d75ce6`.
+
+| Lane | Ready SHA | In this train? |
+| --- | --- | --- |
+| A2 | `e910811b` (React #310 hook-order fix) | **included** (already on the `origin/main` base) |
+| A5 | `c5aba703` | **included** (via base) |
+| A6 | `6498c322` | **included** (via base) |
+| A3 | `13d75ce6` (c11 sections / campus map) | **included — merged by A4**, clean mechanical merge, 0 conflicts |
+| — | dropped | **nothing dropped** |
+
+The A3 merge touched **20 paths, every one under `atlas-client/`** — 0 under `atlas-server/`, `prisma/`, `ops/`, and
+0 lockfile, migration, seed or `.env` paths. `git diff --cached --check` exit 0, no unmerged paths, no conflict
+markers. Guard gate `npm run test:staging-guards` **20 pass / 0 fail** before the deploy.
+
+**Staging health, every row measured by A4 after the cutover:**
+
+| Row | Result |
+| --- | --- |
+| `http://127.0.0.1:5101/api/v1/health` | **200** |
+| `http://127.0.0.1:5101/api/v1/health/ready` | **200** `{"status":"ready","service":"atlas","checks":{"database":"ok"}}` |
+| `http://127.0.0.1:5274/__host/live` and `/` | **200** (3 838 B) |
+| `https://njgrm.buru-degree.ts.net:8443/` | **200** (3 838 B) |
+| `https://njgrm.buru-degree.ts.net:8443/api/v1/health` | **200** |
+| DB-backed `…:8443/api/v1/subjects?schoolId=1` | **200** |
+| **Deploy discriminator, non-vacuous** | `assets/index-D940J6sv.js` **200** (350 758 B); the previous entry `assets/index-D-9pvysa.js` **404**. The A3 c11 room-map marker is present in the new chunk set and **absent from the old build**. |
+| Staging DB | refreshed from live before serving: `liveSignatureBefore 1018\|467\|11` == `liveSignatureAfter` == staging signature, `liveUnchanged: true`, no migration applied, archive never written to disk |
+
+**Live untouched, measured:** listeners still **5001 → 12560** and **5174 → 12628** (the deploy recorded them
+unchanged across its own cutover); machine-scope `ATLAS_RUNTIME_RELEASE_SHA` still
+`7590d485974337f834aa3972bb128090e6067b8d`; live worktree HEAD `7590d485`, tracked tree clean; live DB signature
+`audit_logs=467 maxid=1018 gen_runs=9 pub_rev=6 notif=226 migrations=11` **identical before and after**;
+`https://njgrm.buru-degree.ts.net/api/v1/health` 200.
+
+**Lane C: staging is yours to walk now.** Sign in once at **`https://njgrm.buru-degree.ts.net:8443`** — staging has its
+own `JWT_SECRET`, so a session seeded on the live origin is not valid there — then walk A2's `/timetable` React #310
+row, A3's c11 sections/map rows, and A5/A6's rows. Assert `window.location.origin` on every row. **A4 claims none of
+them:** nothing in this deploy is browser acceptance, and a healthy process is not acceptance.
+
+**Two records so the next reader is not misled.**
+
+1. **The staging/live byte discriminator no longer separates, and that is the refresh working, not 8443 pointing at
+   live.** The runbook's `20361 B on 8443` vs `19517 B on 443` was a *data* difference; the DB refresh made staging an
+   exact copy of live, so both now read **19 517 B**. Port identity is proven instead by listener command lines —
+   5101 → `E:\ATLAS-staging\9ca7f629…\atlas-server\dist\server.js`, 5001 →
+   `E:\ATLAS-worktrees\lane-a4-release-20260928-1\atlas-server\dist\server.js` — and by `tailscale serve status`,
+   which still shows `8443 → 5274` (tailnet only) and `443 → 5174` (Funnel) as two separate mappings. **The runbook
+   row that teaches "prove the API port with a DB-backed read" needs a non-data discriminator added; A4 did not edit
+   it, because A4 does not edit product or runbook content in another lane's packet.**
+2. **A tooling trap, not a product defect.** Invoking `deploy-staging.ps1` as `powershell -File .\ops\staging\…` leaves
+   `$PSScriptRoot` empty inside the param defaults, so the script dies on `Join-Path` before doing anything. Call it
+   with an **absolute path** through `-Command` (what A4 did) or dot-source it. The first launch failed this way,
+   mutated nothing, and is why the run took two launches.

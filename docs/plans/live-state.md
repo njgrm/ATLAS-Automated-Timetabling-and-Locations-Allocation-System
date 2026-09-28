@@ -73,6 +73,37 @@ rules are what make that safe:
   `prisma/`, `ops/`. Health 200 across health/ready/host and 3/3 public API paths. `E:` 38.0 -> **36.47 GiB**,
   no reclaim triggered. Evidence: `docs/reviews/a4-release-20260928-1/release.md`.
 
+- **▶ STAGING MOVED to `9ca7f629` on 2026-09-28 20:35 +08 (release train `a4-release-2026-09-28-2`,
+  STAGING step only).** Pinned SHA `9ca7f629a7e43a0e31c6b9fada97152541c2a877`, branch `release/2026-09-28-2`
+  (pushed), base `e869b7b5` = `origin/main` tip, second parent A3 `13d75ce6`. **Included** A2 `e910811b`
+  (React #310 hook-order fix), A5 `c5aba703`, A6 `6498c322` — all via the base — and A3 `13d75ce6`, which **A4
+  merged itself**: clean mechanical merge, 20 paths, every one under `atlas-client/`, 0 under `atlas-server/`,
+  `prisma/`, `ops/`, 0 lockfile/migration/seed, `diff --cached --check` exit 0. **Nothing dropped.**
+  `npm run test:staging-guards` 20/20 before the deploy. Health 200 on 5101 health/ready/host-live/host-root, on
+  `127.0.0.1:5274`, and on `https://njgrm.buru-degree.ts.net:8443/`; DB-backed `…:8443/api/v1/subjects?schoolId=1`
+  200; **non-vacuous deploy proof** — new entry `assets/index-D940J6sv.js` 200 (350 758 B) carrying the A3 c11
+  room-map marker, previous `assets/index-D-9pvysa.js` **404**. DB refreshed from live first
+  (`liveSignatureBefore 1018|467|11` == after == staging, `liveUnchanged: true`, no migration applied).
+  **LIVE UNTOUCHED, measured:** 5001 → **12560**, 5174 → **12628**, machine scope still `7590d485…`, live tree
+  clean at `7590d485`, live signature `audit_logs=467 maxid=1018 gen_runs=9 pub_rev=6 notif=226 migrations=11`
+  identical before **and** after. **Production was NOT deployed** — that is the operator's decision and Lane C walks
+  staging first. Detail: the `A4 -> Lane C` block at the end of `docs/handoffs/lane-c-to-a2.md`.
+  Two records: (1) **the staging/live byte discriminator no longer separates** — `20361 B` vs `19517 B` was a *data*
+  difference and the refresh made staging an exact copy, so both now read **19 517 B**; port identity is proven by
+  listener command lines and by `tailscale serve status` still showing `8443 → 5274` (tailnet) and `443 → 5174`
+  (Funnel) separately. The runbook row teaching "prove the API port with a DB-backed read" needs a non-data
+  discriminator; A4 did not edit it. (2) `deploy-staging.ps1` invoked via `powershell -File .\ops\…` dies on an empty
+  `$PSScriptRoot` in its param defaults; call it with an **absolute path** through `-Command` or dot-source it.
+- **Worktrees:** `lane-a4-release-20260928-2` = **`KEEP_ACTIVE`** (this cycle's branch worktree).
+  `lane-a4-release-20260928-1` = **`KEEP_ACTIVE`** (the live runtime source dir — retiring it would take live down).
+  `lane-a2-release-4c35cc8f` = **`KEEP_ACTIVE`** (rollback basis). `lane-a3-c11-sections-map` = A3's, untouched.
+  `E:` 27.08 GiB before the deploy; the retired-now-redundant staging release dir `E:\ATLAS-staging\7590d485…`
+  (1.46 GiB) is **A4's own reclaim candidate** and is deliberately **not** removed in this step — a stale-release
+  directory is not a defect, and a reclaim under a moving volume is its own audited action.
+- **Next action (single):** Lane C signs in once at `https://njgrm.buru-degree.ts.net:8443` and walks A2's
+  `/timetable` React #310 row, A3's c11 sections/map rows and A5/A6's rows on `9ca7f629`. **A4 does not deploy
+  production until Lane C's staging walk is recorded.**
+
 **Stream:** own the release. Merge ready SHAs into one pinned release commit, gate once, build, cut over, smoke,
 post. **A4 is the only lane that deploys and the only one that runs elevated. A4 never edits product code or tests.**
 
@@ -263,15 +294,14 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
-- **▶ STAGING (second, isolated ATLAS) is up at `7590d485` on 5101/5274 since 2026-09-28 ~17:35 +08 by
-  Lane A4 — this does NOT change the LIVE release named below.** Loopback only: `http://127.0.0.1:5274`.
-  Own env file, own `atlas_staging` database (a dump snapshot of live), own scheduled task, own dependency
-  trees, and its own `JWT_SECRET` so no session crosses the two origins. **Two gates are still open — the
-  independent post-action QA dispatch was declined and the operator has not signed in — so staging is
-  NOT QA-verified.** Detail and rows: `docs/reviews/a4-staging-20260928/pre-action.md`; operator steps:
-  `docs/runbooks/staging.md`; source on branch `work/a4-staging-20260928` at `834f1ad3` (pushed, not yet
-  merged to `main`). Live listeners, machine scope, release tree and the live `audit_logs` signature
-  `1010|459|11` were all measured unchanged across the staging cutover.
+- **▶ STAGING is at `9ca7f629` (train 2026-09-28-2) since 2026-09-28 20:35 +08 — this does NOT change the LIVE
+  release named below.** Staging: 5101 (API) / 5274 (client), `https://njgrm.buru-degree.ts.net:8443` (tailnet
+  only) and `http://127.0.0.1:5274`. Own env file, own `atlas_staging` database (re-snapshotted from live at
+  every deploy), own scheduled task `ATLAS-Staging-Supervisor`, own dependency trees, own `JWT_SECRET` so no
+  session crosses the two origins. Live listeners, machine scope, live release tree and the live DB signature were
+  all measured unchanged across the cutover; **live `7590d485` did not move and production was not deployed.**
+  Detail and rows: the `A4 -> Lane C` block at the end of `docs/handoffs/lane-c-to-a2.md`; operator steps:
+  `docs/runbooks/staging.md`. **Staging is still NOT acceptance — Lane C owns every browser row.**
 
 - **▶ LIVE: `7590d485974337f834aa3972bb128090e6067b8d` — DEPLOYED 2026-09-28 ~16:40 +08 by Lane A4
   (`a4-release-2026-09-28-1`, the first A4 train). Merge of the incumbent `4c35cc8f` with **A3 `7caadf2d`
