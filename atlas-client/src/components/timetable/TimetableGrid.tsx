@@ -1,7 +1,6 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import type { ReactNode, TdHTMLAttributes } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { TdHTMLAttributes } from 'react';
 import { AlertCircle, ArrowRightLeft, Flag, GripVertical, Plus } from 'lucide-react';
-import { useDroppable } from '@dnd-kit/core';
 import { toast } from 'sonner';
 import { parseDraftPlacementId } from '@/lib/timetable-utils';
 import { isDayScopedOverlay } from '@/lib/timetable-grid-slots';
@@ -15,6 +14,13 @@ import { TimetableCellOverflowSheet } from '@/components/timetable/TimetableCell
 import { ConflictBadgeWithTooltip, EntrySeverityIndicator, entryAccessibleName } from '@/components/timetable/TimetableGridConflictBadge';
 import { DraggableEntry, useTimetableEntryReadOnly } from '@/components/timetable/TimetableDraggableEntry';
 import { SandboxEntryBadge, TeacherDepartureEntryBadge } from '@/components/timetable/TimetableGridEntryBadges';
+import {
+	GridDropContainer,
+	inactiveDragCellState,
+	POINTER_ACTIVE_CELL_VISUAL_DELAY_MS,
+	publishActiveDragCell,
+	useGridCellDragState,
+} from '@/components/timetable/TimetableGridDropContext';
 
 /**
  * C01R C2 — cell density (packet F-07). The room short label repeats its own
@@ -88,51 +94,10 @@ interface GridCellProps {
 	readOnly?: boolean;
 }
 
-type ActiveDragCellState = {
-	cellId: string;
-	isOver: true;
-	info: CellConflictInfo | null;
-};
-
-const inactiveDragCellState = { isOver: false, info: null } as const;
-let activeDragCellState: ActiveDragCellState | null = null;
-const dragCellListeners = new Set<() => void>();
-const POINTER_ACTIVE_CELL_VISUAL_DELAY_MS = 40;
-
-function publishActiveDragCell(cellId: string | null, info: CellConflictInfo | null) {
-	if (cellId === null) {
-		if (activeDragCellState === null) return;
-		activeDragCellState = null;
-	} else if (activeDragCellState?.cellId === cellId && activeDragCellState.info === info) {
-		return;
-	} else {
-		activeDragCellState = { cellId, isOver: true, info };
-	}
-	for (const listener of dragCellListeners) listener();
-}
-
-function useGridCellDragState(cellId: string) {
-	return useSyncExternalStore(
-		(listener) => {
-			dragCellListeners.add(listener);
-			return () => dragCellListeners.delete(listener);
-		},
-		() => activeDragCellState?.cellId === cellId ? activeDragCellState : inactiveDragCellState,
-		() => inactiveDragCellState,
-	);
-}
-
-// DnD context updates at pointer frequency. Keep its subscription in this
-// wrapper so activation and release do not re-render the complete timetable.
-const GridDropContainer = memo(function GridDropContainer({ children }: { children: ReactNode }) {
-	const { setNodeRef } = useDroppable({
-		id: 'timetable-grid-drop-zone',
-		data: { type: 'timetableGrid' },
-	});
-
-	return <div ref={setNodeRef} className="overflow-auto scrollbar-thin">{children}</div>;
-});
-
+// A2-C7 item 3(a): the drag-cell store, its subscription and the drop wrapper
+// were extracted verbatim to `TimetableGridDropContext.tsx` so this file could
+// take the blocked-window fix inside the 1000-line component cap (AGENTS.md
+// §8). Same objects, same module-scope singletons, same rendered output.
 const GridCell = memo(function GridCell({
 	cellId,
 	day,
@@ -217,7 +182,24 @@ const GridCell = memo(function GridCell({
 	// scheduler conclude no class is registered in the ceremony period.
 	const ceremonyOverlayWithClass = dayScopedOverlay && eventAppliesToDay && cellEntries.length > 0;
 
-	if (eventAppliesToDay && !ceremonyOverlayWithClass) {
+	// A2-C7 item 3(a) — a class placed inside a BLOCKED window was invisible.
+	// The cell rendered the band name and dropped `cellEntries` entirely, so
+	// `manual_schedule_edits` id 12's move of TLE to MON 12:15 produced a cell
+	// reading "Lunch Break" on every term and an unexplained empty 06:00 beside
+	// it. The grid must never hide a registered class: it shows the class AND
+	// says, in words, that it overlaps the block. Without this the operator has
+	// no way to learn a class is misplaced except by comparing days.
+	//
+	// Distinct from `ceremonyOverlayWithClass` on purpose. A day-scoped overlay
+	// (the Monday flag/HGP ceremony) is an ANNOTATION on a period the section
+	// attends, so it labels the cell. A non-day-scoped blocked window is a
+	// genuine policy block that a class is sitting inside, so the cell must also
+	// count and name the collision — "1 class overlaps Lunch Break" — which is
+	// the difference between a label and a statement about the schedule.
+	const blockedWindowWithClass = eventAppliesToDay && !dayScopedOverlay && cellEntries.length > 0;
+	const eventLabelWithClass = ceremonyOverlayWithClass || blockedWindowWithClass;
+
+	if (eventAppliesToDay && !eventLabelWithClass) {
 		if (hasKbSource) {
 			return (
 				<td
@@ -372,6 +354,24 @@ const GridCell = memo(function GridCell({
 				>
 					<Flag className="size-2.5 shrink-0" aria-hidden="true" />
 					<span className="min-w-0 truncate">{eventName ?? 'Special Event'}</span>
+				</div>
+			)}
+			{blockedWindowWithClass && (
+				// A2-C7 item 3(a). Colour is not the signal: the text states the
+				// count and names the block, and the count matches the classes
+				// rendered directly beneath it, so the two can be checked.
+				<div
+					className="mb-0.5 flex items-center gap-1 rounded-sm bg-amber-100 px-1 py-0.5 text-[12px] font-semibold leading-none text-amber-900"
+					data-testid="timetable-blocked-overlap-label"
+					data-overlap-count={cellEntries.length}
+					data-overlap-window={eventName ?? 'Special Event'}
+				>
+					<AlertCircle className="size-2.5 shrink-0" aria-hidden="true" />
+					<span className="min-w-0 truncate">
+						{cellEntries.length === 1
+							? `1 class overlaps ${eventName ?? 'this blocked time'}`
+							: `${cellEntries.length} classes overlap ${eventName ?? 'this blocked time'}`}
+					</span>
 				</div>
 			)}
 			{isActive && activeInfo && (activeInfo.kind === 'hard' || activeInfo.kind === 'soft') && (info !== null || kbConflictInfo !== null) && (

@@ -27,6 +27,8 @@
  * commit, and added to `test:client-suite`).
  */
 import assert from 'node:assert/strict';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import test from 'node:test';
 
 import {
@@ -39,6 +41,7 @@ import {
 	readEditAutoMove,
 } from '@/lib/timetable-edit-history-truth';
 import { describeRunState, runStateKeyOf } from '@/components/timetable/RunStateBadge';
+import { TimetableGrid } from '@/components/timetable/TimetableGrid';
 import {
 	SIMPLE_HEADER_MESSAGE_LIMIT,
 	buildSimpleHeaderMessages,
@@ -49,7 +52,7 @@ import {
 	verifiedActiveTermLabel,
 } from '@/components/timetable/simple/SimpleTermScopeLine';
 import { deriveRunWideReadiness } from '@/components/timetable/timetableWorkspaceTruth';
-import type { ManualEditRecord, Violation } from '@/types';
+import type { ManualEditRecord, ScheduledEntry, Violation } from '@/types';
 
 /* ------------------------------------------------------------------ *
  * T1 — the ledger, its read, and the sentence it may print
@@ -485,3 +488,143 @@ test('T4 the run-wide figure stays a pure function of the run, never of the term
 function softTwoDisplayAgain(): Violation[] {
 	return softViolations(52);
 }
+
+/* ------------------------------------------------------------------ *
+ * A2-C7 item 3(a) — the grid must never hide a class under a break band
+ * ------------------------------------------------------------------ */
+
+/**
+ * The live defect, from `manual_schedule_edits` id 12 on run 321: a class was
+ * relocated to MONDAY 12:15-13:00, which is the `Lunch Break` BREAK row of that
+ * grade+program's own canonical grid. The cell rendered the band name and dropped
+ * the class entirely, so Monday 06:00 read empty and the class was nowhere on
+ * the day. The grid rendered a schedule that did not match the stored run.
+ *
+ * Renders the real `TimetableGrid` — the fixture is the LIVE shape (one entry in
+ * a 12:15-13:00 special-event slot), not an invented one.
+ */
+function renderBlockedWindowGrid(
+	entries: ScheduledEntry[],
+	timeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string; dayOfWeek?: string }>,
+): string {
+	return renderToStaticMarkup(createElement(TimetableGrid, {
+		entries,
+		timeSlots,
+		violationIndex: new Map<string, Violation[]>(),
+		highlightedEntryIds: new Set<string>(),
+		selectedEntry: null,
+		followUps: new Set<string>(),
+		onEntryClick: () => {},
+		subjectLabel: () => 'TLE',
+		sectionLabel: () => 'G7AW',
+		gradeForSection: () => 7,
+		entryContextLabel: () => 'G7AW',
+		formatFacultyInitials: () => 'P. CRUZ',
+		facultyLabel: () => 'P. CRUZ',
+		viewMode: 'section',
+		termFilter: 1,
+		pivotLabel: () => '',
+		roomLabelShort: () => 'Room 103 · G7AW',
+		kbSelectedSource: null,
+		onKbPlace: () => {},
+		getCellConflict: () => null,
+		getLiveCellConflict: () => null,
+		onNavToFaculty: () => {},
+		onNavToSection: () => {},
+		onNavToRoom: () => {},
+	}));
+}
+
+const LUNCH_SLOT = [{ startTime: '12:15', endTime: '13:00', isSpecialEvent: true, eventName: 'Lunch Break' }];
+const CLASS_SLOT = [{ startTime: '12:15', endTime: '13:00' }];
+
+function entryInLunchSlot(entryId: string, sectionId: number): ScheduledEntry {
+	return {
+		entryId,
+		sectionId,
+		facultyId: 9,
+		roomId: 9,
+		subjectId: 1,
+		day: 'MONDAY',
+		startTime: '12:15',
+		endTime: '13:00',
+		durationMinutes: 45,
+		termIndex: 2,
+	} as unknown as ScheduledEntry;
+}
+
+test('3(a) FAILING-FIRST: a class inside a break band is RENDERED, not swallowed by the band label', () => {
+	const markup = renderBlockedWindowGrid([entryInLunchSlot('entry-1::t2', 701)], LUNCH_SLOT);
+
+	// PRE-FIX PROOF: the cell took the `eventAppliesToDay && !ceremonyOverlayWithClass`
+	// branch and returned a <td> whose only child was the band name. The entry's
+	// own id appears nowhere in the markup, so the class was invisible.
+	assert.match(markup, /data-cell-entry-ids="entry-1::t2"/,
+		'the blocked cell still declares the entries it holds, so the DOM cannot claim the slot is empty');
+	assert.match(markup, />TLE</,
+		'the class itself is rendered inside the band, which is the only way a scheduler learns it is misplaced');
+	assert.match(markup, /Room 103/,
+		'the class keeps its detail line, so it is a real entry and not a marker');
+});
+
+test('3(a) the collision is stated in words, with a count that matches what is rendered', () => {
+	const one = renderBlockedWindowGrid([entryInLunchSlot('entry-1::t2', 701)], LUNCH_SLOT);
+	assert.match(one, /data-testid="timetable-blocked-overlap-label"/,
+		'the cell carries a visible overlap marker');
+	assert.match(one, /1 class overlaps Lunch Break/,
+		'the marker names the collision in plain words, with no id and no slot arithmetic');
+
+	const two = renderBlockedWindowGrid(
+		[entryInLunchSlot('entry-1::t2', 701), entryInLunchSlot('entry-2::t2', 701)],
+		LUNCH_SLOT,
+	);
+	assert.match(two, /2 classes overlap Lunch Break/,
+		'the count is the number of classes actually rendered, so the marker can be checked against the cell');
+	assert.doesNotMatch(two, /1 class overlaps/,
+		'the singular form is not used for a plural collision');
+});
+
+test('3(a) NON-VACUITY: a day-scoped overlay still annotates rather than alarms', () => {
+	// A day-scoped overlay is the Monday Flag/HGP ceremony: an ANNOTATION on a
+	// period the section attends (`isDayScopedOverlay` is `!isSpecialEvent &&
+	// eventName && dayOfWeek` — `timetable-grid-slots.ts:185`). It labels the
+	// cell and must NOT grow the overlap wording, because nothing is blocking.
+	const ceremony = renderBlockedWindowGrid(
+		[entryInLunchSlot('entry-1::t2', 701)],
+		[{ startTime: '12:15', endTime: '13:00', isSpecialEvent: false, eventName: 'Flag Ceremony', dayOfWeek: 'MONDAY' }],
+	);
+	assert.match(ceremony, /data-testid="timetable-ceremony-overlay-label"/,
+		'the ceremony overlay label is unchanged');
+	assert.doesNotMatch(ceremony, /timetable-blocked-overlap-label/,
+		'a ceremony is an annotation, not a break, so it never claims a class overlaps it');
+	assert.match(ceremony, /Flag Ceremony</, 'the ceremony still names itself');
+});
+
+test('3(a) a Monday-only SPECIAL EVENT with a class in it DOES state the collision', () => {
+	// Distinct from the ceremony and correctly so: `slotBlocksDay` returns true
+	// for a special event on its own weekday, so on Monday the class really is
+	// sitting inside a blocked window and the marker must say so. The same slot
+	// on Tuesday is an ordinary cell.
+	const monday = renderBlockedWindowGrid(
+		[entryInLunchSlot('entry-1::t2', 701)],
+		[{ startTime: '12:15', endTime: '13:00', isSpecialEvent: true, eventName: 'Flag Ceremony', dayOfWeek: 'MONDAY' }],
+	);
+	assert.match(monday, /1 class overlaps Flag Ceremony/,
+		'on the blocking weekday the collision is named, not hidden behind the band');
+	assert.match(monday, /data-overlap-count="1"/, 'the count travels with the wording so it can be checked');
+});
+
+test('3(a) NON-VACUITY: an ordinary class slot at the same time is untouched', () => {
+	const ordinary = renderBlockedWindowGrid([entryInLunchSlot('entry-1::t2', 701)], CLASS_SLOT);
+	assert.match(ordinary, />TLE</, 'the class renders as it always did');
+	assert.doesNotMatch(ordinary, /timetable-blocked-overlap-label/,
+		'no overlap marker on a slot that is not blocked — the marker means something');
+});
+
+test('3(a) NON-VACUITY: an empty break band is still just a band', () => {
+	const empty = renderBlockedWindowGrid([], LUNCH_SLOT);
+	assert.match(empty, /Lunch Break/, 'the band still names itself');
+	assert.doesNotMatch(empty, /timetable-blocked-overlap-label/,
+		'a break nobody is sitting in claims no collision — the marker cannot read as a standing error');
+	assert.doesNotMatch(empty, /overlaps? (Lunch|[0-9])/, 'no overlap sentence is invented');
+});
