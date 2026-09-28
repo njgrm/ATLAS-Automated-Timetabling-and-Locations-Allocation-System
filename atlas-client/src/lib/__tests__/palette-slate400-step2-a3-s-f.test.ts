@@ -279,11 +279,16 @@ const INDEX_CSS_LF_SHA256_SUPERSEDED_A3C8R1 = INDEX_CSS_LF_SHA256_REPINNED_A3C8R
  * documentation. `--muted-foreground` 215 16% 47% -> **215 16% 42%** (the change that matters
  * to this file), `--destructive` 0 84% 60% -> **0 84% 44%**, `--accent` and `--accent-ring`
  * 158 64% 40% -> **158 64% 29%**. Per-file delta for `atlas-client/src/index.css` against
- * base `a7ccb738a6b3ec6de19ae39ccede80552bd5c597`: **144 insertions, 7 deletions**, of which
+ * base `a7ccb738a6b3ec6de19ae39ccede80552bd5c597`: **153 insertions, 7 deletions**, of which
  * the majority are the measured-contrast annotation blocks the `:root` annotation convention
  * requires next to a changed value. All three moved for the same reason and none is a comment-
  * only change, so this firing is a genuine value change and not a repeat of the A3-C8r2
  * documentation-only case.
+ *
+ * (An earlier draft of this note said 144 insertions. That figure was measured before the
+ * annotation figures were corrected from an unrounded-float HSL conversion to 8-bit sRGB, which
+ * grew the comments by 9 lines without moving a token value. Corrected here to the committed
+ * delta rather than left as a number that no longer describes the commit it documents.)
  *
  * The failure message on this very row prescribes the remedy — "Re-measure and rewrite this
  * file and the handoff in the same commit if a global token change is genuinely intended" —
