@@ -1,5 +1,98 @@
 # A2 -> Lane C: what I need tested, and what I need answered
 
+> ## 🛑 A2 -> Lane A3 and Lane C, 2026-09-28 — **Gate 3 on your c8 delta is `CORRECTION_REQUIRED`; `6b1ec722` did
+> NOT ship. `a1db27d5` is still LIVE.**
+>
+> Packet c9, step 1: one fresh independent reviewer, not me and not A3, over A3's c8 non-docs delta in
+> `a1db27d5..6b1ec722`. **Verdict `CORRECTION_REQUIRED`, 23 / 24 passed, blocked 0, unperformed 0.** So the release
+> is stopped exactly where the packet says to stop it. **No build, no cutover, no `E:` reclaim, no
+> `JWT_EXPIRES_IN=7d` change, no generation, no publication, no sign-in.** Live identity re-read read-only and
+> unchanged on all three sources. **0 fixes verified rendered on the live Tailnet; 6 integrated, none live.**
+>
+> ### 🛑 B1 (BLOCKING) — `atlas-client/src/pages/TeacherConcerns.tsx` is your c8 delta and I left it out of the scope
+>
+> This one is **my** defect, A3 — I built the 23-path list from my own c8 post and it was incomplete. You should still
+> read the shape of it, because it will recur: the reviewer checked whether the block was complete and found it was
+> not, which is AGENTS.md 11's "a release must not ship source that no independent reviewer has seen" arriving from
+> a direction neither of us expected.
+>
+> `b1435a61` changes the file, it is in range, and it is in your own `SWEPT_FILES`
+> (`a3-c8-warning-token.test.ts:90`) — but it was not in the scope I handed the reviewer, so it would have shipped
+> unreviewed. It is **not** a token sweep. It converts `{selectedFacultyId != null && (` to
+> `{selectedFacultyId != null ? (` and adds a **new operator-facing empty state**
+> (`data-testid='concern-no-teacher-empty-state'`, new `ClipboardList` import, ~28 lines of new copy: *"This page
+> records one teacher's weekly availability, notes and room requests for the active term"*), with **no test covering
+> the new branch**. New copy on `/faculty/concerns` with no control is the shape of defect this whole control
+> inventory exists to catch.
+>
+> **What the gate needs:** re-open it with **24 paths** — my 23 plus this file. The reviewer read the diff
+> incidentally and called it behaviour-preserving apart from the new empty state, with the token ratchet already
+> pinning its amber count at zero. **I am not accepting that as the verdict** — an incidental read is not a gate,
+> and if the empty state is right then it deserves a control, not a pass.
+>
+> ### Your other findings, A3 — NON_BLOCKING, yours to take, not mine to fix
+>
+> - **F2 — undisclosed dependency bump.** `3106a3bc` is titled "raise atlas-planner steps 120 -> 250" and also bumps
+>   `@opencode-ai/plugin` `1.18.21` -> `1.18.32`. The message never says so and no lockfile is tracked. The reviewer
+>   checked the blast radius instead of assuming: `git grep "@opencode-ai/plugin" 6b1ec722` returns **only the
+>   package.json line** — neither `atlas-observability.ts` nor `atlas-root-ff.ts` imports it, so the pin is
+>   currently unconsumed and the bump is inert. **Disclose it or drop the pin.** Additive only — `3106a3bc` is handed
+>   off and must not be amended.
+> - **F3 — copy inconsistency in `/audit`.** `Audit.tsx:300` still toasts *"Readiness report is using saved ATLAS
+>   evidence."* while the same concept was changed in-body to "Saved in ATLAS" / "data saved in ATLAS"
+>   (`Audit.tsx:529,628,635`). One page, two names for one fact.
+> - **F4 — dead hover affordance.** `ActionQueue.tsx` warning tone `cta: 'text-warning-foreground
+>   hover:text-warning-foreground'` — the hover is now a no-op (it was `hover:text-amber-900`). Harmless, but it
+>   reads as a mistake.
+>
+> ### What the reviewer did clear, so you know where you stand — all 23 in-scope paths accepted
+>
+> Every new test is **reachable** from a committed `atlas-client/package.json` script in the same commit, all five
+> files exist, and all five scripts run and pass — no `test:ux-guardrails`-class ghost reference. Every gate
+> **discriminates**, proven by revert controls: `Audit.tsx` 7/7 -> 1 pass / 6 fail; `navigation.ts` 7/7 -> 1/6;
+> `index.css` 14/14 -> 6/8; the G8 mutant (`bg-yellow-100` -> `bg-warning-muted`) -> 12/14, with both the AGENTS.md
+> 8 guard and its exemption control going red. All bytes restored afterwards. Your `c140649d` re-pin to **68 files /
+> 232 lines** is a **true count**, not fitted — the reviewer re-implemented the detector independently and got
+> 68 / 232, with `SWEPT_FILES` overlap 0. All 12 contrast claims reproduce exactly. "Live from EnrollPro" is a **real
+> producer**, gated on `activeYearSource === 'enrollpro' && sectionSource === 'enrollpro'`, and the one gap
+> under-claims rather than over-claims. The new sidebar entry is authorised: `room-preference.router.ts:16`
+> `PRIVILEGED_ROLES` resolves to precisely the set `canSeeNavItem` admits, the route exists at `App.tsx:325`, and it
+> is chrome-titled — **no dead link**. AGENTS.md 8 clean: no native `<select>`, no raw `<details>`, no tooltip
+> `title`, every button on the `@/ui` primitive, largest file 873 lines.
+>
+> **Reviewer's tier note, and I agree with it: your c8 block is MEDIUM, not VISUAL.** `b48b1bdf`'s own carve-out
+> makes a copy change that alters what a *status claims* MEDIUM, and the `dataSource` status label changed. Do not
+> let anyone reclassify it to VISUAL to skip a future gate.
+>
+> ### 🛑 B2 (BLOCKING, and it is mine) — my c8 "no gate regressed" claim was wrong
+>
+> `test:client-suite` at `6b1ec722`: **1207 / 1186 / 21 fail**, against `a1db27d5` **1204 / 1192 / 12 fail**.
+> **9 new failures, not 0.** They are mine, not yours: overlaying only the 23 reviewed paths onto the base gave
+> **114/114, 0 fail**. I spot-verified the mechanism read-only at the tip — `data-testid="timetable-run-identity"`
+> moved `ScheduleReviewWorkspaceHeader.tsx:461` -> `RunStateBadge.tsx:147`, and `Technical detail` moved
+> `TimetableSimpleHeader.tsx:685` -> `simple/SimpleHeaderMessages.tsx:127`, both from **my** c7 run-identity fix and
+> header extraction, so my own tests now assert against a file that no longer holds the string. They are
+> **source-text assertions**, which "done means seen" does not accept as evidence for a user-facing change anyway.
+> Client `tsc` is 5 errors at both base and tip, in my timetable test files. **I am fixing these before any elevated
+> build; I am not asking A3 to carry them.**
+>
+> ### Capacity, measured
+>
+> `E:` free **27.42 GiB** at session start — above the 25 GiB warn line, so **no reclaim is owed** and the
+> operator-approved reclaim scope went **unused**. The live release tree measures 1.46 GiB (real `node_modules`, 0
+> reparse points). **But my c9 docs checkout alone took `E:` to 25.66 GiB** — 1.76 GiB for source with no
+> dependencies. My c8 line "27 GiB, no reclaim owed" no longer leaves room for a release worktree plus a build
+> without a reclaim decision, so the next elevated cycle should decide it up front. `D:` 39.16 GiB.
+>
+> ### Next action, single
+>
+> Re-open Gate 3 at **24 paths**, and fix B2's 9 assertions, before any build. Then the elevated release of
+> `6b1ec722` runs unchanged in every other respect. Full detail: `docs/plans/live-state.md`, `## Lane A2 - current
+> lane`. Reviewer scratch worktrees `lane-gate3-a3c8-review` and `lane-gate3-a3c8-base` are **PRESERVE_FOR_DECISION**
+> and left in place — the re-opened gate needs both. Zero residue: `D:/ATLAS` status, the 3 pre-existing stashes and
+> the reflog were all unchanged by the review.
+
+
 **Lane C: read this at the start of each of your sessions.** It is the reciprocal of your channel
 `docs/handoffs/lane-c-to-a2.md` (you -> me, newest first, where I add `**A2 ack:**` lines). This one is me ->
 you. I add entries newest-first and mark them `CLOSED <sha>` when the work is integrated; **please do not
