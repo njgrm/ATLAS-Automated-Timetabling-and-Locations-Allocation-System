@@ -659,9 +659,13 @@ test('A6-39-1 ONE row carries all seven controls, and `More filters` is gone', (
 	assert.match(rowClass, /\bgap-2\b/);
 
 	// The seven controls, in the operator's order, read as DOM order.
+	// A5 C3 slice B, update not delete: the composed accessible name is normalised back
+	// to its page-owned half before comparing, because the shared primitive appends
+	// `: <selected value>` to it — the same contract `/subjects` shipped with. This row
+	// is about ORDER, and the order of the seven controls is unchanged.
 	const ordered = Array.from(
 		primary.querySelectorAll('[aria-label], #show-outside-dept, #show-unmapped-specialization'),
-	).map((el) => el.getAttribute('aria-label') ?? `#${el.getAttribute('id')}`);
+	).map((el) => el.getAttribute('aria-label')?.split(':')[0] ?? `#${el.getAttribute('id')}`);
 	assert.deepEqual(ordered, [
 		'Search teachers',
 		'Filter by status',
@@ -672,14 +676,42 @@ test('A6-39-1 ONE row carries all seven controls, and `More filters` is gone', (
 		'#show-unmapped-specialization',
 	], 'the seven controls must appear in the operator\'s order on the one row');
 
-	// Every select shares the operator's chrome: h-9, text-xs, px-2.5, rounded-xl,
-	// border, bg-background, hover.
+	// Every pick in the row shares the ONE chrome: `@/ui/picker-trigger`, as
+	// `/subjects` shipped it. A5 C3 slice B, update not delete.
+	//
+	// BEFORE this loop required the PAGE-LOCAL chrome, verbatim:
+	//   [h-9, text-xs, px-2.5, rounded-xl, border-border/60, bg-background,
+	//    hover:bg-muted/40, transition-colors]
+	// That was `CONTROL_CHROME` — a page's own string applied to a shared control, which
+	// `AGENTS.md` §8 "One look per control" forbids, and the reason this row looked like no
+	// other filter in the product. R1 B4 removes it.
+	//
+	// AFTER the same intent is asserted against the SHARED tokens, plus two rows the old
+	// version could not have caught: that no page-local chrome token survives, and that no
+	// `min-w-[…]` floor survives. That last one is the slice-A trap — a floor in the
+	// primitive's `cn()` silently overrode every width variant while every class assertion
+	// here was green, so a chrome assertion that cannot see a floor is not a chrome
+	// assertion.
 	for (const name of ['Filter by status', 'Filter by department', 'Filter by load', 'Sort teachers']) {
-		const trigger = primary.querySelector(`[aria-label="${name}"]`)!;
+		// Prefix match, because the shared primitive composes `: <selected value>` onto
+		// the page's own accessible name (the same contract `/subjects` shipped with).
+		// BEFORE: an exact match on `Filter by status`.
+		const trigger = primary.querySelector(`[aria-label^="${name}"]`)!;
 		const cls = trigger.getAttribute('class') ?? '';
-		for (const token of [/\bh-9\b/, /\btext-xs\b/, /\bpx-2\.5\b/, /\brounded-xl\b/, /\bborder-border\/60\b/, /\bbg-background\b/, /\bhover:bg-muted\/40\b/, /\btransition-colors\b/]) {
-			assert.match(cls, token, `the "${name}" select must carry the shared control chrome`);
+		for (const token of [/\bh-9\b/, /\bw-32\b/, /\btext-xs\b/, /\bpx-3\b/, /\brounded-lg\b/, /\bbg-background\b/, /\bnormal-case\b/]) {
+			assert.match(cls, token, `the "${name}" pick must carry the shared control chrome`);
 		}
+		// The page-local look is gone, not renamed.
+		for (const gone of [/\brounded-xl\b/, /\bborder-border\/60\b/, /\bhover:bg-muted\/40\b/, /\buppercase\b/, /\btracking-tight\b/]) {
+			assert.doesNotMatch(cls, gone, `the "${name}" pick still carries a page-local look override`);
+		}
+		// The slice-A trap: a hard min-width floor overrides the variant in CSS whatever
+		// the class list says.
+		assert.doesNotMatch(
+			cls,
+			/min-w-\[[^\]]*\]/,
+			`the "${name}" pick has a min-width floor, which will override the shared width variant in CSS`,
+		);
 	}
 
 	// The search input: fixed 240px, h-9, text-xs, and NOT elastic any more.

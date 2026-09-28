@@ -15,14 +15,14 @@ import {
 	Check,
 	UserCheck,
 	LayoutGrid,
-	ListFilter
+	
 } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
 import { Input } from '@/ui/input';
 import { Skeleton } from '@/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { FilterPicker } from '@/ui/filter-picker';
 import { Popover, PopoverContent, PopoverTrigger, PopoverClose } from '@/ui/popover';
 import { cn } from '@/lib/utils';
 import { getAssignmentOwnershipKey, ownershipDepartmentEligibility, selectEligibleOwnerCandidates, teachingUtilizationPercentFor, resolveTeachingActualHours, type FacultyOwnershipState } from '@/lib/faculty-assignment-helpers';
@@ -213,19 +213,24 @@ export function SectionGridMode({
 							/>
 						</div>
 
-						<Select value={sectionModeFilter} onValueChange={onSectionModeFilterChange}>
-							<SelectTrigger className="w-45 h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
-								<div className="flex items-center gap-2">
-									<ListFilter className="size-3.5 opacity-50" />
-									<SelectValue placeholder="Filter View" />
-								</div>
-							</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all" className="text-xs font-bold">{activeFilterLabels.all}</SelectItem>
-							<SelectItem value="unassigned" className="text-xs font-bold">{activeFilterLabels.unassigned}</SelectItem>
-							<SelectItem value="constrained" className="text-xs font-bold">{activeFilterLabels.constrained}</SelectItem>
-						</SelectContent>
-						</Select>
+					{/* A5 C3 slice B / B2 + B4: this was `w-45 h-10 … uppercase
+					    tracking-tight` with a `` glyph inside the trigger — the one
+					    control on this screen that looked like nothing else in the product.
+					    It is now the shared `@/ui` picker, with `activeFilterLabels` verbatim
+					    and the page's own words intact. The glyph goes because the shared
+					    trigger carries its own chevron; three different icons in sibling
+					    triggers is how a row stops reading as one instrument. */}
+					<FilterPicker
+						name="Filter"
+						ariaLabel="Filter section view"
+						value={sectionModeFilter}
+						onValueChange={(v) => onSectionModeFilterChange(v as 'all' | 'unassigned' | 'constrained')}
+						options={[
+							{ value: 'all', label: activeFilterLabels.all },
+							{ value: 'unassigned', label: activeFilterLabels.unassigned },
+							{ value: 'constrained', label: activeFilterLabels.constrained },
+						]}
+					/>
 					</div>
 
 					</div>

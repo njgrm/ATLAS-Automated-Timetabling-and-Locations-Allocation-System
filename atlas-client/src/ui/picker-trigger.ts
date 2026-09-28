@@ -37,8 +37,8 @@ export const PICKER_CONTROL_HEIGHT_CLASS = 'h-9';
  *
  * - `sm` — a narrow filter, or a control sharing a line with a longer sibling.
  * - `md` — the default, and the width the `/subjects` cluster's arithmetic turns on (A5 C3 R3
- *   §1): 5 × 128 + 4 cluster gaps + Reset + the 240px search box + its gap = **1010px against
- *   ~1062px available at 1366**, i.e. 52px of slack and no wrap. It is sized to hold the
+ *   §1): 5 × 128 + 4 cluster gaps + Reset + the 240px search box + its gap = **1020px against
+ *   ~1062px available at 1366**, i.e. 42px of slack and no wrap. It is sized to hold the
  *   operator's own example `Program: All` with room to spare at `text-xs`, which is what the
  *   planner's `scrollWidth <= clientWidth` rendered row measures. The next step up (`w-36`) does
  *   NOT fit, and inventing a fourth width to force it is exactly what R3 §1 forbids.

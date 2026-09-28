@@ -1339,7 +1339,7 @@ test('A3-C10: the six filters wrap instead of overflowing, Reset appears only wh
 	//
 	// RESTORED, unchanged in substance: with `w-32` the budget is
 	//   240 (search) + 10 (its gap) + 5 x 128 (filters) + 40 (cluster gaps) + 80 (Reset)
-	//   = 1010px against ~1062px available, so the row DOES fit one line with 52px to
+	//   = 1020px against ~1062px available, so the row DOES fit one line with 42px to
 	// spare and the guard passes. If a future width or label makes it stop passing,
 	// that is a design signal for the planner — NOT a reason to delete this line.
 	const search = 240;
@@ -1430,7 +1430,7 @@ test('A3-C9 [SUPERSEDED IN PART by A3-C10 on the width budget, verbatim otherwis
 	// AFTER: all five carry the ONE shared `w-32` = 8rem = 128px, because the
 	// unevenness was the operator's complaint and R1 J3 settles it. That sums to
 	// 640px, and with the search box, the gaps and Reset the row is
-	//   240 + 10 + 640 + 40 + 80 = 1010px against ~1062px available at 1366.
+	//   240 + 10 + 640 + 40 + 80 = 1020px against ~1062px available at 1366.
 	//
 	// The correction round found this row claiming `w-52` / 13rem / 1420px and saying
 	// the row "is allowed to wrap" — a false premise, since the width it pins three
@@ -1438,7 +1438,7 @@ test('A3-C9 [SUPERSEDED IN PART by A3-C10 on the width budget, verbatim otherwis
 	// `total` / `available` locals and with them the `assert.ok(total < available)`
 	// guard, replacing it with a tautology. All of that is restored below.
 	//
-	// With the shipped `w-32` the row FITS one line with 52px to spare, so the
+	// With the shipped `w-32` the row FITS one line with 42px to spare, so the
 	// restored guard passes. It stays load-bearing: if a future width or label makes
 	// the row stop fitting, that is a design signal for the planner, not a line to
 	// delete. The separate half of the contract — that no LABEL truncates — is

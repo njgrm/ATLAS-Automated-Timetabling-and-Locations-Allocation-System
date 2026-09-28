@@ -4,14 +4,32 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import { Button } from '@/ui/button';
 import { cn } from '@/lib/utils';
 
+export interface SearchableSelectOption {
+	value: string;
+	label: string;
+	/**
+	 * A5 C3 slice B: an option the operator may read but not choose.
+	 *
+	 * `SearchableSelect` grew this because `/teaching-load`'s facet counts genuinely
+	 * produce options that are currently empty — `Teaching assigned (0)`, an
+	 * `Adviser only (0, subset)`, a policy band that is not ready yet. Those were
+	 * `disabled` on a Radix `SelectItem`; converting the row without carrying that
+	 * across would have made a zero-count option SELECTABLE, which is a behaviour
+	 * regression dressed as a refactor. The fix belongs in the shared primitive
+	 * under `AGENTS.md` 8 — every page that needs a disabled option gets it, and no
+	 * page has to reach for a different primitive to express it.
+	 */
+	disabled?: boolean;
+}
+
 export interface SearchableSelectGroup {
 	label: string;
-	items: { value: string; label: string }[];
+	items: SearchableSelectOption[];
 }
 
 interface SearchableSelectProps {
 	/** Flat items (no groups). Use `groups` for grouped list. */
-	items?: { value: string; label: string }[];
+	items?: SearchableSelectOption[];
 	/** Grouped items. Takes precedence over `items`. */
 	groups?: SearchableSelectGroup[];
 	value: string;
@@ -292,6 +310,8 @@ export function SearchableSelect({
 										variant="ghost"
 										role="option"
 										aria-selected={value === item.value}
+										aria-disabled={item.disabled || undefined}
+										disabled={item.disabled}
 										data-active={active ? 'true' : undefined}
 										onClick={() => choose(item.value)}
 										onMouseEnter={() => setActiveIndex(index)}
@@ -299,6 +319,10 @@ export function SearchableSelect({
 											'relative flex h-auto min-h-10 w-full cursor-pointer select-none items-center justify-start rounded-md px-2.5 py-2 text-sm font-normal outline-none hover:bg-accent hover:text-accent-foreground hover:[&_*]:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:[&_*]:text-accent-foreground aria-selected:bg-accent aria-selected:text-accent-foreground aria-selected:[&_*]:text-accent-foreground',
 											value === item.value && 'bg-accent text-accent-foreground [&_*]:text-accent-foreground',
 											active && 'ring-1 ring-inset ring-primary/60',
+											/* A disabled option is still readable — the count beside a
+											 * zero is information a scheduler wants — so it dims rather
+											 * than disappears, and it cannot be clicked or arrowed to. */
+											item.disabled && 'cursor-not-allowed opacity-50 hover:bg-transparent hover:text-inherit',
 										)}
 									>
 										<Check

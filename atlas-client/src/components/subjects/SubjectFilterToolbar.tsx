@@ -131,9 +131,9 @@ export function SubjectFilterToolbar({
 	//   search w-[240px] = 240, its gap = 10,
 	//   5 filters x w-32 (8rem) = 5 x 128 = 640,
 	//   4 cluster gaps x 10 (gap-2.5) = 40, reset (text) = 80
-	//   =>  1010px.
+	//   =>  1020px.
 	// The 1366px viewport minus the 256px expanded sidebar, the 40px page padding at
-	// `lg`, and the toolbar card's 8px inset leaves ~1062px — 52px of slack, so the
+	// `lg`, and the toolbar card's 8px inset leaves ~1062px — 42px of slack, so the
 	// cluster holds ONE line. The previous `w-52` with R1 A1's `Room type: All room
 	// types` came to 1420px and wrapped 3+2; the compact trigger is what removed the
 	// wrap, not a narrower box, a smaller font, or a filter pushed behind `More`.

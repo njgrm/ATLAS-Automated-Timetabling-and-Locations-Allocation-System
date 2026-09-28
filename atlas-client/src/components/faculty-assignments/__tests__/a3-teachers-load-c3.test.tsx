@@ -1090,10 +1090,17 @@ test.skip('F14-1 SUPERSEDED by fix 39: the three primary filters sit on ONE alwa
 	assert.ok(primary, 'the always-visible filter row must exist');
 	// Search + Status + Department + Load are all reachable without a disclosure.
 	assert.ok(primary.querySelector('input[aria-label="Search teachers"]'), 'search must be on the primary row');
+	// A5 C3 slice B, update not delete. BEFORE: `[aria-label="Filter by status"]`, an
+	// EXACT match on the bare name. AFTER: `[aria-label^="Filter by status"]`, a prefix
+	// match. The accessible name is still this page's own `Filter by status` — it is the
+	// shared primitive that now composes the value onto it (`Filter by status: All
+	// status`, the same contract `/subjects` shipped with). An exact match therefore
+	// stopped finding a control that is still there, still named, and still on the
+	// primary row, which is what this row exists to prove. The prefix match asserts the
+	// same thing and stops being brittle about which value happens to be selected.
 	for (const name of ['Filter by status', 'Filter by department', 'Filter by load']) {
-		assert.ok(primary.querySelector(`[aria-label="${name}"]`), `${name} must be on the primary row, not behind a disclosure`);
+		assert.ok(primary.querySelector(`[aria-label^="${name}"]`), `${name} must be on the primary row, not behind a disclosure`);
 	}
-	// Sort and the optional switches are what remains behind the disclosure.
 	assert.equal(host.querySelector('[data-testid="teaching-load-secondary-filters"]'), null, 'the disclosure is closed by default');
 	const closed = host.textContent ?? '';
 	assert.ok(!closed.includes('Sort teachers'), 'sort must not be visible while the disclosure is closed');
@@ -1154,10 +1161,10 @@ test('F14-1 INVERTED by fix 39: ALL SEVEN controls sit on the one always-visible
 
 	// 2, 3, 4 — the three filter selects.
 	for (const name of ['Filter by status', 'Filter by department', 'Filter by load']) {
-		assert.ok(primary.querySelector(`[aria-label="${name}"]`), `${name} must be on the primary row, not behind a disclosure`);
+		assert.ok(primary.querySelector(`[aria-label^="${name}"]`), `${name} must be on the primary row, not behind a disclosure`);
 	}
 	// 5 — sort, the control the disclosure used to hide.
-	const sort = primary.querySelector('[aria-label="Sort teachers"]');
+	const sort = primary.querySelector('[aria-label^="Sort teachers"]');
 	assert.ok(sort, 'sort must be on the primary row, not behind a disclosure');
 	// 6, 7 — both inclusion switches, by their real ids.
 	for (const id of ['show-outside-dept', 'show-unmapped-specialization']) {
@@ -1171,8 +1178,13 @@ test('F14-1 INVERTED by fix 39: ALL SEVEN controls sit on the one always-visible
 	// The ORDER is the operator's: search, status, department, load, sort, both
 	// switches. Read as DOM order, so a re-order fails here rather than being
 	// inferred from class names.
+	// A5 C3 slice B, update not delete: the ORDER assertion normalises the composed
+	// accessible name back to its page-owned half before comparing. The shared primitive
+	// composes `: <selected value>` onto `ariaLabel` — the same contract `/subjects`
+	// shipped with — so the raw attribute now reads `Filter by status: All status`.
+	// This row is about ORDER, and the order of the four picks is unchanged.
 	const ordered = Array.from(primary.querySelectorAll('[aria-label], #show-outside-dept, #show-unmapped-specialization'))
-		.map((el) => el.getAttribute('aria-label') ?? `#${el.getAttribute('id')}`);
+		.map((el) => el.getAttribute('aria-label')?.split(':')[0] ?? `#${el.getAttribute('id')}`);
 	assert.deepEqual(ordered, [
 		'Search teachers',
 		'Filter by status',

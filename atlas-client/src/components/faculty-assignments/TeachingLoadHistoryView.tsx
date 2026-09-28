@@ -8,7 +8,7 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { FilterPicker } from '@/ui/filter-picker';
 
 type HistoryYear = {
 	schoolYearId: number;
@@ -162,18 +162,33 @@ export default function TeachingLoadHistoryView() {
 				<div className="mt-3 grid gap-3 sm:grid-cols-[minmax(13rem,18rem)_minmax(13rem,1fr)]">
 					<div className="space-y-1.5">
 						<Label htmlFor="teaching-load-history-year">Archived school year</Label>
-						<Select value={requestedYearId ? String(requestedYearId) : ''} onValueChange={selectYear} disabled={loadingYears || years.length === 0}>
-							<SelectTrigger id="teaching-load-history-year" className="min-h-11" data-testid="teaching-load-history-year-picker">
-								<SelectValue placeholder={loadingYears ? 'Loading archived years…' : 'Choose an archived year'} />
-							</SelectTrigger>
-							<SelectContent>
-								{years.map((year) => (
-									<SelectItem key={year.schoolYearId} value={String(year.schoolYearId)} disabled={!year.cycle}>
-										{year.yearLabel}{year.cycle ? '' : ' — no annual Teaching Load'}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+						{/* A5 C3 slice B / B2: `min-h-11` made this one control taller
+						    than every other field in the form beside it. It is now the
+						    shared `@/ui` picker. The visible `<Label htmlFor>` above it is
+						    KEPT and so is the `id` it points at, and so is
+						    `data-testid="teaching-load-history-year-picker"` — which is
+						    what a committed suite reaches for. The trigger now also names
+						    itself (R3-1), which is a deliberate redundancy rather than an
+						    oversight: a filter that names itself on one surface and not
+						    another is the defect this whole cycle exists to remove, and it
+						    is recorded as layout-note D4 for the reviewer. */}
+						<FilterPicker
+							name="Archived year"
+							ariaLabel="Archived school year"
+							allValue=""
+							triggerId="teaching-load-history-year"
+							value={requestedYearId ? String(requestedYearId) : ''}
+							onValueChange={selectYear}
+							disabled={loadingYears || years.length === 0}
+							placeholder={loadingYears ? 'Loading archived years…' : 'Choose an archived year'}
+							// eslint-disable-next-line react/no-unknown-property
+							options={years.map((year) => ({
+								value: String(year.schoolYearId),
+								label: `${year.yearLabel}${year.cycle ? '' : ' — no annual Teaching Load'}`,
+								disabled: !year.cycle,
+							}))}
+							dataTestId="teaching-load-history-year-picker"
+						/>
 					</div>
 					<div className="space-y-1.5">
 						<Label htmlFor="teaching-load-history-search">Find a teacher, subject, or section</Label>

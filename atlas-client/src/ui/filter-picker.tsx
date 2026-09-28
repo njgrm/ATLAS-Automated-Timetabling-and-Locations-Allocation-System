@@ -30,7 +30,7 @@ import {
 	type PickerTriggerWidth,
 } from '@/ui/picker-trigger';
 
-export type FilterPickerOption = { value: string; label: string };
+export type FilterPickerOption = { value: string; label: string; disabled?: boolean };
 
 export type FilterPickerProps = {
 	/** The filter's own name, in the operator's words: `Grade`, `Room`, `Roster state`. */
@@ -65,6 +65,12 @@ export type FilterPickerProps = {
 	 * The option value that means "no filter chosen". A5 C3 R3 §1: the trigger's short
 	 * value is the single word `All` for this one, whatever the option list calls it
 	 * (`All grades`, `All programs`, `All terms`).
+	 *
+	 * A5 C3 slice B: a caller whose empty state is NOT a member of its own list passes
+	 * its own value. `TeachingLoadHistoryView`'s archived-year filter has no `all`
+	 * option — an empty value is "no year chosen" and the first real option is a real
+	 * year — so it passes `''`. Without this it would have read `Archived year: all` on
+	 * a control that offers no such choice. Default `'all'` is unchanged.
 	 */
 	allValue?: string;
 	/**
