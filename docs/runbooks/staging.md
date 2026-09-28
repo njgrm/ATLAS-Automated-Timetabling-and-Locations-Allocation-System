@@ -6,6 +6,10 @@ rendered in minutes, before it is ever proposed for the live runtime.
 > Staging is **not** production. It holds a copy of production data. Never run
 > generation, publication, migration, or any destructive Teaching Load action
 > against it and never point it at a real companion write.
+>
+> Staging is served at `https://njgrm.buru-degree.ts.net:8443` (tailnet only).
+> The live runtime keeps 443. Never point a staging action at 443 or a live
+> action at 8443.
 
 ## Topology at a glance
 
@@ -14,12 +18,46 @@ rendered in minutes, before it is ever proposed for the live runtime.
 | Task | `ATLAS-Runtime-Supervisor` | `ATLAS-Staging-Supervisor` |
 | API | 5001 | **5101** |
 | Client host | 5174 | **5274** |
-| URL | `https://njgrm.buru-degree.ts.net` | `http://127.0.0.1:5274` |
+| URL | `https://njgrm.buru-degree.ts.net` | `https://njgrm.buru-degree.ts.net:8443` |
+| Loopback | `http://127.0.0.1:5174` | `http://127.0.0.1:5274` |
 | Release dir | `E:\ATLAS-worktrees\lane-a4-release-20260928-1` | `E:\ATLAS-staging\<sha>` |
 | Contract | `…\ops\runtime\runtime-contract.json` | same file, **staging contract** |
 | Env file | `D:\ATLAS-runtime-config\atlas-server.env` | `D:\ATLAS-runtime-config\atlas-staging.env` |
 | Database | `atlas_recovery_clean_rebuild_20260905` | `atlas_staging` (dump copy) |
 | Rollback | `4c35cc8f` | re-deploy any earlier sha |
+
+### Tailnet exposure (added 2026-09-28)
+
+Staging is reachable on its **own HTTPS port** of the same node, so a reviewer
+can open a candidate from anywhere on the tailnet:
+
+| | |
+|---|---|
+| **Staging URL** | **`https://njgrm.buru-degree.ts.net:8443`** (API on the same origin, `/api/v1/*`) |
+| Served by | `tailscale serve --https=8443 http://127.0.0.1:5274` — **tailnet only, not Funnel** |
+| Live URL | `https://njgrm.buru-degree.ts.net` (443) → `5174`, **Funnel**, untouched |
+| Disable | `tailscale serve --https=8443 off` |
+
+The two mappings are separate entries in `tailscale serve status`; the live 443
+entry is not modified by adding or removing the 8443 one.
+
+**Prove which API a port reaches — do not trust the health payload.** Both
+`/api/v1/health` and `/api/v1/health/ready` return byte-identical
+`{status, service, checks}` on 443 and 8443, so a health row proves nothing.
+Use a DB-backed read instead:
+
+```powershell
+Invoke-WebRequest "https://njgrm.buru-degree.ts.net:8443/api/v1/subjects?schoolId=1" -UseBasicParsing
+Invoke-WebRequest "https://njgrm.buru-degree.ts.net:443/api/v1/subjects?schoolId=1"     -UseBasicParsing
+```
+
+At 2026-09-28 the two return **20361 B** and **19517 B** respectively — different
+databases, which is what proves 8443 reaches **5101** and 443 reaches **5001**.
+
+**The session is origin-bound, and that is a feature.** Staging has its own
+`JWT_SECRET`, so a live session seeded on 443 is *not* valid on 8443 and a
+staging session is *not* valid on 443. Evidence gathered on 8443 is real ATLAS
+evidence (§12 origin asserted); loopback `127.0.0.1:5274` remains `isolated`.
 
 ## How the isolation actually works
 

@@ -110,6 +110,34 @@ post. **A4 is the only lane that deploys and the only one that runs elevated. A4
 - **Next action (single):** Lane C runs the 9 A3 rendered rows + the rebaseline §2 steps against `7590d485` and
   posts to `lane-c-to-a2.md`. A2 ships c11 to the next train; A4 merges it into `release/2026-09-28-2`.
 
+### Staging hardening + Tailnet — CLOSED 2026-09-28 (packet `a4-staging-2026-09-28-b`)
+
+- **Three BLOCKING findings closed and merged to `origin/main` at `82462f91`** (ops/docs only; 0 files under
+  `atlas-client/`, `atlas-server/`, `prisma/`). `-TaskName` now refuses the live task by hard deny-list **and** a
+  positive `ATLAS-Staging` allow-rule; `-ReleaseRoot`/`-StagingEnvFile` are compared on the **resolved** path;
+  deploy output reports the `VITE_ENROLLPRO_URL` **key name and presence**, never the value.
+- **Fresh independent QA: 8 rows, 7 pass, 0 blocked, 0 unperformed — `CORRECTION_REQUIRED` on one row whose only
+  finding was a NON_BLOCKING runbook token gap.** Closed additively at `23aa2d0d` (3 tokens added; verified
+  two-way by extraction: 11 throwable, 11 documented, none unmatched). Gate `npm run test:staging-guards` **20/20**.
+  QA's own mutation controls: 1, 4 and 2 failures under three independent breakages — the gate discriminates.
+- **G1/G2 were the reviewer's route error, G5 was their privilege.** `/health` 404s on both live and staging
+  while the documented `/api/v1/health` returns 200 — re-derived here, both were false failures. `schtasks`
+  needed elevation this shell has: **both tasks are distinct and Registered/Running** — `ATLAS-Runtime-Supervisor`
+  (live, `…\lane-a4-release-20260928-1\ops\runtime\cli.mjs`) and `ATLAS-Staging-Supervisor`
+  (`E:\ATLAS-staging\staging-supervisor.cmd`).
+- **▶ STAGING IS ON THE TAILNET: `https://njgrm.buru-degree.ts.net:8443`** (`tailscale serve --https=8443` →
+  `127.0.0.1:5274`, **tailnet only, not Funnel**). Live **443 → 5174 Funnel untouched**; both mappings verified
+  present in `tailscale serve status` after the change.
+  **Prove the API port with a DB-backed read, not health** — the health payload is byte-identical on both
+  origins: `subjects?schoolId=1` returns **20361 B on 8443** vs **19517 B on 443**.
+- **LIVE UNTOUCHED, measured:** 5001→PID **3516**, 5174→PID **60116**, machine scope still
+  `lane-a4-release-20260928-1` / `7590d485…`, live tree clean at `7590d485`, live task Running. Live did not move.
+- **Open, dated 2026-09-28:** staging's **post-action QA row is still open** — this session closed the three
+  source-level guards, not the deployment acceptance. No authenticated staging row has run (needs a one-time
+  operator sign-in at `:8443`; sessions are origin-bound). Live browser acceptance of `7590d485` remains Lane C's.
+- **Worktrees:** `lane-a4-staging-20260928` = **`KEEP_ACTIVE`** (the staging deploy source). No reclaim was
+  triggered: `E:` **30.72 GiB**, `D:` **39.14 GiB**, both above the §3 warning.
+
 ---
 
 ## Capacity — reclaim EXECUTED 2026-09-26 (Lane A2); the §3 warning is STILL met (dated 2026-09-26)
