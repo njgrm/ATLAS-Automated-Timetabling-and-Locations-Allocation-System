@@ -60,7 +60,33 @@ test('an empty fulfilled class-template list never yields a green section-covera
 
 	const finding = assessment.unresolvedFinding;
 	assert.equal(finding.severity, 'blocker', 'the finding must be non-green');
-	assert.match(finding.title, /UNRESOLVED/, 'the finding must be explicitly UNRESOLVED');
+
+	// ── SUPERSEDED IN BEHAVIOUR 2026-09-28 c9: the raw enum must not reach an operator ──
+	//
+	// The original assertion, retained VERBATIM and marked superseded, never deleted
+	// (AGENTS.md §16: a correction is additive to evidence, never subtractive):
+	//
+	//   assert.match(finding.title, /UNRESOLVED/, 'the finding must be explicitly UNRESOLVED');
+	//
+	// WHY IT IS SUPERSEDED, NOT VIOLATED: the thing it protected is still protected, by the
+	// assertions beside it. It demanded that a raw internal enum value — `UNRESOLVED`, one of the
+	// three members of the `ClassTemplateEvidenceState` union declared 100 lines up in
+	// src/lib/audit-section-coverage.ts — be VISIBLE to an operator reading the Audit page.
+	// `UNRESOLVED` is a machine state, not a sentence. An operator asking "what is wrong with my
+	// sections" cannot act on it; the sibling `detail` and `why` fields, which are already calm
+	// plain sentences, are what they act on. Requiring the enum in the title made the finding
+	// LESS usable in order to be more explicit.
+	//
+	// What replaces it, immediately below, is strictly STRONGER on both halves the old row was
+	// reaching for:
+	//   · the NO-RAW-ENUM row, which forbids the leak this cycle exists to close; and
+	//   · the STILL-UNMISTAKABLY-A-BLOCKER row, which keeps the old row's real purpose — the
+	//     finding must be unmistakably a blocker — while refusing to insist the enum is how that
+	//     is communicated.
+	// The old assertion is therefore recorded here, not executed, so a reviewer can see exactly
+	// what was demanded, when, and why it no longer holds. The equivalent row in the companion
+	// case below is where the live assertions live, because the guarantee is about ALL THREE
+	// findings, not just this one.
 	assert.match(finding.detail, /could not verify section-subject coverage/i);
 	assert.match(finding.detail, /no class templates are initialized/i);
 
@@ -147,6 +173,191 @@ test('only a fully matched template set can reach the green section state', () =
 			`green reachable must be ${testCase.verdict} for templates=${JSON.stringify(testCase.templates)} sections=${JSON.stringify(testCase.sections)}`,
 		);
 	}
+});
+
+test('NO RAW ENUM IN OPERATOR-FACING STRINGS: no title leaks a machine state or a SCREAMING_SNAKE token', () => {
+	// A3-C9 REPLACEMENT (additive) for the superseded `/UNRESOLVED/` title assertion in the first
+	// test case. See the SUPERSEDED block there for why, and for the verbatim original.
+	//
+	// The leak is real and was reachable by a reader: `UNRESOLVED`, `UNAVAILABLE` and
+	// `NOT_INITIALIZED` are the three members of the `ClassTemplateEvidenceState` union, and the
+	// operator-facing `title` of every finding embedded one of them. The fix belongs in the
+	// string, not in the enum: the enum is load-bearing TYPE STATE and three separate branches
+	// key off it, so renaming or removing a member would be a real behaviour change.
+	//
+	// Built from the REAL module output for all three blocking states rather than from a
+	// hand-written fixture, so a new leak in a fourth branch is caught by construction.
+	const assessments: SectionCoverageAssessment[] = [
+		assessSectionCoverage({ templates: [], available: true, sections: [SECTION_REGULAR] }),
+		assessSectionCoverage({ templates: [], available: false, sections: [SECTION_REGULAR] }),
+		assessSectionCoverage({ templates: [TEMPLATE_REGULAR], available: true, sections: [SECTION_REGULAR, SECTION_STE] }),
+	];
+
+	// Every member of the internal state union, plus the general shape of a leaked enum.
+	const RAW_ENUM_TOKENS = ['UNRESOLVED', 'UNAVAILABLE', 'NOT_INITIALIZED', 'INITIALIZED'];
+
+	for (const assessment of assessments) {
+		const finding = assessment.unresolvedFinding;
+		assert.ok(finding, 'each blocking state must still produce a finding');
+		const state = assessment.state;
+
+		for (const token of RAW_ENUM_TOKENS) {
+			assert.equal(
+				finding.title.includes(token),
+				false,
+				`the operator-facing title for state ${state} leaks the raw enum token ${token}: ` +
+					`"${finding.title}". An operator cannot act on a machine state; the detail and why fields ` +
+					'already say it in plain language and must stay the fields that carry the reason.',
+			);
+		}
+
+		// A general SCREAMING_SNAKE detector, so a FUTURE leak with a different token name is
+		// caught too, not only the three enumerated above. Deliberately loose: it must not be
+		// satisfied by checking the known list, or it would add nothing.
+		assert.equal(
+			/\b[A-Z][A-Z0-9]*(_[A-Z0-9]+)+\b/.test(finding.title),
+			false,
+			`the operator-facing title for state ${state} contains a SCREAMING_SNAKE token: "${finding.title}". ` +
+				'That is an internal identifier leaking into operator copy.',
+		);
+
+		// The title must still be a real sentence that says what is wrong — an empty or
+		// contentless title would pass a "no enum" check while telling the operator nothing.
+		assert.ok(
+			finding.title.trim().length > 20,
+			`the title for state ${state} is too short to be an operator-facing sentence: "${finding.title}".`,
+		);
+		assert.match(finding.title, /^Section coverage\b/, 'the title must still name what is wrong');
+	}
+
+	// The enum itself is untouched: the branches still key off it, so the guarantee above is a
+	// copy guarantee, not a state-machine change.
+	assert.equal(classifyClassTemplateEvidence([], true), 'NOT_INITIALIZED', 'the state union is unchanged');
+	assert.equal(classifyClassTemplateEvidence([], false), 'UNAVAILABLE', 'the state union is unchanged');
+	assert.equal(
+		classifyClassTemplateEvidence([TEMPLATE_REGULAR], true),
+		'INITIALIZED',
+		'the state union is unchanged',
+	);
+});
+
+test('STILL UNMISTAKABLY A BLOCKER: removing the enum does not weaken any repair affordance', () => {
+	// A3-C9 REPLACEMENT (additive) for the second half of the superseded assertion. The old row
+	// wanted the finding to be "explicitly UNRESOLVED"; this wants it to be an explicit BLOCKER
+	// with a complete, calm, actionable repair path — the requirement behind that row, minus the
+	// enum.
+	for (const assessment of [
+		assessSectionCoverage({ templates: [], available: true, sections: [SECTION_REGULAR] }),
+		assessSectionCoverage({ templates: [], available: false, sections: [SECTION_REGULAR] }),
+		assessSectionCoverage({ templates: [TEMPLATE_REGULAR], available: true, sections: [SECTION_REGULAR, SECTION_STE] }),
+	]) {
+		const finding = assessment.unresolvedFinding;
+		assert.ok(finding, 'a finding must exist');
+		const state = assessment.state;
+
+		// 1. It is still a blocker, which is what keeps the page out of the green state.
+		assert.equal(finding.severity, 'blocker', `severity must stay blocker for ${state}`);
+		assert.equal(
+			greenSectionStateReachable(sectionFindingsFor(assessment), 'live'),
+			false,
+			`${state} must never reach the green section state`,
+		);
+
+		// 2. The repair path is intact: where to go, what to fix, what to press.
+		assert.equal(finding.route, '/sections', `route must stay /sections for ${state}`);
+		assert.equal(finding.repairTarget, 'sections', `repairTarget must stay sections for ${state}`);
+		assert.ok(finding.actionLabel.length > 0, `actionLabel must stay populated for ${state}`);
+
+		// 3. The calm sentences are the ones that now carry the whole reason, so they must
+		//    survive: they are the fields the operator actually reads.
+		assert.ok(finding.blockedLabel.length > 0, `blockedLabel must stay populated for ${state}`);
+		// NOTE ON WORDING: the three `detail` strings are NOT identical, and this row
+		// deliberately does not force them to be. The unmatched-program branch names the
+		// specific program types ("No class template exists for: STE...") where the other two
+		// describe the cause generally. What all three must share is the plain-language cause —
+		// so that is the invariant asserted, not a phrase only two of the three use. Asserting
+		// one branch's wording across all three would be a test over-constraint, and it was one
+		// in the first draft of this row.
+		assert.match(
+			finding.detail,
+			/class[- ]template/i,
+			`detail must name the class-template cause in plain language for ${state}`,
+		);
+		assert.match(finding.why, /class[- ]template/i, `why must still explain the class-template cause for ${state}`);
+		// The `why` field is what forbids the false clean claim; it must never be softened away.
+		assert.match(finding.why, /must not be reported/i, `why must keep the no-clean-claim rule for ${state}`);
+
+		// 4. Nothing operator-facing is empty, placeholder or machine-shaped.
+		for (const field of ['title', 'blockedLabel', 'detail', 'why', 'actionLabel'] as const) {
+			assert.ok(
+				finding[field].trim().length > 0,
+				`${field} must stay populated for ${state}; the enum is gone, so these fields carry the reason.`,
+			);
+		}
+	}
+});
+
+test('no other operator-facing string in the module leaks a raw enum', () => {
+	// A3-C9: the three titles are the leak the packet named, but the module also builds a
+	// `degradedReason` that reaches the operator. This asserts the WHOLE module surface, read
+	// from the real source, so a fourth leak added later is caught even if a test forgets to
+	// exercise the branch that produces it.
+	const source = readFileSync(resolve(clientRoot, 'src/lib/audit-section-coverage.ts'), 'utf8');
+
+	// The type union is the legitimate home of these tokens.
+	assert.ok(
+		source.includes("export type ClassTemplateEvidenceState = 'INITIALIZED' | 'NOT_INITIALIZED' | 'UNAVAILABLE';"),
+		'the state union is the legitimate home of the enum tokens; it must not be renamed away',
+	);
+
+	// COMMENTS ARE STRIPPED BEFORE THE SCAN, and that is a correctness requirement, not a
+	// convenience. AGENTS.md §16 obliges a correction to retain the superseded leak VERBATIM,
+	// and the A3-C9 note in the module does exactly that: it quotes the old title, including the
+	// word UNRESOLVED, as the record of what was fixed. A raw-text scan would therefore flag
+	// this file's own evidence of the fix. The leak being guarded against lives in STRING
+	// LITERALS that reach the DOM; prose describing the fix is not rendered to an operator.
+	//
+	// A naive `${field}:\s*([^\n]+)` scan also silently mis-scanned: `\s` matches newlines, so a
+	// comment line ENDING in "why:" consumed the following line and reported a leak that did not
+	// exist. Stripping comments removes that class of false positive as a side effect.
+	const code = source
+		.replace(/\/\*[\s\S]*?\*\//g, '') // block comments
+		.replace(/^[^\S\n]*\/\/[^\n]*$/gm, '') // whole-line comments
+		.replace(/([:,'"`])([^\n]*?)\/\/[^\n]*$/gm, '$1$2'); // trailing comments on a code line
+
+	// Every quoted string literal assigned to a field an operator reads.
+	for (const field of ['title', 'blockedLabel', 'detail', 'why', 'actionLabel']) {
+		const assignments = [...code.matchAll(new RegExp(`${field}:\\s*([^\\n]+)`, 'g'))];
+		assert.ok(assignments.length > 0, `expected to find ${field} assignments in the module`);
+		for (const [, value] of assignments) {
+			for (const token of ['UNRESOLVED', 'UNAVAILABLE', 'NOT_INITIALIZED']) {
+				assert.equal(
+					value.includes(token),
+					false,
+					`the operator-facing ${field} leaks the raw enum token ${token}: ${value.trim()}`,
+				);
+			}
+		}
+	}
+
+	// Proof the stripper is not vacuous: a quoted leak in a COMMENT is not flagged, and a quoted
+	// leak in CODE still is. Both halves matter — the first is why §16 evidence is safe here.
+	assert.equal(
+		`// title: 'Section coverage is UNRESOLVED'`.replace(/^[^\S\n]*\/\/[^\n]*$/gm, '').includes('UNRESOLVED'),
+		false,
+		'the comment stripper must actually remove comments, or this control proves nothing',
+	);
+	assert.equal(
+		`\t\ttitle: 'Section coverage is UNRESOLVED',`.includes('UNRESOLVED'),
+		true,
+		'control: a real code-level leak is still detectable after stripping',
+	);
+
+	// The degraded reasons the page appends to its evidence list are operator copy too.
+	assert.equal(CLASS_TEMPLATES_NOT_INITIALIZED_REASON.includes('UNRESOLVED'), false);
+	assert.equal(CLASS_TEMPLATES_UNAVAILABLE_REASON.includes('UNRESOLVED'), false);
+	assert.equal(CLASS_TEMPLATES_NOT_INITIALIZED_REASON.includes('NOT_INITIALIZED'), false);
+	assert.equal(CLASS_TEMPLATES_UNAVAILABLE_REASON.includes('UNAVAILABLE'), false);
 });
 
 test('Audit.tsx consumes the helper decision instead of inferring coverage from the read', () => {

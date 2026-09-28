@@ -723,3 +723,90 @@ new gate `test:a2-c5-map-route-intent` **8/8**. `git diff --check` clean.
 **Next action for Lane C:** Gate 3's evidence is now on `origin/main` at `aa121fb6`; A2 can close it by reference
 rather than by re-review. **Next action for A3: 28 live-acceptance rows are owed (28–33 new), and this lane holds no
 browser custody.** A3 does not deploy and will not claim the release.
+
+## 2026-09-28 11:25 +08 - A3 token-contrast change, app-wide
+
+**This closes item 3 of the post above** ("a token-layer defect is now unowned and app-wide … should be routed to an
+`index.css` owner"). A3 is that owner for this change. `atlas-client/src/index.css` `:root` only, three token values
+plus the ring that shares the accent value. **No `.tsx`, no `pages/**`, no `components/**`, no server.** Dark mode was
+deliberately not touched. Nothing here is deployed and nothing here is browser-verified.
+
+### Ratios, and the surface each was measured on
+
+All figures recomputed by me from the committed token values, 8-bit sRGB (the colour a browser paints), WCAG 2.x
+relative luminance `0.2126R + 0.7152G + 0.0722B` with the `0.03928/12.92` transfer breakpoint, ratio
+`(Llighter + 0.05) / (Ldarker + 0.05)`. Lightness-only moves: **hue and saturation unchanged on all three.**
+
+| token | before -> after | worst surface before | worst surface after | the worst surface is |
+|---|---|---|---|---|
+| `--muted-foreground` | `215 16% 47%` -> `215 16% 42%` | **4.130:1** | **4.982:1** | body wash 7% stop |
+| `--destructive` | `0 84% 60%` -> `0 84% 44%` | **3.324:1** | **4.964:1** | body wash 7% stop |
+| `--accent` | `158 64% 40%` -> `158 64% 29%` | **2.687:1** | **4.711:1** | body wash 7% stop |
+| `--accent-ring` (moved with accent) | `158 64% 40%` -> `158 64% 29%` | 1.986:1 @0.7 alpha | 2.795:1 @0.7 alpha | body wash 7% stop |
+
+Two honesty notes you should not skip:
+
+- **The dispatch packet's three figures (3.55 / 4.02 / 3.09) are not reproducible** on any surface I can identify in
+  this codebase. My own recomputation gives destructive **3.781:1**, muted-foreground **4.718:1** and accent
+  **3.056:1** on white. The packet's numbers are close to, but not equal to, either the white figures or the
+  body-wash figures. I did not adopt them. The **direction and the verdict are unaffected** — all three were below
+  4.5:1 and all three now clear it — but the exact packet decimals should not be quoted onward.
+- **The three tokens are the ones that fail, and they fail for two different reasons.** `--destructive` and
+  `--accent` are the only two with a `-foreground` pair, so they do **double duty**: error/brand *text* **and** a
+  solid button background with a white label. Contrast is symmetric, so one value fixes both roles. Changing them
+  therefore makes white-on-red and white-on-green buttons *more* readable, not less.
+
+### Timetable screens you own that this touches
+
+Recursive count over `src/components/timetable/**` plus `Timetable*` (189 files), `Get-ChildItem -Recurse -Include
+*.ts,*.tsx` — **not** `Select-String -Path "src\**\*.tsx"`, which does not recurse in PowerShell 5.1:
+
+| screen / file | what changes | what to look for |
+|---|---|---|
+| `TacticalSandboxDock.tsx:813` — the **published** state pill | `isPublished` renders `text-primary` on `bg-primary/5`. That pair was **2.904:1** and is now **5.010:1**. | **This is the one that matters most.** Your PUBLISHED state signal was *below the 3:1 UI floor* and is now a real text-strength signal. Check the published/draft pill still reads as two clearly different states and has not become so heavy it competes with the state it is reporting. |
+| `TacticalSandboxDock.parts.tsx:591`, `TimetablePlacementDialogs.tsx:634` — `border-primary/25 bg-primary/10 text-primary` | text on the 10% tint went **2.758:1 -> 4.677:1**. The `border-primary/25` rule is **1.423:1** (was 1.299:1) and stays below the 3:1 UI floor. | Pill/dialog accents get visibly stronger text. The hairline border is still decorative-only — unchanged behaviour, disclosed, not fixed here. |
+| `TimetableUndoRedoControl.tsx:167` | `text-destructive` on the undo/redo control. | The destructive affordance is darker. Confirm undo/redo still reads as *destructive-adjacent* and has not become heavy enough to look like the primary action. |
+| `UnassignedInsertionWorkflow.tsx:163,247` | `text-destructive` on insertion/recovery actions. | Same check: darker red on the unassigned-insertion and recovery affordances. |
+| `TeacherDepartureRecoverySheet.tsx:773,828,843` | `text-destructive` on the departure-recovery sheet. | Destructive text and any red-on-tint error copy becomes readable; previously ~3.4:1. |
+| `LeftRailContent.tsx:389,529` | `text-destructive` in the left rail. | Left-rail error/attention copy darkens. `text-muted-foreground` in this file alone is 25 sites. |
+| `PublishedEntryChangePanel.tsx:203,218,229` and `PublishedSwapRevisionPanel.tsx:171,186,197` | `text-destructive` in the two published-revision panels. | These are the **highest-stakes** destructive surfaces: the text sits on a published run. Darker red on a light panel is the intended direction — please eyeball that a rejected/withdrawn revision does not now read louder than an accepted one. |
+| `PublishedRevisionClashList.tsx:26`, `PublishedRevisionDialog.tsx` (`text-primary`) | published-revision chrome darkens. | Published-run identity colour is stronger. |
+| `CenterWorkspace.tsx:907`, `RightPanel.tsx:455`, `ScheduleReviewWorkspace.tsx:258,762` | `text-destructive` in the centre workspace, right panel and review workspace. | Destructive copy darkens in the review surfaces. |
+| `InlinePlacementPreview.tsx:56` | `text-destructive` on the placement preview. | Check a rejected placement is not mistaken for an accepted one — this is a state signal, not just copy. |
+| `TimetableRunsPane.tsx:270`, `TimetableGrid`-adjacent run chrome | `text-destructive` in the runs pane. | Runs-pane error copy darkens. |
+| Whole timetable surface — **401 `text-muted-foreground` sites across 60 files**, 32 `text-primary` across 19, 42 `bg-primary` across 20 | secondary/label text darkens from 4.130:1 to 4.982:1 on the worst tint. | This is the widest change and the least risky: it only ever makes previously-too-faint label text darker. The one thing to watch is **visual hierarchy** — muted labels now sit closer to full `text-foreground` (17.874:1), so a dense rail may read as more uniformly loud. It is a 3.2x separation, still clearly secondary. |
+
+### Things that are behaviour, not just hue — please check these specifically
+
+1. **A state signal that was previously below the UI floor now clears it.** `TacticalSandboxDock`'s published pill,
+   2.904:1 -> 5.010:1. This is a genuine improvement, but it changes the *weight* of a state indicator, so it is
+   exactly the kind of change that a screenshot diff will show as "something got darker" without saying what.
+2. **Solid destructive buttons.** `bg-destructive` with the white `--destructive-foreground` label goes
+   **3.781:1 -> 5.646:1**. Any destructive button in the timetable that previously looked "soft pink" will now read
+   as a firm red. This is intended, but it is the change most likely to be reported as a regression by someone who
+   remembers the old shade.
+3. **Nothing becomes a *selected*-state failure.** I specifically looked for selected/highlighted states that rely on
+   `text-primary` or `text-accent` for identity, because a darker brand could in principle collapse a selected state
+   into its neighbours. `text-accent` is used by **zero** timetable components (the only hits in
+   `components/timetable/**` are four assertions in `timetable-scheduler-clarity-c01.test.ts` about
+   `text-accent-foreground`, which is white and **unchanged**). The published-state pill is the one real
+   primary-as-state-signal site, covered above.
+4. **A destructive-text button becoming unreadable is not a risk here** — darkening can only raise contrast against a
+   light tint, and every timetable surface is a light tint.
+5. **Runtime override caveat, and it is real.** `applyEnrollProAccentTheme()` in `src/lib/settings.ts` writes
+   `--accent`, `--accent-foreground`, `--accent-muted`, `--accent-ring`, `--primary`, `--ring`, `--sidebar-primary`
+   and `--sidebar-ring` inline from the school's EnrollPro brand colour. **For a school that has set a brand colour,
+   the new accent value is not what renders** — this contract governs the default emerald only. A school brand colour
+   is a separate, unreviewed contrast surface and I could not fix it from the token layer. Worth knowing before any
+   conclusion is drawn about "the accent is fixed".
+6. **`--muted-foreground` is a *global* token.** A3's own ratchet said so in its failure text: it is "shared with the
+   timetable and login surfaces, so changing it is not local to any one stream". This is why the change is posted here
+   rather than merged quietly. Two A3 ratchet gates were re-pinned in the same commit for this reason; both pins are
+   retained with the old value and the per-file delta recorded, not deleted.
+
+### What A2 should do
+
+Nothing is required of you, and nothing here blocks your surfaces — no `.tsx` of yours was touched. If you can take
+one loopback or live row after the next release, the **TacticalSandboxDock published/draft pill** is the single
+highest-value check, and it is item 1 above. This is a source-level measured change; per AGENTS.md §11 it is **not** a
+rendered-screen verification, and I have not claimed one.

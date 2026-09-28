@@ -76,14 +76,82 @@
 	--background: 0 0% 100%;
 	--foreground: 222 47% 11%;
 	--muted: 220 14% 96%;
-	--muted-foreground: 215 16% 47%;
+
+	/* ─── Muted foreground (A3-C9) — the app's SECONDARY TEXT token. ───
+	   ── CONTRAST CONTRACT (measured 2026-09-28; enforced by test:a3-c9-operator-tokens) ──
+	   A recursive scan (`Get-ChildItem -Recurse -Include *.ts,*.tsx`) counts
+	   `text-muted-foreground` at 1292 call sites across 190 files. That is a
+	   BODY-TEXT role, not an icon role, so WCAG 1.4.3 AA 4.5:1 applies — the 3:1
+	   1.4.11 floor was never available to it.
+
+	   The value was a straight rename of Tailwind `slate-500` (rgb(101,117,139)),
+	   so it was never contrast-tuned; the slate-500 shade only clears 4.5:1 on
+	   pure white and fails on every light tint it is actually painted on. Measured
+	   at the old 215 16% 47%: 4.697:1 on white but 4.268:1 on --muted and
+	   4.130:1 on the 100% stop of the body wash — an AA FAIL at 1292 sites.
+
+	   Hue 215 and saturation 16 are UNCHANGED; only lightness moved 47% -> 42%,
+	   which is what keeps it a cool grey rather than a new colour and keeps it
+	   clearly secondary to --foreground (17.874:1 on white vs 5.667 here, a 3.2x
+	   separation that is preserved). Measured on the new value (rgb(90,104,124)):
+
+	     --muted-foreground  5.667:1 on --background/--card  5.149:1 on --muted
+	                          5.125:1 on --accent-muted       5.185:1 on --sidebar-background
+	                          5.187:1 body wash 50% stop       4.982:1 body wash 100% stop
+
+	   Worst real surface is 4.982:1, so AA now holds on every surface this token
+	   is painted on rather than only on white. This is a real, measured
+	   accessibility improvement to source, NOT a rendered-screen verification.
+
+	   MEASUREMENT NOTE: every ratio in this file is computed on 8-BIT sRGB, i.e.
+	   after the HSL triple is rounded to rgb() integers, because that is the colour
+	   a browser actually paints. An unrounded float conversion differs in the third
+	   decimal (e.g. the old value reads 4.718 unrounded vs 4.697 rounded) and the
+	   rounded figure is the one to read. Formula: WCAG 2.x relative luminance
+	   0.2126R + 0.7152G + 0.0722B with the 0.03928/12.92 sRGB transfer breakpoint,
+	   ratio (Llighter + 0.05) / (Ldarker + 0.05). Recomputed from the committed
+	   token values by test:a3-c9-operator-tokens, not restated from this comment. ─── */
+	--muted-foreground: 215 16% 42%;
+
 	--border: 220 13% 91%;
 	--card: 0 0% 100%;
 	--card-foreground: 222 47% 11%;
 	--popover: 0 0% 100%;
 	--popover-foreground: 222 47% 11%;
 	--input: 220 13% 91%;
-	--destructive: 0 84% 60%;
+
+	/* ─── Destructive (A3-C9) — one value, TWO roles. ───
+	   ── CONTRAST CONTRACT (measured 2026-09-28; enforced by test:a3-c9-operator-tokens) ──
+	   A recursive scan counts `text-destructive` at 80 call sites across 51 files
+	   and `bg-destructive` across 27 files, so this token is genuinely doing double
+	   duty and the change has to serve BOTH:
+	     · TEXT role — error copy in forms, banners, sheets and panels. 4.5:1.
+	     · SOLID-BUTTON role — `bg-destructive` + `text-destructive-foreground`
+	       (white). Contrast is symmetric, so the text and the button-white roles
+	       are the SAME measured pair and one value satisfies both.
+	   At the old 0 84% 60% (rgb(239,67,67)) that pair measured 3.781:1 on white
+	   and 3.324:1 on the 100% body-wash stop: a fail on the text role AND on the
+	   white-label solid button. The 3:1 1.4.11 floor was not met either once the
+	   surface is a light tint rather than white.
+
+	   Hue 0 and saturation 84 are UNCHANGED; only lightness moved 60% -> 44%,
+	   which keeps the same red and does NOT re-hue it toward the G9 red badge in
+	   GRADE_COLORS (that ramp is a separate literal `bg-red-100/80 text-red-700`
+	   in src/lib/grade-labels.ts and is deliberately NOT a token). Measured on the
+	   new value (rgb(206,18,18)):
+
+	     --destructive                 5.646:1 on --background/--card
+	                                   5.130:1 on --muted
+	                                   5.106:1 on --accent-muted
+	                                   5.166:1 on --sidebar-background
+	                                   5.168:1 body wash 50% stop
+	                                   4.964:1 body wash 100% stop
+	     --destructive-foreground on --destructive
+	                                   5.646:1 (white label on the solid button)
+
+	   Worst real surface is 4.964:1. Both roles now clear AA with headroom instead
+	   of one role trading off against the other. ─── */
+	--destructive: 0 84% 44%;
 	--destructive-foreground: 0 0% 100%;
 	--secondary: 220 14% 96%;
 	--secondary-foreground: 222 47% 11%;
@@ -124,11 +192,67 @@
 
 	/* ─── Default accent: emerald (SMART scheduling portal identity).
 	   May be overridden at runtime by applyEnrollProAccentTheme() when a
-	   school sets a custom brand color in EnrollPro. ─── */
-	--accent: 158 64% 40%;
+	   school sets a custom brand color in EnrollPro.
+
+	   ── CONTRAST CONTRACT (measured 2026-09-28; enforced by test:a3-c9-operator-tokens) ──
+	   --accent is the single most load-bearing token in the file, because three
+	   aliases resolve to it (--primary, --sidebar-primary, --theme-accent) and
+	   --ring resolves to --accent-ring. A recursive scan counts:
+	     · `text-accent`     18 call sites (14 real: ui/dropdown-menu 4,
+	                          ui/searchable-select 2, SchoolYearSwitcher 2,
+	                          ui/sidebar 1, ui/select 1) — TEXT role, 4.5:1.
+	     · `text-primary`   228 call sites, and `--primary: var(--accent)` —
+	                          TEXT role, 4.5:1. This is the real weight: 228 is
+	                          4x the count of the previous A3-C8 warning token.
+	     · `bg-primary` / `bg-accent` solid buttons carrying
+	       `text-accent-foreground` (white) — again the same measured pair.
+	   At the old 158 64% 40% (rgb(37,167,119)) the pair measured 3.056:1 on
+	   white and 2.687:1 on the 100% body-wash stop: below the 4.5:1 text
+	   threshold at 242 text sites AND below the 3:1 1.4.11 floor for the brand
+	   colour as a non-text affordance. This was the worst of the three tokens.
+
+	   Hue 158 and saturation 64 are UNCHANGED; only lightness moved 40% -> 29%,
+	   which keeps the same emerald identity rather than turning it into a
+	   different brand. Measured on the new value (rgb(27,121,87)):
+
+	     --accent                  5.358:1 on --background/--card
+	                              4.869:1 on --muted
+	                              4.846:1 on --accent-muted
+	                              4.903:1 on --sidebar-background
+	                              4.905:1 body wash 50% stop
+	                              4.711:1 body wash 100% stop
+	     --accent-foreground on --accent
+	                              5.358:1 (white label on the solid button)
+
+	   Worst real surface is 4.711:1, so AA holds for both the text role and the
+	   solid-button label on every surface, not only on white.
+
+	   --accent-ring is moved in step with it, because in this file the two have
+	   always carried the SAME value and splitting them would leave a focus ring
+	   lighter than the brand it outlines. It is a UI affordance, not text, so its
+	   floor is the 3:1 of WCAG 1.4.11 / 2.4.7, measured through the 0.7 alpha the
+	   `:focus-visible` rule actually applies:
+	     --accent-ring @0.7 alpha   1.986:1 -> 2.795:1 on the 100% body-wash stop
+	                                2.156:1 -> 3.014:1 on --background
+	   That is a measured improvement, and the body-wash figure is still BELOW
+	   3:1 — carried debt this brief does not fix, because the 0.7 alpha lives in
+	   the `:focus-visible` outline rule, not in this token, and raising it is a
+	   focus-visual-weight decision beyond text contrast. Recorded here so the
+	   residual is visible rather than rediscovered.
+
+	   RUNTIME-OVERRIDE LIMIT, disclosed: `applyEnrollProAccentTheme()` in
+	   src/lib/settings.ts writes --accent, --accent-foreground, --accent-muted,
+	   --accent-ring, --primary, --ring, --sidebar-primary and --sidebar-ring
+	   inline from a school's EnrollPro brand colour, and --primary/-ring/-
+	   sidebar-* are then all re-pointed at var(--accent). So for a school that
+	   HAS set a brand colour this contract does not govern the rendered value at
+	   all — the guarantee above is for the DEFAULT emerald only, and a brand
+	   colour is a separate, unreviewed contrast surface. Not fixable in this
+	   token layer. ─── */
+	--accent: 158 64% 29%;
 	--accent-foreground: 0 0% 100%;
 	--accent-muted: 152 81% 92%;
-	--accent-ring: 158 64% 40%;
+	--accent-ring: 158 64% 29%;
 
 	/* shadcn aliases */
 	--primary: var(--accent);
@@ -196,8 +320,30 @@
    A3-C8r1's 42 88% 62% sat outside that window: the badge read 1.687:1. As a
    side effect the accent is now 4.037:1 against --warning-foreground instead of
    1.434:1, so an icon is no longer the same lightness as the label beside it.
-   --warning-border is left at 1.934:1 here for the same reason as in :root:
-   a decorative hairline, and a light border on a dark panel is not an upgrade. ─── */
+    --warning-border is left at 1.934:1 here for the same reason as in :root:
+    a decorative hairline, and a light border on a dark panel is not an upgrade.
+
+    A3-C9 (2026-09-28) DELIBERATELY ADDED NO --destructive / --muted-foreground /
+    --accent OVERRIDE HERE, and did not make dark mode worse. Three reasons, in
+    the order they actually matter:
+    1. THIS BLOCK DEFINES NO DARK SURFACE. There is no dark --background, no
+       dark --foreground, no dark --muted and no dark --card anywhere in this
+       stylesheet, so a dark-mode contrast ratio for any of the three tokens has
+       no background to be measured against. Authoring dark values for tokens
+       with no dark surface would be three more unreviewed, unrenderable numbers
+       presented as a contract.
+    2. DARK IS NOT REACHABLE (established above, and still true at A3-C9).
+    3. CASCADE: because this block does NOT redefine the three tokens, the
+       unreachable dark rendering resolves them through :root, exactly as it did
+       before this change. So the A3-C9 darkening moves the (unreachable) dark
+       scheme in the same direction it already pointed. The one honest cost: a
+       DARKER --muted-foreground would read WORSE on a real dark surface than the
+       old value did. That is accepted deliberately, because a mid-grey that
+       clears 4.5:1 for 1292 light-surface text sites is worth more than an
+       unread number in a block nothing selects. Recorded here so it is a
+       decision on the record rather than an oversight.
+    The first session that writes a `dark` class MUST re-measure all three of
+    these tokens against a real dark surface and add the overrides in this block. ─── */
 .dark {
 	--warning: 40 88% 32%;
 	--warning-foreground: 45 92% 86%;
