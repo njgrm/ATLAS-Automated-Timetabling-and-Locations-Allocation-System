@@ -1,5 +1,5 @@
 import Konva from 'konva';
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Group, Layer, Line, Rect, Stage, Text, Transformer } from 'react-konva';
 import { DoorOpen, ImageOff, Minus, MousePointer2, Plus, Redo2, RotateCcw, Save, Square, Undo2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
@@ -38,10 +38,98 @@ type Tool = 'select' | 'add';
 
 const MIN_WIDTH = 60;
 const MIN_HEIGHT = 40;
-const CANVAS_WIDTH = 920;
-const CANVAS_HEIGHT = 580;
+/**
+ * A3 c11 fix 36 — the canvas is no longer a fixed 920x580 stage.
+ *
+ * The base hardcoded both, and the operator reported the consequence on
+ * `/map?mode=editor`: "The rightmost building cards are visibly clipped beneath
+ * the inspector rather than contained in an auto-grown/full workspace canvas."
+ * The arithmetic behind that is a property of the LAYOUT, not of the data: the
+ * editor's canvas column is `flex-1 min-w-0` beside a `w-88` (352px) inspector
+ * inside a 1366px viewport, so the column is 1366 - 352 - 32 = 982px at best and
+ * far less once the app sidebar is counted, while the ground rect was a fixed
+ * 920 wide inside an `overflow-hidden` wrapper. Anything the operator dragged
+ * toward the right edge had nowhere to go and was cut at the wrapper.
+ *
+ * So the fix is all THREE of the operator's options at once, and each is named
+ * in the request:
+ *   1. auto-grow  — the canvas is at least as large as the buildings on it
+ *                   ({@link campusEditorCanvasSize});
+ *   2. fill the work area — and at least the old fixed size, so nothing that fit
+ *                   before stops fitting;
+ *   3. containment — a placement is clamped fully inside the canvas
+ *                   ({@link clampBuildingToCanvas}), so a building can never be
+ *                   left straddling the edge.
+ *
+ * These are FLOORS, not the stage size. The stage is sized from the measured
+ * host, which is what actually removes the clipping.
+ */
+export const CANVAS_MIN_WIDTH = 920;
+export const CANVAS_MIN_HEIGHT = 580;
+/** Breathing room kept between the right-most/bottom-most building and the edge,
+ *  so a building placed hard against the border is not already half-clipped. */
+export const CANVAS_EDGE_PADDING = 24;
 
 const COLORS = CALM_BUILDING_COLORS;
+
+/** The four numbers a canvas decision needs from a building. */
+type CanvasExtent = { x: number; y: number; width: number; height: number };
+
+/**
+ * A3 c11 fix 36, option 1 (auto-grow) + option 2 (fill the work area).
+ *
+ * Pure, exported and total, so the rendered control and the component cannot
+ * disagree: the component's Stage is sized from exactly this call.
+ *
+ *  - `max(contentRight + padding, container, min)` per axis. Content first,
+ *    because a building already outside the old fixed box must never be clipped
+ *    by the fix that is meant to stop clipping; the measured container next,
+ *    because the operator's alternative was a canvas that "spans the entire work
+ *    area to the left of the detail panel"; the old fixed size last, so nothing
+ *    that fitted before the fix stops fitting.
+ */
+export function campusEditorCanvasSize(input: {
+	containerWidth: number;
+	containerHeight: number;
+	buildings: ReadonlyArray<CanvasExtent>;
+	minWidth?: number;
+	minHeight?: number;
+	padding?: number;
+}): { width: number; height: number } {
+	const minWidth = input.minWidth ?? CANVAS_MIN_WIDTH;
+	const minHeight = input.minHeight ?? CANVAS_MIN_HEIGHT;
+	const padding = input.padding ?? CANVAS_EDGE_PADDING;
+	let contentRight = 0;
+	let contentBottom = 0;
+	for (const b of input.buildings) {
+		contentRight = Math.max(contentRight, b.x + b.width);
+		contentBottom = Math.max(contentBottom, b.y + b.height);
+	}
+	const finite = (value: number, fallback: number) => (Number.isFinite(value) && value > 0 ? value : fallback);
+	const widest = contentRight > 0 ? contentRight + padding : 0;
+	const deepest = contentBottom > 0 ? contentBottom + padding : 0;
+	return {
+		width: Math.ceil(Math.max(minWidth, finite(input.containerWidth, minWidth), widest)),
+		height: Math.ceil(Math.max(minHeight, finite(input.containerHeight, minHeight), deepest)),
+	};
+}
+
+/**
+ * A3 c11 fix 36, option 3 (containment): pull a building fully inside the canvas.
+ *
+ * A building LARGER than the canvas is pinned to the origin rather than given a
+ * negative coordinate — and the canvas then auto-grows to hold it, so the clamp
+ * can never be the reason a building is unreachable.
+ */
+export function clampBuildingToCanvas<T extends CanvasExtent>(building: T, canvasWidth: number, canvasHeight: number): T {
+	const maxX = Math.max(0, canvasWidth - building.width);
+	const maxY = Math.max(0, canvasHeight - building.height);
+	return {
+		...building,
+		x: Math.min(maxX, Math.max(0, Math.round(building.x))),
+		y: Math.min(maxY, Math.max(0, Math.round(building.y))),
+	};
+}
 
 /**
  * Smart-threshold label rotation:
@@ -99,6 +187,29 @@ export function CampusMapEditor({
 	const [saving, setSaving] = useState(false);
 	const [campusImage, setCampusImage] = useState<HTMLImageElement | null>(null);
 	const [hoveredBuildingId, setHoveredBuildingId] = useState<number | null>(null);
+	// A3 c11 fix 36 — the canvas size. The host is measured (like BuildingView
+	// measures its pane) rather than assumed, and the FLOORS keep the old fixed
+	// canvas as a minimum so the fix cannot shrink the workspace.
+	const canvasHostRef = useRef<HTMLDivElement>(null);
+	const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+	const canvas = useMemo(
+		() => campusEditorCanvasSize({ containerWidth: containerSize.width, containerHeight: containerSize.height, buildings }),
+		[containerSize.width, containerSize.height, buildings],
+	);
+	const { width: CANVAS_WIDTH, height: CANVAS_HEIGHT } = canvas;
+
+	useEffect(() => {
+		const host = canvasHostRef.current?.parentElement;
+		if (!host) return;
+		const measure = () => {
+			const rect = host.getBoundingClientRect();
+			setContainerSize({ width: Math.floor(rect.width), height: Math.floor(rect.height) });
+		};
+		measure();
+		const observer = new ResizeObserver(measure);
+		observer.observe(host);
+		return () => observer.disconnect();
+	}, []);
 
 	// Draw-to-create state
 	const [isDrawing, setIsDrawing] = useState(false);
@@ -224,17 +335,26 @@ export function CampusMapEditor({
 			setDrawStart(null);
 			setDrawRect(null);
 
-			// Only create if rect is large enough
-			if (drawRect.width < MIN_WIDTH || drawRect.height < MIN_HEIGHT) return;
+		// Only create if rect is large enough
+		if (drawRect.width < MIN_WIDTH || drawRect.height < MIN_HEIGHT) return;
 
-			const newBuilding: EditorBuilding = {
-				id: tempIdCounter--,
-				name: `Building ${buildings.length + 1}`,
-				shortCode: null,
-				x: drawRect.x,
-				y: drawRect.y,
-				width: drawRect.width,
-				height: drawRect.height,
+		// A3 c11 fix 36, option 3 — a drawn building is CONTAINED. The drag is
+		// already clamped to the canvas the operator can see; a draw that runs off
+		// the edge produced a building that did not, which is the reported defect.
+		const placed = clampBuildingToCanvas(
+			{ x: drawRect.x, y: drawRect.y, width: drawRect.width, height: drawRect.height },
+			CANVAS_WIDTH,
+			CANVAS_HEIGHT,
+		);
+
+		const newBuilding: EditorBuilding = {
+			id: tempIdCounter--,
+			name: `Building ${buildings.length + 1}`,
+			shortCode: null,
+			x: placed.x,
+			y: placed.y,
+			width: placed.width,
+			height: placed.height,
 				rotation: 0,
 				color: COLORS[buildings.length % COLORS.length],
 				floorCount: 1,
@@ -249,7 +369,7 @@ export function CampusMapEditor({
 			onSelect(newBuilding.id);
 			setTool('select');
 		},
-		[isDrawing, drawRect, buildings, onBuildingsChange, onSelect],
+		[isDrawing, drawRect, buildings, onBuildingsChange, onSelect, CANVAS_WIDTH, CANVAS_HEIGHT],
 	);
 
 	const handleDragEnd = useCallback(
@@ -375,6 +495,13 @@ export function CampusMapEditor({
 			}
 
 			// Reset scale to 1 and apply computed dimensions to prevent drift
+			// A3 c11 fix 36, option 3 — a resize/rotate keeps the opposite anchor
+			// fixed AND stays inside the canvas. Clamped after the anchor maths, so
+			// the anchored resize is unchanged whenever the result already fits.
+			const contained = clampBuildingToCanvas({ x: snappedX, y: snappedY, width: newWidth, height: newHeight }, CANVAS_WIDTH, CANVAS_HEIGHT);
+			snappedX = contained.x;
+			snappedY = contained.y;
+
 			node.scaleX(1);
 			node.scaleY(1);
 			node.width(newWidth);
@@ -402,7 +529,7 @@ export function CampusMapEditor({
 			);
 			setDimTooltip(null);
 		},
-		[buildings, onBuildingsChange, onPushHistory],
+		[buildings, onBuildingsChange, onPushHistory, CANVAS_WIDTH, CANVAS_HEIGHT],
 	);
 
 	const handleTransform = useCallback(
@@ -708,11 +835,14 @@ export function CampusMapEditor({
 				</TooltipProvider>
 			</div>
 
-			{/* Canvas */}
+			{/* Canvas. `min-h-[420px]` keeps the work area usable on a short
+			    viewport; the Stage itself is sized from the measured host by
+			    `campusEditorCanvasSize`, so the white ground always spans the
+			    workspace to the left of the inspector and grows for content
+			    beyond it. */}
 			<div
-				className={`overflow-hidden rounded-lg border border-border bg-muted/30 ${
-					tool === 'add' ? 'cursor-crosshair' : ''
-				}`}
+				ref={canvasHostRef}
+				className={`overflow-hidden rounded-lg border border-border bg-muted/30 ${tool === 'add' ? 'cursor-crosshair' : ''}`}
 			>
 				<Stage
 					ref={stageRef}
