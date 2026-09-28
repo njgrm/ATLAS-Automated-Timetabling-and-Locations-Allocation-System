@@ -4668,3 +4668,73 @@ created 5 `schools` rows "ROLLOVER-AUTOMATION DISPOSABLE PREMISE — SAFE TO DEL
 `D:/ATLAS-runtime-config/backups/test-pollution-20260929/live-schools-before.json`) and repointed the dev `.env` to
 `atlas_staging` (backup `atlas-server-dotenv.before` there). Live and staging runtimes do not read that file (supervisor
 injects D:/ATLAS-runtime-config). Older residue kept: school 261 "C01R2 … Quarterly" (2026-09-12) on live and staging.
+
+## Lane A9 — TEACHING personnel only (written only by Lane A9)
+
+**`A9 ready for release at 98cc1e34`. 0 fixes live and seen / 1 integrated / 0 dropped. NOT deployed — A4 owns
+every release (§14).** Packet `a9-teaching-personnel-only-2026-09-29.md`. `main` was `8519403e` at the base and
+carried A5's `/subjects` slice A (`c1d899f1`) at merge; the A9 product tree is byte-identical to the reviewed
+candidate through it (A5 = `atlas-client/**`, A9 = `atlas-server/**` — disjoint).
+
+- **The fix.** All three EnrollPro faculty **ingestion** call sites now send `?personnelType=TEACHING`:
+  `faculty-adapter.ts:94`, `scheduler-ancillary-authority.service.ts:129`,
+  `enrollpro-rollover.service.ts:243-244` (both endpoint entries). No fourth exists. A latent double-`?` bug in
+  `faculty-adapter.ts` that would have silently fetched **unfiltered** is fixed; QA proved that proof
+  discriminates by reverting the separator branch in place. Failing-first reproduced both sides (base
+  1 pass / 5 fail, `actual: [101, 201, 202]` vs `expected: [101]`).
+- **Amendment to packet item 1 — ACCEPTED by the operator 2026-09-29, code unchanged.**
+  `local-auth.service.ts` (login identity lookup) stays **unfiltered**: filtering it would lock every registrar
+  and admin out of ATLAS, the inverse of the intent, and it is an auth-boundary (HIGH) change. Comment +
+  behavioural regression test retained, byte-identical to the reviewed candidate.
+- **QA round 1 `CORRECTION_REQUIRED` 14/16** — zero source defects; the 2 blocking rows were the DB incident
+  (closed, 02:25 above) and a false preservation disclosure. **QA round 2 `ACCEPT_READY` 18/18/0/0** on the
+  correction range `7eeffb82..b0ca4466`, both blocking rows confirmed still closed.
+- **Task A — fail-closed disposable-DB guard** (directive rule from the 02:25 incident). One shared definition
+  `helpers/disposable-database-guard.ts`, three tripwires QA proved discriminate: `P1` pins it to
+  `scripts/run-db-suite.mjs:51` by parsing the runner, `P2` fails if a suite re-types the regex, `C1` re-derives
+  the guarded/self-provisioning/non-writing split. **35 guarded / 14 self-provisioning / 10 non-writing of 59
+  argv files — QA re-derived this independently and found no unguarded DB-writing suite.** Refuses missing,
+  non-postgres and unparseable `DATABASE_URL` with no fall-open branch; names live and `atlas_staging`;
+  accepts the harness's own drill names. `test:disposable-db-guard` 9/9.
+- **Task B — a reachable PRUNE that deleted history, now stale-not-delete.** I traced both paths the operator
+  asked about: **`Sync now`** (`RolloverGuidanceCard.tsx:928/932` → `runtime.router.ts:348-358`) and the
+  **automation tick** (`rollover-automation.service.ts:244`/`:2310`) both inherit
+  `facultyMode ?? 'reconcile'` and were never prune paths. **The School Year Setup reset was one**:
+  `RolloverResetPanel.tsx:76` → `runtime.router.ts:399-407` →
+  `enrollpro-rollover.service.ts:1931` passed `facultyMode: 'prune'`, deleting `atlasAuthAccount` +
+  `facultyMirror` (`faculty.service.ts:732-737`) and cascading through `prisma/schema.prisma` `FacultySubject →
+  faculty @relation(onDelete: Cascade)` — after this packet's feed filter, that is exactly ids 3/20/33 and the
+  years 8-10 history. **Now `reconcile`**; one line. Failing-first: reverting it gives 10/21 failing with
+  `expected 1, got 0` (historical `faculty_subjects` destroyed). The reset still clears the dummy year and
+  advances the active mirror, so it is a fix, not a regression.
+- **Task C — preservation run, operator-approved `npm run test:server-db`.** `50 pass, 9 fail`, 60 databases
+  created, **own-database residue 0**; `SELECT count(*) … LIKE 'atlas_restore_drill_%'` = **7, identical to the
+  pre-run baseline** (those 7 are other lanes', dated 2026-09-27/28, not dropped — not this lane's authority).
+  The 9 failures are **pre-existing**: reverting A9's paths to `7eeffb82` and re-running those 9 through the
+  same harness gives `0 pass, 9 fail`. QA assessed the signature set-difference as sound for *"no new failure
+  signature appeared"* and explicitly **not** proof of a shared root cause; it reproduced the incident suite
+  independently at `67 passed, 1 failed` and found that one assertion is **network-flaky** (upstream
+  reachability), so that file's "identical before and after" is probable, not determinate.
+- **NON_BLOCKING residuals, 2026-09-29, all open, none claimed fixed.** (1) `C1` cannot see a **raw-SQL** write
+  — adding `prisma.$queryRaw\`INSERT …\`` to an argv suite left it green; every current hit is guarded,
+  self-provisioning or an in-memory stub, so there is no miss today, only a latent blind spot. (2)
+  `services/database-backup.service.ts:346` re-types the drill pattern in **production** (a restore-target check,
+  not a test-write guard; leaving it avoids importing a test helper into production, but **no test pins it**).
+  (3) **`faculty.router.ts:138`/`:153`/`:256` still expose the operator-confirmed `mode:'prune'` /
+  `POST /faculty/sync/reset` deletion, deliberately untouched** — deletion is that route's explicit purpose, and
+  the reset only pruned faculty as a *side effect* of a year reset. **Open question for the operator: that route
+  requires no `confirmPrune` body flag (it is baked into the path), so its only confirmation is the URL.**
+  (4) 9 pre-existing red files need a `KNOWN_RED` decision or their own lane. (5) 7 stale drill databases from
+  other lanes await an operator ruling.
+- **Release-acceptance rows — NOT decided by any source gate (§11 deployment-acceptance clauses), owed after
+  release:** ids **3/20/33** go `isStale`; **S.Y. 2022-2023 teacher count reads 20, not 23**; the **School Year
+  Setup reset leaves history intact**. Decided by a rendered Tailnet run on
+  `https://njgrm.buru-degree.ts.net` with `window.location.origin` asserted, plus the post-release
+  `Sync now`. **That sync must run in `reconcile` mode — no prune, no reset.** Steps are in
+  `docs/handoffs/lane-a-to-c.md`.
+- **Worktree disposition:** `E:/ATLAS-worktrees/lane-a9-personnel-type` = `RETIRE_AFTER_INTEGRATION`, left for
+  A4 (§14 gives A4 E: capacity and junction-safe reclamation). Branch
+  `work/teaching-personnel-only` pushed; no branch deleted. Residue: orphan stash `566c394b` (content absorbed,
+  `refs/stash`-only) and 4 pre-existing stash entries from other lanes.
+- **Next action (single):** A4 merges `98cc1e34` into the next release train; Lane C then runs `Sync now` in
+  reconcile mode with the operator and takes the three release-acceptance rows above.
