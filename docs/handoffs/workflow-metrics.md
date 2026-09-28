@@ -28,3 +28,4 @@ exit and reviews trends after every 3 rows; each process change is logged below 
 - 2026-09-28 b8e6bda7 — 2 review rounds; original-words grading; fixes-live metric; staging first → review rounds ≤ 2, fixes seen live per cycle ↑.
 - 2026-09-28 — Codex does all browser rows (fresh run each) → Lane C tokens per accepted fix ↓.
 - 2026-09-28 — split A3 into A3/A5/A6 by screen → fixes live per wall-hour ↑; watch merge conflicts.
+| 2026-09-28 21:30 | A4 | train 2 | LIVE `9ca7f629` (A2 e910811b, A3 13d75ce6, A5 c5aba703, A6 6498c322); staging walk 0/3/1 (unmet targets routed), no regression vs live; Lane C Codex smoke 6/6 (A4 smoke struck as stale) | next train: A2 3e9d0f6c+ | A4 Codex smoke used stale packet — template must pin the smoke prompt |

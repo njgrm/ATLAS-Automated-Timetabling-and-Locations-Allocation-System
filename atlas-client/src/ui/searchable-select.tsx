@@ -100,8 +100,22 @@ export function SearchableSelect({
 			const item = g.items.find((i) => i.value === value);
 			if (item) return item.label;
 		}
-		return '';
-	}, [allGroups, value]);
+		/* A2 C12 (item 3) — a `value` that matches no option resolves to the EMPTY
+		 * STRING here, and an empty string is the whole defect: the trigger's label
+		 * span renders nothing, and the composed accessible name becomes
+		 * `"<label>: "` — a name with a colon and no value, i.e. no name in the state
+		 * a scheduler first meets the picker in (the Simple header's `all` default,
+		 * before the first entity is chosen).
+		 *
+		 * The placeholder is the SAME honest "nothing chosen yet" the visible face
+		 * already shows when `value` is empty, so the two can never disagree, and a
+		 * caller that passes no `ariaLabel` is unaffected: the label span is what a
+		 * user reads, and it is no longer blank.
+		 *
+		 * This is a value FALLBACK, not a contract change: no prop signature, no
+		 * caller, and no reachable option-label changes. */
+		return placeholder;
+	}, [allGroups, value, placeholder]);
 
 	const choose = (next: string) => {
 		onValueChange(next);

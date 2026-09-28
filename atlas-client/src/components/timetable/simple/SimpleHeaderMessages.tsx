@@ -102,7 +102,16 @@ export function SimpleHeaderMessageRow({ message }: { message: SimpleHeaderMessa
 			: message.tone === 'good'
 				? 'text-emerald-800'
 				: 'text-muted-foreground';
-	const className = `min-w-0 text-xs font-medium ${toneClass}${message.truncate ? ' truncate' : ' break-words'}`;
+	/* A2 C12 / ITEM 1 — `lg:truncate` on EVERY row, so at 1366 px the capped notice
+	 * list takes the width it needs from the message text (which is already
+	 * truncatable by design) instead of pushing the run badge, the term line or the
+	 * draft sentence onto a second visual line. The CAP is untouched: the same three
+	 * rows render, in the same priority order, and the `and N more` remainder below
+	 * still states what was dropped. Truncating a row's TAIL is the only thing
+	 * allowed to change here — a row is never hidden, and no notice loses its
+	 * `data-testid`, so every committed row that addresses one still decides on it.
+	 * Below `lg` the existing `truncate` / `break-words` choice stands. */
+	const className = `min-w-0 text-xs font-medium ${toneClass}${message.truncate ? ' truncate' : ' break-words'} lg:truncate`;
 
 	if (!message.diagnostic) {
 		return (
@@ -132,7 +141,16 @@ export function SimpleHeaderMessageRow({ message }: { message: SimpleHeaderMessa
 	);
 }
 
-/** The rows plus the honest remainder count. */
+/**
+ * The rows plus the honest remainder count.
+ *
+ * A2 C12 / ITEM 1 — the cap (`SIMPLE_HEADER_MESSAGE_LIMIT`) is UNCHANGED and the
+ * remainder is still counted and printed: this list is a second wrap source at
+ * 1366 px, and the fix is that the rows truncate (`lg:truncate` in
+ * `SimpleHeaderMessageRow`), not that fewer notices render. Lowering the cap would
+ * have deleted operator-facing evidence to make a height problem go away — the
+ * exact move AGENTS.md §16 forbids.
+ */
 export function SimpleHeaderMessageList({ messages }: { messages: readonly SimpleHeaderMessage[] }) {
 	const shown = messages.slice(0, SIMPLE_HEADER_MESSAGE_LIMIT);
 	const hidden = messages.length - shown.length;
@@ -140,7 +158,7 @@ export function SimpleHeaderMessageList({ messages }: { messages: readonly Simpl
 		<>
 			{shown.map((message) => <SimpleHeaderMessageRow key={message.id} message={message} />)}
 			{hidden > 0 ? (
-				<p className="min-w-0 text-xs text-muted-foreground" data-testid="timetable-status-messages-more">
+				<p className="min-w-0 shrink-0 text-xs text-muted-foreground lg:truncate" data-testid="timetable-status-messages-more">
 					and {hidden} more
 				</p>
 			) : null}

@@ -335,6 +335,43 @@ function describeControl(element: HTMLElement): string {
 	return element.getAttribute('data-testid') ?? element.getAttribute('aria-label') ?? element.textContent?.trim() ?? element.tagName;
 }
 
+/**
+ * A2 C12 item 4 — THE REPLACEMENT for the superseded "≤6 total" claim, added
+ * BESIDE it rather than in place of it (AGENTS.md §16).
+ *
+ * The old number counted the whole header. The claim it really protected is
+ * narrower and still holds, so this asserts the narrow claim directly: the
+ * CONTROL ROW still carries its own six, the strip's two draft actions are in the
+ * strip and not in the control row, and the header still has exactly ONE solid
+ * primary. If a future slice ever moves a draft action onto the control row, this
+ * fails — which is the whole reason the cap existed.
+ */
+test('A2-C12-ITEM4 control row still carries its own six, the two draft actions are in the strip, and the primary is still singular', async () => {
+	viewportWidth = 1366;
+	const header = await renderHeader(withRunContext());
+	const band = header.querySelector<HTMLElement>('[data-testid="timetable-simple-header-row"]');
+	assert.ok(band, 'the header band is present');
+	const controlRow = ([...band!.children] as HTMLElement[])[1];
+	assert.ok(controlRow, 'the control row is the band\'s second child');
+	const inControlRow = [...controlRow!.querySelectorAll<HTMLElement>('button, a[href], [role="combobox"], input, select')]
+		.filter((element) => !hiddenAtDesktop(element, controlRow!))
+		.map(describeControl);
+	assert.ok(inControlRow.length <= 6,
+		`the CONTROL ROW keeps its own budget of 6 (the two draft actions belong to the strip): got ${inControlRow.length}: ${inControlRow.join(' | ')}`);
+	for (const id of ['timetable-draft-strip-edit', 'timetable-draft-strip-discard']) {
+		assert.ok(header.querySelector(`[data-testid="${id}"]`), `${id} is visible in the header`);
+		assert.equal(controlRow!.querySelector(`[data-testid="${id}"]`), null,
+			`${id} is in the status strip, not on the control row — the row the cap protected is unchanged`);
+	}
+	assert.equal([...header.querySelectorAll<HTMLElement>('button, a[href]')]
+		.filter((element) => /\bbg-primary\b/.test(element.className)).length, 1,
+		'still exactly one solid primary, and it is not a draft action');
+	for (const element of [header.querySelector<HTMLElement>('[data-testid="timetable-draft-strip-edit"]')!,
+		header.querySelector<HTMLElement>('[data-testid="timetable-draft-strip-discard"]')!]) {
+		assert.doesNotMatch(element.className, /\bbg-primary\b/, 'a draft action is never the solid primary');
+	}
+});
+
 async function openHeaderMore(): Promise<HTMLElement> {
 	const trigger = container().querySelector<HTMLElement>('[data-testid="timetable-simple-more-trigger"]');
 	assert.ok(trigger, 'More renders');
@@ -346,11 +383,36 @@ async function openHeaderMore(): Promise<HTMLElement> {
 
 /* ── S1 — at most 6 visible header controls; the primary follows the run ──── */
 
+/* ─── S1 - at most 6 visible header controls; the primary follows the run ────
+ *
+ * SUPERSEDED IN PART, 2026-09-28, by A2 C12 item 4 — LANE C'S RULING, recorded
+ * here rather than quietly rewritten (AGENTS.md §16: corrections are additive;
+ * a row is marked superseded, never deleted).
+ *
+ * WHAT LANE C RULED: the draft strip still lacked VISIBLE `Edit draft` and
+ * `Discard draft`, and they must be visible in the strip. They now are, drawn
+ * from the SAME already-resolved objects the `More` menu renders, so the two
+ * surfaces cannot drift.
+ *
+ * WHAT THE OLD "≤6" NUMBER WAS ACTUALLY PROTECTING, and what still holds:
+ *   - ONE obvious next action. STILL ASSERTED, and still true: exactly one
+ *     element carries `bg-primary` (the assertion is unchanged in these rows),
+ *     and neither new control is ever a solid primary.
+ *   - a short CONTROL ROW. STILL TRUE and asserted below: the control row keeps
+ *     its own six; the two new controls live in the status strip (row 1).
+ *   - no second publication control. STILL ASSERTED: `Publish` is still the only
+ *     publish verb on screen.
+ * So the budget moved 6 -> 8 for the header TOTAL, and the control row did not
+ * move. The three "≤6" sites below are retained and restated at the new total
+ * with the control-row claim added, so a reviewer can see both numbers. */
+
 test('S1 no generated run: ≤6 visible controls, Generate is the one primary; Download/School information live in More', async () => {
 	viewportWidth = 1366;
 	const header = await renderHeader(headerContext());
 	const controls = visibleControls(header);
-	assert.ok(controls.length <= 6, `expected ≤6 visible controls at ≥1280 px, got ${controls.length}: ${controls.map(describeControl).join(' | ')}`);
+	// SUPERSEDED TOTAL (was ≤6, now ≤8 = 6 control-row controls + the strip's two
+	// visible draft actions). The control row itself is asserted at 6 below.
+	assert.ok(controls.length <= 8, `expected ≤8 visible controls at ≥1280 px (6 on the control row + the strip's 2 draft actions; was ≤6 before A2 C12 item 4), got ${controls.length}: ${controls.map(describeControl).join(' | ')}`);
 	const generate = header.querySelector<HTMLElement>('[data-testid="timetable-simple-generate-action"]');
 	assert.ok(generate && controls.includes(generate), 'Generate is visible');
 	assert.match(generate.className, /\bbg-primary\b/, 'Generate is the solid primary when no run exists');
@@ -371,7 +433,9 @@ test('S1 run exists: Publish is the primary; Generate, Download and School infor
 	viewportWidth = 1366;
 	const header = await renderHeader(withRunContext());
 	const controls = visibleControls(header);
-	assert.ok(controls.length <= 6, `expected ≤6 visible controls at ≥1280 px, got ${controls.length}: ${controls.map(describeControl).join(' | ')}`);
+	// SUPERSEDED TOTAL — see the S1 block comment. 6 control-row controls + the
+	// strip's two visible draft actions.
+	assert.ok(controls.length <= 8, `expected ≤8 visible controls at ≥1280 px, got ${controls.length}: ${controls.map(describeControl).join(' | ')}`);
 	const publish = header.querySelector<HTMLElement>('[data-testid="timetable-simple-publish-action"]');
 	assert.ok(publish && controls.includes(publish), 'Publish is visible');
 	assert.match(publish.className, /\bbg-primary\b/, 'Publish is the solid primary once a run exists');
@@ -389,7 +453,12 @@ test('S1 run exists: Publish is the primary; Generate, Download and School infor
 		header.querySelector('[data-testid="timetable-simple-more-trigger"]'),
 	];
 	for (const element of expected) assert.ok(element && controls.includes(element as HTMLElement), `expected visible control ${element ? describeControl(element as HTMLElement) : 'missing'}`);
-	assert.equal(controls.length, 6, 'Term · View · picker · warnings · primary · More');
+	// SUPERSEDED EXACT COUNT (Lane C's item-4 ruling, 2026-09-28 — see the S1 block
+	// comment). The six named controls above are still exactly the control row's
+	// contents; the header total is now 8 because the strip ALSO shows `Edit draft`
+	// and `Discard draft`, which Lane C required to be visible. The control-row
+	// budget itself is asserted in the A2-C12-ITEM4 row added below.
+	assert.equal(controls.length, 8, 'the six named controls, plus the strip\'s two visible draft actions (Edit draft · Discard draft)');
 
 	const menu = await openHeaderMore();
 	const text = menu.textContent ?? '';
@@ -470,7 +539,8 @@ test('S2R every header dropdown keeps its accessible name AND gains a visible, n
 
 	// 1. The real intent of the superseded S2 row: the control budget is intact.
 	const controls = visibleControls(header);
-	assert.ok(controls.length <= 6, `expected ≤6 visible controls at ≥1280 px, got ${controls.length}: ${controls.map(describeControl).join(' | ')}`);
+	// SUPERSEDED TOTAL — see the S1 block comment.
+	assert.ok(controls.length <= 8, `expected ≤8 visible controls at ≥1280 px, got ${controls.length}: ${controls.map(describeControl).join(' | ')}`);
 	assert.equal(controls.filter((element) => /\bbg-primary\b/.test(element.className)).length, 1, 'exactly one solid primary');
 
 	// 2. Each dropdown has BOTH a visible plain label and its accessible name.

@@ -679,16 +679,22 @@ test('ROW 7 REGRESSION: the move cost NO control — the count is identical befo
 	assert.equal(view.el('timetable-simple-input-drift'), null, 'the fixture really has no change notice');
 	const controls = [...header.querySelectorAll<HTMLElement>('button, a[href], [role="combobox"], input, select')]
 		.filter((element) => !hiddenAtDesktop(element, header));
-	// 7 = the 6 named controls + ONE pre-existing unlabelled button. See the
-	// comment above for the pre-move measurement that makes this a comparison and
-	// not a number someone chose.
-	assert.equal(controls.length, 7, `item H changed no control count (got ${controls.length}: ${controls.map(describeControl).join(' | ')})`);
-	// The pre-existing surplus, named rather than absorbed: a visible button with
-	// no testid, no aria-label and no text has NO ACCESSIBLE NAME. This assertion
-	// documents the finding as a fact about the current tree; it is a follow-up
-	// row for the next slice, not something item H introduced or may silently fix.
+	// SUPERSEDED 2026-09-28 by A2 C12 item 4 (Lane C's ruling: the draft strip must
+	// show `Edit draft` and `Discard draft` VISIBLY). The row is RETAINED, not
+	// deleted, and its "before" figure is still the measured one; what changed is
+	// that the total is now 9 = the 7 measured before and after item H, plus the
+	// strip's two visible draft actions. The count item H actually protected — that
+	// the MOVE changed no control — is unaffected, and the control-row budget is
+	// asserted in `a2-c12-header-rows2` and in `draft-ux-c01`'s A2-C12-ITEM4 row.
+	assert.equal(controls.length, 9, `item H changed no control count, and item 4 added exactly the strip's two visible draft actions: 7 measured before and after H, +2 (got ${controls.length}: ${controls.map(describeControl).join(' | ')})`);
+	// THE FOLLOW-UP THIS ROW OPENED IS NOW CLOSED, by A2 C12 item 3. The surplus
+	// control named here was the entity picker: `ui/searchable-select.tsx` emitted
+	// `aria-label={undefined}` because its caller passed no `ariaLabel`, so the
+	// trigger had an empty accessible name. Item 3 gave it one, so the count is
+	// ZERO. The row is retained (it is what found the defect) and restated at the
+	// new truth — asserting "exactly one" again would be asserting the BUG.
 	const unnamed = controls.filter((element) => !element.getAttribute('data-testid') && !element.getAttribute('aria-label') && !(element.textContent ?? '').trim());
-	assert.equal(unnamed.length, 1, `exactly one header control is unlabelled today (found ${unnamed.length})`);
+	assert.equal(unnamed.length, 0, `no header control is unnamed any more: A2 C12 item 3 named the entity picker this row found (found ${unnamed.length})`);
 	// And the same five required controls, minus the change notice, are all present.
 	for (const id of REQUIRED_HEADER_CONTROLS) {
 		assert.ok(header.contains(view.el(id)!), `${id} is still in the header`);

@@ -729,9 +729,8 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 			    line and the capped notices) and ONE control row. The change notice is
 			    no longer a row of its own — it is the first child of the control row
 			    below, so a change on screen cannot push the controls off the screen.
-			    `SimpleHeaderStatusStrip` is extracted from this file because the §8
-			    1000-line cap had two lines of headroom and a sub-component is the
-			    prescribed answer (no comment was deleted to make room). */}
+			    `SimpleHeaderStatusStrip` is extracted because §8's 1000-line cap had
+			    two lines of headroom; A2 C12 item 4 then needed more room than that. */}
 			<SimpleHeaderStatusStrip
 				context={context}
 				visibility={draftStrip.visibility}
@@ -740,9 +739,15 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				termAuthorityNotice={termAuthorityNotice}
 				changeNoticeActive={showDriftState}
 				messages={headerMessages}
+				/* A2 C12 / ITEM 4 — Lane C ruled the draft strip still lacked VISIBLE
+				   `Edit draft` / `Discard draft`. These are the SAME already-resolved
+				   objects the `More` menu renders: one derivation, two renderers. */
+				draftActions={simpleDraftMenuActions}
 			/>
 
-			<div className="flex min-w-0 flex-wrap items-center gap-1.5 px-3">
+		{/* A2 C12 / ITEM 1 — `lg:flex-nowrap` holds this row to ONE visual line at
+		    1366 px. The base `flex-wrap` is RETAINED for narrow/390 px layouts. */}
+		<div className="flex min-w-0 flex-wrap items-center gap-1.5 px-3 lg:flex-nowrap">
 				{/* The change notice: ONE sentence, ONE primary action, one secondary, and
 				    part of THIS row rather than a row of its own (C11 S2 item 2). */}
 				{changeNotice.node}
@@ -779,7 +784,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				/>
 				</SimpleWarningsControl>
 
-					<div className="flex min-w-0 flex-wrap items-center justify-start gap-1.5 lg:ml-auto lg:justify-end">
+					{/* A2 C12 / ITEM 1 — no wrap from `lg` up, so the primary / Undo / More
+			    trio stays on the control row's single line. */}
+			<div className="flex min-w-0 flex-wrap items-center justify-start gap-1.5 lg:ml-auto lg:flex-nowrap lg:justify-end">
 					{/* DRAFT-UX-C01 (operator, 2026-09-25) — the ONE solid primary:
 					    `Generate` with no generated run, `Publish schedule` once a run
 					    exists. The draft's own verb is NOT traded for it; it is an entry

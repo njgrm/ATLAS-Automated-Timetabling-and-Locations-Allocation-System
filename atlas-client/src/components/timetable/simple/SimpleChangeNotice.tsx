@@ -129,7 +129,13 @@ export function SimpleChangeNotice({
 			data-drift-claimable={claimable === undefined ? undefined : String(claimable)}
 			className={cn(
 				layout === 'inline'
-					? 'flex min-w-0 flex-wrap items-center gap-1.5 text-xs'
+					/* A2 C12 / ITEM 1 — the notice's OWN row stops wrapping at `lg`.
+					 * It is a flex item of the Simple header's control row, and with the
+					 * row now `lg:flex-nowrap` a wrapping notice would have taken the
+					 * space it needs from a sibling instead of giving up its own
+					 * ellipsis. Below `lg` it still wraps, which is what keeps the 390 px
+					 * behaviour the `ITEM 1 RESPONSIVE` row pins. */
+					? 'flex min-w-0 flex-wrap items-center gap-1.5 text-xs lg:flex-nowrap'
 					: 'flex min-h-8 flex-wrap items-center gap-1.5 border-b px-3 py-1 text-xs',
 				/* Not red, and not amber: an unapplied change is neither an error
 				 * nor an alarm. The two surviving states are the neutral notice
@@ -147,8 +153,17 @@ export function SimpleChangeNotice({
 					 * the line from `sm` up, so no label is ever squeezed into a
 					 * one-word column. `break-words` keeps a long area name from
 					 * overflowing. No overflow container is added, so the no-scroll
-					 * architecture (§8) is untouched. */
-					'min-w-0 w-full basis-full break-words whitespace-normal sm:w-auto sm:flex-1',
+					 * architecture (§8) is untouched.
+					 *
+					 * A2 C12 / ITEM 1 — from `lg` the sentence is the notice's
+					 * ELASTIC part: `truncate` gives it an ellipsis instead of a second
+					 * line, so the widest child absorbs the row's width pressure rather
+					 * than pushing `Term`, the picker or the primary onto a new one.
+					 * `whitespace-nowrap` is named explicitly beside `truncate` so the
+					 * intent is legible and cannot depend on Tailwind's cascade order
+					 * against the `whitespace-normal` above. `break-words` is inert under
+					 * `nowrap` and is kept for the widths below `lg`. */
+					'min-w-0 w-full basis-full break-words whitespace-normal sm:w-auto sm:flex-1 lg:truncate lg:whitespace-nowrap',
 					tone === 'calm-note' ? 'text-muted-foreground' : 'font-medium text-foreground',
 				)}
 			>

@@ -11,21 +11,22 @@
  *
  * WHAT THE HEADER IS AFTER THIS: at 1366×768, TWO rows.
  *   row 1  this strip — the persistent draft/published state sentence, the run
- *          identity, the term line, and the capped notices.
+ *          identity, the term line, the capped notices, and (A2 C12 item 4) the
+ *          VISIBLE `Edit draft` / `Discard draft` the strip owns.
  *   row 2  the control row — Term · View · picker · warnings · primary · More,
  *          with the change notice as part of that same row rather than a row of
  *          its own (it is rendered by `SimpleHeaderControlRow`'s caller through
  *          the `changeNotice` slot).
  *
  * Nothing here decides a fact. The visibility sentence, the run identity, the
- * term line and the notice list all arrive already derived, so this component
- * cannot become a second authority for any of them.
+ * term line, the notice list and the two draft actions all arrive already
+ * derived, so this component cannot become a second authority for any of them.
  */
 
 import type { ReactNode } from 'react';
 
 import { RunStateBadge, RunIdentityLine } from '@/components/timetable/RunStateBadge';
-import { TimetableDraftStateStrip } from '@/components/timetable/TimetableDraftStateStrip';
+import { TimetableDraftStateStrip, type DraftMenuAction } from '@/components/timetable/TimetableDraftStateStrip';
 import { SimpleHeaderMessageList, type SimpleHeaderMessage } from '@/components/timetable/simple/SimpleHeaderMessages';
 import { SimpleTermScopeLine } from '@/components/timetable/simple/SimpleTermScopeLine';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
@@ -50,6 +51,14 @@ export type SimpleHeaderStatusStripProps = {
 	 * looking at. It now carries the run number from the ONE derivation.
 	 */
 	includeRunNumber?: boolean;
+	/**
+	 * A2 C12 / ITEM 4 — the ALREADY-RESOLVED `Edit draft` / `Discard draft` actions
+	 * the draft strip shows VISIBLY, or `null` for a surface that does not offer
+	 * them. The header passes the very object its `More` menu renders, so the two
+	 * surfaces are one decision and cannot drift; the strip renders it and decides
+	 * nothing.
+	 */
+	draftActions?: { edit: DraftMenuAction; discard: DraftMenuAction } | null;
 };
 
 /**
@@ -67,11 +76,19 @@ export function SimpleHeaderStatusStrip({
 	changeNoticeActive,
 	messages,
 	includeRunNumber = true,
+	draftActions = null,
 }: SimpleHeaderStatusStripProps): ReactNode {
 	return (
 		<section data-testid="timetable-simple-status-region" role="region" aria-label="Timetable status" className="min-w-0 px-3">
-			<div className="flex min-w-0 flex-wrap items-center gap-1.5">
-				<TimetableDraftStateStrip visibility={visibility} />
+			{/* A2 C12 / ITEM 1 — ONE LINE AT 1366. This is the status half of the
+			    two-row header, and `flex-wrap` is what let it spill onto a second
+			    visual line. From `lg` up it does not wrap, and the elastic children
+			    give way instead: the draft sentence (`DraftVisibilityState`), the term
+			    line's unverified-authority notice (`SimpleTermScopeLine`) and the
+			    capped notice rows (`SimpleHeaderMessageRow`). The run badge stays
+			    `shrink-0` — it is short, and a run number that truncates is useless. */}
+			<div className="flex min-w-0 flex-wrap items-center gap-1.5 lg:flex-nowrap">
+				<TimetableDraftStateStrip visibility={visibility} actions={draftActions} />
 				{/* A2-C6-TRUTH (T3a/T3b/T3c) — WHICH schedule, and which term, in one
 				    place. Simple is the DEFAULT view and it printed neither: the run
 				    number and Draft/Published word existed only in the Expert header
