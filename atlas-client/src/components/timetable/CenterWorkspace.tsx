@@ -1,11 +1,12 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, Profiler } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { AlertTriangle, Building2, CalendarClock, ChevronLeft, Loader2, Lock, MapPin, MousePointerClick, Play } from 'lucide-react';
 import { onProfilerRender } from './ScheduleReviewWorkspace';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 
 import { ClassProgramMatrixView } from '@/components/timetable/ClassProgramMatrixView';
+import { MapRouteTransitionIntent, isMapRouteTransitionPending } from '@/components/timetable/MapRouteTransitionIntent';
 import { GridScrollMemory } from '@/components/timetable/GridScrollMemory';
 import { TimetableGrid } from '@/components/timetable/TimetableGrid';
 import { ROOM_TYPE_LABELS } from '@/lib/subject-constants';
@@ -431,7 +432,15 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 		setSandboxFacultyByEntryId(new Map());
 	}, []);
 
+	const { pathname } = useLocation();
 	const isDraftPublished = isDraftPublishedStrict(draft);
+	// A2 C5 item 2 — the route→view sync runs in an effect, so on the render that
+	// first reaches the DOM for `/timetable/map` the view is still `schedule` and
+	// the chain below would paint the PREVIOUS section's grid. This branch is
+	// FIRST, ahead of every `centerView ===` test including the schedule and
+	// matrix branches, so the map entry never renders class cells. See
+	// MapRouteTransitionIntent for the recorded cause and the no-new-copy rule.
+	const mapRoutePending = isMapRouteTransitionPending(pathname, centerView);
 
 	return (
 		<ResizablePanel
@@ -444,7 +453,21 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 			data-testid="timetable-center-panel"
 		>
 			<AnimatePresence mode="wait">
-				{centerView === 'policy' ? (
+				{mapRoutePending ? (
+					// A2 C5 item 2 (M2-A) — the route says map, the view has not
+					// caught up. Render the map's own loading intent rather than
+					// falling through to the schedule/matrix grid below.
+					<motion.div
+						key="map-route-pending"
+						initial={{ opacity: 0 }}
+						animate={{ opacity: 1 }}
+						exit={{ opacity: 0 }}
+						transition={{ duration: 0.18 }}
+						className="flex min-h-0 flex-1 flex-col"
+					>
+						<MapRouteTransitionIntent pathname={pathname} />
+					</motion.div>
+				) : centerView === 'policy' ? (
 					<motion.div
 						key="policy"
 						initial={{ opacity: 0, y: 8 }}

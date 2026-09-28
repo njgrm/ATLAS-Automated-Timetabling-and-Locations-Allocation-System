@@ -207,10 +207,20 @@ test('class-program layout emits per-section weekday columns with exact per-day 
 		{ entryId: 'tue-sci', sectionId: 701, subjectId: 12, facultyId: 502, roomId: 602, day: 'TUESDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45 },
 		{ entryId: 'wed-ap', sectionId: 701, subjectId: 13, facultyId: 501, roomId: 601, day: 'WEDNESDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45 },
 	]);
+	// SUPERSEDED (a2-c5-map 4b) — the eight-column header ending in `TEACHER`, and
+	// the day-tagged aggregate attribution read from column 8, both came from
+	// d3900520 (2026-09-24 01:38), which specified an eighth column this writer
+	// never implemented. 2558d322 (2026-09-24 16:50) superseded it for the
+	// mounted route suite: the weekday cell already renders `subject\nteacher`, so
+	// the teacher appears exactly once and a day-tagged aggregate column is
+	// redundant. Restated at the seven-column truth, not deleted (§16). The
+	// per-day teacher attribution this row really protects is asserted two lines
+	// below, in the weekday cells.
 	assert.deepEqual(
-		[1, 2, 3, 4, 5, 6, 7, 8].map((col) => cellText(sheet, HEADER_ROW, col)),
-		['TIME', 'MINUTES', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'TEACHER'],
+		[1, 2, 3, 4, 5, 6, 7].map((col) => cellText(sheet, HEADER_ROW, col)),
+		['TIME', 'MINUTES', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
 	);
+	assert.equal(cellText(sheet, HEADER_ROW, 8), '', 'no TEACHER column follows FRIDAY');
 	assert.equal(cellText(sheet, FIRST_DATA_ROW, 1), '6:00 AM-6:45 AM');
 	assert.equal(sheet.getRow(FIRST_DATA_ROW).getCell(2).value, 45);
 	assert.match(cellText(sheet, FIRST_DATA_ROW, 3), /^Mathematics\nDela Cruz, Juan$/);
@@ -218,10 +228,10 @@ test('class-program layout emits per-section weekday columns with exact per-day 
 	assert.match(cellText(sheet, FIRST_DATA_ROW, 5), /^Araling Panlipunan\nDela Cruz, Juan$/);
 	assert.equal(cellText(sheet, FIRST_DATA_ROW, 6), '');
 	assert.equal(cellText(sheet, FIRST_DATA_ROW, 7), '');
-	// T4/M9 — dedicated TEACHER column carries day-tagged attribution when the
-	// weekdays differ (Mon Dela Cruz, Tue Santos, Wed Dela Cruz).
-	assert.match(cellText(sheet, FIRST_DATA_ROW, 8), /Dela Cruz, Juan/);
-	assert.match(cellText(sheet, FIRST_DATA_ROW, 8), /Santos, Maria/);
+	// T4/M9 — the teacher is attributed per DAY in the weekday cell, so a period
+	// whose weekdays differ (Mon Dela Cruz, Tue Santos, Wed Dela Cruz) still
+	// names every teacher exactly once, and no aggregate column repeats them.
+	assert.equal(cellText(sheet, FIRST_DATA_ROW, 8), '', 'no aggregate teacher cell is rendered on the data row');
 });
 
 test('class-program layout is Monday-scoped for flag events and term-scoped for rotation', async () => {
@@ -270,11 +280,23 @@ test('class-program workbook emits per-section weekday columns with exact per-da
 	const sheet = workbook.getWorksheet('Grade 7');
 	assert.ok(sheet, 'Grade 7 sheet exists');
 
+	// SUPERSEDED (a2-c5-map 4b) — this row previously asserted EIGHT header
+	// columns ending in a dedicated `TEACHER`, and a separate assertion read the
+	// teacher from column 8. Both came from d3900520 (2026-09-24 01:38, "add
+	// verified learner totals to class exports"), which specified an eighth
+	// column the writer never implemented. 2558d322 ("test(timetable): assert
+	// readable working workbook layout", 2026-09-24 16:50) superseded it for the
+	// mounted route suite: there is no aggregate teacher column, because the
+	// weekday cell ALREADY renders `subject\nteacher` and the teacher must appear
+	// exactly once. The row is restated at the seven-column truth rather than
+	// deleted (§16), so a future re-introduction of a redundant column, or a
+	// regression that drops the teacher from the weekday cell, fails again.
 	assert.deepEqual(
-		[1, 2, 3, 4, 5, 6, 7, 8].map((col) => cellText(sheet, HEADER_ROW, col)),
-		['TIME', 'MINUTES', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'TEACHER'],
-		'header carries a weekday column per day plus the dedicated teacher column',
+		[1, 2, 3, 4, 5, 6, 7].map((col) => cellText(sheet, HEADER_ROW, col)),
+		['TIME', 'MINUTES', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
+		'header carries one column per weekday; the teacher is attributed in the weekday cell, not in a redundant eighth column',
 	);
+	assert.equal(cellText(sheet, HEADER_ROW, 8), '', 'and no TEACHER column follows FRIDAY');
 	// The first data row is the 06:00-06:45 canonical class slot.
 	assert.equal(cellText(sheet, FIRST_DATA_ROW, 1), '6:00 AM-6:45 AM');
 	assert.equal(sheet.getRow(FIRST_DATA_ROW).getCell(2).value, 45);
@@ -283,7 +305,7 @@ test('class-program workbook emits per-section weekday columns with exact per-da
 	assert.match(cellText(sheet, FIRST_DATA_ROW, 5), /^Araling Panlipunan\nDela Cruz, Juan$/);
 	assert.equal(cellText(sheet, FIRST_DATA_ROW, 6), '');
 	assert.equal(cellText(sheet, FIRST_DATA_ROW, 7), '');
-	assert.match(cellText(sheet, FIRST_DATA_ROW, 8), /Dela Cruz, Juan/, 'Teacher column carries the teacher identity');
+	assert.equal(cellText(sheet, FIRST_DATA_ROW, 8), '', 'the data row carries no aggregate teacher cell, per 2558d322');
 });
 
 // ─── 3. Monday-only Flag/HGP appears only in Monday ───
@@ -370,12 +392,20 @@ test('class-program layout emits reconciled learner totals, unmerged break cells
 	// Learner counts are current transient M/F/T aggregates reconciled server-side.
 	const identityRow = EXPORT_FIRST_BLOCK_ROW;
 	assert.match(cellText(sheet, identityRow, 1), /^GRADE 7 — SECTION: 7-Rizal$/);
+	// a2-c5-map 4b — the LABEL set is the C05 reference copy (f29a9667) and the
+	// shipped writer had drifted to a bare `MALE`. Restored in the service.
 	assert.equal(cellText(sheet, identityRow, 3), 'No. of Learners — MALE:');
 	assert.equal(sheet.getRow(identityRow).getCell(4).value, 18);
 	assert.equal(cellText(sheet, identityRow, 5), 'FEMALE:');
 	assert.equal(sheet.getRow(identityRow).getCell(6).value, 17);
-	assert.equal(cellText(sheet, identityRow, 7), 'TOTAL:');
-	assert.equal(sheet.getRow(identityRow).getCell(8).value, 35);
+	// SUPERSEDED (a2-c5-map 4b) — this previously asserted a split `TOTAL:` label
+	// in column 7 and a numeric total in column 8. The shipped, mounted
+	// route-tested form folds the figure into the label (`TOTAL: 35`) in column 7,
+	// which is also the shape `tt-output-c03r-route.test.ts` pins against a real
+	// HTTP export. Splitting it would change an official export with no authority
+	// to do so, so the row is restated at the shipped truth, not deleted (§16).
+	assert.equal(cellText(sheet, identityRow, 7), 'TOTAL: 35');
+	assert.equal(cellText(sheet, identityRow, 8), '', 'and the folded total owns no eighth column');
 
 	// Adviser/room/term identity row.
 	assert.equal(cellText(sheet, identityRow + 1, 1), 'ADVISER: Dela Cruz');
@@ -418,7 +448,13 @@ test('class-program workbook stays unmerged and includes grade-color and print s
 	assert.deepEqual(merges, [], 'paste-ready schedule cells are never merged');
 	assert.equal(sheets.get('Grade 7').properties.tabColor.argb, '70AD47');
 	assert.equal(sheets.get('Grade 7').pageSetup.orientation, 'landscape');
-	assert.match(sheets.get('Grade 7').pageSetup.printArea, /^A1:H/);
+	// SUPERSEDED (a2-c5-map 4b) — this previously asserted `^A1:H`. The `H` came
+	// from the never-implemented eighth `TEACHER` column of d3900520, superseded
+	// by 2558d322; the printed grid is seven columns wide, so the print area is
+	// `A1:G`. Restated rather than deleted (§16) so the print area can never
+	// silently narrow below the widest rendered cell again.
+	assert.match(sheets.get('Grade 7').pageSetup.printArea, /^A1:G/);
+	assert.equal(sheets.get('Grade 7').pageSetup.printArea, 'A1:G29', 'and the printed area spans the whole rendered block');
 });
 
 // ─── 6. Flag/HGP is an IN-PERIOD overlay, never a capacity block ───

@@ -84,7 +84,7 @@ export function TimetableWorkflowDialogs({ context, isPublished = false }: { con
 			isPublished={isPublished}
 			schoolYearLabel={activeSchoolYearLabel ?? null}
 			termSource={termSource}
-			lockedClassCount={draftBoardSummary?.draft ?? 0}
+			lockedClassCount={draftBoardSummary?.draft ?? null}
 			classesToSchedule={draftBoardSummary?.unscheduled ?? null}
 			enforceShiftWindows={enforceShiftWindows}
 			setEnforceShiftWindows={setEnforceShiftWindows}
@@ -168,8 +168,16 @@ type GenerateConfirmProps = {
 	isPublished: boolean;
 	schoolYearLabel: string | null;
 	termSource: GenerateDialogTermSource;
-	/** Locked pre-generation placements carried into the new draft. */
-	lockedClassCount: number;
+	/**
+	 * Locked pre-generation placements carried into the new draft, or `null` when
+	 * the board summary is ABSENT and nothing was counted.
+	 *
+	 * A2 C5 item 4a: this was `?? 0`, which printed "Locked classes kept: 0" for a
+	 * failed read — the identical false zero the headline one line above had
+	 * already been corrected for in c2. `null` and `0` are different facts and the
+	 * type now says so, exactly as `classesToSchedule` below already does.
+	 */
+	lockedClassCount: number | null;
 	/**
 	 * This year's weekly demand with no time yet, or `null` when the board summary
 	 * is ABSENT and the count was therefore never measured.
@@ -322,7 +330,23 @@ export function GenerateConfirmDialogBody({
 				{copy.rows.map((row) => (
 					<div key={row.label} className="flex items-center justify-between gap-2 text-sm">
 						<span className="text-muted-foreground">{row.label}</span>
-						<span className="font-semibold text-foreground" data-testid="timetable-generate-confirm-row-value">{row.value}</span>
+						{/* A2 C5 item 4a — an UNMEASURED row is styled like the neutral
+						 * unknown, not like a measured figure. `font-semibold
+						 * text-foreground` is the weight that reads as a count a
+						 * scheduler can act on, and the headline's own correction
+						 * established that an unmeasured read must never wear that
+						 * treatment (see DEMAND_CUE_CLASS). The value text is the
+						 * load-bearing part — it contains no digit — and this keeps the
+						 * colour agreeing with it. Colour is never load-bearing alone:
+						 * `data-known` states the same fact for anything that reads the
+						 * DOM. */}
+						<span
+							className={row.known ? 'font-semibold text-foreground' : 'text-muted-foreground'}
+							data-known={row.known ? 'true' : 'false'}
+							data-testid="timetable-generate-confirm-row-value"
+						>
+							{row.value}
+						</span>
 					</div>
 				))}
 			</div>

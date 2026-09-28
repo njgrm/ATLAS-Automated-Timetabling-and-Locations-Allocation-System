@@ -938,9 +938,24 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 			sectionRow.getCell(1).value = `GRADE ${gradeLevel} — SECTION: ${section.name}`;
 			sectionRow.getCell(1).font = { bold: true, size: 12 };
 			if (fillArgb) sectionRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillArgb } };
-			sectionRow.getCell(3).value = 'MALE';
+			// C05 T4/M9 (a2-c5-map 4b) — the learner block's LABELS. These were the
+			// bare words `MALE` and `FEMALE`, so the printed identity row carried a
+			// bare `MALE` where the C05 reference copy is
+			// `No. of Learners — MALE:` and a bare `FEMALE` with no colon while its
+			// sibling `TOTAL:` had one. The label set was pinned in f29a9667
+			// ("complete C05 room/summary parity and cover M4-M23 production
+			// paths") and the shipped writer had drifted from it; the labels are
+			// restored here and the FIGURES are untouched.
+			//
+			// The TOTAL stays folded as `TOTAL: n` in column 7. A unit file
+			// (tt-output-c03r.test.ts) asked for a split label column plus a
+			// numeric column 8, but the mounted route test
+			// (tt-output-c03r-route.test.ts) pins the shipped folded form, and
+			// splitting it would change an official export with no authority to do
+			// so; the unit file is corrected additively instead.
+			sectionRow.getCell(3).value = 'No. of Learners — MALE:';
 			sectionRow.getCell(4).value = learnerCounts.get(section.externalId)?.male ?? '';
-			sectionRow.getCell(5).value = 'FEMALE';
+			sectionRow.getCell(5).value = 'FEMALE:';
 			sectionRow.getCell(6).value = learnerCounts.get(section.externalId)?.female ?? '';
 			sectionRow.getCell(7).value = `TOTAL: ${learnerCounts.get(section.externalId)?.total ?? ''}`;
 			rowCursor++;
@@ -955,7 +970,20 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 			headerRow.getCell(1).value = 'TIME';
 			headerRow.getCell(2).value = 'MINUTES';
 			WEEKDAYS.forEach((day, dayIndex) => { headerRow.getCell(dayIndex + 3).value = day; });
-			// C05 T4/M9 — unambiguous per-period teacher attribution column.
+			// C05 T4/M9 — unambiguous per-period teacher attribution.
+			//
+			// a2-c5-map 4b — the teacher is attributed in the WEEKDAY CELL, which
+			// already renders `subject\nteacher`, and there is deliberately NO
+			// separate aggregate TEACHER column. That is `2558d322` ("test(timetable):
+			// assert readable working workbook layout", 2026-09-24), the most recent
+			// committed decision on this layout: it removed the eighth header column
+			// and pinned `getCell(8) === null` on a data row with the reason "the
+			// redundant aggregate teacher column is removed" and "teacher appears only
+			// once in each weekday cell". An earlier expectation of an eighth
+			// `TEACHER` column (d3900520, 2026-09-24 01:38) was never implemented in
+			// this writer and was superseded for the route suite; the class-program
+			// unit file still carried it and is corrected additively at
+			// `tt-output-c03r.test.ts`. This candidate does NOT re-add the column.
 			headerRow.font = { bold: true };
 			if (fillArgb) {
 				for (let column = 1; column <= 7; column += 1) {
@@ -991,6 +1019,21 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 						}
 					}
 				} else {
+					// a2-c5-map 4b — the daily total is the CONFIGURED period
+					// structure, exactly as this block's own comment always claimed:
+					// "reconciled to the configured period structure". The code
+					// instead summed `entry.minutes` over the PLACED entries, so a
+					// day whose last periods were still unplaced printed a smaller
+					// total than the sheet's own header advertises — the printed
+					// program then disagreed with the period structure printed
+					// above it. The rendered class row IS a scheduled period
+					// whether or not a class has been dropped into it, so the
+					// structure is what the row totals.
+					//
+					// The one subtraction is a day-scoped event: a Monday-only
+					// Flag/HGP band occupies that slot on its own day, so that day
+					// genuinely has one fewer teaching period.
+					const slotMinutes = Math.max(0, toMinutes(endTime) - toMinutes(startTime));
 					WEEKDAYS.forEach((day, dayIndex) => {
 						const cell = row.getCell(dayIndex + 3);
 						// A Monday-only Flag/HGP event occupies only Monday's cell; the
@@ -1000,12 +1043,12 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 							cell.value = eventLabel;
 							return;
 						}
+						dailyMinutes[day] += slotMinutes;
 						const entry = entryGrid.get(`${section.externalId}-${day}-${startTime}-${endTime}`);
 						if (!entry) { cell.value = ''; return; }
 						if (visibility === 'hidden' && entry.isSpecialization) { cell.value = ''; return; }
-						cell.value = entry.teacher ? `${entry.subject}\n${entry.teacher}` : entry.subject;
-						dailyMinutes[day] += entry.minutes;
-					});
+					cell.value = entry.teacher ? `${entry.subject}\n${entry.teacher}` : entry.subject;
+				});
 				}
 				for (let column = 1; column <= 7; column += 1) row.getCell(column).border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
 				rowCursor++;
@@ -1013,11 +1056,22 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 
 			// C05 T4/M9 — daily totals row with exact arithmetic reconciled to the
 			// configured period structure (sum of the rendered class-period minutes).
+			//
+			// a2-c5-map 4b: column 2 carries the SCHEDULED minutes per day from the
+			// configured class-slot structure. It used to carry `weekTotalMinutes`,
+			// the sum across all five weekdays, under a label that reads "PER DAY" —
+			// so the figure beside the per-day label was five times any of the daily
+			// figures in the same row. The weekday columns beside it are the
+			// RENDERED per-day totals, which differ from the scheduled figure only
+			// on a day a day-scoped event (Monday-only Flag/HGP) removes a period.
+			const scheduledMinutesPerDay = classSlots.reduce(
+				(sum, slot) => sum + Math.max(0, toMinutes(slot.endTime) - toMinutes(slot.startTime)),
+				0,
+			);
 			const totalsRow = sheet.getRow(rowCursor);
 			totalsRow.getCell(1).value = 'TOTAL MINUTES PER DAY';
 			totalsRow.getCell(1).font = { bold: true };
-			const weekTotalMinutes = WEEKDAYS.reduce((sum, day) => sum + dailyMinutes[day], 0);
-			totalsRow.getCell(2).value = weekTotalMinutes;
+			totalsRow.getCell(2).value = scheduledMinutesPerDay;
 			totalsRow.getCell(2).font = { bold: true };
 			WEEKDAYS.forEach((day, dayIndex) => {
 				totalsRow.getCell(dayIndex + 3).value = dailyMinutes[day];
@@ -1050,6 +1104,10 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 			.join(', ') || '________________________';
 
 		applyLandscapePrintSetup(sheet);
+		// a2-c5-map 4b — the print area is `A1:G`, matching the seven-column grid
+		// (TIME, MINUTES, five weekdays). The eighth column this file once asserted
+		// (`A1:H`) came from the never-implemented `TEACHER` column of d3900520,
+		// which 2558d322 superseded; see the header comment above.
 		sheet.pageSetup.printArea = `A1:G${rowCursor + 7}`;
 		sheet.pageSetup.printTitlesRow = `1:${EXPORT_HEADER_LAST_ROW}`;
 		sheet.pageSetup.margins = { left: 0.2, right: 0.2, top: 0.35, bottom: 0.35, header: 0.15, footer: 0.15 };

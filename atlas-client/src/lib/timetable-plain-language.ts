@@ -583,7 +583,7 @@ export type GenerateDialogCopyInput = {
 
 export type GenerateDialogCopy = {
 	headline: string;
-	rows: ReadonlyArray<{ label: string; value: string }>;
+	rows: ReadonlyArray<{ label: string; value: string; known: boolean }>;
 	unavailability: string;
 	publishesNothing: string;
 	/**
@@ -594,6 +594,18 @@ export type GenerateDialogCopy = {
 	 * unmeasured count can never be given the "nothing to do" treatment.
 	 */
 	classesToScheduleKnown: boolean;
+	/**
+	 * Whether the `lockedClassCount` row carries a MEASURED count. `false` means
+	 * the board summary was absent and nothing was counted.
+	 *
+	 * A2 C5 item 4a: the headline was converted to a tri-state in c2 and the
+	 * secondary row was left on `countOrZero`, so an absent board summary still
+	 * printed a confident `0` under "Locked classes kept" — the same false zero
+	 * the headline had already stopped printing, one line below it. The row now
+	 * carries its own `known` flag and the dialog styles it from that, so the
+	 * neutral state is a property of the copy rather than of the caller.
+	 */
+	lockedKnown: boolean;
 	/** Every word above, joined, so one caller can budget the whole dialog. */
 	plainText: string;
 };
@@ -616,7 +628,18 @@ export function buildGenerateDialogCopy(input: GenerateDialogCopyInput): Generat
 	const measured = typeof input.classesToSchedule === 'number' && Number.isFinite(input.classesToSchedule)
 		? input.classesToSchedule
 		: null;
-	const locked = countOrZero(input.lockedClassCount);
+	// A2 C5 item 4a — the SAME conversion the headline got, applied to the
+	// secondary row. This was `countOrZero(input.lockedClassCount)`, so an absent
+	// board summary (an intermittent 502, or no authenticated school scope)
+	// printed "Locked classes kept: 0" — a claim that ATLAS had established
+	// nothing is locked, when it had established nothing at all. `0` is a real
+	// measurement and still reads `0`; only the absent case is reported absent.
+	const measuredLocked = typeof input.lockedClassCount === 'number' && Number.isFinite(input.lockedClassCount)
+		? input.lockedClassCount
+		: null;
+	const locked = measuredLocked === null
+		? GENERATE_DIALOG_DEMAND_UNMEASURED_WORD
+		: String(measuredLocked);
 	const year = input.schoolYearLabel?.trim();
 	// A2-UX-STATUS-C2 correction B2: an ABSENT count is reported as absent, never
 	// coerced to 0. `countOrZero` used to serve this headline too, which turned an
@@ -627,9 +650,12 @@ export function buildGenerateDialogCopy(input: GenerateDialogCopyInput): Generat
 		? `${GENERATE_DIALOG_HEADLINE_LABEL}: ${GENERATE_DIALOG_DEMAND_UNMEASURED_WORD}`
 		: `${GENERATE_DIALOG_HEADLINE_LABEL}: ${measured}`;
 	const rows = [
-		{ label: GENERATE_DIALOG_YEAR_LABEL, value: year && year.length > 0 ? year : 'Not set' },
-		{ label: GENERATE_DIALOG_TERM_LABEL, value: generateDialogTermSourceWord(input.termSource) },
-		{ label: GENERATE_DIALOG_LOCKED_LABEL, value: String(locked) },
+		{ label: GENERATE_DIALOG_YEAR_LABEL, value: year && year.length > 0 ? year : 'Not set', known: Boolean(year && year.length > 0) },
+		// The term row states a SOURCE, never a count, so it is always "known" in
+		// the sense that it is a measurement of a different kind: an unresolved
+		// term reports `Not confirmed`, which is already the honest wording.
+		{ label: GENERATE_DIALOG_TERM_LABEL, value: generateDialogTermSourceWord(input.termSource), known: true },
+		{ label: GENERATE_DIALOG_LOCKED_LABEL, value: locked, known: measuredLocked !== null },
 	];
 	const plainText = [headline, ...rows.map((row) => `${row.label} ${row.value}`), GENERATE_SETUP_UNAVAILABLE_SENTENCE]
 		.join(' ');
@@ -639,6 +665,7 @@ export function buildGenerateDialogCopy(input: GenerateDialogCopyInput): Generat
 		unavailability: GENERATE_SETUP_UNAVAILABLE_SENTENCE,
 		publishesNothing: GENERATE_PUBLISHES_NOTHING_SENTENCE,
 		classesToScheduleKnown: measured !== null,
+		lockedKnown: measuredLocked !== null,
 		plainText,
 	};
 }
