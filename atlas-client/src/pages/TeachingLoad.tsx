@@ -989,8 +989,9 @@ export default function TeachingLoad() {
 				saveChangesConfirmOpen={saveConfirmOpen}
 				onSaveChangesConfirmOpenChange={setSaveConfirmOpen}
 				onSaveChangesConfirm={() => void handleSave()}
-				pendingChangeCount={data.activeDraftCount}
-				pendingChangeScope={data.activeTermIndex == null ? '' : ` for Term ${data.activeTermIndex}`}
+				pendingChangeCount={data.activeDraftAssignmentChangeCount}
+				pendingChangeTeacherCount={data.activeDraftCount}
+				pendingChangeScope=""
 			/>
 		</TooltipProvider>
 	);

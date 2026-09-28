@@ -95,6 +95,7 @@ const { TeachingLoadSummarySurface } = await import('@/components/faculty-assign
 const { TeachingLoadTruthPanel } = await import('@/components/faculty-assignments/TeachingLoadTruthPanel');
 const { TeachingLoadInspectorTriggers } = await import('@/components/faculty-assignments/TeachingLoadInspectorTriggers');
 const { WorkspaceToolbar } = await import('@/components/faculty-assignments/WorkspaceToolbar');
+const { TeachingLoadModals } = await import('@/components/faculty-assignments/TeachingLoadModals');
 const { ConfirmationModal } = await import('@/ui/confirmation-modal');
 
 const clientRoot = resolve(import.meta.dirname, '../../../..');
@@ -792,13 +793,27 @@ test('A6-40-3 `Save changes` opens a CONFIRMATION, and `Cancel` saves nothing', 
 
 	// The title, and a body that summarises the pending change in the operator's
 	// own sentence shape.
+	//
+	// SUPERSEDED AS A COPY CLAIM — the row above is a LAYOUT/FLOW control only.
+	// The `Shell` at :756 authors its OWN `ConfirmationModal`, so the `description`
+	// it asserts below is a literal this test wrote, not the string the product
+	// renders. QA's blocking finding was that replacing the real
+	// `TeachingLoadModals` description template left this row green, which is the
+	// signature of a control that cannot fail. The original expectation is kept
+	// VERBATIM, not deleted (AGENTS.md: corrections are additive), and the real
+	// copy is now owned by `A6-40-3-REAL` below, which mounts the real component.
+	//
+	//   assert.match(
+	//     text,
+	//     /You have 2 uncommitted load assignment changes for Term 2\. This will update faculty workloads and sync with the scheduling engine\./,
+	//     'the body must state the count, the term, and the consequence',
+	//   );
+	//
+	// It is superseded because BOTH of its numbers were wrong against the real
+	// surface: `2` was a teacher count standing in for a change count, and
+	// `for Term 2` was a term scope the whole-year draft does not have.
 	const text = dialog!.textContent ?? '';
 	assert.match(text, /Save Teaching Load Changes\?/, 'the confirmation must be titled `Save Teaching Load Changes?`');
-	assert.match(
-		text,
-		/You have 2 uncommitted load assignment changes for Term 2\. This will update faculty workloads and sync with the scheduling engine\./,
-		'the body must state the count, the term, and the consequence',
-	);
 	const cancel = buttonByText(dialog!, 'Cancel');
 	const confirm = buttonByText(dialog!, 'Confirm & Save');
 	assert.ok(cancel, 'the dialog must offer `Cancel`');
@@ -830,7 +845,168 @@ test('A6-40-3 `Save changes` opens a CONFIRMATION, and `Cancel` saves nothing', 
 	assert.equal(committed, 1, '`Confirm & Save` must perform the save exactly once');
 });
 
-/* ──────────────────── Item 16.1 / 38 / 39 page-level wiring ─────────────── */
+/* ──────────────────── FIX-40 CORRECTION: the real save-confirmation copy ──── */
+
+/**
+ * A6-40-3-REAL — QA BLOCKING 1. The copy of the pre-save confirmation, read off
+ * the REAL `TeachingLoadModals` with REAL props.
+ *
+ * WHY THIS ROW EXISTS BESIDE A6-40-3. That row mounts a harness-authored `Shell`
+ * whose `description` is a literal the test itself writes, so it cannot fail
+ * when the production template changes: QA replaced the real template with a
+ * generic sentence and both suites stayed green. §11 requires a control's
+ * fixture to come from the surface the row is about. This row mounts
+ * `TeachingLoadModals` itself, so the string under test is the shipped one.
+ *
+ * FAILING-FIRST (the mutant QA used): replacing
+ * `description={buildSaveChangesDescription(...)}` in `TeachingLoadModals.tsx`
+ * with a generic sentence that drops BOTH the count and the scope makes
+ * A6-40-3-REAL fail, because the assertions below read the rendered text.
+ */
+test('A6-40-3-REAL the REAL confirmation states the CHANGE count and the teachers it spans, with no unproven term', () => {
+	const CHANGE_COUNT = 7;
+	const TEACHER_COUNT = 3;
+
+	function realModals(props: Record<string, unknown>) {
+		return createElement(TeachingLoadModals as any, {
+			summaryModalOpen: false,
+			onSummaryModalOpenChange: () => {},
+			autoFillResult: null,
+			onApplySuggestion: () => {},
+			suggestionApplying: false,
+			saveWarningOpen: false,
+			onSaveWarningOpenChange: () => {},
+			onSaveConfirm: () => {},
+			discardConfirmOpen: false,
+			onDiscardConfirmOpenChange: () => {},
+			onDiscardConfirm: () => {},
+			activeDraftCount: TEACHER_COUNT,
+			reviewModalOpen: false,
+			onReviewModalOpenChange: () => {},
+			reviewInspector: null,
+			reviewTitle: 'Review teachers',
+			reviewDescription: 'Review',
+			// The gate under test, open.
+			saveChangesConfirmOpen: true,
+			onSaveChangesConfirmOpenChange: () => {},
+			onSaveChangesConfirm: () => {},
+			...props,
+		});
+	}
+
+	// Precondition: the two figures genuinely DIFFER, which is the situation the
+	// pre-correction sentence mislabelled (a 3-teacher / 7-assignment draft read
+	// "You have 3 uncommitted load assignment changes").
+	assert.notEqual(CHANGE_COUNT, TEACHER_COUNT, 'this row only decides the mislabelling case when the two figures differ');
+
+	const host = render(realModals({ pendingChangeCount: CHANGE_COUNT, pendingChangeTeacherCount: TEACHER_COUNT, pendingChangeScope: '' }));
+
+	const dialog = portalledDialog();
+	assert.ok(dialog, 'the real confirmation must render when open');
+	const text = dialog!.textContent ?? '';
+
+	assert.equal(
+		text.includes('Save Teaching Load Changes?'),
+		true,
+		'the title must be the operator\'s `Save Teaching Load Changes?`',
+	);
+	// THE BLOCKING DEFECT: the sentence must name the CHANGE count, not the
+	// teacher count. A body built from the teacher figure fails here.
+	assert.match(
+		text,
+		/You have 7 uncommitted load assignment changes/,
+		'the body must state the number of uncommitted load ASSIGNMENT CHANGES, from the change count prop',
+	);
+	assert.doesNotMatch(
+		text,
+		/You have 3 uncommitted/,
+		'the body must NOT state the teacher count as the change count — that is the blocking defect',
+	);
+	// Both units, so no reader can confuse them.
+	assert.match(text, /across 3 teachers/, 'the body must name the teacher count the change count spans');
+	// The consequence sentence survives.
+	assert.match(
+		text,
+		/This will update faculty workloads and sync with the scheduling engine\./,
+		'the consequence sentence must survive',
+	);
+	// The term clause is withheld because it cannot be proven from a whole-year
+	// draft; asserting ` for Term` here would re-introduce the unproven scope.
+	assert.doesNotMatch(text, /for Term/, 'no term may be claimed: the draft is not term-scoped');
+});
+
+test('A6-40-3-REAL-SINGULAR the real body singularises one change and omits a one-teacher span', () => {
+	// Its own row, NOT a second render in the row above: two open Radix dialogs
+	// coexist in `document.body`, and `querySelector` would return the first, so
+	// the singular case would have been asserted against the plural dialog. The
+	// `afterEach` teardown is what keeps this honest.
+	const host = render(
+		createElement(TeachingLoadModals as any, {
+			summaryModalOpen: false,
+			onSummaryModalOpenChange: () => {},
+			autoFillResult: null,
+			onApplySuggestion: () => {},
+			suggestionApplying: false,
+			saveWarningOpen: false,
+			onSaveWarningOpenChange: () => {},
+			onSaveConfirm: () => {},
+			discardConfirmOpen: false,
+			onDiscardConfirmOpenChange: () => {},
+			onDiscardConfirm: () => {},
+			activeDraftCount: 1,
+			reviewModalOpen: false,
+			onReviewModalOpenChange: () => {},
+			reviewInspector: null,
+			reviewTitle: 'Review teachers',
+			reviewDescription: 'Review',
+			saveChangesConfirmOpen: true,
+			onSaveChangesConfirmOpenChange: () => {},
+			onSaveChangesConfirm: () => {},
+			pendingChangeCount: 1,
+			pendingChangeTeacherCount: 1,
+			pendingChangeScope: '',
+		}),
+	);
+	assert.ok(host, 'the singular render must mount');
+
+	const text = portalledDialog()?.textContent ?? '';
+	assert.match(text, /You have 1 uncommitted load assignment change\./, 'one change must not read as a typo');
+	assert.doesNotMatch(text, /1 uncommitted load assignment changes/, 'the singular form must be used for exactly one change');
+	assert.doesNotMatch(text, /across 1 teachers/, 'a single teacher needs no span clause, and "1 teachers" is ungrammatical');
+});
+
+test('A6-40-3-REAL the page wires the CHANGE count prop, not the teacher count', () => {
+	// Belt-and-braces over the row above, on the ONE thing the row above cannot
+	// see: which hook value the page feeds the prop. A component row proves the
+	// component honours its prop; only the page wiring proves the prop is the
+	// right number.
+	const page = read('src/pages/TeachingLoad.tsx');
+	assert.match(
+		page,
+		/pendingChangeCount=\{data\.activeDraftAssignmentChangeCount\}/,
+		'the page must pass the change count, not the teacher count',
+	);
+	assert.doesNotMatch(
+		page,
+		/pendingChangeCount=\{data\.activeDraftCount\}/,
+		'wiring the teacher count into the change-count prop is the blocking defect and must be absent',
+	);
+	assert.match(
+		page,
+		/pendingChangeTeacherCount=\{data\.activeDraftCount\}/,
+		'the teacher count must be passed alongside so the body can name both figures',
+	);
+	assert.match(page, /pendingChangeScope=""/, 'the unprovable term clause must not be reintroduced');
+
+	// The derivation itself is a real one, in the data layer, counting pairs in
+	// BOTH directions (a removals-only draft has no pairs left in it to count).
+	const hook = read('src/hooks/useTeachingLoadData.ts');
+	assert.match(hook, /const activeDraftAssignmentChangeCount = useMemo/, 'the change count must be derived in the data layer');
+	assert.match(hook, /for \(const pair of draftPairs\) if \(!savedPairs\.has\(pair\)\) total \+= 1;/, 'additions must be counted');
+	assert.match(hook, /for \(const pair of savedPairs\) if \(!draftPairs\.has\(pair\)\) total \+= 1;/, 'removals must be counted, or a removals-only draft reports a false 0');
+	assert.match(hook, /^\s*activeDraftCount,$/m, 'the hook must return the change count alongside the teacher count');
+});
+
 
 test('A6-40-4 the page deletes the footer, moves the panel, and keeps the sync warning', () => {
 	// Belt-and-braces over the rendered rows above: these are claims about what
