@@ -311,7 +311,19 @@
 	     src/lib/__tests__/a3-c9-operator-tokens.test.ts, finds 64 solid
 	     bg-accent/bg-primary sites across the 583 tracked client .ts/.tsx files,
 	     counted one per scanned line, excluding only comment prose and that
-	     control's own marked fixture. BEFORE this correction 63 paired a light
+	     control's own marked fixture.
+	     COUNT, CORRECTED 2026-09-28. The prose above said "64 ... sites". A
+	     reviewer re-derived it and 64 is what the control ENFORCES but it is not
+	     64 sites: it is 55 real solid fills plus 9 REGEX LITERALS inside test
+	     files, which the matcher reads because it has no leading word boundary
+	     (/\bbg-primary\b/ in draft-ux-c01.test.tsx x4, generation-blockers-c02
+	     .test.tsx x3, timetable-header-collapse-c01.test.tsx and
+	     timetable-ux-rehaul-c01.test.ts). The pinned 64 stays: it is a stable
+	     superset and a real add or removal still moves it, so it is a sound
+	     tripwire. What is withdrawn is the claim that it counts sites. The
+	     offender scan is unaffected — none of the 9 literals carries a dark label,
+	     and the pre-fix offender count of exactly ONE reproduces in both
+	     directions. BEFORE this correction 63 paired a light
 	     label and exactly ONE did not, and it was a real defect:
 	     src/ui/dialog.tsx:42 carried `data-[state=open]:text-muted-foreground` on
 	     `data-[state=open]:bg-accent`, i.e. muted-foreground rgb(90,104,124) on
@@ -319,7 +331,7 @@
 	     same pair read at the old 40% and far below the 3:1 of 1.4.11/2.4.7. The
 	     close X was effectively invisible. It is now `text-accent-foreground`,
 	     white on accent = 5.358:1, the same pairing the rest of the app uses, so
-	     AFTER this correction all 64 sites pair a light label and the control
+	     AFTER this correction all 64 matched lines pair a light label and the control
 	     asserts exactly that. The 63 clean sites do IMPROVE with this darkening,
 	     which is the one part of the superseded wording that survives.
 
@@ -362,13 +374,31 @@
 	     2.165:1 on the true #eff6f3 stop and on --background respectively.
 	     TRUE, and the figures that are now pinned to a stated convention: the composite is
 	     the 0.7 `:focus-visible` alpha of --accent-ring composited in 8-BIT sRGB over the
-	     surface, ROUND HALF UP per the MEASUREMENT NOTE, then WCAG 2.x relative luminance.
+	     surface, then WCAG 2.x relative luminance. TIE-BREAKING, corrected
+	     2026-09-28: this was written "per the MEASUREMENT NOTE", which OVERSTATES
+	     it. The note fixes 8-BIT sRGB and rounding to rgb() integers but is SILENT
+	     on tie-breaking, and it matters here — the green channel lands on an exact
+	     .5 tie, 0.7*121 + 0.3*246 = 158.5. Round half UP (the JS `Math.round` in the
+	     test's `composite()`) gives 159 and 2.837:1; .NET banker's `Math.Round` gives
+	     158 and the 2.866:1 a reviewer reported. Half-up is the convention in force
+	     and is now pinned by `assert.deepEqual(washNew, [91,159,134])` plus the
+	     3-decimal ratio assertion, so it is machine-enforced rather than prose.
 	       0.7 x rgb(27,121,87)   + 0.3 x rgb(239,246,243) = rgb(91,159,134)  -> 2.837:1
 	       0.7 x rgb(37,167,119) + 0.3 x rgb(239,246,243) = rgb(98,191,156) -> 2.026:1
 	       0.7 x rgb(27,121,87)   + 0.3 x rgb(255,255,255) = rgb(95,161,137)  -> 3.023:1
 	       0.7 x rgb(37,167,119) + 0.3 x rgb(255,255,255) = rgb(102,193,160)-> 2.165:1
-	     All four match the pair above to the published precision. The 2.795:1 and 2.026:1
-	     figures were independently reproduced and stand.
+	     All four match the pair above to the published precision.
+	     PARTIALLY SUPERSEDED 2026-09-28. The claim was "The 2.795:1 and 2.026:1
+	     figures were independently reproduced and stand." Of those, ONLY 2.026:1
+	     reproduces (0.7 x rgb(37,167,119) + 0.3 x rgb(239,246,243) = rgb(98,191,156)).
+	     2.795:1 does NOT reproduce from any committed surface: an alpha sweep of
+	     {0.04,0.05,0.06,0.07} against {#fafbfc, white} yields 2.02-2.10 and 2.83-2.93,
+	     and the four real gradient stops give 2.837 / 2.907 / 2.952 / 3.023. 2.795:1
+	     and its companion 1.986:1 belong to the SUPERSEDED wrong-surface model, which
+	     is not parameterised anywhere in committed source and so cannot be
+	     independently recomputed. "Independently reproduced" was an unsupported claim
+	     about an unparameterised figure; it is withdrawn. The 2.795:1 text above stays
+	     as a superseded historical line, not as a verified measurement.
 	     ONE ROUNDING IS WORTH NAMING, because a reviewer recomputed 2.866:1 and could
 	     not obtain 2.837:1 under any convention tried. It is the same composite, not a
 	     different surface: the green channel is 0.7 x 121 + 0.3 x 246 = 158.5 exactly, an

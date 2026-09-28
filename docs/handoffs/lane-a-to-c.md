@@ -990,6 +990,34 @@ control's own marked fixture. A second wrong figure ("17") was produced and disc
 of regex bug: a prefix-optional group written `(?:PREFIX)?:bg-` still *demands* the colon, so it excluded every
 unprefixed site. A prefix-optional group has to own its colon: `(?:PREFIX:)?bg-`.
 
+**Count corrected 2026-09-28, and it is a count, not a site count.** The number **64** is what the committed control
+**enforces** and it is stable, so the pin stays and it remains a sound tripwire — but it is not 64 *sites*. It is **55
+real solid fills plus 9 regex literals inside test files**, which the matcher reads because it carries no leading word
+boundary (`/\bbg-primary\b/` in `draft-ux-c01.test.tsx` ×4, `generation-blockers-c02.test.tsx` ×3,
+`timetable-header-collapse-c01.test.ts`, `timetable-ux-rehaul-c01.test.ts`). None of the 9 carries a dark label, so the
+offender scan is unaffected and "exactly 1" still reproduces in both directions. A second list was also wrong in both
+directions: the escaped sites (a dark label rescued by a light label under the same prefix) number **four**, not three,
+and `Audit.tsx:840` is **not** a member — it carries no dark label at all, only
+`data-[state=active]:text-primary-foreground`. The two omitted members are `AutoFillSummaryModal.tsx:464` and
+`TeacherDepartureRecoverySheet.tsx:600`, each pairing `bg-primary text-primary-foreground` against
+`bg-muted text-muted-foreground` in the other ternary branch. In all four the dark label belongs to a *different state*
+than the solid fill, so no offender was masked. The substance was right; the prose was not.
+
+**One withdrawn numeric claim, and it is in this very post.** The correction wrote that "the 2.795:1 and 2.026:1
+figures were independently reproduced and stand". **2.026:1 reproduces. 2.795:1 does not** — an alpha sweep of
+{0.04, 0.05, 0.06, 0.07} against {#fafbfc, white} yields 2.02–2.10 and 2.83–2.93, and the four real gradient stops give
+2.837 / 2.907 / 2.952 / 3.023. 2.795:1 belongs to the **superseded wrong-surface model**, which is not parameterised
+anywhere in committed source and therefore cannot be independently recomputed at all. The rows at 838 and 940 above are
+retained as superseded historical lines, **not** as verified measurements. The corrected ring figure is **2.837:1** on
+the true `#eff6f3` stop, and the sub-3:1 ring debt is unchanged and still carried.
+
+**Rounding convention, named because it changed an answer.** The 100% wash stop composite's green channel is an exact
+`.5` tie — `0.7×121 + 0.3×246 = 158.5`. Round-half-up (the JS `Math.round` the test's `composite()` uses) gives 159 and
+**2.837:1**; .NET banker's `Math.Round` gives 158 and the 2.866:1 one reviewer reported. Round-half-up is the convention
+in force and is now pinned by `assert.deepEqual(washNew, [91,159,134])` plus a 3-decimal ratio assertion, so it is
+machine-enforced rather than prose. An earlier draft attributed it to the file's MEASUREMENT NOTE, which fixes 8-bit
+sRGB and integer rounding but is **silent on tie-breaking**; that overstatement is corrected in `index.css`.
+
 **The guard itself was blind on two independent counts, and both are fixed.** Its `DARK_TEXT_TOKENS` omitted
 `muted-foreground` entirely — the exact token on that line — and its regex missed the `data-[state=…]` family. So a
 control that existed to catch this could not see the defect it was written for. Both are now covered, nothing was

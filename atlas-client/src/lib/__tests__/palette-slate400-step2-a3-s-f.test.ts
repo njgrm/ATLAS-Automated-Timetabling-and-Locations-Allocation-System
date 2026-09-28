@@ -378,6 +378,37 @@ const INDEX_CSS_LF_SHA256_REPINNED = 'c716be676f181e091ea6cd7c86568b7c368954d188
  */
 const INDEX_CSS_LF_SHA256_REPINNED_A3C9_CORRECTION2 = '767cf9efea74084e846dd1f881f30d0d3bf5e2e182b7cbca41b545c507b50f10';
 
+/**
+ * A3-C9 CORRECTION 3 (planner, 2026-09-28) — the FIFTH firing of this byte pin, and again on
+ * comment-only edits. The four documentation findings a bounded re-review raised were applied
+ * additively, because this cycle's whole purpose is to delete claims that do not survive
+ * checking:
+ *   F1  the "64 solid ... sites" prose. 64 is what the control ENFORCES and it is stable, so
+ *       the pin stays and stays sound, but it is 55 real solid fills plus 9 regex literals
+ *       inside test files. The count is corrected; the tripwire is not touched.
+ *   F2  the escaped-site list: four, not three, and Audit.tsx:840 is not a member.
+ *   F4  the "2.795:1 and 2.026:1 were independently reproduced" claim. 2.026 reproduces;
+ *       2.795 does NOT reproduce from any committed surface, and is withdrawn.
+ *   F5  "ROUND HALF UP per the MEASUREMENT NOTE" overstated it. The note is silent on
+ *       tie-breaking; half-up is established by `composite()`'s `Math.round`, and it matters
+ *       because the wash composite's green channel is an exact .5 tie (158.5).
+ *   F3  a note that `background` in LIGHT_TEXT_TOKENS widens the escape side only, is inert
+ *       today (`text-background` occurs 0 times), and is latent only in light mode.
+ *
+ * No `--token: value` declaration moved; these are all comment edits. Re-derived, same command:
+ *   node -e "const{createHash}=require('crypto'),fs=require('fs');
+ *            const b=fs.readFileSync('src/index.css');
+ *            console.log(createHash('sha256')
+ *              .update(Buffer.from(b.toString('utf8').replace(/\r\n/g,'\n'),'utf8'))
+ *              .digest('hex'));"
+ *   -> 27d6cde6b5307facf1fcc7cea51af798f340214c3890e1bfbc5254a033313940
+ *   (raw, un-normalised, for completeness: 0b659c24e186317d9efc3cc1a2e9ca4b233b8fe81805e89e8062cacfdbfa7f9f)
+ * Bound to this revision only (AGENTS.md §11: a computed artifact is valid only for the revision and
+ * moment that produced it). The prior pin is retained above and is NOT deleted.
+ */
+const INDEX_CSS_LF_SHA256_REPINNED_A3C9_CORRECTION3 = '27d6cde6b5307facf1fcc7cea51af798f340214c3890e1bfbc5254a033313940';
+const INDEX_CSS_LF_SHA256_SUPERSEDED_A3C9_CORRECTION2 = INDEX_CSS_LF_SHA256_REPINNED_A3C9_CORRECTION2;
+
 const AA = 4.5;
 /** The S-e rename ceiling. Asserted to be EXCEEDED below, so nobody can widen their way to green. */
 const S_E_RENAME_CEILING = 3;
@@ -1023,13 +1054,14 @@ test('control 4 (REPLACEMENT, A3-C8r2): index.css is byte-identical to the re-pi
 	const actual = lfSha256(INDEX_CSS);
 	assert.equal(
 		actual,
-		INDEX_CSS_LF_SHA256_REPINNED_A3C9_CORRECTION2,
-		'src/index.css changed again since A3-C9 correction 2. --muted-foreground is global and shared with the ' +
+		INDEX_CSS_LF_SHA256_REPINNED_A3C9_CORRECTION3,
+		'src/index.css changed again since A3-C9 correction 3. --muted-foreground is global and shared with the ' +
 			'timetable and login surfaces, so changing it is not local to any one stream. Re-measure and ' +
 			'rewrite this file and the handoff in the same commit if a global token change is genuinely intended.',
 	);
 	// Every prior pin in this range is retained, not overwritten, so the provenance chain stays
 	// readable and no correction closes a finding by removing evidence (AGENTS.md §16).
+	assert.notEqual(actual, INDEX_CSS_LF_SHA256_REPINNED_A3C9_CORRECTION2, 'the correction-3 pin must differ from the pin it replaces');
 	assert.notEqual(actual, INDEX_CSS_LF_SHA256_REPINNED, 'the correction-2 pin must differ from the pin it replaces');
 	assert.notEqual(
 		INDEX_CSS_LF_SHA256_REPINNED,

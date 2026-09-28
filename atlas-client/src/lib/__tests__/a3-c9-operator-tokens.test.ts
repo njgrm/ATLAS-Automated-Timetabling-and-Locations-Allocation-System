@@ -375,6 +375,26 @@ test('CALL-SITE: no state background paints a dark text colour on the solid acce
 	//   `bg-accent`/`bg-primary` — most of the 64. A prefix-optional group has to own its own
 	//   colon, `(?:PREFIX:)?bg-…`. The pinned 64 is the number this file actually enforces.
 	//
+	// COUNT, CORRECTED 2026-09-28. The prose said "64 ... sites". A reviewer re-derived
+	// the figure: 64 is what the control ENFORCES and it is stable, so the pin stays and
+	// it remains a sound tripwire, but it is not 64 sites. It is 55 real solid fills plus
+	// 9 REGEX LITERALS inside test files, which the matcher reads because it carries no
+	// leading word boundary ( /\bbg-primary\b/ appears in draft-ux-c01.test.tsx x4,
+	// generation-blockers-c02.test.tsx x3, timetable-header-collapse-c01.test.ts and
+	// timetable-ux-rehaul-c01.test.ts ). None of the 9 carries a dark label, so the
+	// offender scan is unaffected and the pre-fix count of exactly ONE still reproduces.
+	//
+	// ESCAPE SET, CORRECTED 2026-09-28. An earlier note listed the sites carrying a dark
+	// label but escaped by a light label under the same prefix as three, and named
+	// Audit.tsx:840 among them. The real set is FOUR, and that file is not a member: it
+	// carries no dark label at all, only data-[state=active]:text-primary-foreground, so
+	// it cannot be "a dark label escaped by a light one". The two omitted members are
+	// AutoFillSummaryModal.tsx:464 and TeacherDepartureRecoverySheet.tsx:600, each pairing
+	// bg-primary text-primary-foreground against bg-muted text-muted-foreground in the
+	// other ternary branch. A reviewer read all four and confirmed that in every one the
+	// dark label belongs to a DIFFERENT STATE than the solid fill, so no offender is
+	// masked. The substance was right; the list was not, and it is corrected here.
+	//
 	// A3-C9 CORRECTION 2, the guard's own two blind spots, both of which are why it could not see
 	// the very defect it was written for:
 	//   1. The old regex listed four pseudo-classes and no `data-[state=…]` variant, no
@@ -404,6 +424,12 @@ test('CALL-SITE: no state background paints a dark text colour on the solid acce
 		'secondary-foreground',
 	];
 	const LIGHT_TEXT_TOKENS = ['accent-foreground', 'primary-foreground', 'background', 'white'];
+	// `background` was added to this set on 2026-09-28 and widens the ESCAPE side of the
+	// check, not the offender side. It masks nothing today: `text-background` occurs
+	// 0 times in the client. Latent only, and latent only in light mode — in `.dark`
+	// `--background` is a dark surface, so a light label on a solid accent fill would
+	// still need checking there. `.dark` redefines no accent token, so the ratios above
+	// are unchanged; this is a note, not a defect.
 	const solidStateBackground = new RegExp(`(?:${STATE_PREFIX}:)?bg-(accent|primary)(?![\\w/-])`, 'g');
 
 	/** The dark text tokens a single line paints on a solid accent/primary background, if any. */
