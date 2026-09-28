@@ -69,6 +69,21 @@ Rules for the planners:
 - Before Wednesday: a **demo walkthrough script** (the operator's path through the product) walked end to end on live,
   graded for older users, with every stumble fixed or listed.
 
+## CHECKPOINT 2026-09-29 01:15 (supersedes earlier checkpoints)
+
+**LIVE `c9be17fe` (train 4)** since ~00:40: grade-name hotfix + A2 24c6242c + A6 5481dcc + A3 13d75ce6. Luna smoke 3/3
+(TL suggestion 2022-2023 = 264 rows). Rollback `9ca7f629`. **Next train candidates:** A2 6d034431 (index), A7 c9dd5f05
+(School Year Setup plain words) + A7 c2 (past years list/Keep as history/read-only links, running `a7-c2`), A2 past-year
+view (running a2-c12r6; its TEST HAS AN INFINITE LOOP - reached 15 and 37 GB, crashed dwm/Brave/Codex; posted to A2).
+**Codex job running (bfld2f932 waiter, terra@medium):** on LIVE applies TL, generates, publishes 2022-2023 + older-user UX
+review -> scratchpad/codex-qa/live-year1-flow/report.md. Then route findings, then operator does next EnrollPro rollover
+(Preview + Sync now; Lane C verifies with sy.cjs / fcheck.cjs).
+**Memory guard:** scratchpad/memguard.ps1 runs DETACHED (CIM, hidden), kills node >4 GB private (not server.js/staging/a4
+release), log memguard.log. Check commit charge before Codex runs.
+**Lanes:** A2 a2-c12r6 (past-year view; P parked), A3 a3-c12r, A5 a5-c2r3, A6 a6-c3 (Guided mode removal first), A7 a7-c2.
+Waiters: re-arm with await.sh after restart. Heartbeat every 15 min with notifyOnCompletion (re-arm after restart).
+**Operator artifact:** https://claude.ai/artifact/EQ6Zas4FD6GZHpu29TwjVv (update: train 4 items now live).
+
 ## CHECKPOINT 2026-09-29 00:25 (supersedes earlier checkpoints)
 
 **Live** `9ca7f629` (train 2). **Train 4 `c9be17fe`** (main 60e58567 + A3 13d75ce6: A2 24c6242c header/draft, A6 5481dcc,
