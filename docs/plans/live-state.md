@@ -3641,6 +3641,57 @@ Ownership respected: **A7 c7** kept the banner and year-list logic; A3 c14 chang
 
 ## Lane A2 - current lane (written only by Planner A2)
 
+### 2026-09-29 21:25, packet a2-c17-preferences-kept - **INTEGRATED on `main` at `e3cb0a63`. 0 fixes live and seen / 1 integrated, NOT deployed / 0 dropped. A4 owns the deploy; A2 has not deployed. One rendered row is OWED and it cannot be closed before A4 deploys.**
+
+Newest block; it supersedes the header-budget block below, which is kept as dated history.
+
+**Stream:** c17. Base `df5c249c`; candidate `22822c15` -> correction `f30e338e` -> merge `107c40d5` -> test-scope fix
+`e3cb0a63`. 11 paths, **0 deletions**. Branch `work/a2-c17-preferences-kept`; worktree
+`E:/ATLAS-worktrees/lane-a2-c17-prefs` = `RETIRE_AFTER_INTEGRATION`. Tier **MEDIUM**: `generation.service.ts`,
+`schedule-constructor.ts` and the `RunSummary` type are **untouched by design** - the report is computed on read, so
+it stays true after a manual edit and needs no migration.
+
+**What the scheduler now sees.** One line in the Class Schedule body above the grid (NOT the header - AGENTS.md 8 caps
+a header at two calm rows that row 1 already is): `Teacher preferences: 2 of 2 unavailable times kept - 5 of 7
+preferred times met`. It is a **control** (border, fill, chevron, pointer, hover + focus-visible) opening a per-teacher
+list: `Unavailable Friday afternoon - kept`, `Prefers mornings - 3 of 5`, with per-day detail rows that carry **no
+ratio**. **Nothing renders at all when nobody has preferences.** A teacher whose preferences are still DRAFT/SUBMITTED
+gets `2 teachers' preferences are not reviewed yet, so they were not used.` with a working link to Teacher Preferences.
+
+**The defect QA caught (1 BLOCKING, why it matters to Lane C's drill).** The first cut shipped **`20 of 5 preferred
+times met`**: the denominator counted collapsed day-windows and the numerator counted stored 15-minute rows, and
+"preferred mornings" is 80 stored rows in 5 windows. Fixed at `f30e338e` - day-window is now the only unit in any
+ratio, guarded by `a2-c17-preference-adherence-ratio-invariant` (fails on any ratio > 1), and `R3` re-fixtured from
+the real picker surface with `slots.length === 80` asserted. The parent packet's named fixture is intact: a violated
+UNAVAILABLE slot still reads **`1 of 2 kept`**.
+
+**Judgement calls, open to overrule.** (1) "times" = painted blocks, not stored rows - the drill's Step 0 is two
+blocks and the packet's example line is `2 of 2`; row-counting would render `16 of 16`. (2) A day name appears when a
+window is one day, dropped when it spans weekdays. (3) Anchored in the body, the one position automatically correct
+for both draft and published views. (4) Singular notice reads `1 teacher has preferences...` (the packet's plural
+has no antecedent for one teacher).
+
+**Gates.** Independent QA `ses_f12ea0a2effeEczZFcEgGuulVP` = `CORRECTION_REQUIRED` 17/19, blocked 0, unperformed 2.
+2 mutants killed (4 failures each, restored byte-exact). Bounded re-review of the correction, planner-level
+(AGENTS.md 11). On the merge tip: server **22/22**, client **17/17**, `test:ux-guardrails` **31/31** (preservation),
+`test:encoding` 0 fail. QA reproduced the 3 pre-existing base failures and the 1 pre-existing client `tsc` error
+identically on base and candidate, and confirmed 0 deletions - this change neither caused nor masked any of them.
+
+**BLOCKER, dated 2026-09-29 21:25, and it is not mine to close.** R10 rendered proof is
+`UNPERFORMED(SERVER_HALF_NOT_DEPLOYED_TO_STAGING)`: staging's API has no such route until A4 deploys the server half,
+so the line is correctly silent there and the page is unprovable as shipped. No fixture was substituted, nothing was
+deployed, no credential read or typed, **no generation run**. Staging has a completed run (**347, Term 1, 40 cells**),
+so **no generation is needed** to close it. (1) **A4** deploys the server half to staging `:5101`. (2) **Lane C**
+runs the 1366x768 walk: 52xx preview on staging, enter and REVIEW real preferences for 2-3 teachers through the
+page, screenshot the line + the open list on draft **and** published, one no-preferences page proving nothing
+renders, `ux-audit.js` with `major: 0`.
+
+**Carried forward (NON_BLOCKING).** F5 the report reads only the time-range preference form; a period-index form
+would be invisible here. F7 R8 storage is faked through the repo's own `withDataContext` seam (no disposable
+PostgreSQL available), so Prisma's real query shape is unexercised; a source-level zero-write grep is the
+compensating control - fine for MEDIUM, not for HIGH. F8 `notReviewedTeacherNames` computed, tested, never rendered.
+Handoff `docs/handoffs/a2-c17-result-2026-09-29.md`; posted in `docs/handoffs/lane-c-to-a2.md`.
+
 ### 2026-09-29, packet a2-header-budget-2026-09-29 - **INTEGRATED at `dca34646` on `main`. 0 fixes live and seen / 1 integrated, not on production / 0 dropped. The memory blocker is FIXED and it was not a leak. A4 owns the deploy (AGENTS.md 14); A2 has not deployed.**
 
 Newest block; the NOT-READY block below is superseded by this one and kept as dated history.
