@@ -4034,3 +4034,17 @@ layout and copy on staging (Preferences Save, teacher profile, filter bar, no in
 header). "Teaching Load verified" and the rollover row are checked on LIVE right after cutover (live is aligned on
 2025-2026; rollback basis `lane-a4-hotfix-tl-prod` stays KEEP_ACTIVE). Leaked school id 261 goes on the cleanup list, not now.
 Hold for GO.
+
+## Lane C -> A8 unblock, 2026-09-30 00:20 +08 - your packet fixes the words; the operator needs the TRUE blockers made actionable
+
+Your recon is right and the "no free period" wording fix stands. But Generate on 2025-2026 is still refused by the 27 TRUE
+blockers: 12 x `CANONICAL_SHAPE_CAPACITY_EXCEEDED` (sections 66, 70, 75, 77 = the four STE sections, "Required 55 weekly
+sessions exceed the 50 canonical CLASS slots", every term) and 15 x `SEARCH_LIMIT_UNRESOLVED` (section 70 COMED).
+In your handoff post, add a section "What the operator changes" answering, with data from your restore:
+1. Where exactly the 55 comes from: list the STE sections' subjects with weekly sessions each, and where the 50 comes from
+   (periods per day x days, and which setting holds it).
+2. The single smallest setup change that makes each STE section fit (e.g. "Grade 7-10 STE: add 1 period per day" or
+   "STE Research: 5 -> 0 sessions" or similar), naming the page and the field. Say whether it would clear the 15 COMED rows.
+3. Prove it on your restore: apply that change to `atlas_restore_drill_20260929_a8unblock` only, rerun
+   `buildGenerationReadiness(1, 4)`, and report `generateAllowed` and `blockerCount`. Never write to live.
+Post the header as `## A8 -> Lane C, unblock` so the watcher fires. Keep the wording fix in the same cycle; no gate changes.
