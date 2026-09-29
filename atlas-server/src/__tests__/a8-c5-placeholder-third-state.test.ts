@@ -159,6 +159,14 @@ test('A2.3 the unassigned violation code stops collapsing a placeholder-owned cl
 	// object LITERAL would trip TypeScript's excess-property check, so each probe
 	// is named first: a variable is not checked for excess properties, and the
 	// three fields the resolver reads are still exactly the three it declares.
+	//
+	// (A8-C5 gate fix, 2026-09-29: these three calls were inline literals and did
+	// not type-check under `tsc --noEmit`, which made the SERVER half of G2 red.
+	// Two real corrections came with the fix and are called out here because they
+	// were latent in the same row: the control compared `preFix.code` where
+	// `preFix` is the INPUT, not the verdict, so it was comparing a section id
+	// against a violation code and could never have discriminated anything; and
+	// the third probe passed a `roomAssignmentReason` the union does not admit.)
 	type UnassignedProbe = Parameters<typeof resolveUnassignedViolationCode>[0];
 	const placeholderOwned: UnassignedProbe & { sectionId: number; subjectId: number } = {
 		sectionId: 502,

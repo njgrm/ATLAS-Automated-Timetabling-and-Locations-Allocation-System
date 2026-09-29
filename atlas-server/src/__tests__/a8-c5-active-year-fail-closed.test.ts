@@ -351,6 +351,11 @@ test('A1.5 FAILING-FIRST CONTROL: the pre-fix default resolves to year 1, the sh
 	// The value comes from a call so TypeScript keeps the declared union: a `const`
 	// initialised to `null` is narrowed to `null`, and `null?.id` is `never`, which
 	// would make this control a type error instead of a control.
+	//
+	// (A8-C5 gate fix, 2026-09-29: this was `const preFixActiveYear: {...} | null
+	// = null;`, which does not type-check under `tsc --noEmit` and made the SERVER
+	// half of G2 red. The control's meaning is unchanged — it still evaluates the
+	// pre-fix `activeYear?.id ?? 1` expression against an unreachable upstream.)
 	const preFixActiveYear = ((): { id: number; yearLabel: string } | null => null)();
 	const preFixSchoolYearId = preFixActiveYear?.id ?? 1;
 	assert.equal(preFixSchoolYearId, 1, 'the old code silently wrote into year 1');
