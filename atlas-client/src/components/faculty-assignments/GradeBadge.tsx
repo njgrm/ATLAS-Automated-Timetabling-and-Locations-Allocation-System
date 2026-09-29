@@ -33,8 +33,14 @@
 import { GradeLevelBadge } from '@/components/GradeLevelBadge';
 
 export type GradeBadgeProps = {
-	/** Numeric JHS grade level, e.g. 7-10. */
-	grade: number;
+	/**
+	 * Numeric JHS grade level, e.g. 7-10, or `null` when the section names no
+	 * real grade. A2 c15: `null` renders NO badge rather than a fabricated
+	 * number, so an EnrollPro internal id can never surface as `GR1`. The
+	 * `null` render is the shared `GradeLevelBadge` behaviour, not a local
+	 * variant — the chip's look is unchanged.
+	 */
+	grade: number | null;
 	/** Optional accessible suffix naming what the grade qualifies, e.g. a section. */
 	ariaSuffix?: string;
 	/** Passed through; layout only. Never a colour. */
@@ -42,7 +48,7 @@ export type GradeBadgeProps = {
 };
 
 export function GradeBadge({ grade, ariaSuffix, className }: GradeBadgeProps) {
-	if (!Number.isFinite(grade)) return null;
+	if (grade == null || !Number.isFinite(grade)) return null;
 
 	// The visible text of `GradeLevelBadge` is `prefix + grade` (default
 	// prefix `GR`), so the accessible name is derived from the same contract

@@ -23,6 +23,7 @@ import { AccessibleInfo } from '@/components/smart/AccessibleInfo';
 import { TEACHER_X_LABEL } from '@/lib/deped-glossary';
 import atlasApi from '@/lib/api';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
+import { resolveSectionGradeNumber } from '@/lib/schedule-review-helpers';
 import { toast } from 'sonner';
 import type { FacultySummary, FacultyAssignmentRecord, ExternalSection } from '@/types';
 
@@ -49,27 +50,17 @@ export function hasWideGradeSpan(assignedGradeLevels: readonly number[] | null |
 }
 
 /**
- * Extract the academic grade number from an ExternalSection.
- * Priority: gradeLevelName → displayOrder → gradeLevelId.
- * Returns null if no valid JHS grade (7–10) can be determined.
+ * Format a section's grade as "GR7", "GR8", etc. Returns "" for unknown grades.
+ *
+ * A2 c15: the grade now comes from the ONE client authority
+ * (`resolveSectionGradeNumber`, the twin of the server `gradeNumberOf`):
+ * `gradeLevelName`, then `displayOrder`. This module's private
+ * `getSectionGradeNumber` (name -> displayOrder -> id-if-7..10) disagreed with
+ * it and is deleted — three client resolvers is how a badge ends up reading
+ * `GR1`. Never the EnrollPro `grade_level_id`, which re-mints on every wipe.
  */
-function getSectionGradeNumber(section: ExternalSection): number | null {
-	// 1. Parse gradeLevelName (e.g. "Grade 7", "GR8", "Grade 10")
-	const nameMatch = (section.gradeLevelName ?? '').match(/(\d+)/);
-	if (nameMatch) {
-		const n = Number(nameMatch[1]);
-		if (VALID_JHS_GRADES.has(n)) return n;
-	}
-	// 2. Use displayOrder if it's a valid JHS grade
-	if (VALID_JHS_GRADES.has(section.displayOrder)) return section.displayOrder;
-	// 3. Use gradeLevelId only if it's directly a valid JHS grade
-	if (VALID_JHS_GRADES.has(section.gradeLevelId)) return section.gradeLevelId;
-	return null;
-}
-
-/** Format a section's grade as "GR7", "GR8", etc. Returns "" for unknown grades. */
 function formatSectionGradeLabel(section: ExternalSection): string {
-	const n = getSectionGradeNumber(section);
+	const n = resolveSectionGradeNumber(section);
 	return n != null ? `GR${n}` : '';
 }
 
@@ -249,7 +240,7 @@ function buildSubjectSummaries(assignments: FacultyAssignmentRecord[]): SubjectS
 				name: s.name,
 				gradeLabel: formatSectionGradeLabel(s),
 			}));
-			const gradeNums = [...new Set(a.sections.map((s) => getSectionGradeNumber(s)).filter((n): n is number => n != null))].sort((x, y) => x - y);
+			const gradeNums = [...new Set(a.sections.map((s) => resolveSectionGradeNumber(s)).filter((n): n is number => n != null))].sort((x, y) => x - y);
 			const gradeRange = gradeNums.length === 0
 				? ''
 				: gradeNums.length === 1

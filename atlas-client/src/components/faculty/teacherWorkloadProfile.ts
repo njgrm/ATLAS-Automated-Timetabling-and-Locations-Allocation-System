@@ -34,6 +34,7 @@
  * - Nothing here mutates the `FacultySummary` it is given.
  */
 import { deriveLoadStatus, STANDARD_WEEKLY_TEACHING_HOURS } from '@/lib/faculty-assignment-helpers';
+import { resolveSectionGradeNumber } from '@/lib/schedule-review-helpers';
 import type { FacultySummary, LoadBreakdownItem, LoadProfile, RotationFamilyTermBreakdown } from '@/types';
 
 export type TeacherWorkloadView = {
@@ -65,14 +66,20 @@ function toBreakdown(faculty: FacultySummary): LoadBreakdownItem[] {
 				rotationTermLabel: subject.rotationTermLabel ?? null,
 				rotationTermGroupId: subject.rotationTermGroupId ?? null,
 				rotationTermCount: subject.rotationTermCount ?? null,
-				// The roster summary is already rotation-deduplicated, so no row
-				// in it is a rotation duplicate.
-				isRotationDuplicate: false,
-				sectionId: section.id,
-				sectionName: section.name,
-				gradeLevel: section.gradeLevelId ?? 0,
-				minutesPerWeek: subject.minMinutesPerWeek ?? 0,
-				totalMinutes: subject.minMinutesPerWeek ?? 0,
+		// The roster summary is already rotation-deduplicated, so no row
+			// in it is a rotation duplicate.
+			isRotationDuplicate: false,
+			sectionId: section.id,
+			sectionName: section.name,
+			// A2 c15: the grade comes from the one client authority
+			// (`gradeNumberOf`: `gradeLevelName`, then `displayOrder`). It used to
+			// be `section.gradeLevelId ?? 0`, and EnrollPro re-mints that id on
+			// every wipe — 1..4 for Grades 7..10 as of 2026-09-28 — so
+			// `WorkloadInspector` rendered `GR1`. A section that names no real
+			// grade reports `null` and renders no badge, never `GR1`.
+			gradeLevel: resolveSectionGradeNumber(section),
+			minutesPerWeek: subject.minMinutesPerWeek ?? 0,
+			totalMinutes: subject.minMinutesPerWeek ?? 0,
 			});
 		}
 	}

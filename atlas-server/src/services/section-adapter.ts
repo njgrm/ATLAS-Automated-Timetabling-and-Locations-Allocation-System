@@ -6,6 +6,7 @@
  */
 
 import { getDataContext } from '../lib/data-context.js';
+import { gradeNumberOf } from './grade-level-resolver.js';
 import crypto from 'crypto';
 
 const db = () => getDataContext();
@@ -318,11 +319,24 @@ export function normalizeEnrollProSectionsResponse(body: unknown): { gradeLevels
 	const gradeLevels = payload.gradeLevels
 		.filter((gradeLevel) => gradeLevel && typeof gradeLevel === 'object')
 		.map((gradeLevel) => {
-			const gradeLevelId = typeof gradeLevel.gradeLevelId === 'number' ? gradeLevel.gradeLevelId : 0;
-			const gradeLevelName = typeof gradeLevel.gradeLevelName === 'string' && gradeLevel.gradeLevelName.trim().length > 0
-				? gradeLevel.gradeLevelName.trim()
-				: `Grade ${gradeLevel.displayOrder ?? gradeLevelId}`;
-			const displayOrder = typeof gradeLevel.displayOrder === 'number' ? gradeLevel.displayOrder : gradeLevelId;
+		const gradeLevelId = typeof gradeLevel.gradeLevelId === 'number' ? gradeLevel.gradeLevelId : 0;
+		// A2 c15 (L4): the fallback label used to be
+		// `Grade ${displayOrder ?? gradeLevelId}`, which can print "Grade 1" —
+		// the EnrollPro internal id, which reads 1..4 for Grades 7..10 since the
+		// 2026-09-28 re-mint. The label now comes from the one grade authority
+		// and is never fabricated from an id: an unresolvable level is labelled
+		// as unknown, and every downstream name parse then falls through to the
+		// `displayOrder`/registry legs instead of reading a made-up grade.
+		const statedGrade = gradeNumberOf({
+			gradeLevelName: typeof gradeLevel.gradeLevelName === 'string' ? gradeLevel.gradeLevelName : null,
+			displayOrder: typeof gradeLevel.displayOrder === 'number' ? gradeLevel.displayOrder : null,
+		});
+		const gradeLevelName = typeof gradeLevel.gradeLevelName === 'string' && gradeLevel.gradeLevelName.trim().length > 0
+			? gradeLevel.gradeLevelName.trim()
+			: statedGrade !== null
+				? `Grade ${statedGrade}`
+				: 'Unknown grade';
+		const displayOrder = typeof gradeLevel.displayOrder === 'number' ? gradeLevel.displayOrder : gradeLevelId;
 
 			if (!Array.isArray(gradeLevel.sections)) {
 				warnings.push(`Grade level "${gradeLevelName}" did not include a sections array; treating it as empty.`);

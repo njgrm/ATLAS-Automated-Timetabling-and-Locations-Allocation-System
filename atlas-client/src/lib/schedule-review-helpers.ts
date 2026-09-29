@@ -7,11 +7,19 @@ type ReviewEntryKind = 'SECTION' | 'COHORT' | undefined;
 
 const VALID_JHS_GRADES = new Set([7, 8, 9, 10]);
 
+/** The grade band a name or `displayOrder` may express. ATLAS is JHS 7-10. */
+const MIN_GRADE = 7;
+const MAX_GRADE = 12;
+
 /**
  * EnrollPro `grade_level_id` is an internal FK and is NOT the academic grade.
- * The current feed uses 17–20 for Grades 7–10; the legacy feed used 5–8.
- * Mirrors the server authority (`normalizeInternalGradeId`) so the client grid
- * resolves the same shape contract the scheduler produced.
+ * The current feed uses 17–20 for Grades 7–10; the legacy feed used 5–8; and
+ * after the 2026-09-28 re-mint the active school years read 1–4. The id is never
+ * a grade and is never consulted for one.
+ *
+ * This map is retained ONLY for `normalizeInternalGradeId`, which callers use to
+ * interpret a subject/scope list value that may arrive as an id. It must not
+ * become a path from a section to its grade — see `gradeNumberOf`.
  */
 const INTERNAL_GRADE_ID_MAP: Record<number, number> = {
 	5: 7,
@@ -43,6 +51,9 @@ export function normalizeJhsGradeNumber(value: unknown): number | null {
 /**
  * Normalize an EnrollPro internal `gradeLevelId` to an actual JHS grade.
  * Identical mapping to the server's `normalizeInternalGradeId`.
+ *
+ * A2 c15: this remains ONLY for lists of ids. A single section's grade comes
+ * from `gradeNumberOf`, which never reads this.
  */
 export function normalizeInternalGradeId(value: unknown): number {
 	const n = typeof value === 'number' ? value : Number(value);
@@ -57,23 +68,40 @@ export function normalizeInternalGradeId(value: unknown): number {
 }
 
 /**
- * Extract the academic grade number from an ExternalSection.
- * Priority: gradeLevelName → displayOrder → gradeLevelId.
- * The first two carry the actual grade (with a 17–20 feed fallback); the last
- * is an EnrollPro internal FK and is normalized through the shared mapping.
- * Returns null if no valid JHS grade (7–10) can be determined.
+ * THE client grade authority (twin of the server `gradeNumberOf`).
+ *
+ * A section's grade is `gradeLevelName` ("Grade 7".."Grade 10"), else
+ * `displayOrder` when it is a real grade. It is NEVER `gradeLevelId`: the
+ * upstream re-mints that id on every wipe (observed 5..8, then 17..20, then
+ * 1..4 as of 2026-09-28), and reading it as a grade is what rendered `GR1` on
+ * the Teachers load surface.
+ *
+ * Returns `null` — never a fabricated number — so a caller renders nothing
+ * rather than "GR1".
+ */
+export function gradeNumberOf(ref: { gradeLevelName?: string | null; displayOrder?: number | null; gradeLevelId?: number | null }): number | null {
+	const name = typeof ref.gradeLevelName === 'string' ? ref.gradeLevelName : null;
+	if (name !== null) {
+		const match = name.match(/grade\s*(\d{1,2})/i);
+		if (match) {
+			const fromName = normalizeJhsGradeNumber(Number(match[1]));
+			if (fromName !== null) return fromName;
+			const named = Number.parseInt(match[1], 10);
+			if (Number.isInteger(named) && named >= MIN_GRADE && named <= MAX_GRADE) return named;
+		}
+	}
+	const order = ref.displayOrder;
+	if (typeof order === 'number' && Number.isInteger(order) && order >= MIN_GRADE && order <= MAX_GRADE) return order;
+	return null;
+}
+
+/**
+ * Extract the academic grade number from an ExternalSection through the one
+ * client authority. Returns null if no valid grade (7–12) can be determined —
+ * never the EnrollPro internal id.
  */
 export function resolveSectionGradeNumber(section: ExternalSection): number | null {
-	const nameMatch = (section.gradeLevelName ?? '').match(/(\d+)/);
-	if (nameMatch) {
-		const fromName = normalizeJhsGradeNumber(Number(nameMatch[1]));
-		if (fromName != null) return fromName;
-	}
-	const fromDisplayOrder = normalizeJhsGradeNumber(section.displayOrder);
-	if (fromDisplayOrder != null) return fromDisplayOrder;
-	const fromGradeId = normalizeJhsGradeNumber(normalizeInternalGradeId(section.gradeLevelId));
-	if (fromGradeId != null) return fromGradeId;
-	return null;
+	return gradeNumberOf(section);
 }
 
 /**

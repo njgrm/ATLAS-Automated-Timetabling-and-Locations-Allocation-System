@@ -1,6 +1,7 @@
 import type ExcelJS from 'exceljs';
 import { prisma } from '../lib/prisma.js';
-import { resolveCanonicalSlotsForPrograms, normalizeGradeLevelSync } from './class-program-slot.service.js';
+import { resolveCanonicalSlotsForPrograms } from './class-program-slot.service.js';
+import { gradeNumberOf, resolveSectionGradeLevel } from './grade-level-resolver.js';
 import { resolvePublishedRun } from './published-schedule.service.js';
 import { frozenCanonicalSlots, type PublishedIdentitySnapshot } from './published-identity-snapshot.service.js';
 import { applyTemplateSignatoryFallback, resolveExportSignatoryProfile } from './export-presentation.service.js';
@@ -135,8 +136,13 @@ export type ExportContext = {
 	entries: ScheduledEntry[];
 	/** C08 — the frozen publication snapshot for a published run, or null for a legacy/draft source. */
 	frozenSnapshot: PublishedIdentitySnapshot | null;
-	/** C08 — the section roster authority (frozen for a published run, live otherwise). */
-	sections: Array<{ id: number; externalId: number; name: string; gradeLevelId: number; gradeLevelName?: string | null; programType?: string | null }>;
+	/**
+	 * C08 — the section roster authority (frozen for a published run, live
+	 * otherwise). `gradeLevel` is the REAL grade, already resolved through the
+	 * one grade authority at the boundary: this module must never read an
+	 * EnrollPro `grade_level_id` as a grade.
+	 */
+	sections: Array<{ id: number; externalId: number; name: string; gradeLevel: number; programType?: string | null }>;
 };
 
 async function createWorkbook(options?: ExportOptions): Promise<ExcelJS.Workbook> {
@@ -170,11 +176,16 @@ function formatRoomLabel(room: RoomInfo | undefined): string {
 	return `${room.buildingName} / ${room.name}`;
 }
 
-function resolveSectionGradeLevel(section: { gradeLevelId: number; gradeLevelName?: string | null }): number {
-	const fromName = section.gradeLevelName?.match(/Grade\s+(\d+)/i);
-	if (fromName) return parseInt(fromName[1], 10);
-	return normalizeGradeLevelSync(section.gradeLevelId);
-}
+/**
+ * A2 c15 (D1) — this module used to define a PRIVATE `resolveSectionGradeLevel`
+ * that shadowed the shared authority in `services/grade-level-resolver.ts`. It
+ * used a narrower regex (`/Grade\s+(\d+)/i`, which cannot read "grade7" or
+ * "GRADE 9 - STE") and fell back to `normalizeGradeLevelSync`, so the workbook
+ * and the rest of the product could disagree about a section's grade. It is
+ * deleted. Every grade below now comes from the ONE authority, and the module
+ * reads `sections[].gradeLevel` — resolved once at the roster boundary — instead
+ * of re-deriving it per call site.
+ */
 
 function isSpecializationSubject(subject: { name?: string | null; code?: string | null } | undefined): boolean {
 	const code = (subject?.code ?? '').trim().toUpperCase();
@@ -277,7 +288,7 @@ export async function loadExportContext(options: ExportOptions): Promise<ExportC
 	// C08 — frozen-first. For a published run, every human-readable identity is
 	// resolved from the frozen snapshot; no output rehydrates labels from current
 	// authority tables. Draft/unpublished exports keep live resolution.
-	let sections: Array<{ id: number; externalId: number; name: string; gradeLevelId: number; gradeLevelName?: string | null; programType?: string | null }>;
+	let sections: Array<{ id: number; externalId: number; name: string; gradeLevel: number; programType?: string | null }>;
 	let subjectMap: Map<number, { id: number; name: string; code: string }>;
 	let facultyMap: Map<number, { id: number; lastName: string | null; firstName: string | null; advisedSectionId: number | null }>;
 	let roomMap: Map<number, RoomInfo>;
@@ -288,8 +299,11 @@ export async function loadExportContext(options: ExportOptions): Promise<ExportC
 			id: value.atlasId ?? Number(key),
 			externalId: Number(key),
 			name: value.name,
-			gradeLevelId: value.gradeLevelId ?? 0,
-			gradeLevelName: value.gradeLevelName ?? null,
+			// A2 c15 (S5): the frozen row carries `gradeLevelName`, so the real
+			// grade is recoverable. It used to carry the raw EnrollPro
+			// `grade_level_id` here, which reads 1..4 for Grades 7..10 since the
+			// 2026-09-28 re-mint. 0 means "this frozen row names no real grade".
+			gradeLevel: gradeNumberOf({ gradeLevelName: value.gradeLevelName }) ?? 0,
 			programType: value.programType ?? null,
 		}));
 		subjectMap = new Map(Object.entries(frozenSnapshot.subjects).map(([key, value]) => [Number(key), { id: Number(key), name: value.name, code: value.code }]));
@@ -320,7 +334,7 @@ export async function loadExportContext(options: ExportOptions): Promise<ExportC
 		const [liveSections, faculty, subjects, rooms] = await Promise.all([
 			db.sectionMirror.findMany({
 				where: { schoolId, schoolYearId },
-				select: { id: true, externalId: true, name: true, gradeLevelId: true, gradeLevelName: true, programType: true },
+				select: { id: true, externalId: true, name: true, gradeLevelId: true, gradeLevelName: true, displayOrder: true, programType: true },
 			}),
 			db.facultyMirror.findMany({
 				where: { schoolId },
@@ -344,7 +358,16 @@ export async function loadExportContext(options: ExportOptions): Promise<ExportC
 				: Promise.resolve([]),
 		]);
 
-		sections = liveSections;
+		// A2 c15: the live roster resolves each section's grade once, here, at the
+		// boundary, through the one authority — so no call site below can read an
+		// EnrollPro internal id as a grade.
+		sections = liveSections.map((row) => ({
+			id: row.id,
+			externalId: row.externalId,
+			name: row.name,
+			gradeLevel: resolveSectionGradeLevel(row),
+			programType: row.programType,
+		}));
 		subjectMap = new Map(subjects.map((s) => [s.id, s]));
 		facultyMap = new Map(faculty.map((f) => [f.id, f]));
 
@@ -614,15 +637,24 @@ export async function exportSummaryWorkbook(options: ExportOptions): Promise<Buf
 	const db = (options.client ?? prisma) as typeof prisma;
 	// C08 — a published export renders the frozen section roster; only a
 	// draft/unpublished source reads the live mirror.
+	// A2 c15 (D1): this summary had its own roster read that ordered sections by
+	// the raw EnrollPro `grade_level_id` — a second, hidden grade authority in the
+	// same module. It now shares the resolved `gradeLevel` roster, so the summary
+	// cannot order by a scope the rest of the workbook does not use.
 	const sections = ctx.frozenSnapshot
 		? ctx.sections
-		: await db.sectionMirror.findMany({
+		: (await db.sectionMirror.findMany({
 			where: { schoolId: options.schoolId, schoolYearId: options.schoolYearId },
-			select: { id: true, externalId: true, name: true, gradeLevelId: true },
-		});
+			select: { id: true, externalId: true, name: true, gradeLevelId: true, gradeLevelName: true, displayOrder: true },
+		})).map((row) => ({
+			id: row.id,
+			externalId: row.externalId,
+			name: row.name,
+			gradeLevel: resolveSectionGradeLevel(row),
+		}));
 
 	const sortedSections = [...sections].sort((a, b) => {
-		if (a.gradeLevelId !== b.gradeLevelId) return a.gradeLevelId - b.gradeLevelId;
+		if (a.gradeLevel !== b.gradeLevel) return a.gradeLevel - b.gradeLevel;
 		return a.name.localeCompare(b.name);
 	});
 	const entryGrid = buildEntryGrid(ctx.entries, ctx.subjectMap, ctx.facultyMap, ctx.roomMap);
@@ -674,7 +706,10 @@ export async function exportSummaryWorkbook(options: ExportOptions): Promise<Buf
 				r.getCell(1).font = { bold: true };
 				band.forEach((section, col) => {
 					r.getCell(col + 2).value = eventDay
-						? (section.gradeLevelId === undefined ? '' : label)
+						// A2 c15: "this section names no real grade" is the only reason
+						// to leave the cell blank; the EnrollPro id is no longer a
+						// test for it.
+						? (section.gradeLevel > 0 ? label : '')
 						: label;
 				});
 				row++;
@@ -822,23 +857,30 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 
 	// C08 — a published export renders the frozen section roster; only a
 	// draft/unpublished source reads the live mirror.
+	// A2 c15: the live leg resolves the grade once through the one authority, so
+	// both branches carry the same `gradeLevel`-shaped row and no call site below
+	// can read an EnrollPro internal id as a grade.
 	const sections = ctx.frozenSnapshot
 		? ctx.sections
-		: await db.sectionMirror.findMany({
+		: (await db.sectionMirror.findMany({
 			where: { schoolId: options.schoolId, schoolYearId: options.schoolYearId },
-			select: { id: true, externalId: true, name: true, gradeLevelId: true, gradeLevelName: true, programType: true },
-		});
+			select: { id: true, externalId: true, name: true, gradeLevelId: true, gradeLevelName: true, displayOrder: true, programType: true },
+		})).map((row) => ({
+			id: row.id,
+			externalId: row.externalId,
+			name: row.name,
+			gradeLevel: resolveSectionGradeLevel(row),
+			programType: row.programType,
+		}));
 
 	const sortedSections = [...sections].sort((a, b) => {
-		const gradeA = resolveSectionGradeLevel(a);
-		const gradeB = resolveSectionGradeLevel(b);
-		if (gradeA !== gradeB) return gradeA - gradeB;
+		if (a.gradeLevel !== b.gradeLevel) return a.gradeLevel - b.gradeLevel;
 		return a.name.localeCompare(b.name);
 	});
 	if (options.sectionId != null) {
 		if (!sortedSections.some((section) => section.externalId === options.sectionId)) throw new Error('SECTION_NOT_FOUND');
 	}
-	const gradeFilteredSections = options.gradeLevel == null ? sortedSections : sortedSections.filter((section) => resolveSectionGradeLevel(section) === options.gradeLevel);
+	const gradeFilteredSections = options.gradeLevel == null ? sortedSections : sortedSections.filter((section) => section.gradeLevel === options.gradeLevel);
 	if (options.gradeLevel != null && (!Number.isInteger(options.gradeLevel) || options.gradeLevel < 7 || options.gradeLevel > 10)) throw new Error('INVALID_GRADE_LEVEL');
 	if (options.gradeLevel != null && gradeFilteredSections.length === 0) throw new Error('GRADE_NOT_FOUND');
 	const outputSections = options.sectionId == null
@@ -877,7 +919,7 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 	// Group sections by grade level for per-grade canonical slot rendering
 	const gradeGroups = new Map<number, typeof sortedSections>();
 	for (const sec of outputSections) {
-		const actualGrade = resolveSectionGradeLevel(sec);
+		const actualGrade = sec.gradeLevel;
 		const arr = gradeGroups.get(actualGrade) ?? [];
 		arr.push(sec);
 		gradeGroups.set(actualGrade, arr);
@@ -1128,14 +1170,14 @@ export async function exportPrintableProgramWorkbook(
 	const ctx = await loadExportContext(options);
 	assertRenderableExportEntries(ctx);
 	const renderable = (entry: ScheduledEntry) => !isReferenceOnlySubjectCode(ctx.subjectMap.get(entry.subjectId)?.code);
-	const sections = [...ctx.sections].sort((a, b) => resolveSectionGradeLevel(a) - resolveSectionGradeLevel(b) || a.name.localeCompare(b.name));
+	const sections = [...ctx.sections].sort((a, b) => a.gradeLevel - b.gradeLevel || a.name.localeCompare(b.name));
 	let selectedSections = sections;
 	let entries = ctx.entries.filter(renderable);
 	let title: string;
 	let sheetGroups: Array<typeof sections> = [];
 	if (program === 'grade') {
 		if (!Number.isInteger(entityId) || entityId < 7 || entityId > 10) throw new Error('INVALID_GRADE_LEVEL');
-		selectedSections = sections.filter((section) => resolveSectionGradeLevel(section) === entityId);
+		selectedSections = sections.filter((section) => section.gradeLevel === entityId);
 		if (!selectedSections.length) throw new Error('PRINT_ENTITY_NOT_FOUND');
 		const allowed = new Set(selectedSections.map((section) => section.externalId));
 		entries = entries.filter((entry) => allowed.has(entry.sectionId));
@@ -1270,7 +1312,7 @@ export async function exportPrintableProgramWorkbook(
 			row.height = Math.max(36, Math.max(...visibleLines) * 16);
 		}
 		for (let col = 1; col <= dayColumnCount + 1; col++) {
-			header.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: gradeColors[program === 'grade' ? entityId : resolveSectionGradeLevel(group[0] ?? { gradeLevelId: 7 })] ?? 'FFD9EAF7' } };
+			header.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: gradeColors[program === 'grade' ? entityId : group[0]?.gradeLevel ?? 7] ?? 'FFD9EAF7' } };
 			header.getCell(col).border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
 			header.getCell(col).alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
 		}

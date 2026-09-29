@@ -137,7 +137,13 @@ export async function getOfficialPrintOptions(options: ExportOptions): Promise<O
 	const usedTeachers = new Set(entries.map((entry) => entry.facultyId).filter((id): id is number => id != null));
 	const usedRooms = new Set(entries.map((entry) => entry.roomId));
 	const sectionRows = ctx.sections.filter((section) => usedSections.has(section.externalId));
-	const grades = [...new Set(sectionRows.map((section) => Number(section.gradeLevelName?.match(/Grade\s+(\d+)/i)?.[1] ?? section.gradeLevelId)))]
+	// A2 c15 (D2 — an unlisted fourth D1-pattern site the type change surfaced):
+	// this parsed `gradeLevelName` with the narrow `/Grade\s+(\d+)/i` regex and
+	// fell back to the raw EnrollPro `gradeLevelId`, then filtered to 7..10. With
+	// no name, id 1..4 was therefore dropped from the official program's grade
+	// picker entirely. `ctx.sections[].gradeLevel` is already the resolved real
+	// grade, so the id can no longer enter this list.
+	const grades = [...new Set(sectionRows.map((section) => section.gradeLevel))]
 		.filter((grade) => Number.isInteger(grade) && grade >= 7 && grade <= 10)
 		.sort((a, b) => a - b)
 		.map((grade) => ({ value: grade, label: `Grade ${grade}` }));
@@ -208,10 +214,7 @@ function sectionTable(ctx: ExportContext, section: Section): Table {
 export async function exportGradeClassProgramDocx(options: ExportOptions & { gradeLevel: number }): Promise<Buffer> {
 	if (!Number.isInteger(options.gradeLevel) || options.gradeLevel < 7 || options.gradeLevel > 10) throw new Error('INVALID_GRADE_LEVEL');
 	const ctx = await prepare(options);
-	const sections = ctx.sections.filter((section) => {
-		const grade = Number(section.gradeLevelName?.match(/Grade\s+(\d+)/i)?.[1] ?? section.gradeLevelId);
-		return grade === options.gradeLevel;
-	}).sort((a, b) => a.name.localeCompare(b.name));
+	const sections = ctx.sections.filter((section) => section.gradeLevel === options.gradeLevel).sort((a, b) => a.name.localeCompare(b.name));
 	if (!sections.length) throw new Error('GRADE_NOT_FOUND');
 	const intervalsByTime = new Map<string, Interval>();
 	for (const slot of ctx.displaySlots) {
@@ -282,7 +285,11 @@ async function exportEntityDocx(options: ExportOptions & { roomId?: number }, ki
 		for (const [index, section] of sections.entries()) {
 			if (index) children.push(new Paragraph({ children: [new PageBreak()] }));
 			children.push(...titleLines(ctx, `CLASS PROGRAM — ${section.name}`));
-			children.push(new Paragraph({ children: [text(`GRADE ${section.gradeLevelName ?? section.gradeLevelId}    SECTION ${section.name}    ADVISER ${ctx.adviserMap.get(section.externalId) ?? ''}    BUILDING / ROOM ${sectionRoomLabel(ctx, section.externalId)}`)], spacing: { before: 0, after: 80 } }));
+			// A2 c15 (D2): this printed `GRADE ${gradeLevelName ?? gradeLevelId}` on
+			// an official form, so a section with no grade name printed the EnrollPro
+			// internal id — "GRADE 1" for a Grade 7 section. It now prints the
+			// resolved real grade, and says so plainly when there is none.
+			children.push(new Paragraph({ children: [text(`GRADE ${section.gradeLevel > 0 ? section.gradeLevel : 'UNKNOWN'}    SECTION ${section.name}    ADVISER ${ctx.adviserMap.get(section.externalId) ?? ''}    BUILDING / ROOM ${sectionRoomLabel(ctx, section.externalId)}`)], spacing: { before: 0, after: 80 } }));
 			children.push(sectionTable(ctx, section), ...approvalLines(ctx));
 		}
 	} else {
