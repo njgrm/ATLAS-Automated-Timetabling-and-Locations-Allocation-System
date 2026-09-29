@@ -145,9 +145,8 @@ export function resolveLandingElement(target: TeachingLoadLandingTarget, root: P
 			// The outer card is not focusable; the inner `role="button"` carries the
 			// row id and is the element a keyboard user would land on.
 			const sectionId = row.getAttribute('data-section-id');
-			return (sectionId && root.querySelector<HTMLElement>(`#teaching-load-section-row-${sectionId}`))
-				?? row.querySelector<HTMLElement>('[role="button"]')
-				?? row;
+			const inner = sectionId ? root.querySelector<HTMLElement>(`#teaching-load-section-row-${sectionId}`) : null;
+			return inner ?? row.querySelector<HTMLElement>('[role="button"]') ?? row;
 		}
 	}
 	return null;
