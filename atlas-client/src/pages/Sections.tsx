@@ -5,7 +5,6 @@ import {
 	Users,
 	ChevronsLeft,
 	ChevronsRight,
-	Map as MapIcon,
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
@@ -126,14 +125,12 @@ export default function Sections() {
 	   for the disclosure the shared toolbar rendered, and this page's three filters now
 	   sit in the one always-visible `FilterBar` row — so no value would read them. */
 	const [pendingAssignment, setPendingAssignment] = useState<PendingAssignment | null>(null);
-	const [globalBrowseModalOpen, setGlobalBrowseModalOpen] = useState(false);
-	// A3 C4 (top-10 #3): the room map was only reachable by opening a row's
-	// home-room dropdown and choosing "Browse Interactive Map" — two clicks
-	// deep, so the map read as absent. Each row now carries a visible,
-	// labelled control that opens the SAME `SectionRoomMapModal` for that row's
+	// A9 c3 (2026-09-30): the school-wide map control and its open/close state are GONE —
+	// the operator asked for it (section.docx item 5: "should we just remove browser room
+	// map because each section has button directing to the map but dedicated to specific
+	// section") and the per-section map below covers every real read. Each row carries a
+	// visible, labelled control that opens the SAME `SectionRoomMapModal` for that row's
 	// section. `null` means closed; a section means "open for this section".
-	// Distinct from `globalBrowseModalOpen`, which stays the school-wide
-	// browse surface and keeps its own sectionId={0} / currentRoomId={null}.
 	const [mapTarget, setMapTarget] = useState<SectionDetail | null>(null);
 	const [autoAssignOpen, setAutoAssignOpen] = useState(false);
 	const [buildings, setBuildings] = useState<Building[]>([]);
@@ -151,7 +148,6 @@ export default function Sections() {
 		// child survives across the change with the previous scope's school.
 		setActiveSchoolYearId(null);
 		setDetailTarget(null);
-		setGlobalBrowseModalOpen(false);
 		setMapTarget(null);
 		setAutoAssignOpen(false);
 	}, [actorSchoolId]);
@@ -775,18 +771,11 @@ export default function Sections() {
 					: 'Reconnect and sync sections before this page can be used.',
 			}}
 			stats={sectionStats}
-			secondaryActions={(
-				<Button
-					variant="outline"
-					size="sm"
-					className="gap-2 border-primary/20 bg-primary/5 font-bold text-primary hover:bg-primary/10"
-					onClick={() => setGlobalBrowseModalOpen(true)}
-				>
-					<MapIcon className="size-4" />
-					<span className="hidden sm:inline">Browse room map</span>
-					<span className="sm:hidden">Rooms</span>
-				</Button>
-			)}
+			/* A9 c3 (2026-09-30): the school-wide `Browse room map` control is REMOVED.
+			   The operator's section.docx item 5 asked for it, and every row already opens
+			   a map scoped to its own section, so the header slot is not left with a
+			   second, lesser map entry point. The header keeps its tabs, one status chip
+			   and `More` (AGENTS.md §8). */
 			toolbar={(
 				/* A5 c8 (2026-09-29): `AdminSearchFilterToolbar` is deleted from
 				   `AdminWorkspace.tsx` — it was the last consumer, so there is no second
@@ -936,8 +925,6 @@ export default function Sections() {
 			`handleHomeRoomChange` path all travel with them. */}
 		<SectionsHomeRoomMapModals
 			scopedSchoolId={scopedSchoolId}
-			globalBrowseOpen={globalBrowseModalOpen}
-			onGlobalBrowseOpenChange={setGlobalBrowseModalOpen}
 			mapTarget={mapTarget}
 			onMapTargetChange={setMapTarget}
 			roomOccupancy={roomOccupancyMap}
