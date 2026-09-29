@@ -31,6 +31,20 @@ const authenticatedRoutes = [
 	'/map', '/audit', '/admin/year-setup',
 ];
 
+test('the retired teacher page and its alias both name the one page a scheduler reaches', () => {
+	// A3 c15 — `/faculty/concerns` is a RETIRED ALIAS for Teacher Preferences, and
+	// `/faculty/preferences` is now the real route. Both must resolve the chrome of
+	// the page they land on, or the alias flashes the generic "ATLAS" title for the
+	// instant before its redirect settles (the defect this file exists for).
+	const real = resolveRouteChrome('/faculty/preferences');
+	assert.equal(real.title, 'Teacher Preferences', '/faculty/preferences is the real page, so it carries the page name');
+	assert.deepEqual(real.breadcrumbs, ['Teachers and Rooms', 'Teacher Preferences']);
+	for (const alias of ['/faculty/concerns', '/faculty/room-preferences']) {
+		const chrome = resolveRouteChrome(alias);
+		assert.deepEqual(chrome, real, `${alias} must resolve exactly the chrome of the page it redirects to`);
+	}
+});
+
 test('every authenticated route resolves truthful chrome with no repeated group and leaf', () => {
 	for (const route of authenticatedRoutes) {
 		const chrome = resolveRouteChrome(route);

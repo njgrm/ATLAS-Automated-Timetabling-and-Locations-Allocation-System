@@ -137,13 +137,15 @@ test('D5 a stale availability change renders its chip and the explicit regenerat
 	assert.match(markup, /data-testid="timetable-simple-regenerate-impact"/);
 	assert.match(markup, /Regenerate to apply/);
 	// PUBLISHED-TERM-AND-DRIFT-FOLLOWUP-C01 (F2) — the rendered chip's repair
-	// action must carry the exact concern-workspace href, and that href must be
-	// a mounted route. A mounted-route-only assertion would be satisfied by
-	// the legacy `/faculty` redirect too, so the href itself is asserted.
+	// action must carry the exact preferences-workspace href, and that href must
+	// be a mounted route. A mounted-route-only assertion would be satisfied by
+	// the legacy `/faculty` redirect too, so the href itself is asserted. A3 c15
+	// renamed the page to Teacher Preferences at `/faculty/preferences`.
 	assert.match(markup, /data-testid="timetable-simple-repair-availability"/);
-	assert.match(markup, /href="\/faculty\/concerns"/);
+	assert.match(markup, /href="\/faculty\/preferences"/);
 	assert.doesNotMatch(markup, /href="\/faculty"/);
-	assert.ok(mountedRoutes().has('/faculty/concerns'), 'the availability repair href must be a mounted route');
+	assert.doesNotMatch(markup, /href="\/faculty\/concerns"/, 'a repair link must name the page, not its retired alias');
+	assert.ok(mountedRoutes().has('/faculty/preferences'), 'the availability repair href must be a mounted route');
 	// `availability` is a mapped domain, so the primary repair affordance IS the
 	// per-domain control (it carries data-primary-repair) and the umbrella Year
 	// Setup fallback must not appear.

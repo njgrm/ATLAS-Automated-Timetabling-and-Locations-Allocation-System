@@ -7,7 +7,7 @@ test('scheduler navigation is limited to scheduling workspace routes', () => {
 	const paths = getVisibleNavigation({ role: 'scheduler', capabilities: ['timetable:read'] })
 		.map((item) => item.to);
 
-	assert.deepEqual(paths, ['/', '/teaching-load', '/faculty/concerns', '/timetable', '/schedules']);
+	assert.deepEqual(paths, ['/', '/teaching-load', '/faculty/preferences', '/timetable', '/schedules']);
 	assert.equal(paths.some((path) => path.startsWith('/admin')), false);
 	assert.equal(paths.includes('/teachers'), false);
 });
@@ -22,7 +22,7 @@ test('teacher-schedulers retain self-service and teacher-only accounts do not ge
 
 	// D6 — the teacher portal is retired; only the read-only `/my` remains.
 	assert.ok(combined.includes('/my'));
-	assert.ok(combined.includes('/faculty/concerns'));
+	assert.ok(combined.includes('/faculty/preferences'));
 	assert.deepEqual(teacher, ['/my']);
 });
 

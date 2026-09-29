@@ -1,5 +1,7 @@
 /**
- * A3-C6 — `/faculty/concerns` truthfulness (lane concerns, inventory row 40).
+ * A3-C6 — teacher-page truthfulness (lane concerns, inventory row 40). A3 c15
+ * renamed the page Teacher Preferences and moved it to `/faculty/preferences`;
+ * `/faculty/concerns` is now its retired alias.
  *
  * This page is one an operator will click in a demo. Four defects made it lie
  * about what it could do. Each has a control here that DISCRIMINATES: every one
@@ -22,7 +24,7 @@
  *      tone was already there; the words were jargon. The badge tone is
  *      unchanged — only the label became plain.
  *  C4  With `changedDomains: ['availability']` "Open owning setup" resolved to
- *      `/faculty/concerns`, the page the operator was already on. With
+ *      `/faculty/preferences`, the page the operator was already on. With
  *      `['policy']` it resolved to `/timetable`, byte-identical to "Review &
  *      regenerate" — the same destination under two labels on one screen.
  *      A3-C6R1: the ACTION links are de-duplicated by destination, and the
@@ -45,7 +47,7 @@ import type { GenerationInputComparison } from '@/types';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLIENT_ROOT = resolve(HERE, '../../../..');
-const CONCERN_ROUTE = '/faculty/concerns';
+const CONCERN_ROUTE = '/faculty/preferences';
 
 function source(path: string): string {
 	return readFileSync(resolve(CLIENT_ROOT, path), 'utf8');
@@ -224,7 +226,7 @@ test('C2: no rendered link claims a published-revisions destination', async () =
 });
 
 test('C2: the concern layer no longer exports a /schedules revisions destination', async () => {
-	assert.equal(HELPER_CONCERN_ROUTE, '/faculty/concerns');
+	assert.equal(HELPER_CONCERN_ROUTE, '/faculty/preferences');
 	/*
 	 * Supersedes the pre-fix `revisionHref: '/schedules'` producer, which pinned
 	 * the false errand. The view now exposes no second href at all: one Class
@@ -342,10 +344,10 @@ test('C4: availability drift renders no ACTION link back to this page', async ()
 		createElement(RunAvailabilityDriftCard, { inputState: inputState({ changedDomains: ['availability'] }), facultyName: 'Dela Cruz, Juan' }),
 	);
 	// Scoped to the ACTION set: the availability chip itself links to
-	// `/faculty/concerns`, which is this domain's canonical home, and that
+	// `/faculty/preferences`, which is this domain's canonical home, and that
 	// navigation is a preserved affordance rather than an errand.
 	assert.ok(
-		!actionHrefs(host).includes('/faculty/concerns'),
+		!actionHrefs(host).includes('/faculty/preferences'),
 		`self-link action to the current page: ${JSON.stringify(actionHrefs(host))}`,
 	);
 	assert.doesNotMatch(host.innerHTML, /Open owning setup/i, 'a self-link is still labelled "Open owning setup"');
@@ -377,7 +379,7 @@ test('C4: every rendered ACTION link has a distinct destination across the drift
 		);
 		const list = actionHrefs(host);
 		assert.equal(new Set(list).size, list.length, `duplicate ACTION destination for ${JSON.stringify(domains)}: ${JSON.stringify(list)}`);
-		assert.ok(!list.includes('/faculty/concerns'), `self-link ACTION for ${JSON.stringify(domains)}`);
+		assert.ok(!list.includes('/faculty/preferences'), `self-link ACTION for ${JSON.stringify(domains)}`);
 		assert.ok(!list.includes('/schedules'), `dead /schedules link for ${JSON.stringify(domains)}`);
 	}
 });

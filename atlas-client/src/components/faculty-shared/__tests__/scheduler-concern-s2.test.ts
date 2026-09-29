@@ -5,7 +5,8 @@
  *  1. D6 mechanical no-dangling search over the whole client `src` tree.
  *  2. The real concern client functions against a recording transport (URL,
  *     method, body) with fail-closed scope and zero dispatch on rejection.
- *  3. Navigation/route-chrome truth for `/faculty/concerns` and `/my`.
+ *  3. Navigation/route-chrome truth for `/faculty/preferences` (the page) and
+ *     `/faculty/concerns` (its retired alias), plus `/my`.
  *  4. Notes/room-request round trip and the shared drift mapping delegation.
  *  5. AGENTS §8 structural constraints on the new surfaces.
  *
@@ -91,9 +92,14 @@ test('D6: the surviving portal and scheduler review routes stay registered', () 
 	assert.match(app, /path: 'my',\s*\n\s*element: <RetiredFacultyPortalNotice \/>/);
 	assert.doesNotMatch(app, /<MyDashboard \/>/, 'the retired dashboard element must not be mounted');
 	assert.doesNotMatch(app, /import\([^)]*MyDashboard/, 'the retired dashboard must not even be imported');
-	assert.match(app, /path: 'faculty\/preferences',\s*\n\s*element: <OfficerPreferences \/>/);
+	// A3 c15 — Teacher Preferences is the ONE page and `/faculty/preferences` is
+	// its REAL route; `/faculty/concerns` is the retired alias that redirects to
+	// it. Both paths stay registered so an old deep link still lands somewhere
+	// truthful, and only one of them mounts the page.
+	assert.match(app, /path: 'faculty\/preferences',\s*\n\s*element: <TeacherConcerns \/>/);
 	assert.match(app, /path: 'faculty\/room-preferences',\s*\n\s*element: <OfficerRoomPreferences \/>/);
-	assert.match(app, /path: 'faculty\/concerns',\s*\n\s*element: <TeacherConcerns \/>/);
+	assert.match(app, /path: 'faculty\/concerns',\s*\n\s*element: <TeacherConcernsAlias \/>/);
+	assert.doesNotMatch(app, /path: 'faculty\/preferences',\s*\n\s*element: <OfficerPreferences \/>/, 'the folded Faculty Preferences page must no longer be mounted');
 });
 
 test('D6: notification deep links to the retired surfaces are inert, others preserved', () => {
@@ -115,16 +121,19 @@ test('faculty navigation is the single /my destination, now a retirement tombsto
 
 test('the concern workspace has its own nav entry reachable to schedulers and admins', () => {
 	const schedulerPaths = getVisibleNavigation({ role: 'scheduler', capabilities: ['timetable:read'] }).map((item) => item.to);
-	assert.ok(schedulerPaths.includes('/faculty/concerns'), 'scheduler must see the concern workspace');
-	assert.ok(getVisibleNavigation({ role: 'admin' }).map((item) => item.to).includes('/faculty/concerns'));
+	assert.ok(schedulerPaths.includes('/faculty/preferences'), 'scheduler must see the teacher preferences workspace');
+	assert.ok(getVisibleNavigation({ role: 'admin' }).map((item) => item.to).includes('/faculty/preferences'));
 	assert.equal(navigationNav.length, 1);
 });
 
 test('the concern route resolves truthful chrome, not the ATLAS fallback', () => {
-	const chrome = resolveRouteChrome('/faculty/concerns');
-	assert.equal(chrome.title, 'Teacher Concerns');
-	assert.equal(chrome.breadcrumbs.at(-1), 'Teacher Concerns');
+	const chrome = resolveRouteChrome('/faculty/preferences');
+	assert.equal(chrome.title, 'Teacher Preferences');
+	assert.equal(chrome.breadcrumbs.at(-1), 'Teacher Preferences');
 	assert.equal(new Set(chrome.breadcrumbs).size, chrome.breadcrumbs.length);
+	// A3 c15 — the retired alias must resolve the SAME chrome, or the deep link
+	// flashes the generic "ATLAS" title for the instant before it redirects.
+	assert.deepEqual(resolveRouteChrome('/faculty/concerns'), chrome, '/faculty/concerns must name the page it lands on');
 });
 
 /* ───────────────────────── the real client functions ───────────────────────── */
