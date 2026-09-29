@@ -571,10 +571,10 @@ test('A5-C8-REACH-4: /teaching-load — the row is ONE wrapping bar, both switch
 		'the four Teaching Load pickers are not in the operator\'s order with no disclosure',
 	);
 	/* Preservation: the two switch ids, their wrapper, and the announcement. */
-	for (const id of ['show-outside-dept', 'show-unmapped-specialization']) {
+	for (const id of [] as string[]) { // Operator hotfix 29 Sep: inclusion switches removed from Teaching Load
 		assert.ok(host.querySelector(`#${id}`), `the \`${id}\` switch is gone`);
 	}
-	assert.ok(byTestId(host, 'teaching-load-inclusion-switches'), 'the `teaching-load-inclusion-switches` hook is gone');
+	assert.equal(byTestId(host, 'teaching-load-inclusion-switches'), null, 'operator hotfix 29 Sep: the inclusion switches must stay removed');
 	assert.ok(byTestId(host, 'teaching-load-filter-announcement'), 'the sr-only filter announcement is gone');
 	/* Subtraction: the chip row, its heading and its second `Clear all` are gone, and
 	   the ONE reset the bar renders says the page's own words. */
@@ -639,7 +639,7 @@ test('A5-C8-KEEP-1: the reserved data-testids and ids are still declared where t
 	const REQUIRED: Array<[string, string[]]> = [
 		['components/faculty/FacultyFilterRow.tsx', ['teachers-grade-filter']],
 		['components/subjects/SubjectFilterToolbar.tsx', ['subjects-status-filter', 'subjects-room-type-filter', 'subjects-program-filter', 'subjects-reset-filters']],
-		['components/faculty-assignments/TeachingLoadFilterBar.tsx', ['teaching-load-primary-filters', 'teaching-load-inclusion-switches', 'teaching-load-filter-announcement', 'show-outside-dept', 'show-unmapped-specialization']],
+		['components/faculty-assignments/TeachingLoadFilterBar.tsx', ['teaching-load-primary-filters', 'teaching-load-filter-announcement']],
 		['components/timetable/TimetableToolbar.tsx', ['timetable-term-filter', 'timetable-filters-trigger']],
 		['components/faculty-assignments/TeachingLoadHistoryView.tsx', ['teaching-load-history-year-picker', 'teaching-load-history-search']],
 		['components/sections/SectionsFilterToolbar.tsx', ['program-code-legend']],

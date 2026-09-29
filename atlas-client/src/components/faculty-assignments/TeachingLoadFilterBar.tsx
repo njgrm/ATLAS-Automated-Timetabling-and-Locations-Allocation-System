@@ -510,48 +510,8 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 				    which is one row of FILTERS plus a separate draft action group, not
 				    a filter row broken in two.
 				    */}
-				<div className={SWITCH_CHROME} data-testid="teaching-load-inclusion-switches">
-					<TooltipProvider delayDuration={200}>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<div className="flex items-center gap-2">
-									<Switch
-										id="show-outside-dept"
-										checked={showOutsideDept}
-										onCheckedChange={onToggleOutsideDept}
-										aria-label={OUTSIDE_DEPT_FILTER_EXPLANATION}
-									/>
-									<Label htmlFor="show-outside-dept" className={SWITCH_LABEL_CLASS}>
-										{OUTSIDE_DEPT_FILTER_FACE}
-									</Label>
-								</div>
-							</TooltipTrigger>
-							<TooltipContent side="top" className="max-w-72 text-xs leading-relaxed">
-								{OUTSIDE_DEPT_FILTER_EXPLANATION}
-							</TooltipContent>
-						</Tooltip>
-
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<div className="flex items-center gap-2 border-l border-border/60">
-									<Switch
-										id="show-unmapped-specialization"
-										checked={showUnmappedSpecialization}
-										onCheckedChange={onShowUnmappedSpecializationChange}
-										aria-label="Show only teachers whose subject is not in the catalog"
-									/>
-									<Label htmlFor="show-unmapped-specialization" className={SWITCH_LABEL_CLASS}>
-										No subject match
-									</Label>
-								</div>
-							</TooltipTrigger>
-							<TooltipContent side="top" className="max-w-64 text-xs leading-relaxed">
-								Show only teachers whose subject is not in the catalog
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-				</div>
-
+				{/* Operator hotfix 29 Sep (8f10b2e8), re-applied after the A5 c8 merge restored them: NO inclusion switches on this
+				    row. Other subjects open per teacher inside the load editor (Show other subjects). Do not add them back. */}
 			{/* FIX 40: the draft group, its own `ml-auto` child of the one row again,
 			    so the two filter toggles are never dragged onto a second line by it. */}
 				{draftControls ? (
