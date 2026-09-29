@@ -15,6 +15,10 @@
  *      the `Room readiness` card container directly underneath", and change the
  *      subtext to "Select a building on the map to inspect rooms, or review room
  *      readiness below."
+ *      — A9 c4, item 37 SUPERSEDED the subtext half of this: the operator has
+ *      since asked for that sentence removed, and the row that asserted it is
+ *      kept as a skipped record beside its replacement. The INVERSION half — map
+ *      first, readiness below — stands and is still asserted below.
  *   4. "The top-right header action row should cleanly contain only the primary
  *      action button: `[Edit maps]`".
  *
@@ -301,21 +305,65 @@ test('37 RENDERED: the Campus Explorer is the TOP section and Room readiness is 
 	}
 });
 
-test('37 RENDERED: the header subtext is the operator\'s sentence, and one action', async () => {
-	const doc = await mount(createElement(CampusMapOverview, { buildings: BUILDINGS, campusImageUrl: null }));
-	try {
-		assert.ok(
-			(doc.body.textContent ?? '').includes('Select a building on the map to inspect rooms, or review room readiness below.'),
-			'the operator\'s replacement subtext must be rendered',
-		);
-		// Exactly ONE header action, and it is the editor: `Edit maps`.
-		const editMaps = Array.from(doc.querySelectorAll('a')).filter((a) => (a.textContent ?? '').trim() === 'Edit maps');
-		assert.equal(editMaps.length, 1, `exactly one "Edit maps" action, found ${editMaps.length}`);
-		assert.equal(editMaps[0].getAttribute('href'), '/map?mode=editor', 'and it must lead to the editor');
-		assert.doesNotMatch(doc.body.textContent ?? '', /Edit rooms/, 'the old "Edit rooms" label must be gone');
-	} finally {
-		await teardown();
-	}
+test('37 RENDERED: the header subtext is the operator\'s sentence, and one action', { skip: 'SUPERSEDED by A9 c4 — see the row below' }, async () => {
+    // SUPERSEDED BY A9 c4, ITEM 37, and kept rather than deleted (AGENTS.md §16).
+    // A3 c11 added this sentence because fix-2.docx item 3 asked for it; the
+    // operator has since asked for it GONE, so the claim this row made — that the
+    // sentence IS rendered — is now the defect. Its replacement, "37+A9C4 RENDERED:
+    // the header helper line is GONE, and one action remains", is the next row in
+    // this file. The "exactly one `Edit maps` action, and it leads to the editor"
+    // claim is NOT superseded and is re-asserted verbatim there.
+    const doc = await mount(createElement(CampusMapOverview, { buildings: BUILDINGS, campusImageUrl: null }));
+    try {
+        assert.ok(
+            (doc.body.textContent ?? '').includes('Select a building on the map to inspect rooms, or review room readiness below.'),
+            'the operator\'s replacement subtext must be rendered',
+        );
+        // Exactly ONE header action, and it is the editor: `Edit maps`.
+        const editMaps = Array.from(doc.querySelectorAll('a')).filter((a) => (a.textContent ?? '').trim() === 'Edit maps');
+        assert.equal(editMaps.length, 1, `exactly one "Edit maps" action, found ${editMaps.length}`);
+        assert.equal(editMaps[0].getAttribute('href'), '/map?mode=editor', 'and it must lead to the editor');
+        assert.doesNotMatch(doc.body.textContent ?? '', /Edit rooms/, 'the old "Edit rooms" label must be gone');
+    } finally {
+        await teardown();
+    }
+});
+
+test('37+A9C4 RENDERED: the header helper line is GONE, and one action remains', async () => {
+    // The operator's ask for A9 c4, item 37: remove the helper line "Select a
+    // building on the map to inspect rooms, or review room readiness below."
+    //
+    // SUBTRACT, NOT REWORD (AGENTS.md §8 header budget, and the design judgement
+    // gate's "subtract first"). So this row asserts the ABSENCE of the sentence
+    // and of its vocabulary, not the presence of some other sentence — a
+    // reworded subtitle would pass a presence check and still be the cramming the
+    // operator complained about. The `PageHeader` still renders a title, the two
+    // status chips and the single `Edit maps` action, and those are asserted here
+    // so the subtraction cannot be mistaken for a page that lost its header.
+    const doc = await mount(createElement(CampusMapOverview, { buildings: BUILDINGS, campusImageUrl: null }));
+    try {
+        const body = doc.body.textContent ?? '';
+        assert.doesNotMatch(
+            body,
+            /Select a building on the map to inspect rooms, or review room readiness below\./,
+            'the removed helper line must not be rendered anywhere on /map',
+        );
+        assert.doesNotMatch(
+            body,
+            /to inspect rooms, or review room readiness/i,
+            'nor may it survive reworded — the ask was to remove the line, not to rewrite it',
+        );
+        // What STAYS, so the removal is not mistaken for a gutted header: the
+        // title, and the single primary action.
+        assert.ok(body.includes('Campus & Rooms'), 'the overview title must remain');
+        // Exactly ONE header action, and it is the editor: `Edit maps` — the
+        // unsuperseded half of the row above, re-asserted here verbatim.
+        const editMaps = Array.from(doc.querySelectorAll('a')).filter((a) => (a.textContent ?? '').trim() === 'Edit maps');
+        assert.equal(editMaps.length, 1, `exactly one "Edit maps" action, found ${editMaps.length}`);
+        assert.equal(editMaps[0].getAttribute('href'), '/map?mode=editor', 'and it must lead to the editor');
+    } finally {
+        await teardown();
+    }
 });
 
 test('37 RENDERED: /map paints no floating overlay cluster', async () => {
