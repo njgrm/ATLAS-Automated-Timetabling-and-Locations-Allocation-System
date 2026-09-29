@@ -10,7 +10,8 @@ import { useReducedMotion } from 'motion/react';
 
 import { captureBridgeToken } from '@/lib/bridge';
 import { resolveEnrollProLogoutRedirect } from '@/lib/companion-config';
-import { applyEnrollProAccentTheme, fetchPublicSettings, verifySessionToken } from '@/lib/settings';
+import { applyEnrollProAccentTheme, fetchPublicSettings } from '@/lib/settings';
+import { verifySessionWithinDeadline } from '@/lib/session-verification';
 import { invalidateActiveSchoolYearContext, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { isVerifiedOrderedActiveTerm } from '@/lib/academic-term';
 import {
@@ -26,7 +27,6 @@ import {
 	clearBridgeToken,
 	clearLocalToken,
 	clearUserRoleCache,
-	hasAnyAuthToken,
 	isFacultyPortalRoute,
 	subscribeAtlasTokenEpoch,
 } from '@/lib/auth';
@@ -52,6 +52,7 @@ import { NotificationBell } from '@/components/app-shell/NotificationBell';
 
 import { AppSidebar } from './app-shell/AppSidebar';
 import { AppBreadcrumbs } from './app-shell/PageHeader';
+import { SessionVerificationNotice } from './app-shell/SessionVerificationNotice';
 import { FacultyMobileBottomNav } from '@/components/app-shell/FacultyMobileBottomNav';
 import { MobileNavigationDrawer } from './app-shell/MobileNavigationDrawer';
 import {
@@ -147,7 +148,7 @@ export function AppShell() {
 	const [routeEpoch, setRouteEpoch] = useState(0);
 	const [rolloverNotice, setRolloverNotice] = useState<RolloverAwarenessNotice | null>(null);
 	const [bridgeUser, setBridgeUser] = useState<BridgeUser | null>(null);
-	const [sessionVerificationState, setSessionVerificationState] = useState<'verifying' | 'authenticated' | 'unauthenticated'>('verifying');
+	const [sessionVerificationState, setSessionVerificationState] = useState<'verifying' | 'authenticated' | 'unauthenticated' | 'unconfirmed'>('verifying');
 	const [authSource, setAuthSource] = useState<'bridge' | 'local' | null>(null);
 	const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 1023px)').matches);
 	const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -330,31 +331,46 @@ export function AppShell() {
 	}, []);
 
 	const verifyActorSession = useCallback(() => {
-		if (!hasAnyAuthToken()) {
-			setSessionVerificationState('unauthenticated');
-			setBridgeUser(null);
-			setAuthSource(null);
-			clearUserRoleCache();
-			navigate('/login', { replace: true });
-			return;
-		}
+		// A7-C5: ONE deadline-bound resolver, shared with `/admin/year-setup`.
+		// The three outcomes are not interchangeable, and the middle one is new:
+		//
+		//   unauthenticated — a real answer (no token, `null`, a rejection). The
+		//     existing clear-and-redirect authority is UNCHANGED; a dead session
+		//     is still dead. `no-token` keeps its narrower historical cleanup
+		//     (`clearUserRoleCache` only) so this does not silently widen what an
+		//     absent token destroys.
+		//   unconfirmed — NO answer. The server was slow. Nothing is cleared, the
+		//     operator is not signed out, and there is no redirect to `/login`.
+		//   authenticated — unchanged.
+		//
+		// The `catch` branch is gone on purpose: the resolver never throws, and a
+		// throw here would read as "signed out" over a slow network.
 		setSessionVerificationState('verifying');
-
 		authCheckSeqRef.current += 1;
 		const checkSeq = authCheckSeqRef.current;
 
-		verifySessionToken().then((u) => {
+		void verifySessionWithinDeadline().then((outcome) => {
 			if (checkSeq !== authCheckSeqRef.current) return;
 
-			if (!u) {
+			if (outcome.kind === 'unconfirmed') {
+				// Keep `bridgeUser` and the auth source exactly as they are: this
+				// is not a logout, and dropping them would blank a shell that was
+				// working a moment ago.
+				setSessionVerificationState('unconfirmed');
+				return;
+			}
+
+			if (outcome.kind === 'unauthenticated') {
 				setSessionVerificationState('unauthenticated');
 				setBridgeUser(null);
 				setAuthSource(null);
-				clearAtlasAuthStorage();
+				if (outcome.reason === 'no-token') clearUserRoleCache();
+				else clearAtlasAuthStorage();
 				navigate('/login', { replace: true });
 				return;
 			}
 
+			const u = outcome.user;
 			setBridgeUser(u);
 			setSessionVerificationState('authenticated');
 			setAuthSource(u.authSource ?? 'bridge');
@@ -363,13 +379,6 @@ export function AppShell() {
 			if (u.role === 'faculty' && !isFacultyPortalRoute(location.pathname)) {
 				navigate('/my', { replace: true });
 			}
-		}).catch(() => {
-			if (checkSeq !== authCheckSeqRef.current) return;
-			setSessionVerificationState('unauthenticated');
-			setBridgeUser(null);
-			setAuthSource(null);
-			clearAtlasAuthStorage();
-			navigate('/login', { replace: true });
 		});
 	}, [navigate]);
 
@@ -556,6 +565,20 @@ export function AppShell() {
 							</Button>
 						</div>
 					</section>
+				)}
+
+				{/* A7-C5 — the ONE recovery surface for an unconfirmed sign-in, a
+				    sibling of the rollover band above. It is mounted HERE and nowhere
+				    else in the tree: a page that rendered its own copy would show the
+				    same sentence and a second set of buttons two inches below this
+				    one, which is the "two chips that say the same thing" defect
+				    §8 forbids. `Try again` re-runs the SAME resolver; `Back to
+				    dashboard` is the safe way out that never costs a sign-in. */}
+				{sessionVerificationState === 'unconfirmed' && (
+					<SessionVerificationNotice
+						onRetry={verifyActorSession}
+						onBackToDashboard={() => navigate('/', { replace: true })}
+					/>
 				)}
 
 				{isMobile && (

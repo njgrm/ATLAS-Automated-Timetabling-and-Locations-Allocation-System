@@ -476,7 +476,16 @@ export function RolloverGuidanceCard({
 		setArchiving(true);
 		setError(null);
 		try {
-			const result = await applyArchiveAndSync(schoolId);
+			// A7-C5: the archive-shaped start now sends the two carry switches too.
+			// It always DID carry over on the server (`archiveAndSyncActiveYear`
+			// -> `applyRolloverSync` -> the fail-safe KEEP default); A7-C4 only hid
+			// the switches here, which left the operator keeping last year's setup
+			// with no way to turn it off and no way to see that it was happening.
+			// Both off is the only way to get an empty new year, and it was
+			// unreachable.
+			const result = await applyArchiveAndSync(schoolId, {
+				yearSetupCarry: { keepSchedulingRules, keepGradeTimeWindows },
+			});
 			setArchivePreview(null);
 			await loadStatus(true);
 			toast.success(plainLanguageNextStep

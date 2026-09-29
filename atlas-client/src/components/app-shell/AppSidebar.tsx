@@ -113,7 +113,7 @@ export type AppSidebarProps = {
 	logoUrl: string | null;
 	activeYearLabel: string | null;
 	bridgeUser: BridgeUser | null;
-	sessionVerificationState?: 'verifying' | 'authenticated' | 'unauthenticated';
+	sessionVerificationState?: 'verifying' | 'authenticated' | 'unauthenticated' | 'unconfirmed';
 	pathname: string;
 	onLogout: () => void;
 	className?: string;
@@ -251,27 +251,45 @@ export function AppSidebar({
 											<LogOut className='size-4 text-muted-foreground' />
 										</div>
 										<div className='flex w-full items-center gap-2 transition-all duration-200 opacity-100 group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:scale-95 group-data-[collapsible=icon]:pointer-events-none'>
-											<div className='flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground overflow-hidden'>
-												<span className='text-xs font-semibold'>
-										{sessionVerificationState === 'verifying' ? '…' : bridgeUser?.role ? bridgeUser.role.charAt(0).toUpperCase() : 'G'}
-												</span>
-											</div>
-											<div className='grid flex-1 text-left text-sm leading-tight overflow-hidden'>
-											<span className='truncate font-semibold'>{sessionVerificationState === 'verifying' ? 'Verifying session…' : bridgeUser?.role ?? 'Guest'}</span>
-												{isAdmin && (
-																	<Badge variant='outline' className='mt-0.5 min-h-5 w-fit border-purple-200 bg-purple-50 px-1 text-xs font-bold text-purple-700'>
-														Admin
-													</Badge>
-												)}
-												{isFaculty && (
-																	<span className='truncate text-xs text-muted-foreground'>Teacher</span>
-												)}
-												{sessionVerificationState === 'verifying' ? (
-													<span className='truncate text-xs text-muted-foreground'>Checking your sign-in</span>
-												) : !isAdmin && !isFaculty && (
-																	<span className='truncate text-xs text-muted-foreground'>Portal access</span>
-												)}
-											</div>
+										<div className='flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground overflow-hidden'>
+											<span className='text-xs font-semibold'>
+												{bridgeUser?.role ? bridgeUser.role.charAt(0).toUpperCase() : 'G'}
+											</span>
+										</div>
+										<div className='grid flex-1 text-left text-sm leading-tight overflow-hidden'>
+											{/* A7-C5. The role line reads ONE short, honest thing per state.
+											    A7-C5 removed the two long strings that sat here — the
+											    sidebar claimed a sign-in was being checked and then
+											    said it again underneath, and because the check had
+											    no deadline they could both be read forever. The check
+											    is bounded now, so the line is bounded too: one short
+											    placeholder while it runs, the role once it resolves,
+											    and `Sign-in not confirmed` if it ran out of time.
+
+											    It is NOT "Guest" while a check is in flight: a
+											    `timetable-lifecycle-controls-c03` row exists
+											    precisely to stop this line claiming a guest before
+											    ATLAS has asked, and a slow server must not read as
+											    a signed-out user. The recovery sentence and its two
+											    buttons live once, in the shell's band — no second
+											    copy of either belongs here (§8: one status per fact). */}
+											<span className='truncate font-semibold'>{sessionVerificationState === 'unconfirmed'
+												? 'Sign-in not confirmed'
+												: sessionVerificationState === 'verifying' && !bridgeUser
+													? 'Signing in…'
+													: bridgeUser?.role ?? 'Guest'}</span>
+											{isAdmin && (
+																<Badge variant='outline' className='mt-0.5 min-h-5 w-fit border-purple-200 bg-purple-50 px-1 text-xs font-bold text-purple-700'>
+																	Admin
+																</Badge>
+															)}
+											{isFaculty && (
+																<span className='truncate text-xs text-muted-foreground'>Teacher</span>
+															)}
+											{sessionVerificationState !== 'unconfirmed' && !isAdmin && !isFaculty && (
+																<span className='truncate text-xs text-muted-foreground'>Portal access</span>
+															)}
+										</div>
 										</div>
 									</SidebarMenuButton>
 								</DropdownMenuTrigger>

@@ -1495,6 +1495,19 @@ export type ArchiveAndSyncInput = {
 	reason?: string;
 	initiatedBy?: 'user' | 'system';
 	acknowledgeReconfiguredSectionIds?: number[];
+	/**
+	 * A7-C5 — forwarded VERBATIM into `applyRolloverSync`, which hands it to
+	 * `resolveYearSetupCarryOptions`. This path has always carried over: before
+	 * this field existed the call simply arrived with nothing, and the fail-safe
+	 * read that as KEEP. So the value was already governing a decision while the
+	 * client had no way to express it.
+	 *
+	 * Nothing here may validate, coerce or default a value. The two switches are
+	 * interpreted in exactly one function, and "anything not literally `false`
+	 * keeps" is a property of the server, not of a checkbox — a stale client, a
+	 * direct API caller and a missing field must all still keep.
+	 */
+	yearSetupCarry?: Partial<YearSetupCarryOptions>;
 	/** Test seam: replaces the standard apply (same signature). */
 	applyRolloverSyncImpl?: typeof applyRolloverSync;
 	/** Test seam: replaces the direct notification publish. */
@@ -1564,6 +1577,8 @@ export async function archiveAndSyncActiveYear(input: ArchiveAndSyncInput): Prom
 		actorId: input.actorId,
 		initiatedBy: input.initiatedBy,
 		acknowledgeReconfiguredSectionIds: input.acknowledgeReconfiguredSectionIds,
+		// A7-C5: verbatim, so the one fail-safe interpreter decides.
+		yearSetupCarry: input.yearSetupCarry,
 	});
 
 	await prisma.auditLog.create({

@@ -22,10 +22,24 @@ test('pending session verification uses neutral shell identity instead of Guest'
 	const sidebar = source('components/app-shell/AppSidebar.tsx');
 	assert.match(shell, /sessionVerificationState/);
 	assert.match(shell, /sessionVerificationState=\{sessionVerificationState\}/);
-	assert.match(sidebar, /sessionVerificationState === 'verifying' \? 'Verifying session…' : bridgeUser\?\.role \?\? 'Guest'/);
+	// A7-C5 retargeted this line. It used to pin the literal
+	// `sessionVerificationState === 'verifying' ? 'Verifying session…' : ...`,
+	// which is exactly the unbounded promise the packet removed: the sidebar
+	// claimed a sign-in was being checked, and with no deadline on the check
+	// that line could be read forever. The row's INTENT is kept verbatim — while
+	// a check is in flight the line must not claim `Guest`, because ATLAS has not
+	// asked yet and a slow server is not a signed-out user — and the bounded
+	// placeholder now carries it. The `unconfirmed` line is added beside it, not
+	// in place of it, so the new third state is pinned too.
+	assert.match(sidebar, /sessionVerificationState === 'verifying' && !bridgeUser\s*\?\s*'Signing in…'\s*:\s*bridgeUser\?\.role \?\? 'Guest'/);
+	assert.match(sidebar, /sessionVerificationState === 'unconfirmed'\s*\?\s*'Sign-in not confirmed'/);
+	assert.doesNotMatch(sidebar, /'Verifying session…'/, 'the unbounded sidebar promise must be gone from the component');
 	assert.match(shell, /setSessionVerificationState\('verifying'\)/);
 	assert.match(shell, /setSessionVerificationState\('authenticated'\)/);
 	assert.match(shell, /setSessionVerificationState\('unauthenticated'\)/);
+	// A7-C5 added the third state, and it is the one that must never clear the
+	// stored sign-in or redirect.
+	assert.match(shell, /setSessionVerificationState\('unconfirmed'\)/);
 });
 
 test('desktop timetable controls keep view and searchable entity in the header with refinements anchored nearby', () => {
