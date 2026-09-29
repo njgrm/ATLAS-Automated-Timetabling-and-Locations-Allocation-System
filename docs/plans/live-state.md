@@ -2030,6 +2030,37 @@ or process borrower, and is `RETIRE_AFTER_INTEGRATION` (E: 47.55 GiB before reti
 
 ## Lane C — current lane (written only by Planner C)
 
+### A7-C7 false "School year changed" banner — 2026-09-29 ~14:50 +08 — **on `main` at `3fef69c1`; candidate `3918902e`**
+
+Packet `docs/prompts/a7-c7-false-rollover-banner-2026-09-29.md`. MEDIUM (server + client), 11 paths, **0 `prisma/`**,
+no migration, no auth change. **Not deployed** — A4 owns the cutover; the live banner is still on `3216d383`.
+
+- **Root cause: an id-space collision, confirmed on staging, not a label bug.** `resolveRuntimeContext` pooled two
+  unlinked id spaces into one `yearId`: EnrollPro ext ids (`enrollpro_school_year_mirrors.enrollpro_school_year_id`)
+  against ATLAS surrogates (`section_mirrors`, `generation_runs`, `scheduling_policies.school_year_id`, **no foreign
+  key**). Staging has ATLAS id **1** *and* ext **1**; ATLAS **8** *and* ext **8**. `rankRuntimeYears` sums per-signal
+  scores grouped by the raw `yearId`, so an ATLAS surrogate carrying `section-mirror`+`section-snapshot`+
+  `faculty-snapshot`+`scheduling-policy` outscored the mirror's single 120 and was returned in the **EnrollPro id
+  slot**. The archived-year exclusion and the label lookup compared across spaces, so they filtered only by numeric
+  coincidence. This path only misreports when EnrollPro verification fails (`source='atlas-persisted'`).
+- **Fix:** evidence rows now name their id space; only `enrollpro`-space rows may win; the active year is decided by
+  the mirror's own `isActive`; the archived set and label lookup compare like-for-like. Client: a notice requires
+  `source === 'enrollpro-verified'` **and** a non-archived new year; a persisted notice is dropped **and removed**
+  when expired, archived, or disagreeing with the verified context.
+- **Fresh QA `ACCEPT_READY` 20/20/0/0.** Four mutation controls discriminate (removing the `idSpace` filter fails
+  4 rows; disabling each client refusal fails its row; reverting the reconcile fails 2). New suite 8/8, fails closed
+  on `atlas_staging` with zero writes, residue 0; preservation 43/43 server + 50/50 client; built server starts.
+- **Rendered proof on REAL staging data** (`127.0.0.1:5271` → staging API, staging QA login, signed in as officer):
+  server verified context returns `activeSchoolYearId 2 / 2023-2024 / enrollpro-verified`. The operator's exact
+  seeded false notice reproduced the banner verbatim **before** the fix; **after** it the banner never renders and the
+  localStorage entry is **deleted**, while a **legitimate** notice for the server's actual active year (2 / 2023-2024)
+  is **kept and still shown**. The fix discriminates; it does not blanket-delete.
+- **Two follow-ups (NON_BLOCKING, not this cycle):** (1) `scripts/dev/start-preview.ps1` sets
+  `VITE_ATLAS_API=http://127.0.0.1:5101` **without `/api/v1`**, so every login 404s — the proxy target and the client
+  base both derive from that one var; (2) `a5-c2a-active-term-resolver.test.ts` has a committed **read-write** script
+  with no disposable-database guard (pre-existing), and the client type-check is red at base for a missing `playwright`
+  dependency plus `timetable-truth-labels-a2.test.ts:523`.
+
 ### A8 server stalls + SSE stream leak — 2026-09-29 ~10:0x +08 — **ready for release at `6a496cbd` on `main`**
 
 Packet `docs/prompts/a8-server-stalls-2026-09-29.md`. Items 2 and 4 closed; **items 1, 3 and 5 are NOT
