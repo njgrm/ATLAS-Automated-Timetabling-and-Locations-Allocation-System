@@ -72,6 +72,14 @@ dom.window.HTMLElement.prototype.hasPointerCapture = () => false;
 const { createRoot } = await import('react-dom/client');
 const { SectionRoomPicker } = await import('../SectionRoomPicker');
 type RoomOption = import('../SectionRoomPicker').RoomOption;
+const {
+	popoverMaxHeightPx,
+	POPOVER_MAX_PX,
+	POPOVER_MIN_USABLE_PX,
+	POPOVER_SIDE_OFFSET_PX,
+	POPOVER_COLLISION_PX,
+	POPOVER_SAFETY_PX,
+} = await import('../SectionRoomPicker');
 
 const clientRoot = resolve(import.meta.dirname, '../../../..');
 const source = (relative: string) => readFileSync(resolve(clientRoot, relative), 'utf8');
@@ -287,4 +295,96 @@ test('row 02 control: the picker renders exactly ONE picker layer', () => {
 		1,
 		'the component must contain exactly one scroll area',
 	);
+});
+
+/* ─────────────────── A9 C7 R1: the height cap is MEASURED, not read from the CSS variable ─────────────────── */
+
+test('R1 control: the popover caps itself to the space BELOW the trigger, measured before Radix measures', () => {
+	// THE DEFECT THIS PINS, recorded from a render on real staging data (planner,
+	// 2026-09-29, 1366x768, evidence in `docs/reviews/a9-c7-home-room-picker-20260929/`):
+	// row 1 opened down and was fine; row 3 rendered `data-side="top"` at 400px and
+	// covered the `NEED ROOMS 19` chip, the "Give 19 sections a home room" button
+	// and "Sync sections". The committed class cap
+	// `min(25rem, var(--radix-popover-content-available-height))` CANNOT prevent
+	// that: Radix publishes that variable as a consequence of the flip decision,
+	// and the flip decision compares the content's measured height against the
+	// space below — a fixed point in which the cap is either too big to bind before
+	// the flip or inert after it.
+	//
+	// So the number must be computed from the trigger's own rect, before Radix
+	// measures anything, and applied inline. jsdom has no layout engine, so the
+	// rect is stubbed exactly as a real row near the bottom of the list presents
+	// it: the trigger's bottom edge sits 168px above a 768px viewport, which is
+	// LESS than the 400px ceiling — the row-3 condition.
+	const realRect = dom.window.HTMLElement.prototype.getBoundingClientRect;
+	const realInnerHeight = dom.window.innerHeight;
+	const realScrollIntoView = dom.window.HTMLElement.prototype.scrollIntoView;
+	const TRIGGER_BOTTOM = 600;
+	const VIEWPORT_H = 768;
+	let centred = 0;
+	dom.window.HTMLElement.prototype.getBoundingClientRect = function patched(this: HTMLElement) {
+		if (this.getAttribute('role') === 'combobox') {
+			return { width: 160, height: 36, top: TRIGGER_BOTTOM - 36, left: 0, right: 160, bottom: TRIGGER_BOTTOM, x: 0, y: TRIGGER_BOTTOM - 36, toJSON: () => ({}) } as DOMRect;
+		}
+		return realRect.call(this);
+	} as typeof realRect;
+	dom.window.HTMLElement.prototype.scrollIntoView = function counted(this: HTMLElement, arg?: unknown) {
+		if (this.getAttribute('role') === 'combobox') centred += 1;
+		return realScrollIntoView.call(this);
+	} as typeof realScrollIntoView;
+	Object.defineProperty(dom.window, 'innerHeight', { value: VIEWPORT_H, configurable: true, writable: true });
+
+	try {
+		const host = renderPicker();
+		openPopover(host);
+
+		const content = dom.window.document.querySelector<HTMLElement>('[data-testid="room-picker-popover-content"]');
+		assert.ok(content, 'the popover content must be mounted');
+
+		// The measured cap is INLINE, which is what beats the class, and it is the
+		// reason `flip` sees a content that already fits below.
+		const inline = content!.style.maxHeight;
+		assert.notEqual(inline, '', 'THE fix: the popover must carry an inline max-height measured from the trigger');
+		const capPx = Number.parseFloat(inline);
+
+		// The arithmetic, read from the component's own exported constants rather
+		// than re-derived here: 768 − 600 − 4 (sideOffset) − 12 (collisionPadding)
+		// − 4 (safety) = 148.
+		const expected = popoverMaxHeightPx(TRIGGER_BOTTOM, VIEWPORT_H);
+		assert.equal(capPx, expected, `the inline cap must be the measured space below; expected ${expected}px, got ${capPx}px`);
+		assert.equal(
+			expected,
+			VIEWPORT_H - TRIGGER_BOTTOM - POPOVER_SIDE_OFFSET_PX - POPOVER_COLLISION_PX - POPOVER_SAFETY_PX,
+			'the exported arithmetic must be the one the comment claims',
+		);
+		assert.ok(capPx < POPOVER_MAX_PX, `the cap must be BELOW the 400px ceiling for this row; got ${capPx}px`);
+		assert.ok(
+			capPx <= VIEWPORT_H - TRIGGER_BOTTOM - POPOVER_SIDE_OFFSET_PX - POPOVER_COLLISION_PX - POPOVER_SAFETY_PX,
+			`the popover must never be taller than the space below the trigger; got ${capPx}px`,
+		);
+		assert.ok(capPx > 0, 'a measurable row must not be capped to nothing');
+
+		// 148px is below MIN_USABLE (192), so the trigger is centred first and the
+		// cap is re-read AFTER that scroll — a bottom row gets a popover you can
+		// use instead of a strip, and the scroll happens before the popover mounts.
+		assert.ok(
+			capPx < POPOVER_MIN_USABLE_PX,
+			`precondition: the measured cap is below the usable minimum; got ${capPx}px`,
+		);
+		assert.equal(centred, 1, 'a row with no usable room below is scrolled to centre before the cap is read');
+
+		// The committed class string is the no-measurement fallback and must stay:
+		// it is what bounds the body in jsdom, in first paint, and anywhere a
+		// measurement is unavailable. Deleting it as dead code would restore the
+		// unbounded body.
+		assert.match(
+			content!.className,
+			/max-h-\[min\(25rem,var\(--radix-popover-content-available-height\)\)\]/,
+			'the committed class cap must remain as the fallback',
+		);
+	} finally {
+		dom.window.HTMLElement.prototype.getBoundingClientRect = realRect;
+		dom.window.HTMLElement.prototype.scrollIntoView = realScrollIntoView;
+		Object.defineProperty(dom.window, 'innerHeight', { value: realInnerHeight, configurable: true, writable: true });
+	}
 });

@@ -122,6 +122,66 @@ export function roomOptionStackPx(nameLines: number): number {
 	return nameLines * TEXT_XS_LINE_PX + NAME_BLOCK_GAP_PX + TEXT_XS_LINE_PX;
 }
 
+/* ═══════════════════ A9 C7 R1 — the popover height, MEASURED (item 46) ═══════════════════ */
+
+/**
+ * WHY A CSS-ONLY CAP ON `--radix-popover-content-available-height` IS CIRCULAR —
+ * and why this must not be "simplified" back into one. The recorded render
+ * (planner, 2026-09-29, real staging roster on the loopback preview at 1366x768,
+ * evidence in `docs/reviews/a9-c7-home-room-picker-20260929/`):
+ *
+ *  - row 1 (`Aguinaldo`, trigger bottom y=352) rendered `data-side="bottom"`,
+ *    popover 356 → 756, height 400, no overlap. The CSS cap worked there.
+ *  - row 3 (`Luna`, trigger 503 → 539) rendered `data-side="top"`, popover
+ *    99 → 499, height 400 — covering the `NEED ROOMS 19` chip, the
+ *    "Give 19 sections a home room" button and "Sync sections".
+ *
+ * On that flipped row the wrapper carried `--radix-popper-available-height:
+ * 487.48px` while the content computed `max-height: 400px`. 487px is the space
+ * available **on the side floating-ui had already flipped to**. Radix publishes
+ * that variable as a CONSEQUENCE of the flip decision, and the flip decision
+ * compares the content's MEASURED height against the space below. So
+ *
+ *     max-height: min(400px, var(--radix-popover-content-available-height))
+ *
+ * is a fixed point: at measure time the content is 400px against ~213px below,
+ * so it flips; after the flip the variable is large, so the cap is inert. A cap
+ * expressed in that variable can never keep the popover down. (`ui/
+ * searchable-select.tsx` gets away with the same class only because its content
+ * is short enough that the flip question never arises.)
+ *
+ * THE FIX is therefore a number computed BEFORE Radix measures anything, from
+ * the trigger's own rect and the window, and applied as an inline
+ * `max-height`. React writes the style in the mutation phase, which runs before
+ * floating-ui's positioning layout effect, so `flip` compares a content that is
+ * already capped and leaves it on `bottom`. The committed class string stays
+ * byte-for-byte as the no-measurement fallback (jsdom, first paint before the
+ * handler runs) and is what keeps the body bounded when there is no layout.
+ */
+export const POPOVER_MAX_PX = 400;
+/** Below this the list is a useless strip, so the trigger is scrolled to centre first. */
+export const POPOVER_MIN_USABLE_PX = 192;
+export const POPOVER_SIDE_OFFSET_PX = 4;
+export const POPOVER_COLLISION_PX = 12;
+/** A last pixel or two, so the body never lands exactly on the window edge. */
+export const POPOVER_SAFETY_PX = 4;
+
+/**
+ * The cap, as arithmetic, so a test and a reviewer read the same numbers the
+ * component uses instead of re-deriving them.
+ *
+ *   space below = viewportHeight − triggerBottom − sideOffset − collisionPadding − safety
+ *   cap         = min(400, max(0, space below))
+ *
+ * `triggerBottomPx` and `viewportHeightPx` are the only inputs, so this is
+ * testable with real numbers in a harness that has no layout engine.
+ */
+export function popoverMaxHeightPx(triggerBottomPx: number, viewportHeightPx: number): number {
+	const spaceBelow =
+		viewportHeightPx - triggerBottomPx - POPOVER_SIDE_OFFSET_PX - POPOVER_COLLISION_PX - POPOVER_SAFETY_PX;
+	return Math.min(POPOVER_MAX_PX, Math.max(0, Math.round(spaceBelow)));
+}
+
 export type RoomOption = {
 	id: number;
 	name: string;
@@ -158,6 +218,11 @@ export function SectionRoomPicker({
 	const [focusedRoomId, setFocusedRoomId] = React.useState<number | null>(null);
 	const inputRef = React.useRef<HTMLInputElement>(null);
 	const activeItemRef = React.useRef<HTMLButtonElement>(null);
+	// A9 C7 R1: the trigger's own rect is the input to the popover's height cap,
+	// read BEFORE Radix measures anything. See popoverMaxHeightPx above for why a
+	// CSS-only cap cannot do this.
+	const triggerRef = React.useRef<HTMLButtonElement>(null);
+	const [openMaxHeight, setOpenMaxHeight] = React.useState<number | undefined>(undefined);
 	// FIX-01: the popover body and the listbox, so an outside scroll can be told
 	// apart from a scroll inside the picker's own list.
 	const contentRef = React.useRef<HTMLDivElement>(null);
@@ -248,6 +313,60 @@ export function SectionRoomPicker({
 		return () => document.removeEventListener('scroll', handleAncestorScroll, true);
 	}, [open]);
 
+	/* ─────────────── A9 C7 R1 — measure the popover's height BEFORE Radix does ─────────────── */
+
+	/**
+	 * Read the cap from the trigger's rect, centring the trigger first when the
+	 * space below is too small to be usable. The scroll happens BEFORE the popover
+	 * mounts, so it cannot be seen as a jump, and the re-read afterwards is what
+	 * the cap is computed from — scrolling first and using the stale number is the
+	 * bug, not the fix.
+	 */
+	const measureOpenMaxHeight = React.useCallback((): number | undefined => {
+		const trigger = triggerRef.current;
+		if (!trigger) return undefined;
+		const read = () => popoverMaxHeightPx(trigger.getBoundingClientRect().bottom, window.innerHeight);
+		let next = read();
+		if (next < POPOVER_MIN_USABLE_PX && typeof trigger.scrollIntoView === 'function') {
+			trigger.scrollIntoView({ block: 'center', behavior: 'auto' });
+			next = read();
+		}
+		return next;
+	}, []);
+
+	/**
+	 * The cap is computed here, in the event, rather than in an effect keyed on
+	 * `open`: React applies the new style in the MUTATION phase and floating-ui
+	 * positions in a LAYOUT effect, so a value committed with the state is on the
+	 * element before `flip` ever compares heights.
+	 */
+	const handleOpenChange = React.useCallback(
+		(nextOpen: boolean) => {
+			setOpenMaxHeight(nextOpen ? measureOpenMaxHeight() : undefined);
+			setOpen(nextOpen);
+		},
+		[measureOpenMaxHeight],
+	);
+
+	// A number computed once goes stale the moment the window changes, and a stale
+	// number lets the body hang off the bottom edge. Both listeners live only while
+	// the popover is open. The scroll one recomputes the same figure the FIX-01
+	// capture handler acts on; both run, and the cheap one losing the race to a
+	// close is harmless.
+	React.useEffect(() => {
+		if (!open) return;
+		const remeasure = () => {
+			const next = measureOpenMaxHeight();
+			setOpenMaxHeight((prev) => (prev === next ? prev : next));
+		};
+		window.addEventListener('resize', remeasure);
+		window.addEventListener('scroll', remeasure, true);
+		return () => {
+			window.removeEventListener('resize', remeasure);
+			window.removeEventListener('scroll', remeasure, true);
+		};
+	}, [open, measureOpenMaxHeight]);
+
 	/* ─────────────── FIX-03 — content-adaptive width, measured then clamped ───────────────
 	 *
 	 * A deterministic measure-then-set, not a ResizeObserver: the width is
@@ -331,10 +450,11 @@ export function SectionRoomPicker({
 
 	return (
 		<>
-			<Popover open={open} onOpenChange={setOpen}>
+			<Popover open={open} onOpenChange={handleOpenChange}>
 				<PopoverTrigger asChild>
 					<Button
 						id={triggerId}
+						ref={triggerRef}
 						variant="outline"
 						role="combobox"
 						aria-expanded={open}
@@ -407,7 +527,13 @@ export function SectionRoomPicker({
 					 *    never does (AGENTS.md §8).
 					 *
 					 * 25rem is the old 400px ceiling, so the list is never SHORTER than
-					 * it was on a tall window — only as tall as the space below allows. */
+					 * it was on a tall window — only as tall as the space below allows.
+					 *
+					 * A9 C7 R1: that class is the FALLBACK ceiling, and it is kept
+					 * byte-for-byte. Where a measurement is available the inline
+					 * `maxHeight` below wins over it — see popoverMaxHeightPx for the
+					 * circularity that makes the variable alone unable to do this. */
+				style={{ maxHeight: openMaxHeight ?? undefined }}
 				side="bottom"
 					align="start"
 					sideOffset={4}
@@ -504,7 +630,7 @@ export function SectionRoomPicker({
 											{group.items.map((item) => {
 												const occupying = roomOccupancy?.get(item.id);
 												const isSelected = value === item.id;
-												return (
+													return (
 													<Button
 														key={item.id}
 														ref={isSelected ? activeItemRef : null}
