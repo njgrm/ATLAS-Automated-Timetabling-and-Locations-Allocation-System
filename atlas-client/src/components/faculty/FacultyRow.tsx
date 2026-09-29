@@ -9,6 +9,7 @@ import {
 import { GRADE_COLORS, gradeLabel } from '@/lib/grade-labels';
 import { BELOW_STANDARD_LABEL } from '@/lib/teaching-load-labels';
 import { formatFacultyDisplayName, formatFacultyInitials } from '@/components/faculty/teacherNameDisplay';
+import { AdviserSectionLine } from '@/components/faculty-shared/AdviserSectionLine';
 import {
 	duplicateTeacherNameCueExplanation,
 	duplicateTeacherNameCueLabel,
@@ -205,12 +206,11 @@ export function FacultyIdentityCell({
 						<DuplicateTeacherNameCue count={duplicateRecordCount} sameLoad={duplicateRecordsShareLoad} />
 					)}
 				</div>
-				{faculty.isClassAdviser && (
-					<span className="mt-0.5 flex max-w-44 items-center gap-1 truncate text-xs text-muted-foreground">
-						<Star className="size-2.5 shrink-0 fill-amber-400 text-amber-500" />
-						<span className="truncate">{faculty.advisedSectionName ? `Adviser: ${faculty.advisedSectionName}` : 'Adviser'}</span>
-					</span>
-				)}
+				<AdviserSectionLine
+					isClassAdviser={faculty.isClassAdviser}
+					advisedSectionName={faculty.advisedSectionName}
+					className="mt-0.5 max-w-44"
+				/>
 			</div>
 		</div>
 	);
