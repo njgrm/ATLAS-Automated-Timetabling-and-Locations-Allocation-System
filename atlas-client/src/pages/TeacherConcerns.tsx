@@ -555,7 +555,7 @@ export default function TeacherConcerns() {
 								<div>
 									<p className='text-sm font-semibold text-foreground'>No actor school scope</p>
 									<p className='mt-1 text-xs leading-relaxed text-muted-foreground'>
-										The signed-in session has no resolved school, so no teacher preferences can be loaded or saved.
+										The signed-in session has no resolved school, so this teacher&rsquo;s preferences cannot be loaded or saved.
 									</p>
 								</div>
 							</CardContent>
