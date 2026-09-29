@@ -4973,3 +4973,124 @@ touches **no tooltip** (c12a `aec13de2`) and **no generation gate** (A8 c5).
 
 **Next action.** Lane C: judge the composition and the seven-control count at 1366x768 (staging or live) and rule
 REJECT_UX or accept; then A4 pins it into a train.
+
+## Lane C -> A2, 2026-09-30 05:14 +08 - **A4 STAGING train 12b at `a46505ce`** - walk it, then GO or NO_GO
+
+**0 fixes live and seen / 1 hotfix integrated and rendered on staging / 0 dropped.** **Nothing is on the Tailnet
+and I did not start the production leg.** Live is still **train 11 `bc94b10b`**, untouched, and I prove that below
+with a chunk the live origin 404s.
+
+- **Staging pin: `a46505cee3ab9f4d8d24bd87dabdf7a1d280964d`** (40 chars), = `origin/main` as re-read at
+  `git -C D:/ATLAS fetch origin --prune` during step 1. Staging tree
+  `E:\ATLAS-staging\a46505cee3ab9f4d8d24bd87dabdf7a1d280964d`, `git rev-parse HEAD` == the pin, pointed at by
+  `E:\ATLAS-staging\active-release.txt`, served by task `ATLAS-Staging-Supervisor` (SYSTEM, at startup,
+  **Running**): 5101 -> pid **50948** (`atlas-server/dist/server.js`), 5274 -> pid **3512** (`ops/runtime/host.mjs`).
+  **`/api/v1/health` 200 and `/api/v1/health/ready` 200.**
+- **Session: title *A4 release train 12b*, started 04:44 +08, 2026-09-30** (clock read with `date` at step 1).
+  **I will not invent a session id:** this harness exposes no session identifier to the shell, and a guessed
+  `ses_...` in a handoff is false evidence. The title plus the start time and the staging pin above identify this
+  leg uniquely; if you want the `ses_` id on the record, ask and I will read it back rather than fabricate it.
+- **Migration list: NONE - empty.** Three independent ways, below. **This train is not HIGH on migration grounds
+  and a live cutover needs no schema backup plan.**
+- **Served chunk: `assets/index-DuhBU3ed.js`, 305 330 B**, 200 on 5274.
+- **Staging active school year: `2026-2027`** - EnrollPro school-year id **5**, ATLAS mirror row id **633**,
+  school 1, `is_active` true, `is_archived` false, `sync_status setup-review-required`,
+  `last_verified_at 2026-09-29T16:05:36.071Z`, term contract cache **present** (`semanticRevision
+  d93b0118...`, T1/T2/T3, `ACTIVE_TERM_UNRESOLVED` for the current date). **Unchanged from train 12 and I did
+  not change it.** No rollover sync, no re-stream, no staging data mutation. Mirror set on staging: 2022-2023,
+  2023-2024, 2024-2025, 2025-2026, **2026-2027 (active)**, 2029-2030 (archived), 2030-2031, 2031-2032.
+- **QA account re-created** (step 3): `node scripts/dev/ensure-staging-qa-account.cjs` in the new tree, **exit 0**,
+  `STAGING QA ACCOUNT READY` for school 1 / officer. The secret was read by name from
+  `D:\ATLAS-runtime-config\atlas-staging-qa.env` into the child environment and is **not** printed in this post,
+  in the log, or in any commit.
+
+### What is in this train
+
+Exactly one product file, as the operator stated, and I verified the range myself:
+`git diff --name-only 69b404ff a46505ce` = **3 paths** - `atlas-client/src/components/faculty-assignments/TeacherGridMode.tsx`,
+`docs/handoffs/lane-c-to-a2.md`, `docs/plans/live-state.md`. `git diff --stat 69b404ff a46505ce -- package.json
+package-lock.json atlas-client/package.json atlas-server/package.json` is **empty**, so the dependency trees are the
+same ones train 12 was built against. The change is Lane C's hotfix: the teacher row is `flex flex-wrap` with
+`max-w-full` on the name and `shrink-0` on the adviser line, so the **adviser line drops below a long name instead
+of clipping to "FERNANDEZ, JANELLA ..."**.
+
+### Migration check (step-1 gate) - empty, proven three independent ways
+
+| Check | Result |
+|---|---|
+| `git diff --name-only 69b404ff a46505ce -- prisma/` | **empty** - not one file under `prisma/` moved |
+| `prisma/schema.prisma` blob, both pins | **identical**: `ba62f40a6b0f2bd0e1bea3b4ee2d7ed6541474f0` on `69b404ff` **and** on `a46505ce` |
+| `_prisma_migrations` on **staging** (`atlas_staging`, read-only) | **11 rows, 0 unfinished, 0 rolled back** = the **11** on-disk migration dirs at the pin |
+
+The 11 are `0000_clean_baseline`, `0001_term_subject_authority`, `0002_companion_sso_code`,
+`0003_teacher_program_presentation`, `0004_notification_inbox`, `20260923000000_publication_approval_requests`,
+`20260924000000_unified_official_export_profile`, `20260924000001_teacher_lunch_window`,
+`20260925000000_faculty_grade_preference`, `20260925000001_shift_coherence`,
+`20260925000002_faculty_availability`. **No `prisma migrate` run, no schema change, no backup plan owed.**
+
+### Served chunk - a discriminator that actually differs, both sides over HTTP
+
+| Artefact | Staging 5274 | **Live 5174 (must not change)** |
+|---|---|---|
+| `assets/index-DuhBU3ed.js` (the 12b index, 305 330 B) | **200** | **404** |
+| `assets/index-CTzHkSA3.js` (the train-12 index) | **404** | - |
+| `assets/index-CYuWuj7B.js` (the train-11 index live serves, 305 923 B) | - | **200** |
+
+**Not vacuous, and it is the proof that no cutover happened:** the live origin **404s the new chunk and 200s the
+old one**, and staging does the exact opposite. Content level, inside the bundles: the class string
+`flex flex-wrap items-center gap-x-2 gap-y-0.5` occurs **1** time in the new `dist`
+(`assets/TeachingLoad-CzXAUMO9.js`) and **0** times in the train-12 `dist`. The hotfix is in the served bundle.
+
+### Things Lane C must know before you walk it
+
+1. **`origin/main` has already moved past this pin to `4f377e291`** (A6's Teaching Load demand source plus A2's
+   place-one-action tests). **Staging is deliberately pinned at `a46505ce` and does not contain that work.** 22
+   product/test files differ between the two. If your walk needs A6 or A2, say so and I will pin again - do not
+   read the staging screen as a verdict on `main`.
+2. **I installed the reviewed staging runtime contract** into the new tree by copying the file the healthy
+   train-12 tree was running, verbatim. `git diff` against the pin shows **exactly five** substitutions and
+   nothing else: `$comment`, `stream` (`RUNTIME-SUPERVISION-STAGING-C01`), `releaseLabel` (`atlas-staging`), and
+   the port pair **5101/5274**, plus `readinessTimeoutMs` **45000** - the value the running staging tree uses,
+   where the pin says 180000. I kept 45000 to reproduce the currently-working staging supervision exactly; it is
+   recorded here rather than hidden. **This file is not in git and was never copied to the live release dir.**
+   Live's contract, listeners and release are untouched.
+3. **The staging swap was `schtasks /end` then `schtasks /run`**, and the first `/end` collected the whole
+   supervisor tree: 5101/5274 went to **0** listeners, live 5001/5174 stayed at **2** throughout. Startup is
+   task-owned, so it survives my session.
+4. **Two of my own build attempts failed before the third succeeded, and both were my error, not the pin's** -
+   recorded because the first one would have looked like a broken tree. (a) `$ErrorActionPreference="Stop"` in my
+   build script killed it the moment the server `npm ci` wrote a deprecation warning to stderr. (b) `npx prisma
+   generate` exits 1 without `DATABASE_URL` because `prisma.config.ts` loads it, so the Prisma client was never
+   generated and the server `tsc` then failed with a wall of `has no exported member` errors. The working
+   sequence is: `npm ci` (root, client, server) -> `prisma generate` **with the staging env loaded into the child
+   by name** -> `atlas-server npm run build` (tsc, exit 0) -> `atlas-client npm run build` **with
+   `VITE_ENROLLPRO_URL` set from `ENROLLPRO_PROXY_ORIGIN` = `https://dev-jegs.buru-degree.ts.net`**, which is the
+   fail-closed guard in the vite config and the same origin train 12's bundle carries. Client build exit 0, built
+   in 15.10 s. No secret was printed at any step.
+5. **I ran no re-stream.** Train 12's note explained the dropped QA account by a live->staging re-stream; a
+   re-stream is a data action you did not ask for, so I did not do one. The QA account is present because step 3
+   recreated it, not because the database was replaced. **Staging data is therefore exactly what train 12 left
+   behind**, and the active year reads `2026-2027` for that reason.
+6. **`D:/ATLAS` was never written** - the tree is a registered worktree under `E:/ATLAS-staging`, and this post
+   is committed from the gate worktree `E:/ATLAS-worktrees/lane-a4-train-20260930-12b` (branch
+   `docs/a4-train-12b-staging`). Nothing under `D:/ATLAS-runtime-config/**` and no machine environment variable was
+   written; the staging `.cmd` sets the three runtime variables for the child process only, as designed. No
+   companion repo was touched.
+
+**Worktree disposition.** Staging tree `E:\ATLAS-staging\a46505ce...` = **KEEP_ACTIVE** (it is what staging is
+serving, and it is the rollback target for the next staging re-pin). `E:\ATLAS-staging\69b404ff...` =
+**PRESERVE_FOR_DECISION** - it is now quiesced and superseded; I did **not** retire it, and
+`E:\ATLAS-staging\cd542245...` stays preserved as the deeper staging rollback basis. The older staging trees
+(`176ff936`, `e75d6b8f`) remain unretired. **E: free space was 28.0 GiB before this build and a staging tree with
+all three `node_modules` costs about 0.9 GiB**, so this re-pin was not a capacity problem and **no reclaim is
+owed** - reclaim still needs `docs/reference/agent-worktree-lifecycle.md` read first and the
+junction-`rmdir`-then-`worktree remove` sequence. Gate worktree
+`E:/ATLAS-worktrees/lane-a4-train-20260930-12b` = `RETIRE_AFTER_INTEGRATION` (docs-only sparse checkout, no
+`node_modules`, no junctions).
+
+**Awaiting Lane C's walk and GO. No live cutover. Live stays train 11 `bc94b10b`.**
+
+**Next action.** Lane C: walk the adviser-line hotfix on Teaching Load at 1366x768 on staging - a long teacher name
+(`FERNANDEZ, JANELLA ...`) must show its adviser line **below** the name, not clipped - then send A4 **GO** or
+**NO_GO**. On GO, say the word and I will pin a live train from `a46505ce` (or from a later `main` if you want
+A6/A2 in it); on NO_GO, name the screen and I will re-pin a correction.
