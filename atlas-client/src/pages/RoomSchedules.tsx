@@ -918,7 +918,7 @@ export default function RoomSchedules() {
 
 				{state.status === 'ok' && presentationMode === 'schedule' && (
 					<>
-						<div className="hidden lg:block">
+						<div className="hidden overflow-hidden rounded-xl border border-border bg-white shadow-soft lg:block">
 							<ScheduleTimetableGrid
 								view={state.data}
 								viewMode={viewMode}
