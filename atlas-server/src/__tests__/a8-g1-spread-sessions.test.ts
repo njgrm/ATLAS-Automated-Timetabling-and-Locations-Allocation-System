@@ -657,7 +657,7 @@ test('A8-G1 8: spreading raises the number of days a pair occupies, leaving less
 	// The cost side: the section's own occupancy is what every LATER demand item
 	// has to route around. The pair still consumes exactly five section-slots —
 	// the spread does not consume more work, it redistributes it across days.
-	const sectionSlots = (entries: Array<{ subjectId: number; sectionId: number }>) => entriesForSection(entries).length;
+	const sectionSlots = (entries: ReadonlyArray<{ subjectId: number; sectionId: number; day: string }>) => entriesForSection(entries).length;
 	assert.equal(sectionSlots(legacy.entries), 5, 'the pair consumes five section-slots under legacy');
 	assert.equal(sectionSlots(production.entries), 5, 'and exactly five under the spread — same total, different days');
 
