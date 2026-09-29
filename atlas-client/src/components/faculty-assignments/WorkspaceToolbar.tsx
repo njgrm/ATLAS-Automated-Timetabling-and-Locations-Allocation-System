@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { Zap, Settings2, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -390,6 +390,7 @@ export function WorkspaceToolbar({
 	stateLineSlot,
 	shortageLineSlot,
 	loadSummaryAction,
+	summaryControl,
 	historyAction,
 	savedAtLabel = null,
 }: WorkspaceToolbarProps) {
@@ -622,8 +623,28 @@ export function WorkspaceToolbar({
 	 * of the surface rather than its child, and the page's slot still hands over the
 	 * same untouched `TeachingLoadSummarySurface` node.
 	 */
-	const [summaryOpen, setSummaryOpen] = useState(false);
-	const summaryControl = useMemo(() => ({ open: summaryOpen, setOpen: setSummaryOpen }), [summaryOpen]);
+	const [localSummaryOpen, setLocalSummaryOpen] = useState(false);
+	// A6 c9 (38.1): when the page owns the flag, this component reads it. The
+	// local state above is retained so every committed control that renders the
+	// toolbar WITHOUT `summaryControl` behaves exactly as c6 shipped it.
+	const summaryOpen = summaryControl ? summaryControl.open : localSummaryOpen;
+	const setSummaryOpen = useCallback((open: boolean) => {
+		if (summaryControl) summaryControl.setOpen(open, null);
+		else setLocalSummaryOpen(open);
+	}, [summaryControl]);
+	const openSummaryFor = useCallback((facultyId: number | null) => {
+		if (summaryControl) summaryControl.setOpen(true, facultyId);
+		else setLocalSummaryOpen(true);
+	}, [summaryControl]);
+	const summaryControlValue = useMemo(
+		() => ({
+			open: summaryOpen,
+			setOpen: setSummaryOpen,
+			openFor: openSummaryFor,
+			facultyId: summaryControl ? summaryControl.facultyId : null,
+		}),
+		[openSummaryFor, setSummaryOpen, summaryControl, summaryOpen],
+	);
 
 	return (
 		<>
@@ -800,7 +821,7 @@ export function WorkspaceToolbar({
 									 * the end of this component, so closing the menu cannot unmount it.
 									 */}
 									{loadSummaryAction ? (
-										<TeachingLoadSummaryMenuSlot value={summaryControl}>
+										<TeachingLoadSummaryMenuSlot value={summaryControlValue}>
 											<TeachingLoadSummaryMenuItem />
 										</TeachingLoadSummaryMenuSlot>
 									) : null}
@@ -975,7 +996,7 @@ export function WorkspaceToolbar({
 			 * are untouched.
 			 */}
 			{loadSummaryAction ? (
-				<TeachingLoadSummaryMenuSlot value={summaryControl}>
+				<TeachingLoadSummaryMenuSlot value={summaryControlValue}>
 					{loadSummaryAction}
 				</TeachingLoadSummaryMenuSlot>
 			) : null}

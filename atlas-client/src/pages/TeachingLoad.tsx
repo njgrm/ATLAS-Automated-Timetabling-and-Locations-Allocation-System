@@ -20,13 +20,12 @@ import { createScopeEpoch, captureEpoch } from '@/lib/scope-request-epoch';
 import { useTeachingLoadData } from '@/hooks/useTeachingLoadData';
 import { useTeachingLoadUI } from '@/hooks/useTeachingLoadUI';
 import { useTeachingLoadOutage } from '@/hooks/useTeachingLoadOutage';
-import { TeachingLoadOutageSurface } from '@/components/faculty-assignments/TeachingLoadOutageSurface';
+import { useTeachingLoadHeaderClaims } from '@/hooks/useTeachingLoadHeaderClaims';
 import { TeacherGridMode } from '@/components/faculty-assignments/TeacherGridMode';
 import { SectionGridMode } from '@/components/faculty-assignments/SectionGridMode';
 import { TeachingLoadInspectorPanel } from '@/components/faculty-assignments/TeachingLoadInspectorPanel';
 import { WorkspaceToolbar, isTeachingLoadSourceDegraded } from '@/components/faculty-assignments/WorkspaceToolbar';
 import { TeachingLoadRepairQueue } from '@/components/faculty-assignments/TeachingLoadRepairQueue';
-import { openTeacherReview } from '@/components/faculty-assignments/teacherReviewEntry';
 import { TeachingLoadDraftActionBar } from '@/components/faculty-assignments/TeachingLoadDraftActionBar';
 import { TeachingLoadModals } from '@/components/faculty-assignments/TeachingLoadModals';
 import { TeachingLoadInspectorTriggers } from '@/components/faculty-assignments/TeachingLoadInspectorTriggers';
@@ -599,8 +598,7 @@ export default function TeachingLoad() {
 			ui.setFilterStatus('all');
 			ui.setLoadFilter('all');
 		},
-		onOpenReview: () => openTeacherReviewFor(null),
-	});
+		onOpenReview: () => openTeacherReviewFor(null),	});
 
 	const sectionsBySubject = useMemo(() => {
 		return buildSectionsBySubject(data.sectionAssignedClassesIndex, data.sectionMap, ui.gradeLevelFilter);
@@ -750,6 +748,7 @@ export default function TeachingLoad() {
 					onRetrySource={() => data.fetchData({ forceRefresh: true })}
 					stateLineSlot={headerStateLine}
 					shortageLineSlot={shortageLineSlot}
+					summaryControl={summaryControl}
 					// FIX 38: the toolbar owns this control's POSITION, the surface owns its
 					// open state and the dialog, and the page still BUILDS the body, so
 					// `truthModel` has exactly one producer.
@@ -759,7 +758,7 @@ export default function TeachingLoad() {
 					// `indexOf` on that tag, and a prose mention would be the first
 					// match, so both would measure a comment and pass vacuously.
 					loadSummaryAction={(
-						<TeachingLoadSummarySurface>
+						<TeachingLoadSummarySurface teacherDetail={activeInspector}>
 							<TeachingLoadTruthPanel
 								expanded
 								vertical
