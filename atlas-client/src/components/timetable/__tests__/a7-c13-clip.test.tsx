@@ -22,6 +22,9 @@ import { MemoryRouter } from 'react-router-dom';
 
 import { SimpleChangeNotice, changeNoticeSentence } from '../simple/SimpleChangeNotice';
 import { TimetableTaskDrawer } from '../TimetableTaskDrawer';
+import { GeneratedViolationsPanel } from '../GeneratedRunRailPanels';
+import type { LeftRailContentContext } from '../timetableContexts.types';
+import type { Violation } from '@/types';
 
 const clientRoot = resolve(import.meta.dirname, '../../../..');
 function source(path: string): string {
@@ -106,4 +109,78 @@ test('ITEM 4: the task-drawer step text wraps instead of clipping', () => {
 	assert.ok(stepSpans.length >= 2, 'both step spans are found');
 	assert.ok(stepSpans.every((tokens) => tokens.includes('break-words') || tokens.includes('whitespace-normal')),
 		'each step span declares a wrap');
+});
+
+/* ── ITEM 5 — Review warnings shows warnings; an empty filter says why ─────── */
+
+function softViolation(index: number): Violation {
+	return {
+		code: 'FACULTY_EXCESSIVE_IDLE_GAP',
+		severity: 'SOFT',
+		message: `Teacher has an idle gap (${index})`,
+		entities: { facultyId: index },
+	} as unknown as Violation;
+}
+
+function railContext(overrides: Record<string, unknown>): LeftRailContentContext {
+	const base: Record<string, unknown> = {
+		leftTab: 'violations',
+		isPreGenerationWorkspace: false,
+		hardViolationCount: 0,
+		runWideBlockingHardCount: 0,
+		violationScopeLabel: 'Term 1',
+		topBlockers: [],
+		violations: [],
+		handleViolationSelect: () => {},
+		setSeverityFilter: () => {},
+		severityFilter: 'all',
+		VIOLATION_LABELS: {},
+		violationSearch: '',
+		setViolationSearch: () => {},
+		filteredViolations: [],
+		violationsByCode: new Map(),
+		violationsGroupPage: 10,
+		setViolationsGroupPage: () => {},
+		selectedViolation: null,
+		setDrawerViolation: () => {},
+		formatConstraintMessage: (message: string) => message,
+		draftBoard: null,
+		isDesktop: true,
+		toast: { info: () => {}, error: () => {} },
+		summary: { classesProcessed: 5, assignedCount: 5, unassignedCount: 0 },
+		filteredUnassignedItems: [],
+		programKindFilteredUnassignedItems: [],
+		unassignedPageSize: 50,
+		setUnassignedPageSize: () => {},
+		UNASSIGNED_REASON_LABELS: {},
+		unassignedReasonFilter: 'all',
+		setUnassignedReasonFilter: () => {},
+		resolveEntryProgramType: () => null,
+		resolveEntryProgramCode: () => null,
+		sectionLabel: (id: number) => `Section ${id}`,
+		subjectLabel: (id: number) => `Subject ${id}`,
+		roomLabelShort: (id: number) => `Room ${id}`,
+		formatFacultyInitials: (id: number) => `T. ${id}`,
+		followUps: new Set(),
+		...overrides,
+	};
+	return new Proxy(base, { get: (target: Record<string, unknown>, key: string) => (key in target ? target[key] : () => {}) }) as unknown as LeftRailContentContext;
+}
+
+test('ITEM 5b: an empty filtered list names the filter and the hidden count instead of "No matching violations"', () => {
+	const soft = [softViolation(1), softViolation(2), softViolation(3)];
+	const markup = renderToStaticMarkup(createElement(GeneratedViolationsPanel, {
+		context: railContext({ violations: soft, filteredViolations: [], severityFilter: 'hard' }),
+		visibleViolationGroups: [],
+		violationGroups: [],
+		hasMoreViolationGroups: false,
+	}));
+	assert.equal(markup.includes('No matching violations'), false,
+		'the generic dead-end sentence is gone');
+	assert.ok(markup.includes('3'), 'the empty body names the hidden count');
+	assert.ok(/warning/i.test(markup), 'and names what is hidden (warnings)');
+	assert.ok(markup.includes('data-testid="generated-rail-show-all"'),
+		'and offers one action to show the hidden entries');
+	const empty = tagFor(markup, 'generated-rail-filtered-empty');
+	assert.ok(empty, 'the empty state is marked');
 });

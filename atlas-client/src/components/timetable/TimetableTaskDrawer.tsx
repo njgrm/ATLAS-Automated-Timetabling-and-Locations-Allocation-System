@@ -246,6 +246,13 @@ function TimetableTaskDrawerImpl({
 								leftRailContentContext.setSeverityFilter('hard');
 								onTaskChange('review-issues');
 							}}
+							// A7 c13 — the "Review warnings" control opens the SAME rail on
+							// the WARNING filter, so its list agrees with the chip that
+							// counted the warnings. The blocker path above keeps must-fix.
+							onReviewWarnings={() => {
+								leftRailContentContext.setSeverityFilter('soft');
+								onTaskChange('review-issues');
+							}}
 							onPlaceUnresolved={() => onTaskChange('place-unresolved')}
 							onOpenTeachingLoad={(href) => navigate(href)}
 							onOpenRoomSetup={() => navigate('/map')}

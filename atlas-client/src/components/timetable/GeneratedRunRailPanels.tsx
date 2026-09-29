@@ -55,6 +55,44 @@ type GeneratedViolationsPanelProps = {
 	hasMoreViolationGroups: boolean;
 };
 
+/**
+ * A7 c13 — what an empty filtered list must SAY.
+ *
+ * The rail used to print a bare `No matching violations` under a chip that read
+ * `Warning (236)`, so the panel contradicted its own count and the scheduler
+ * could not tell the list was filtered rather than empty. This names the ACTIVE
+ * filter and how many entries it hides, so an empty list is explained.
+ */
+export function filteredEmptyExplanation(input: {
+	severityFilter: string;
+	hiddenCount: number;
+	hasSearch: boolean;
+}): { sentence: string; action: string } {
+	const n = input.hiddenCount;
+	const isAre = n === 1 ? 'is' : 'are';
+	const warnings = `${n} warning${n === 1 ? '' : 's'}`;
+	const mustFix = `${n} ${MUST_FIX_LABEL} problem${n === 1 ? '' : 's'}`;
+	if (input.severityFilter === 'hard') {
+		return {
+			sentence: `No ${MUST_FIX_LABEL} problems. ${warnings} ${isAre} hidden by this filter.`,
+			action: `Show ${warnings}`,
+		};
+	}
+	if (input.severityFilter === 'soft') {
+		return {
+			sentence: `No warnings. ${mustFix} ${isAre} hidden by this filter.`,
+			action: `Show ${mustFix}`,
+		};
+	}
+	const entries = `${n} entr${n === 1 ? 'y' : 'ies'}`;
+	return {
+		sentence: input.hasSearch
+			? `No violations match your search. ${entries} ${isAre} hidden.`
+			: `No violations shown by this filter. ${entries} ${isAre} hidden.`,
+		action: 'Show all violations',
+	};
+}
+
 export function GeneratedViolationsPanel({
 	context,
 	visibleViolationGroups,
@@ -92,6 +130,12 @@ export function GeneratedViolationsPanel({
 	// Run-derived claims are only knowable once a generated run exists. Without
 	// one, the rail must never report a clean or fully-placed schedule.
 	const hasGeneratedRun = Boolean(context.summary);
+	// A7 c13 — the honest explanation for an empty FILTERED list (see the helper).
+	const emptyExplanation = filteredEmptyExplanation({
+		severityFilter,
+		hiddenCount: violations.length - filteredViolations.length,
+		hasSearch: violationSearch.trim().length > 0,
+	});
 	const formatRailConstraintMessage = (message: string, violation?: Violation): string => {
 		let formatted = formatConstraintMessage(message)
 			.replace(/^Entry\s+entry-[^:]+:\s*/i, '')
@@ -278,13 +322,30 @@ export function GeneratedViolationsPanel({
 			<ScrollArea className="flex-1 min-h-0">
 				<div className="px-3 pb-3 space-y-1">
 					{filteredViolations.length === 0 ? (
-						<div className="py-6 text-center text-xs text-muted-foreground">
-							{!hasGeneratedRun
-								? 'No generated run yet. Violations appear after a schedule is generated.'
-								: violations.length === 0
-									? 'No violations found'
-									: 'No matching violations'}
-						</div>
+						!hasGeneratedRun || violations.length === 0 ? (
+							<div className="py-6 text-center text-xs text-muted-foreground">
+								{!hasGeneratedRun
+									? 'No generated run yet. Violations appear after a schedule is generated.'
+									: 'No violations found'}
+							</div>
+						) : (
+							// A7 c13 — an empty filtered list names the filter and the hidden
+							// count and offers ONE action to clear it, instead of the generic
+							// `No matching violations` that disagreed with the chip's count.
+							<div className="py-6 text-center text-xs text-muted-foreground" data-testid="generated-rail-filtered-empty">
+								<p>{emptyExplanation.sentence}</p>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									className="mt-2 h-7 text-xs"
+									onClick={() => setSeverityFilter('all')}
+									data-testid="generated-rail-show-all"
+								>
+									{emptyExplanation.action}
+								</Button>
+							</div>
+						)
 					) : (
 						visibleViolationGroups.map(([code, violationList]) => (
 							<ViolationGroup

@@ -86,6 +86,13 @@ async function mount(element: ReactElement) {
 	}
 }
 
+async function click(el: HTMLElement) {
+	await act(async () => { el.click(); });
+	for (let index = 0; index < 3; index += 1) {
+		await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+	}
+}
+
 function entry(): ScheduledEntry {
 	return {
 		entryId: 'e-1',
@@ -167,4 +174,57 @@ test('ITEM 3: the per-slot overflow sheet class lines wrap instead of clipping',
 	const detail = lines.find((el) => (el.textContent ?? '').includes('J. VILLANUEVA') && (el.textContent ?? '').includes('Room 104'));
 	assert.ok(detail, 'the section · teacher · room line renders');
 	assert.ok(declaredWrap(detail), 'the section · teacher · room line declares a wrap');
+});
+
+/* ── ITEM 5a — Review warnings opens the rail on the Warning filter ────────── */
+
+test('ITEM 5a: Review warnings opens the rail on the Warning filter; a blocker still opens must-fix', async () => {
+	const { TimetableTaskDrawer } = await import('../TimetableTaskDrawer');
+	const filters: string[] = [];
+	const rail = new Proxy(
+		{ setSeverityFilter: (value: string) => { filters.push(value); }, handleViolationSelect: () => {} },
+		{ get: (target: Record<string, unknown>, key: string) => (key in target ? target[key] : () => {}) },
+	);
+	const hard = {
+		code: 'FACULTY_TIME_CONFLICT',
+		severity: 'HARD',
+		message: 'Teacher double-booked',
+		entities: { sectionId: 1, subjectId: 2, facultyId: 3 },
+	} as unknown as import('@/types').Violation;
+	const soft = [1, 2, 3].map((index) => ({
+		code: 'FACULTY_EXCESSIVE_IDLE_GAP',
+		severity: 'SOFT',
+		message: `Idle gap ${index}`,
+		entities: { facultyId: index },
+	} as unknown as import('@/types').Violation));
+	await mount(createElement(MemoryRouter, null,
+		createElement(TimetableTaskDrawer, {
+			task: 'publish',
+			onTaskChange: () => {},
+			leftRailContentContext: rail as never,
+			hardCount: 1,
+			blockingHardCount: 0,
+			softCount: 3,
+			unassignedCount: 0,
+			assignedCount: 400,
+			runId: 318,
+			isPreGenerationWorkspace: false,
+			onPublish: () => {},
+			violations: [hard, ...soft],
+			sectionLabel: (id: number) => `Section ${id}`,
+			subjectLabel: (id: number) => `Subject ${id}`,
+			facultyLabel: (id: number) => `Teacher ${id}`,
+		} as never),
+	));
+	const reviewWarnings = [...document.querySelectorAll<HTMLButtonElement>('button')]
+		.find((button) => (button.textContent ?? '').includes('Review warnings'));
+	assert.ok(reviewWarnings, 'the Review warnings control renders');
+	await click(reviewWarnings!);
+	assert.equal(filters.at(-1), 'soft', 'Review warnings opens the Warning filter (chip says Warning (3))');
+	assert.equal(filters.includes('hard'), false, 'and does not open the must-fix filter');
+
+	const blockerAction = document.querySelector<HTMLElement>('[data-testid="timetable-publish-blocker-action"]');
+	assert.ok(blockerAction, 'a blocker action still renders');
+	await click(blockerAction!);
+	assert.equal(filters.at(-1), 'hard', 'following a blocker still opens the must-fix filter');
 });
