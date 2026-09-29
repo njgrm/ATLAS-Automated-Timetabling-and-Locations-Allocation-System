@@ -21,6 +21,29 @@
  *  - `A6C7-7` mounts the REAL `useTeachingLoadRepairQueue` and reads the real
  *    chip. At the base every non-draft title is prefixed `Last saved data — `.
  *
+ * CORRECTION ROUND 1 (2026-09-29, Addendum 11:40) — what this revision adds.
+ *
+ *  - `A6C7-9` (NEW) decides row 2's COMPOSITION in three states: cached+shortage
+ *    and live+shortage render the line with the pill ABSENT, and cached+no
+ *    shortage renders the pill with the line absent. It carries a real mounted
+ *    mutant — c5's own `isTeachingLoadSourceDegraded` gate, restored, through the
+ *    real `WorkspaceToolbar` — which flips the degraded state back to
+ *    pill-and-no-line and is read by the same detector.
+ *  - `A6C7-3`'s filled-amber ratchet is SUPERSEDED IN PLACE: with the line taking
+ *    the slot, the degraded band carries ZERO filled amber surfaces, so the old
+ *    "unchanged from the live state" comparison is no longer the right one. The
+ *    ratchet itself survives as a count over four states, and the superseded
+ *    assertions are retained verbatim in the comment above it.
+ *  - `A6C7-8` now counts physical lines the way the rest of the repo's rows do
+ *    (CRLF normalised, one trailing newline dropped). It previously used
+ *    `split('\n').length`, which counted the empty element after the trailing
+ *    newline and reported `TeachingLoad.tsx` as 1000 when it holds 999.
+ *  - The clauses in `A6C7-3`, `A6C7-5` and `A6C7-7` that were titled `MUTANT`
+ *    exercised a local DETECTOR string, not a mutated implementation, and are
+ *    relabelled `DETECTOR self-test`. The real implementation-mutant clauses in
+ *    this file are `A6C7-1` (c5's `isLive` gate, mounted), `A6C7-6` (a no-op
+ *    `Undo` handler) and `A6C7-9` (c5's gate, mounted through the real toolbar).
+ *
  * HARNESS COPIED VERBATIM from the accepted siblings
  * `a6-c5-outage-derivation.test.tsx` (its JSDOM / `act` / click / `settle`
  * helpers) and `a6-c6-calm-teaching-load.test.tsx` (its `hoverTooltip`), so
@@ -396,15 +419,30 @@ const filledAmberIn = (row2: Element) =>
 		.map((el) => el.getAttribute('data-testid') ?? el.tagName)
 		.join(',');
 
-/** The real composition: the toolbar, with the real surface in its own slot. */
+/**
+ * The real composition: the toolbar, with the real surface in its own slot.
+ *
+ * CORRECTION ROUND 1 — the toolbar's `dataSource` / `isOnline` / `dataSourceNotice`
+ * are now DRIVEN BY `params` rather than fixed to the degraded values. They were
+ * fixed, which meant every mount of this host was degraded regardless of the
+ * fixture it was given, and a row that claims to compare the degraded state with
+ * the verified one would have been comparing one state with itself. One fixture,
+ * two states, from the addendum's rule.
+ */
 function Row2Host(props: { params: any; surface: any }) {
+	const degraded = props.params.dataSource !== 'live' || !props.params.isOnline;
 	return createElement(WorkspaceToolbar as any, toolbarProps({
+		dataSource: props.params.dataSource,
+		isOnline: props.params.isOnline,
+		dataSourceNotice: degraded ? 'EnrollPro could not be reached.' : null,
+		workspaceStateLabel: degraded ? 'Roster not verified' : 'Roster verified',
+		workspaceStateDescription: degraded ? 'ATLAS is showing the last saved roster.' : 'ATLAS is showing the current roster.',
 		stateLineSlot: null,
 		shortageLineSlot: props.surface,
 	}));
 }
 
-test('A6C7-3 MUTANT ROW: the degraded line carries ONE qualifier, and row 2 gains no second amber surface', async () => {
+test('A6C7-3 the degraded line carries ONE qualifier, and row 2 gains no second amber surface', async () => {
 	const degraded = render(createElement(Row2Host, {
 		params: DEGRADED,
 		surface: createElement(OutageHost, { params: DEGRADED }),
@@ -439,27 +477,215 @@ test('A6C7-3 MUTANT ROW: the degraded line carries ONE qualifier, and row 2 gain
 	);
 	act(() => { roots[roots.length - 1].unmount(); roots.pop(); });
 
-	// ONE filled amber surface on row 2, unchanged by the new visibility. This is
-	// `a6c4-G2-1`'s own metric, measured with the surface in its real slot and in
-	// its ABSENT (c5) state, so "unchanged" is a measured difference and not a
-	// re-statement of a rule.
+	// c4's G2.1 ratchet, MEASURED. This is `a6c4-G2-1`'s own metric read with the
+	// surface in its real slot, so the claim is a count and not a restatement of
+	// a rule.
+	//
+	// SUPERSEDED IN PLACE 2026-09-29 by A6 c7 CORRECTION ROUND 1 (C1) — RETAINED
+	// HERE VERBATIM, NOT DELETED. The two assertions this replaces read:
+	//
+	//   assert.equal(filledAmberIn(row2With), filledAmberIn(row2Without),
+	//     'showing the shortage line in a degraded state must not add a second
+	//      FILLED amber surface to row 2');
+	//   assert.equal(filledAmberIn(row2With), 'teaching-load-degraded-notice',
+	//     'and the one that is there is still the header status line');
+	//
+	// They were true of the siblings composition and are false now, correctly.
+	// c7 first rendered the pill AND the line together, which held the band at
+	// exactly ONE filled amber surface; C1 inverts the precedence so the line
+	// takes the slot and the pill returns only when there is no shortage. So the
+	// degraded-with-shortage state now carries ZERO filled amber surfaces — the
+	// line is `bg-background` with a neutral border — and "unchanged from the
+	// live state" is no longer the right comparison, because the pill is
+	// deliberately absent from this state. The ratchet itself SURVIVES and is
+	// asserted below as a count: never more than one, which is c4's decision,
+	// and exactly zero in the state where the line speaks for the fact.
 	const withSurface = render(createElement(Row2Host, { params: DEGRADED, surface: createElement(OutageHost, { params: DEGRADED }) }));
 	const withoutSurface = render(createElement(Row2Host, { params: DEGRADED, surface: null }));
 	const row2With = withSurface.querySelector('[data-testid="teaching-load-readiness-strip"]')!;
 	const row2Without = withoutSurface.querySelector('[data-testid="teaching-load-readiness-strip"]')!;
+	const amberWith = filledAmberIn(row2With);
+	const amberWithout = filledAmberIn(row2Without);
 	assert.equal(
-		filledAmberIn(row2With),
-		filledAmberIn(row2Without),
-		'showing the shortage line in a degraded state must not add a second FILLED amber surface to row 2',
+		amberWith.split(',').filter(Boolean).length,
+		0,
+		`degraded + shortage: the line takes the slot, so the band carries NO filled amber surface at all (read: "${amberWith}")`,
 	);
-	assert.equal(filledAmberIn(row2With), 'teaching-load-degraded-notice', 'and the one that is there is still the header status line');
+	assert.equal(
+		amberWithout,
+		'teaching-load-degraded-notice',
+		'degraded + no shortage: the pill is back, unchanged, because there is no line to take its place',
+	);
+	// c4's ratchet, as a count, over BOTH degraded states and the verified one.
+	for (const [key, params, surface] of [
+		['DEGRADED+SHORTAGE', DEGRADED, true],
+		['DEGRADED+CLEAN', DEGRADED, false],
+		['LIVE+SHORTAGE', HEALTHY, true],
+		['LIVE+CLEAN', HEALTHY, false],
+	] as const) {
+		const host = render(createElement(Row2Host, {
+			params,
+			surface: surface ? createElement(OutageHost, { params }) : null,
+		}));
+		const row2 = host.querySelector('[data-testid="teaching-load-readiness-strip"]')!;
+		const filled = filledAmberIn(row2).split(',').filter(Boolean).length;
+		assert.ok(
+			filled <= 1,
+			`${key}: c4 G2.1 decided ONE filled warning surface on row 2, and this state has ${filled} (${filledAmberIn(row2)})`,
+		);
+	}
 
-	// MUTANT ROW — a second qualifier. Same detector, a line that carries the fact
-	// twice, which is the "one status per fact" defect §8 names in this costume.
+	// DETECTOR SELF-TEST (relabelled 2026-09-29, A6 c7 correction round 1,
+	// C3.3) — this clause was titled `MUTANT ROW` and did not earn the name: it
+	// concatenates a string and runs the SAME `countOf` DETECTOR over it, so it
+	// proves the detector fires, not that a mutated implementation would fail
+	// this row. It is retained verbatim in value and relabelled in name, because
+	// a gate that claims to discriminate something it does not is a false
+	// report. The implementation-mutant clauses in this file are `A6C7-1` (the
+	// c5 `isLive` gate, mounted), `A6C7-6` (a no-op `Undo` handler) and
+	// `A6C7-9` (c5's gate restored through the real toolbar).
 	const twiceQualified = `${text} · from the last saved roster`;
 	assert.ok(
 		countOf(twiceQualified, /roster/gi) > 1,
-		'MUTANT: a second saved-roster qualifier is exactly what the count above forbids — the control discriminates',
+		'DETECTOR self-test: a second saved-roster qualifier is what the count above forbids, and this control shows the detector fires on it',
+	);
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// A6C7-9 — CORRECTION ROUND 1. ONE CLAIM PER FACT on row 2, in all three states.
+// ═════════════════════════════════════════════════════════════════════════════
+
+/** Row 2's composition, read as a list of the claim-bearers that actually rendered. */
+const row2Composition = (host: Element) => {
+	const row2 = host.querySelector('[data-testid="teaching-load-readiness-strip"]')!;
+	return [
+		testid(row2, 'teaching-load-shortage-line') ? 'shortage-line' : null,
+		testid(row2, 'teaching-load-degraded-notice') ? 'degraded-pill' : null,
+		testid(row2, 'teaching-load-status-sentence') ? 'status-sentence' : null,
+	].filter(Boolean) as string[];
+};
+
+test('A6C7-9 MUTANT ROW: one claim per fact on row 2 — the line takes the slot, the pill returns when there is nothing to claim', () => {
+	// C1. The composition is the SUBJECT of this row, not a by-product: c7 first
+	// rendered the pill AND the line as siblings, which is one fact printed twice
+	// — the pill says the roster is the last saved one, the line's own
+	// `· <date> roster` clause says the same thing — and row 2 is `flex-wrap`, so
+	// the pair also projected onto a second line inside the band. The fix
+	// SUBTRACTS the duplicate. No figure, subject name or date clause is
+	// shortened; `A6C7-3` still measures the line's text and its one qualifier.
+
+	// (a) cached + shortage — the state Lane C saw on staging, and the state c7
+	// exists for. The LINE speaks for the fact; the pill is gone.
+	const cachedShortage = render(createElement(Row2Host, {
+		params: DEGRADED,
+		surface: createElement(OutageHost, { params: DEGRADED }),
+	}));
+	assert.deepEqual(
+		row2Composition(cachedShortage),
+		['shortage-line'],
+		'CACHED + SHORTAGE: the line takes the slot and the pill is ABSENT — not hidden, absent, so there is no second claim about the same saved roster',
+	);
+	assert.ok(
+		testid(cachedShortage, 'teaching-load-cover-open'),
+		'the action the row offers is the cover control on the line, and it is still there in the degraded state',
+	);
+
+	// (b) cached + no shortage — the pill returns, with c6's copy and its
+	// technical Tooltip, because now there IS no line to take its place.
+	const cachedClean = render(createElement(Row2Host, {
+		params: DEGRADED,
+		surface: null,
+	}));
+	assert.deepEqual(
+		row2Composition(cachedClean),
+		['degraded-pill'],
+		'CACHED + NO SHORTAGE: the pill is back, on its own, because there is no shortage to show',
+	);
+	assert.ok(
+		textOf(testid(cachedClean, 'teaching-load-degraded-notice')).length > 0,
+		'and it still says something — the saved-roster fact keeps a home in this state',
+	);
+
+	// (c) live + shortage — the line, and the pill is absent here too. Staging's
+	// bug was never "the pill renders in the verified state"; c5's gate made the
+	// pill the ONLY degraded state, and a scheduler could not tell a saved roster
+	// from a confirmed one by looking at the line alone.
+	const liveShortage = render(createElement(Row2Host, {
+		params: HEALTHY,
+		surface: createElement(OutageHost, { params: HEALTHY }),
+	}));
+	assert.deepEqual(
+		row2Composition(liveShortage),
+		['shortage-line'],
+		'LIVE + SHORTAGE: the line takes the slot here too, and the pill is absent — the composition does not change with the source',
+	);
+
+	// The live + no-shortage + no-slot state is the fourth composition, and it is
+	// the one c6 and c4 measured: the ordinary sentence, unchanged. Asserted so a
+	// "fix" that only ever rendered the line would be caught here.
+	assert.deepEqual(
+		row2Composition(render(createElement(Row2Host, { params: HEALTHY, surface: null }))),
+		['status-sentence'],
+		'LIVE + NO SHORTAGE + no slot: the ordinary status sentence, unchanged from c6 — the pill is a DEGRADED state and never appears here',
+	);
+
+	// ── MUTANT — THE c5 GATE RESTORED, MOUNTED THROUGH THE REAL TOOLBAR ─────
+	// A mutation of the real DECISION, not of a local string. The toolbar takes
+	// the line as a prop and derives `hasShortageLine` from it, so c5's
+	// precedence is reproduced by withholding that prop in the degraded state:
+	// the pill then wins the slot and the line is never rendered. The gate below
+	// is c5's own predicate, spelled as `useTeachingLoadOutage` had it, and the
+	// REAL `WorkspaceToolbar` is mounted with its verdict.
+	const c5Gate = (params: any) =>
+		// c5's line, verbatim: `!isTeachingLoadSourceDegraded(...)`.
+		!(params.dataSource !== 'live' || !params.isOnline);
+	assert.equal(c5Gate(HEALTHY), true, 'c5\'s gate let the surface through when the source was verified');
+	assert.equal(c5Gate(DEGRADED), false, 'and withheld it when it was not — the whole of the staging defect');
+
+	const mutant = render(createElement(Row2Host, {
+		params: DEGRADED,
+		surface: c5Gate(DEGRADED) ? createElement(OutageHost, { params: DEGRADED }) : null,
+	}));
+	// Read by the SAME detector as the three states above, so the comparison is
+	// like-for-like. This is what the row goes red on.
+	assert.deepEqual(
+		row2Composition(mutant),
+		['degraded-pill'],
+		'MUTANT: with c5\'s gate restored, a degraded roster with 17 short classes renders the pill and NO shortage line — so this row discriminates the precedence rather than describing it',
+	);
+	assert.equal(
+		testid(mutant, 'teaching-load-cover-open'),
+		null,
+		'MUTANT: and the only action the row offers goes with it — the defect Lane C recorded, reproduced through the real component',
+	);
+	assert.notDeepEqual(
+		row2Composition(mutant),
+		row2Composition(cachedShortage),
+		'MUTANT: the mutation CHANGES the rendered output, which is the whole claim this clause makes',
+	);
+
+	// The OTHER shape this row rules out is c7's first attempt — pill AND line
+	// together, one saved roster stated twice, and the composition the header
+	// budget projected onto a second wrapped line. Named here so the next reader
+	// does not have to re-derive it from a screenshot, and forbidden the same way
+	// row (a) forbids it: two claims, one fact.
+	assert.ok(
+		row2Composition(cachedShortage).length < 2,
+		'row 2 carries exactly ONE claim in this state; the c7-siblings composition (pill and line together) is what this correction removes',
+	);
+
+	// A SOURCE-ORDER PIN, stated as what it is. The three states above are the
+	// rendered evidence; this is a cheap tripwire on the real implementation's
+	// ternary, so a later edit that re-orders the branches trips here even before
+	// someone remembers this row exists. It reads the real file with comments
+	// stripped, so a comment naming the order cannot satisfy it.
+	const toolbar = code('src/components/faculty-assignments/WorkspaceToolbar.tsx');
+	const lineBranch = toolbar.indexOf('{hasShortageLine ? (');
+	const pillBranch = toolbar.indexOf(') : degradedLead ? (');
+	assert.ok(lineBranch > 0 && pillBranch > 0, 'both branches exist in the real toolbar');
+	assert.ok(
+		lineBranch < pillBranch,
+		`the shortage line must be tested FIRST and the pill second; found line at ${lineBranch} and pill at ${pillBranch}`,
 	);
 });
 
@@ -522,7 +748,7 @@ function gridProps(overrides: Record<string, any> = {}) {
 	};
 }
 
-test('A6C7-5 MUTANT ROW: the Sections control reads `Assign teacher` / `Change teacher`', () => {
+test('A6C7-5 the Sections control reads `Assign teacher` / `Change teacher`', () => {
 	const unstaffed = render(createElement(SectionGridMode as any, gridProps()));
 	const trigger = testid(unstaffed, 'teaching-load-owner-picker-trigger') as HTMLElement | null;
 	assert.ok(trigger, 'the control must render');
@@ -573,10 +799,15 @@ test('A6C7-5 MUTANT ROW: the Sections control reads `Assign teacher` / `Change t
 		'the timetable keeps its own `Change owner` — a different page, a different meaning, out of scope here',
 	);
 
-	// MUTANT ROW — the base string, caught by the same detector.
+	// DETECTOR SELF-TEST (relabelled 2026-09-29, A6 c7 correction round 1,
+	// C3.3) — was titled `MUTANT`: it runs the same `/Set owner|Change owner/`
+	// DETECTOR over a literal string rather than mutating the implementation, so
+	// it shows the detector fires. The real implementation evidence in this row is
+	// ABOVE it: the real `SectionGridMode` is mounted and its real trigger's real
+	// text is read. The clause is retained, not deleted.
 	assert.ok(
 		/Set owner|Change owner/.test("{isStaffed ? 'Change owner' : 'Set owner'}"),
-		'MUTANT: the base wording is what the detector above forbids — the control discriminates',
+		'DETECTOR self-test: the base wording is what the detector above forbids, and this control shows it fires on it',
 	);
 });
 
@@ -727,7 +958,7 @@ function QueueHost(props: { sourceState: any; onItems?: (items: any[]) => void }
 	});
 }
 
-test('A6C7-7 MUTANT ROW: no repair-queue title is prefixed `Last saved data — `', () => {
+test('A6C7-7 no repair-queue title is prefixed `Last saved data — `', () => {
 	// MINOR older-user concern line 31, verbatim: `Next step Last saved data —
 	// Assign teachers to open classes Unverified` "replace stacked status jargon
 	// with `Using saved roster; changes in EnrollPro may not be included.`". The
@@ -799,10 +1030,15 @@ test('A6C7-7 MUTANT ROW: no repair-queue title is prefixed `Last saved data — 
 		'no truncation: a clipped claim cannot be told from a complete one (AGENTS.md §8)',
 	);
 
-	// MUTANT ROW — the prefix, caught by the same detector.
+	// DETECTOR SELF-TEST (relabelled 2026-09-29, A6 c7 correction round 1,
+	// C3.3) — was titled `MUTANT`: it runs the same `/Last saved data/` DETECTOR
+	// over a literal string rather than mutating the implementation, so it shows
+	// the detector fires. The real implementation evidence in this row is the
+	// loop above it: the real `useTeachingLoadRepairQueue` over real teachers,
+	// and the real rendered chip. Retained, not deleted.
 	assert.ok(
 		/Last saved data/.test(`Last saved data — ${titleOf('missing-load')}`),
-		'MUTANT: re-adding the prefix is exactly what the loop above forbids — the control discriminates',
+		'DETECTOR self-test: re-adding the prefix is what the loop above forbids, and this control shows the detector fires on it',
 	);
 });
 
@@ -840,6 +1076,14 @@ test('A6C7-8 PRESERVATION: the header model, every control, the line budget and 
 	}
 
 	// AGENTS.md §8: no React component file over 1000 physical lines.
+	//
+	// CORRECTION ROUND 1 (C3.2) — this row counted with `split('\n').length`,
+	// which counts the empty element AFTER a trailing newline, so it reported
+	// `TeachingLoad.tsx` as 1000 and read as sitting at the cap when the file
+	// physically holds 999. It now uses the method the rest of the repo's rows
+	// use (`ux-audit-findings-c01` B5): normalise CRLF, drop ONE trailing
+	// newline, then split. Both numbers are asserted below so the two methods
+	// can never silently disagree again.
 	for (const path of [
 		'src/pages/TeachingLoad.tsx',
 		'src/components/faculty-assignments/SectionGridMode.tsx',
@@ -848,9 +1092,16 @@ test('A6C7-8 PRESERVATION: the header model, every control, the line budget and 
 		'src/components/faculty-assignments/TeachingLoadRepairQueue.tsx',
 		'src/hooks/useTeachingLoadOutage.ts',
 		'src/hooks/useTeachingLoadRepairQueue.ts',
+		'src/components/faculty-assignments/WorkspaceToolbar.tsx',
 	]) {
-		const lines = read(path).split('\n').length;
-		assert.ok(lines <= 1000, `${path} must stay at or under 1000 physical lines; it is ${lines}`);
+		const source = read(path);
+		const physical = source.replace(/\r\n/g, '\n').replace(/\n$/, '').split('\n').length;
+		assert.ok(physical <= 1000, `${path} must stay at or under 1000 physical lines; it is ${physical}`);
+		assert.equal(
+			physical,
+			source.split('\n').length - 1,
+			`${path}: the physical count (${physical}) and the raw split (${source.split('\n').length}) differ by exactly the trailing-newline element`,
+		);
 	}
 
 	// THE RETIRED NAME. `isLive` answered "are these figures confirmed?" AND

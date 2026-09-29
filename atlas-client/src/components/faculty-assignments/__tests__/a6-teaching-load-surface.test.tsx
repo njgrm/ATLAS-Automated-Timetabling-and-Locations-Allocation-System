@@ -2703,7 +2703,7 @@ test('A6-C3-3-N2 the withholding is PER ITEM: a department survives, every figur
 	//     'a snapshot-derived title must be qualified, not printed as current');
 	//
 	// It is superseded because the packet ruled the QUALIFIER ITSELF was the
-	// defect: `useTeachingLoadQueue.ts` prepended `Last saved data — ` to every
+	// defect: `useTeachingLoadRepairQueue.ts` prepended `Last saved data — ` to every
 	// non-draft title while the chip already carried c6's plain status clause
 	// AND the header already carried the degraded pill. Lane C read the stacked
 	// form as jargon (report.md older-user line 31). The fact is now stated ONCE,
