@@ -19,6 +19,10 @@
 // C2-a: the operator presentation reuses the established violation-copy
 // normalisers rather than growing a parallel humaniser.
 import { formatIdentityFallbackText, formatWarningMessageText } from './violation-presentation';
+// A8-C5 S2.2: the ONE code → sentence → route table. Every headline and every
+// fix button in the blocker panel is composed from it, so there is no second
+// copy of this vocabulary anywhere in the client.
+import { BLOCKER_CODE_COPY, blockerFixAction, blockerSentence } from './timetable-blocker-code-copy';
 
 export type TimetableGenerationBlockerCategory =
 	| 'DEMAND_AUTHORITY'
@@ -110,12 +114,46 @@ export type TimetableReadinessRepair =
 	| { kind: 'navigate'; label: string; href: string }
 	| { kind: 'retry'; label: string };
 
+/**
+ * A8 C5 CORRECTION 2 (F4) — HOW MANY READS ACTUALLY HAPPENED.
+ *
+ * `unavailable` and `failed` are reached by two genuinely different roads, and
+ * telling them apart by the state name is what made the dialog claim "ATLAS
+ * already tried this check twice" on a path that tried ZERO times:
+ *
+ *  - the scope guard refused before any read, so nothing was attempted;
+ *  - a read (or its single automatic retry) did not come back.
+ *
+ * `attempts` is therefore carried as a FACT on the state the retry module
+ * publishes, never inferred from `state`. It is absent (not 0) on a state that
+ * did not come from a read, so "no attempt" and "one attempt" cannot be
+ * confused with "two attempts".
+ */
+export type TimetableReadinessAttemptCount = number;
+
+/**
+ * Read the attempt fact off a readiness state WITHOUT narrowing on `state`.
+ *
+ * A direct `readiness?.attempts` does not type-check, because only the
+ * `unavailable` and `failed` members carry it and the union is not narrowed at
+ * the call site. This is the one place the fact is read, and it is deliberately
+ * total: a `loading` or `ready` state has no attempts and reads as `null`, which
+ * is the honest "no read finished" answer rather than a silent zero.
+ */
+export function readReadinessAttempts(
+	state: TimetableCurriculumReadinessState | null | undefined,
+): TimetableReadinessAttemptCount | null {
+	if (!state) return null;
+	if (state.state !== 'unavailable' && state.state !== 'failed') return null;
+	return typeof state.attempts === 'number' ? state.attempts : null;
+}
+
 export type TimetableCurriculumReadinessState =
 	| { state: 'loading'; message: string }
 	| { state: 'ready'; message: string; diagnostic: TimetableGenerationReadinessDiagnostic }
 	| { state: 'blocked'; message: string; code: string | null; repair: TimetableReadinessRepair; diagnostic: TimetableGenerationReadinessDiagnostic }
-	| { state: 'unavailable'; message: string }
-	| { state: 'failed'; message: string };
+	| { state: 'unavailable'; message: string; attempts?: TimetableReadinessAttemptCount }
+	| { state: 'failed'; message: string; attempts?: TimetableReadinessAttemptCount };
 
 export type TimetableReadinessDiagnosticSummary = {
 	generateAllowed: boolean;
@@ -269,22 +307,41 @@ export type TimetableGenerationBlockerGroupPresentation = {
 	action: { kind: 'navigate'; label: string; href: string };
 };
 
+/**
+ * The fallback noun for a cause the table does not know, and for the
+ * groups-less legacy line. It is the COMPLEMENT of the verb the caller already
+ * supplies ("items need …"), so the sentence reads once. A8-C5 S2.0 fixed the
+ * previous pair, which produced "2 items need need attention".
+ */
 const GENERIC_CAUSE_PHRASE = 'need attention';
+/** The bare noun, for the call sites that already carry the verb themselves. */
+const LEGACY_CAUSE_NOUN = 'attention';
 
 /**
- * The noun and the verb for one root cause, so the line reads as a sentence an
- * older scheduler can act on: "50 classes need a teacher", "4 teachers are over
- * their weekly limit". The COUNT is the server's; only the wording is here.
+ * A8-C5 S2.2 — the representative CODE for one root cause: the first code the
+ * shared table knows among the group's own codes.
+ *
+ * A folded group (the two coverage codes, the placeholder state) carries several
+ * codes and therefore ONE line, so exactly one of them speaks for the line. It
+ * is chosen from the group, never from a private list, so the headline and the
+ * button below are guaranteed to describe the same cause.
+ *
+ * Null means the table knows none of this group's codes. That is a defect the A7
+ * table test fails on; the panel still renders (a scheduler must not meet a blank
+ * panel because the server grew a code), and says so in plain words.
+ *
+ * A group field is guarded with `Array.isArray` for the same reason
+ * `presentGenerationBlockerGroups` guards `groups` (A8-C5 S2.0): this function
+ * is reachable with a diagnostic a caller BUILT rather than parsed — a payload
+ * whose group predates the `codes` field, or a fixture — and the parser's
+ * defaults are not a guarantee to code outside the parser. The single-code
+ * fallback below is what keeps such a group on its real, counted sentence.
  */
-const GROUP_CAUSE_COPY: Record<string, { noun: string; verb: string }> = {
-	TEACHER_COVERAGE_GAP: { noun: 'classes', verb: 'need a teacher' },
-	FACULTY_OVERLOAD: { noun: 'teachers', verb: 'are over their weekly limit' },
-	WORKLOAD_POLICY_BLOCK: { noun: 'classes', verb: 'have no free period with their teacher' },
-	FACULTY_SUBJECT_NOT_QUALIFIED: { noun: 'classes', verb: 'are with a teacher outside their subjects' },
-	ROOM_RESOURCE_UNAVAILABLE: { noun: 'classes', verb: 'have no suitable room' },
-	TL_OWNERSHIP_CONFLICT: { noun: 'classes', verb: 'have more than one teacher' },
-	TEACHING_LOAD_REVIEW_REQUIRED: { noun: 'classes', verb: 'have no teaching load yet' },
-};
+export function representativeBlockerCode(group: TimetableGenerationBlockerGroup): string | null {
+	const codes = Array.isArray(group.codes) ? group.codes : [];
+	return codes.find((code) => Object.prototype.hasOwnProperty.call(BLOCKER_CODE_COPY, code))
+		?? (Object.prototype.hasOwnProperty.call(BLOCKER_CODE_COPY, group.code) ? group.code : null);
+}
 
 /**
  * A8 C3 — present one line per root cause, counted in CLASSES.
@@ -299,36 +356,100 @@ export function presentGenerationBlockerGroups(input: {
 	labelForSection?: (id: number) => string;
 }): TimetableGenerationBlockerGroupPresentation[] {
 	const { diagnostic } = input;
-	if (diagnostic.groups.length > 0) {
-		return diagnostic.groups.map((group, index) => ({
-			key: `generation-blocker-group-${group.cause}-${index}`,
-			headline: groupHeadline(group),
-			detail: group.examples.length > 0 ? `For example: ${group.examples.join(', ')}.` : null,
-			action: { kind: 'navigate', label: group.action.label, href: group.action.target },
-		}));
+	// A8-C5 S2.0: `groups` is guarded, exactly as the comment above promises. A
+	// diagnostic built by a test fixture, an older payload, or any caller that
+	// omits the field must take the legacy one-line fallback, not throw on
+	// `.length` of undefined. `Array.isArray` is the single guard: a non-array
+	// `groups` is treated as empty, and the fallback below names the count it can
+	// actually measure (`blockerCount`).
+	const groups = Array.isArray(diagnostic.groups) ? diagnostic.groups : [];
+	if (groups.length > 0) {
+		return groups.map((group, index) => {
+			// A8-C5 S2.2, same rule as `groups` above and for the same reason: the
+			// examples are optional detail, so an absent or malformed field costs
+			// the "For example" clause and nothing else. It must never cost the
+			// line.
+			const examples = Array.isArray(group.examples)
+				? group.examples.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+				: [];
+			return {
+				key: `generation-blocker-group-${group.cause}-${index}`,
+				headline: groupHeadline(group),
+				detail: examples.length > 0 ? `For example: ${examples.join(', ')}.` : null,
+				action: groupFixAction(group),
+			};
+		});
 	}
+	// A8-C5 S2.0: the fallback line. The verb is spelled out here, so the phrase
+	// constant is the COMPLEMENT ("attention", not "need attention") — the previous
+	// pair rendered "2 items need need attention", a doubled word a scheduler reads
+	// on the one line this fallback produces.
 	return [{
 		key: 'generation-blocker-group-legacy',
-		headline: `${diagnostic.blockerCount} ${diagnostic.blockerCount === 1 ? 'item needs' : 'items need'} ${GENERIC_CAUSE_PHRASE}`,
+		headline: `${diagnostic.blockerCount} ${diagnostic.blockerCount === 1 ? 'item needs' : 'items need'} ${LEGACY_CAUSE_NOUN}`,
 		detail: null,
 		action: { kind: 'navigate', label: 'Open Year Setup', href: '/admin/year-setup' },
 	}];
 }
 
+/**
+ * A8-C5 S2.2 — ONE fix button per cause, resolved from the ONE table.
+ *
+ * Before this, `GROUP_CAUSE_COPY` (the headline, here), `actionForCause` (the
+ * server) and `deriveTimetableReadinessRepair` (here) each decided what a code
+ * meant and where it is fixed, and they could disagree — a headline about
+ * teaching load could sit above a button that opened rooms. The table is now the
+ * single authority for the PANEL: the same representative code that supplies the
+ * sentence supplies the route and the label, so a line and its button cannot
+ * describe two different problems.
+ *
+ * The server's own `group.action` remains the FALLBACK for a code the table does
+ * not carry. It is a real mounted route, so the line keeps working; the missing
+ * table row is a defect the A7 test fails on, which is where it belongs — not in
+ * a blank panel in front of a scheduler.
+ */
+function groupFixAction(group: TimetableGenerationBlockerGroup): TimetableGenerationBlockerGroupPresentation['action'] {
+	const representative = representativeBlockerCode(group);
+	const fromTable = representative === null ? null : blockerFixAction(representative);
+	if (fromTable) return { kind: 'navigate', label: fromTable.label, href: fromTable.href };
+	return { kind: 'navigate', label: group.action.label, href: group.action.target };
+}
+
+/**
+ * A8-C5 S2.2 — the headline for a group, composed from the ONE shared
+ * code→sentence table. The count is the server's; the words and the unit are the
+ * table's, so a line can never read as a session count or a bare number.
+ */
 function groupHeadline(group: TimetableGenerationBlockerGroup): string {
-	const copy = GROUP_CAUSE_COPY[group.cause];
-	if (!copy) return `${group.count} ${group.count === 1 ? 'item' : 'items'} ${GENERIC_CAUSE_PHRASE}`;
 	// The server has already counted THIS group in classes, so the line reads
 	// `group.count`. It must not borrow the panel-wide `gapClassCount`: that is a
 	// different population (every class in any gap), and a group that is not the
 	// whole coverage cause would otherwise print someone else's number.
-	return `${group.count} ${group.count === 1 ? singular(copy.noun) : copy.noun} ${copy.verb}`;
+	//
+	// A folded group (the two coverage codes) has several codes; the FIRST one the
+	// table knows is the representative sentence, and because both coverage codes
+	// share one table row they produce the SAME words — one line, not two.
+	const representative = representativeBlockerCode(group);
+	if (representative) {
+		const sentence = blockerSentence(representative, group.count);
+		assertPlainGroupSentence(sentence, group);
+		return sentence;
+	}
+	return `${group.count} ${group.count === 1 ? 'item' : 'items'} ${GENERIC_CAUSE_PHRASE}`;
 }
 
-function singular(noun: string): string {
-	if (noun.endsWith('es')) return noun.slice(0, -2);
-	if (noun.endsWith('s')) return noun.slice(0, -1);
-	return noun;
+/**
+ * A rendered headline must never leak a raw engine token or a truncated name
+ * (AGENTS.md §8). The shared table's own test proves this per code; this is the
+ * RENDERED guard, so a future edit that bypasses the table is caught here too.
+ */
+function assertPlainGroupSentence(sentence: string, group: TimetableGenerationBlockerGroup): void {
+	if (/\b[A-Z][A-Z0-9_]{5,}\b/.test(sentence) || sentence.includes('…') || sentence.includes('..')) {
+		throw new Error(
+			`blocker group "${group.cause}" rendered a non-plain headline: ${JSON.stringify(sentence)}. `
+			+ 'A scheduler-facing line must be words, never a code, an id or a truncated name.',
+		);
+	}
 }
 
 export type ExpectedGenerationScope = {
@@ -603,16 +724,42 @@ export function deriveGenerationReadinessState(
 	return { state: 'blocked', message, code, repair, diagnostic };
 }
 
-/** Compact gate view used by the capability model. */
+/**
+ * Compact gate view used by the capability model.
+ *
+ * A8-C5 S2.3 FOLLOW-UP (executor finding, 2026-09-29) — FAIL CLOSED INSTEAD OF
+ * THROWING. This read `readiness.diagnostic.generateAllowed` unguarded, so a
+ * readiness a caller BUILT rather than one `deriveGenerationReadinessState`
+ * produced — a hand-written `{ state: 'ready' }`, a test fixture, a restored
+ * cached value from an older shape — threw a `TypeError` where every other
+ * capability derivation in this lane returns an answer. A summary that cannot be
+ * read is an UNVERIFIED decision, and the capability model already has an
+ * honest rendering for that: `generationStoppers` names it as
+ * `readiness-unverified` and the Generate dialog explains it. Throwing here
+ * instead took the whole header down.
+ *
+ * This is the same rule `presentGenerationBlockerGroups` already applies to
+ * `groups` (A8-C5 S2.0) for the same reason: the parser's defaults are a
+ * guarantee about the parser, not about code outside it. `null` is the correct
+ * answer here — it is exactly what an `unavailable`/`failed`/`loading`
+ * readiness already returns, so the caller needs no new branch.
+ */
 export function summarizeGenerationReadiness(
 	readiness: TimetableCurriculumReadinessState | null | undefined,
 ): TimetableReadinessDiagnosticSummary | null {
 	if (!readiness || (readiness.state !== 'ready' && readiness.state !== 'blocked')) return null;
+	// The union says `diagnostic` is present on these two states, so this is
+	// narrowed away by the type system; the runtime check is deliberate. The
+	// read is untyped in practice because a `TimetableCurriculumReadinessState`
+	// is rebuilt by hand in fixtures and restored from cache, and a guard that
+	// only the compiler can see is not a guard.
+	const diagnostic: TimetableGenerationReadinessDiagnostic | undefined = readiness.diagnostic;
+	if (!diagnostic || typeof diagnostic !== 'object') return null;
 	return {
-		generateAllowed: readiness.diagnostic.generateAllowed,
-		zeroWrite: readiness.diagnostic.zeroWrite,
-		blockerCount: readiness.diagnostic.blockerCount,
-		gapCount: readiness.diagnostic.gapCount,
-		gapClassCount: readiness.diagnostic.gapClassCount,
+		generateAllowed: diagnostic.generateAllowed,
+		zeroWrite: diagnostic.zeroWrite,
+		blockerCount: diagnostic.blockerCount,
+		gapCount: diagnostic.gapCount,
+		gapClassCount: diagnostic.gapClassCount,
 	};
 }

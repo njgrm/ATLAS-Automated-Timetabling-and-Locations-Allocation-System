@@ -6,6 +6,7 @@ import { prisma } from '../lib/prisma.js';
 import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-identity.service.js';
 import * as facultyService from '../services/faculty.service.js';
 import { fetchEnrollProActiveSchoolYear } from '../services/section-adapter.js';
+import { resolveWriteSchoolYearId } from '../lib/write-school-year-authority.js';
 import { getUpstreamAuthToken } from '../middleware/upstream-auth.js';
 import { validateAncillaryLoadImmutable } from '../services/scheduling-policy.service.js';
 import { publishNotificationEvent } from '../services/notification-events.service.js';
@@ -160,14 +161,16 @@ async function handleFacultySync(req: Request, res: Response, next: NextFunction
 
 		const upstreamAuthToken = getUpstreamAuthToken(req);
 
-		// Resolve schoolYearId: use caller-supplied value if present, otherwise fetch from EnrollPro.
-		let schoolYearId: number;
-		if (req.body.schoolYearId !== undefined) {
-			schoolYearId = Number(req.body.schoolYearId);
-		} else {
-			const activeYear = await fetchEnrollProActiveSchoolYear(upstreamAuthToken);
-			schoolYearId = activeYear?.id ?? 1;
+		// A8-C5 S1.1: never default a year id in a write path. A caller-supplied
+		// id must be a positive integer; with none supplied the EnrollPro active
+		// school year must resolve, else typed 409 ACTIVE_SCHOOL_YEAR_UNRESOLVED
+		// with zero writes and zero sync dispatch.
+		const yearResolution = await resolveWriteSchoolYearId(req.body.schoolYearId, upstreamAuthToken);
+		if (!yearResolution.ok) {
+			res.status(yearResolution.status).json({ code: yearResolution.code, message: yearResolution.message });
+			return;
 		}
+		const schoolYearId = yearResolution.schoolYearId;
 
 		const [result, activeYear] = await Promise.all([
 			facultyService.syncFacultyFromExternal(schoolId, schoolYearId, upstreamAuthToken, {

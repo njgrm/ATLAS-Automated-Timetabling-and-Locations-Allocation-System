@@ -66,7 +66,12 @@ Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, co
 
 const { createRoot } = await import('react-dom/client');
 const { MemoryRouter } = await import('react-router-dom');
-const { deriveGenerationReadinessState, presentGenerationBlockerGroups } = await import('../../../lib/timetable-generation-readiness');
+const {
+	deriveGenerationReadinessState,
+	presentGenerationBlockerGroups,
+	representativeBlockerCode,
+} = await import('../../../lib/timetable-generation-readiness');
+const { BLOCKER_CODE_COPY } = await import('../../../lib/timetable-blocker-code-copy');
 const { deriveTimetableCapabilities } = await import('../../../lib/timetable-capabilities');
 
 let root: Root | null = null;
@@ -133,6 +138,56 @@ function gapOnlyDiagnostic() {
 	};
 }
 
+/**
+ * A8-C5 A9 — the FOUR causes the packet pins for browser row B4, as the server
+ * would group them. Chosen to span FOUR different fix routes, so a button-href
+ * assertion over this fixture discriminates: if the panel ever sent every cause
+ * to one page, or reused the server's own action instead of the table's, this
+ * fixture is what notices.
+ */
+function fourCauseDiagnostic() {
+	const base = liveDiagnostic();
+	return {
+		...base,
+		blockerCount: 4,
+		groups: [
+			{ cause: 'TEACHER_COVERAGE_GAP', code: 'TL_DEMAND_UNCOVERED', codes: ['TL_DEMAND_UNCOVERED', 'TL_NO_QUALIFIED_OWNER'], count: 50, sessionCount: 620, unit: 'classes', examples: ['MAPEH 7-A'], action: { label: 'Assign teachers', target: '/teaching-load' } },
+			{ cause: 'ROOMS_MISSING', code: 'ROOMS_MISSING', codes: ['ROOMS_MISSING'], count: 7, sessionCount: 7, unit: 'classes', examples: ['ENG 7-B'], action: { label: 'Open Year Setup', target: '/admin/year-setup' } },
+			{ cause: 'GRADE_WINDOW_MISSING', code: 'GRADE_WINDOW_MISSING', codes: ['GRADE_WINDOW_MISSING'], count: 3, sessionCount: 3, unit: 'classes', examples: ['SCI 7-D'], action: { label: 'Open Year Setup', target: '/admin/year-setup' } },
+			{ cause: 'SECTION_SETUP_REQUIRED', code: 'SECTION_SETUP_REQUIRED', codes: ['SECTION_SETUP_REQUIRED'], count: 2, sessionCount: 2, unit: 'classes', examples: [], action: { label: 'Open Year Setup', target: '/admin/year-setup' } },
+		],
+	};
+}
+
+/**
+ * A8-C5 S1.2 / A9 — the THIRD ownership state, as the panel receives it: its own
+ * group, its own line, `blockerCount: 0` beside it.
+ *
+ * The server has already decided that a placeholder-owned class blocks neither
+ * generation nor publication, so what the client can honestly prove is narrower
+ * and is what this fixture proves: the state is NAMED on its own line, in the
+ * same sentence shape as every other line, it is not folded into the "no
+ * teacher" line it is most easily confused with, and it does not turn a
+ * zero-blocker diagnostic into a blocked one.
+ */
+function placeholderOwnedDiagnostic() {
+	const base = liveDiagnostic();
+	return {
+		...base,
+		status: 'READY',
+		generateAllowed: true,
+		blockerCount: 0,
+		groups: [
+			{ cause: 'PLACEHOLDER_OWNER', code: 'SYNTHETIC_PLACEHOLDER_OWNED', codes: ['SYNTHETIC_PLACEHOLDER_OWNED'], count: 12, sessionCount: 12, unit: 'classes', examples: ['FIL 7-E'], action: { label: 'Assign teachers', target: '/teaching-load' } },
+			base.groups[0],
+		],
+		blockers: [base.blockers[0]],
+	};
+}
+
+/** The shape every panel line must have: a count, a unit, a verb, plain words. */
+const LINE_SHAPE = /^\d+ [a-z][a-z ]* (is|are|needs|need|not|with|outside|over|waiting|on|beyond|without|sharing|ordered) /;
+
 test('C3.1 the adapter carries the server groups, the gap counts, and the blocking count', () => {
 	const state = deriveGenerationReadinessState(liveDiagnostic(), { schoolId: 1, schoolYearId: 2 });
 	assert.equal(state.state, 'blocked');
@@ -171,6 +226,14 @@ test('C3.2 a year whose ONLY gap is teacher coverage reads READY, and the Genera
 });
 
 test('C3.3 the gate still refuses when the diagnostic did not prove zero-write or did not allow', () => {
+	// ── SUPERSEDED 2026-09-29 by A8-C5 S2.3 (packet addendum 20:05: "it should
+	// never be disabled"). The CLAIM this row made is still true and is what it
+	// now asserts: a gap never substitutes for allow + zero-write, so the
+	// capability model still reports the decision as unverified. What changed is
+	// the response — a named stopper inside a dialog the operator can open,
+	// rather than a button that cannot be pressed. The old expectation is
+	// recorded, not deleted.
+	//   was: assert.equal(capabilities.gates.generation.enabled, false, 'a gap never substitutes for allow + zero-write');
 	for (const summary of [
 		{ generateAllowed: true, zeroWrite: false, blockerCount: 0, gapCount: 620, gapClassCount: 50 },
 		{ generateAllowed: false, zeroWrite: true, blockerCount: 0, gapCount: 620, gapClassCount: 50 },
@@ -190,7 +253,12 @@ test('C3.3 the gate still refuses when the diagnostic did not prove zero-write o
 			requestPendingCount: 0,
 			generationDiagnostic: summary,
 		});
-		assert.equal(capabilities.gates.generation.enabled, false, 'a gap never substitutes for allow + zero-write');
+		assert.equal(capabilities.gates.generation.enabled, true, 'A8-C5 S2.3: the unverified decision is a named stopper, not a greyed button');
+		assert.equal(
+			capabilities.generationStoppers.some((stopper) => stopper.key === 'readiness-unverified'),
+			true,
+			'a gap never substitutes for allow + zero-write — the dialog says so by name',
+		);
 	}
 });
 
@@ -259,4 +327,144 @@ test('C3.5 the rendered panel shows ONE line per group and exactly ONE "Check ag
 	assert.equal(panel()?.querySelectorAll('[data-testid="timetable-generation-blocker-item"]').length, 4,
 		'every blocker row is still rendered, with its real per-row repair');
 	assert.match(panel()?.textContent ?? '', /4 setup items in full/, 'the raw list states its own count');
+});
+
+/* ------------------------------------------------------------------ *
+ * A8-C5 A9 — the RENDERED proof that the panel is correct against the
+ * S2.1 table. A7 is the source-level completeness control; these two rows
+ * are the control that a scheduler actually sees a fixable line.
+ * ------------------------------------------------------------------ */
+
+test('C3.6 A8-C5 A9: every rendered line carries the CLASS count and its own fix route, with exactly ONE "Check again"', async () => {
+	const { SimpleGenerationBlockerSheetBody } = await import('../simple/SimpleGenerationBlockerSheet');
+	const state = deriveGenerationReadinessState(fourCauseDiagnostic(), { schoolId: 1, schoolYearId: 2 });
+	if (state.state !== 'blocked') throw new Error('fixture must be blocked');
+	await mount(createElement(MemoryRouter, null,
+		createElement(SimpleGenerationBlockerSheetBody, {
+			diagnostic: state.diagnostic,
+			groups: presentGenerationBlockerGroups({ diagnostic: state.diagnostic }),
+			blockingCount: state.diagnostic.blockerCount,
+			gapClassCount: state.diagnostic.gapClassCount,
+			onRetry: () => {},
+			onRequestClose: () => {},
+		}),
+	));
+
+	const rows = Array.from(document.querySelectorAll<HTMLElement>('[data-testid="timetable-generation-blocker-group"]'));
+	assert.equal(rows.length, 4, 'one line per root cause');
+	assert.equal(
+		document.querySelectorAll<HTMLElement>('[data-testid="timetable-generation-blocker-check-again"]').length,
+		1,
+		'exactly ONE "Check again" for the panel, whatever the number of causes',
+	);
+	assert.equal(
+		document.querySelectorAll<HTMLElement>('[data-testid="timetable-generation-blocker-group-action"]').length,
+		4,
+		'ONE fix button per cause — not one per blocker row, and not one shared button',
+	);
+
+	// The RENDERED anchor, not the model: the row a scheduler clicks is the proof.
+	const expectedHrefs = state.diagnostic.groups.map((group) => {
+		const code = representativeBlockerCode(group);
+		assert.ok(code, `${group.cause} must resolve a code the shared table knows — a code with no row is a defect (A7)`);
+		return BLOCKER_CODE_COPY[code!].route;
+	});
+	assert.ok(
+		new Set(expectedHrefs).size >= 3,
+		`THE CONTROL IS NOT VACUOUS: this fixture must span several fix routes (it spans ${new Set(expectedHrefs).size}), or an href assertion over it proves nothing`,
+	);
+
+	rows.forEach((row, index) => {
+		const headline = row.querySelector<HTMLElement>('[data-testid="timetable-generation-blocker-group-headline"]')?.textContent ?? '';
+		const group = state.diagnostic.groups[index];
+		assert.match(headline.trim(), LINE_SHAPE, `line ${index} must read as a counted sentence: ${headline}`);
+		assert.ok(
+			headline.includes(String(group.count)),
+			`line ${index} must carry the count the server measured for THIS group (${group.count}), never a session count: ${headline}`,
+		);
+		assert.doesNotMatch(headline, /[A-Z][A-Z0-9_]{4,}/, `line ${index} must not print an engine code: ${headline}`);
+		assert.doesNotMatch(headline, /…|\.\.\./, `line ${index} must not truncate: ${headline}`);
+		assert.doesNotMatch(headline, /\b#\d+\b/, `line ${index} must not print an id: ${headline}`);
+
+		const anchor = row.querySelector<HTMLAnchorElement>('[data-testid="timetable-generation-blocker-group-action"]');
+		assert.ok(anchor, `line ${index} must render its own fix button`);
+		assert.equal(
+			anchor!.getAttribute('href'),
+			expectedHrefs[index],
+			`the button on line ${index} must open the S2.1 route for that cause — the server's own action and the table disagree here, and the table is the authority`,
+		);
+		assert.ok((anchor!.textContent ?? '').trim().length > 0, `line ${index}'s button must carry a visible label`);
+	});
+});
+
+test('C3.7 A8-C5 A9: the placeholder-owned THIRD state is named on its own line, in the same shape, and is not a blocker', async () => {
+	const { SimpleGenerationBlockerSheetBody } = await import('../simple/SimpleGenerationBlockerSheet');
+	const state = deriveGenerationReadinessState(placeholderOwnedDiagnostic(), { schoolId: 1, schoolYearId: 2 });
+
+	// NOT A BLOCKER. The server counted zero blocking rows, and a to-be-hired
+	// owner must not turn that into a blocked state — that is the S1.2 contract
+	// observed from the client side.
+	assert.equal(state.state, 'ready', 'a class on a to-be-hired teacher does not stop generation');
+	const capabilities = deriveTimetableCapabilities({
+		scopeResolved: true,
+		curriculumState: 'ready',
+		generating: false,
+		isPreGeneration: false,
+		hasGeneratedRun: false,
+		isPublished: false,
+		latestRunFailed: false,
+		hardCount: 0,
+		unassignedCount: 0,
+		softCount: 0,
+		hasSelectedEntry: false,
+		requestPendingCount: 0,
+		generationDiagnostic: state.state === 'ready'
+			? {
+				generateAllowed: state.diagnostic.generateAllowed,
+				zeroWrite: state.diagnostic.zeroWrite,
+				blockerCount: state.diagnostic.blockerCount,
+				gapCount: state.diagnostic.gapCount,
+				gapClassCount: state.diagnostic.gapClassCount,
+			}
+			: null,
+	});
+	assert.equal(capabilities.gates.generation.enabled, true, 'the third state leaves the generation gate enabled');
+
+	// NAMED, in the same sentence shape as every other line.
+	await mount(createElement(MemoryRouter, null,
+		createElement(SimpleGenerationBlockerSheetBody, {
+			diagnostic: state.diagnostic,
+			groups: presentGenerationBlockerGroups({ diagnostic: state.diagnostic }),
+			blockingCount: state.diagnostic.blockerCount,
+			gapClassCount: state.diagnostic.gapClassCount,
+			onRetry: () => {},
+			onRequestClose: () => {},
+		}),
+	));
+	const headlines = Array.from(
+		document.querySelectorAll<HTMLElement>('[data-testid="timetable-generation-blocker-group-headline"]'),
+	).map((node) => node.textContent?.trim() ?? '');
+	assert.equal(headlines.length, 2, 'the third state is its OWN line, not folded into the no-teacher line');
+	assert.equal(
+		headlines[0],
+		'12 classes are on a to-be-hired teacher',
+		'the third state is named in the same sentence shape: count, unit, plain predicate',
+	);
+	assert.match(headlines[0], LINE_SHAPE);
+	for (const headline of headlines) {
+		assert.doesNotMatch(headline, /[A-Z][A-Z0-9_]{4,}/, `no engine code on screen: ${headline}`);
+		assert.doesNotMatch(headline, /…|\.\.\./, `no truncation on screen: ${headline}`);
+	}
+	// DISCRIMINATION: the two lines must be genuinely different sentences, or
+	// "it is named" would also be true of a copy of the coverage line.
+	assert.notEqual(headlines[0], headlines[1], 'the to-be-hired line must not reuse the no-teacher wording');
+	assert.equal(headlines[1], '50 classes need a teacher', 'and the no-teacher line is unchanged beside it');
+
+	const row = document.querySelector<HTMLElement>('[data-testid="timetable-generation-blocker-group"]');
+	const anchor = row?.querySelector<HTMLAnchorElement>('[data-testid="timetable-generation-blocker-group-action"]');
+	assert.equal(
+		anchor?.getAttribute('href'),
+		BLOCKER_CODE_COPY.SYNTHETIC_PLACEHOLDER_OWNED.route,
+		'its button opens the S2.1 route for the third state',
+	);
 });

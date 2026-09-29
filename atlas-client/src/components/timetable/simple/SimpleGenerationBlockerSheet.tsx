@@ -69,32 +69,35 @@ export type SimpleGenerationBlockerSheetBodyProps = {
 	/** Re-runs the readiness check in place. The ONE panel-level control calls this. */
 	onRetry: () => void;
 	onRequestClose: () => void;
+	/**
+	 * A8-C5 S2.3 (executor, 2026-09-29): whether the panel's "Check again" renders
+	 * HERE. True by default, so the sheet is unchanged. The Generate dialog passes
+	 * `false` because it owns ONE recheck for its whole body — re-running the
+	 * readiness check is one action with one control, and a second copy of the
+	 * same button in the same dialog is the "two controls that say the same
+	 * thing" defect.
+	 */
+	checkAgainInPanel?: boolean;
 };
 
 /**
- * The blocker list. Every row states the problem in plain words and offers the
- * one real repair for it. A `retry` closes the sheet and re-runs the check; a
- * `navigate` row is a `Link` that closes the sheet and follows a real mounted
- * route, so it needs no separate navigate callback.
+ * A8-C5 S2.3 (executor, 2026-09-29) — the disclosed row list, extracted so the
+ * Generate dialog can carry the SAME complete list behind the SAME disclosure
+ * instead of re-inventing a second one.
+ *
+ * Nothing was deleted to extract it: the markup, the test ids and the per-row
+ * repairs are byte-for-byte the ones the sheet rendered, and the sheet still
+ * renders exactly this.
  */
-export function SimpleGenerationBlockerSheetBody({
+export function GenerationBlockerDetail({
 	diagnostic = null,
 	rows,
-	groups,
-	blockingCount,
-	gapClassCount,
-	onRetry,
-	onRequestClose,
-}: SimpleGenerationBlockerSheetBodyProps) {
-	// A8 C3 — the ROW list is preserved exactly as it was: same sentences, same
-	// per-row repairs, same test ids. It is no longer the default view; it is the
-	// disclosed detail, so the accepted evidence for "every blocker is
-	// presented" is not lost to a cosmetic change.
+}: {
+	diagnostic?: TimetableGenerationReadinessDiagnostic | null;
+	rows?: TimetableGenerationBlockerPresentation[];
+}) {
 	const rowList = rows ?? (diagnostic ? presentGenerationBlockers({ diagnostic }) : []);
-	const groupList = groups ?? (diagnostic ? presentGenerationBlockerGroups({ diagnostic }) : []);
-	const blocking = blockingCount ?? diagnostic?.blockerCount ?? rowList.length;
-	const gapClasses = gapClassCount ?? diagnostic?.gapClassCount ?? 0;
-	const detail = (
+	return (
 		<div className="space-y-2" data-testid="timetable-generation-blocker-list">
 			<p className="text-xs text-muted-foreground" data-testid="timetable-generation-blocker-count">
 				{rowList.length} setup {rowList.length === 1 ? 'item' : 'items'} in full.
@@ -128,7 +131,7 @@ export function SimpleGenerationBlockerSheetBody({
 									<Link
 										to={row.repair.href}
 										data-testid="timetable-generation-blocker-navigate"
-										onClick={onRequestClose}
+										onClick={noClose}
 									>
 										<ExternalLink className="size-3.5" aria-hidden="true" />
 										{row.repair.label}
@@ -141,21 +144,69 @@ export function SimpleGenerationBlockerSheetBody({
 			</ul>
 		</div>
 	);
+}
 
+/** A close handler is optional so the dialog can render this list without one. */
+const noClose = () => {};
+
+/**
+ * A8-C5 S2.3 — the panel's two sentences, extracted for the same reason as
+ * `GenerationBlockerDetail`. `lead` is what stops a schedule being made;
+ * `detailSummary` is the disclosure's honest count.
+ */
+export function generationBlockerPanelCopy(input: {
+	rowCount: number;
+	blockingCount: number;
+	gapClassCount: number;
+}): { lead: string; detailSummary: string } {
 	// A8 C3 ITEM 7 — the lead sentence must be plain for the older, mouse-first
 	// scheduler the rubric names. "N things must be fixed" was jargon on a page
 	// that otherwise says "classes", and it counted a number whose meaning
 	// (blocking items, not sessions) the operator could not see. The wording now
 	// matches the page's own noun.
-	const groupLead = blocking > 0
-		? `${blocking} ${blocking === 1 ? 'setup item must' : 'setup items must'} be fixed before a timetable can be made.`
-		: gapClasses > 0
-			? `${gapClasses} ${gapClasses === 1 ? 'class needs' : 'classes need'} a teacher. The schedule can still be made.`
+	const { rowCount, blockingCount, gapClassCount } = input;
+	const lead = blockingCount > 0
+		? `${blockingCount} ${blockingCount === 1 ? 'setup item must' : 'setup items must'} be fixed before a timetable can be made.`
+		: gapClassCount > 0
+			? `${gapClassCount} ${gapClassCount === 1 ? 'class needs' : 'classes need'} a teacher. The schedule can still be made.`
 			: 'Check the schedule information again.';
 	// The disclosure ALWAYS names the real row count, even when it happens to
 	// equal the number of lines: a control that silently changed what it counts
 	// would be the same "651 identical rows" defect in a different place.
-	const detailSummary = `Show all ${rowList.length} setup ${rowList.length === 1 ? 'item' : 'items'}`;
+	const detailSummary = `Show all ${rowCount} setup ${rowCount === 1 ? 'item' : 'items'}`;
+	return { lead, detailSummary };
+}
+
+/**
+ * The blocker list. Every row states the problem in plain words and offers the
+ * one real repair for it. A `retry` closes the sheet and re-runs the check; a
+ * `navigate` row is a `Link` that closes the sheet and follows a real mounted
+ * route, so it needs no separate navigate callback.
+ */
+export function SimpleGenerationBlockerSheetBody({
+	diagnostic = null,
+	rows,
+	groups,
+	blockingCount,
+	gapClassCount,
+	onRetry,
+	onRequestClose,
+	checkAgainInPanel = true,
+}: SimpleGenerationBlockerSheetBodyProps) {
+	// A8 C3 — the ROW list is preserved exactly as it was: same sentences, same
+	// per-row repairs, same test ids. It is no longer the default view; it is the
+	// disclosed detail, so the accepted evidence for "every blocker is
+	// presented" is not lost to a cosmetic change.
+	const rowList = rows ?? (diagnostic ? presentGenerationBlockers({ diagnostic }) : []);
+	const groupList = groups ?? (diagnostic ? presentGenerationBlockerGroups({ diagnostic }) : []);
+	const blocking = blockingCount ?? diagnostic?.blockerCount ?? rowList.length;
+	const gapClasses = gapClassCount ?? diagnostic?.gapClassCount ?? 0;
+	const detail = <GenerationBlockerDetail diagnostic={diagnostic} rows={rowList} />;
+	const { lead: groupLead, detailSummary } = generationBlockerPanelCopy({
+		rowCount: rowList.length,
+		blockingCount: blocking,
+		gapClassCount: gapClasses,
+	});
 
 	return (
 		<>
@@ -165,7 +216,7 @@ export function SimpleGenerationBlockerSheetBody({
 			<ScrollArea className="min-h-0 flex-1">
 				<SimpleGenerationBlockerGroups
 					groups={groupList}
-					onCheckAgain={() => { onRequestClose(); onRetry(); }}
+					onCheckAgain={checkAgainInPanel ? () => { onRequestClose(); onRetry(); } : null}
 					detail={detail}
 					detailSummary={detailSummary}
 				/>

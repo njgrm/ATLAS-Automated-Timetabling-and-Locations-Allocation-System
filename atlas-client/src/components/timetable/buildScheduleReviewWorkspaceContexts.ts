@@ -11,6 +11,7 @@ import type { TimetableCurriculumReadinessState } from '@/hooks/useTimetableData
 import type { DragSource, PreGenDragSource } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 import type { LeftRailContentContext, ScheduleReviewDialogsContext } from '@/components/timetable/timetableContexts.types';
 import type { EditHistoryReadState } from '@/lib/timetable-edit-history-truth';
+import type { TimetableGenerationStopper } from '@/lib/timetable-capabilities';
 
 import {
 	CONFLICT_CODES,
@@ -69,7 +70,12 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 	hasPublishedReturnState?: boolean;
 	generating: boolean;
 	loading: boolean;
-	handleTriggerGenerate: () => void;
+	/**
+	 * A8-C5 S2.3 — the click site hands over the `generationStoppers` it derived, so
+	 * the Generate dialog names the same causes the clicked control was derived
+	 * from. Optional, so every existing call shape is unchanged.
+	 */
+	handleTriggerGenerate: (stoppers?: TimetableGenerationStopper[]) => void;
 	draft: DraftReport | null;
 	setPublishAcknowledged: (value: boolean) => void;
 	setShowPublishDialog: (value: boolean) => void;

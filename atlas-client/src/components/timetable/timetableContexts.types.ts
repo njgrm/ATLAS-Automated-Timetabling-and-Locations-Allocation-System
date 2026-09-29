@@ -15,6 +15,8 @@ import type {
 	ViolationCode,
 } from '@/types';
 import type { EditHistoryReadState } from '@/lib/timetable-edit-history-truth';
+import type { TimetableGenerationStopper } from '@/lib/timetable-capabilities';
+import type { TimetableGenerationReadinessDiagnostic } from '@/lib/timetable-generation-readiness';
 
 export type LeftRailContentContext = {
 	leftTab: 'violations' | 'unassigned' | 'pinned' | 'requests';
@@ -148,6 +150,32 @@ export type ScheduleReviewDialogsContext = {
 	unassignDraftPlacement: (placementId: number) => Promise<void>;
 	showGenerateConfirm: boolean;
 	setShowGenerateConfirm: Dispatch<SetStateAction<boolean>>;
+	/**
+	 * A8-C5 S2.3 — what genuinely prevents a timetable, one named entry per cause,
+	 * exactly as `deriveTimetableCapabilities` computed it for the control the
+	 * operator clicked. The Generate dialog renders these as one plain line each,
+	 * with a count where one was measured and ONE fix button.
+	 *
+	 * It is the CLICK SITE that supplies this, not the dialog: the headers own the
+	 * complete capability input — including school-year drift, which is read from
+	 * the rollover status each header already fetches — so the dialog reads the same
+	 * array the button beside it was derived from. Absent means a caller has not
+	 * wired it, and the dialog then explains only what the diagnostic carries.
+	 */
+	generationStoppers?: TimetableGenerationStopper[];
+	/**
+	 * A8-C5 S2.3 — the canonical diagnostic behind `generationStoppers`, when one
+	 * was read. It is what lets the dialog list the real per-cause lines (count in
+	 * classes, the shared table's route and label on each button) instead of only
+	 * the summary-level stoppers.
+	 */
+	generationReadinessDiagnostic?: TimetableGenerationReadinessDiagnostic | null;
+	/**
+	 * A8-C5 S2.3 — the ONE "Check again" for the Generate dialog's whole body. The
+	 * workspace's own refresh, so the control is never a no-op. Null hides it
+	 * rather than rendering a button that does nothing.
+	 */
+	onCheckScheduleAgain?: (() => void) | null;
 	enforceShiftWindows: boolean;
 	setEnforceShiftWindows: Dispatch<SetStateAction<boolean>>;
 	draftBoardSummary: DraftBoardState['counts'] | null;
@@ -199,6 +227,18 @@ export type ScheduleReviewDialogsContext = {
 	 * disabled while any session still needs placing, even with zero hard
 	 * violations, because previewability is not joint feasibility. */
 	publishUnassignedCount: number;
+	/**
+	 * A8-C5 S2.4 — the run's own count of classes whose canonical Teaching Load
+	 * owner is a TO-BE-HIRED (placeholder) record, from `RunSummary`
+	 * (`generation.service.ts`). `null` when the run carried no such figure, which
+	 * is different from `0` and must produce no line: the publish refusal never
+	 * invents a number.
+	 *
+	 * It NAMES these classes; it does not refuse on them. A placeholder-owned class
+	 * blocks neither generation nor publication (S1.2), so it does not disable the
+	 * Publish control.
+	 */
+	publishPlaceholderOwnedCount?: number | null;
 	policy: { teacherMoveEnabled: boolean } | null;
 	handlePublishConfirm: () => void;
 	captureReviewFocusReturn: (fallbackSelector?: string) => void;

@@ -441,6 +441,34 @@ test('room-program break rows keep five independently labelled weekday cells wit
 	}
 });
 
+// A8-C5 S1.4 — the room-program totals cell. `exportRoomProgramWorkbook` had NO
+// existing assertion on this label, so this test is the control that fails on
+// base and passes on the fix. Cell (1,2) is the five-day sum, so it must be
+// labelled per week; the five weekday columns keep their per-day meaning.
+test('room-program totals row is labelled per week while the day columns stay per day', { skip: exceljsSkip }, async () => {
+	const buffer = await withDataContext(CLIENT, () => exportRoomProgramWorkbook({ ...buildOptions(1), roomId: 601 }));
+	const sheet = (await readWorkbook(buffer)).worksheets[0];
+	let totalsRow: any = null;
+	sheet.eachRow((row: any) => {
+		if (typeof row.getCell(1).value === 'string' && row.getCell(1).value.startsWith('TOTAL MINUTES')) totalsRow = row;
+	});
+	assert.ok(totalsRow, 'the room-program sheet carries a totals row');
+	assert.equal(totalsRow.getCell(1).value, 'TOTAL MINUTES PER WEEK', 'the weekly total is labelled as a week');
+
+	// The five day columns must still carry the fixture's per-day minutes, and the
+	// total cell must still equal their sum: only the LABEL changed (A8-C5 S1.4).
+	// The fixture places 90 minutes on Monday and 45 on each other day, so the
+	// five-day total is 270 — the cell that the old "PER DAY" label misdescribed.
+	const dayValues = [3, 4, 5, 6, 7].map((column) => Number(totalsRow.getCell(column).value ?? 0));
+	assert.deepEqual(dayValues, [90, 45, 45, 45, 45], 'each weekday column keeps its own per-day minutes');
+	assert.equal(Number(totalsRow.getCell(2).value), 270, 'the total cell is the five-day sum, which is why it is labelled per week');
+	assert.equal(
+		Number(totalsRow.getCell(2).value),
+		dayValues.reduce((sum, value) => sum + value, 0),
+		'the arithmetic is unchanged: the total is still the sum of the five day columns',
+	);
+});
+
 // ─── M15/T8/G11 — the room read resolves policy passively (zero writes) ───
 
 test('M15/T8: the room-read policy resolver performs zero writes and the room view never calls the creating path', async () => {

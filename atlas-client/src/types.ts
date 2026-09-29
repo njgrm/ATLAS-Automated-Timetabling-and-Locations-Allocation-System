@@ -1193,6 +1193,18 @@ export interface RunSummary {
 	 * schedule and becomes a function of the term selector.
 	 */
 	softViolationCount?: number;
+	/**
+	 * A8-C5 S1.2 — the run's OWN count and names for the THIRD ownership state:
+	 * classes whose canonical Teaching Load owner is a to-be-hired (placeholder)
+	 * record. The server counts them from the run's persisted rows
+	 * (`summarizeTeacherGaps`), so the number and the names can never disagree.
+	 *
+	 * They block neither generation nor publication; publication NAMES them in
+	 * words, through the same sentence the generation panel uses
+	 * (`blockerSentence('SYNTHETIC_PLACEHOLDER_OWNED', n)`).
+	 */
+	placeholderOwnedClasses?: number;
+	placeholderOwnedExamples?: string[];
 	prePlacedCount?: number;
 	invalidPrePlacedCount?: number;
 	skippedPrePlacedReasons?: string[];

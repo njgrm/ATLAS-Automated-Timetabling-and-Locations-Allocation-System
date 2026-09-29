@@ -212,8 +212,11 @@ export async function exportRoomProgramWorkbook(options: RoomProgramOptions): Pr
 			rowCursor++;
 		}
 
+		// A8-C5 S1.4: cell (1,2) holds the FIVE-DAY sum (`weekMinutes`), so the label
+		// says per week. The five day columns keep their per-day meaning and the
+		// arithmetic is untouched.
 		const totalsRow = sheet.getRow(rowCursor);
-		totalsRow.getCell(1).value = 'TOTAL MINUTES PER DAY';
+		totalsRow.getCell(1).value = 'TOTAL MINUTES PER WEEK';
 		totalsRow.getCell(1).font = { bold: true };
 		const weekMinutes = WEEKDAYS.reduce((sum, day) => sum + (dailyMinutes[day] ?? 0), 0);
 		totalsRow.getCell(2).value = weekMinutes;

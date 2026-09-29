@@ -1103,10 +1103,14 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 			// MINUTES PER DAY" is a plausible genuine defect and is preserved, with
 			// the measured numbers, as a named successor in
 			// docs/handoffs/a2-c5-building-occupancy-and-workbook-labels.md.
-			const totalsRow = sheet.getRow(rowCursor);
-			totalsRow.getCell(1).value = 'TOTAL MINUTES PER DAY';
-			totalsRow.getCell(1).font = { bold: true };
-			const weekTotalMinutes = WEEKDAYS.reduce((sum, day) => sum + dailyMinutes[day], 0);
+		// A8-C5 S1.4: cell (1,2) holds the FIVE-DAY sum (`weekTotalMinutes`), so the
+		// label says per week. The five day columns keep their per-day meaning and
+		// the arithmetic is untouched. The named successor recorded in the block
+		// above is closed by this change.
+		const totalsRow = sheet.getRow(rowCursor);
+		totalsRow.getCell(1).value = 'TOTAL MINUTES PER WEEK';
+		totalsRow.getCell(1).font = { bold: true };
+		const weekTotalMinutes = WEEKDAYS.reduce((sum, day) => sum + dailyMinutes[day], 0);
 			totalsRow.getCell(2).value = weekTotalMinutes;
 			totalsRow.getCell(2).font = { bold: true };
 			WEEKDAYS.forEach((day, dayIndex) => {

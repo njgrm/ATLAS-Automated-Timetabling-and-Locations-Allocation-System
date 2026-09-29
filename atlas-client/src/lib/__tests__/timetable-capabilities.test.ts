@@ -38,7 +38,18 @@ function base(overrides: Partial<TimetableCapabilityInput> = {}): TimetableCapab
 test('R1 unresolved scope blocks generation and every run-only action', () => {
 	const caps = deriveTimetableCapabilities(base({ scopeResolved: false }));
 	assert.equal(caps.lifecycle, 'resolve-scope');
-	assert.equal(caps.generation.enabled, false);
+	// ── SUPERSEDED 2026-09-29 by A8-C5 S2.3 (packet addendum 20:05; the operator,
+	// verbatim: "it should never be disabled"). The CONDITION is unchanged — an
+	// unresolved scope still stops a run — but the RESPONSE is not. It is now a
+	// named stopper the Generate dialog explains, and Generate opens that dialog.
+	// The original expectation is recorded here, not deleted, and the run-only
+	// actions below are deliberately NOT relaxed: they are not Generate.
+	//   was: assert.equal(caps.generation.enabled, false);
+	assert.equal(caps.generation.enabled, true, 'A8-C5 S2.3: an unresolved scope is a named stopper, not a greyed button');
+	assert.equal(caps.generationStoppers[0]?.key, 'scope-unresolved', 'and the dialog is told which cause it is');
+	assert.equal(caps.generationStoppers[0]?.checkFailed, true, 'a scope that did not load is a check that could not run, so it retries once by itself');
+	assert.equal(caps.generationStoppers[0]?.retryLabel, 'Retry schedule check', 'and then says so with a Retry button');
+	assert.equal(caps.generationStoppers[0]?.href, YEAR_SETUP_HREF, 'with a real place to fix it, not a dead end');
 	assert.equal(caps.generation.repair.kind, 'none');
 	assert.equal(caps.gates.swap.enabled, false);
 	assert.equal(caps.gates.publication.enabled, false);
@@ -47,7 +58,14 @@ test('R1 unresolved scope blocks generation and every run-only action', () => {
 test('R1 blocked setup offers one Year Setup repair, never generation or publish', () => {
 	const caps = deriveTimetableCapabilities(base({ curriculumState: 'blocked' }));
 	assert.equal(caps.lifecycle, 'setup-blocked');
-	assert.equal(caps.generation.enabled, false);
+	// ── SUPERSEDED 2026-09-29 by A8-C5 S2.3. The REPAIR below is unchanged and
+	// still asserted: a blocked setup is still sent to Year Setup, and publication
+	// is still refused. Only the greyed button became a named stopper.
+	//   was: assert.equal(caps.generation.enabled, false);
+	assert.equal(caps.generation.enabled, true, 'A8-C5 S2.3: a blocked setup is a named stopper, not a greyed button');
+	assert.equal(caps.generationStoppers[0]?.key, 'setup-blocked');
+	assert.equal(caps.generationStoppers[0]?.checkFailed, false, 'a blocked setup is a REAL fact, so it is never retried behind the operator');
+	assert.equal(caps.generationStoppers[0]?.count, null, 'nothing was measured here, so the line says no number rather than inventing one');
 	assert.equal(caps.generation.repair.kind, 'navigate');
 	assert.equal(caps.generation.repair.href, YEAR_SETUP_HREF);
 	assert.equal(caps.gates.publication.enabled, false);
@@ -60,14 +78,27 @@ test('R1 blocked setup offers one Year Setup repair, never generation or publish
 test('R1 unavailable setup offers retry, not a navigation or a generation', () => {
 	for (const curriculumState of ['unavailable', 'failed'] as const) {
 		const caps = deriveTimetableCapabilities(base({ curriculumState }));
-		assert.equal(caps.generation.enabled, false);
+		// ── SUPERSEDED 2026-09-29 by A8-C5 S2.3. The RETRY is unchanged and still
+		// asserted: what changed is that the operator gets the dialog and the
+		// dialog says the check could not run, instead of a button that cannot be
+		// pressed.   was: assert.equal(caps.generation.enabled, false);
+		assert.equal(caps.generation.enabled, true, `A8-C5 S2.3: ${curriculumState} is a named stopper, not a greyed button`);
+		assert.equal(caps.generationStoppers[0]?.key, 'setup-check-failed');
+		assert.equal(caps.generationStoppers[0]?.checkFailed, true, 'this is exactly the "a check that could not run" case the packet wants retried once by itself');
 		assert.equal(caps.generation.repair.kind, 'retry');
 	}
 });
 
 test('R1 drift blocks generation and points at Year Setup', () => {
 	const caps = deriveTimetableCapabilities(base({ driftBlocked: true, driftMessage: 'Sync the active school year first.' }));
-	assert.equal(caps.generation.enabled, false);
+	// ── SUPERSEDED 2026-09-29 by A8-C5 S2.3. The DRIFT MESSAGE and the Year Setup
+	// REPAIR below are unchanged and still asserted — including the A2 C13
+	// correction that a drifted year must never be told to "retry the schedule
+	// check". Only the greyed button became a named stopper.
+	//   was: assert.equal(caps.generation.enabled, false);
+	assert.equal(caps.generation.enabled, true, 'A8-C5 S2.3: drift is a named stopper, not a greyed button');
+	assert.equal(caps.generationStoppers[0]?.key, 'setup-drift');
+	assert.equal(caps.generationStoppers[0]?.checkFailed, false, 'drift is a REAL mismatch, not a failed check');
 	assert.equal(caps.generation.reason, 'Sync the active school year first.');
 	assert.equal(caps.generation.repair.href, YEAR_SETUP_HREF);
 });
@@ -182,8 +213,18 @@ test('R8C the two header gates pair their full reason with a ≤ 6-word short fo
 	}
 	// The blocked-setup and no-run shapes are the two the header really hits.
 	const blocked = deriveTimetableCapabilities(base({ curriculumState: 'blocked' }));
-	assert.equal(blocked.generation.enabled, false);
+	// ── SUPERSEDED 2026-09-29 by A8-C5 S2.3: the gate is no longer DISABLED in
+	// this shape, so R8C's `if (gate.enabled) continue;` no longer visits it. The
+	// six-word bound it enforces is not dropped with the visit — the stopper's own
+	// `shortReason` is held to it below, which is the sentence the header would
+	// print beside the control if it were ever disabled again.
+	//   was: assert.equal(blocked.generation.enabled, false);
+	assert.equal(blocked.generation.enabled, true, 'A8-C5 S2.3: a blocked setup opens the dialog');
 	assert.equal(blocked.generation.shortReason, 'Setup inputs are not ready');
+	assert.ok(
+		(blocked.generationStoppers[0]?.shortReason ?? '').split(/\s+/).length <= 6,
+		'R8C continues to hold the visible reason to six words — now on the named stopper',
+	);
 	const noRun = deriveTimetableCapabilities(base());
 	assert.equal(noRun.gates.publication.enabled, false);
 	assert.equal(noRun.gates.publication.shortReason, 'No generated schedule to publish');

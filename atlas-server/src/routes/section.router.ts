@@ -7,6 +7,7 @@ import * as sectionService from '../services/section.service.js';
 import * as assignmentService from '../services/faculty-assignment.service.js';
 import { syncSectionsFromExternal } from '../services/section.service.js';
 import { sectionSourceMode, fetchEnrollProActiveSchoolYear } from '../services/section-adapter.js';
+import { resolveWriteSchoolYearId } from '../lib/write-school-year-authority.js';
 import { publishNotificationEvent } from '../services/notification-events.service.js';
 import { computeAutoAssign } from '../services/home-room-auto-assign.service.js';
 
@@ -258,14 +259,16 @@ router.post('/sync', authenticateWithSystemToken, requirePrivilegedRole, async (
 
 		const upstreamAuthToken = getUpstreamAuthToken(req);
 
-		// Resolve schoolYearId: use caller-supplied value if present, otherwise fetch from EnrollPro.
-		let schoolYearId: number;
-		if (req.body.schoolYearId !== undefined) {
-			schoolYearId = Number(req.body.schoolYearId);
-		} else {
-			const activeYear = await fetchEnrollProActiveSchoolYear(upstreamAuthToken);
-			schoolYearId = activeYear?.id ?? 1;
+		// A8-C5 S1.1: never default a year id in a write path. A caller-supplied
+		// id must be a positive integer; with none supplied the EnrollPro active
+		// school year must resolve, else typed 409 ACTIVE_SCHOOL_YEAR_UNRESOLVED
+		// with zero writes and zero sync dispatch.
+		const yearResolution = await resolveWriteSchoolYearId(req.body.schoolYearId, upstreamAuthToken);
+		if (!yearResolution.ok) {
+			res.status(yearResolution.status).json({ code: yearResolution.code, message: yearResolution.message });
+			return;
 		}
+		const schoolYearId = yearResolution.schoolYearId;
 
 		const [result, activeYear] = await Promise.all([
 			syncSectionsFromExternal(schoolId, schoolYearId, upstreamAuthToken),
@@ -452,18 +455,17 @@ router.post('/special-program-placement/overlay', authenticate, requirePrivilege
 			return;
 		}
 
-		let schoolYearId: number;
-		if (req.body.schoolYearId !== undefined) {
-			schoolYearId = Number(req.body.schoolYearId);
-			if (!Number.isInteger(schoolYearId) || schoolYearId <= 0) {
-				res.status(400).json({ code: 'INVALID_BODY', message: 'schoolYearId must be a positive integer when provided.' });
-				return;
-			}
-		} else {
-			const authToken = getUpstreamAuthToken(req);
-			const activeYear = await fetchEnrollProActiveSchoolYear(authToken);
-			schoolYearId = activeYear?.id ?? 1;
+		// A8-C5 S1.1: never default a year id in a write path. The
+		// caller-supplied-id guard and the unresolved-active-year refusal are
+		// both the shared fail-closed resolver (400 INVALID_BODY /
+		// 409 ACTIVE_SCHOOL_YEAR_UNRESOLVED), never a substituted year.
+		const authToken = getUpstreamAuthToken(req);
+		const yearResolution = await resolveWriteSchoolYearId(req.body.schoolYearId, authToken);
+		if (!yearResolution.ok) {
+			res.status(yearResolution.status).json({ code: yearResolution.code, message: yearResolution.message });
+			return;
 		}
+		const schoolYearId = yearResolution.schoolYearId;
 
 		const result = await sectionService.applySpecialProgramPlacementOverlay(schoolId, schoolYearId);
 		res.json({

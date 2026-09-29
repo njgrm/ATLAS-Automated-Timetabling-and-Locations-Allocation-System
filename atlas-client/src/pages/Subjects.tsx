@@ -35,6 +35,12 @@ import {
 } from '@/components/subjects/subject-term-filter';
 import type { SortField, SortDir } from '@/components/subjects/SortableHeader';
 import { resolveSubjectSourceCopy, resolveSubjectMutationErrorCopy } from '@/components/subjects/subject-source-utils';
+import {
+	readSavedSubjectCatalog,
+	savedCatalogReceipt,
+	writeSavedSubjectCatalog,
+	type SubjectCatalogReceipt,
+} from '@/components/subjects/subject-catalog-receipt';
 import { SubjectMutationDetailPopover } from '@/components/subjects/SubjectMutationDetailPopover';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
@@ -85,6 +91,13 @@ export default function Subjects() {
 	const [archivingLoading, setArchivingLoading] = useState(false);
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [termAuthority, setTermAuthority] = useState<TermAuthority | null>(null);
+	// A8-C5 S3 — what was actually served, and when. Read by
+	// `resolveSubjectSourceCopy` into the EXISTING source-state Popover, so the
+	// receipt is a sentence in the place the operator already looks rather than a
+	// second banner nobody reads.
+	const [catalogReceipt, setCatalogReceipt] = useState<SubjectCatalogReceipt | null>(null);
+	// True while a refresh runs behind an already-painted catalog.
+	const [refreshingInBackground, setRefreshingInBackground] = useState(false);
 
 	// Teacher coverage drilldown
 	const [coverageSubject, setCoverageSubject] = useState<Subject | null>(null);
@@ -146,6 +159,11 @@ export default function Subjects() {
 			setActiveSchoolYearId(null);
 			setSubjects([]);
 			setError(null);
+			// A8-C5 S3: the receipt and the in-flight flag belong to the school
+			// they were read for. A session change to another school must not leave
+			// the previous school's count and timestamp on screen.
+			setCatalogReceipt(null);
+			setRefreshingInBackground(false);
 		}
 	}, [actorSchoolId]);
 
@@ -156,7 +174,27 @@ export default function Subjects() {
 		// school. The loading skeleton stays up until the scope resolves.
 		if (!readScope.ready || readScope.schoolId == null) return;
 		const scopedSchoolId = readScope.schoolId;
-		setLoading(true);
+		// A8-C5 S3 — PAINT THE SAVED CATALOG FIRST, then refresh behind it.
+		//
+		// The operator: a scheduler waiting 20.5 s for `/subjects` thinks it is
+		// broken. The read below is unchanged; what changed is that the browser
+		// copy is read SYNCHRONOUSLY, before the request is issued, so the first
+		// paint already carries rows and the skeleton only stays up when there is
+		// genuinely nothing to show.
+		//
+		// `pendingPaint` is the honest state in between: a catalog IS on screen and
+		// a refresh IS still running, which is not the same as "checking source".
+		// Without it the page would claim to be waiting while the operator is
+		// already reading rows.
+		const saved = readSavedSubjectCatalog(scopedSchoolId);
+		if (saved) {
+			setSubjects(saved.subjects as Subject[]);
+			setCatalogReceipt(savedCatalogReceipt(saved.subjects.length, saved.savedAt, true));
+			setLoading(false);
+		} else {
+			setLoading(true);
+		}
+		setRefreshingInBackground(saved !== null);
 		try {
 			const context = await resolveActiveSchoolYearContext({
 				schoolId: scopedSchoolId,
@@ -169,12 +207,16 @@ export default function Subjects() {
 					params: { schoolYearId: context.activeSchoolYearId },
 				});
 				setSubjects(data.subjects);
+				// The receipt is written from the SAME array that was set above, so
+				// the count and the time can never describe a different catalog.
+				setCatalogReceipt(writeSavedSubjectCatalog(scopedSchoolId, data.subjects));
 				setTermAuthority(data.termAuthority);
 			} else {
 				const { data } = await atlasApi.get<{ subjects: Subject[] }>('/subjects', {
 					params: { schoolId: readScope.schoolId },
 				});
 				setSubjects(data.subjects);
+				setCatalogReceipt(writeSavedSubjectCatalog(scopedSchoolId, data.subjects));
 				setTermAuthority({
 					state: 'BLOCKED', source: 'none', degraded: false, code: 'ACTIVE_SCHOOL_YEAR_REQUIRED',
 					message: 'Term scheduling metadata is blocked until the active school year is resolved.', contract: null,
@@ -182,9 +224,14 @@ export default function Subjects() {
 			}
 			setError(null);
 		} catch {
+			// A8-C5 S3: a failed refresh must NOT clear a painted catalog. The
+			// receipt keeps saying "saved copy" and the banner below states the
+			// failure, so the operator sees stale data labelled as stale rather
+			// than an empty table and a guess.
 			setError('Failed to load subjects.');
 		} finally {
 			setLoading(false);
+			setRefreshingInBackground(false);
 		}
 	}, [readScope.ready, readScope.schoolId]);
 
@@ -651,8 +698,15 @@ export default function Subjects() {
 		// persisted ATLAS-owned catalog — it is NOT proof of an upstream
 		// verification event. The upstream offering refresh is retired, so the
 		// page honestly reports saved catalog data once loaded.
-		if (!actorScopeResolved || loading) return 'checking-source';
+		//
+		// A8-C5 S3: a refresh running BEHIND a painted catalog is not "checking
+		// source". The operator is already reading rows, and telling them the page
+		// is still checking is the "20.5 s and it looks broken" defect in its
+		// copy form. The skeleton is reserved for the one honest case — nothing on
+		// screen yet.
+		if (!actorScopeResolved) return 'checking-source';
 		if (error && subjects.length === 0) return 'no-saved-data';
+		if (loading && subjects.length === 0) return 'checking-source';
 		return 'saved-data';
 	}, [actorScopeResolved, error, loading, subjects.length]);
 
@@ -668,7 +722,10 @@ export default function Subjects() {
 		fetchTeacherCoverage(subject.id);
 	}, [fetchTeacherCoverage]);
 
-		const subjectSourceCopy = resolveSubjectSourceCopy(subjectSourceState);
+		const subjectSourceCopy = useMemo(
+		() => resolveSubjectSourceCopy(subjectSourceState, catalogReceipt),
+		[catalogReceipt, subjectSourceState],
+	);
 
 		return (
 			<AdminWorkspaceFrame

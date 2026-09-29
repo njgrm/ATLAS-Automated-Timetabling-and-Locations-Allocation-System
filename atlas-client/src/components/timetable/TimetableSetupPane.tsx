@@ -38,7 +38,7 @@ import { SimplePublishReadinessSheet } from '@/components/timetable/SimplePublis
 import { SimpleGenerationBlockerSheet } from '@/components/timetable/simple/SimpleGenerationBlockerSheet';
 import { isRunPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { deriveTimetableCapabilities } from '@/lib/timetable-capabilities';
-import { summarizeGenerationReadiness, type TimetableCurriculumReadinessState } from '@/lib/timetable-generation-readiness';
+import { summarizeGenerationReadiness, readReadinessAttempts, type TimetableCurriculumReadinessState } from '@/lib/timetable-generation-readiness';
 import type { RolloverStatus } from '@/lib/settings';
 import type { SeverityFilter } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 import type { TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
@@ -161,6 +161,9 @@ export function TimetableSetupPane({
 	const capabilities = deriveTimetableCapabilities({
 		scopeResolved,
 		curriculumState: inputs.curriculumReadiness?.state ?? 'unavailable',
+		// A8 C5 CORRECTION 2 (F4): the attempt FACT, so the Generate dialog never
+		// claims two tries on the path where the scope guard refused before any read.
+		curriculumReadinessAttempts: readReadinessAttempts(inputs.curriculumReadiness),
 		generating: inputs.generating,
 		isPreGeneration: inputs.isPreGenerationWorkspace,
 		hasGeneratedRun,

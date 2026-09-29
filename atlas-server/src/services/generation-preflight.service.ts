@@ -97,11 +97,26 @@ export interface GenerationPreflightBlocker {
 
 export interface GenerationPreflightTeachingLoadCoverage {
 	requiredPairs: number;
+	/**
+	 * Pairs owned by a REAL, schedulable, in-scope member of staff. A
+	 * placeholder-owned pair is deliberately NOT counted here — see
+	 * `placeholderPairs`. `ownedPairs + placeholderPairs + missingPairs` are the
+	 * three ownership states and they partition `requiredPairs`.
+	 */
 	ownedPairs: number;
+	/**
+	 * A8-C5 S1.2 — the THIRD state: the class has a canonical Teaching Load
+	 * owner, but that owner is a to-be-hired (placeholder) record, not staff.
+	 * These classes are named in `placeholderOwned` and are reported; they are
+	 * not staffed, not open, and they block neither generation nor publication.
+	 */
+	placeholderPairs: number;
 	missingPairs: number;
 	inactiveOrStalePairs: number;
 	outsideScopePairs: number;
 	missing: Array<{ subjectId: number; subjectCode: string; sectionMirrorId: number; sectionExternalId: number; termIdentities: string[] }>;
+	/** The placeholder-owned classes, named by subject code + section mirror id. */
+	placeholderOwned: Array<{ subjectId: number; subjectCode: string; sectionMirrorId: number; sectionExternalId: number; termIdentities: string[] }>;
 }
 
 export interface GenerationPreflightRetained {
@@ -266,7 +281,7 @@ function countByCode(codes: string[]): Record<string, number> {
 }
 
 function emptyTeachingLoadCoverage(): GenerationPreflightTeachingLoadCoverage {
-	return { requiredPairs: 0, ownedPairs: 0, missingPairs: 0, inactiveOrStalePairs: 0, outsideScopePairs: 0, missing: [] };
+	return { requiredPairs: 0, ownedPairs: 0, placeholderPairs: 0, missingPairs: 0, inactiveOrStalePairs: 0, outsideScopePairs: 0, missing: [], placeholderOwned: [] };
 }
 
 function emptyRetained(): GenerationPreflightRetained {
@@ -410,11 +425,23 @@ export function classifyUnassignedBlocker(item: {
 	homeRoomFallbackCause?: string;
 	termIndex?: number;
 	/**
-	 * A8 UNBLOCK — the preflight-resolved name of the class's canonical owner,
-	 * when one could be resolved. It is a LABEL only: it never selects a
+	 * A8 UNBLOCK (main) — the preflight-resolved name of the class's canonical
+	 * owner, when one could be resolved. It is a LABEL only: it never selects a
 	 * candidate, never changes a code, and a missing name renders no owner clause.
 	 */
 	facultyName?: string | null;
+	/**
+	 * A8-C5 S1.2 (this lane) — the class's canonical owner is a to-be-hired record.
+	 * It is checked FIRST, so a placeholder-owned session is never reported as
+	 * `TL_NO_QUALIFIED_OWNER` (which means "no owner at all" and folds into the
+	 * coverage-gap line the operator is told to fix).
+	 *
+	 * INTEGRATION: `facultyName` and this flag are independent and both kept. The
+	 * name is a label for a real owner; this flag is the third state, and a
+	 * placeholder-owned class can carry both (a name to show AND the fact that the
+	 * record is not yet a person). Neither field's meaning was narrowed here.
+	 */
+	ownerIsPlaceholder?: boolean;
 }, termIdentity: string | null, subjectCode: string | null = null): GenerationPreflightBlocker {
 	const ownerName = typeof item.facultyName === 'string' && item.facultyName.trim().length > 0
 		? item.facultyName.trim()
@@ -426,6 +453,16 @@ export function classifyUnassignedBlocker(item: {
 		subjectCode,
 		entity: `Section ${item.sectionId} · Subject ${subjectCode ?? item.subjectId}${termIdentity ? ` · ${termIdentity}` : ''} · session ${item.session}${ownerName ? ` · owner ${ownerName}` : ''}`,
 	};
+	if (item.ownerIsPlaceholder === true) {
+		return {
+			...base,
+			code: 'SYNTHETIC_PLACEHOLDER_OWNED',
+			category: 'DATA_GAP',
+			reason: 'This class is assigned to a to-be-hired teacher, so it has no member of staff teaching it. It does not block the schedule.',
+			owningSurface: 'Teaching Load',
+			nextAction: 'Assign an employed teacher in Teaching Load when this class is covered.',
+		};
+	}
 	const roomReason = item.roomAssignmentReason;
 	if (item.reason === 'NO_QUALIFIED_FACULTY' || roomReason === 'NO_QUALIFIED_FACULTY') {
 		return {
@@ -556,35 +593,62 @@ function collectDetectedScopes(sectionsByGrade: ConstructorInput['sectionsByGrad
 	return [...scopes.values()];
 }
 
-function summarizeTeachingLoadCoverage(
+/**
+ * A8-C5 S1.2 — the coverage summary, exported so the third ownership state is
+ * directly testable without a database. The arithmetic is unchanged from the
+ * pre-A8-C5 form except that a pair owned by a to-be-hired record is counted in
+ * `placeholderPairs` instead of `ownedPairs`, and is named in `placeholderOwned`.
+ */
+export function summarizeTeachingLoadCoverage(
 	derived: DerivedDemandSuccess,
 	ownershipBySubjectSection: Map<string, any[]>,
-	facultyById: Map<number, { isActiveForScheduling: boolean; isStale: boolean }>,
+	facultyById: Map<number, { isActiveForScheduling: boolean; isStale: boolean; isPlaceholder?: boolean }>,
 	scopeByFacultySubject: Map<string, any>,
 ): GenerationPreflightTeachingLoadCoverage {
 	let ownedPairs = 0;
+	// A8-C5 S1.2: the THIRD state. Counted apart from `ownedPairs` (not staffed)
+	// and apart from `missingPairs` (not open).
+	let placeholderPairs = 0;
 	let missingPairs = 0;
 	let inactiveOrStalePairs = 0;
 	let outsideScopePairs = 0;
 	const missing: GenerationPreflightTeachingLoadCoverage['missing'] = [];
+	const placeholderOwned: GenerationPreflightTeachingLoadCoverage['placeholderOwned'] = [];
 	for (const pair of derived.teachingLoadPairs) {
+		const row = (extra: Record<string, unknown>) => ({
+			subjectId: pair.subjectId,
+			subjectCode: pair.subjectCode,
+			sectionMirrorId: pair.sectionMirrorId,
+			sectionExternalId: pair.sectionExternalId,
+			termIdentities: [...pair.termIdentities],
+			...extra,
+		});
 		const ownerRows = ownershipBySubjectSection.get(`${pair.subjectId}:${pair.sectionExternalId}`) ?? [];
 		if (ownerRows.length === 0) {
 			missingPairs += 1;
-			missing.push({ subjectId: pair.subjectId, subjectCode: pair.subjectCode, sectionMirrorId: pair.sectionMirrorId, sectionExternalId: pair.sectionExternalId, termIdentities: [...pair.termIdentities] });
+			missing.push(row({}));
 			continue;
 		}
 		const owner = ownerRows[0];
 		const faculty = facultyById.get(owner.facultyId);
 		if (!faculty || faculty.isStale || !faculty.isActiveForScheduling) {
 			inactiveOrStalePairs += 1;
-			missing.push({ subjectId: pair.subjectId, subjectCode: pair.subjectCode, sectionMirrorId: pair.sectionMirrorId, sectionExternalId: pair.sectionExternalId, termIdentities: [...pair.termIdentities] });
+			missing.push(row({}));
 			continue;
 		}
 		const scope = scopeByFacultySubject.get(`${owner.facultyId}:${pair.subjectId}`);
 		if (!scope) {
 			outsideScopePairs += 1;
-			missing.push({ subjectId: pair.subjectId, subjectCode: pair.subjectCode, sectionMirrorId: pair.sectionMirrorId, sectionExternalId: pair.sectionExternalId, termIdentities: [...pair.termIdentities] });
+			missing.push(row({}));
+			continue;
+		}
+		// A8-C5 S1.2: owned, in scope, schedulable — but by a TO-BE-HIRED record.
+		// This is a third state, not a real owner and not an open class. It is
+		// named here so the panel can say which classes, and it blocks neither
+		// generation nor publication.
+		if (faculty.isPlaceholder === true) {
+			placeholderPairs += 1;
+			placeholderOwned.push(row({}));
 			continue;
 		}
 		ownedPairs += 1;
@@ -592,10 +656,12 @@ function summarizeTeachingLoadCoverage(
 	return {
 		requiredPairs: derived.teachingLoadPairs.length,
 		ownedPairs,
+		placeholderPairs,
 		missingPairs,
 		inactiveOrStalePairs,
 		outsideScopePairs,
 		missing: missing.sort((a, b) => `${a.sectionExternalId}:${a.subjectId}`.localeCompare(`${b.sectionExternalId}:${b.subjectId}`)),
+		placeholderOwned: placeholderOwned.sort((a, b) => `${a.sectionExternalId}:${a.subjectId}`.localeCompare(`${b.sectionExternalId}:${b.subjectId}`)),
 	};
 }
 
@@ -821,9 +887,13 @@ async function buildGenerationPreflightWithContext(
 	] = await Promise.all([
 		client.facultyMirror.findMany({
 			where: { schoolId, isActiveForScheduling: true, isStale: false },
-			// A8 UNBLOCK: carry the owner's name so an unassigned blocker can name
-			// the class's owner. A LABEL only — it selects no candidate and gates nothing.
-			select: { id: true, firstName: true, lastName: true, maxHoursPerWeek: true, ancillaryMinutesPerWeek: true, department: true, isActiveForScheduling: true, isStale: true },
+			// INTEGRATION: main's A8 UNBLOCK added `firstName`/`lastName` (the owner's
+			// name, a LABEL only) and this lane's A8-C5 S1.2 added `isPlaceholder`
+			// (the to-be-hired flag, the third ownership state). Both are needed and
+			// independent: a placeholder-owned class carries a name to show AND the
+			// fact that the record is not yet a person. Neither side's meaning was
+			// narrowed in this union.
+			select: { id: true, firstName: true, lastName: true, maxHoursPerWeek: true, ancillaryMinutesPerWeek: true, department: true, isActiveForScheduling: true, isStale: true, isPlaceholder: true },
 		}),
 		client.facultySubject.findMany({ where: { schoolId, schoolYearId } }),
 		client.room.findMany({
@@ -935,8 +1005,8 @@ async function buildGenerationPreflightWithContext(
 
 	const schedulableSubjects = subjects.filter((subject: any) => !/^(HG|ARAL)$/i.test(String(subject.code ?? ''))) as SubjectInput[];
 
-	const facultyById = new Map<number, { isActiveForScheduling: boolean; isStale: boolean }>();
-	for (const member of faculty) facultyById.set(member.id, { isActiveForScheduling: member.isActiveForScheduling, isStale: member.isStale });
+	const facultyById = new Map<number, { isActiveForScheduling: boolean; isStale: boolean; isPlaceholder?: boolean }>();
+	for (const member of faculty) facultyById.set(member.id, { isActiveForScheduling: member.isActiveForScheduling, isStale: member.isStale, isPlaceholder: member.isPlaceholder === true });
 	const scopeByFacultySubject = new Map<string, any>();
 	for (const fs of facultySubjectRows) scopeByFacultySubject.set(`${fs.facultyId}:${fs.subjectId}`, fs);
 	const ownershipBySubjectSection = new Map<string, any[]>();
@@ -999,6 +1069,22 @@ async function buildGenerationPreflightWithContext(
 			reason: 'Derived demand exists but no active Teaching Load owner covers this section/subject.',
 			owningSurface: 'Teaching Load',
 			nextAction: 'Assign a qualified owner for this section/subject in Teaching Load, then re-run readiness.',
+		});
+	}
+
+	// A8-C5 S1.2: the THIRD ownership state. Reported and named, never blocking.
+	for (const owned of coverage.placeholderOwned) {
+		blockers.push({
+			code: 'SYNTHETIC_PLACEHOLDER_OWNED',
+			category: 'DATA_GAP',
+			termIdentity: owned.termIdentities[0] ?? null,
+			sectionId: owned.sectionExternalId,
+			subjectId: owned.subjectId,
+			subjectCode: owned.subjectCode,
+			entity: `Section ${owned.sectionExternalId} · Subject ${owned.subjectCode}`,
+			reason: 'This class is assigned to a to-be-hired teacher, so it has no member of staff teaching it. It does not block the schedule.',
+			owningSurface: 'Teaching Load',
+			nextAction: 'Assign an employed teacher in Teaching Load when this class is covered.',
 		});
 	}
 
@@ -1422,6 +1508,10 @@ export function buildPreflightConstructorInput(
 			id: member.id,
 			maxHoursPerWeek: Math.floor(computeEffectiveWeeklyTeachingMinutes(member.maxHoursPerWeek, member.ancillaryMinutesPerWeek) / 60),
 			department: member.department,
+			// A8-C5 S1.2: the to-be-hired flag reaches the constructor, which is
+			// where a class's canonical owner is resolved into an unassigned row.
+			// Without it the third state is indistinguishable from an open class.
+			isPlaceholder: member.isPlaceholder === true,
 		})),
 		facultySubjects: assembly.facultySubjects,
 		rooms: assembly.roomsWithGradeScope,

@@ -127,6 +127,13 @@ export interface FacultyInput {
 	id: number;
 	maxHoursPerWeek: number;
 	department?: string | null;
+	/**
+	 * A8-C5 S1.2 — a to-be-hired record, not a member of staff. A class whose
+	 * canonical Teaching Load owner carries this flag is in the THIRD ownership
+	 * state: it is not a real owner, and it is reported as such rather than
+	 * counted as staffed. See `PLACEHOLDER_OWNED_VIOLATION_CODE`.
+	 */
+	isPlaceholder?: boolean;
 }
 
 export interface FacultySubjectInput {
@@ -1356,6 +1363,14 @@ export interface UnassignedItem {
 	reason: 'NO_QUALIFIED_FACULTY' | 'FACULTY_OVERLOADED' | 'NO_AVAILABLE_SLOT' | 'NO_COMPATIBLE_ROOM' | 'ROOM_CAPACITY_EXCEEDED';
 	roomAssignmentReason?: RoomAssignmentReason;
 	facultyId?: number | null;
+	/**
+	 * A8-C5 S1.2 — the class's canonical Teaching Load owner is a to-be-hired
+	 * (placeholder) record. This is what makes the class a THIRD state rather
+	 * than an open class: it is owned, but not by anyone who can teach it. The
+	 * flag is set from the run's own `pairOwners` map, never guessed from the
+	 * failure reason.
+	 */
+	ownerIsPlaceholder?: boolean;
 	entryKind?: 'SECTION' | 'COHORT';
 	programType?: string | null;
 	programCode?: string | null;
@@ -1982,6 +1997,17 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	// cannot disagree with the reconciled Teaching Load.
 	const isOwnerControlledPair = (subjectId: number, sectionId: number): boolean =>
 		pairOwners != null && pairOwners[`${subjectId}:${sectionId}`] !== undefined;
+	// A8-C5 S1.2: the THIRD ownership state. A pair whose canonical owner is a
+	// to-be-hired record is owned-but-not-staffed. It is read from the run's own
+	// `pairOwners` + roster, never inferred from why a session failed.
+	const placeholderFacultyIds = new Set(
+		faculty.filter((member) => member.isPlaceholder === true).map((member) => member.id),
+	);
+	const isPlaceholderOwnedPair = (subjectId: number, sectionId: number): boolean => {
+		if (pairOwners == null) return false;
+		const ownerFacultyId = pairOwners[`${subjectId}:${sectionId}`];
+		return ownerFacultyId !== undefined && placeholderFacultyIds.has(ownerFacultyId);
+	};
 	if (pairOwners) {
 		for (const [key, ownerFacultyId] of Object.entries(pairOwners)) {
 			if (!Number.isInteger(ownerFacultyId)) continue;
@@ -2575,10 +2601,13 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					subjectId: item.subjectId,
 					gradeLevel: item.gradeLevel,
 					session: s + 1,
-					reason: 'NO_QUALIFIED_FACULTY',
-					roomAssignmentReason: 'NO_QUALIFIED_FACULTY',
-					facultyId: null,
-					entryKind: item.entryKind,
+				reason: 'NO_QUALIFIED_FACULTY',
+				roomAssignmentReason: 'NO_QUALIFIED_FACULTY',
+				facultyId: null,
+				// A8-C5 S1.2: a subject-less class whose canonical owner is a
+				// to-be-hired record is placeholder-owned, not open.
+				ownerIsPlaceholder: isPlaceholderOwnedPair(item.subjectId, item.sectionId),
+				entryKind: item.entryKind,
 					programType: item.programType ?? null,
 					programCode: item.programCode ?? null,
 					programName: item.programName ?? null,
@@ -3200,10 +3229,12 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					subjectId: item.subjectId,
 					gradeLevel: item.gradeLevel,
 					session: session + 1,
-					reason,
-					roomAssignmentReason,
-					facultyId: assignedFacultyId,
-					entryKind: item.entryKind,
+				reason,
+				roomAssignmentReason,
+				facultyId: assignedFacultyId,
+				// A8-C5 S1.2: the third state, read from the canonical owner.
+				ownerIsPlaceholder: isPlaceholderOwnedPair(item.subjectId, item.sectionId),
+				entryKind: item.entryKind,
 					programType: item.programType ?? null,
 					programCode: item.programCode ?? null,
 					programName: item.programName ?? null,

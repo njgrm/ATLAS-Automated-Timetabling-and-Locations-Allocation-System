@@ -88,6 +88,31 @@ export const ATTRIBUTABLE_GAP_CODES: ReadonlySet<string> = ADVISORY_CODES;
 /** The one root cause that folds both coverage codes into a single line. */
 export const TEACHER_COVERAGE_CAUSE = 'TEACHER_COVERAGE_GAP';
 
+/**
+ * A8-C5 S1.2 — the root cause for classes on a to-be-hired owner. Its own line
+ * and its own fix route (Teaching Load), so it is never folded into the
+ * "no owner" line and never mistaken for a class that needs a teacher.
+ */
+export const PLACEHOLDER_OWNER_CAUSE = 'PLACEHOLDER_OWNER';
+
+/**
+ * A8-C5 S1.2 — the THIRD ownership state, as a preflight blocker row.
+ *
+ * A class whose canonical Teaching Load owner is a to-be-hired (placeholder)
+ * record is NOT an open class: it is owned, by someone who does not exist yet.
+ * It gets its own code, deliberately absent from `COVERAGE_GAP_CODES` (which
+ * means "no owner"), absent from `ADVISORY_CODES` (which in this codebase means
+ * "non-blocking for generation, still refused by publication"), and absent from
+ * both `PROMOTABLE_CONSTRAINT_CODES` and `POLICY_ADVISORY_VIOLATION_CODES`.
+ *
+ * It therefore blocks NEITHER generation NOR publication. It is still RECORDED,
+ * COUNTED and NAMED, so a scheduler reads "12 classes are on to-be-hired
+ * teachers" instead of nothing at all.
+ */
+export const PLACEHOLDER_OWNED_CODES: ReadonlySet<string> = new Set([
+	'SYNTHETIC_PLACEHOLDER_OWNED',
+]);
+
 export type GenerationBlockerUnit = 'classes' | 'items';
 
 export interface GenerationBlockerGroupAction {
@@ -122,6 +147,12 @@ export type GenerationBlockerClassification = {
 	blocking: GenerationPreflightBlocker[];
 	/** The (section, subject) pairs this diagnostic proved have no owner. */
 	uncoveredPairs: Set<string>;
+	/**
+	 * A8-C5 S1.2 — the rows for classes on a to-be-hired owner. A FOURTH class,
+	 * placed neither in gaps (they ARE owned), nor in advisories (those still
+	 * refuse publication), nor in `blocking` (they must not stop a run).
+	 */
+	placeholderOwned: GenerationPreflightBlocker[];
 	/** Gap ROW count. Honest about the row-vs-class distinction. */
 	gapCount: number;
 	/** Advisory ROW count. */
@@ -164,7 +195,16 @@ export function classifyGenerationBlockers(
 	const gaps: GenerationPreflightBlocker[] = [];
 	const advisories: GenerationPreflightBlocker[] = [];
 	const blocking: GenerationPreflightBlocker[] = [];
+	// A8-C5 S1.2: a placeholder-owned row is in NO existing class. It is
+	// deliberately kept out of `blocking` so `deriveGenerateDecision` (which reads
+	// `blocking.length`) still allows the run, and out of `advisories` so it is
+	// never reported as something that must be cleared before publishing.
+	const placeholderOwned: GenerationPreflightBlocker[] = [];
 	for (const blocker of blockers) {
+		if (PLACEHOLDER_OWNED_CODES.has(blocker.code)) {
+			placeholderOwned.push(blocker);
+			continue;
+		}
 		const key = pairKeyOf(blocker.sectionId, blocker.subjectId);
 		const attributable = ADVISORY_CODES.has(blocker.code) && key !== null && uncoveredPairs.has(key);
 		if (COVERAGE_GAP_CODES.has(blocker.code) || attributable) gaps.push(blocker);
@@ -176,6 +216,7 @@ export function classifyGenerationBlockers(
 		gaps,
 		advisories,
 		blocking,
+		placeholderOwned,
 		uncoveredPairs,
 		gapCount: gaps.length,
 		advisoryCount: advisories.length,
@@ -239,6 +280,9 @@ const YEAR_SETUP_ACTION: GenerationBlockerGroupAction = { label: 'Open Year Setu
  * repairs school-year/term/policy authority, rather than inventing a label.
  */
 export function actionForCause(cause: string): GenerationBlockerGroupAction {
+	// A8-C5 S1.2: the to-be-hired population is fixed in Teaching Load, like the
+	// coverage gap, but it is its OWN line and its own reason to open it.
+	if (cause === PLACEHOLDER_OWNER_CAUSE) return TEACHING_LOAD_ACTION;
 	if (cause === TEACHER_COVERAGE_CAUSE) return TEACHING_LOAD_ACTION;
 	if (cause === 'WORKLOAD_POLICY_BLOCK' || cause === 'FACULTY_OVERLOAD' || cause === 'FACULTY_SUBJECT_NOT_QUALIFIED') return LOAD_REVIEW_ACTION;
 	if (cause === 'TL_OWNERSHIP_CONFLICT' || cause === 'TEACHING_LOAD_REVIEW_REQUIRED') return TEACHING_LOAD_ACTION;
@@ -278,7 +322,11 @@ export type GenerationBlockerGroupsInput = {
 export function buildGenerationBlockerGroups(input: GenerationBlockerGroupsInput): GenerationBlockerGroup[] {
 	const byCause = new Map<string, GenerationPreflightBlocker[]>();
 	for (const blocker of input.blockers) {
-		const cause = COVERAGE_GAP_CODES.has(blocker.code) ? TEACHER_COVERAGE_CAUSE : blocker.code;
+		const cause = PLACEHOLDER_OWNED_CODES.has(blocker.code)
+			? PLACEHOLDER_OWNER_CAUSE
+			: COVERAGE_GAP_CODES.has(blocker.code)
+				? TEACHER_COVERAGE_CAUSE
+				: blocker.code;
 		const list = byCause.get(cause);
 		if (list) list.push(blocker);
 		else byCause.set(cause, [blocker]);

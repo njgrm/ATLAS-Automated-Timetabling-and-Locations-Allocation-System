@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { UNLABELLED_RULE_SENTENCE } from '@/lib/timetable-plain-language';
 import { deriveSimpleLifecycleAction } from '@/lib/simple-timetable-state';
 import { deriveTimetableCapabilities, describeSetupState, YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
-import { summarizeGenerationReadiness, generationBlockedOperatorSentence } from '@/lib/timetable-generation-readiness';
+import { summarizeGenerationReadiness, generationBlockedOperatorSentence, readReadinessAttempts } from '@/lib/timetable-generation-readiness';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/ui/dialog';
@@ -284,6 +284,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	const capabilities = deriveTimetableCapabilities({
 		scopeResolved,
 		curriculumState: context.curriculumReadiness?.state ?? 'unavailable',
+		// A8 C5 CORRECTION 2 (F4): the attempt FACT, so the Generate dialog never
+		// claims two tries on the path where the scope guard refused before any read.
+		curriculumReadinessAttempts: readReadinessAttempts(context.curriculumReadiness),
 		generating: context.generating,
 		isPreGeneration: context.isPreGenerationWorkspace,
 		hasGeneratedRun,
@@ -313,7 +316,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		capabilities,
 		isPublished: isRunPublished,
 		generationEnabled: generationReady,
-		onRegenerate: context.handleTriggerGenerate,
+		onRegenerate: () => context.handleTriggerGenerate(capabilities.generationStoppers),
 	});
 	const showDriftState = changeNotice.show;
 	const setupRepair = generationGate.repair.kind !== 'none' ? generationGate.repair : setupState.repair;
@@ -477,7 +480,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	// activated programmatically.
 	const handleGenerateClick = () => {
 		if (!shouldDispatchSimpleGenerate(canPlanOrGenerate)) return;
-		context.handleTriggerGenerate();
+		// A8-C5 S2.3 — the click hands over ITS OWN stoppers, so the Generate dialog
+		// can name the same causes this header derives, drift included.
+		context.handleTriggerGenerate(capabilities.generationStoppers);
 	};
 
 	const handlePublishActionClick = () => {
@@ -491,9 +496,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 			case 'fix-setup': navigate(YEAR_SETUP_HREF); break;
 			case 'start-draft': void startTask('plan-draft'); break;
 			case 'generate':
-				if (generationReady) context.handleTriggerGenerate();
+				if (generationReady) context.handleTriggerGenerate(capabilities.generationStoppers);
 				break;
-			case 'retry-generate': context.handleTriggerGenerate(); break;
+			case 'retry-generate': context.handleTriggerGenerate(capabilities.generationStoppers); break;
 			case 'retry-readiness': context.handleRefresh(); break;
 			case 'fix-blockers': setReadinessSheetOpen(true); break;
 			case 'review-warnings': void startTask('review-issues'); break;
