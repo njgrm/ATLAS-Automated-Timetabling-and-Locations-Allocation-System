@@ -153,7 +153,7 @@ test('A5-C3-P3-2: no swept file carries a look-changing override on a PICKER', (
 	);
 });
 
-test('A5-C3-P3-2b: the two Teaching Load SWITCH labels are a known, recorded exception, not an oversight', () => {
+test('A5-C3-P3-2b: the two Teaching Load SWITCH labels are a known, recorded exception, not an oversight', { skip: 'EXCEPTION RETIRED 2026-09-29 by A6 c6 item 1, at this row\'s own instruction. This row pinned the exception at exactly 2 so that a restyle could not happen by accident, and its own failure text named the remedy: "if this slice restyled them, remove this exception row with the restyle". A6 c6 did restyle them — Lane C read "CROSS-DEPT" and "UNMAPPED SPECIALIZATION" on the staging screen and asked for "Show teachers outside their subject area" and "Show teachers with no matched subject" — and the `uppercase tracking-tight` override is gone from both labels. The exception therefore no longer exists to be excepted, and a row that demands it be re-introduced would be a row demanding the defect come back. The row is RETAINED, not deleted (AGENTS.md §16), and the replacement claim is stronger: a6-c6-calm-teaching-load.test.tsx A6C6-1 asserts both labels are Lane C\'s exact two plain sentences with NO caps override, so a relabelling or a re-shouting is still red.' }, () => {
 	/* R1 B4's target was the pickers' chrome and their option rows. A Switch label is a
 	 * different control and restyling it was not part of this sweep. The exception is pinned
 	 * HERE, with its count, rather than left as a quiet gap: if a future sweep does restyle

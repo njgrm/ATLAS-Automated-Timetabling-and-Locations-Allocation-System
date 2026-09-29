@@ -62,6 +62,21 @@ export const COMPACT_TITLE_STRIP_CLASS = {
 	 * its content's height, so it cannot contribute to the row height.
 	 */
 	status: 'flex shrink-0 items-center',
+	/**
+	 * A6 c6 — the SECOND-row band, for a call site that has trailing rows.
+	 *
+	 * `WorkspaceToolbar` passed `teaching-load-readiness-strip` as a child of this
+	 * strip, and it declared `flex min-w-0 flex-wrap items-center …` — a verbatim
+	 * local copy of this file's own `row` classes. That is the exact re-declaration
+	 * the two negative rows in `__tests__/compact-title-strip-c3.test.tsx` exist to
+	 * catch (`must not carry a local copy of the strip row`, and its generalisation
+	 * over every value of `COMPACT_TITLE_STRIP_CLASS`), and it is what the A3 c4
+	 * header-height control then had to re-derive from a second place. The band
+	 * therefore lives HERE, next to the other strip tokens, and the call site names
+	 * it. `gap-x-3` / `gap-y-1` are Teaching Load's own rhythm and stay at the call
+	 * site through `cn`, because a third band's gap is that band's decision.
+	 */
+	bandRow: 'flex min-w-0 flex-wrap items-center',
 } as const;
 
 export function CompactTitleStrip({

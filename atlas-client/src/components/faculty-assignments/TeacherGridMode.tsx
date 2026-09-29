@@ -358,7 +358,7 @@ export function TeacherGridMode({
 							>
 								<div className="flex items-center gap-2">
 									{isCollapsed ? <ChevronRight className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
-									<h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">{dept}</h3>
+									<h3 className="text-xs font-semibold text-muted-foreground/60">{dept}</h3>
 								</div>
 								<div className="flex-1 h-px bg-border/30" />
 								<Badge variant="outline" className="text-[10px] font-bold bg-muted/30 text-muted-foreground shadow-none">{members.length}</Badge>
@@ -379,8 +379,9 @@ export function TeacherGridMode({
 											? null
 											: teachingUtilizationPercentFor(member, teachingStandardHours, effectiveActualHours);
 										
-										const subjectsCount = effectiveAssignmentsByFaculty[member.id]?.length || 0;
 										// LANE-C C02 (audit A1): distinct sections, not the per-subject sum.
+										// A6 c6 item 6 removed the sibling `subjectsCount`, which was that
+										// per-subject sum, so this is now the row's ONLY demand figure.
 										const sectionsCount = countDistinctSections(effectiveAssignmentsByFaculty[member.id]);
 
 										return (
@@ -426,36 +427,54 @@ export function TeacherGridMode({
 												{formatFacultyInitials(member)}
 													</div>
 													
-													{/* Name + department: always visible, never collapsed behind initials */}
-													<div className="flex-1 min-w-0">
-														<div className="flex items-center gap-2">
-															{/* Fix 22: canonical `Last, First`; the CSS `uppercase` shout on a
-																Filipino given name is removed. Stored value unchanged. */}
-															<h4 className="text-sm font-semibold tracking-tight truncate">
-																{formatFacultyDisplayName(member)}
-															</h4>
-															{member.isClassAdviser && (
-																<Tooltip>
-																	<TooltipTrigger asChild>
-																		<Star className="size-3.5 text-amber-500 fill-amber-500 shrink-0" />
-																	</TooltipTrigger>
-																	<TooltipContent side="top" className="text-xs font-semibold uppercase">Class Adviser</TooltipContent>
-																</Tooltip>
-															)}
-															{hasDraft && <Badge variant="secondary" className="h-4 px-1.5 text-xs font-semibold uppercase bg-sky-100 text-sky-700 animate-pulse">Draft</Badge>}
-														</div>
-														<p className="text-xs font-bold text-muted-foreground uppercase tracking-widest truncate">
-															{member.departmentLabel || member.department || 'Unmapped'}
-														</p>
+												{/* Name, always visible, never collapsed behind initials. */}
+												<div className="flex-1 min-w-0">
+													<div className="flex items-center gap-2">
+														{/* Fix 22: canonical `Last, First`; the CSS `uppercase` shout on a
+															Filipino given name is removed. Stored value unchanged. */}
+														<h4 className="text-sm font-semibold tracking-tight truncate">
+															{formatFacultyDisplayName(member)}
+														</h4>
+														{member.isClassAdviser && (
+															<Tooltip>
+																<TooltipTrigger asChild>
+																	<Star className="size-3.5 text-amber-500 fill-amber-500 shrink-0" />
+																</TooltipTrigger>
+																<TooltipContent side="top" className="text-xs font-semibold uppercase">Class Adviser</TooltipContent>
+															</Tooltip>
+														)}
+														{hasDraft && <Badge variant="secondary" className="h-4 px-1.5 text-xs font-semibold uppercase bg-sky-100 text-sky-700 animate-pulse">Draft</Badge>}
 													</div>
+													{/*
+													 * A6 c6 item 6 — THE PER-TEACHER DEPARTMENT LINE IS DELETED.
+													 *
+													 * Lane C, verbatim: "20 teacher cards grouped by subject feel
+													 * dense." This line was the first of three regions per row that
+													 * carry no decision: it printed, twenty times over, the very
+													 * department the collapsible GROUP HEADING the row is already
+													 * inside. Twenty repetitions of a fact the eye already has is the
+													 * definition of density. It was also the last place the product
+													 * printed the raw word `Unmapped` — the fallback branch existed
+													 * only for this line.
+													 *
+													 * WHAT THE SCHEDULER KEEPS ON THIS ROW, and why: the name (with
+													 * the class-adviser star and this teacher's own `Draft` dot), the
+													 * hours and the percent of the teaching standard, the `Sections`
+													 * count, `Review load`, and `Edit assignments`. `Sections` stays
+													 * because it is the demand figure a shortage decision is made
+													 * on; the subject LIST is one click away in the `Review load`
+													 * profile, which already renders the assignment editor's data, so
+													 * a second count on the row was a number with no use.
+													 */}
+												</div>
 
-													{/* FIX 16.1 — the inline per-teacher review control.
+												{/* FIX 16.1 — the inline per-teacher review control.
 												 *
 												 * It sits in the row's own empty gap, right of the
-												 * name/department block and left of the load signals,
-												 * so opening a workload is one click on the teacher the
-												 * scheduler is already reading instead of a scroll to
-												 * a detached bottom-right button.
+												 * name block and left of the load signals, so opening a
+												 * workload is one click on the teacher the scheduler is
+												 * already reading instead of a scroll to a detached
+												 * bottom-right button.
 												 *
 												 * `event.stopPropagation()` is LOAD-BEARING, not
 												 * defensive. The whole row above is a `div
@@ -514,34 +533,35 @@ export function TeacherGridMode({
 											</Button>
 
 
-												{/* Load Signals: compact on mobile, full on desktop */}
-													<div className="flex items-center gap-3 shrink-0 sm:gap-6 sm:px-4">
-														<div className="text-right">
-															{/* A3 A1: the percentage now carries a visible label beside
-															 * it, and the withheld-percentage case has its own honest
-															 * state. The bar/colour treatment and the long-form tooltip
-															 * are unchanged. See TeacherLoadReadout. */}
-															<TeacherLoadReadout
-																displayHours={displayHours}
-																utilization={utilization}
-																isPlaceholder={member.isPlaceholder}
-																standardHours={teachingStandardHours}
-																policyReady={policyReady}
-																maxHoursPerWeek={member.maxHoursPerWeek}
-															/>
-															<p className="text-xs font-bold text-muted-foreground uppercase tracking-tight hidden sm:block">Hours / week</p>
+													{/* Load Signals: compact on mobile, full on desktop */}
+														<div className="flex items-center gap-3 shrink-0 sm:gap-6 sm:px-4">
+															<div className="text-right">
+																{/* A3 A1: the percentage now carries a visible label beside
+																 * it, and the withheld-percentage case has its own honest
+																 * state. The bar/colour treatment and the long-form tooltip
+																 * are unchanged. See TeacherLoadReadout. */}
+																<TeacherLoadReadout
+																	displayHours={displayHours}
+																	utilization={utilization}
+																	isPlaceholder={member.isPlaceholder}
+																	standardHours={teachingStandardHours}
+																	policyReady={policyReady}
+																	maxHoursPerWeek={member.maxHoursPerWeek}
+																/>
+																<p className="text-xs font-bold text-muted-foreground uppercase tracking-tight hidden sm:block">Hours / week</p>
+															</div>
+															{/*
+															 * A6 c6 item 6 — the `Subjects` count block is DELETED (it was the
+															 * second dead region) and `Sections` is the only demand figure left.
+															 * `Sections` stays because a shortage decision is made on it;
+															 * the subject list is one click away in the `Review load` profile.
+															 * `subjectsCount` therefore has no reader left and goes with it.
+															 */}
+															<div className="text-right min-w-10 hidden sm:block">
+																<p className="text-xs font-semibold tabular-nums">{sectionsCount}</p>
+																<p className="text-xs font-bold text-muted-foreground uppercase tracking-tight">Sections</p>
+															</div>
 														</div>
-														<div className="text-right min-w-10 hidden sm:block">
-															<p className="text-xs font-semibold tabular-nums">{subjectsCount}</p>
-															<p className="text-xs font-bold text-muted-foreground uppercase tracking-tight">Subjects</p>
-														</div>
-														<div className="text-right min-w-10 hidden sm:block">
-															<p className="text-xs font-semibold tabular-nums">{sectionsCount}</p>
-															<p className="text-xs font-bold text-muted-foreground uppercase tracking-tight">Sections</p>
-														</div>
-													</div>
-
-												<div className="flex items-center gap-2 shrink-0" aria-hidden="true" />
 											</div>
 
 											{/*
@@ -621,7 +641,7 @@ export function TeacherGridMode({
 															{showOutsideDept && outsideDepartmentSubjects.length > 0 && (
 																<div className="space-y-3">
 																	<div className="flex items-center gap-3">
-																		<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/50">Cross-Department</span>
+																		<span className="text-xs font-semibold text-muted-foreground/50">Outside their subject area</span>
 																		<div className="flex-1 h-px bg-border/40" />
 																	</div>
 																	<div className="grid gap-3">

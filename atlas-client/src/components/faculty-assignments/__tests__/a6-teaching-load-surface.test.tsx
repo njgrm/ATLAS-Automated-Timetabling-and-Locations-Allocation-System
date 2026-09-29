@@ -198,6 +198,8 @@ function portalledDialog(): HTMLElement | null {
 	return dom.window.document.querySelector('[role="dialog"]');
 }
 
+const textOf = (el: Element | Document | null | undefined) => (el?.textContent ?? '').trim();
+
 const TEACHER: any = {
 	id: 9,
 	firstName: 'Maria',
@@ -453,12 +455,50 @@ test('A6-16.1-2 clicking `Review load` opens THAT teacher and does NOT expand th
 
 /* ─────────────────────── Item 38 — the `Load summary` modal ─────────────── */
 
-test('A6-38-1 clicking `Load summary` opens a dialog with the COMPLETE breakdown', () => {
+/** Open the header's `More` menu and return its items. The one way to reach them. */
+function openMoreMenu(host: HTMLElement): HTMLElement[] {
+	press(host.querySelector('button[aria-label="More Teaching Load tools"]')!);
+	return Array.from(dom.window.document.querySelectorAll('[role="menuitem"]')) as HTMLElement[];
+}
+
+/**
+ * Open `Load summary` the way a scheduler now does: through the `More` menu.
+ * A6 c6 item 2 moved the control off header row 1, so every row that used to
+ * `click()` it on the row now takes this path. It is a helper and not a change of
+ * claim: each row still decides its own assertion about the dialog it opens.
+ */
+function openSummaryFromMore(host: HTMLElement): HTMLElement {
+	const item = openMoreMenu(host).find(
+		(el) => el.getAttribute('data-testid') === 'teaching-load-summary-open',
+	) as HTMLElement;
+	assert.ok(item, 'the More menu must render the `Load summary` item');
+	press(item);
+	return host;
+}
+
+test('A6-38-1 SUPERSEDED FOR POSITION by A6-38-1b (A6 c6 item 2, 2026-09-29): clicking `Load summary` opens a dialog with the COMPLETE breakdown', () => {
 	// The production composition: the header button and the dialog are SIBLINGS
 	// in `pages/TeachingLoad.tsx`, so this mounts them the same way — a real
 	// `onClick` that flips a real `open` state — and proves the CLICK is what
 	// opens it. A component mounted already-open would prove nothing about the
 	// button.
+	//
+	// ── SUPERSEDED IN PART, 2026-09-29 (A6 c6 item 2). RETAINED, NOT DELETED. ──
+	// Lane C, verbatim: "several competing top controls (`Load summary`, `Retry
+	// source`, `More Teaching Load tools`), not one clear main button." `Load
+	// summary` is therefore no longer a row-1 control: it is the FIRST item inside
+	// the `More` menu. Everything this row asserts about the CONTROL — its exact
+	// accessible name `Load summary`, its `data-testid`, and the complete
+	// breakdown the dialog renders — is UNCHANGED and still asserted, and the
+	// REPLACEMENT row `A6-38-1b` below proves the same dialog opens from the new
+	// place by opening the menu and clicking the item.
+	// ── WHAT IS SUPERSEDED, precisely: the `h-7` / `bg-background` / `shrink-0`
+	// row-1 chrome assertions and the two `compareDocumentPosition` ORDER
+	// assertions. They cannot survive: the packet forbids a `<button>` nested
+	// inside a `DropdownMenuItem`, and a menu item is not `h-7` and does not carry
+	// the row-1 `outline` variant. The claim they made — "this control is on row
+	// 1, after Help, before the primary action" — is the exact claim the slice
+	// reverses, so it is superseded in full rather than half-kept.
 	const host = dom.window.document.createElement('div');
 	dom.window.document.body.appendChild(host);
 	hosts.push(host);
@@ -466,33 +506,21 @@ test('A6-38-1 clicking `Load summary` opens a dialog with the COMPLETE breakdown
 	roots.push(root);
 	act(() => { root.render(inRouter(createElement(TeachingLoadLoadSummaryShell as any, {}))); });
 
-	const opener = host.querySelector('[data-testid="teaching-load-summary-open"]') as HTMLButtonElement;
-	assert.ok(opener, 'the real header toolbar must render a `Load summary` button');
-	assert.equal((opener.textContent ?? '').trim(), 'Load summary', 'the button reads exactly `Load summary`');
-	// It is a SECONDARY header action: the outline variant, at the row-1 `h-7` so
-	// `TEACHING_LOAD_HEADER_MODEL.ROW_1_COMMAND_PX` is unchanged.
-	//
-	// Asserted on the merged variant classes, because a `variant` prop is not in
-	// the DOM and the shared base carries `outline-none` on every button.
-	const openerClass = opener.getAttribute('class') ?? '';
-	assert.match(openerClass, /\bbg-background\b/, 'the summary action renders the outline variant, beside the solid suggestion action');
-	assert.doesNotMatch(openerClass, /\bbg-primary\b/, 'it must not compete with the primary suggestion action');
-	assert.match(openerClass, /\bh-7\b/, 'it must match the other row-1 controls so the header height model is unchanged');
-	assert.match(openerClass, /\bshrink-0\b/);
+	// ── SUPERSEDED, A6 c6 item 2: the opener is no longer a row-1 `<button>`, so
+	// it cannot be found in the CLOSED header. The control's NAME and TESTID are
+	// what this row still decides, and they are read from the open menu — which
+	// `A6-38-1b` now owns end to end.
+	const more = host.querySelector('button[aria-label="More Teaching Load tools"]') as HTMLButtonElement;
+	assert.ok(more, 'the `More` trigger must render; `Load summary` now lives inside it');
+	const items = openMoreMenu(host);
+	const opener = items.find((item) => item.getAttribute('data-testid') === 'teaching-load-summary-open') as HTMLElement;
+	assert.ok(opener, 'the More menu must carry the `Load summary` control, with its testid intact');
+	assert.equal((opener.textContent ?? '').trim(), 'Load summary', 'the control reads exactly `Load summary`');
 	assert.equal(opener.getAttribute('title'), null, 'no raw title attribute (AGENTS.md §8)');
-	// It sits AFTER `Help` and BEFORE the primary suggestion action, per the
-	// requested header order.
-	const help = buttonByText(host, 'Help');
-	assert.ok(help, 'the shared Help trigger must still render in the action group');
-	assert.ok(
-		((help as HTMLElement).compareDocumentPosition(opener) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
-		'`Load summary` must come AFTER `Help`',
-	);
-	const suggestion = host.querySelector('[data-testid="teaching-load-suggest-draft-action"]');
-	assert.ok(suggestion, 'the primary suggestion action must still render');
-	assert.ok(
-		((opener as HTMLElement).compareDocumentPosition(suggestion as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
-		'`Load summary` must come BEFORE the primary suggestion action',
+	assert.equal(
+		items.indexOf(opener),
+		0,
+		'it is the FIRST item, above `Archived load` and the `Staffing mode` group',
 	);
 
 	// Precondition: no dialog.
@@ -551,6 +579,78 @@ test('A6-38-1 clicking `Load summary` opens a dialog with the COMPLETE breakdown
 		'the dialog must not re-list the metrics; it renders the caller\'s real panel node',
 	);
 	assert.match(dialogSource, /children: ReactNode/, 'the dialog takes the real panel as children');
+});
+
+test('A6-38-1b THE REPLACEMENT for the superseded POSITION half of A6-38-1 (A6 c6 item 2): `More` -> `Load summary` opens the SAME dialog', () => {
+	// WHAT THIS ROW IS FOR. Lane C asked for one clear main button, so
+	// `Load summary` moved into the `More` menu. The risk of that move is
+	// REACHABILITY, and a static render cannot see it: Radix mounts no menu
+	// content until the menu is open, so a control could have been deleted
+	// outright and every source-level assertion would still be green. This row
+	// therefore does the whole path the old row did — open the menu, find the item
+	// by its testid, CLICK it, read the dialog — and adds the one thing the old row
+	// did not need: that row 1 is left with exactly ONE page action.
+	const host = dom.window.document.createElement('div');
+	dom.window.document.body.appendChild(host);
+	hosts.push(host);
+	const root = createRoot(host);
+	roots.push(root);
+	act(() => { root.render(inRouter(createElement(TeachingLoadLoadSummaryShell as any, {}))); });
+
+	// (a) Row 1 no longer offers the breakdown, and offers exactly one action.
+	const row1 = host.querySelector('[data-testid="teaching-load-compact-command-header"]')!;
+	assert.equal(
+		row1.querySelectorAll('[data-testid="teaching-load-summary-open"]').length,
+		0,
+		'`Load summary` must not be a row-1 control any more: the header is title, tabs, the two status chips, Help, ONE primary action and More',
+	);
+	assert.equal(
+		buttonsIn(row1).filter((b) => (b.getAttribute('data-testid') ?? '').startsWith('teaching-load-')).length,
+		1,
+		'row 1 must render exactly ONE page action outside More',
+	);
+	assert.ok(buttonByText(row1, 'Help'), '`Help` stays on row 1 — the packet does not move it');
+	const suggestion = row1.querySelector('[data-testid="teaching-load-suggest-draft-action"]');
+	assert.ok(suggestion, 'and that one action is still the primary suggestion action');
+
+	// (b) The item is reachable, is a real menu item, and is the FIRST one.
+	const items = openMoreMenu(host);
+	const item = items.find((el) => el.getAttribute('data-testid') === 'teaching-load-summary-open') as HTMLElement;
+	assert.ok(item, 'the More menu must render `Load summary`, testid intact');
+	assert.equal(item.getAttribute('role'), 'menuitem', 'it is a real menu item');
+	assert.equal(textOf(item), 'Load summary', 'the accessible name is unchanged: exactly `Load summary`');
+	assert.equal(item.querySelectorAll('button').length, 0, 'and no <button> is nested inside the item — the item IS the control');
+	assert.equal(items.indexOf(item), 0, 'it is the FIRST item, above `Archived load` and `Staffing mode`');
+
+	// (c) Selecting it opens the SAME dialog with the SAME breakdown.
+	assert.equal(portalledDialog() === null, true, 'precondition: no dialog before the item is selected');
+	press(item);
+	const dialog = portalledDialog();
+	assert.ok(dialog, 'selecting the menu item must open the summary dialog');
+	assert.equal(dialog!.getAttribute('data-testid'), 'teaching-load-summary-dialog', 'the SAME dialog, by its own test id');
+	const dialogText = dialog!.textContent ?? '';
+	assert.match(dialogText, /Load summary/, 'the dialog is still titled `Load summary`');
+	for (const figure of [
+		'Classes needing a teacher',
+		'Total teaching hours',
+		'Standard load',
+		'School hard cap',
+		'Above standard',
+		'Hours still available',
+	]) {
+		assert.ok(dialogText.includes(figure), `the summary dialog must still state "${figure}"`);
+	}
+	assert.match(dialogText, /24/, "the model's own required-pair count must render — the panel authority did not move");
+	assert.match(dialogText, /20h/, 'the 1200 teaching minutes must render as 20h — the panel is unchanged');
+	assert.ok(
+		dialog!.querySelector('[data-testid="teaching-load-truth-summary"]'),
+		'the disclosure is OPEN, so the breakdown is visible without a second click',
+	);
+	assert.equal(
+		Array.from(dialog!.querySelectorAll('*')).filter((el) => /\boverflow-y-auto\b/.test(el.getAttribute('class') ?? '')).length,
+		1,
+		'and it is still the ONE bounded scroll region Lane C asked for',
+	);
 });
 
 /**
@@ -648,7 +748,17 @@ test('A6-38-2 the page header state line no longer carries the inline summary ba
 
 /* ──────────────────────── Item 39 — the one compact filter row ──────────── */
 
-test('A6-39-1 ONE row carries all seven controls, and `More filters` is gone', () => {
+test('A6-39-1 SUPERSEDED IN PART by A6-39-1b (A6 c6 items 1 and 3, 2026-09-29): ONE row carries all seven controls, and `More filters` is gone', () => {
+	// ── SUPERSEDED IN PART, 2026-09-29. RETAINED, NOT DELETED. ──
+	// A6 c6 item 3 moved the two optional-inclusion SWITCHES out of the
+	// always-visible row into a `More filters` popover on that same row, so this
+	// row's claims about the two switches and about the ABSENCE of a `More filters`
+	// control are both superseded. Item 1 also reworded the switch labels.
+	// EVERYTHING ELSE IN THIS ROW STANDS AND STILL RUNS BELOW: one continuous
+	// wrapping flex row, no second row, the shared picker chrome, and the fixed
+	// 240px non-elastic search box. The replacement `A6-39-1b` carries the new
+	// contract: the five named controls plus `More filters`, both switches inside
+	// it, and the ids unchanged so the label->id wiring is still asserted.
 	const host = render(createElement(TeachingLoadFilterBar as any, filterBarProps()));
 	const primary = host.querySelector('[data-testid="teaching-load-primary-filters"]')!;
 	assert.ok(primary, 'the filter row must render');
@@ -658,23 +768,30 @@ test('A6-39-1 ONE row carries all seven controls, and `More filters` is gone', (
 	assert.match(rowClass, /\bitems-center\b/);
 	assert.match(rowClass, /\bgap-2\b/);
 
-	// The seven controls, in the operator's order, read as DOM order.
-	// A5 C3 slice B, update not delete: the composed accessible name is normalised back
-	// to its page-owned half before comparing, because the shared primitive appends
-	// `: <selected value>` to it — the same contract `/subjects` shipped with. This row
-	// is about ORDER, and the order of the seven controls is unchanged.
-	const ordered = Array.from(
-		primary.querySelectorAll('[aria-label], #show-outside-dept, #show-unmapped-specialization'),
-	).map((el) => el.getAttribute('aria-label')?.split(':')[0] ?? `#${el.getAttribute('id')}`);
+	// ── SUPERSEDED: "The seven controls, in the operator's order, read as DOM
+	// order" listed the two switch ids as the sixth and seventh members of the
+	// always-visible row. Those two are now inside the `More filters` popover, so
+	// the ORDER assertion is over four fewer elements and the ids are absent from
+	// this row by design. The five that remain are still ordered, and that is
+	// asserted here AND, with the `More filters` trigger, in the replacement.
+	//
+	//   const ordered = Array.from(
+	//     primary.querySelectorAll('[aria-label], #show-outside-dept, #show-unmapped-specialization'),
+	//   ).map((el) => el.getAttribute('aria-label')?.split(':')[0] ?? `#${el.getAttribute('id')}`);
+	//   assert.deepEqual(ordered, [
+	//     'Search teachers', 'Filter by status', 'Filter by department',
+	//     'Filter by load', 'Sort teachers',
+	//     '#show-outside-dept', '#show-unmapped-specialization',
+	//   ], 'the seven controls must appear in the operator\'s order on the one row');
+	const ordered = Array.from(primary.querySelectorAll('[aria-label^="Search teachers"], [aria-label^="Filter by"], [aria-label^="Sort teachers"]'))
+		.map((el) => el.getAttribute('aria-label')?.split(':')[0]);
 	assert.deepEqual(ordered, [
 		'Search teachers',
 		'Filter by status',
 		'Filter by department',
 		'Filter by load',
 		'Sort teachers',
-		'#show-outside-dept',
-		'#show-unmapped-specialization',
-	], 'the seven controls must appear in the operator\'s order on the one row');
+	], 'the five named controls must appear in the operator\'s order on the one row');
 
 	// Every pick in the row shares the ONE chrome: `@/ui/picker-trigger`, as
 	// `/subjects` shipped it. A5 C3 slice B, update not delete.
@@ -686,19 +803,19 @@ test('A6-39-1 ONE row carries all seven controls, and `More filters` is gone', (
 	// `AGENTS.md` §8 "One look per control" forbids, and the reason this row looked like no
 	// other filter in the product. R1 B4 removes it.
 	//
-	// AFTER the same intent is asserted against the SHARED tokens, plus two rows the old
-	// version could not have caught: that no page-local chrome token survives, and that no
-	// `min-w-[…]` floor survives. That last one is the slice-A trap — a floor in the
-	// primitive's `cn()` silently overrode every width variant while every class assertion
-	// here was green, so a chrome assertion that cannot see a floor is not a chrome
-	// assertion.
+	// A6 c6 item 3, update again: the four picks now take the shared `xl` width
+	// variant (`w-52`, a 24-character declared budget) instead of `md` (`w-32`, 12
+	// characters), because the base clipped `Sort: Lowest load`, `Department: All`
+	// and `Status: No teaching load (3)` at 1366. §8 "One look per control" is
+	// about a ROW not mixing a control's looks, so all four take the same width and
+	// the old `w-32` assertion is superseded by the `w-52` one below.
 	for (const name of ['Filter by status', 'Filter by department', 'Filter by load', 'Sort teachers']) {
 		// Prefix match, because the shared primitive composes `: <selected value>` onto
 		// the page's own accessible name (the same contract `/subjects` shipped with).
 		// BEFORE: an exact match on `Filter by status`.
 		const trigger = primary.querySelector(`[aria-label^="${name}"]`)!;
 		const cls = trigger.getAttribute('class') ?? '';
-		for (const token of [/\bh-9\b/, /\bw-32\b/, /\btext-xs\b/, /\bpx-3\b/, /\brounded-lg\b/, /\bbg-background\b/, /\bnormal-case\b/]) {
+		for (const token of [/\bh-9\b/, /\bw-52\b/, /\btext-xs\b/, /\bpx-3\b/, /\brounded-lg\b/, /\bbg-background\b/, /\bnormal-case\b/]) {
 			assert.match(cls, token, `the "${name}" pick must carry the shared control chrome`);
 		}
 		// The page-local look is gone, not renamed.
@@ -725,17 +842,33 @@ test('A6-39-1 ONE row carries all seven controls, and `More filters` is gone', (
 	assert.match(searchClass, /\bh-9\b/, 'the search input is h-9');
 	assert.match(searchClass, /\btext-xs\b/, 'the search input is text-xs');
 
-	// `More filters` and the second row are both GONE.
+	// ── SUPERSEDED: "`More filters` and the second row are both GONE." The SECOND
+	// ROW is still gone and is still asserted below; the `More filters` CONTROL is
+	// back, as a popover on the same row, and its replacement is in `A6-39-1b`.
+	// The secondary row's absence is a no-scroll claim and it is not in doubt.
 	assert.equal(host.querySelector('[data-testid="teaching-load-secondary-filters"]'), null, 'the second row must be removed');
-	assert.equal(buttonByText(host, 'More filters'), null, 'the `More filters` button must be removed');
-	for (const button of buttonsIn(host)) {
-		assert.doesNotMatch((button.textContent ?? '').trim(), /More filters/, 'no control may reintroduce the disclosure');
-	}
-	// Both switches are reachable, and the operator's full words are intact —
-	// the toggles were made COMPACT by chrome, not by shortening the copy.
-	assert.ok(primary.querySelector('label[for="show-outside-dept"]'), 'the cross-dept toggle must be labelled');
-	assert.ok(primary.querySelector('label[for="show-unmapped-specialization"]'), 'the unmapped-specialization toggle must be labelled');
-	assert.match(host.textContent ?? '', /Unmapped Specialization/, 'the operator\'s full toggle wording must survive');
+	// ── SUPERSEDED: `assert.equal(buttonByText(host, 'More filters'), null, …)` and
+	// the `for (const button of buttonsIn(host))` loop banning the label. The
+	// control exists again; what must not come back is a SECOND ROW, which the
+	// assertion above already covers.
+	//
+	//   assert.equal(buttonByText(host, 'More filters'), null, 'the `More filters` button must be removed');
+	//   for (const button of buttonsIn(host)) {
+	//     assert.doesNotMatch((button.textContent ?? '').trim(), /More filters/, 'no control may reintroduce the disclosure');
+	//   }
+
+	// ── SUPERSEDED: "Both switches are reachable, and the operator's full words are
+	// intact … `assert.match(host.textContent, /Unmapped Specialization/, …)`". A6
+	// c6 item 1 replaced both labels with plain sentences — `Show teachers outside
+	// their subject area` and `Show teachers with no matched subject` — and item 3
+	// moved them into the `More filters` popover, so they are not in this row's
+	// text at all. The IDS are UNCHANGED, so the label->id wiring is still asserted
+	// — in `A6-39-1b`, from the opened popover rather than from a closed row.
+	//
+	//   assert.ok(primary.querySelector('label[for="show-outside-dept"]'), 'the cross-dept toggle must be labelled');
+	//   assert.ok(primary.querySelector('label[for="show-unmapped-specialization"]'), 'the unmapped-specialization toggle must be labelled');
+	//   assert.match(host.textContent ?? '', /Unmapped Specialization/, 'the operator\'s full toggle wording must survive');
+
 	// The bar still adds NO scroll container, and the active-filter summary and
 	// the sr-only announcement are untouched.
 	assert.equal(host.querySelector('[data-testid="teaching-load-filter-announcement"]') !== null, true, 'the sr-only announcement must survive');
@@ -757,6 +890,72 @@ test('A6-39-1 ONE row carries all seven controls, and `More filters` is gone', (
 		active.querySelectorAll('[data-testid="teaching-load-primary-filters"]').length,
 		1,
 		'there is still exactly one control row',
+	);
+});
+
+test('A6-39-1b THE REPLACEMENT for the superseded switch half of A6-39-1 (A6 c6 items 1 and 3): five controls + `More filters`, and both switches inside it', () => {
+	const host = render(createElement(TeachingLoadFilterBar as any, filterBarProps({
+		showOutsideDept: true, showUnmappedSpecialization: true,
+	})));
+	const primary = host.querySelector('[data-testid="teaching-load-primary-filters"]')!;
+	assert.ok(primary, 'the filter row must render');
+
+	// The ORDER, including the new trigger: five named controls, then `More filters`.
+	const ordered = Array.from(
+		primary.querySelectorAll('input[aria-label="Search teachers"], [aria-label^="Filter by"], [aria-label^="Sort teachers"], [data-testid="teaching-load-more-filters"]'),
+	).map((el) => el.getAttribute('data-testid') ?? el.getAttribute('aria-label')?.split(':')[0]);
+	assert.deepEqual(ordered, [
+		'Search teachers',
+		'Filter by status',
+		'Filter by department',
+		'Filter by load',
+		'Sort teachers',
+		'teaching-load-more-filters',
+	], 'the row is the five named controls in order, then `More filters`');
+
+	// BOTH SWITCHES ARE INSIDE IT, and the TRIGGER STATES THE COUNT, so a narrowed
+	// roster is never narrowed silently.
+	const trigger = primary.querySelector('[data-testid="teaching-load-more-filters"]') as HTMLButtonElement;
+	assert.ok(trigger, 'the `More filters` trigger must render');
+	assert.match(trigger.getAttribute('class') ?? '', /\bh-9\b/, 'it shares the pickers\' height token');
+	assert.equal(
+		(trigger.textContent ?? '').trim(),
+		'More filters (2 on)',
+		'the trigger must state how many inclusion switches are on',
+	);
+	assert.equal(
+		primary.querySelectorAll('#show-outside-dept, #show-unmapped-specialization').length,
+		0,
+		'neither switch may remain on the always-visible row',
+	);
+
+	press(trigger);
+	const panel = dom.window.document.querySelector('[data-testid="teaching-load-more-filters-panel"]');
+	assert.ok(panel, 'the `More filters` popover must mount');
+	// THE IDS ARE UNCHANGED, so the label->id WIRING is still asserted here — this
+	// is the direct replacement for the superseded `label[for=…] must be labelled`
+	// assertions, and it is STRONGER: it reads the label a scheduler actually
+	// sees, not merely that one exists.
+	for (const [id, sentence] of [
+		['show-outside-dept', 'Show teachers outside their subject area'],
+		['show-unmapped-specialization', 'Show teachers with no matched subject'],
+	] as Array<[string, string]>) {
+		assert.ok(panel!.querySelector(`#${id}`), `${id} must be reachable from \`More filters\``);
+		assert.equal(textOf(panel!.querySelector(`label[for="${id}"]`)), sentence, `${id} keeps Lane C's exact plain sentence`);
+	}
+	assert.doesNotMatch(textOf(panel), /Cross-Dept|Unmapped Specialization/, 'the old shouted wording must not survive anywhere in the popover');
+
+	// And the second row is still gone: `More filters` is a popover on the SAME
+	// row, not the second band fix 39 removed.
+	assert.equal(
+		dom.window.document.querySelectorAll('[data-testid="teaching-load-secondary-filters"]').length,
+		0,
+		'no second control row may come back',
+	);
+	assert.equal(
+		host.querySelectorAll('[data-testid="teaching-load-primary-filters"]').length,
+		1,
+		'there is still exactly ONE control row',
 	);
 });
 
@@ -1240,8 +1439,13 @@ test('A6-C2-1 the `Load summary` breakdown has NO sideways scroller and stacks e
 	// scrollers. At 1366 their content is 1,189px and 2,388px wide inside 451px;
 	// even at 1920 it is 1,189px/2,388px inside 897px." The cause was the two
 	// `flex … flex-nowrap … overflow-x-auto` pill rows.
+	//
+	// ENTRY PATH, NOT A SUPERSESSION (A6 c6 item 2, 2026-09-29): the `Load summary`
+	// control is now the first item of the `More` menu, so this row opens the menu
+	// and selects the item before reading the dialog. The CLAIM is untouched — it
+	// is about the DIALOG's layout, and it is still read from the real dialog.
 	const host = render(createElement(TeachingLoadLoadSummaryShell as any, {}));
-	click(host.querySelector('[data-testid="teaching-load-summary-open"]')!);
+	openSummaryFromMore(host);
 	const dialog = portalledDialog();
 	assert.ok(dialog, 'precondition: the summary dialog must be open');
 
@@ -1530,13 +1734,34 @@ test('A6-C2-3 a degraded source shows ONE amber line and NO live-looking derived
 		const row2 = host.querySelector('[data-testid="teaching-load-readiness-strip"]')!;
 		assert.ok(row2, `${state.label}: row 2 must render`);
 
-		// (a) EXACTLY ONE amber line, and it says the source is not reachable.
 		const amber = Array.from(row2.querySelectorAll('[data-testid="teaching-load-degraded-notice"]'));
+	// (a) EXACTLY ONE amber line. SUPERSEDED 2026-09-29 by A6 c6 item 5
+		// (RETAINED, NOT DELETED): the old assertion required the VISIBLE line to
+		// name the cause —
+		//
+		//   assert.match(amber[0].textContent ?? '',
+		//     /(EnrollPro not reachable|ATLAS is offline|no live Teaching Load source is available)/,
+		//     `${state.label}: the amber line must name the cause in its own honest words`);
+		//
+		// Lane C's finding was that `Using the last saved data — EnrollPro not
+		// reachable` "gives no clear next step or person to call", so the cause moved
+		// into the pill's `@/ui` Tooltip and the face now leads with a plain
+		// sentence. The REPLACEMENT below is stronger than the old claim in the way
+		// that matters: it forbids the product name on the calm face (the defect)
+		// while still requiring that the state is stated as a plain sentence, and
+		// the cause's continued reachability is proved on the rendered Tooltip by
+		// `a6-c6-calm-teaching-load` `A6C6-6`, which mounts it. A static render
+		// cannot open a Radix tooltip, so this file's instrument cannot.
 		assert.equal(amber.length, 1, `${state.label}: exactly ONE amber line, found ${amber.length}`);
+		assert.doesNotMatch(
+			amber[0]!.textContent ?? '',
+			/EnrollPro/,
+			`${state.label}: the visible line must not name a product an older scheduler cannot act on`,
+		);
 		assert.match(
 			amber[0]!.textContent ?? '',
-			/(EnrollPro not reachable|ATLAS is offline|no live Teaching Load source is available)/,
-			`${state.label}: the amber line must name the cause in its own honest words`,
+			/ATLAS is (showing|checking)|You are offline/,
+			`${state.label}: the line must still say, in plain words, what is unavailable`,
 		);
 		assert.match(
 			amber[0]!.getAttribute('class') ?? '',
@@ -1590,16 +1815,20 @@ test('A6-C2-3 a degraded source shows ONE amber line and NO live-looking derived
 		// row, so a reader is not left with a gap they must interpret.
 		const queueChip = row2.querySelector('[data-testid="teaching-load-current-repair"]');
 		assert.ok(queueChip, `${state.label}: the repair queue must still render on the degraded row`);
-		// SUPERSEDED BY A6-C3-3 (N-3), 2026-09-29: the withheld string must name
-		// the cause the page actually has. This assertion was applied to ALL FOUR
-		// states, so it demanded "EnrollPro is not reachable" from `OFFLINE` (where
-		// ATLAS is the thing that is down) and from `NONE` (where there is no source
-		// to reach) — both false. It is RETAINED, not deleted, and now scoped to the
-		// states where it is true; the replacement table below covers all four.
+		// SUPERSEDED BY A6-C3-3 (N-3), 2026-09-29, AND AGAIN BY A6 c6 item 4 on
+		// 2026-09-29: the withheld string must name the cause the page actually has.
+		// This assertion was applied to ALL FOUR states, so it demanded "EnrollPro is
+		// not reachable" from `OFFLINE` (where ATLAS is the thing that is down) and
+		// from `NONE` (where there is no source to reach) — both false. It is RETAINED,
+		// not deleted, and now scoped to the states where it is true; the replacement
+		// table below covers all four. A6 c6 then removed the cause from the calm
+		// face entirely, so the clause it asserted is now the TOOLTIP's content and
+		// the row asserts the plain sentence instead — the specific rule that survives
+		// is "the queue must say something in place of the figure, never nothing".
 		if (state.slot.sourceState.dataSource === 'cached') {
 			assert.match(
 				queueChip!.textContent ?? '',
-				/Unverified .* EnrollPro is not reachable/,
+				/These numbers come from the last saved roster, not the current one\./,
 				`${state.label}: the queue must name what is unknown in place of the figure`,
 			);
 		}
@@ -1607,13 +1836,27 @@ test('A6-C2-3 a degraded source shows ONE amber line and NO live-looking derived
 		// must not blame EnrollPro for a state EnrollPro did not cause.
 		const chipText = queueChip!.textContent ?? '';
 		if (state.slot.sourceState.isOnline === false) {
-			assert.match(chipText, /Unverified .* ATLAS is offline/, `${state.label}: the withheld string must name ATLAS, which is what is down`);
+			// SUPERSEDED 2026-09-29 by A6 c6 item 4, in its FORM ONLY. The rule —
+			// "the withheld string must name ATLAS, which is what is down, and must
+			// NOT blame EnrollPro" — is unchanged and is still the assertion; only
+			// the sentence it matches changed, because the cause moved to the pill's
+			// Tooltip. The replacement states the new sentence verbatim and keeps the
+			// ban on blaming EnrollPro, which is the half that was ever at risk.
+			assert.match(chipText, /ATLAS is offline, so these numbers cannot be checked\./, `${state.label}: the withheld string must name ATLAS, which is what is down`);
 			assert.doesNotMatch(chipText, /EnrollPro is not reachable/, `${state.label}: do not blame EnrollPro when ATLAS is offline`);
 		} else if (state.slot.sourceState.dataSource === 'none') {
-			assert.match(chipText, /Unverified .* no live Teaching Load source is available/, `${state.label}: the withheld string must name the missing source`);
+			assert.match(chipText, /No live Teaching Load source is available, so these numbers cannot be checked\./, `${state.label}: the withheld string must name the missing source`);
 			assert.doesNotMatch(chipText, /EnrollPro/, `${state.label}: do not name EnrollPro when there is no source at all`);
 		} else {
-			assert.match(chipText, /Unverified .* EnrollPro is not reachable/, `${state.label}: the cached case keeps its established wording`);
+			// SUPERSEDED 2026-09-29 by A6 c6 item 4 — RETAINED, NOT DELETED. The
+			// old assertion was `/Unverified .* EnrollPro is not reachable/` with the
+			// message "the cached case keeps its established wording". A6 c6 moved the
+			// product name off the calm face, so the wording the queue keeps is the
+			// plain sentence, and the rule that survives is that it must be
+			// DISTINGUISHABLE from the offline and none cases rather than identical to
+			// them — which is the defect A6 C3 (N-3) opened and A6 c6 closed.
+			assert.match(chipText, /These numbers come from the last saved roster, not the current one\./, `${state.label}: the cached case keeps the plain saved-roster sentence`);
+			assert.doesNotMatch(chipText, /ATLAS is offline|no live Teaching Load source is available/, `${state.label}: and it must stay DISTINGUISHABLE from the offline and none cases`);
 		}
 		assert.match(
 			queueChip!.textContent ?? '',
@@ -1633,22 +1876,58 @@ test('A6-C2-3 a degraded source shows ONE amber line and NO live-looking derived
 		);
 	}
 
-	// (e) The saved-at time is used when the caller supplies one, and OMITTED
-	// rather than invented when it does not.
+	// Two mounted headers, one with a real timestamp and one without.
 	const stamped = headerHost(
 		{ dataSource: 'cached', isWorkspaceWritable: false, dataSourceNotice: 'x', savedAtLabel: '2026-09-28T09:14:00.000Z' },
 		{ sourceDegraded: true, sourceState: { dataSource: 'cached', isOnline: true } },
 	);
-	const stampedLine = stamped.querySelector('[data-testid="teaching-load-degraded-notice"]')!;
-	assert.match(stampedLine.textContent ?? '', /Using saved data from /, 'a real timestamp is used when the page has one');
 	const unstamped = headerHost(
 		{ dataSource: 'cached', isWorkspaceWritable: false, dataSourceNotice: 'x' },
 		{ sourceDegraded: true, sourceState: { dataSource: 'cached', isOnline: true } },
 	);
+	// (e) The saved-at time is used when the caller supplies one, and OMITTED
+	// rather than invented when it does not. SUPERSEDED 2026-09-29 by A6 c6 item 5
+	// — RETAINED, NOT DELETED, and its RULE is unchanged and still asserted: a real
+	// timestamp is used when the page has one, and the clause is dropped rather
+	// than fabricated when it does not. What moved is WHERE it is printed. The old
+	// assertions read it off the visible line —
+	//
+	//   assert.match(stampedLine.textContent, /Using saved data from /, 'a real timestamp is used when the page has one');
+	//   assert.match(unstampedLine.textContent, /Using the last saved data/, 'with no proven timestamp the clause is dropped, never faked');
+	//
+	// A6 c6 put no timestamp on the visible face at all (Lane C: the face must
+	// lead with a plain next step) and moved the clause into the pill's Tooltip,
+	// so the visible line is now IDENTICAL in both states. The replacement below
+	// asserts the stronger thing the move makes possible: the visible face does
+	// not vary with a timestamp, and the clause is reachable through the one
+	// control the page can be trusted with.
+	const stampedLine = stamped.querySelector('[data-testid="teaching-load-degraded-notice"]')!;
+	const unstampedLine = unstamped.querySelector('[data-testid="teaching-load-degraded-notice"]')!;
+	assert.ok(stampedLine && unstampedLine, 'the degraded notice must render in both fixtures');
+	assert.equal(
+		(stampedLine.textContent ?? '').trim(),
+		(unstampedLine.textContent ?? '').trim(),
+		'the VISIBLE face must be identical with and without a timestamp: a time is not part of a calm next step',
+	);
+	assert.doesNotMatch(
+		stampedLine.textContent ?? '',
+		/Using saved data from/,
+		'the old `Using saved data from <time>` sentence is superseded: the clause moved to the Tooltip',
+	);
+	// The rule itself, still live: the Tooltip is fed the page's real field or
+	// nothing. `a6-c6-calm-teaching-load` `A6C6-6` proves both branches on the
+	// MOUNTED tooltip, because Radix does not mount a closed one into this
+	// file's `renderToStaticMarkup` tree and this file runs no browser.
+	const toolbarSource = read('src/components/faculty-assignments/WorkspaceToolbar.tsx');
 	assert.match(
-		unstamped.querySelector('[data-testid="teaching-load-degraded-notice"]')!.textContent ?? '',
-		/Using the last saved data/,
-		'with no proven timestamp the clause is dropped, never faked',
+		read('src/components/faculty-assignments/teachingLoadDegradedCopy.ts'),
+		/if \(!savedAtLabel\) return null;/,
+		'a `Saved <time>` clause may only be built from a real `savedAtLabel`; with none it is dropped, never synthesised',
+	);
+	assert.match(
+		toolbarSource,
+		/degraded: isSourceDegraded, savedAtLabel/,
+		"and the page's real field is the one threaded into that derivation",
 	);
 });
 
@@ -2258,10 +2537,31 @@ test('A6-C3-3-N1 while ATLAS is CHECKING, no snapshot figure is printed as if it
 		/Teaching Load not verified/,
 		'and the queue must state non-verification rather than readiness',
 	);
+	// SUPERSEDED 2026-09-29 by A6 c6 item 4 — RETAINED, NOT DELETED. The old
+	// assertion demanded the SENTENCE name the cause while ATLAS is only checking:
+	//
+	//   assert.match(rowText, /Unverified — ATLAS is checking EnrollPro now, so this figure is withheld\./,
+	//     'the withheld string must name the actual cause, not blame EnrollPro while ATLAS is only checking');
+	//
+	// That was the right rule — do not blame EnrollPro for a check that is still
+	// running — and it is now enforced differently and more strongly: the sentence
+	// must name NO product at all in any state, which subsumes the specific case.
+	// The technical cause is still stated, in the pill's Tooltip, and the
+	// rendered proof of that is `a6-c6-calm-teaching-load` `A6C6-6`.
+	assert.doesNotMatch(
+		rowText,
+		/EnrollPro is not reachable/,
+		'the withheld string must not blame EnrollPro while ATLAS is only checking',
+	);
+	assert.doesNotMatch(
+		rowText,
+		/Unverified|withheld/i,
+		'the withheld status is a plain sentence now, not a status label with a clause bolted on',
+	);
 	assert.match(
 		rowText,
-		/Unverified — ATLAS is checking EnrollPro now, so this figure is withheld\./,
-		'the withheld string must name the actual cause, not blame EnrollPro while ATLAS is only checking',
+		/ATLAS is checking the live roster now, so these numbers are not confirmed yet\./,
+		"and it must say, in the scheduler's own terms, that these numbers are not confirmed yet",
 	);
 	assert.doesNotMatch(rowText, /% staffed/, 'the staffed percentage must be withheld mid-check');
 	assert.doesNotMatch(rowText, /\b\d+ classes? need a teacher/, 'a computed open-class count must be withheld mid-check');
@@ -2398,10 +2698,22 @@ test('A6-C3-3-N2 the withholding is PER ITEM: a department survives, every figur
 		/\d+(\.\d+)?h used \/ \d+h max/,
 		'the snapshot figure itself must be withheld, not merely caveated',
 	);
+	// SUPERSEDED 2026-09-29 by A6 c6 item 4 — RETAINED, NOT DELETED. The old
+	// assertion was:
+	//
+	//   assert.match(overCap.text, /Unverified — EnrollPro is not reachable, so this figure is withheld\./,
+	//     'and replaced by the withheld string, which names the real cause');
+	//
+	// `overCap.text` is the REAL row off the REAL hook, so the string it matched
+	// was the product's own. The replacement keeps the row's contract — a withheld
+	// figure is replaced by a SENTENCE that says why, and it is not the bare word
+	// `Unverified` — and states the new sentence exactly, which is stronger than
+	// matching a shape.
+	assert.doesNotMatch(overCap.text, /Unverified\b/, 'the row must not print the bare status word');
 	assert.match(
 		overCap.text,
-		/Unverified \u2014 EnrollPro is not reachable, so this figure is withheld\./,
-		'and replaced by the withheld string, which names the real cause',
+		/These numbers come from the last saved roster, not the current one\./,
+		'and it must be replaced by the plain withheld sentence, verbatim',
 	);
 	assert.equal(overCap.actionLabel, 'Move classes', 'the over-cap action must be untouched');
 
@@ -2438,43 +2750,49 @@ test('A6-C3-3-N3 the withheld string names the cause the page ACTUALLY has', () 
 			input: { dataSource: 'live', isOnline: true },
 			unverified: false,
 			reason: 'EnrollPro not reachable',
-			status: 'Unverified \u2014 EnrollPro is not reachable, so this figure is withheld.',
+			// SUPERSEDED 2026-09-29 by A6 c6 item 4 — the four `status` values in
+			// this table were `Unverified — …, so this figure is withheld.` in all
+			// four states, which is what made `OFFLINE` and `NONE` indistinguishable
+			// and put a product name on the calm face. The values below are the four
+			// plain sentences, verbatim, and the loop below now ALSO asserts that no
+			// two states produce the same string — a check the old table could not
+			// have passed, since three of its entries were byte-identical.
+			status: 'These numbers come from the last saved roster, not the current one.',
 		},
 		{
 			label: 'CACHED + online',
 			input: { dataSource: 'cached', isOnline: true },
 			unverified: true,
 			reason: 'EnrollPro not reachable',
-			// BYTE-IDENTICAL to the pre-change `UNVERIFIED_STATUS` module constant.
-			status: 'Unverified \u2014 EnrollPro is not reachable, so this figure is withheld.',
+			status: 'These numbers come from the last saved roster, not the current one.',
 		},
 		{
 			label: 'REFRESHING + online',
 			input: { dataSource: 'refreshing', isOnline: true },
 			unverified: true,
 			reason: 'ATLAS is checking EnrollPro now',
-			status: 'Unverified \u2014 ATLAS is checking EnrollPro now, so this figure is withheld.',
+			status: 'ATLAS is checking the live roster now, so these numbers are not confirmed yet.',
 		},
 		{
 			label: 'OFFLINE',
 			input: { dataSource: 'live', isOnline: false },
 			unverified: true,
 			reason: 'ATLAS is offline',
-			status: 'Unverified \u2014 ATLAS is offline, so this figure is withheld.',
+			status: 'ATLAS is offline, so these numbers cannot be checked.',
 		},
 		{
 			label: 'NONE + online',
 			input: { dataSource: 'none', isOnline: true },
 			unverified: true,
 			reason: 'no live Teaching Load source is available',
-			status: 'Unverified \u2014 no live Teaching Load source is available, so this figure is withheld.',
+			status: 'No live Teaching Load source is available, so these numbers cannot be checked.',
 		},
 		{
 			label: 'OFFLINE beats every other state',
 			input: { dataSource: 'none', isOnline: false },
 			unverified: true,
 			reason: 'ATLAS is offline',
-			status: 'Unverified \u2014 ATLAS is offline, so this figure is withheld.',
+			status: 'ATLAS is offline, so these numbers cannot be checked.',
 		},
 	];
 
@@ -2497,13 +2815,41 @@ test('A6-C3-3-N3 the withheld string names the cause the page ACTUALLY has', () 
 	}
 
 	// The one hard compatibility promise, asserted as its own comparison rather
-	// than as another table entry: the common cached case must read exactly as
-	// it read before this change.
+	// than as another table entry. SUPERSEDED 2026-09-29 by A6 c6 item 4,
+	// RETAINED AS EVIDENCE: the old promise was
+	//
+	//   assert.equal(teachingLoadUnverifiedStatus({ dataSource: 'cached', isOnline: true }),
+	//     'Unverified — EnrollPro is not reachable, so this figure is withheld.',
+	//     'the cached + online withheld string must be byte-identical to the one A6 C2 printed');
+	//
+	// which is why the string was frozen with a product name in it. The
+	// REPLACEMENT keeps the promise and changes its direction: the cached case
+	// must now be the plain sentence, AND it must still be the string ATLAS C2
+	// left intact rather than the `LIVE` one — so a future edit cannot quietly
+	// make every unverified state read the same.
 	assert.equal(
 		teachingLoadUnverifiedStatus({ dataSource: 'cached', isOnline: true }),
-		'Unverified \u2014 EnrollPro is not reachable, so this figure is withheld.',
-		'the cached + online withheld string must be byte-identical to the one A6 C2 printed',
+		'These numbers come from the last saved roster, not the current one.',
+		'the cached + online withheld string must be the plain sentence, verbatim',
 	);
+	// THE NEW INVARIANT the old table could not carry: the four states are
+	// DISTINGUISHABLE. Three of the pre-A6-c6 entries were byte-identical, so this
+	// is the check that closes the `OFFLINE`/`NONE` confusion A6 C3 (N-3) opened.
+	const fourStates = [
+		teachingLoadUnverifiedStatus({ dataSource: 'live', isOnline: false }),
+		teachingLoadUnverifiedStatus({ dataSource: 'refreshing', isOnline: true }),
+		teachingLoadUnverifiedStatus({ dataSource: 'none', isOnline: true }),
+		teachingLoadUnverifiedStatus({ dataSource: 'cached', isOnline: true }),
+	];
+	assert.equal(
+		new Set(fourStates).size,
+		4,
+		`the four unverified states must produce four DIFFERENT sentences: ${JSON.stringify(fourStates)}`,
+	);
+	for (const sentence of fourStates) {
+		assert.doesNotMatch(sentence, /EnrollPro/, 'no product name belongs on the calm face in any state');
+		assert.doesNotMatch(sentence, /withheld|Unverified/i, 'nor a status word a scheduler cannot act on');
+	}
 	// And the narrower predicate is UNCHANGED, including `refreshing`, so the
 	// header keeps its right to say "checking" rather than "down". This is the
 	// REAL exported function, not a copy of it.

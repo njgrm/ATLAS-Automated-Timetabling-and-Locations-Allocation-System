@@ -31,9 +31,10 @@
  * So this component owns two things and nothing else: the open flag, and the
  * control that flips it.
  */
-import { useState, type ReactNode } from 'react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 import { ClipboardList } from 'lucide-react';
 import { Button } from '@/ui/button';
+import { DropdownMenuItem } from '@/ui/dropdown-menu';
 import { TeachingLoadSummaryDialog } from '@/components/faculty-assignments/TeachingLoadSummaryDialog';
 
 type TeachingLoadSummarySurfaceProps = {
@@ -41,18 +42,89 @@ type TeachingLoadSummarySurfaceProps = {
 	children: ReactNode;
 };
 
+/**
+ * A6 c6 item 2 — the ONE place the host says "this control belongs in a menu".
+ *
+ * WHY A CONTEXT AND NOT A PROP. The page builds this surface and hands it to the
+ * header through the `loadSummaryAction` SLOT, and that slot contract is
+ * deliberately unchanged: the page still writes `loadSummaryAction={<TeachingLoad
+ * SummarySurface>…}` and knows nothing about menus. So the HOST decides the shape
+ * and the surface reads it. A prop would have meant the page passing
+ * `as="menu-item"`, which is the page learning about a menu it does not own.
+ *
+ * WHY THE STATE IS THE HOST'S, AND WHY THAT IS NOT OPTIONAL. The first attempt at
+ * this kept the surface itself INSIDE `DropdownMenuContent` and toggled its own
+ * `open` state. That renders correctly and then fails the moment a scheduler uses
+ * it: Radix unmounts a menu's content on close, and the surface is a child of that
+ * content, so the DIALOG is unmounted in the same commit that opens it and never
+ * appears. (A rendered control caught this; the assertion that a menu item opens a
+ * dialog is not a thing a source reading can see.) So the open flag is owned by the
+ * host, the menu ITEM is a sibling of the surface rather than its child, and the
+ * two are joined by this one context. The surface still owns the dialog, the panel
+ * node and the `truthModel` authority — the host owns only the flag.
+ */
+const TeachingLoadSummaryMenuContext = createContext<{
+	open: boolean;
+	setOpen: (open: boolean) => void;
+} | null>(null);
+export const TeachingLoadSummaryMenuSlot = TeachingLoadSummaryMenuContext.Provider;
+
+/**
+ * The `Load summary` MENU ITEM, rendered by the host inside its `More` menu.
+ *
+ * The item IS the control: a real `DropdownMenuItem`, with the packet's testid and
+ * the packet's accessible name, and NO `<button>` nested inside it — two focusable
+ * controls wearing one name is the nesting the packet forbids. It opens the dialog
+ * on `onSelect`, which is the menu's own activation, not a click handler bolted on
+ * beside it.
+ */
+export function TeachingLoadSummaryMenuItem() {
+	const host = useContext(TeachingLoadSummaryMenuContext);
+	if (!host) return null;
+	return (
+		<DropdownMenuItem
+			onSelect={() => host.setOpen(true)}
+			data-testid="teaching-load-summary-open"
+			className="cursor-pointer gap-2 text-xs font-semibold"
+		>
+			<ClipboardList className="size-3.5" aria-hidden="true" />
+			Load summary
+		</DropdownMenuItem>
+	);
+}
+
 export function TeachingLoadSummarySurface({ children }: TeachingLoadSummarySurfaceProps) {
-	// Owned HERE, not in the page. The page no longer needs to know the dialog
-	// exists, which is what removes the dialog JSX from it.
-	const [open, setOpen] = useState(false);
+	// Owned HERE when this component is its own trigger, and by the HOST when the
+	// host renders `TeachingLoadSummaryMenuItem` beside it. Either way there is one
+	// flag, and the page never learns which.
+	const [localOpen, setLocalOpen] = useState(false);
+	const host = useContext(TeachingLoadSummaryMenuContext);
+	const open = host ? host.open : localOpen;
+	const setOpen = host ? host.setOpen : setLocalOpen;
+
+	if (host) {
+		/*
+		 * A MENU-TRIGGERED surface draws NO trigger of its own: its trigger is the
+		 * host's menu item, and a second control with the same name would be the
+		 * duplicate this slice exists to remove. It renders the dialog alone — which
+		 * is also why the host must keep it OUTSIDE the menu content, so closing the
+		 * menu cannot unmount a dialog it is in the middle of opening.
+		 */
+		return (
+			<TeachingLoadSummaryDialog open={open} onOpenChange={setOpen}>
+				{children}
+			</TeachingLoadSummaryDialog>
+		);
+	}
 
 	return (
 		<>
-			{/* `h-7` matches every other control on header row 1, so this does not
-			    change `TEACHING_LOAD_HEADER_MODEL.ROW_1_COMMAND_PX` and the
-			    committed header-height control stays green. The page renders this
-			    component in the header action area, beside `Help` and before the
-			    primary suggestion action. */}
+			{/*
+			 * `h-7` matches every other control on header row 1. A6 c6 item 2 moved
+			 * the header's own copy into the `More` menu, so this branch is the shape
+			 * the control takes for any other host — and it is kept, not deleted, so
+			 * `A6C6-9`'s preservation row can still render it.
+			 */}
 			<Button
 				type="button"
 				variant="outline"

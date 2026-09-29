@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Zap, Settings2, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -7,7 +7,9 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { Tabs, TabsList, TabsTrigger } from '@/ui/tabs';
 import { cn } from '@/lib/utils';
 import { SmartHelpTrigger } from '@/components/smart/SmartPageShell';
-import { CompactTitleStrip } from '@/components/app-shell/CompactTitleStrip';
+import { CompactTitleStrip, COMPACT_TITLE_STRIP_CLASS } from '@/components/app-shell/CompactTitleStrip';
+import { TeachingLoadSummaryMenuItem, TeachingLoadSummaryMenuSlot } from '@/components/faculty-assignments/TeachingLoadSummarySurface';
+import { teachingLoadDegradedCopy } from '@/components/faculty-assignments/teachingLoadDegradedCopy';
 import type { CoverageMode } from '@/types';
 
 type WorkspaceToolbarProps = {
@@ -71,15 +73,19 @@ type WorkspaceToolbarProps = {
 	 */
 	shortageLineSlot?: ReactNode;
 	/**
-	 * FIX 38 — the header's `Load summary` control.
+	 * FIX 38 / A6 c6 item 2 — the header's `Load summary` control.
 	 *
 	 * This is a SLOT, not a callback, on purpose. The toolbar owns the control's
-	 * POSITION in the action group (after `Help`, before the primary suggestion
-	 * action) and nothing else: the open flag and the dialog belong to
-	 * `TeachingLoadSummarySurface`, and the panel body belongs to the page. A
-	 * callback here would force the page to own all three, which is what pushed
-	 * it over the AGENTS.md §8 line cap and what would let the dialog's figures
-	 * drift from the page's `truthModel`.
+	 * POSITION in the action group and nothing else: the open flag and the dialog
+	 * belong to `TeachingLoadSummarySurface`, and the panel body belongs to the
+	 * page. A callback here would force the page to own all three, which is what
+	 * pushed it over the AGENTS.md §8 line cap and what would let the dialog's
+	 * figures drift from the page's `truthModel`.
+	 *
+	 * A6 c6 moved that position from row 1 into the `More` menu. The slot contract
+	 * is UNCHANGED — the page still builds `TeachingLoadSummarySurface` and still
+	 * hands it over; only the place it renders changed, and the toolbar says so
+	 * with `TeachingLoadSummaryMenuSlot` rather than by asking the page to know.
 	 */
 	loadSummaryAction?: ReactNode;
 	/**
@@ -302,9 +308,9 @@ export function isTeachingLoadSourceDegraded(input: {
  * is available" knows to look upstream, while "EnrollPro not reachable" is the
  * one answer that covers all three cases and is therefore only sometimes true.
  *
- * The `cached` + online case MUST keep producing the exact string the queue
- * already printed (`Unverified — EnrollPro is not reachable, so this figure is
- * withheld.`), so the common degraded state reads identically to before.
+ * The `cached` + online case is the one a scheduler meets most often. A6 c6 item 4
+ * changed its wording — the reason, not the fact, is at the comment on
+ * `teachingLoadUnverifiedStatus` below.
  */
 export function isTeachingLoadSourceUnverified(input: {
 	dataSource: WorkspaceToolbarProps['dataSource'];
@@ -324,27 +330,31 @@ export function teachingLoadUnverifiedReason(input: {
 }
 
 /*
- * A6 C3: the withheld SENTENCE, composed per state rather than from one fixed
- * clause. The `cached` + online case is pinned to the exact string this page has
- * printed since A6 C2, byte-for-byte, so the state a scheduler meets most often
- * reads identically to before.
+ * A6 c6 item 4 — the withheld SENTENCE, and why it is now four plain sentences.
  *
- * It is written out per state instead of composed from
- * `teachingLoadUnverifiedReason` for one grammar reason: that function's
- * `EnrollPro not reachable` is the AMBER LINE's clause, and the sentence needs
- * the same clause in a sentence — `EnrollPro IS not reachable`. Composing one
- * from the other silently dropped the `is` and changed a string the committed
- * `A6-C2-3` row asserts. The other three states are new, so they are written to
- * read as sentences.
+ * The base wrote `Unverified — EnrollPro is not reachable, so this figure is
+ * withheld.` in all four states. Lane C, verbatim: that is 68 characters, a product
+ * name, and the word "withheld", which a scheduler cannot act on. This is the ONE
+ * function that writes it, so this is the one place the four plain sentences live.
+ *
+ * EACH STATE SAYS WHAT IS UNAVAILABLE AND NOTHING ELSE. No product name on the calm
+ * face: `teachingLoadUnverifiedReason` above is the technical clause, and it now
+ * feeds the pill's Tooltip and the page's `Help` step, which is where a cause
+ * belongs. No em dash either — the base used one to bolt a label onto a clause, and
+ * the result read as two things rather than one sentence.
+ *
+ * The four stay DISTINGUISHABLE, which is the property the base lost by collapsing
+ * `OFFLINE` and `NONE` into one EnrollPro-shaped answer: an operator who reads
+ * "ATLAS is offline" knows waiting will not help.
  */
 export function teachingLoadUnverifiedStatus(input: {
 	dataSource: WorkspaceToolbarProps['dataSource'];
 	isOnline: boolean;
 }): string {
-	if (!input.isOnline) return 'Unverified — ATLAS is offline, so this figure is withheld.';
-	if (input.dataSource === 'refreshing') return 'Unverified — ATLAS is checking EnrollPro now, so this figure is withheld.';
-	if (input.dataSource === 'none') return 'Unverified — no live Teaching Load source is available, so this figure is withheld.';
-	return 'Unverified — EnrollPro is not reachable, so this figure is withheld.';
+	if (!input.isOnline) return 'ATLAS is offline, so these numbers cannot be checked.';
+	if (input.dataSource === 'refreshing') return 'ATLAS is checking the live roster now, so these numbers are not confirmed yet.';
+	if (input.dataSource === 'none') return 'No live Teaching Load source is available, so these numbers cannot be checked.';
+	return 'These numbers come from the last saved roster, not the current one.';
 }
 
 export function WorkspaceToolbar({
@@ -526,19 +536,19 @@ export function WorkspaceToolbar({
 	}, [dataSource, isOnline, isSourceDegraded]);
 
 	/*
-	 * `savedAtLabel` is the PAGE's real field, never a synthesised clock reading.
-	 * With no timestamp the clause is dropped, so the sentence degrades from
-	 * `Using saved data from <time> — EnrollPro not reachable` to `Using the last
-	 * saved data — EnrollPro not reachable` instead of inventing a time we cannot
-	 * prove (see the `savedAtLabel` prop doc).
+	 * A6 c6 items 4 and 5 — every string this header prints about a source it
+	 * cannot verify now comes from ONE derivation, in
+	 * `teachingLoadDegradedCopy`: the visible pill's plain lead, the Tooltip's
+	 * technical detail, and the one new `Help` step. It was extracted out of this
+	 * file because four memos of the same subject pushed it past the AGENTS.md §8
+	 * 1000-line cap, and because one derivation is what keeps the pill, the hover
+	 * and Help from ever disagreeing about the cause. The reasoning moved with
+	 * the code, into that file's own header.
 	 */
-	const degradedLine = useMemo(() => {
-		if (!degradedTail) return null;
-		const prefix = savedAtLabel
-			? `Using saved data from ${(() => { const p = new Date(savedAtLabel); return Number.isNaN(p.getTime()) ? savedAtLabel : p.toLocaleString(); })()}`
-			: 'Using the last saved data';
-		return `${prefix} — ${degradedTail}`;
-	}, [degradedTail, savedAtLabel]);
+	const { lead: degradedLead, detail: degradedDetail, helpStep: sourceHelpStep } = useMemo(
+		() => teachingLoadDegradedCopy({ dataSource, isOnline, degraded: isSourceDegraded, savedAtLabel }),
+		[dataSource, isOnline, isSourceDegraded, savedAtLabel],
+	);
 
 	/*
 	 * ONE sentence of status. The `% staffed` and `Classes without a teacher`
@@ -602,7 +612,21 @@ export function WorkspaceToolbar({
 	 */
 	const hasShortageLine = Boolean(shortageLineSlot);
 
+	/*
+	 * A6 c6 item 2 — the `Load summary` open flag lives HERE, and the reason is a
+	 * real defect this row's evidence found rather than a style preference. Radix
+	 * unmounts a menu's content on close, so a surface rendered INSIDE that content
+	 * takes its own dialog down with it in the same commit that opens the dialog:
+	 * the control renders, the item is a real menu item, and clicking it does
+	 * nothing. The flag therefore lives above the strip, the menu ITEM is a sibling
+	 * of the surface rather than its child, and the page's slot still hands over the
+	 * same untouched `TeachingLoadSummarySurface` node.
+	 */
+	const [summaryOpen, setSummaryOpen] = useState(false);
+	const summaryControl = useMemo(() => ({ open: summaryOpen, setOpen: setSummaryOpen }), [summaryOpen]);
+
 	return (
+		<>
 		<CompactTitleStrip
 			stripTestId="teaching-load-command-header"
 			rowTestId="teaching-load-compact-command-header"
@@ -677,38 +701,47 @@ export function WorkspaceToolbar({
 					<SmartHelpTrigger
 						title="How to use Teaching Load"
 						description="Use this page to build and review which teacher owns each subject-section load before timetable generation."
-						steps={[
-							{
-								title: 'Start with the repair queue',
-								body: 'ATLAS puts missing load, overloads, placeholders, and unsaved draft work in the order scheduler officers should fix them.',
-							},
-							{
-								title: 'Preview suggestions first',
-								body: 'Suggest Teaching Load draft shows what ATLAS can fill before anything becomes final.',
-							},
-							{
-								title: 'Use Advanced grid only when needed',
-								body: 'Dense teacher and section grids stay available for expert repair, but they should not be your first stop.',
-							},
-							{
-								title: 'Save only after review',
-								body: 'Draft changes stay visible near the action bar so you can save, undo, or discard with a clear status message.',
-							},
-						]}
-						triggerLabel="Help"
-						className="hidden h-7 shrink-0 px-2 text-xs sm:inline-flex"
-					/>
+					steps={[
+						{
+							title: 'Start with the repair queue',
+							body: 'ATLAS puts missing load, overloads, placeholders, and unsaved draft work in the order scheduler officers should fix them.',
+						},
+						{
+							title: 'Preview suggestions first',
+							body: 'Suggest Teaching Load draft shows what ATLAS can fill before anything becomes final.',
+						},
+						{
+							title: 'Use Advanced grid only when needed',
+							body: 'Dense teacher and section grids stay available for expert repair, but they should not be your first stop.',
+						},
+						{
+							title: 'Save only after review',
+							body: 'Draft changes stay visible near the action bar so you can save, undo, or discard with a clear status message.',
+						},
+						sourceHelpStep,
+					]}
+					triggerLabel="Help"
+					className="hidden h-7 shrink-0 px-2 text-xs sm:inline-flex"
+				/>
 
-					{/* FIX 38: `Load summary`, AFTER `Help` and BEFORE the primary
-					 * suggestion action, per the requested header order.
-					 *
-					 * This component does not draw the control — the page passes
-					 * `TeachingLoadSummarySurface` here, which owns both the
-					 * `h-7` button and the dialog. What matters for the header
-					 * height model is only that it sits on row 1, and the
-					 * surface's button is `h-7`, so `ROW_1_COMMAND_PX` is
-					 * unchanged and the committed header control stays green. */}
-					{loadSummaryAction}
+				{/*
+				 * A6 c6 item 2 — `Load summary` USED TO BE HERE, between `Help` and the
+				 * primary action. Lane C, verbatim: "several competing top controls
+				 * (`Load summary`, `Retry source`, `More Teaching Load tools`), not
+				 * one clear main button." A header that offers three buttons of equal
+				 * weight gives an older, mouse-first scheduler no first move, so the
+				 * complete breakdown moved into the `More` menu as its FIRST item.
+				 *
+				 * NOTHING ELSE MOVED AND NOTHING WAS LOST. The page still builds the
+				 * surface and still hands it over through the same `loadSummaryAction`
+				 * slot; the dialog, the `TeachingLoadTruthPanel` body, the
+				 * `truthModel` authority, `data-testid="teaching-load-summary-open"`
+				 * and the accessible name `Load summary` are all unchanged, and
+				 * `a6-teaching-load-surface` `A6-38-1b` proves the same dialog opens
+				 * from the new place. `ROW_1_COMMAND_PX` was 28px because of the `h-7`
+				 * Help / More buttons, which are still there, so
+				 * `TEACHING_LOAD_HEADER_MODEL` is unchanged.
+				 */}
 
 					<Tooltip>
 					<TooltipTrigger asChild>
@@ -757,6 +790,20 @@ export function WorkspaceToolbar({
 									</Button>
 								</DropdownMenuTrigger>
 								<DropdownMenuContent align="end" className="w-64 p-2">
+									{/*
+									 * A6 c6 item 2, arrival point. The ITEM is the control — a real
+									 * `DropdownMenuItem` with the packet's testid and accessible name,
+									 * and deliberately no `<button>` nested inside it. It is FIRST, above
+									 * `Archived load` and the staffing-mode group, because it is the one
+									 * thing in here a scheduler may want in the first ten seconds. The
+									 * DIALOG is rendered from the same node as a SIBLING of the menu, at
+									 * the end of this component, so closing the menu cannot unmount it.
+									 */}
+									{loadSummaryAction ? (
+										<TeachingLoadSummaryMenuSlot value={summaryControl}>
+											<TeachingLoadSummaryMenuItem />
+										</TeachingLoadSummaryMenuSlot>
+									) : null}
 									{/*
 									 * A6 C2 (Major 1): the `Archived load` link arrives here
 									 * from the PAGE, which still builds it — only its position
@@ -831,16 +878,29 @@ export function WorkspaceToolbar({
 			 * squeeze is to stop packing four claim-bearers into one band — which is
 			 * what the repair queue's one-chip change did — not to re-tighten the
 			 * remaining two. */}
-			<div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/40" data-testid="teaching-load-readiness-strip">
-				{degradedLine ? (
-					<span
-						data-testid="teaching-load-degraded-notice"
-						data-degraded={degradedTail ?? undefined}
-						className="flex min-h-7 min-w-0 items-start gap-1.5 rounded-full border border-warning-border bg-warning-muted px-2.5 py-0.5 text-xs font-semibold text-warning-foreground"
-					>
-						<AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-						<span>{degradedLine}</span>
-					</span>
+			<div className={cn(COMPACT_TITLE_STRIP_CLASS.bandRow, 'gap-x-3 gap-y-1 border-t border-border/40')} data-testid="teaching-load-readiness-strip">
+				{degradedLead ? (
+					/*
+					 * A6 c6 item 5: the pill carries the plain lead and the Tooltip
+					 * carries the detail. The `data-degraded` attribute keeps its
+					 * clause — `A6-C2-3` and `a6-tl-header-budget` `A6c4-G2-1` read
+					 * this surface for the cause, and none of them needed to change.
+					 */
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<span
+								data-testid="teaching-load-degraded-notice"
+								data-degraded={degradedTail ?? undefined}
+								className="flex min-h-7 min-w-0 cursor-help items-start gap-1.5 rounded-full border border-warning-border bg-warning-muted px-2.5 py-0.5 text-xs font-semibold text-warning-foreground"
+							>
+								<AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+								<span>{degradedLead}</span>
+							</span>
+						</TooltipTrigger>
+						<TooltipContent side="bottom" className="max-w-80 text-xs font-semibold">
+							{degradedDetail}
+						</TooltipContent>
+					</Tooltip>
 				) : hasShortageLine ? (
 					/* A6 c5: the page's shortage line IS the status claim, so neither
 					 * the `% staffed` sentence nor the alert clause is printed beside
@@ -884,5 +944,22 @@ export function WorkspaceToolbar({
 				{statusConfig.label}. {statusConfig.description}
 			</p>
 		</CompactTitleStrip>
+
+			{/*
+			 * A6 c6 item 2, the other half: the page's `TeachingLoadSummarySurface`
+			 * renders HERE, as a SIBLING of the strip and therefore OUTSIDE the `More`
+			 * menu's content. That placement is the fix, not a detail — a dialog
+			 * rendered inside the menu content is unmounted by the very click that
+			 * opens it. The slot is wrapped in the same provider the menu item reads,
+			 * so one flag drives both, and while the dialog is closed this renders
+			 * nothing at all: the strip's two-band shape and the header height model
+			 * are untouched.
+			 */}
+			{loadSummaryAction ? (
+				<TeachingLoadSummaryMenuSlot value={summaryControl}>
+					{loadSummaryAction}
+				</TeachingLoadSummaryMenuSlot>
+			) : null}
+		</>
 	);
 }

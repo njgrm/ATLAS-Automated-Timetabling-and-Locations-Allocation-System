@@ -123,7 +123,18 @@ const BLOCKED_ITEM: TeachingLoadRepairQueueItem = {
 	kind: 'review-ready',
 	title: 'Teaching Load not verified',
 	description: 'ATLAS cannot confirm this because EnrollPro is not reachable, so it cannot say whether any class, over-cap teacher, or temporary substitute still needs review.',
-	status: 'Unverified — EnrollPro is not reachable, so this figure is withheld.',
+	// SUPERSEDED 2026-09-29 by A6 c6 item 4 — RETAINED HERE AS THE PRIOR FIXTURE,
+	// NOT DELETED. This string was the pre-A6-c6 value of
+	// `teachingLoadUnverifiedStatus({ dataSource: 'cached', isOnline: true })`,
+	// which is exactly the claim a fixture is supposed to quote from the real
+	// surface. It moved because the string MOVED: the calm face now says
+	// "These numbers come from the last saved roster, not the current one." and the
+	// technical cause lives in the pill's Tooltip. `a6-teaching-load-surface`
+	// `A6-C3-3-N3` and the new `a6-c6-calm-teaching-load` `A6C6-5` assert the four
+	// new sentences and that the four states are distinguishable from each other,
+	// so the replacement is strictly stronger than "one cached string is pinned".
+	// The `description` above is the hook's own sentence and is UNCHANGED.
+	status: 'These numbers come from the last saved roster, not the current one.',
 	actionLabel: 'Review staff workload',
 	disabledReason: 'Read-only: verify the source first',
 };
@@ -335,7 +346,27 @@ test('A6c4-G2-1 MUTANT ROW: the degraded workspace shows exactly ONE amber surfa
 		'teaching-load-degraded-notice',
 		'and that ONE amber surface is the header status line, not the next step',
 	);
-	assert.match(textOf(filled[0]!), /EnrollPro not reachable/, 'the single amber line must still name the cause');
+	// SUPERSEDED 2026-09-29 by A6 c6 item 5, and the REPLACEMENT sits immediately
+	// below. The old assertion was that the single amber surface "must still name
+	// the cause", read off the VISIBLE line. That is now the wrong place for a
+	// cause: the packet's finding was that `Using the last saved data — EnrollPro
+	// not reachable` "gives no clear next step or person to call", so the pill
+	// leads with a plain sentence and the cause moved into its `@/ui` Tooltip.
+	// The replacement is stronger, not weaker: it proves the visible face names NO
+	// product name (the defect) and that the cause is still reachable at all — the
+	// Tooltip's content is asserted by the new `a6-c6-calm-teaching-load` row,
+	// which mounts the real tooltip, because Radix does not mount a closed one
+	// into a `renderToStaticMarkup` tree and this file's instrument cannot open it.
+	assert.doesNotMatch(
+		textOf(filled[0]!),
+		/EnrollPro/,
+		'the single amber line must NOT name a product an older scheduler cannot act on; the cause moved to its Tooltip',
+	);
+	assert.doesNotMatch(
+		textOf(filled[0]!),
+		/\bwithheld\b|\bUnverified\b/,
+		'and it must not print a status word a scheduler cannot act on either',
+	);
 
 	// The reason is still on row 2 — visible, and not a second pill and not a hover.
 	const reason = row2.querySelector('[data-testid="teaching-load-repair-disabled-reason"]');
@@ -493,10 +524,32 @@ test('A6c4-G2-4 nothing became unreachable: every preserved control still resolv
 	assert.match(page, /to="\/teaching-load\/history"/, 'and it must still be a real link to /teaching-load/history');
 	assert.match(page, /historyAction=\{/, 'the header must own its position');
 
-	// (d) The `Load summary` control is still on the header and still opens it.
-	assert.ok(
-		stripOf(renderStrip()).querySelector('[data-testid="teaching-load-summary-open"]'),
-		'`Load summary` must still resolve from the header',
+	// (d) SUPERSEDED 2026-09-29 by A6 c6 item 2 — RETAINED HERE, NOT DELETED. The
+	// old (d) resolved `teaching-load-summary-open` from the header's CLOSED
+	// markup, which only worked while the control was a row-1 button. It now lives
+	// inside the `More` menu, and Radix mounts no menu content until the menu is
+	// open, so a static query can no longer prove reachability — and would have
+	// kept passing on a control that is genuinely gone.
+	//
+	// THE REPLACEMENT is directly below. It asserts the position contract in the
+	// terms this file's instrument can decide, and NAMES the harness that decides
+	// the rest: the rendered open-and-click is `a6-teaching-load-surface`
+	// `A6-38-1b` and `a6-c6-calm-teaching-load` `A6C6-4`, both of which mount the
+	// real menu, press it, and read the dialog that opens.
+	assert.doesNotMatch(
+		stripOf(renderStrip()).innerHTML,
+		/data-testid="teaching-load-summary-open"/,
+		'`Load summary` must NOT be a closed-markup row-1 control any more: it is an item inside the `More` menu',
+	);
+	assert.match(
+		source(TOOLBAR_FILE),
+		/<TeachingLoadSummaryMenuItem \/>/,
+		'the header must render the shared `More`-menu item',
+	);
+	assert.match(
+		source(TOOLBAR_FILE),
+		/\{loadSummaryAction \? \(\s*<TeachingLoadSummaryMenuSlot value=\{summaryControl\}>\s*\{loadSummaryAction\}/,
+		"and the page's surface must render OUTSIDE the menu content, or Radix unmounts the dialog in the same commit that opens it",
 	);
 });
 
@@ -732,13 +785,60 @@ test('A6c4-G2-7 the row has a declared WRAP fallback, and the steady state does 
 	const worstWidth =
 		widthOf(textOf(worst.querySelector('[data-testid="teaching-load-degraded-notice"]'))) +
 		widthOf(textOf(worst.querySelector('[data-testid="teaching-load-current-repair"]')));
+	// SUPERSEDED 2026-09-29 by A6 c6 item 5, and the REPLACEMENT is directly
+	// below. This assertion is RETAINED, not deleted: it was TRUE, and the reason
+	// it is no longer true is the point of the slice. It demanded that the
+	// declared worst case EXCEED one line, because the base's
+	// `Using the last saved data — EnrollPro not reachable` plus the real
+	// BLOCKED_ITEM chip came to 1,690.6px against 1,334px, so row 2 always
+	// wrapped. A6 c6 replaced that sentence with the plain lead
+	// `ATLAS is showing the last saved roster, not the current one.` and the same
+	// fixture now measures **1,306.8px of 1,334px — 27px of slack**. The row
+	// stopped needing its own wrap fallback, which is the calm the finding asked
+	// for, and this file's own message says exactly what to do about that: re-derive
+	// the model. The re-derivation is the replacement, and it states the width at
+	// which the fallback becomes a real fallback again.
+	const MEASURED_WORST_PX = worstWidth;
+	/*
+	 * THE SUPERSEDED CLAIM, kept as EVIDENCE rather than as an assertion (AGENTS.md
+	 * §16: corrections are additive; a control is never deleted to close a finding).
+	 * The assertion that stood here was
+	 *
+	 *     assert.ok(worstWidth > available,
+	 *       'this fixture is the declared worst case and is expected to exceed one line — if it no longer does, the wrap budget below is stale and the model must be re-derived');
+	 *
+	 * It is reproduced VERBATIM above and pinned here as a superseded measurement,
+	 * so a reader can see what it claimed, what it measured, and why it stopped
+	 * being true. `A6C6_BASE_WORST_PX` is the value that claim was written against:
+	 * the base's `Using the last saved data — EnrollPro not reachable` plus this
+	 * file's BLOCKED_ITEM chip was 1,690.6px against 1,334px, so row 2 ALWAYS
+	 * wrapped. A6 c6 replaced that sentence and the same fixture now fits.
+	 */
+	const A6C6_BASE_WORST_PX = 1690.6;
 	assert.ok(
-		worstWidth > available,
-		'this fixture is the declared worst case and is expected to exceed one line — if it no longer does, the wrap budget below is stale and the model must be re-derived',
+		MEASURED_WORST_PX < A6C6_BASE_WORST_PX,
+		`A6 c6 must have shortened the degraded face; the base measured ${A6C6_BASE_WORST_PX}px and this candidate measures ${MEASURED_WORST_PX.toFixed(1)}px. ` +
+			'If the two are equal, the reword did not happen and the wrap fallback is the design rather than the backstop',
 	);
 
-	// The model's arithmetic must hold, and the wrap must be declared honestly as
-	// OVER budget rather than quietly absorbed.
+	// THE RE-DERIVATION the superseded assertion asked for. The steady state still
+	// has to fit (asserted above, unchanged), and the declared worst state now
+	// fits too — so the wrap is no longer the normal case, it is a FALLBACK, and a
+	// fallback needs a stated trigger rather than a fixture that happens to trip it.
+	assert.ok(
+		MEASURED_WORST_PX <= available,
+		`A6 c6 shortened the degraded face, so the declared worst state fits: ${MEASURED_WORST_PX.toFixed(1)}px of ${available}px. ` +
+			'if this is red again, the copy grew and the wrap fallback has become the normal case, which is the regression the fallback exists to catch',
+	);
+	// The trigger, stated as a number: how much more content this row can take
+	// before `flex-wrap` becomes the design rather than the backstop. A row whose
+	// content grows past it is telling the operator to read a second line, and the
+	// fix is shorter copy — never a smaller font.
+	const WRAP_TRIGGER_SLACK_PX = available - MEASURED_WORST_PX;
+	assert.ok(
+		WRAP_TRIGGER_SLACK_PX >= 0 && WRAP_TRIGGER_SLACK_PX < 64,
+		`the declared worst state must fit with LESS than 64px to spare, or row 2 is one character away from wrapping on every load; measured slack is ${WRAP_TRIGGER_SLACK_PX.toFixed(1)}px`,
+	);
 	const M = TEACHING_LOAD_HEADER_MODEL;
 	assert.equal(
 		M.HEADER_TOTAL_IF_SENTENCE_WRAPS_PX,
