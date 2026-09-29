@@ -16,9 +16,7 @@ import { PageHeader } from '@/components/app-shell/PageHeader';
 import { getActionableApiError } from '@/lib/actionable-api-error';
 import { getAtlasTokenEpochVersion, getPreferredAccessToken } from '@/lib/auth';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
-import { describeSavedTermSource, describeSchoolYearSource, describeUnresolvedTermReason } from '@/lib/enrollpro-public-settings';
 import { resolveActiveTermAuthority } from '@/lib/active-term-authority';
-import { resolveVerifiedActiveTermIndex } from '@/lib/timetable-data/timetablePrefetch';
 import type {
 	FacultyMirror,
 	FacultyRoomPreferenceEntry,
@@ -42,7 +40,7 @@ import {
 	submitConcernRoom,
 	type AvailabilityPickerSlot,
 } from '@/components/faculty-shared/teacher-concern-client';
-import { composeConcernNotes, concernSaveStateLabel, concernSaveStateTone, describeSavedConcern, parseConcernNotes } from '@/components/faculty-shared/teacher-concern-helpers';
+import { composeConcernNotes, concernSaveStateLabel, concernSaveStateTone, bindConcernTermResolution, describeSavedConcern, parseConcernNotes, resolveConcernSaveAvailability, type ConcernYearResolution } from '@/components/faculty-shared/teacher-concern-helpers';
 import type { ConcernRoomDraft } from '@/components/faculty-shared/TeacherConcernWorkspace';
 import type { RoomOption } from '@/components/sections/SectionRoomPicker';
 import RunAvailabilityDriftCard from '@/components/faculty-shared/RunAvailabilityDriftCard';
@@ -74,8 +72,14 @@ export default function TeacherConcerns() {
 	const [activeTermIndex, setActiveTermIndex] = useState<number | null>(null);
 	/** A5-C2A — the server resolver's degradation truth, rendered verbatim. */
 	const [savedTermNotice, setSavedTermNotice] = useState<string | null>(null);
-	const [unresolvedTermReason, setUnresolvedTermReason] = useState<string | null>(null);
-	const [yearError, setYearError] = useState<string | null>(null);
+		const [unresolvedTermReason, setUnresolvedTermReason] = useState<string | null>(null);
+		const [yearError, setYearError] = useState<string | null>(null);
+		/**
+		 * A3 p1 — where this page is in the term resolution. It exists so the
+		 * sticky Save row can tell "still checking" from "checked and there is
+		 * none", which are different sentences and used to be the same silence.
+		 */
+		const [yearResolution, setYearResolution] = useState<ConcernYearResolution>('PENDING');
 
 	const [faculty, setFaculty] = useState<FacultyMirror[]>([]);
 	const [facultyError, setFacultyError] = useState<string | null>(null);
@@ -126,13 +130,30 @@ export default function TeacherConcerns() {
 			setActiveTermIndex(null);
 			setSavedTermNotice(null);
 			setUnresolvedTermReason(null);
+			setYearResolution('RESOLVED');
 			return;
 		}
 		let cancelled = false;
 		const token = getPreferredAccessToken();
 		const epoch = getAtlasTokenEpochVersion();
 		const isCurrent = () => !cancelled && isCurrentEpoch(token, epoch);
+		/*
+		 * A3 p1 — THE POLARITY. `resolveActiveTermAuthority`'s second parameter is
+		 * a DISCARD predicate: TRUE means "throw this read away". This page used
+		 * to pass `isCurrent`, whose `true` means the OPPOSITE, so every healthy
+		 * resolution was discarded, the resolver returned `null`, and this
+		 * `if (resolution == null) return;` left `schoolYearId` null forever. The
+		 * grid still rendered, Save and "Anything else" stayed disabled, the
+		 * availability read never fired, and nothing on screen said why — while
+		 * the staging term data was healthy the whole time.
+		 *
+		 * `() => !isCurrent()` is the correct adapter. `isCurrent` stays the
+		 * still-current predicate this file uses everywhere else; only the
+		 * boundary converts it.
+		 */
+		const isStaleRead = () => !isCurrent();
 		setYearError(null);
+		setYearResolution('PENDING');
 		// A2-C14 — the shared resolver asks for upstream verification exactly
 		// once when the fast read has not already verified the term. The old
 		// `forceRefresh`-only call guaranteed the server's unverified default
@@ -145,17 +166,24 @@ export default function TeacherConcerns() {
 		// with `TERM_SCOPE_MISMATCH`, so a cached-but-verified term can make this
 		// page show a term the server no longer holds. The read and the write
 		// must agree, so this page still gets a current answer.
-		resolveActiveTermAuthority(actorSchoolId, isCurrent, { requireFreshVerifiedRead: true })
+		resolveActiveTermAuthority(actorSchoolId, isStaleRead, { requireFreshVerifiedRead: true })
 			.then((resolution) => {
 				if (!isCurrent()) return;
-				if (resolution == null) return;
-				const context = resolution.context;
-				setSchoolYearId(context.activeSchoolYearId);
-				setSchoolYearNotice(describeSchoolYearSource(context));
-				const resolvedTerm = resolveVerifiedActiveTermIndex(context.activeTerm);
-				setActiveTermIndex(resolvedTerm);
-				setSavedTermNotice(describeSavedTermSource(context.activeTerm));
-				setUnresolvedTermReason(resolvedTerm == null ? describeUnresolvedTermReason(context.activeTerm) : null);
+				/*
+				 * `null` now means exactly one thing: this read was discarded as
+				 * stale, so a newer effect run (or the unmount that just happened)
+				 * owns the state. Leaving it alone is correct, and
+				 * `bindConcernTermResolution` is where that rule is decided and
+				 * tested rather than assumed.
+				 */
+				const bound = bindConcernTermResolution(resolution);
+				if (bound == null) return;
+				setSchoolYearId(bound.schoolYearId);
+				setSchoolYearNotice(bound.schoolYearNotice);
+				setActiveTermIndex(bound.activeTermIndex);
+				setSavedTermNotice(bound.savedTermNotice);
+				setUnresolvedTermReason(bound.unresolvedTermReason);
+				setYearResolution('RESOLVED');
 			})
 			.catch(() => {
 				if (!isCurrent()) return;
@@ -164,6 +192,7 @@ export default function TeacherConcerns() {
 				setActiveTermIndex(null);
 				setSavedTermNotice(null);
 				setUnresolvedTermReason(null);
+				setYearResolution('FAILED');
 			});
 		return () => {
 			cancelled = true;
@@ -328,7 +357,22 @@ export default function TeacherConcerns() {
 	);
 
 	const termUnresolved = activeTermIndex == null;
-	const writesDisabled = termUnresolved || actorSchoolId == null || schoolYearId == null || selectedFacultyId == null;
+	/**
+	 * A3 p1 — ONE function decides both "may this page write" and "if not, why
+	 * not", so the flag the Save button reads and the sentence the operator reads
+	 * cannot drift apart. The reason is non-null if and only if writes are
+	 * disabled; `a3p1-concern-save-reason.test.tsx` proves that pairing holds for
+	 * every combination of these inputs.
+	 */
+	const saveAvailability = resolveConcernSaveAvailability({
+		actorSchoolId,
+		schoolYearId,
+		activeTermIndex,
+		selectedFacultyId,
+		yearResolution,
+		unresolvedTermReason,
+	});
+	const writesDisabled = saveAvailability.writesDisabled;
 	const facultyOptions = useMemo(
 		() => faculty.map((entry) => ({ value: String(entry.id), label: facultyLabel(entry) })),
 		[faculty],
@@ -574,6 +618,15 @@ export default function TeacherConcerns() {
 						</Card>
 					)}
 
+					{/*
+					 * A3 p1 — this card keeps the title, the real reason and the ONE
+					 * recovery action. Its trailing "Writes stay disabled rather than
+					 * defaulting to Term 1" line was REMOVED, not moved: the sticky
+					 * Save row now says the same thing beside the button, and saying
+					 * it twice on one screen is the duplicate-sentence defect
+					 * (AGENTS §8). The card owns the repair; the Save row owns the
+					 * consequence.
+					 */}
 					{termUnresolved && actorSchoolId != null && schoolYearId != null && (
 						<Card className='rounded-2xl border-warning-border bg-warning-muted' data-testid='concern-term-unresolved'>
 							<CardContent className='flex items-start gap-3 py-6'>
@@ -582,7 +635,6 @@ export default function TeacherConcerns() {
 									<p className='text-sm font-semibold text-warning-foreground'>Active ordered term unresolved</p>
 									<p className='text-xs leading-relaxed text-warning-foreground/90'>
 										{unresolvedTermReason ?? 'Availability is term-scoped, so ATLAS will not save this teacher’s preferences until an ordered term is verified.'}
-										Writes stay disabled rather than defaulting to Term 1.
 									</p>
 									<Button type='button' variant='outline' size='sm' onClick={bumpRefresh}>
 										<RefreshCcw className='mr-1.5 size-4' aria-hidden='true' />
@@ -633,6 +685,7 @@ export default function TeacherConcerns() {
 									legacyRoomNote={roomRequests.trim() || null}
 									savedMessage={savedMessage}
 									saveFailure={saveFailure}
+									saveDisabledReason={saveAvailability.reason}
 								/>
 							)}
 							<RunAvailabilityDriftCard inputState={inputState} facultyName={selectedFaculty ? facultyLabel(selectedFaculty) : null} />

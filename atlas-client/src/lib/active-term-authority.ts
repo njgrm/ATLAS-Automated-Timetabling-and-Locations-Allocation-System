@@ -30,6 +30,24 @@
  * (`@/lib/academic-term`) remains the single fail-closed gate, and a missing
  * term identity still never becomes Term 1 (AGENTS.md §7). This fixes *who
  * asks*, not the answer's admissibility.
+ *
+ * THE PREDICATE'S SENSE (A3 p1 — a real outage, 2026-09-29)
+ * ========================================================
+ * The second parameter is a DISCARD predicate and **TRUE MEANS DISCARD**. It is
+ * named `isStaleRead` for exactly that reason, and the JSDoc repeats it at the
+ * signature.
+ *
+ * A caller had the opposite sense — it passed its `isCurrent` closure, whose
+ * `true` means "this read is still good". Every healthy resolution was therefore
+ * discarded, the resolver returned `null`, and Teacher Preferences sat with
+ * `schoolYearId = null` forever: Save and "Anything else" disabled, the
+ * availability read never fired, and no reason on screen. The staging term data
+ * was healthy the whole time; the predicate was the fault.
+ *
+ * A still-current closure is the common shape in this codebase (`cancelled` plus
+ * a session-epoch check), so the inversion was one keystroke away at every call
+ * site. Hence the rename, the doc, and a caller-shaped regression that passes a
+ * still-current predicate and requires the resolution back.
  */
 
 import { isVerifiedOrderedActiveTerm } from './academic-term';
@@ -84,12 +102,20 @@ export type ResolveActiveTermAuthorityOptions = {
  *   requests carry different request profiles, so they never dedupe into one.
  * - A failed verification keeps the fast-read state and still returns, so the
  *   caller can fall back to an explicit scope instead of dead-ending.
- * - Returns `null` when the actor school moved on while a read was in flight
- *   (late-response discard).
+ * - Returns `null` ONLY when `isStaleRead()` reports this read is obsolete (the
+ *   actor school moved on, or the caller unmounted). That is the single reason
+ *   for `null`, which is why a caller may safely leave its own state alone: a
+ *   newer run or an unmount owns that state now. A `null` is never a dead end.
+ *
+ * @param isStaleRead TRUE = DISCARD this read and return `null`. FALSE = this
+ *   read is still good, keep going. Do NOT pass a "still current" predicate:
+ *   its `true` means the OPPOSITE and it silently discards every healthy
+ *   resolution (A3 p1). A caller's own `isCurrent` must be passed as
+ *   `() => !isCurrent()`.
  */
 export async function resolveActiveTermAuthority(
 	actorSchoolId: number,
-	isObsolete: () => boolean,
+	isStaleRead: () => boolean,
 	options: ResolveActiveTermAuthorityOptions = {},
 ): Promise<ActiveTermAuthorityResolution | null> {
 	const requireFreshVerifiedRead = options.requireFreshVerifiedRead === true;
@@ -103,7 +129,8 @@ export async function resolveActiveTermAuthority(
 		allowEnrollProFallback: false,
 	});
 	// Discard a late response whose actor school changed while it was in flight.
-	if (isObsolete()) return null;
+	// `isStaleRead() === true` means DISCARD.
+	if (isStaleRead()) return null;
 
 	let current = context;
 	let authorityReady = isVerifiedOrderedActiveTerm(current.activeTerm);
@@ -124,7 +151,7 @@ export async function resolveActiveTermAuthority(
 				allowStaleOnError: true,
 				allowEnrollProFallback: false,
 			});
-			if (isObsolete()) return null;
+			if (isStaleRead()) return null;
 			current = verified;
 			authorityReady = isVerifiedOrderedActiveTerm(current.activeTerm);
 		} catch {

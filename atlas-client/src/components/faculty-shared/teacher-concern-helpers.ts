@@ -7,6 +7,9 @@
  * the explicit regenerate/revision destinations.
  */
 import { describeRunInputDrift, type RunInputDrift } from '@/components/timetable/timetableDriftRouting';
+import { describeSavedTermSource, describeSchoolYearSource, describeUnresolvedTermReason } from '@/lib/enrollpro-public-settings';
+import type { ActiveTermAuthorityResolution } from '@/lib/active-term-authority';
+import { resolveVerifiedActiveTermIndex } from '@/lib/timetable-data/timetablePrefetch';
 import type { FacultyAvailabilityRecord, GenerationInputComparison } from '@/types';
 
 export const CONCERN_NOTES_HEADING = 'Notes for the scheduler';
@@ -260,6 +263,16 @@ export type ConcernSaveCounts = {
  * THE CONFIRMATION — one plain sentence naming what was saved, the way the
  * brief asks ("Saved John's availability, 2 room needs and 3 notes"). Only the
  * parts that were really written are named; a count is never invented.
+ *
+ * A3 p1 — THE RECEIPT MUST BE TRUE ABOUT THE NEXT TIMETABLE. Save carries
+ * availability through save -> submit -> review, and generation reads only
+ * `status: 'REVIEWED'` (faculty-availability.service.ts:346), so a successful
+ * save DOES change what the next timetable uses and now says so. Two cases must
+ * NOT claim it:
+ *   - nothing was written (no windows, no room needs, no note): there is no
+ *     record for the next timetable to use, so the sentence says that instead;
+ *   - the server saved but could not bind (`bindFailure`): the refusal is real
+ *     information and is stated after the save, exactly as before.
  */
 export function describeSavedConcern(counts: ConcernSaveCounts): string {
 	const { teacherName, availabilityWindows, roomNeeds, hasNote, bindFailure } = counts;
@@ -268,11 +281,17 @@ export function describeSavedConcern(counts: ConcernSaveCounts): string {
 	if (roomNeeds > 0) parts.push(`${roomNeeds === 1 ? '1 room need' : `${roomNeeds} room needs`}`);
 	if (hasNote) parts.push('your note');
 
-	const what = parts.length > 0 ? parts.join(', ') : 'nothing yet';
-	const head = `Saved ${teacherName}: ${what}.`;
-	if (!bindFailure) return head;
-	// The save succeeded and the refusal is real information, so both are said.
-	return `${head} ATLAS could not yet make it count for building the timetable: ${bindFailure}`;
+	// Nothing was written, so there is nothing for the next timetable to use.
+	// Claiming otherwise here would be a false receipt, which is worse than a
+	// quiet one: it would send a scheduler away believing they were covered.
+	if (parts.length === 0) return `Nothing to save for ${teacherName} yet.`;
+
+	const head = `Saved ${teacherName}: ${parts.join(', ')}.`;
+	if (bindFailure) {
+		// The save succeeded and the refusal is real information, so both are said.
+		return `${head} ATLAS could not yet make it count for building the timetable: ${bindFailure}`;
+	}
+	return `${head} ATLAS will use this when it builds the next timetable.`;
 }
 
 /**
@@ -294,4 +313,125 @@ export function concernSaveStateTone(input: { selected: boolean; saved: boolean;
 	if (!input.selected) return 'outline';
 	if (input.bindFailure) return 'warning';
 	return input.saved ? 'success' : 'outline';
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * A3 p1 — WHY SAVE IS OFF, AND THE TERM BINDING.
+ *
+ * THE DEFECT THIS EXISTS TO END
+ * =============================
+ * On staging, Teacher Preferences rendered a healthy teacher's grid with Save
+ * and "Anything else" disabled and NO reason anywhere on the page. Only
+ * `termUnresolved` explained itself, and the one case that actually happened
+ * (`schoolYearId == null` from a discarded term read) was exactly the case that
+ * said nothing. A disabled control with no reason is the defect AGENTS §8 calls
+ * a dead end.
+ *
+ * THE INVARIANT, which is the whole point
+ * ======================================
+ * `reason` is non-null if and only if `writesDisabled`. One function computes
+ * both, so the flag the button reads and the sentence the operator reads can
+ * never disagree, and the pairing is decidable without a browser.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Where the page is in resolving the active school year + verified ordered term.
+ * `PENDING` covers the window between "effect started" and "resolution landed",
+ * which is the window a discarded read leaves behind.
+ */
+export type ConcernYearResolution = 'PENDING' | 'RESOLVED' | 'FAILED';
+
+export type ConcernSaveAvailabilityInput = {
+	actorSchoolId: number | null;
+	schoolYearId: number | null;
+	activeTermIndex: number | null;
+	selectedFacultyId: number | null;
+	yearResolution: ConcernYearResolution;
+	/**
+	 * The shared unresolved-term sentence, reused verbatim. This function never
+	 * re-words it: one explanation of a term problem, not two.
+	 */
+	unresolvedTermReason?: string | null;
+};
+
+export type ConcernSaveAvailability = {
+	writesDisabled: boolean;
+	/** Non-null EXACTLY when `writesDisabled` is true. */
+	reason: string | null;
+};
+
+const NO_SCHOOL_REASON = 'Your signed-in session has no school yet, so there is nothing to save.';
+const YEAR_PENDING_REASON = 'Checking which school year and term are active, so Save is not ready yet.';
+const YEAR_FAILED_REASON = 'The active school year could not be read, so there is nothing to save yet.';
+const YEAR_MISSING_REASON = 'No active school year is set for your school, so there is nothing to save yet.';
+const NO_TEACHER_REASON = 'Choose a teacher first, then Save.';
+const TERM_TAIL = 'Save stays off until the active term is verified.';
+const TERM_FALLBACK_REASON = `ATLAS has no verified active term for this school year. ${TERM_TAIL}`;
+
+function sentence(text: string): string {
+	const trimmed = text.trim();
+	if (trimmed === '') return '';
+	return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+/**
+ * THE ONE SOURCE OF TRUTH for "may this page write, and if not, why not".
+ *
+ * PRECEDENCE (which sentence wins when several apply — a precedence, not an
+ * intersection): school scope, then the active school year (with a read in
+ * flight named as its own case), then the ordered term, then the teacher. The
+ * first thing missing is the first thing worth saying, so the operator is sent
+ * to the earliest blocker rather than the nearest.
+ */
+export function resolveConcernSaveAvailability(input: ConcernSaveAvailabilityInput): ConcernSaveAvailability {
+	const { actorSchoolId, schoolYearId, activeTermIndex, selectedFacultyId, yearResolution, unresolvedTermReason } = input;
+	if (actorSchoolId == null) return { writesDisabled: true, reason: NO_SCHOOL_REASON };
+	if (schoolYearId == null) {
+		if (yearResolution === 'PENDING') return { writesDisabled: true, reason: YEAR_PENDING_REASON };
+		if (yearResolution === 'FAILED') return { writesDisabled: true, reason: YEAR_FAILED_REASON };
+		// RESOLVED with no year id, or a discarded read with no newer run. Both
+		// are real states, and neither may be silent — that was the defect.
+		return { writesDisabled: true, reason: YEAR_MISSING_REASON };
+	}
+	if (activeTermIndex == null) {
+		const why = unresolvedTermReason == null ? '' : sentence(unresolvedTermReason);
+		return { writesDisabled: true, reason: why === '' ? TERM_FALLBACK_REASON : `${why} ${TERM_TAIL}` };
+	}
+	if (selectedFacultyId == null) return { writesDisabled: true, reason: NO_TEACHER_REASON };
+	return { writesDisabled: false, reason: null };
+}
+
+export type ConcernTermBinding = {
+	schoolYearId: number;
+	schoolYearNotice: string | null;
+	activeTermIndex: number | null;
+	savedTermNotice: string | null;
+	unresolvedTermReason: string | null;
+};
+
+/**
+ * Turn a resolver answer into the page's term state — the binding the A3 p1
+ * outage skipped entirely, because the inverted predicate made every resolution
+ * `null` and `if (resolution == null) return;` left `schoolYearId` null forever.
+ *
+ * Returns `null` for a discarded read, which is the resolver's ONLY null case
+ * (`active-term-authority.ts`: `null` means `isStaleRead()` was true). A caller
+ * may therefore leave its own state alone on `null` without risking a dead end:
+ * a newer effect run or an unmount owns that state. `a3p1-teacher-prefs-stale-
+ * read-polarity.test.ts` proves both halves of that claim.
+ *
+ * Extracted so the mapping is decidable without a browser and so the call site
+ * cannot silently drift from the tested contract again.
+ */
+export function bindConcernTermResolution(resolution: ActiveTermAuthorityResolution | null): ConcernTermBinding | null {
+	if (resolution == null) return null;
+	const context = resolution.context;
+	const resolvedTerm = resolveVerifiedActiveTermIndex(context.activeTerm);
+	return {
+		schoolYearId: context.activeSchoolYearId,
+		schoolYearNotice: describeSchoolYearSource(context),
+		activeTermIndex: resolvedTerm,
+		savedTermNotice: describeSavedTermSource(context.activeTerm),
+		unresolvedTermReason: resolvedTerm == null ? describeUnresolvedTermReason(context.activeTerm) : null,
+	};
 }

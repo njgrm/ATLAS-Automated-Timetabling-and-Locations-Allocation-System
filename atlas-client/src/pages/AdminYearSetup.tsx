@@ -72,6 +72,12 @@ function YearTruthBanner({ schoolId, nonce, onRetry }: { schoolId: number; nonce
 		// guaranteed the server's unverified default, so this banner could
 		// report the active term unresolved while the header beside it said the
 		// year was active.
+		//
+		// A3 p1 — the second parameter is a DISCARD predicate (TRUE = throw the
+		// read away), so `() => cancelled` was already the correct sense and its
+		// meaning is unchanged. Spelled out here because Teacher Preferences had
+		// the opposite sense at the same boundary and silently disabled its whole
+		// write path; the parameter is now named `isStaleRead` for that reason.
 		resolveActiveTermAuthority(schoolId, () => cancelled)
 			.then((resolution) => {
 				if (cancelled) return;
