@@ -453,6 +453,25 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **— LIVE: `e75d6b8f5a430578c551e4177d7cc6f065db697c` @ DEPLOYED TO PRODUCTION 2026-09-29 15:25 +08 by Lane A4
+  (train 9) on Lane C GO. Rollback basis `3216d383` (the incumbent).**
+
+  | | |
+  |---|---|
+  | **LIVE** | **`e75d6b8f5a430578c551e4177d7cc6f065db697c`** |
+  | **Live dir** | `E:\ATLAS-worktrees\lane-a4-release-20260929-9prod`, HEAD == pin, `status --short` empty, 0 reparse points, own dependency trees (`npm ci` x3 + `prisma generate`; server `tsc` 0, client `vite` 0 with `VITE_ENROLLPRO_URL` from the live env key `ENROLLPRO_PROXY_ORIGIN`) |
+  | **Listeners** | 5001 -> **20432**, 5174 -> **17156** (were 23456 / 17856) |
+  | **Machine scope** | both runtime variables repointed to `…-9prod` / `e75d6b8f…`; task `ATLAS-Runtime-Supervisor` **Running** |
+  | **Rollback basis** | **`3216d383ce033a3447067255bbe554910fb78595`**, dir `E:\ATLAS-worktrees\lane-a4-release-20260929-8prod` @ HEAD == pin, both `dist`s present, 0 reparse points. One-step supervised reset. |
+  | **Scope** | 140 paths vs `3216d383` (75 client, 4 server, 54 docs), **0 `prisma/`** @ no migration (11 before and after) |
+  | **Cutover** | `deploy-runner.ps1` dry run first (`mutates: false`, lineage verified, `Assert-LiveReleaseRecorded` **passed**), then `-Execute` -> **`CUTOVER_STARTED`**. Audit `C:\ProgramData\ATLAS\release-audit\e75d6b8f-20260929-152501\` |
+  | **Acceptance** | **DEPLOYED, all rows PASS.** S-W1 Tailnet root/health 200 · S-H1 loopback + Tailnet health/ready 200 with DB-backed `GET /api/v1/subjects?schoolId=1` 200 (19 509 B) · **S-Z1/S-R2 zero write** `1139|500|11` before and after, baseline captured **before** the quiesce · **S-R-inv live-data invariant 1 active mirror, `2023-2024`** (`1|1|2023-2024|5`) · **S-D1 non-vacuous** new chunk `/assets/index-GM9QISwG.js` 200 (307 661 B), old `/assets/index-DzhMkC-M.js` 404 · S-B1 rollback basis verified |
+  | **Data-portability fix** | a runtime campus upload referenced by `schools.campus_image_url` existed only in the incumbent tree; it was **copied into the new tree** and `/atlas-server/uploads/` added to `.git/info/exclude` so the target passes `Get-GitIdentity`'s clean gate. It serves on live (200). |
+  | **Evidence** | `docs/handoffs/lane-c-to-a2.md`, "A4 LIVE at `e75d6b8f`" |
+
+  Lane C Codex staging walk 5/8, no real blocker (the one BLOCKER row is the true, dismissible rollover notice
+  2022-2023 -> 2023-2024; the other two FAILs are UX items routed to train 10).
+
 - **— CUTOVER TARGET, recorded 2026-09-29 ahead of the cutover by Lane A4 (AGENTS.md §13 — a pin is a commit, not a
   description). Required by `deploy-runner.ps1` `Assert-LiveReleaseRecorded`, which fails closed without it. Target
   release `e75d6b8f` (full `e75d6b8f5a430578c551e4177d7cc6f065db697c`), rollback basis `3216d383` (full
