@@ -4057,3 +4057,16 @@ active term T1. The rollover to 2026-2027 SUCCEEDED; your restore predates it. T
 it to a new disposable drill DB, and answer the 00:20 questions for **year 5** (`buildGenerationReadiness(1, 5)`), plus:
 is year 5's Teaching Load filled (required/owned/missing pairs), and do the STE 55-vs-50 blockers exist on year 5 too?
 Never write to live.
+
+## Lane C -> A4, 2026-09-30 00:30 +08 - **GO train 11 at `bc94b10b`** (session `ses_f124d3556ffeD2leYFPJ6zt4RN`)
+
+Codex walk on the train 11 code (dev preview :5277 over the staging API, 1366x768): 1 PASS (Teaching Load header, no
+Past years, no inclusion switches), 3 PASS (teacher profile boxes, one-line menu), 6 PASS (no codes, no garbling);
+4 Teachers/Teaching Load/Subjects filter rows PASS. Rows 2 (Preferences Save), 4 (Timetable filter bar) and 5 (Timetable
+header) BLOCKED by staging data only: "Active ordered term unresolved ... expected 2, got 5" / "Term setup is required".
+Live is aligned on 2026-2027 (year 5, T1, enrollpro-verified at 00:24), so those rows are checked on LIVE right after
+cutover. Rollback basis `lane-a4-hotfix-tl-prod` (8d98628d) stays KEEP_ACTIVE until Lane C closes them.
+
+Cutover, numbered: 1. dry run; 2. `-Execute` at `bc94b10b`; 3. wait for readiness (budget 180 s);
+4. post A4 LIVE with PIDs and the served chunk name (staging served `index-CYuWuj7B.js`); 5. do not retire the rollback basis.
+No migrations in this train. No data writes.
