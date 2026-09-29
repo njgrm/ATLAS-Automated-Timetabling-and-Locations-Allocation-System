@@ -145,8 +145,11 @@ export default function TeachingLoad() {
 			savedOwnershipMap: data.savedOwnershipMap,
 			pendingOwnershipMap: data.pendingOwnershipMap,
 			activeFacultyIds: data.activeFacultyIds,
+			// A6-TL-DEMAND-SOURCE-C01: the tick's pair universe is the server's
+			// canonical demand set, the same one readiness reads.
+			canonicalPairs: data.coverageTotals?.teachingLoadDemandPairs,
 		}),
-		[data.allKnownSections, data.subjects, data.savedOwnershipMap, data.pendingOwnershipMap, data.activeFacultyIds],
+		[data.allKnownSections, data.subjects, data.savedOwnershipMap, data.pendingOwnershipMap, data.activeFacultyIds, data.coverageTotals?.teachingLoadDemandPairs],
 	);
 
 	const handleSave = useCallback(async (force?: boolean) => {

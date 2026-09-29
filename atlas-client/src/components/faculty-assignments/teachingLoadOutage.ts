@@ -57,11 +57,16 @@ export const SHORTAGE_LINE_SUBJECT_CAP = 3;
 /**
  * Whether this subject is a teaching subject this section can carry.
  *
- * SHARED with `completedSectionIds` on purpose, and the reasons are the packet's:
- * a shortage figure and a roster tick that disagreed about which pairs exist
- * would produce two different truths on one screen. Homeroom Guidance is
- * guidance, not a teaching load, so `HG` is excluded exactly as it is on the
- * roster.
+ * A6-TL-DEMAND-SOURCE-C01 — THIS IS A DEGRADED FALLBACK, NOT THE DEMAND
+ * AUTHORITY. It walks `subject × section` with `section.displayOrder`, which is
+ * presentation ordering, while canonical derived demand (`buildDerivedDemand`)
+ * reads the EnrollPro grade NAME. Wherever the two disagree it can omit a pair
+ * readiness requires — the live "100% staffed while readiness saw AP gaps"
+ * defect. The authoritative universe is the server's canonical pair set, passed
+ * to `buildSubjectShortage` / `buildCompletedSectionIds` as `canonicalPairs`.
+ * This predicate is used ONLY when that server pair set is absent (a pre-A6
+ * cached payload); it can never produce a percentage or an "every class has a
+ * teacher" claim, because those come from the server figures alone.
  */
 export function isSectionSubjectApplicable(
 	subject: Subject,
@@ -146,7 +151,19 @@ export function buildSubjectShortage(input: {
 	pendingOwnershipMap: Record<string, FacultyOwnershipState>;
 	placeholderFacultyIds: Set<number>;
 	activeFacultyIds: Set<number>;
+	/**
+	 * A6-TL-DEMAND-SOURCE-C01 — the server's canonical demand pair universe
+	 * (`coverageTotals.teachingLoadDemandPairs`). When present it IS the pair
+	 * universe: a pair is applicable iff it is in this set, so the class list and
+	 * the shortage line cannot see a different pair space than readiness. When
+	 * absent (pre-A6 cached payload) the walk falls back to
+	 * `isSectionSubjectApplicable`, which is explicitly non-authoritative.
+	 */
+	canonicalPairs?: ReadonlyArray<{ subjectId: number; sectionId: number }>;
 }): SubjectShortageResult {
+	const canonicalPairSet = input.canonicalPairs && input.canonicalPairs.length > 0
+		? new Set(input.canonicalPairs.map((pair) => `${pair.subjectId}:${pair.sectionId}`))
+		: null;
 	const bySubject = new Map<number, SubjectShortageEntry>();
 	for (const subject of input.subjects) {
 		if (subject.code === 'HG') continue;
@@ -159,7 +176,10 @@ export function buildSubjectShortage(input: {
 			classes: [],
 		};
 		for (const section of input.sections) {
-			if (!isSectionSubjectApplicable(subject, section)) continue;
+			const applicable = canonicalPairSet
+				? canonicalPairSet.has(`${subject.id}:${section.id}`)
+				: isSectionSubjectApplicable(subject, section);
+			if (!applicable) continue;
 			const key = getAssignmentOwnershipKey(subject.id, section.id);
 			const owner = input.savedOwnershipMap[key] || input.pendingOwnershipMap[key];
 			const hasRealTeacher = Boolean(
@@ -347,6 +367,12 @@ export function buildStaffingTruthFigures(input: {
  */
 export const STAFFING_FIGURE_SEE_CLAUSE = 'See who needs a teacher';
 export const STAFFING_FIGURE_CLEARED_CLAUSE = 'Every class has a teacher';
+/**
+ * A6-TL-DEMAND-SOURCE-C01 — the honest NEGATIVE figure when the server could not
+ * derive canonical demand. It carries no number and no "every class has a
+ * teacher" claim: an unavailable authority is neither 0% nor 100%.
+ */
+export const STAFFING_FIGURE_CANNOT_CHECK = 'Staffing cannot be checked';
 
 export type StaffingFigureLabel = {
 	/** `84% staffed` — the measurement, never reworded. */
@@ -361,9 +387,13 @@ export type StaffingFigureLabel = {
 	hasShortage: boolean;
 };
 
-export function buildStaffingFigureLabel(input: StaffingTruthFigures): StaffingFigureLabel {
-	const figure = `${input.staffedPercent}% staffed`;
-	const hasShortage = input.withoutRealTeacherCount > 0;
+export function buildStaffingFigureLabel(input: StaffingTruthFigures & { demandReady?: boolean }): StaffingFigureLabel {
+	const demandReady = input.demandReady !== false;
+	const figure = demandReady ? `${input.staffedPercent}% staffed` : STAFFING_FIGURE_CANNOT_CHECK;
+	// `withoutRealTeacherCount === 0` is only the honest positive when the
+	// universe was derived; an unavailable authority never claims "every class
+	// has a teacher".
+	const hasShortage = !demandReady || input.withoutRealTeacherCount > 0;
 	const clause = hasShortage ? STAFFING_FIGURE_SEE_CLAUSE : STAFFING_FIGURE_CLEARED_CLAUSE;
 	const label = `${figure} — ${clause}`;
 	return {

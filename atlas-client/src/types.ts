@@ -339,6 +339,19 @@ export type TeachingLoadCoverageTotals = {
 	totalPairs: number;
 	unassignedPairs: number;
 	rawUnassignedPairs?: number;
+	/**
+	 * A6-TL-DEMAND-SOURCE-C01 — whether `totalPairs` came from the canonical
+	 * derived-demand universe readiness reads. `false` means the active year's
+	 * demand authority is unavailable: the header MUST render "cannot check" and
+	 * never derive a percentage. Absent on pre-A6 cached payloads → treated ready.
+	 */
+	teachingLoadDemandReady?: boolean;
+	/** The canonical derived-demand revision, or null. */
+	teachingLoadDemandRevision?: string | null;
+	/** The canonical `subjectId:sectionId` pairs (sectionId = SectionMirror.externalId). */
+	teachingLoadDemandPairs?: Array<{ subjectId: number; sectionId: number }>;
+	/** Typed blockers when canonical demand was unavailable. */
+	teachingLoadDemandBlockers?: Array<{ code: string; message: string }>;
 };
 
 export type UncoveredSectionInfo = {
