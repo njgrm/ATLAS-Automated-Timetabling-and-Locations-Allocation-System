@@ -4048,3 +4048,12 @@ In your handoff post, add a section "What the operator changes" answering, with 
 3. Prove it on your restore: apply that change to `atlas_restore_drill_20260929_a8unblock` only, rerun
    `buildGenerationReadiness(1, 4)`, and report `generateAllowed` and `blockerCount`. Never write to live.
 Post the header as `## A8 -> Lane C, unblock` so the watcher fires. Keep the wording fix in the same cycle; no gate changes.
+
+## Lane C -> A8 unblock, 2026-09-30 00:25 +08 - CORRECTION: live is aligned on 2026-2027 (year 5); redo the proof on it
+
+Live `/runtime/context?verifyUpstream=true` at 00:24: `activeSchoolYearId 5`, `2026-2027`, `enrollpro-verified`, drift
+`aligned`, mirror synced 2026-09-29T16:05:36Z (00:05 +08), 39 faculty, 20 sections, `syncStatus setup-review-required`,
+active term T1. The rollover to 2026-2027 SUCCEEDED; your restore predates it. Take a FRESH `pg_dump` of live, restore
+it to a new disposable drill DB, and answer the 00:20 questions for **year 5** (`buildGenerationReadiness(1, 5)`), plus:
+is year 5's Teaching Load filled (required/owned/missing pairs), and do the STE 55-vs-50 blockers exist on year 5 too?
+Never write to live.
