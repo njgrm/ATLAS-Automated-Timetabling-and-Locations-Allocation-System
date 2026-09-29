@@ -305,3 +305,34 @@ aec13de2 on work/a7-c10-calm pushed, QA pending. DeepSeek agents live in ~/.conf
 operator: A5 c8 (landed), A9 m1 (branch work/a9-m1-campus-background pushed) → train 12 fresh cycles.
 **Standing:** docs/plans/operator-decisions.md (locked calls); workflow changes in workflow-metrics.md (30 Sep 00:0x);
 launch.ps1 cap 6 / 6 GB commit (-Force for A4); DeepSeek credit watcher ds-quota-watch.sh; one fix per cycle.
+
+## Session checkpoint — 2026-09-30 02:40 +08
+
+**Live:** train 11 `bc94b10b` (LIVE 00:32, chunk `index-CYuWuj7B.js`), year **2026-2027** (EnrollPro id 5, T1), aligned.
+Operator staffed the 4 AP gaps and archived COMED (id 2299, unaudited test leftover); Generate runs on live.
+Rollback basis `lane-a4-hotfix-tl-prod` (8d98628d) still KEEP_ACTIVE.
+
+**On main for train 12 (not deployed):** A8 unblock wording `3536258e`; A8 gen trigger=readiness classification `e3d5c3cd`
+(QA 8/8, server 513/513); white tooltips `238ce8e3`; TL advisory section beside the star (A6, 01:45); sidebar brand like
+EnrollPro `4e35296c` + `ea0dda65` (school name only); A5 rotation counts (check its post); decisions 8-11 locked.
+
+**Running (DeepSeek unless noted):** a7-ds-c12b (calm header + 27 words + Setup-card year), a8-ds-refresh (draft shows
+after Generate), a6-ds-deeplink (every link/button into TL lands on + opens its target, incl. subjectId-only, filter param,
+Assign teaching load), a2-ds-lag (/timetable centre content one click behind: Policies shows Setup, Runs shows Policies),
+a2-mc (space-bunny, manual controls R2), a8-c5 (Generate never greyed out, correction round).
+**Queued (queue-launch.sh, cap 6):** a6-ds-demand, a2-ds-place (after a2-mc: one-click place + Undo, invisible placed
+class), a5-ds-docx1 (Subjects coverage badge not clickable, Owned-by tooltip, temp-teacher form: optional names, no
+placeholders, Select Department, NO Specialization), a9-ds-sections (badges dark, room text full, remove Browse room map,
+drawer -> normal-width dialog, rotation row, Apply rooms receipt + Undo), a6-ds-tllayout (after deeplink), a3-ds-teacher
+(one teacher dialog = Review load + Profile, normal width; likely after demo).
+
+**Operator actions pending:** Teachers > More > Refresh roster (20 advisers, A6 00:55 post); restart the ELEVATED
+`opencode serve --port 4097` so A4 uses the new DeepSeek/OpenCode Go key (switched 02:33; old key at 6%). A4 must attach
+to 4097 (elevation), never run without it.
+
+**Train 12 plan:** cut at ~04:00 from main tip with what has passed QA; A4 staging; Codex walk (dev preview :52xx over
+:5101 with /__dev/staging-login; staging data is on an old year, so year-dependent rows are checked on live after cutover);
+GO; verify Tailnet chunk before saying live. Operator records 04:45-05:45, leaves 06:00. No 03:00 fallback needed.
+
+**After-demo backlog:** workflow-metrics.md "After-demo backlog from the 30 Sep click sweep"; re-run Teachers + TL click
+sweeps; Year Setup wrong-year link; help icons click-to-open; Room Schedules 11x6/13x6.
