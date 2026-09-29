@@ -21,7 +21,7 @@ import { UNVERIFIED_TERM_BODY } from '@/lib/room-schedule-term-copy';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import { pivotDraftToView } from '@/lib/schedule-pivot';
 import { buildScheduleSourceSentence, formatScheduleMadeOn } from '@/lib/schedule-source-sentence';
-import { resolveScheduleEmptyState, type ScheduleEmptyReason } from '@/lib/schedule-empty-state';
+import { resolveScheduleEmptyState, type ScheduleEmptyNextStep, type ScheduleEmptyReason } from '@/lib/schedule-empty-state';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import {
@@ -87,13 +87,13 @@ type FetchState =
 	| { status: 'error'; message: string };
 
 /**
- * A5 C5 (2026-09-29) ??? the page.
+ * A5 C5 (2026-09-29) — the page.
  *
  * The operator reported Room Schedules as confusing, and the cause was not the grid: the page
  * asked a scheduler to speak a database's language before it would show them a week. A
  * `Generation run ID` number box with a `Use a whole number above 0.` error, a Latest/Run toggle
  * inside a `Tools` popover, a `How to browse schedules` panel, a *second* term picker used only by
- * a download, and a stat banner ending `Run #412 ?? COMPLETED` were all on the way to one week.
+ * a download, and a stat banner ending `Run #412 · COMPLETED` were all on the way to one week.
  *
  * THE CONTRACT, in the operator's three questions. Rooms is the default mode, so "what is in Room
  * 101 on Tuesday" is ONE click; "where is this teacher" and "what is this section's week" are TWO
@@ -104,14 +104,14 @@ type FetchState =
  * carried in `pinnedRunId` only where a request genuinely needs it, and a *dated* disclosure
  * ("Show an older timetable") keeps history reachable without a key on screen.
  *
- * SUBTRACT FIRST (`AGENTS.md` ??8). Deleted, not reworded: the `How to browse` panel, the whole
+ * SUBTRACT FIRST (`AGENTS.md` §8). Deleted, not reworded: the `How to browse` panel, the whole
  * `Tools` popover, the run-id input and its error, the separate download-term picker, the
  * full-width `Export CSV` button, the `Occupancy`/`Refresh` buttons in the filter row, the
- * `Schedules` eyebrow, the `Showing {term}` chip (it restated the term picker ??? two controls for
+ * `Schedules` eyebrow, the `Showing {term}` chip (it restated the term picker — two controls for
  * one fact) and the `12 rooms available.` sentence under the picker. `Refresh`, `Export this view
  * as CSV`, the official Word/Excel download and the room occupancy sheet moved behind `More`.
  *
- * ??8 "One look per control": both pickers wear `pickerTriggerClass` from `@/ui/picker-trigger`,
+ * §8 "One look per control": both pickers wear `pickerTriggerClass` from `@/ui/picker-trigger`,
  * the A5 c4 shared chrome, replacing this page's own
  * `triggerClassName="h-10 text-sm w-full rounded-xl bg-white shadow-sm"`.
  */
@@ -139,7 +139,7 @@ export default function RoomSchedules() {
 	const [downloadSchedulesOpen, setDownloadSchedulesOpen] = useState(false);
 
 	/**
-	 * A5 C5 ??? the ONLY place a run id exists in this page, and it is never rendered. `null` means
+	 * A5 C5 — the ONLY place a run id exists in this page, and it is never rendered. `null` means
 	 * "the latest usable timetable", the default; a number means a scheduler chose a *date* from
 	 * the disclosure below. It travels into the fetch and the print/download request, the one
 	 * request that genuinely needs it.
@@ -148,7 +148,7 @@ export default function RoomSchedules() {
 	/** Completed timetables, newest first, labelled by DATE for the older-timetable disclosure. */
 	const [pastRuns, setPastRuns] = useState<{ id: number; madeOn: string | null }[]>([]);
 
-	// ROOM-SCHEDULES-TERM-C01 ??? the ONE selected term for every on-screen view. A weekly grid built
+	// ROOM-SCHEDULES-TERM-C01 — the ONE selected term for every on-screen view. A weekly grid built
 	// from three merged terms shows the same class three times in one slot, and the grid then
 	// counts that as a room conflict: the page reported 10 conflicts for a room that had none. Term
 	// scope is an invariant of the view, not a display filter. `orderedTerms` and the active index
@@ -199,6 +199,23 @@ export default function RoomSchedules() {
 
 	const { actorSchoolId } = useActorSchoolScope();
 
+	/**
+	 * A5 C5 R2 (2026-09-29) B1 — the ONE recovery the `term-unverified` empty state offers.
+	 *
+	 * WHY THIS EXISTS. The retry used to call `fetchSchedule()`, which is inert for this reason:
+	 * `viewTerm` is null, so that function returns the same `term-unverified` state BEFORE any
+	 * request, and `resolveActiveSchoolYearContext` below runs once per `actorSchoolId` with no
+	 * reload path. The body told a scheduler to "retry once the term is confirmed" and the button
+	 * could not ask whether it had been. A button that cannot do what it says is not a next step.
+	 *
+	 * The fix is a counter, not a refactor: the resolver effect below keys on it, so a retry is a
+	 * SECOND read of the term authority. If an administrator has re-synced the year in the
+	 * meantime the term resolves, `viewTerm` becomes non-null, and the existing fetch effect
+	 * re-runs and proceeds on its own. If the term is still unresolved the same refusal is still
+	 * on screen, which is the honest outcome.
+	 */
+	const [termAuthorityRetryToken, setTermAuthorityRetryToken] = useState(0);
+
 	useEffect(() => {
 		if (actorSchoolId == null) {
 			setSchoolYearId(null);
@@ -222,7 +239,7 @@ export default function RoomSchedules() {
 				setSchoolYearId(activeSchoolYearId);
 				setSchoolYearLabel(yearContext.activeSchoolYearLabel ?? null);
 
-				// ROOM-SCHEDULES-TERM-C01 ??? capture the term authority that was already being
+				// ROOM-SCHEDULES-TERM-C01 — capture the term authority that was already being
 				// fetched and discarded, through the SAME predicate the main workspace uses, so
 				// this surface cannot develop a second opinion about "the active term".
 				const activeTerm = yearContext.activeTerm ?? null;
@@ -242,7 +259,7 @@ export default function RoomSchedules() {
 				}
 
 				if (activeSchoolYearId) {
-					// A5 C5 ??? the DATED history behind "Show an older timetable". Best-effort: the
+					// A5 C5 — the DATED history behind "Show an older timetable". Best-effort: the
 					// default (latest) needs no history, so a failure here must not affect the
 					// page. Only COMPLETED runs are offered; an unfinished run is not a timetable.
 					atlasApi.get<{ runs: GenerationRun[] }>(
@@ -304,7 +321,7 @@ export default function RoomSchedules() {
 				setRoomsLoading(false);
 			}
 		})();
-	}, [actorSchoolId]);
+	}, [actorSchoolId, termAuthorityRetryToken]);
 
 	const selectedModeCopy = MODE_COPY[viewMode];
 	const SelectedModeIcon = selectedModeCopy.icon;
@@ -317,7 +334,7 @@ export default function RoomSchedules() {
 		}
 		const scopedSchoolId = actorSchoolId;
 
-		// ROOM-SCHEDULES-TERM-C01 ??? fail closed BEFORE any request. An unverified term is
+		// ROOM-SCHEDULES-TERM-C01 — fail closed BEFORE any request. An unverified term is
 		// unresolved authority: this surface must neither read an all-term draft nor silently
 		// adopt Term 1. The message is an operator action, and it never claims the schedule is empty.
 		if (viewTerm == null) {
@@ -334,7 +351,7 @@ export default function RoomSchedules() {
 			const params = new URLSearchParams(pinnedRunId == null
 				? { source: 'latest' }
 				: { source: 'run', runId: String(pinnedRunId) });
-				// ROOM-SCHEDULES-TERM-C01 ??? send the ONE selected term. The server
+				// ROOM-SCHEDULES-TERM-C01 — send the ONE selected term. The server
 				// endpoint already accepts an explicit termIndex and fails closed
 				// with 501 TERM_FILTER_NOT_READY rather than merging; it was only
 				// ever omitted here, which is what produced the invented conflicts.
@@ -393,6 +410,24 @@ export default function RoomSchedules() {
 			}
 		}
 	}, [actorSchoolId, viewMode, selectedEntityId, schoolYearId, pinnedRunId, facultyList, sectionList, subjectMap, viewTerm]);
+
+	/**
+	 * A5 C5 R2 (2026-09-29) B1 — performs the retry the empty state NAMED, and nothing else.
+	 *
+	 * The next step declares its own recovery (`recheck`), so this dispatch is a switch on that
+	 * declaration rather than a guess from the current state. A `term-authority` retry re-runs the
+	 * year-context effect above; a schedule refetch is the fallback for any other recovery a
+	 * future reason might add, and it is deliberately the CONSERVATIVE one (it cannot invent
+	 * authority), so an unrecognised retry can never resolve a term that is still unresolved.
+	 */
+	const runEmptyStateNextStep = useCallback((nextStep: ScheduleEmptyNextStep) => {
+		if (nextStep.kind !== 'retry') return;
+		if (nextStep.recheck === 'term-authority') {
+			setTermAuthorityRetryToken((token) => token + 1);
+			return;
+		}
+		void fetchSchedule();
+	}, [fetchSchedule]);
 
 	useEffect(() => {
 		if (!selectedEntityId || !schoolYearId) return;
@@ -476,7 +511,7 @@ export default function RoomSchedules() {
 	}, [state, viewMode, selectedName, subjectMap, facultyMap, sectionMap, roomMap]);
 
 	/**
-	 * A5 C5 ??? the ONE quiet line naming the timetable on screen. It reads the date the loaded view
+	 * A5 C5 — the ONE quiet line naming the timetable on screen. It reads the date the loaded view
 	 * itself carries (`source.generatedAt`, set by both the server's room read and
 	 * `pivotDraftToView`), so it always describes what is rendered rather than what was intended.
 	 * There is deliberately no run id in this string, and no code path that could add one.
@@ -521,7 +556,7 @@ export default function RoomSchedules() {
 	return (
 		<TooltipProvider delayDuration={200}>
 		<div className="flex h-[calc(100svh-3.5rem)] flex-col bg-primary/5">
-			{/* ??8 HEADER BUDGET ??? row 1: title, ONE status chip, the primary action, `More`.
+			{/* §8 HEADER BUDGET — row 1: title, ONE status chip, the primary action, `More`.
 			    Row 2: the three questions, the one name picker, the term control when the year
 			    warrants one, and the quiet line naming the timetable. Nothing else. */}
 			<div className="shrink-0 px-3 pt-2 lg:px-5">
@@ -739,7 +774,7 @@ export default function RoomSchedules() {
 									variant="outline"
 									size="sm"
 									className="mt-4"
-									onClick={() => { void fetchSchedule(); }}
+									onClick={() => { runEmptyStateNextStep(emptyState.nextStep); }}
 									data-testid={emptyState.testId}
 								>
 									<RefreshCw className="mr-1.5 size-3.5" />
