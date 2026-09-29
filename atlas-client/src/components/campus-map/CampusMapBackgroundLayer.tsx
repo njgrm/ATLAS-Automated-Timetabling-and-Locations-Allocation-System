@@ -111,7 +111,21 @@ export function CampusMapBackgroundLayer({
 					y={rect.y}
 					width={rect.width}
 					height={rect.height}
-					fill="#f5f5f4"
+					/*
+					 * NO `fill` PROP HERE, and that is load-bearing rather than
+					 * cosmetic. Measured in the browser on the 1366x768 staging
+					 * editor (Konva 10.2.3, A9 m1 planner probe): a `Rect` that
+					 * carries BOTH `fill` and `fillPatternImage` paints ONLY the
+					 * solid fill — the pattern is silently dropped. Two fresh
+					 * rects with one image and one scale, sampled off the canvas:
+					 *   fill + pattern -> #f5f5f4 (the solid)
+					 *   pattern only   -> the photo's own pixels
+						 * The pre-A9-m1 editor dodged this by accident: it used TWO
+						 * rects, a solid one and a pattern-only one. Collapsing them
+						 * into one node is what made the photo invisible, and a
+						 * placement that is arithmetically perfect still shows nothing.
+						 * The stone backing above is the node that owns the colour.
+						 */
 					draggable={draggable}
 					opacity={opacity}
 					cornerRadius={cornerRadius}
