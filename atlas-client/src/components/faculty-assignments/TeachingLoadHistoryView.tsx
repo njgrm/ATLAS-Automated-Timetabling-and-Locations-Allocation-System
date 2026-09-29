@@ -24,7 +24,7 @@
  * the audit recorded as unanswered.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Loader2, Search } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import { PageHeader } from '@/components/app-shell/PageHeader';
@@ -51,14 +51,11 @@ import {
 	type TlHistoryTeacher,
 	type TlHistoryYear,
 } from '@/lib/teaching-load-history-plain';
-import { cn } from '@/lib/utils';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/ui/accordion';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
+import { FilterBar } from '@/ui/filter-bar';
 import { FilterPicker } from '@/ui/filter-picker';
-import { Input } from '@/ui/input';
-import { Label } from '@/ui/label';
-import { PICKER_CONTROL_HEIGHT_CLASS } from '@/ui/picker-trigger';
 
 type HistoryYears = {
 	schoolId: number;
@@ -219,110 +216,102 @@ export default function TeachingLoadHistoryView() {
 				<p className="mt-1 max-w-xl text-xs text-muted-foreground">{tlHistoryCarryForwardLine(yearLabel)}</p>
 			</div>
 
-			<div className="shrink-0 border-b bg-background px-4 pb-3 lg:px-5">
-				{/*
-				 * A9 c5 ROUND 1 (D1) — ONE look per control (AGENTS.md §8), and the
-				 * ROOT CAUSE of the render the operator graded.
-				 *
-				 * The columns were already a `space-y-1.5` stack and still rendered as
-				 * `School year  School year: 2022-2023` — label BESIDE the trigger, abutting
-				 * it, while `Find a teacher` put its label above its own input. Two looks in
-				 * one row.
-				 *
-				 * `space-y-*` sets `margin-top` on every child but the first, and
-				 * `margin-top` does NOTHING on an inline box. `@/ui/label` is a Radix
-				 * `<label>` with no `block` in its class list, so it is inline; it shares a
-				 * line box with the trigger that follows it and the stack never happened.
-				 * The fix is `flex flex-col`, which BLOCKIFIES each child — an inline
-				 * flex item is laid out as a block — and `gap-1.5` for a real gap that is
-				 * not a margin at all. Nothing about the primitives' look is restated here.
-				 *
-				 * Every trigger is `width="fill"`, the variant `@/ui/picker-trigger` already
-				 * declares for "a control that must occupy a layout slot (a grid cell)", and
-				 * it carries `min-w-0` in the variant itself. The old default `md` is a
-				 * fixed `w-32` rectangle, so three 128px triggers floated in 260px columns.
-				 *
-				 * The search box shares the pickers' height through
-				 * `PICKER_CONTROL_HEIGHT_CLASS` — the one token that file declares for
-				 * exactly this pair — instead of a page-local `min-h-11`, which is the
-				 * hand-matched literal that token exists to prevent.
-				 */}
-				<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-					<div className="flex min-w-0 flex-col gap-1.5">
-						<Label htmlFor="teaching-load-history-year">School year</Label>
-						{/*
-						 * The live binding is `dataTestId`, which `FilterPicker` forwards to
-						 * `SearchableSelect`'s `triggerTestId` — it lands on the trigger button as
-						 * `data-testid="teaching-load-history-year-picker"`, and both
-						 * `rollover-ui-guardrails` and any rendered suite reach it under that name.
-						 * A5 C3 slice B: `allValue=""` because this list has NO "all" member, so the
-						 * unset face shows `placeholder`, never a bare `All`.
-						 */}
-						<FilterPicker
-							name="School year"
-							ariaLabel="Past school year"
-							allValue=""
-							width="fill"
-							triggerId="teaching-load-history-year"
-							value={requestedYearId ? String(requestedYearId) : ''}
-							onValueChange={selectYear}
-							disabled={loadingYears || years.length === 0}
-							placeholder={loadingYears ? 'Loading past years…' : 'Choose a past year'}
-							shortLabels={Object.fromEntries(years.map((year) => [String(year.schoolYearId), tlHistoryYearShortLabel(year)]))}
-							// eslint-disable-next-line react/no-unknown-property
-							options={years.map((year) => ({
-								value: String(year.schoolYearId),
-								label: tlHistoryYearOptionLabel(year),
-								disabled: tlHistoryYearIsEmpty(year),
-							}))}
-							dataTestId="teaching-load-history-year-picker"
-						/>
-					</div>
-					<div className="flex min-w-0 flex-col gap-1.5">
-						<Label htmlFor="teaching-load-history-grade">Grade</Label>
-						<FilterPicker
-							name="Grade"
-							width="fill"
-							value={grade}
-							onValueChange={setGrade}
-							triggerId="teaching-load-history-grade"
-							disabled={gradeOptions.length === 0}
-							disabledReason={gradeOptions.length === 0 ? 'No grades in this year' : undefined}
-							placeholder="All grades"
-							options={[{ value: 'all', label: 'All grades' }, ...gradeOptions.map((name) => ({ value: name, label: name }))]}
-							dataTestId="teaching-load-history-grade-picker"
-						/>
-					</div>
-					<div className="flex min-w-0 flex-col gap-1.5">
-						<Label htmlFor="teaching-load-history-subject">Subject</Label>
-						<FilterPicker
-							name="Subject"
-							width="fill"
-							value={subject}
-							onValueChange={setSubject}
-							triggerId="teaching-load-history-subject"
-							disabled={subjectOptions.length === 0}
-							disabledReason={subjectOptions.length === 0 ? 'No subjects in this year' : undefined}
-							placeholder="All subjects"
-							options={[{ value: 'all', label: 'All subjects' }, ...subjectOptions.map((name) => ({ value: name, label: name }))]}
-							dataTestId="teaching-load-history-subject-picker"
-						/>
-					</div>
-					<div className="flex min-w-0 flex-col gap-1.5">
-						<Label htmlFor="teaching-load-history-search">Find a teacher</Label>
-						<div className="relative">
-							<Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" />
-							<Input
-								id="teaching-load-history-search"
-								className={cn('pl-9', PICKER_CONTROL_HEIGHT_CLASS)}
-								value={query}
-								onChange={(event) => setQuery(event.target.value)}
-							/>
-						</div>
-					</div>
-				</div>
-				{futureSentence ? <p className="mt-2 text-xs text-muted-foreground">{futureSentence}</p> : null}
-			</div>
+		<div className="shrink-0 border-b bg-background px-4 pb-3 lg:px-5">
+			{/*
+			 * A5 c8 (2026-09-29) — THE LAYOUT NOTE, BEFORE THE JSX.
+			 *
+			 * This page was the sweep's second MINOR and the clearest statement of the
+			 * shared-bar problem: `Archived year: 2029-2030` rendered 128px wide with a
+			 * 186px SCROLL WIDTH, so the tail of the value was not painted. Two causes,
+			 * both fixed in `@/ui` rather than here — the fixed `w-32` rectangle this
+			 * page asked for (`fill` in a grid cell, which is a layout slot, not a
+			 * content size) and the primitive's `line-clamp-1` on the Radix path.
+			 *
+			 * WHAT STAYS .... all three pickers (School year, Grade, Subject), the
+			 *                search box, the totals line, the empty states, the
+			 *                read-only note, the carry-forward line and the future-year
+			 *                sentence. Every option list and every `dataTestId` / `id`.
+			 * WHAT GOES .... the `grid sm:grid-cols-2 xl:grid-cols-4` wrapper and the
+			 *                three `Label`s above their controls. The bar's own geometry
+			 *                names each filter, so a label above a control was a second
+			 *                copy of a word the trigger already carries.
+			 * WHAT MOVES .. the three pickers and the `teaching-load-history-search`
+			 *                input into the one shared `FilterBar` row, with `auto`
+			 *                widths so a long year label grows the trigger instead of
+			 *                being cut. The `futureSentence` line stays below the bar —
+			 *                it is a status sentence about the years, not a legend.
+			 *
+			 * A9 c5 ROUND 1 (D1) — the reason this row previously read `School year
+			 * School year: 2022-2023` is preserved as knowledge even though the shape
+			 * is gone: `space-y-*` sets `margin-top` on every child but the first, and
+			 * `margin-top` does NOTHING on an inline box, so `@/ui/label` (a Radix
+			 * `<label>` with no `block`) shared a line box with the trigger beside it.
+			 * The labels are deleted rather than blocked, which removes the trap
+			 * instead of documenting it.
+			 */}
+			<FilterBar
+				dataTestId="teaching-load-history-filter-bar"
+				search={{
+					id: 'teaching-load-history-search',
+					value: query,
+					onChange: setQuery,
+					placeholder: 'Find a teacher',
+					ariaLabel: 'Find a teacher in this year',
+				}}
+				onReset={isFiltered ? () => { setGrade('all'); setSubject('all'); setQuery(''); } : undefined}
+			>
+				{/* The live binding is `dataTestId`, which `FilterPicker` forwards to
+				    `SearchableSelect`'s `triggerTestId` — it lands on the trigger button as
+				    `data-testid="teaching-load-history-year-picker"`, and both
+				    `rollover-ui-guardrails` and any rendered suite reach it under that name.
+				    A5 C3 slice B: `allValue=""` because this list has NO "all" member, so the
+				    unset face shows `placeholder`, never a bare `All`. */}
+				<FilterPicker
+					name="School year"
+					ariaLabel="Past school year"
+					allValue=""
+					width="auto"
+					triggerId="teaching-load-history-year"
+					value={requestedYearId ? String(requestedYearId) : ''}
+					onValueChange={selectYear}
+					disabled={loadingYears || years.length === 0}
+					placeholder={loadingYears ? 'Loading archived years…' : 'Choose an archived year'}
+					shortLabels={Object.fromEntries(years.map((year) => [String(year.schoolYearId), tlHistoryYearShortLabel(year)]))}
+					// eslint-disable-next-line react/no-unknown-property
+					options={years.map((year) => ({
+						value: String(year.schoolYearId),
+						label: tlHistoryYearOptionLabel(year),
+						disabled: tlHistoryYearIsEmpty(year),
+					}))}
+					dataTestId="teaching-load-history-year-picker"
+				/>
+				<FilterPicker
+					name="Grade"
+					width="auto"
+					value={grade}
+					onValueChange={setGrade}
+					triggerId="teaching-load-history-grade"
+					disabled={gradeOptions.length === 0}
+					disabledReason={gradeOptions.length === 0 ? 'No grades in this year' : undefined}
+					placeholder="All grades"
+					options={[{ value: 'all', label: 'All grades' }, ...gradeOptions.map((name) => ({ value: name, label: name }))]}
+					dataTestId="teaching-load-history-grade-picker"
+				/>
+				<FilterPicker
+					name="Subject"
+					width="auto"
+					value={subject}
+					onValueChange={setSubject}
+					triggerId="teaching-load-history-subject"
+					disabled={subjectOptions.length === 0}
+					disabledReason={subjectOptions.length === 0 ? 'No subjects in this year' : undefined}
+					placeholder="All subjects"
+					options={[{ value: 'all', label: 'All subjects' }, ...subjectOptions.map((name) => ({ value: name, label: name }))]}
+					dataTestId="teaching-load-history-subject-picker"
+				/>
+			</FilterBar>
+			{futureSentence ? <p className="mt-2 text-xs text-muted-foreground">{futureSentence}</p> : null}
+		</div>
 
 			<div className="flex-1 min-h-0 overflow-auto px-4 py-3 lg:px-5">
 				{loadingYears || loadingHistory ? (

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
+import { compareSections } from '@/lib/sections-sort';
 import {
 	promoteActiveSchoolYearContext,
 	resolveActiveSchoolYearContext,
@@ -30,12 +31,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import {
-	AdminSearchFilterToolbar,
 	AdminStatePanel,
 	AdminTableShell,
 	AdminWorkspaceFrame,
 	type AdminSourceState,
 } from '@/components/admin-workspace/AdminWorkspace';
+import { FilterBar } from '@/ui/filter-bar';
 import { SectionRow, type SectionDetail } from '@/components/sections/SectionRow';
 import { SectionRoomPicker, type RoomOption as HomeRoomOption } from '@/components/sections/SectionRoomPicker';
 import { SectionDetailsSheet } from '@/components/sections/SectionDetailsSheet';
@@ -121,7 +122,9 @@ export default function Sections() {
 	const [homeRoomFilter, setHomeRoomFilter] = useState<'all' | 'missing' | 'assigned'>('all');
 	const [homeRoomOptions, setHomeRoomOptions] = useState<HomeRoomOption[]>([]);
 	const [savingMirrorId, setSavingMirrorId] = useState<number | null>(null);
-	const [showFilters, setShowFilters] = useState(false);
+	/* A5 c8 (2026-09-29): `showFilters` / `setShowFilters` are GONE. They existed only
+	   for the disclosure the shared toolbar rendered, and this page's three filters now
+	   sit in the one always-visible `FilterBar` row — so no value would read them. */
 	const [pendingAssignment, setPendingAssignment] = useState<PendingAssignment | null>(null);
 	const [globalBrowseModalOpen, setGlobalBrowseModalOpen] = useState(false);
 	// A3 C4 (top-10 #3): the room map was only reachable by opening a row's
@@ -645,22 +648,11 @@ export default function Sections() {
 		if (homeRoomFilter === 'missing') list = list.filter((section) => !isHomeRoomResolved(section, homeRoomOptions));
 		if (homeRoomFilter === 'assigned') list = list.filter((section) => isHomeRoomResolved(section, homeRoomOptions));
 
-		const sorted = [...list].sort((a, b) => {
-			let cmp = 0;
-			if (sortField === 'name') cmp = a.name.localeCompare(b.name, undefined, { numeric: true });
-			else if (sortField === 'gradeLevelId') {
-				cmp = a.gradeLevelId - b.gradeLevelId;
-				if (cmp === 0) cmp = a.name.localeCompare(b.name, undefined, { numeric: true });
-			}
-			else if (sortField === 'enrolledCount') cmp = a.enrolledCount - b.enrolledCount;
-			else if (sortField === 'maxCapacity') cmp = a.maxCapacity - b.maxCapacity;
-			else if (sortField === 'fill') {
-				const fA = a.maxCapacity > 0 ? a.enrolledCount / a.maxCapacity : 0;
-				const fB = b.maxCapacity > 0 ? b.enrolledCount / b.maxCapacity : 0;
-				cmp = fA - fB;
-			}
-			return sortDir === 'desc' ? -cmp : cmp;
-		});
+		// A2 c15 (B2): the comparator lives in `@/lib/sections-sort` so the "Grade"
+		// column can order by the resolved grade from the one client authority
+		// rather than by the raw EnrollPro `gradeLevelId`, and so this page stays
+		// under the AGENTS §8 1000-line ceiling.
+		const sorted = [...list].sort((a, b) => compareSections(a, b, sortField, sortDir));
 
 		const tf = sorted.length;
 		const tp = Math.max(1, Math.ceil(tf / pageSize));
@@ -796,13 +788,12 @@ export default function Sections() {
 				</Button>
 			)}
 			toolbar={(
-				<AdminSearchFilterToolbar
-					searchValue={searchQuery}
-					onSearchChange={setSearchQuery}
-					searchPlaceholder="Search sections..."
-					filtersOpen={showFilters}
-					onToggleFilters={() => setShowFilters(!showFilters)}
-					hasActiveFilters={hasActiveFilters}
+				/* A5 c8 (2026-09-29): `AdminSearchFilterToolbar` is deleted from
+				   `AdminWorkspace.tsx` — it was the last consumer, so there is no second
+				   filter-bar implementation left. This page renders the ONE shared row. */
+				<FilterBar
+					dataTestId="sections-filter-bar"
+					search={{ value: searchQuery, onChange: setSearchQuery, placeholder: 'Search sections...', ariaLabel: 'Search sections' }}
 				>
 					<SectionsFilterToolbar
 						gradeFilter={gradeFilter}
@@ -814,7 +805,7 @@ export default function Sections() {
 						homeRoomFilter={homeRoomFilter}
 						onHomeRoomFilterChange={(value) => setHomeRoomFilter(value as typeof homeRoomFilter)}
 					/>
-			</AdminSearchFilterToolbar>
+				</FilterBar>
 			)}
 		>
 

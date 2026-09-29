@@ -3,6 +3,10 @@ import { useCallback, useMemo, useRef } from 'react';
 import { gradeLabel } from '@/lib/grade-labels';
 import { getProgramBadgeLabel, resolveSectionGradeNumber } from '@/lib/schedule-review-helpers';
 import { formatWarningMessageText } from '@/lib/violation-presentation';
+import {
+	formatFacultyDisplayName,
+	isPlaceholderSentinelName,
+} from '@/components/faculty/teacherNameDisplay';
 import type { ExternalSection, FacultyMirror, ScheduledEntry, Subject, UnassignedItem } from '@/types';
 import type { RoomInfo, ViewMode } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 
@@ -61,7 +65,16 @@ export function useTimetableLookupHelpers({
 		});
 		const facultyFormatted = roomFormatted.replace(/\bfaculty\s+#?(\d+)\b/gi, (match, rawId: string) => {
 			const faculty = facultyMap.get(Number(rawId));
-			return faculty ? `${faculty.lastName}, ${faculty.firstName}` : match;
+			// A3 C17 C1: this is a SENTENCE a scheduler reads in a warning
+			// ("…assigned to faculty 9 in MONDAY"), so a to-be-hired record
+			// rendered here as "— TO BE HIRED, MAPEH" while the cell beside it read
+			// "To be hired: MAPEH". Routed through the same shared display contract
+			// the timetable label builders use, for the same reason and with the
+		// same guard: a real teacher's stored `Last, First` is unchanged.
+			if (!faculty) return match;
+			return isPlaceholderSentinelName(faculty)
+				? formatFacultyDisplayName(faculty)
+				: `${faculty.lastName}, ${faculty.firstName}`;
 		});
 		const sectionFormatted = facultyFormatted.replace(/\bsection\s+#?(\d+)\b/gi, (match, rawId: string) => {
 			return sectionMap.get(Number(rawId))?.name ?? match;
@@ -74,10 +87,21 @@ export function useTimetableLookupHelpers({
 	const gradeForSection = useCallback((sectionId: number): number | null => {
 		const section = sectionMap.get(sectionId);
 		if (!section) return null;
-		// Use the shared resolver, NOT `displayOrder`: displayOrder is the section's
-		// order WITHIN its grade (Luna=1, Aguinaldo=2, …), so reading it as the grade
-		// labelled every Grade 10 section "Grade 1" and sorted it first.
-		// The resolver also normalizes EnrollPro's internal gradeLevelId (17→7 … 20→10).
+		// A2 c15 (B2): the ONE client authority reads `gradeLevelName` first, then
+		// `displayOrder` (only when it is a real grade, 7-12). It does NOT
+		// normalize the EnrollPro internal `gradeLevelId` any more: that id is an
+		// opaque FK which re-mints on every wipe (observed 5..8, then 17..20, then
+		// 1..4 as of 2026-09-28), and rescuing it here is exactly what let a
+		// section with no usable grade adopt another grade's shape. A section
+		// naming no real grade resolves to null.
+		//
+		// DISCLOSED DIVERGENCE (A2 c15 correction B2): the comment above this one
+		// used to claim `displayOrder` is a section's order WITHIN its grade
+		// (Luna=1, Aguinaldo=2). The measured staging surface contradicts that —
+		// `display_order` is 7..10 in every school year, i.e. the grade itself.
+		// That claim is not repeated here because the packet's measurement, not a
+		// hand-written fixture, is the authority. Any site that relied on the
+		// within-grade reading is a follow-up row, named in the handoff.
 		return resolveSectionGradeNumber(section);
 	}, [sectionMap]);
 

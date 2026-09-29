@@ -68,7 +68,7 @@
  * on a surface that deliberately renders from the last saved roster would lie,
  * and the name is how the two questions got fused in the first place.
  */
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { isTeachingLoadSourceDegraded } from '@/components/faculty-assignments/WorkspaceToolbar';
 import {
@@ -76,8 +76,11 @@ import {
 	buildStaffingTruthFigures,
 	buildSubjectShortage,
 	formatShortageDataDate,
+	type ShortClassIdentity,
+	type SubjectShortageEntry,
 } from '@/components/faculty-assignments/teachingLoadOutage';
 import { useCoverShortage } from '@/hooks/useCoverShortage';
+import { useCoverClass, type CoverClassTarget } from '@/hooks/useCoverClass';
 import type {
 	ExternalSection,
 	FacultyOwnershipState,
@@ -104,6 +107,10 @@ export type UseTeachingLoadOutageParams = {
 	isOnline: boolean;
 	degradedNotice: string | null;
 	sectionMap: Map<number, ExternalSection>;
+	/** The page's own write gate; a read-only workspace never offers a write. */
+	writeBlockedReason?: string | null;
+	/** Called after a cover assignment, so the page re-reads its own roster. */
+	onCoverAssigned?: () => void;
 };
 
 export function useTeachingLoadOutage(params: UseTeachingLoadOutageParams) {
@@ -167,6 +174,45 @@ export function useTeachingLoadOutage(params: UseTeachingLoadOutageParams) {
 		scopeKey: params.scopeKey,
 	});
 
+	/*
+	 * A6 c10 — THE PER-CLASS WINDOW, and the openers that reach it.
+	 *
+	 * `openCoverClassFor` takes a SUBJECT ENTRY plus a class from that entry's own
+	 * `classes` list, rather than a raw section id, so the window's header cannot
+	 * name a class that is not in the shortage it was opened from. An id from any
+	 * other source must go through `openCoverClass` with its own identity, which is
+	 * what the Sections and Subjects surfaces do — they know the class is open
+	 * from their OWN evidence, and they say so themselves.
+	 */
+	const coverClass = useCoverClass({
+		schoolId: params.schoolId,
+		schoolYearId: params.activeSchoolYearId,
+		scopeKey: params.scopeKey,
+		placeholderFacultyIds: params.placeholderFacultyIds,
+		writeBlockedReason: params.writeBlockedReason ?? null,
+		onAssigned: params.onCoverAssigned,
+	});
+
+	const openCoverClassFor = useCallback(
+		(entry: SubjectShortageEntry, openClass: ShortClassIdentity) => {
+			coverClass.open({
+				subjectId: entry.subjectId,
+				subjectCode: entry.subjectCode,
+				subjectName: entry.subjectName,
+				sectionId: openClass.sectionId,
+				sectionName: openClass.name,
+				gradeLevel: openClass.gradeLevel,
+			});
+		},
+		[coverClass],
+	);
+
+	/** A surface that knows a class is open from its own evidence. */
+	const openCoverClass = useCallback(
+		(target: CoverClassTarget) => coverClass.open(target),
+		[coverClass],
+	);
+
 	return {
 		staffingFigures,
 		shortage,
@@ -178,5 +224,8 @@ export function useTeachingLoadOutage(params: UseTeachingLoadOutageParams) {
 		/** The subject the cover dialog opens on: the worst, by class count. */
 		primarySubject: shortage.entries[0] ?? null,
 		cover,
+		coverClass,
+		openCoverClass,
+		openCoverClassFor,
 	};
 }

@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { SmartHelpTrigger } from '@/components/smart/SmartPageShell';
 import { CompactTitleStrip, COMPACT_TITLE_STRIP_CLASS } from '@/components/app-shell/CompactTitleStrip';
 import { TeachingLoadSummaryMenuItem, TeachingLoadSummaryMenuSlot } from '@/components/faculty-assignments/TeachingLoadSummarySurface';
+import { TeachingLoadAlertChipNotice } from '@/components/faculty-assignments/TeachingLoadAlertChipNotice';
 import { teachingLoadDegradedCopy } from '@/components/faculty-assignments/teachingLoadDegradedCopy';
 import {
 	buildTeachingLoadAlertChip,
@@ -25,8 +26,16 @@ type WorkspaceToolbarProps = {
 	overCapCount: number;
 	excessTeachingCount: number;
 	policyReady: boolean;
-	onShowExcessTeachingLoad: () => void;
-	onShowTemporarySubstitutes: () => void;
+	/**
+	 * A6 c11 — `onShowExcessTeachingLoad` and `onShowTemporarySubstitutes` are GONE,
+	 * and that removal is the fix. They drove the alert chip's `onClick`, which this
+	 * component never wired: the chip rendered as a `<span>` and discarded the
+	 * action. The toolbar held two callbacks no user could invoke — the same
+	 * "signature claims a capability the product does not have" defect A6 c4
+	 * corrected for `setAdvancedGridVisible`. The FACTS are not lost: the repair
+	 * queue in `stateLineSlot` prints one `over-cap` item per teacher above the
+	 * maximum and one `placeholder` item per to-be-hired record, each with an action.
+	 */
 	autoFillLoading: boolean;
 	autoFillEnabled: boolean;
 	onAutoFillClick: () => void;
@@ -387,6 +396,18 @@ export function teachingLoadUnverifiedReason(input: {
  * The four stay DISTINGUISHABLE, which is the property the base lost by collapsing
  * `OFFLINE` and `NONE` into one EnrollPro-shaped answer: an operator who reads
  * "ATLAS is offline" knows waiting will not help.
+ *
+ * A6 c11 — THE `cached` BRANCH STOPPED RESTATING THE GREY LINE. It read
+ * `These numbers come from the last saved roster, not the current one.`, and
+ * `TeachingLoadStaffingFigure` prints `From the saved roster (29 Sept)` under the
+ * same figure on the same screen: the saved-roster fact, said twice on one header
+ * (§8's "two chips that say the same thing" in prose), and the duplicate carried
+ * no date. So the grey line keeps the PROVENANCE — which roster, and when — because
+ * it is the only surface with the timestamp, and this sentence keeps the half the
+ * grey line never said: that the figures have not been CHECKED against what is on
+ * the roster now. The other three branches name their own causes and are untouched;
+ * `OFFLINE`, `REFRESHING` and `NONE` are three different failures, and blanking
+ * them would have been a second lie.
  */
 export function teachingLoadUnverifiedStatus(input: {
 	dataSource: WorkspaceToolbarProps['dataSource'];
@@ -395,7 +416,7 @@ export function teachingLoadUnverifiedStatus(input: {
 	if (!input.isOnline) return 'ATLAS is offline, so these numbers cannot be checked.';
 	if (input.dataSource === 'refreshing') return 'ATLAS is checking the live roster now, so these numbers are not confirmed yet.';
 	if (input.dataSource === 'none') return 'No live Teaching Load source is available, so these numbers cannot be checked.';
-	return 'These numbers come from the last saved roster, not the current one.';
+	return 'These numbers have not been checked against the current roster.';
 }
 
 export function WorkspaceToolbar({
@@ -406,8 +427,6 @@ export function WorkspaceToolbar({
 	overCapCount,
 	excessTeachingCount,
 	policyReady,
-	onShowExcessTeachingLoad,
-	onShowTemporarySubstitutes,
 	autoFillLoading,
 	autoFillEnabled,
 	onAutoFillClick,
@@ -465,8 +484,8 @@ export function WorkspaceToolbar({
 	);
 
 	const alertChip = useMemo(
-		() => buildTeachingLoadAlertChip({ overCapCount, excessTeachingCount, policyReady, syntheticPlaceholderPairs, onShowExcessTeachingLoad, onShowTemporarySubstitutes }),
-		[excessTeachingCount, onShowExcessTeachingLoad, onShowTemporarySubstitutes, overCapCount, policyReady, syntheticPlaceholderPairs],
+		() => buildTeachingLoadAlertChip({ overCapCount, excessTeachingCount, policyReady, syntheticPlaceholderPairs }),
+		[excessTeachingCount, overCapCount, policyReady, syntheticPlaceholderPairs],
 	);
 
 	/*
@@ -924,21 +943,25 @@ export function WorkspaceToolbar({
 						className="flex min-h-7 min-w-0 items-start gap-1.5 rounded-full border border-border/60 bg-background px-2.5 py-0.5 text-xs font-semibold text-foreground"
 					>
 						<span>{statusSentence}</span>
-						{/*
-						 * A6 C3 (N-1): the alert KEEPS its test id, its `data-alert-key`
-						 * and its exact `Above weekly max: N` label in the healthy case —
-						 * it is simply not printed while the figures are unconfirmed. The
-						 * count is read from the last saved snapshot, so a scheduler
-						 * mid-check would read it as a live generation blocker; the amber
-						 * line and the queue say the same thing, so the header must too.
-						 * The wrapped control is the same, the tone is the same, and the
-						 * alert returns the moment the source is verified.
-						 */}
-						{alertChip && !isSourceUnverified && (
-							<span data-testid={alertChip.testId} data-alert-key={alertChip.key} className="shrink-0 font-bold text-destructive">
-								· {alertChip.label}
-							</span>
-						)}
+					{/*
+					 * A6 C3 (N-1): the alert KEEPS its test id, its `data-alert-key`
+					 * and its exact `Above weekly max: N` label in the healthy case —
+					 * it is simply not printed while the figures are unconfirmed. The
+					 * count is read from the last saved snapshot, so a scheduler
+					 * mid-check would read it as a live generation blocker; the amber
+					 * line and the queue say the same thing, so the header must too.
+					 * The wrapped control is the same, the tone is the same, and the
+					 * alert returns the moment the source is verified.
+					 *
+					 * A6 c11: IT IS PLAIN TEXT, NOT A `<button>`, and the node itself
+					 * moved to `TeachingLoadAlertChipNotice`, which carries the reasoning.
+					 * The model used to promise an `onClick` this render never took; a
+					 * read-only figure must not look pressable either, so the chip gains no
+					 * affordance.
+					 */}
+					{alertChip && !isSourceUnverified && (
+						<TeachingLoadAlertChipNotice chip={alertChip} />
+					)}
 					</span>
 				)}
 

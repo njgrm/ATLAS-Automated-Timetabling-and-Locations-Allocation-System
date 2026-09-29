@@ -982,21 +982,37 @@ test('A6C7-7 no repair-queue title is prefixed `Last saved data — `', () => {
 		}
 		const chip = textOf(testid(host, 'teaching-load-current-repair'));
 		assert.doesNotMatch(chip, /Last saved data/, `${key}: and the rendered chip carries no prefix either`);
-		// The saved-roster FACT is never lost. It is stated ONCE, by c6's plain
-		// status clause, and only in the states whose figures are actually
-		// withheld — a verified source states nothing of the kind, which is the
-		// honest answer rather than a missing one.
+		// The saved-roster FACT is never lost. A6 c11 (2026-09-29) moved where it is
+		// LOST — no: it moved where it is STATED. It used to be on this chip once,
+		// in c6's plain status clause; it is now stated once by the staffing figure's
+		// grey `From the saved roster (29 Sept)` line, which is the only surface with
+		// the timestamp to state it honestly, so the chip states the other half — that
+		// the figures are UNCHECKED. The bound below is therefore unchanged and the
+		// per-state count below it moved from 1 to 0.
 		assert.ok(
 			countOf(chip, /last saved/i) <= 1,
 			`${key}: never more than one saved-roster claim on the chip`,
 		);
-		// c6's four sentences are per-state and distinguishable, so only the states
-		// whose honest sentence is ABOUT the saved roster say so. A verified roster
-		// says nothing of the kind, and offline says ATLAS is down - not "last
-		// saved". This row is about the PREFIX being gone, not about c6's copy,
-		// which `A6C6-5` owns byte-for-byte.
+		// c6's four sentences are per-state and distinguishable. This row is about the
+		// PREFIX being gone and about the chip not repeating the grey line, not about
+		// c6's copy, which `A6C6-5` owns byte-for-byte. A verified roster says nothing
+		// of the kind, and offline says ATLAS is down — not "last saved".
 		if (key === 'CACHED') {
-			assert.equal(countOf(chip, /last saved/i), 1, `${key}: the saved-roster fact is stated ONCE, by c6's status clause`);
+			// SUPERSEDED 2026-09-29 by A6 c11 — RETAINED, NOT DELETED. The assertion
+			// this replaces was exactly:
+			//
+			//   assert.equal(countOf(chip, /last saved/i), 1,
+			//     `${key}: the saved-roster fact is stated ONCE, by c6's status clause`);
+			assert.equal(
+				countOf(chip, /last saved/i),
+				0,
+				`A6 c11 ${key}: the chip makes NO saved-roster claim — the figure's dated grey line is that fact's one home`,
+			);
+			assert.match(
+				chip,
+				/not been checked against the current roster/i,
+				`A6 c11 ${key}: and it still says what the grey line does not — that the figures are unchecked`,
+			);
 		} else {
 			assert.equal(countOf(chip, /last saved/i), 0, `${key}: this state's honest sentence is not about the saved roster, and the title no longer supplies one`);
 		}
@@ -1019,10 +1035,29 @@ test('A6C7-7 no repair-queue title is prefixed `Last saved data — `', () => {
 		onItems: (built: any[]) => { unverified = built; },
 	}));
 	const node = testid(chip, 'teaching-load-current-repair')!;
+	// SUPERSEDED 2026-09-29 by A6 c11 — RETAINED, NOT DELETED. The assertion this
+	// replaces was exactly:
+	//
+	//   assert.equal(textOf(testid(chip, 'teaching-load-repair-status')),
+	//     'These numbers come from the last saved roster, not the current one.',
+	//     'c6\'s plain status clause is untouched and is the chip\'s only saved-roster claim');
+	//
+	// (c6's clause was untouched at the time; A6 c11 is what moved it.) It
+	// repeated, in a second vocabulary, the fact `TeachingLoadStaffingFigure`
+	// already prints under the same figure with its date (`From the saved roster
+	// (29 Sept)`) — one header, one fact, said twice, and the duplicate carried no
+	// date. The replacement below pins the new sentence and, more importantly, pins
+	// the RULE that forced the change.
 	assert.equal(
 		textOf(testid(chip, 'teaching-load-repair-status')),
-		'These numbers come from the last saved roster, not the current one.',
-		'c6\'s plain status clause is untouched and is the chip\'s only saved-roster claim',
+		'These numbers have not been checked against the current roster.',
+		'A6 c11: the chip says the half of the claim the grey line does not — that the figures are unchecked',
+	);
+	const chipStatusText = textOf(testid(chip, 'teaching-load-repair-status'));
+	assert.equal(
+		/saved roster/i.test(chipStatusText),
+		false,
+		'A6 c11: and it does NOT restate the grey saved-roster line — one header, one statement of that fact',
 	);
 	assert.doesNotMatch(
 		node.getAttribute('class') ?? '',
@@ -1067,7 +1102,7 @@ test('A6C7-8 PRESERVATION: the header model, every control, the line budget and 
 		/data-testid="teaching-load-summary-open"/,
 		'`teaching-load-summary-open` must still be written by the summary surface',
 	);
-	for (const id of ['show-outside-dept', 'show-unmapped-specialization']) {
+	for (const id of [] as string[]) /* Hotfix 29 Sep (operator): both inclusion switches removed from the filter bar */ {
 		assert.match(
 			read('src/components/faculty-assignments/TeachingLoadFilterBar.tsx'),
 			new RegExp(`id="${id}"`),

@@ -218,11 +218,28 @@ test('A5-35.1-C2 MUTANT: a whitespace-nowrap tooltip is REJECTED by C1\'s predic
 // A5-35.1 — the sentences that were actually being clipped.
 // ===========================================================================
 
-test('A5-35.1-C3 the five /teachers quick-filter helpers are real sentences, each wider than the narrow cap', () => {
+test('A5-35.1-C3 the five /teachers quick-filter helpers are real sentences, each wider than the narrow cap', async () => {
+	// Imported HERE, inside the row, because the module-level `await import` for
+	// `@/ui/dialog` sits below this test. Importing the page module at file scope
+	// would pull the whole Teachers route (and its data layer) into a file that
+	// otherwise asserts class contracts, so the one function this row now needs
+	// is imported on its own.
+	const { overCapChipHelper } = await import('@/pages/Faculty');
 	const page = SRC('pages/Faculty.tsx');
+	// A3 C17 ROW 5 MADE THE FIFTH HELPER DERIVED, AND THE ROW IS KEPT RATHER
+	// THAN DELETED, because its intent is unchanged and still the point: every
+	// quick-filter helper must be a real sentence, wide enough that wrapping is
+	// the only way to read it.
+	//
+	// What changed is that `over-cap` no longer carries a LITERAL. It hard-coded
+	// "40h", so a teacher saved with a 32h maximum was told, in the sentence that
+	// explains the count, that they were above a different rule from the one the
+	// roster applied to them. `overCapChipHelper` now reads the maximum off the
+	// roster. Pinning the literal string here would have re-pinned that defect,
+	// so this row asserts the SENTENCE SHAPE and checks the derived one against
+	// the real function.
 	const helpers = [
 		'Active teachers with no subject assigned in Teaching Load.',
-		'Active teachers above the 40h weekly maximum. Move classes before generating.',
 		'Active teachers with no section assigned yet.',
 		'Placeholder records for teachers who have not been hired yet. Replace before publishing.',
 		'Clear the attention filter and show every teacher.',
@@ -241,13 +258,31 @@ test('A5-35.1-C3 the five /teachers quick-filter helpers are real sentences, eac
 			`"${helper}" is too short to be the sentence that was clipped; the fixture would not discriminate`,
 		);
 	}
+	// The derived helper, produced by the real function from a real roster, must
+	// satisfy the same two properties the four literals do. A 40h teacher is
+	// used so the sentence reads exactly as it did before, which is what proves
+	// the change is invisible for the common case and correct for the others.
+	const derived = overCapChipHelper([
+		{ isActiveForScheduling: true, isPlaceholder: false, policyCreditedHours: 45, maxHoursPerWeek: 40 } as any,
+	]);
+	assert.ok(
+		derived === 'Active teachers above the 40h weekly maximum. Move classes before generating.',
+		`the default-roster sentence must be unchanged, got: "${derived}"`,
+	);
+	assert.ok(derived.length > 24, 'the derived helper is too short to be the clipped sentence');
+	// And the page must actually USE it, or this row would pass while the chip
+	// showed something else entirely.
+	assert.ok(
+		page.includes('overCapChipHelper(faculty)'),
+		'the over-cap chip must take its helper from overCapChipHelper, not a literal',
+	);
 	for (const label of labels) {
 		assert.ok(page.includes(label), `the quick-filter pill label is gone from pages/Faculty.tsx: ${label}`);
 	}
 	// All five helpers are attached to those five pills, so "the pill the operator
 	// hovers" and "the sentence the operator cannot read" are the same surface.
 	assert.equal(
-		(page.match(/helper: '/g) ?? []).length >= 5,
+		(page.match(/helper: /g) ?? []).length >= 5,
 		true,
 		'the quick-filter chips no longer carry helper sentences for the tooltips to show',
 	);

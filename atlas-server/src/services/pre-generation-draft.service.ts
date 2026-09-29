@@ -26,6 +26,7 @@ import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG, computeEffectiveWeeklyTea
 import { buildWarningWindowAuthority, type CanonicalSlotWindowSource } from './warning-window-authority.service.js';
 import { getTemplatePeriodProfiles } from './class-template.service.js';
 import { assertUndoHead, getDraftUndoStrategy } from './timetable-undo-contract.js';
+import { gradeNumberOf, resolveSectionGradeLevel } from './grade-level-resolver.js';
 
 const db = () => getDataContext();
 
@@ -415,13 +416,18 @@ function normalizeProgramType(programType?: string | null): string {
 
 /**
  * SLOT-BREAK-AUTHORITY-C11R — the actual grade number a draft grade group maps
- * to on the canonical `classProgramSlot` grid. Mirrors the validator leg's
- * scope expression (`displayOrder ?? gradeLevelId`), so the displayed grid and
- * the validator window authority resolve the same scope. A grade that resolves
- * to no canonical rows simply keeps the policy-derived shape.
+ * to on the canonical `classProgramSlot` grid. Resolved through the ONE grade
+ * authority (`gradeNumberOf`: `gradeLevelName`, then `displayOrder`) so the
+ * displayed grid and the validator window authority resolve the same scope.
+ *
+ * A2 c15: this used to read the mirror's `displayOrder` and fall back to its
+ * EnrollPro `gradeLevelId`, which silently
+ * re-introduced the EnrollPro internal id as a grade whenever `displayOrder`
+ * was absent. A grade that resolves to no canonical rows simply keeps the
+ * policy-derived shape — a null scope is honest, a fabricated `1` is not.
  */
-function canonicalScopeGrade(grade: { gradeLevelId: number; displayOrder?: number | null }): number {
-	return Number((grade as { displayOrder?: number | null }).displayOrder ?? grade.gradeLevelId ?? 0);
+function canonicalScopeGrade(grade: { gradeLevelId: number; gradeLevelName?: string | null; displayOrder?: number | null }): number | null {
+	return gradeNumberOf(grade);
 }
 
 /** Sum teaching minutes for a faculty member on a given day from a list of entries */
@@ -731,12 +737,19 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 		for (const section of grade.sections) {
 			programTypes.add(normalizeProgramType(section.programType));
 		}
+		// A2 c15: the shift window and the shape contract are keyed by the REAL
+		// grade. They used to be keyed by `grade.gradeLevelId`, the EnrollPro
+		// internal FK, which reads 1..4 for Grades 7..10 since the 2026-09-28
+		// re-mint — so no per-grade window ever matched and every scope silently
+		// fell back to the policy start/end times.
+		const gradeLevel = resolveSectionGradeLevel(grade);
+		const canonicalScope = canonicalScopeGrade(grade);
 		return [...programTypes].map((programType) => {
-			const shiftWindow = gradeWindows.find((window) => window.gradeLevel === grade.gradeLevelId && normalizeProgramType(window.programType) === programType)
-				?? gradeWindows.find((window) => window.gradeLevel === grade.gradeLevelId && normalizeProgramType(window.programType) === 'ALL');
+			const shiftWindow = gradeWindows.find((window) => window.gradeLevel === gradeLevel && normalizeProgramType(window.programType) === programType)
+				?? gradeWindows.find((window) => window.gradeLevel === gradeLevel && normalizeProgramType(window.programType) === 'ALL');
 			const template = templateByProgram.get(programType) ?? regularTemplate;
 			return buildTimetableShapeContract({
-				gradeLevel: grade.gradeLevelId,
+				gradeLevel,
 				programType,
 				startTime: shiftWindow?.startTime ?? policyRecord.earliestStartTime,
 				endTime: shiftWindow?.endTime ?? policyRecord.latestEndTime,
@@ -747,7 +760,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 				// with no rows keep the policy-derived shape unchanged. This is the
 				// same threading the generation shape assembly performs, so the draft
 				// board and the generated grid cannot disagree.
-				canonicalSlots: canonicalRowsByScope.get(`${canonicalScopeGrade(grade)}:${programType}`) ?? [],
+				canonicalSlots: canonicalScope === null ? [] : canonicalRowsByScope.get(`${canonicalScope}:${programType}`) ?? [],
 				basePolicy: {
 					maxConsecutiveTeachingMinutesBeforeBreak: policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
 					minBreakMinutesAfterConsecutiveBlock: policyRecord.minBreakMinutesAfterConsecutiveBlock,
@@ -944,7 +957,13 @@ export function buildPreGenerationValidatorContext(
 	const windowAuthority = ctx.windowAuthority ?? buildWarningWindowAuthority({
 		sections: [...(ctx.sectionsById?.entries() ?? [])].map(([id, section]) => ({
 			id,
-			gradeLevel: Number(section.displayOrder ?? section.gradeLevelId ?? 0),
+			// A2 c15: the real grade through the one authority. This used to read
+			// the mirror's `displayOrder` and fall back to the EnrollPro internal
+			// id, which re-introduced a scope of 1..4 for Grades 7..10 (the id has
+			// read 1..4 since the 2026-09-28 re-mint) whenever `displayOrder` was
+			// absent. 0 means "no grade-scoped window applies", which is the
+			// honest outcome for a section that names no real grade.
+			gradeLevel: gradeNumberOf(section) ?? 0,
 			programType: section.programType ?? null,
 		})),
 		policyRow: ctx.policyRecord,
@@ -1243,7 +1262,13 @@ async function buildBoardStateFromContext(schoolId: number, schoolYearId: number
 		classPeriodSlots: ctx.classPeriodSlots,
 		counts,
 		filters: {
-			grades: [...new Set(ctx.sections.map((grade) => grade.displayOrder))].sort((left, right) => left - right),
+			// A2 c15 (B2, found while building the mounted draft proof): the board's
+			// Grade filter offered the mirror's raw `displayOrder`. `displayOrder` is
+			// the measured grade 7..10 today, so this read happened to be right while
+			// being unguarded — and it offered `0` for a row with no grade, which is
+			// how D5 caught it. The offered grades are now the resolved ones; a
+			// section naming no real grade offers no grade, never a sentinel.
+			grades: [...new Set(ctx.sections.map((grade) => gradeNumberOf(grade)).filter((grade): grade is number => grade !== null))].sort((left, right) => left - right),
 			departments: [...new Set(ctx.facultyMirrors.map((faculty) => faculty.department).filter((department): department is string => Boolean(department)))].sort((left, right) => left.localeCompare(right)),
 			buildings: ctx.buildings.map((building) => ({ id: building.id, name: building.name, shortCode: building.shortCode })),
 		},

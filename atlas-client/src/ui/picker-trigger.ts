@@ -46,6 +46,25 @@
 export const PICKER_CONTROL_HEIGHT_CLASS = 'h-10';
 
 /**
+ * A5 C8 x A7 C8 (2026-09-29) — THE `auto` VARIANT'S MINIMUM HEIGHT, AS ITS OWN TOKEN.
+ *
+ * The content-sized `auto` trigger is `h-auto min-h-<n>`: one line at the shared height, a second line
+ * when the composed face is genuinely too wide for its ceiling. That floor is a rendered height, so it
+ * MUST be the same rendered height as `PICKER_CONTROL_HEIGHT_CLASS` beside it — a `min-h-9` beside an
+ * `h-10` renders a 36px trigger in a 40px row, which is the "one look per control" defect this whole
+ * file exists to prevent, and it is a MERGE hazard rather than a hypothetical: A7 c8 moved the height
+ * token `h-9` -> `h-10` while A5 c8's `auto` variant carried a literal `min-h-9`, so the two lanes'
+ * changes combined into exactly that split row.
+ *
+ * WHY A SECOND TOKEN AND NOT A DERIVED STRING. Tailwind class names are literal, so a floor cannot be
+ * computed from `h-10` at runtime; the two must be written out. What CAN be enforced is that they agree,
+ * and that is a committed row: `a5-c8-filter-bar-contract.test.tsx` asserts the two numbers are equal, so
+ * the next lane that moves the height token fails this gate instead of shipping a 4px-short row.
+ * `A5-C8-B5b` is that row.
+ */
+export const PICKER_CONTROL_MIN_HEIGHT_CLASS = 'min-h-10';
+
+/**
  * The ONE set of trigger widths. `AGENTS.md` §8: a control's size is a variant, and a variant
  * belongs in `@/ui` so every page gets it.
  *
@@ -88,9 +107,25 @@ export const PICKER_CONTROL_HEIGHT_CLASS = 'h-10';
  *   fixed-label pickers beside it. A variant declared here carries the whole shared look by
  *   construction, so that class of drift is not expressible.
  *
- *   `whitespace-nowrap` belongs in the variant rather than at the call site for the same
- *   reason: it is part of "a trigger with a content-sized label must not wrap mid-label", and
- *   a page that could add or omit it would be able to break the label in two directions.
+ *   `whitespace-nowrap` was here from A5 C4 and is GONE (A5 c8, 2026-09-29). It was the
+ *   class that let a face run PAST its own border: Lane C measured `Home room: Home
+ *   room assigned` spilling outside its select on `/sections`, and a nowrap label inside
+ *   a max-width box is exactly how a face spills. A long face now WRAPS inside its box
+ *   (`h-auto min-h-9` below), so the trigger grows a second line rather than escaping,
+ *   and `AGENTS.md` §8's "no sentence is cut off with an ellipsis" holds for a face as
+ *   well as for a page.
+ *
+ * - `auto`, A5 c8 — A FLOOR AND A CEILING. `w-auto` alone is not enough on either side:
+ *   a two-word filter (`Grade: All`) came out narrower than the search box beside it and
+ *   the row read as uneven, while a data-driven face (a department name, an archived
+ *   year — the case Lane C measured at 128px with a 186px scroll width on
+ *   `/teaching-load/history`) ran on until it hit something else. `min-w-32` (8rem) and
+ *   `max-w-[22rem]` are the packet's own numbers, and together they make `auto` a BOUNDED
+ *   content size rather than an unbounded one. `min-w-*` and `w-*` are different
+ *   tailwind-merge groups, so the floor is stated IN the variant and the builder composes
+ *   it AFTER the neutral `min-w-0` — that ordering is load-bearing, and `A5-C8-B5` is the
+ *   row that fails if it is ever reversed (the same class of bug as the retired
+ *   `min-w-[160px]`).
  */
 export const PICKER_TRIGGER_WIDTH_CLASS = {
 	sm: 'w-28',
@@ -98,7 +133,7 @@ export const PICKER_TRIGGER_WIDTH_CLASS = {
 	lg: 'w-44',
 	xl: 'w-52',
 	fill: 'w-full',
-	auto: 'w-auto whitespace-nowrap',
+	auto: `w-auto min-w-32 max-w-[22rem] h-auto ${PICKER_CONTROL_MIN_HEIGHT_CLASS} items-center py-1`,
 } as const;
 
 export type PickerTriggerWidth = keyof typeof PICKER_TRIGGER_WIDTH_CLASS;
@@ -258,11 +293,32 @@ export const SEARCHABLE_OPTION_THRESHOLD = 8;
  * holds the line.
  */
 
+/**
+ * A5 c8 (2026-09-29) — THE HEIGHT A CONTENT-SIZED TRIGGER MAY GROW FROM.
+ *
+ * `h-9` is the MINIMUM, not a cap. `h-auto min-h-9` is one line when the composed
+ * face fits the variant's width and two lines when it does not, and `py-1` keeps the
+ * wrapped line from touching the border. The alternative — a fixed `h-9` with no floor
+ * growth — has exactly two bad endings and no good one: the text either spills out of
+ * the box (the `/sections` defect) or is cut off (an ellipsis, which `AGENTS.md` §8
+ * forbids outright).
+ *
+ * IT IS STATED IN THE `auto` VARIANT AND NOWHERE ELSE, on purpose. A FIXED width is
+ * budget-bound: `PICKER_TRIGGER_FACE_BUDGET_CHARS` is the declared promise of what
+ * fits, and a caller that exceeds it has a bug to fix, not a trigger to grow. Giving
+ * every variant the growth behaviour would let a fixed rectangle quietly become a
+ * two-line box and break the one-row arithmetic three other suites measure.
+ *
+ * The bare `PICKER_CONTROL_HEIGHT_CLASS` stays the ONE token the search input and the
+ * fixed-width triggers take, so `h-9` is still stated once and never retyped at a
+ * call site. `h-auto` is composed AFTER it, so tailwind-merge resolves the growth
+ * for `auto` and leaves the fixed variants at exactly 36px.
+ */
+
 /** The composed trigger class. Call sites pass a `width`; they never pass a class string. */
 export function pickerTriggerClass(width: PickerTriggerWidth = 'md'): string {
 	return [
 		PICKER_CONTROL_HEIGHT_CLASS,
-		PICKER_TRIGGER_WIDTH_CLASS[width],
 		/* A5 C3 CORRECTION ROUND 1 (B5): `min-w-0` is stated HERE, in the shared
 		 * variant, and not left to the page. `min-w-*` and `w-*` are different
 		 * tailwind-merge groups, so a floor declared anywhere alongside the width
@@ -270,9 +326,15 @@ export function pickerTriggerClass(width: PickerTriggerWidth = 'md'): string {
 		 * which is exactly what `min-w-[160px]` did to every trigger in the first
 		 * place. Stating the neutral floor next to the width makes "this width
 		 * governs" an explicit part of the variant every page gets, and a variant
-		 * that genuinely needs a floor (a grid cell that must not collapse below
-		 * two words, say) declares it here rather than at a call site. */
+		 * that genuinely needs a floor (A5 c8's `auto`, which is `min-w-32`) declares
+		 * it here rather than at a call site.
+		 *
+		 * A5 c8 — ORDER IS LOAD-BEARING. `min-w-0` must be composed BEFORE the width
+		 * variant so that a variant which declares its own floor (`auto`'s `min-w-32`)
+		 * wins the merge. Reversing the two lines would silently reinstate exactly the
+		 * "declared floor beats the width" bug B5 was written to close. */
 		'min-w-0',
+		PICKER_TRIGGER_WIDTH_CLASS[width],
 		'shrink-0 px-3 text-xs',
 		PICKER_TRIGGER_TYPE_CLASS,
 	].join(' ');

@@ -2,6 +2,10 @@ import { useCallback, useMemo, useState } from 'react';
 import type { SetURLSearchParams } from 'react-router-dom';
 
 import { getFacultyComparableLoadHours } from '@/lib/faculty-assignment-helpers';
+import {
+	formatFacultyDisplayName,
+	isPlaceholderSentinelName,
+} from '@/components/faculty/teacherNameDisplay';
 import type { FacultyAssignmentDraft, FacultySummary } from '@/types';
 import type { TeachingLoadRepairQueueItem } from '@/components/faculty-assignments/TeachingLoadRepairQueue';
 import { STAFF_WORKLOAD_REVIEW_LABEL } from '@/components/faculty-assignments/teacherReviewEntry';
@@ -99,8 +103,44 @@ type UseTeachingLoadRepairQueueParams = {
 	 */
 };
 
+/**
+ * The STORED name, for ORDERING. Deliberately unchanged.
+ *
+ * A3 C17 C1 looked at this function twice and concluded it must be SPLIT rather
+ * than replaced, because it feeds two different things:
+ *
+ *   1. the `.sort()` comparators below — a sort key, where AGENTS.md is explicit
+ *      that search and sort keep using the stored casing. A placeholder whose
+ *      name became "To be hired: MAPEH" would sort under T instead of under M,
+ *      moving rows in a queue a scheduler is scanning by eye; and
+ *   2. the queue item TITLES, which are user-visible prose.
+ *
+ * Changing (1) to the display form is a behaviour change to ordering and is out
+ * of scope for a copy fix. Changing (2) is exactly the defect the requester
+ * named. So the stored form stays here for (1), and `formatTeacherDisplayName`
+ * below takes (2).
+ */
 function formatTeacherName(member: { firstName: string; lastName: string }) {
 	return `${member.lastName}, ${member.firstName}`;
+}
+
+/**
+ * The DISPLAY name for a queue item title: `To be hired: …` for a placeholder,
+ * the stored `Last, First` for everyone else.
+ *
+ * A3 C17 C1. The repair queue titles are the sentences a scheduler reads to
+ * decide what to fix first ("<name> is over the weekly max"), and a to-be-hired
+ * record read there as "— TO BE HIRED, MAPEH" while the roster beside it said
+ * "To be hired: MAPEH". The shared contract is asked which record is a
+ * placeholder, and only then is the display form used — so a real teacher's
+ * title is byte-identical to today's.
+ */
+function formatTeacherDisplayName(member: {
+	firstName: string;
+	lastName: string;
+	isPlaceholder?: boolean;
+}) {
+	return isPlaceholderSentinelName(member) ? formatFacultyDisplayName(member) : formatTeacherName(member);
 }
 
 /**
@@ -282,7 +322,7 @@ export function useTeachingLoadRepairQueue({
 			items.push({
 				id: `teacher-missing-${member.id}`,
 				kind: 'teacher-missing-load',
-				title: `${formatTeacherName(member)} has no load`,
+				title: `${formatTeacherDisplayName(member)} has no load`,
 				description: 'This active teacher has no assigned subject or section. Review whether they should receive load or stay excluded.',
 				status: member.department ? `${member.department} department` : 'No department listed',
 				actionLabel: 'Assign teaching load',
@@ -295,7 +335,7 @@ export function useTeachingLoadRepairQueue({
 			items.push({
 				id: `over-cap-${member.id}`,
 				kind: 'over-cap',
-				title: `${formatTeacherName(member)} is over the weekly max`,
+				title: `${formatTeacherDisplayName(member)} is over the weekly max`,
 				description: 'Move one class to another eligible teacher or reduce this teacher’s assigned load before generation.',
 				status: `${loadHours.toFixed(1)}h used / ${member.maxHoursPerWeek}h max.`,
 				actionLabel: 'Move classes',
@@ -308,7 +348,7 @@ export function useTeachingLoadRepairQueue({
 			items.push({
 				id: `placeholder-${member.id}`,
 				kind: 'placeholder',
-				title: `${formatTeacherName(member)} is still a temporary substitute`,
+				title: `${formatTeacherDisplayName(member)} is still a temporary substitute`,
 				description: 'This temporary record is holding coverage. Replace it with a real eligible teacher when staffing is known.',
 				status: `${subjectGroupCount} subject ${subjectGroupCount === 1 ? 'group' : 'groups'} assigned.`,
 				actionLabel: 'Review temporary',

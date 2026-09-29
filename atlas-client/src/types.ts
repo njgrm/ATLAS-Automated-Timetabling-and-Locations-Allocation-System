@@ -563,6 +563,14 @@ export type FacultyMirror = {
 	contactInfo: string | null;
 	localNotes: string | null;
 	isActiveForScheduling: boolean;
+	/**
+	 * Present on the `/api/v1/faculty` payload (a real column, shipped by
+	 * `getFacultyBySchool`'s un-narrowed `findMany`) but absent from this type
+	 * until A3 c17, so every Timetable-side label rebuilt the name from the
+	 * stored fields and a to-be-hired record showed two identities across the
+	 * three surfaces the requester named.
+	 */
+	isPlaceholder?: boolean;
 	isClassAdviser: boolean;
 	advisoryEquivalentHours: number;
 	canTeachOutsideDepartment: boolean;
@@ -2324,7 +2332,14 @@ export type LoadBreakdownItem = {
 	isRotationDuplicate: boolean;
 	sectionId: number;
 	sectionName: string;
-	gradeLevel: number;
+	/**
+	 * The section's REAL JHS grade, resolved through the client grade authority
+	 * (`lib/schedule-review-helpers.gradeNumberOf`: `gradeLevelName`, then
+	 * `displayOrder`). Null when the section names no grade. Never an EnrollPro
+	 * `grade_level_id` — that id is re-minted on every wipe and reads 1..4 for
+	 * Grades 7..10 as of 2026-09-28, which is what rendered `GR1` here.
+	 */
+	gradeLevel: number | null;
 	minutesPerWeek: number;
 	totalMinutes: number;
 };

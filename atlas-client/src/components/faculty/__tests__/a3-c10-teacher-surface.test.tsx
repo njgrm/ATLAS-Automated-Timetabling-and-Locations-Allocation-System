@@ -604,7 +604,33 @@ test('F25-c10-2 Review load opens the modal IN PLACE and does not navigate', () 
 	// The dialog is centred, bounded and scrolls internally.
 	const content = dom.window.document.querySelector('[data-testid="faculty-workload-modal"]')!;
 	const cls = content.getAttribute('class') ?? '';
-	assert.match(cls, /sm:max-w-\d/, 'the modal must have a bounded, responsive width');
+	// A3 C17 ROW 7 SUPERSEDES THE `sm:max-w-2xl` ASSERTION ABOVE THIS LINE, and
+	// the row it replaced is kept here rather than deleted, because the ORIGINAL
+	// row is still true and still the point: the modal must have a bounded,
+	// responsive width. What changed is WHERE the bound comes from.
+	//
+	// The old assertion pinned `sm:max-w-2xl` — a page-local `max-width`. CSS
+	// resolves `max-width` against the shared drag handler's inline
+	// `style.width` LAST, so every leftward drag recomputed a width and the box
+	// clamped straight back to 672px: the handle moved and the dialog did not.
+	// The operator's report was exactly that, and it was true of this surface
+	// only. Pinning that class therefore pinned the defect.
+	//
+	// The bound is now the SHARED primitive's own `DIALOG_RESIZABLE_CLASSES`,
+	// which every resizable dialog in the app obeys. So the same intent is
+	// asserted against the authority that now carries it: bounded on BOTH sides,
+	// viewport-guarded so no viewport can be forced into a horizontal scrollbar.
+	assert.match(
+		cls,
+		/min-w-\[min\(480px,95vw\)\]/,
+		'the shared resizable floor must govern this surface, not a page-local width',
+	);
+	assert.match(cls, /max-w-\[95vw\]/, 'the shared resizable ceiling must govern this surface');
+	assert.doesNotMatch(
+		cls,
+		/(^|\s)(sm:)?max-w-(?!\[95vw\])\S/,
+		'a page-local max-width defeats the drag handler; the shared bounds are the only width authority here',
+	);
 	assert.match(cls, /max-h-\[/, 'the modal must be height-bounded so it scrolls internally');
 	assert.match(cls, /overflow-hidden/, 'the modal frame must not itself scroll');
 	assert.ok(content.querySelector('.overflow-auto'), 'the modal body must scroll internally');

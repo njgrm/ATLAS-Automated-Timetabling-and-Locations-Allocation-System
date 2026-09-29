@@ -15,8 +15,15 @@
  * toggles on the one continuous row. So the popover is GONE: there is no
  * `More filters` trigger and no `-panel` element, in any state, and the two
  * switches are back on the row themselves. Fix 39's original row is what this
- * file ships: ONE `flex flex-wrap items-center gap-2` carrying search, Status,
- * Department, Load, Sort and both switches, with NO disclosure and no second row.
+ * file ships: ONE wrapping row carrying search, Status, Department, Load, Sort
+ * and both switches, with NO disclosure and no second row.
+ *
+ * A5 c8 (2026-09-29) — that row is no longer THIS FILE's. It is `@/ui/filter-bar`,
+ * the one shared bar every list page now renders, so this page stopped being the
+ * odd one out. The `flex flex-wrap items-center gap-2`, the 240px fixed search box,
+ * the `h-9` heights, the `Clear all` at the end and the fact that a fifth filter
+ * would wrap rather than hide are now one component's contract instead of this
+ * page's private arithmetic.
  *
  * WHY THE ROW FITS AT 1366 — MEASURED, NOT ASSUMED. The comment this replaces
  * put the budget at ~1326px of content width. IT IS 1078px: the page's left rail
@@ -56,10 +63,11 @@
  *
  * WHY THE SEARCH BOX LOST ITS `flex-1`.
  * It was `flex-1 min-w-44 max-w-xs` — elastic, so its width changed with the
- * viewport and pushed the controls beside it around. The operator's `w-[240px]`
- * is a fixed width with `shrink-0`, so the row's content is the same at 1920 as
- * at 1280 and the seven controls keep their order. `flex-wrap` still applies, so
- * a narrow viewport wraps the row rather than clipping it.
+ * viewport and pushed the controls beside it around. A5 c8 moved the search box into
+ * `@/ui/filter-bar` altogether, where it is `w-[240px] shrink-0`: a fixed width, the
+ * same on every page, so the row's content is the same at 1920 as at 1280 and the
+ * controls keep their order. `flex-wrap` still applies, so a narrow viewport wraps the
+ * row rather than clipping it.
  *
  * The no-scroll architecture is untouched and load-bearing: this component adds
  * NO scroll container. It is a `shrink-0` block above the existing
@@ -79,11 +87,10 @@
  * `__tests__/a3-c10-tl-header-density.test.ts`.
  */
 import { useMemo, type ReactNode } from 'react';
-import { AlertTriangle, LayoutGrid, RotateCcw, Search, Star } from 'lucide-react';
-import { Button } from '@/ui/button';
-import { Badge } from '@/ui/badge';
-import { Input } from '@/ui/input';
+import { AlertTriangle } from 'lucide-react';
+import { FilterBar } from '@/ui/filter-bar';
 import { FilterPicker } from '@/ui/filter-picker';
+import { PICKER_CONTROL_HEIGHT_CLASS } from '@/ui/picker-trigger';
 import { Switch } from '@/ui/switch';
 import { Label } from '@/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
@@ -107,6 +114,13 @@ import { AT_STANDARD_LABEL, BELOW_STANDARD_LABEL, EXCESS_LOAD_LABEL } from '@/li
  * primitive; they keep the same height, radius, border and hover so the row still reads as one
  * instrument, and they are named for what they actually are.
  *
+ * A5 c8 (integration, 2026-09-29) — THE SWITCHES' HEIGHT IS THE SHARED TOKEN, NOT `h-9`. The
+ * group carried a page-local `h-9`, so when A7 c8 moved the shared control height to 40px on
+ * `main` these two switches rendered 4px shorter than every filter beside them. That is the
+ * one-look-per-control defect (`AGENTS.md` §8) produced by a page-local height on a shared row,
+ * and it is the same class as the `min-h-9`/`h-10` split the filter-bar gate now pins: compose
+ * the token, so the next move of that token moves this group with it.
+ *
  * A6 c6 item 1 CHANGED THE LABELS, NOT THE CHROME. They used to be `Cross-Dept` and
  * `Unmapped Specialization`, printed in `uppercase tracking-tight` — internal vocabulary
  * shouted at an older scheduler. A6 c6 replaced them with two plain SENTENCES; fix 39
@@ -124,7 +138,40 @@ import { AT_STANDARD_LABEL, BELOW_STANDARD_LABEL, EXCESS_LOAD_LABEL } from '@/li
  * which is content-sized and therefore cannot clip. The budget is therefore no longer
  * what keeps this row whole; the arithmetic in the file header is.
  */
-const SWITCH_CHROME = 'flex h-9 shrink-0 items-center gap-2 rounded-xl border border-border/60 bg-background px-2.5 transition-colors hover:bg-muted/40';
+const SWITCH_CHROME = `flex ${PICKER_CONTROL_HEIGHT_CLASS} shrink-0 items-center gap-2 rounded-xl border border-border/60 bg-background px-2.5 transition-colors hover:bg-muted/40`;
+
+/*
+ * A6 c10 — `Cross-subject` READ AS A PERMISSION, and it is not one.
+ *
+ * Codex audit, 2026-09-29 against release `e75d6b8f`, finding 1 (MINOR) and
+ * repeated in the 16:05 addendum: "The existing `Cross-subject` switch on
+ * /teaching-load is an unlabeled filter, not a permission: either retire it or
+ * label it `Include teachers from other departments`; the permission itself lives
+ * in the Cover window + teacher profile."
+ *
+ * A scheduler reading `Cross-subject` next to a switch reasonably concludes that
+ * flipping it lets teachers teach outside their department. It does not: it only
+ * changes WHICH TEACHERS ARE LISTED. The audit's remedy is either/or — retire it,
+ * or label it — and retiring it is not available here, because the row it sits on
+ * would then silently drop every cross-department teacher from the roster and the
+ * scheduler would never learn they existed. So it is LABELLED, in the audit's own
+ * direction, with the first word doing the work: `Include` is a verb about the
+ * LIST, which is what the control does.
+ *
+ * The explanation says so explicitly and then says where the real permission
+ * lives, because a control that only says "this is not that" leaves the scheduler
+ * with no route. The permission is now reachable from two places: the Allow prompt
+ * in `Cover this class`, and `Teaching permissions` on the teacher's profile.
+ *
+ * WIDTH. `Include other depts` is 19 characters against `Cross-subject`'s 12, so
+ * the face grows by about 45px. It carries ONE capital, so `a6-tl-header-budget`
+ * `A6c4-G2-6` (caps on a switch label <= 2) still passes untouched. The row
+ * arithmetic in this file's header is unchanged, and fix 39's `auto` picker
+ * variant is content-sized, so no other control has to move.
+ */
+export const OUTSIDE_DEPT_FILTER_FACE = 'Include other depts';
+export const OUTSIDE_DEPT_FILTER_EXPLANATION =
+	'Filter: show teachers from other departments in this list. To let one teacher teach another subject, use Cover this class or Teaching permissions on their profile.';
 
 /** The shared switch-LABEL class. Sentence case: it is read, not shouted. */
 const SWITCH_LABEL_CLASS = 'cursor-pointer whitespace-nowrap text-xs font-semibold text-muted-foreground';
@@ -237,20 +284,51 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 
 	return (
 		<div className="space-y-1.5" data-testid="teaching-load-filter-bar">
-			{/* FIX 39: ONE row, seven controls, in the operator's order. */}
-			<div className="flex flex-wrap items-center gap-2" data-testid="teaching-load-primary-filters">
-				<div className="relative w-[240px] shrink-0">
-					<Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-					<Input
-						aria-label="Search teachers"
-						placeholder="Search teachers..."
-						value={searchQuery}
-						onChange={(e) => onSearchQueryChange(e.target.value)}
-						className="h-9 rounded-xl border border-border/60 bg-background pl-10 text-xs transition-colors hover:bg-muted/40"
-					/>
-				</div>
-
-								{/* A5 C3 slice B / B2 + B4: the four selects are now the ONE shared `@/ui` picker, and the
+			{/* A5 c8 (2026-09-29) — THE LAYOUT NOTE, BEFORE THE JSX.
+			 *
+			 * This page was the sweep's MAJOR for "a wholly different, denser filter
+			 * composition": five inline fields and two switches across TWO visual rows,
+			 * while its peer lists hid controls behind a disclosure. It already had the
+			 * right CONTROLS; what it did not have was the shared ROW.
+			 *
+			 * WHAT STAYS IN THE ROW .... the search box, `Status`, `Department`, `Load`,
+			 *                              `Sort`, both inclusion switches, the draft
+			 *                              group, and one `Clear all`.
+			 * WHAT GOES ............... the whole `teaching-load-active-filters` block —
+			 *                              its `Active filters:` heading, its four `Badge`
+			 *                              chips and its own `Clear all` button.
+			 * WHAT MOVES .............. the search box becomes `FilterBar`'s search
+			 *                              (240px fixed, `h-9`, the shared font pairing)
+			 *                              and `Clear all` becomes `FilterBar`'s single
+			 *                              `onReset` at the END of the same row.
+			 *
+			 * WHY THE CHIP ROW IS THE RIGHT THING TO LOSE, in the operator's own terms
+			 * rather than mine. Every chip restated a value the trigger three inches to
+			 * its left was already showing in full: a `Badge` reading `Mathematics` sat
+			 * beside a trigger reading `Department: Mathematics`. `AGENTS.md` §8's
+			 * header budget forbids "two chips that say the same thing", and §11's design
+			 * gate rule 3 is subtraction first — so four restatements of the row's own
+			 * state go, and what a user needs from the row (what is set) is still there,
+			 * on the control they set it with.
+			 *
+			 * WHAT IS NOT TOUCHED ..... the `sr-only` `role="status"` announcement (it
+			 *                              speaks filter RESETS and CLEARS, which no
+			 *                              chip ever did), the `!policyReady` notice (a
+			 *                              different job again — a blocker, not a
+			 *                              summary), both switch `id`s, both tooltips, and
+			 *                              the draft group's own `ml-auto` alignment. */}
+			<FilterBar
+				dataTestId="teaching-load-primary-filters"
+				search={{
+					value: searchQuery,
+					onChange: onSearchQueryChange,
+					placeholder: 'Search teachers...',
+					ariaLabel: 'Search teachers',
+				}}
+				onReset={hasActiveFilters ? onClearTeachingLoadFilters : undefined}
+				resetLabel="Clear all"
+			>
+				{/* A5 C3 slice B / B2 + B4: the four selects are now the ONE shared `@/ui` picker, and the
 				    page-local `CONTROL_CHROME` string plus `font-bold uppercase tracking-tight` are GONE.
 				    Those were a page-local look applied to a shared surface, which is exactly what
 				    `AGENTS.md` section 8 "One look per control" forbids, and the reason this row shouted at an
@@ -432,84 +510,14 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 				    which is one row of FILTERS plus a separate draft action group, not
 				    a filter row broken in two.
 				    */}
-				<div className={SWITCH_CHROME} data-testid="teaching-load-inclusion-switches">
-					<TooltipProvider delayDuration={200}>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<div className="flex items-center gap-2">
-									<Switch
-										id="show-outside-dept"
-										checked={showOutsideDept}
-										onCheckedChange={onToggleOutsideDept}
-										aria-label="Show teachers who teach a subject outside their subject area"
-									/>
-									<Label htmlFor="show-outside-dept" className={SWITCH_LABEL_CLASS}>
-										Cross-subject
-									</Label>
-								</div>
-							</TooltipTrigger>
-							<TooltipContent side="top" className="max-w-64 text-xs leading-relaxed">
-								Show teachers who teach a subject outside their subject area
-							</TooltipContent>
-						</Tooltip>
-
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<div className="flex items-center gap-2 border-l border-border/60">
-									<Switch
-										id="show-unmapped-specialization"
-										checked={showUnmappedSpecialization}
-										onCheckedChange={onShowUnmappedSpecializationChange}
-										aria-label="Show only teachers whose subject is not in the catalog"
-									/>
-									<Label htmlFor="show-unmapped-specialization" className={SWITCH_LABEL_CLASS}>
-										No subject match
-									</Label>
-								</div>
-							</TooltipTrigger>
-							<TooltipContent side="top" className="max-w-64 text-xs leading-relaxed">
-								Show only teachers whose subject is not in the catalog
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-				</div>
-
-				{/* FIX 40: the draft group, its own `ml-auto` child of the one row again,
-				    so the two filter toggles are never dragged onto a second line by it. */}
+				{/* Operator hotfix 29 Sep (8f10b2e8), re-applied after the A5 c8 merge restored them: NO inclusion switches on this
+				    row. Other subjects open per teacher inside the load editor (Show other subjects). Do not add them back. */}
+			{/* FIX 40: the draft group, its own `ml-auto` child of the one row again,
+			    so the two filter toggles are never dragged onto a second line by it. */}
 				{draftControls ? (
 					<div className="ml-auto flex shrink-0 items-center gap-2">{draftControls}</div>
 				) : null}
-			</div>
-
-			{hasActiveFilters && (
-				<div className="flex flex-wrap items-center gap-1.5" data-testid="teaching-load-active-filters">
-					<span className="text-xs font-bold tracking-wide text-muted-foreground">Active filters:</span>
-					{searchQuery.trim() && (
-						<Badge variant="secondary" className="gap-1 text-xs font-bold">
-							Search: {searchQuery.trim()}
-						</Badge>
-					)}
-					{filterStatus !== 'all' && (
-						<Badge variant="secondary" className="gap-1 text-xs font-bold">
-							{filterStatus === 'teaching-assigned' ? 'Teaching assigned' : filterStatus === 'no-teaching' ? 'No teaching load' : 'Adviser only'}
-						</Badge>
-					)}
-					{departmentFilter !== 'all' && (
-						<Badge variant="secondary" className="gap-1 text-xs font-bold">
-							{departmentOptions.find((option) => option.value === departmentFilter)?.label ?? departmentFilter}
-						</Badge>
-					)}
-					{loadFilter !== 'all' && (
-						<Badge variant="secondary" className="gap-1 text-xs font-bold">
-							{loadFilter === 'excess' ? 'Excess teaching load' : loadFilter === 'at-standard' ? 'At standard' : BELOW_STANDARD_LABEL}
-						</Badge>
-					)}
-					<Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs font-bold" onClick={onClearTeachingLoadFilters}>
-						<RotateCcw className="size-3.5" />
-						Clear all
-					</Button>
-				</div>
-			)}
+			</FilterBar>
 
 			<p className="sr-only" role="status" aria-live="polite" data-testid="teaching-load-filter-announcement">
 				{filterAnnouncement}
@@ -533,11 +541,31 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 		 * inclusion switches — are on the primary row above (the switches as
 		 * direct toggles again, since fix 39 was restored on 2026-09-29), and
 		 * its `rounded-xl border border-border/50 bg-background/80 p-2 shadow-sm`
-		 * card is gone with it. The active-filter badge row, the `sr-only`
-		 * announcement, and the `!policyReady` notice above are UNCHANGED:
-		 * they are a summary of what is applied, not a second place to
-		 * apply it, and they must keep rendering even with no filters
-		 * active.
+		 * card is gone with it.
+		 *
+		 * A5 c8 (2026-09-29) THEN REMOVED THE ACTIVE-FILTER BADGE ROW from this
+		 * file as well. This paragraph used to claim that row was "UNCHANGED …
+		 * a summary of what is applied, not a second place to apply it". That
+		 * reasoning was about a row that also carried a SECOND `Clear all`
+		 * button, and the second button is what made it a second place to apply
+		 * the filters from. With that button gone the row was four `Badge`s
+		 * restating, in 11px uppercase, values the triggers beside it already
+		 * showed in full — §8's "two chips that say the same thing". The
+		 * `sr-only` announcement and the `!policyReady` notice above are still
+		 * here and still do the two jobs that row never did: speaking a filter
+		 * RESET, and stating a blocker.
+		 *
+		 * A7 C8's RESTYLE OF THAT ROW IS SUPERSEDED, RECORDED (integration,
+		 * 2026-09-29). A7 c8 re-pinned the deleted row's type from `text-[11px]`
+		 * to `text-xs` and the merge brought both sides into this file. A7's
+		 * change was correct for a row that exists; the row does not exist, so
+		 * there is nothing for it to apply to and no claim is lost with it. The
+		 * OTHER half of A7's slice — the 40px control height and the type scale
+		 * itself — is untouched here and is taken from `@/ui`, not from a
+		 * page-local class. `a6-c6-calm-teaching-load.test.tsx` and
+		 * `a6-teaching-load-surface.test.tsx` assert the row's ABSENCE and the
+		 * single `Clear all`, so the claim this paragraph used to make is
+		 * replaced rather than dropped.
 		 */}
 		</div>
 	);

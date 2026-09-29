@@ -1375,7 +1375,10 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		try {
 			resolution = await resolveTimetableTermAuthority(
 				actorSchoolId,
-				() => resolvedSchoolIdRef.current !== actorSchoolId,
+				// A3 p1: `isStillCurrent` KEEPS the read. The old positional
+				// predicate took the opposite sense, so this is the same meaning
+				// written out: still current while the ref still names this school.
+				{ isStillCurrent: () => resolvedSchoolIdRef.current === actorSchoolId },
 			);
 		} catch {
 			// A transient upstream failure is not a missing school year; fall

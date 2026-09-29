@@ -6,6 +6,7 @@
 import { prisma } from '../lib/prisma.js';
 import { buildCanonicalDisplayGrid, buildPeriodSlots, type PeriodSlot, type PolicyInput } from './schedule-constructor.js';
 import { getOrCreatePolicy } from './scheduling-policy.service.js';
+import { gradeNumberOf } from './grade-level-resolver.js';
 
 function err(statusCode: number, code: string, message: string): Error & { statusCode: number; code: string } {
 	const e = new Error(message) as Error & { statusCode: number; code: string };
@@ -30,9 +31,13 @@ async function loadCanonicalDisplayRows(schoolId: number, schoolYearId: number) 
  * SLOT-BREAK-AUTHORITY-C11R — the canonical `(gradeLevel, programType)` scope a
  * lock's section belongs to. The section roster keys sections by their EnrollPro
  * `externalId` (the same key the generation/pre-generation entry sets use), and
- * `displayOrder` is the actual grade number the canonical grid is keyed by.
- * Returns `null` when the section is unknown, so the caller keeps the
- * school-wide canonical union rather than coercing a missing scope.
+ * the grade is resolved through the ONE grade authority
+ * (`gradeNumberOf`: `gradeLevelName`, then `displayOrder`). It is never the
+ * EnrollPro `gradeLevelId`, which re-mints on every wipe (measured 2026-09-29:
+ * ids 1..4 named "Grade 7".."Grade 10" in school years 1 and 2).
+ * Returns `null` when the section is unknown OR names no real grade, so the
+ * caller keeps the school-wide canonical union rather than coercing a missing
+ * or wrong scope.
  */
 async function resolveSectionCanonicalScope(
 	schoolId: number,
@@ -41,11 +46,13 @@ async function resolveSectionCanonicalScope(
 ): Promise<{ gradeLevel: number; programType: string | null } | null> {
 	const section = await prisma.sectionMirror.findFirst({
 		where: { schoolId, schoolYearId, externalId: sectionId },
-		select: { displayOrder: true, gradeLevelId: true, programType: true },
+		select: { displayOrder: true, gradeLevelId: true, gradeLevelName: true, programType: true },
 	});
 	if (!section) return null;
+	const gradeLevel = gradeNumberOf(section);
+	if (gradeLevel === null) return null;
 	return {
-		gradeLevel: Number(section.displayOrder ?? section.gradeLevelId ?? 0),
+		gradeLevel,
 		programType: section.programType ?? null,
 	};
 }

@@ -15,10 +15,10 @@ import { Button } from '@/ui/button';
 // four roster filters. The page builds no Radix filter of its own any more, and the option
 // vocabulary it needs now lives with the controls that offer it.
 import {
-	AdminSearchFilterToolbar,
 	AdminWorkspaceFrame,
 	type AdminSourceState,
 } from '@/components/admin-workspace/AdminWorkspace';
+import { FilterBar } from '@/ui/filter-bar';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin-workspace/AdminDataTable';
 import {
 	FacultyAssignedClassesCell,
@@ -40,6 +40,14 @@ import {
 import { useRosterScrollMemory } from '@/components/faculty/rosterScrollMemory';
 import { formatFacultyDisplayName, teacherNameSortKey } from '@/components/faculty/teacherNameDisplay';
 import { buildDuplicateNameCue, duplicateTeacherNameKey } from '@/components/faculty/duplicateTeacherNames';
+/**
+ * A6 c11 (truth-fixes §A6) — the ONE three-state arithmetic this page's tiles and
+ * attention badges read. It exists because four inline filters each counted a
+ * to-be-hired record as a person, and `subjects-coverage-truth.ts` already
+ * settled the same question on the Subjects page; a second definition of "with
+ * load" is the defect, so the definition has exactly one home.
+ */
+import { teacherLoadTruth, teacherStatItems } from '@/components/faculty/teacherLoadTruth';
 import { TeacherAttentionFilters } from '@/components/faculty/TeacherAttentionFilters';
 // A5 C3 slice B / B3: the four roster filters, extracted so this file stays under §8's
 // 1000-line cap and so the one shared picker is the only way a filter is built here.
@@ -54,6 +62,7 @@ import {
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import {
 	getFacultyLoadSortRank,
+	MAX_WEEKLY_TEACHING_HOURS,
 	type SubjectSectionOwnershipIndexEntry,
 } from '@/lib/faculty-assignment-helpers';
 import { ActorScopedRolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
@@ -98,6 +107,50 @@ type TeacherSummaryResponse = {
 };
 
 type TeacherAttentionFilter = 'all' | 'needs-load' | 'over-cap' | 'no-active-load' | 'placeholders';
+
+/**
+ * A3 c17 row 5 — the `Above weekly max` helper sentence, with the weekly
+ * maximum READ FROM THE ROSTER instead of typed into the string.
+ *
+ * The operator's report was "Above weekly max hover text cut off" with the note
+ * that "its text hard-codes 40h". The clipping is a shared-tooltip matter that
+ * A5 owns; what is wrong HERE, and what only this function can fix, is the
+ * number. A teacher saved with a 32h maximum was being told, in this sentence,
+ * that they were above the 40h weekly maximum — a different rule from the one
+ * the roster applied to them, in the sentence that explains the count.
+ *
+ * The fallbacks are ordered by how much is actually known: the maximum among
+ * the teachers THIS chip counts, then the roster-wide maximum, then the policy
+ * constant. The constant is reached only for an empty roster, where no teacher
+ * was miscounted and so nothing on screen is false.
+ *
+ * The counted set is the same predicate the chip's `count` uses, less
+ * placeholders: a to-be-hired record is an unfilled slot, not a person over a
+ * cap, and it is excluded from the count for the same reason it is excluded
+ * here. `count` semantics are untouched by this change — several tests assert
+ * that number, and it is the generation-blocking one.
+ *
+ * Exported so a control can drive the real derivation with a real roster
+ * instead of matching this sentence as a literal in the source. A source-text
+ * assertion would pass unchanged if the template silently reverted to `40h`,
+ * which is the exact defect this row exists to remove.
+ */
+export function overCapWeeklyMaxHours(roster: FacultySummary[]): number {
+	const counted = roster.filter(
+		(teacher) =>
+			teacher.isActiveForScheduling &&
+			!teacher.isPlaceholder &&
+			(teacher.policyCreditedHours ?? 0) > teacher.maxHoursPerWeek,
+	);
+	const maximumOf = (list: FacultySummary[]) =>
+		list.reduce((max, teacher) => Math.max(max, teacher.maxHoursPerWeek ?? 0), 0);
+	return maximumOf(counted) || maximumOf(roster) || MAX_WEEKLY_TEACHING_HOURS;
+}
+
+/** The one sentence the `Above weekly max` chip shows, for the given roster. */
+export function overCapChipHelper(roster: FacultySummary[]): string {
+	return `Active teachers above the ${overCapWeeklyMaxHours(roster)}h weekly maximum. Move classes before generating.`;
+}
 
 export default function Faculty() {
 	const [faculty, setFaculty] = useState<FacultySummary[]>([]);
@@ -159,7 +212,9 @@ export default function Faculty() {
 		}
 	};
 
-	const [showFilters, setShowFilters] = useState(false);
+	/* A5 c8 (2026-09-29): `showFilters` / `setShowFilters` are GONE. They toggled the
+	   disclosure this page's four roster filters used to sit behind; the filters are now
+	   children of the one always-visible `FilterBar` row, so nothing reads either value. */
 
 	// Sorting
 	const [sortField, setSortField] = useState<SortField>('name');
@@ -588,17 +643,21 @@ export default function Faculty() {
 		return 'no-saved-data';
 	}, [dataSource, loading, refreshing]);
 
-	const teacherStats = useMemo(() => {
-		const activeCount = rosterStats?.activeCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling).length;
-		const assignedCount = rosterStats?.assignedCount ?? faculty.filter((teacher) => (teacher.subjectCount ?? 0) > 0).length;
-		const unassignedCount = rosterStats?.unassignedCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.subjectCount ?? 0) === 0).length;
-		const overCapCount = rosterStats?.overCapCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.policyCreditedHours ?? 0) > teacher.maxHoursPerWeek).length;
-		return [
-			{ label: 'Active teachers', value: activeCount, tone: activeCount > 0 ? 'success' as const : 'warning' as const, helpText: 'Teachers currently available for scheduling.' },
-			{ label: 'With load', value: `${assignedCount}/${activeCount}`, tone: assignedCount > 0 ? 'info' as const : 'warning' as const, helpText: `${unassignedCount} of ${activeCount} active teachers still need a teaching load.` },
-			{ label: 'Above weekly max', value: overCapCount, tone: overCapCount > 0 ? 'warning' as const : 'success' as const, helpText: 'Active teachers above the weekly maximum. Move classes before generating.' },
-		];
-	}, [faculty, rosterStats]);
+	/*
+	 * A6 c11 (truth-fixes §A6) — ONE arithmetic for every teacher-facing count on
+	 * this page, and placeholders excluded from it.
+	 *
+	 * This block used to ask four separate questions in four inline filters, each
+	 * counting a to-be-hired record as a person: `(subjectCount ?? 0) > 0` for
+	 * "with load" and `isActiveForScheduling` alone for "active". That is how a
+	 * roster of 34 real + placeholder records read `34/34` — fully staffed, by
+	 * records that are not people — while Teaching Load said 72 classes were
+	 * short. `teacherLoadTruth` owns the arithmetic now; this page decides only
+	 * WHEN to read it, exactly as `subjects-coverage-truth.ts` works on Subjects.
+	 */
+	const loadTruth = useMemo(() => teacherLoadTruth({ roster: faculty, serverStats: rosterStats }), [faculty, rosterStats]);
+
+	const teacherStats = useMemo(() => teacherStatItems(loadTruth), [loadTruth]);
 
 	const profileSourceLabel = useMemo(() => {
 		if (teacherSourceState === 'verified-live') return timeSince ? `Verified live - ${timeSince}` : 'Verified live';
@@ -701,8 +760,14 @@ export default function Faculty() {
 	}, []);
 
 	const attentionChips = [
-		{ id: 'needs-load' as const, label: 'No subjects assigned', helper: 'Active teachers with no subject assigned in Teaching Load.', count: rosterStats?.unassignedCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.subjectCount ?? 0) === 0).length },
-		{ id: 'over-cap' as const, label: 'Above weekly max', helper: 'Active teachers above the 40h weekly maximum. Move classes before generating.', count: rosterStats?.overCapCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.policyCreditedHours ?? 0) > teacher.maxHoursPerWeek).length },
+		/*
+		 * A3 c17 x A6 c11 union. A6 c11 owns the COUNTS (`loadTruth.*`, which
+		 * excludes synthetic placeholder load); A3 c17 owns the `over-cap`
+		 * helper TEXT, which must read the saved weekly maximum rather than a
+		 * hard-coded 40h. Keep their counts and my helper.
+		 */
+		{ id: 'needs-load' as const, label: 'No subjects assigned', helper: 'Active teachers with no subject assigned in Teaching Load.', count: loadTruth.withoutLoadCount },
+		{ id: 'over-cap' as const, label: 'Above weekly max', helper: overCapChipHelper(faculty), count: loadTruth.overCapRealCount },
 		{ id: 'no-active-load' as const, label: 'No sections assigned', helper: 'Active teachers with no section assigned yet.', count: faculty.filter((teacher) => teacher.isActiveForScheduling && !teacher.isPlaceholder && (teacher.sectionCount ?? 0) === 0).length },
 		{ id: 'placeholders' as const, label: 'Temporary teachers', helper: 'Placeholder records for teachers who have not been hired yet. Replace before publishing.', count: faculty.filter((teacher) => teacher.isPlaceholder).length },
 		{ id: 'all' as const, label: 'All teachers', helper: 'Clear the attention filter and show every teacher.', count: rosterStats?.totalCount ?? faculty.length },
@@ -743,21 +808,29 @@ return (
 				/>
 			)}
 			toolbar={(
-				<AdminSearchFilterToolbar
-					searchValue={searchQuery}
-					onSearchChange={setSearchQuery}
-					searchPlaceholder="Search teacher, department, or specialization..."
-					filtersOpen={showFilters}
-					onToggleFilters={() => setShowFilters(!showFilters)}
-					hasActiveFilters={hasActiveFilters}
-				>
-					{/* A5 C3 slice B: the four roster filters moved to
-					    `components/faculty/FacultyFilterRow.tsx` and onto the one shared
-					    `@/ui` picker. Two reasons, in order: the file is at §8's 1000-line cap
-					    (981 physical at 419277e4) and the conversion had to land with the
+				/* A5 c8 (2026-09-29) — THE ONE SHARED BAR. `AdminSearchFilterToolbar` is
+				   deleted from `AdminWorkspace.tsx`; this page was its last consumer, so
+				   there is now no second filter-bar implementation in the codebase. The
+				   four roster filters that sat behind its disclosure are children of the
+				   shared `FilterBar` row, and the one `Reset filters` control is
+				   `FilterBar`'s `onReset` at the end of the same row. */
+				<FilterBar
+					dataTestId="teachers-filter-bar"
+					search={{
+						value: searchQuery,
+						onChange: setSearchQuery,
+						placeholder: 'Search teacher, department, or specialization...',
+						ariaLabel: 'Search teachers by name, department, or specialization',
+					}}
+					onReset={hasActiveFilters ? clearAllFilters : undefined}
+					resetLabel="Reset filters"
+				>					{/* A5 C3 slice B: the four roster filters live in
+					    `components/faculty/FacultyFilterRow.tsx` and sit on the one shared
+					    `@/ui` picker. Two reasons, in order: the file is at §8's 1000-line
+					    cap (981 physical at 419277e4) and the conversion had to land with the
 					    extraction; and the four triggers were `h-10 w-44 text-sm
-					    bg-background` — a control that existed in no other form anywhere in the
-					    product. The `More filters` disclosure around them is untouched. */}
+					    bg-background` — a control that existed in no other form anywhere in
+					    the product. */}
 					<FacultyFilterRow
 						schedulingFilter={schedulingFilter}
 						onSchedulingFilterChange={(v) => setSchedulingFilter(v as typeof schedulingFilter)}
@@ -768,10 +841,8 @@ return (
 						onDepartmentFilterChange={setDepartmentFilter}
 						gradeLevelFilter={gradeLevelFilter}
 						onGradeLevelFilterChange={setGradeLevelFilter}
-						hasActiveFilters={hasActiveFilters}
-						onClearAllFilters={clearAllFilters}
 					/>
-				</AdminSearchFilterToolbar>
+				</FilterBar>
 			)}
 		>
 
@@ -906,13 +977,22 @@ return (
 				onClose={closeWorkloadModal}
 			/>
 
-			{/* Roster review / profile — Fix 23: a centred Dialog, opened in place. */}
+			{/* Roster review / profile — Fix 23: a centred Dialog, opened in place.
+			    A6 c10: it also carries `Teaching permissions` — the switch and the
+			    `Subjects they may also teach` list, which are the only controls in the
+			    product that can create a `CrossDepartmentPermission` outside the moment
+			    a class needs one (Codex audit finding 6; Lane C's "nothing can create
+			    or delete one"). `schoolId` is the ACTOR's, and the sheet takes no
+			    default for it. */}
 			<FacultyProfileSheet
 				faculty={profileTarget}
 				open={profileTarget !== null}
 				onOpenChange={(open) => !open && setProfileTarget(null)}
 				sourceFreshness={profileSourceLabel}
 				reviewLabel={nextTeacherIntent?.label ?? 'Review teaching load'}
+				permissions={null}
+				schoolId={actorSchoolId}
+				onPermissionsChanged={() => { void fetchFaculty({ forceRefresh: true }); }}
 			/>
 
 			{/* Create/Edit Placeholder Modal */}

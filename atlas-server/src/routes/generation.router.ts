@@ -24,6 +24,7 @@ import { generateTeacherProgramDocx } from '../services/docx-export.service.js';
 import { createSchedulerPrintZip, renderSchedulerPrintFiles, type SchedulerPrintProgram } from '../services/scheduler-print.service.js';
 import { getOfficialPrintOptions } from '../services/official-program-docx.service.js';
 import { generateClassProgramMatrix, validateSpecializationVisibility } from '../services/class-program-matrix.service.js';
+import { loadPreferenceAdherenceReport } from '../services/preference-adherence.service.js';
 
 const router = Router();
 
@@ -494,6 +495,60 @@ router.get(
 			if (typeof runId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: runId }); return; }
 
 			const report = await genService.getRunDraft(runId, schoolId, schoolYearId);
+			res.json(report);
+		} catch (e) { next(e); }
+	},
+);
+
+// ─── GET /:schoolId/:schoolYearId/runs/:runId/preference-adherence — were teacher preferences kept? ───
+
+/**
+ * A2 C17. READ-ONLY, and deliberately on THIS router rather than a new top-level
+ * file: it is a question about one run, so it belongs beside the run's other
+ * reads and inherits this file's capability and actor-school gate.
+ *
+ * `hasWorkspaceCapability` is the same gate every neighbouring read uses, and it
+ * calls `assertRequestSchoolScope` — so there is no `parseSchoolId` school-1
+ * default here to copy (the open defect the packet names).
+ *
+ * The term is REQUIRED and is never defaulted to Term 1. `active` resolves
+ * through the verified ordered-term contract and is a documented convenience for
+ * the client's "all terms" view, not a silent assumption; anything else that does
+ * not parse is a typed 400.
+ */
+router.get(
+	'/:schoolId/:schoolYearId/runs/:runId/preference-adherence',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!hasWorkspaceCapability(req, res, 'timetable:read')) return;
+
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+			const runId = positiveInt(req.params.runId, 'runId');
+			if (typeof runId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: runId }); return; }
+
+			const rawTerm = req.query.termIndex;
+			if (rawTerm == null || String(rawTerm).trim() === '') {
+				res.status(400).json({ code: 'TERM_INDEX_REQUIRED', message: `termIndex is required; provide a term 1..${MAX_ACADEMIC_TERM_INDEX}, or "active".` });
+				return;
+			}
+			const requested = String(rawTerm).trim().toLowerCase() === 'active'
+				? 'active' as const
+				: parseSupportedTermIndex(rawTerm);
+			if (requested === null) {
+				res.status(400).json({ code: 'INVALID_TERM_INDEX', message: `termIndex must be 1..${MAX_ACADEMIC_TERM_INDEX}, or "active".` });
+				return;
+			}
+			const termIndex = await resolveRequestedTermIndex(schoolId, schoolYearId, requested);
+			if (termIndex === undefined) {
+				res.status(409).json({ code: 'TERM_AUTHORITY_UNRESOLVED', message: 'The requested term is not inside this school year’s verified ordered terms.' });
+				return;
+			}
+
+			const report = await loadPreferenceAdherenceReport({ runId, schoolId, schoolYearId, termIndex });
 			res.json(report);
 		} catch (e) { next(e); }
 	},

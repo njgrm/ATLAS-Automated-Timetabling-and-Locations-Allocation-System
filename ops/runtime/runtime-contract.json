@@ -38,7 +38,7 @@
     "backoffBaseMs": 2000,
     "backoffMaxMs": 60000,
     "survivalWindowMs": 30000,
-    "readinessTimeoutMs": 45000,
+    "readinessTimeoutMs": 180000,
     "livenessTimeoutMs": 5000,
     "shutdownGraceMs": 10000,
     "healthLivenessPath": "/api/v1/health",

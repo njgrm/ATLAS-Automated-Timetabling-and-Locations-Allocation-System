@@ -2,6 +2,7 @@ import { getDataContext } from '../lib/data-context.js';
 import type { ScheduledEntry } from './constraint-validator.js';
 import { buildCanonicalDisplayGrid, buildSpecialEventSlots, resolveSpecialEventScope, type CanonicalDisplayRow, type CanonicalDisplayWindowScope, type PolicyInput, type ShiftWindowLike } from './schedule-constructor.js';
 import { POLICY_DEFAULTS } from './scheduling-policy.service.js';
+import { gradeNumberOf } from './grade-level-resolver.js';
 import {
 	isTermIndexWithinContract,
 	loadVerifiedOrderedTermContract,
@@ -663,6 +664,7 @@ async function loadReferenceMaps(
 				name: true,
 				gradeLevelId: true,
 				gradeLevelName: true,
+				displayOrder: true,
 				programType: true,
 				programCode: true,
 				programName: true,
@@ -706,7 +708,12 @@ async function loadReferenceMaps(
 		sectionById.set(section.externalId, {
 			atlasId: section.id,
 			name: section.name,
-			gradeLevel: section.gradeLevelId,
+			// A2 c15: the published payload's grade is the REAL grade, resolved
+			// through the one authority (`gradeLevelName`, then `displayOrder`).
+			// It used to be the raw EnrollPro `gradeLevelId`, which reads 1..4
+			// for Grades 7..10 since the 2026-09-28 re-mint. Null means "this
+			// mirror names no real grade" — never a fabricated 1.
+			gradeLevel: gradeNumberOf(section),
 			gradeLevelName: section.gradeLevelName,
 			programType: section.programType,
 			programCode: section.programCode,

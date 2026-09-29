@@ -109,6 +109,19 @@ function subjectTextFor(item: DraftQueueItem, subjects: Map<number, Subject>) {
 	return subject?.name?.trim() || item.subjectCode;
 }
 
+/**
+ * A2 c15 (Lane C truth-fixes 2026-09-29, bullet 5): this panel used to print
+ * `Subj #12` and `Section #9` whenever the section/subject mirrors did not carry
+ * the record. A number is not a name, and a scheduler who cannot read the row
+ * cannot judge it. Every unresolved record is now named in words.
+ *
+ * NOTE: this component is not currently imported anywhere in the client, so
+ * none of it renders today. It is kept truthful so the strings cannot return
+ * when the panel is rewired.
+ */
+const UNKNOWN_SUBJECT = 'Unknown subject';
+const UNKNOWN_SECTION = 'Unknown section';
+
 function queueLabel(item: DraftQueueItem, subjects: Map<number, Subject>) {
 	return `${subjectTextFor(item, subjects)} · ${item.sectionName}${item.cohortCode ? ` · ${item.cohortCode}` : ''} · ${item.sessionNumber}/${item.sessionsPerWeek}`;
 }
@@ -116,7 +129,7 @@ function queueLabel(item: DraftQueueItem, subjects: Map<number, Subject>) {
 function placementLabel(placement: DraftPlacement, sections: Map<number, ExternalSection>, subjects: Map<number, Subject>) {
 	const subject = subjects.get(placement.subjectId);
 	const section = sections.get(placement.sectionId);
-	return `${subject?.code ?? `Subj #${placement.subjectId}`} · ${section?.name ?? `Section #${placement.sectionId}`}`;
+	return `${subject?.code ?? UNKNOWN_SUBJECT} · ${section?.name ?? UNKNOWN_SECTION}`;
 }
 
 function slotKey(slot: PeriodSlot) {
@@ -240,6 +253,15 @@ export default function LockPanel({ schoolId, schoolYearId, sections, subjects, 
 	const pendingSubject = pending ? subjects.get(pending.subjectId) : null;
 	const pendingFaculty = pending ? faculty.get(pending.facultyId) : null;
 	const pendingRoom = pending ? rooms.get(pending.roomId) : null;
+
+	// A2 c15: an unresolved subject or section is fail-closed, not cosmetic. The
+	// record the save would commit against cannot be shown, so the commit is off.
+	const pendingUnresolvedParts = pending
+		? [pendingSubject ? null : 'subject', pendingSection ? null : 'section'].filter((part): part is string => part !== null)
+		: [];
+	const pendingUnresolvedReason = pendingUnresolvedParts.length === 0
+		? null
+		: `Save is off — ATLAS has no record of this ${pendingUnresolvedParts.length > 1 ? `${pendingUnresolvedParts[0]} or ${pendingUnresolvedParts[1]}` : pendingUnresolvedParts[0]}.`;
 
 	const chooseDefaultFaculty = useCallback((item: DraftQueueItem) => {
 		const candidateIds = departmentFilter === 'all'
@@ -544,7 +566,7 @@ export default function LockPanel({ schoolId, schoolYearId, sections, subjects, 
 						<div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
 							<CalendarClock className="size-3 text-primary" />
 							<span className="text-[0.6875rem] font-semibold">
-								{activeSectionId ? sections.get(activeSectionId)?.name ?? `Section #${activeSectionId}` : 'Select a section'}
+								{activeSectionId ? sections.get(activeSectionId)?.name ?? UNKNOWN_SECTION : 'Select a section'}
 							</span>
 						</div>
 						<div className="overflow-x-auto">
@@ -577,7 +599,7 @@ export default function LockPanel({ schoolId, schoolYearId, sections, subjects, 
 																	onClick={() => stagePlacementMove(placement, placement.day, { startTime: placement.startTime, endTime: placement.endTime })}
 																	className="cursor-pointer rounded border border-border bg-muted/40 px-1.5 py-1"
 																>
-																	<div className="truncate text-[0.625rem] font-medium">{subject?.code ?? `Subj #${placement.subjectId}`}</div>
+																	<div className="truncate text-[0.625rem] font-medium">{subject?.code ?? UNKNOWN_SUBJECT}</div>
 																	<div className="truncate text-[0.5625rem] text-muted-foreground">{faculty.get(placement.facultyId ?? 0)?.lastName ?? 'No owner'} · {rooms.get(placement.roomId ?? 0)?.name ?? 'No room'}</div>
 																</div>
 															);
@@ -609,8 +631,8 @@ export default function LockPanel({ schoolId, schoolYearId, sections, subjects, 
 										<div className="flex items-center gap-1.5">
 											<Badge variant="outline" className={`h-4 px-1 text-[0.5rem] ${GRADE_BADGE[pendingSection?.displayOrder ?? 0] ?? ''}`}>G{pendingSection?.displayOrder ?? '—'}</Badge>
 											<div className="min-w-0 flex-1">
-												<div className="truncate text-[0.6875rem] font-medium">{pendingSubject?.code ?? `Subj #${pending.subjectId}`}</div>
-												<div className="truncate text-[0.625rem] text-muted-foreground">{pendingSection?.name ?? `Section #${pending.sectionId}`}{pending.cohortCode ? ` · ${pending.cohortCode}` : ''}</div>
+												<div className="truncate text-[0.6875rem] font-medium">{pendingSubject?.code ?? UNKNOWN_SUBJECT}</div>
+												<div className="truncate text-[0.625rem] text-muted-foreground">{pendingSection?.name ?? UNKNOWN_SECTION}{pending.cohortCode ? ` · ${pending.cohortCode}` : ''}</div>
 											</div>
 										</div>
 										<div className="mt-2 grid grid-cols-2 gap-2">
@@ -689,12 +711,15 @@ export default function LockPanel({ schoolId, schoolYearId, sections, subjects, 
 									)}
 
 									<div className="flex items-center gap-2">
-										<Button size="sm" className="h-8 text-xs" onClick={() => void handleSave()} disabled={saving || previewLoading || !preview || (!preview.allowed && !allowSoftOverride)}>
+										<Button size="sm" className="h-8 text-xs" onClick={() => void handleSave()} disabled={saving || previewLoading || !preview || (!preview.allowed && !allowSoftOverride) || pendingUnresolvedReason !== null}>
 											{saving ? <Loader2 className="mr-1 size-3 animate-spin" /> : <ShieldAlert className="mr-1 size-3" />}Save Draft
 										</Button>
 										<Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => { setPending(null); setPreview(null); setPreviewError(null); setAllowSoftOverride(false); }}>
 											Discard Pending
 										</Button>
+										{pendingUnresolvedReason && (
+											<span className="text-sm text-muted-foreground">{pendingUnresolvedReason}</span>
+										)}
 									</div>
 								</>
 							) : (

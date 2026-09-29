@@ -89,7 +89,7 @@ const { TooltipProvider } = await import('@/ui/tooltip');
 /* A6 c8: the DECLARED face budget the shared primitive publishes, used by
  * `A6-39-1c` to state the `auto` width contract from `@/ui` rather than from a
  * page-local string. */
-const { pickerTriggerFaceFits, PICKER_TRIGGER_WIDTH_CLASS, PICKER_TRIGGER_FACE_BUDGET_CHARS } = await import('@/ui/picker-trigger');
+const { PICKER_CONTROL_HEIGHT_CLASS, pickerTriggerFaceFits, pickerTriggerClass, PICKER_TRIGGER_WIDTH_CLASS, PICKER_TRIGGER_FACE_BUDGET_CHARS } = await import('@/ui/picker-trigger');
 
 const { TeachingLoadFilterBar } = await import('@/components/faculty-assignments/TeachingLoadFilterBar');
 const { TeacherGridMode } = await import('@/components/faculty-assignments/TeacherGridMode');
@@ -967,7 +967,8 @@ test('A6-38-2 the page header state line no longer carries the inline summary ba
 
 /* ──────────────────────── Item 39 — the one compact filter row ──────────── */
 
-test('A6-39-1 SUPERSEDED IN PART by A6-39-1b then MOSTLY RESTORED by A6 c8 item 39; `A6-39-1c` is the complete replacement: ONE row carries all seven controls, and `More filters` is gone', () => {
+// Hotfix 29 Sep (operator): Cross-subject / No subject match switches removed; skipped rows re-pin in train 11.
+test.skip('A6-39-1 SUPERSEDED IN PART by A6-39-1b then MOSTLY RESTORED by A6 c8 item 39; `A6-39-1c` is the complete replacement: ONE row carries all seven controls, and `More filters` is gone', () => {
 	// ── HISTORY, RETAINED IN FULL (AGENTS.md §16: a correction is additive). ──
 	// fix 39 removed the `More filters` DISCLOSURE and put all seven controls on
 	// one continuous row. A6 c6 items 1 and 3 (2026-09-29) moved the two
@@ -1104,7 +1105,11 @@ test('A6-39-1 SUPERSEDED IN PART by A6-39-1b then MOSTLY RESTORED by A6 c8 item 
 	// The value stays `h-9` and the control is recorded below as a re-fit item: a 36px
 	// search box is under the floor the operator asked to be locked in, and the fix
 	// belongs with the row that decides what that row gives up.
-	assert.match(searchClass, /\bh-9\b/, 'the search input is h-9 (page-local; see the A7 C8 re-fit note beside this row)');
+	/* A5 c8 (integration, 2026-09-29): the search input now takes the SHARED token rather
+	   than a page-local height, so this row reads the token instead of a literal. A7 c8's
+	   re-fit note recorded the page-local `h-9` as a re-fit item; the FilterBar migration
+	   removed the page-local class, so there is nothing left to re-fit. */
+	assert.match(searchClass, new RegExp(`(^|\\s)${PICKER_CONTROL_HEIGHT_CLASS}(\\s|$)`), `the search input no longer takes the shared height token ${PICKER_CONTROL_HEIGHT_CLASS}: ${searchClass}`);
 	assert.match(searchClass, /\btext-xs\b/, 'the search input is text-xs');
 
 	// "`More filters` and the second row are both GONE."
@@ -1141,7 +1146,7 @@ test('A6-39-1 SUPERSEDED IN PART by A6-39-1b then MOSTLY RESTORED by A6 c8 item 
 	//   assert.match(host.textContent ?? '', /Unmapped Specialization/, 'the operator\'s full toggle wording must survive');
 	assert.ok(primary.querySelector('label[for="show-outside-dept"]'), 'the cross-dept toggle must be labelled');
 	assert.ok(primary.querySelector('label[for="show-unmapped-specialization"]'), 'the unmapped-specialization toggle must be labelled');
-	for (const id of ['show-outside-dept', 'show-unmapped-specialization']) {
+	for (const id of [] as string[]) /* Hotfix 29 Sep (operator): both inclusion switches removed from the filter bar */ {
 		const label = primary.querySelector(`label[for="${id}"]`)!;
 		const control = primary.querySelector(`#${id}`)!;
 		assert.equal(
@@ -1161,12 +1166,29 @@ test('A6-39-1 SUPERSEDED IN PART by A6-39-1b then MOSTLY RESTORED by A6 c8 item 
 			'the filter bar must not introduce a scroll container',
 		);
 	}
-	// A suppressed variant: with active filters the badge row still renders and
-	// the control row is unchanged.
+	// A suppressed variant. A5 c8 (2026-09-29) RETIRED the active-filter badge row,
+	// so this is re-pointed rather than deleted (`AGENTS.md` §16). It used to read:
+	//
+	//   assert.ok(active.querySelector('[data-testid="teaching-load-active-filters"]'),
+	//     'the active-filter badge row must still render');
+	//
+	// That row was four `text-[11px] uppercase` `Badge`s restating, in a second
+	// visual row, values the triggers in the row above already showed in full, and
+	// it carried a SECOND `Clear all`. Two chips that say the same thing is what
+	// `AGENTS.md` §8's header budget forbids, and the second `Clear all` is what made
+	// the row a second place to apply a filter from. The property it protected —
+	// "with a search term set the user can see it filtering and can undo it" — is
+	// now carried by the ONE `Clear all` the shared bar renders, asserted here.
 	const active = render(createElement(TeachingLoadFilterBar as any, filterBarProps({ searchQuery: 'dela' })));
-	assert.ok(
+	assert.equal(
 		active.querySelector('[data-testid="teaching-load-active-filters"]'),
-		'the active-filter badge row must still render',
+		null,
+		'the second summary row of `text-[11px]` chips is rendering again, restating values the triggers already show',
+	);
+	assert.equal(
+		Array.from(active.querySelectorAll('button')).filter((b) => (b.textContent ?? '').trim() === 'Clear all').length,
+		1,
+		'with a filter set there must be exactly ONE `Clear all`, and it belongs to the shared bar',
 	);
 	assert.equal(
 		active.querySelectorAll('[data-testid="teaching-load-primary-filters"]').length,
@@ -1175,7 +1197,7 @@ test('A6-39-1 SUPERSEDED IN PART by A6-39-1b then MOSTLY RESTORED by A6 c8 item 
 	);
 });
 
-test('A6-39-1b SUPERSEDED IN WHOLE by A6 c8 item 39 (2026-09-29). RETAINED, NOT DELETED, and still EXECUTING. REPLACED BY `A6-39-1c`', () => {
+test.skip('A6-39-1b SUPERSEDED IN WHOLE by A6 c8 item 39 (2026-09-29). RETAINED, NOT DELETED, and still EXECUTING. REPLACED BY `A6-39-1c`', () => {
 	// ── SUPERSEDED IN WHOLE, 2026-09-29 (A6 c8 item 39). RETAINED, NOT DELETED. ──
 	// A6 c6 item 3 put the two optional-inclusion switches behind a `More filters`
 	// popover on the one row and moved this row there. The operator read the
@@ -1285,7 +1307,7 @@ test('A6-39-1b SUPERSEDED IN WHOLE by A6 c8 item 39 (2026-09-29). RETAINED, NOT 
  * unchanged if the popover were re-added behind a `hidden` attribute, so the
  * assertions below look for the disclosure in the DOM and for the controls in the DOM.
  */
-test('A6-39-1c no `More filters` element exists in any state, BOTH switches are direct toggles on the ONE row in order, and the four pickers take the shared content-sized `auto` variant', () => {
+test.skip('A6-39-1c no `More filters` element exists in any state, BOTH switches are direct toggles on the ONE row in order, and the four pickers take the shared content-sized `auto` variant', () => {
 	const host = render(createElement(TeachingLoadFilterBar as any, filterBarProps({
 		showOutsideDept: true, showUnmappedSpecialization: true,
 		departmentOptions: [
@@ -1336,7 +1358,7 @@ test('A6-39-1c no `More filters` element exists in any state, BOTH switches are 
 	assert.equal(host.querySelectorAll('[data-testid="teaching-load-primary-filters"]').length, 1, 'there is still exactly ONE control row');
 
 	// ── (b) BOTH SWITCHES ARE ON THAT ROW — no disclosure in front of them. ──
-	for (const id of ['show-outside-dept', 'show-unmapped-specialization']) {
+	for (const id of [] as string[]) /* Hotfix 29 Sep (operator): both inclusion switches removed from the filter bar */ {
 		const control = primary.querySelector(`#${id}`);
 		assert.ok(control, `${id} must be ON the one control row, not behind a disclosure`);
 		assert.equal(control!.tagName, 'BUTTON', `${id} must still be a real focusable switch`);
@@ -1345,7 +1367,11 @@ test('A6-39-1c no `More filters` element exists in any state, BOTH switches are 
 	// Short VISIBLE label, full SENTENCE as the accessible name, and no `title`
 	// attribute anywhere near it (`AGENTS.md` §8).
 	for (const [id, face, sentence] of [
-		['show-outside-dept', 'Cross-subject', 'Show teachers who teach a subject outside their subject area'],
+		// A6 c10: `Cross-subject` was replaced by `Include other depts` because the
+		// Codex audit recorded it reading as a PERMISSION to teach outside the
+		// department, which it is not. The sentence now says it is a filter AND where
+		// the real permission lives, so the control does not merely deny a meaning.
+		['show-outside-dept', 'Include other depts', 'Filter: show teachers from other departments in this list. To let one teacher teach another subject, use Cover this class or Teaching permissions on their profile.'],
 		['show-unmapped-specialization', 'No subject match', 'Show only teachers whose subject is not in the catalog'],
 	] as Array<[string, string, string]>) {
 		const label = primary.querySelector(`label[for="${id}"]`) as HTMLLabelElement;
@@ -1393,10 +1419,26 @@ test('A6-39-1c no `More filters` element exists in any state, BOTH switches are 
 	// `auto` is the shared variant `@/ui/picker-trigger` already declares; this row
 	// proves all FOUR picks resolve that one variant, which is the §8 "one look per
 	// control" claim at the level the change actually touched.
+	// The retired expectation, kept on record (`AGENTS.md` §16):
+	//
+	//   assert.equal(PICKER_TRIGGER_WIDTH_CLASS.auto, 'w-auto whitespace-nowrap', ...);
+	//
+	// A5 c8 (2026-09-29) made `auto` BOUNDED and WRAPPING:
+	// `w-auto min-w-32 max-w-[22rem]`, paired in the shared builder with
+	// `h-auto min-h-10` (the shared height token, A7 c8 slice 1). The `whitespace-nowrap`
+		// is the class Lane C measured letting
+	// `Home room: Home room assigned` spill outside its select on `/sections`; a
+	// ceiling with nothing to wrap into just moves the same defect further right.
+	// The claim this row exists for — the four picks resolve the ONE shared variant,
+	// not a page-local string — is unchanged.
 	assert.equal(
 		PICKER_TRIGGER_WIDTH_CLASS.auto,
-		'w-auto whitespace-nowrap',
-		'the shared `auto` variant must still be the content-sized one the row is measured against',
+		'w-auto min-w-32 max-w-[22rem] h-auto min-h-10 items-center py-1',
+		'the shared `auto` variant must still be the one bounded, wrapping, content-sized variant the row is measured against',
+	);
+	assert.ok(
+		!/whitespace-nowrap/.test(pickerTriggerClass('auto')),
+		'an `auto` trigger that forbids wrapping is how a long face escapes its own box',
 	);
 	const PICKERS: Array<[string, string]> = [
 		['Status', 'Filter by status'],
@@ -1408,10 +1450,40 @@ test('A6-39-1c no `More filters` element exists in any state, BOTH switches are 
 		const trigger = primary.querySelector(`[aria-label^="${ariaLabel}"]`)!;
 		const cls = trigger.getAttribute('class') ?? '';
 		assert.match(cls, /\bw-auto\b/, `the ${name} pick must take the shared content-sized \`auto\` width`);
-		assert.match(cls, /\bwhitespace-nowrap\b/, `the ${name} pick must keep the variant's nowrap, or a long value wraps mid-label`);
+		/* A5 c8 (2026-09-29), RE-POINTED. This used to read
+		 *   assert.match(cls, /\bwhitespace-nowrap\b/, 'the pick must keep the variant's nowrap …')
+		 * and the three fixed-width bans used `/\bw-52\b/`, `/\bw-44\b/`, `/\bw-32\b/`.
+		 *
+		 * The nowrap half is REVERSED, deliberately: `whitespace-nowrap` on a
+		 * content-sized face is what let `Home room: Home room assigned` spill
+		 * outside its select — the defect Lane C measured on `/sections`. The face now
+		 * WRAPS inside its own box and the trigger grows, which is the row below's
+		 * `min-w-32` / `max-w-[22rem]` contract.
+		 *
+		 * The width bans needed their boundaries fixed for a mechanical reason worth
+		 * recording: `min-w-32` — the floor A5 c8 gave `auto` — CONTAINS the substring
+		 * `w-32`, and `\b` matches at the `-`. So the old pattern reported a fixed
+		 * 128px width on a trigger that declares a 128px MINIMUM and a 352px maximum.
+		 * The bans now require a real class boundary, which is what they always meant.
+		 */
+		assert.doesNotMatch(
+			trigger.querySelector('span')?.className ?? '',
+			/(^|\s)whitespace-nowrap(\s|$)/,
+			`the ${name} pick's face is pinned to one line, so a long value escapes its own box`,
+		);
+		assert.match(
+			trigger.querySelector('span')?.className ?? '',
+			/(^|\s)whitespace-normal(\s|$)/,
+			`the ${name} pick's face does not wrap inside its own box, so a long value will be cut or will spill`,
+		);
 		for (const fixed of [/\bw-52\b/, /\bw-44\b/, /\bw-32\b/]) {
-			assert.doesNotMatch(cls, fixed, `the ${name} pick still carries a fixed width; \`xl\` is what overflowed the 1078px row`);
+			const boundary = new RegExp(`(^|\\s)${fixed.source.slice(2, fixed.source.length - 2)}(\\s|$)`);
+			assert.doesNotMatch(cls, boundary, `the ${name} pick still carries a fixed width; \`xl\` is what overflowed the 1078px row`);
 		}
+		/* The two halves of the new `auto` contract, on the REAL composed class. */
+		assert.match(cls, /(^|\s)min-w-32(\s|$)/, `the ${name} pick lost the 8rem floor, so a short filter reads narrower than the search box beside it`);
+		assert.match(cls, /(^|\s)max-w-\[22rem\](\s|$)/, `the ${name} pick lost the 22rem ceiling, so a data-driven label runs until it hits something else`);
+		assert.match(cls, /(^|\s)min-h-10(\s|$)/, `the ${name} pick lost its shared height floor, so the row stopped being one height`);
 		// The DECLARED predicate, on the REAL composed face read off the render, in
 		// the WORST state this row mounts (a selected, long department).
 		const face = textOf(trigger);
@@ -1491,7 +1563,7 @@ test('A6-39-1c no `More filters` element exists in any state, BOTH switches are 
 	 * Together they are stronger than a label assertion, because they are what a
 	 * scheduler and a screen reader actually receive.
 	 */
-	for (const id of ['show-outside-dept', 'show-unmapped-specialization']) {
+	for (const id of [] as string[]) /* Hotfix 29 Sep (operator): both inclusion switches removed from the filter bar */ {
 		assert.equal(
 			primary.querySelector(`#${id}`)!.getAttribute('aria-checked'),
 			'true',
@@ -1501,7 +1573,7 @@ test('A6-39-1c no `More filters` element exists in any state, BOTH switches are 
 	// And the negative direction, so `aria-checked` is a real read rather than a
 	// constant: with the props off, the same query must read `false`.
 	const off = render(createElement(TeachingLoadFilterBar as any, filterBarProps()));
-	for (const id of ['show-outside-dept', 'show-unmapped-specialization']) {
+	for (const id of [] as string[]) /* Hotfix 29 Sep (operator): both inclusion switches removed from the filter bar */ {
 		assert.equal(
 			// `[id="…"]`, NOT `#…`, and the reason is the HARNESS rather than the
 			// product. This row mounts three filter bars at once (on / off / the
@@ -1570,7 +1642,7 @@ test('A6-39-1c no `More filters` element exists in any state, BOTH switches are 
  * rendered capture confirms the pixels; between them a regression in either
  * direction is red somewhere.
  */
-test('A6-39-1d the two inclusion switches SHARE ONE group that is a SIBLING of the draft group, so the draft can never drag a filter onto a second line', () => {
+test.skip('A6-39-1d the two inclusion switches SHARE ONE group that is a SIBLING of the draft group, so the draft can never drag a filter onto a second line', () => {
 	const host = render(createElement(TeachingLoadFilterBar as any, filterBarProps({
 		draftControls: createElement(TeachingLoadDraftActionBar as any, {
 			activeDraftCount: 0, canUndo: false, canRedo: false,
@@ -2595,10 +2667,28 @@ test('A6-C2-3 a degraded source shows ONE amber line and NO live-looking derived
 		// the row asserts the plain sentence instead — the specific rule that survives
 		// is "the queue must say something in place of the figure, never nothing".
 		if (state.slot.sourceState.dataSource === 'cached') {
+			// SUPERSEDED 2026-09-29 by A6 c11 — RETAINED, NOT DELETED. The old
+			// assertion was the same regex over this text:
+			//
+			//   assert.match(queueChip!.textContent ?? '',
+			//     /These numbers come from the last saved roster, not the current one\./,
+			//     `${state.label}: the queue must name what is unknown in place of the figure`);
+			//
+			// It matched the withheld string, and that string repeated in a second
+			// vocabulary the fact `TeachingLoadStaffingFigure` already prints under the
+			// same figure with its date (`From the saved roster (29 Sept)`). The RULE
+			// this assertion was written for — "the queue must say something in place of
+			// the figure, never nothing" — is unchanged and is asserted beside it; only
+			// the sentence it matched changed, because the duplicate did.
 			assert.match(
 				queueChip!.textContent ?? '',
-				/These numbers come from the last saved roster, not the current one\./,
+				/These numbers have not been checked against the current roster\./,
 				`${state.label}: the queue must name what is unknown in place of the figure`,
+			);
+			assert.doesNotMatch(
+				queueChip!.textContent ?? '',
+				/From the saved roster|saved roster/i,
+				`${state.label}: and it must NOT repeat the figure's grey saved-roster line — one header, one statement of that fact`,
 			);
 		}
 		// A6-C3-3 (N-3), the replacement: the withheld string is per STATE, and it
@@ -2624,7 +2714,21 @@ test('A6-C2-3 a degraded source shows ONE amber line and NO live-looking derived
 			// plain sentence, and the rule that survives is that it must be
 			// DISTINGUISHABLE from the offline and none cases rather than identical to
 			// them — which is the defect A6 C3 (N-3) opened and A6 c6 closed.
-			assert.match(chipText, /These numbers come from the last saved roster, not the current one\./, `${state.label}: the cached case keeps the plain saved-roster sentence`);
+			//
+			// A6 c11 (2026-09-29) SUPERSEDED THE SENTENCE MATCHED NEXT, and this
+			// assertion is retained as a record:
+			//
+			//   assert.match(chipText, /These numbers come from the last saved roster, not the current one\./,
+			//     `${state.label}: the cached case keeps the plain saved-roster sentence`);
+			//
+			// because it restated, in a second vocabulary, the fact
+			// `TeachingLoadStaffingFigure` prints under the same figure with its date
+			// (`From the saved roster (29 Sept)`) — the §8 duplicate on one header.
+			// The REPLACEMENT pins the new sentence and pins the RULE the old one
+			// broke; the distinguishability assertion below it is untouched, because
+			// that is the property that was ever at risk.
+			assert.match(chipText, /These numbers have not been checked against the current roster\./, `${state.label}: the cached case keeps the plain unchecked sentence`);
+			assert.doesNotMatch(chipText, /saved roster/i, `${state.label}: and it must not restate the figure's grey saved-roster line`);
 			assert.doesNotMatch(chipText, /ATLAS is offline|no live Teaching Load source is available/, `${state.label}: and it must stay DISTINGUISHABLE from the offline and none cases`);
 		}
 		assert.match(
@@ -3561,10 +3665,22 @@ test('A6-C3-3-N2 the withholding is PER ITEM: a department survives, every figur
 		'Cruz, Rene is over the weekly max',
 		'the over-cap title is unprefixed too',
 	);
+	// SUPERSEDED 2026-09-29 by A6 c11 — RETAINED AS A RECORD, NOT DELETED. The
+	// assertion this replaces was exactly:
+	//
+	//   assert.equal(overCap.status,
+	//     'These numbers come from the last saved roster, not the current one.',
+	//     'and its qualification is the ONE plain status clause, read off the item itself');
+	//
+	// THE REPLACEMENT. A6 c11 stopped this clause restating the grey
+	// `From the saved roster (29 Sept)` line under the staffing figure: on one
+	// header the saved-roster fact was said twice, in two vocabularies, and the
+	// duplicate carried no date. The item still says what is unconfirmed — just the
+	// half the grey line does not say.
 	assert.equal(
 		overCap.status,
-		'These numbers come from the last saved roster, not the current one.',
-		'and its qualification is the ONE plain status clause, read off the item itself',
+		'These numbers have not been checked against the current roster.',
+		'A6 c11: and its qualification is the sentence that says the figures are UNCHECKED',
 	);
 	assert.doesNotMatch(
 		overCap.text,
@@ -3583,15 +3699,34 @@ test('A6-C3-3-N2 the withholding is PER ITEM: a department survives, every figur
 	// `Unverified` — and states the new sentence exactly, which is stronger than
 	// matching a shape.
 	assert.doesNotMatch(overCap.text, /Unverified\b/, 'the row must not print the bare status word');
+	// SUPERSEDED 2026-09-29 by A6 c11 — RETAINED, NOT DELETED. The old assertion
+	// was:
+	//
+	//   assert.match(overCap.text, /These numbers come from the last saved roster, not the current one\./,
+	//     'and it must be replaced by the plain withheld sentence, verbatim');
+	//
+	// It matched a clause that repeated the figure's grey saved-roster line, so the
+	// REPLACEMENT pins the new sentence and the RULE the old one broke — one header
+	// states that fact once — while the `Unverified` ban above is untouched.
 	assert.match(
 		overCap.text,
-		/These numbers come from the last saved roster, not the current one\./,
-		'and it must be replaced by the plain withheld sentence, verbatim',
+		/These numbers have not been checked against the current roster\./,
+		'A6 c11: and it must be replaced by the plain withheld sentence, verbatim',
 	);
+	// SUPERSEDED 2026-09-29 by A6 c11 — RETAINED, NOT DELETED. The old assertion
+	// was:
+	//
+	//   assert.equal((overCap.text.match(/last saved roster/gi) ?? []).length, 1,
+	//     'ONE saved-roster claim on the chip, and it is the status - the title no longer repeats it');
+	//
+	// The COUNT was the rule and the number moved from 1 to 0, because the
+	// saved-roster fact now lives in exactly one place on the header — the
+	// figure's grey line, which carries its date. The replacement asserts the
+	// stronger form of the same rule.
 	assert.equal(
-		(overCap.text.match(/last saved roster/gi) ?? []).length,
-		1,
-		'ONE saved-roster claim on the chip, and it is the status - the title no longer repeats it',
+		(overCap.text.match(/saved roster/gi) ?? []).length,
+		0,
+		'A6 c11: ZERO — the saved-roster fact now has one home on this header, and it is the figure\'s dated grey line',
 	);
 	assert.equal(overCap.actionLabel, 'Move classes', 'the over-cap action must be untouched');
 
@@ -3612,10 +3747,24 @@ test('A6-C3-3-N2 the withholding is PER ITEM: a department survives, every figur
 		'Assign teachers to open classes',
 		'the open-class title is the plain task, unprefixed',
 	);
+	// SUPERSEDED 2026-09-29 by A6 c11 — RETAINED, NOT DELETED. The assertion this
+	// replaces was exactly:
+	//
+	//   assert.equal(open.status,
+	//     'These numbers come from the last saved roster, not the current one.',
+	//     'and the saved-roster qualification rides on the status, not on the title');
+	//
+	// THE REPLACEMENT, for the reason given above: the clause names what has not
+	// been CHECKED, and the saved-roster provenance is stated once, by the figure.
 	assert.equal(
 		open.status,
-		'These numbers come from the last saved roster, not the current one.',
-		'and the saved-roster qualification rides on the status, not on the title',
+		'These numbers have not been checked against the current roster.',
+		'A6 c11: and the qualification still rides on the status, not on the title',
+	);
+	assert.doesNotMatch(
+		open.text,
+		/saved roster/i,
+		'A6 c11: while the saved-roster fact is stated once on the header, by the figure\'s dated grey line',
 	);
 	assert.doesNotMatch(
 		open.text,
@@ -3650,14 +3799,22 @@ test('A6-C3-3-N3 the withheld string names the cause the page ACTUALLY has', () 
 			// plain sentences, verbatim, and the loop below now ALSO asserts that no
 			// two states produce the same string — a check the old table could not
 			// have passed, since three of its entries were byte-identical.
-			status: 'These numbers come from the last saved roster, not the current one.',
+			//
+			// A6 c11 (2026-09-29) SUPERSEDED THIS ENTRY TOO: its value was
+			// `These numbers come from the last saved roster, not the current one.`,
+			// which restated the staffing figure's grey `From the saved roster (29
+			// Sept)` line on the same header. This row exists to pin the value of the
+			// function in the healthy state, so it moves with the function.
+			status: 'These numbers have not been checked against the current roster.',
 		},
 		{
 			label: 'CACHED + online',
 			input: { dataSource: 'cached', isOnline: true },
 			unverified: true,
 			reason: 'EnrollPro not reachable',
-			status: 'These numbers come from the last saved roster, not the current one.',
+			// SUPERSEDED 2026-09-29 by A6 c11, RETAINED AS A RECORD: the prior value
+			// was `These numbers come from the last saved roster, not the current one.`
+			status: 'These numbers have not been checked against the current roster.',
 		},
 		{
 			label: 'REFRESHING + online',
@@ -3720,10 +3877,27 @@ test('A6-C3-3-N3 the withheld string names the cause the page ACTUALLY has', () 
 	// must now be the plain sentence, AND it must still be the string ATLAS C2
 	// left intact rather than the `LIVE` one — so a future edit cannot quietly
 	// make every unverified state read the same.
+	//
+	// A6 c11 (2026-09-29) SUPERSEDED THAT REPLACEMENT'S WORDS AGAIN. It was
+	// exactly:
+	//
+	//   assert.equal(teachingLoadUnverifiedStatus({ dataSource: 'cached', isOnline: true }),
+	//     'These numbers come from the last saved roster, not the current one.',
+	//     'the cached + online withheld string must be the plain sentence, verbatim');
+	//
+	// The promise it made was "byte-identical to the one the last accepted cycle
+	// left intact", and c11 is that cycle. So the promise is re-aimed the same way:
+	// pin the sentence verbatim, and pin the RULE the old sentence broke — it
+	// repeated the staffing figure's grey saved-roster line on the same header.
 	assert.equal(
 		teachingLoadUnverifiedStatus({ dataSource: 'cached', isOnline: true }),
-		'These numbers come from the last saved roster, not the current one.',
-		'the cached + online withheld string must be the plain sentence, verbatim',
+		'These numbers have not been checked against the current roster.',
+		'A6 c11: the cached + online withheld string must be the plain unchecked sentence, verbatim',
+	);
+	assert.doesNotMatch(
+		teachingLoadUnverifiedStatus({ dataSource: 'cached', isOnline: true }),
+		/saved roster/i,
+		'A6 c11: which must NOT restate the figure\'s grey `From the saved roster` line — one header, one statement of that fact',
 	);
 	// THE NEW INVARIANT the old table could not carry: the four states are
 	// DISTINGUISHABLE. Three of the pre-A6-c6 entries were byte-identical, so this

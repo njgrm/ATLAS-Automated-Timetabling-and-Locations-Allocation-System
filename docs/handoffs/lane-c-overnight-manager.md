@@ -251,3 +251,57 @@ medium) then GO. After live: Sync now (reconcile) with operator → ids 3/20/33 
   steps, planner 400; rules: checkpoint commits, never revert uncommitted work, staging sign-in only via
   `/__dev/staging-login`, UX regressions block, ux-audit.js in every proof, `test:encoding`. Stop Codex only with
   `scratchpad/codex-stop.ps1`.
+
+## Session checkpoint — 2026-09-29 21:51 (Lane C, before compaction)
+
+**Live:** `cd542245` (train 10) since 19:52, verified by served chunk `index-BdvkYd2N.js`; rollback `e75d6b8f`. Health 200.
+Backups today: `D:/ATLAS-runtime-config/backups/pre-term1-confirm-20260929/` and `pre-drill-20260929/` (nothing was
+written for Term 1: it is already verified from EnrollPro). Live has draft Run 347 (2023-2024 Term 1, 910/920 placed).
+Checklist artifact v4 "Train 10": https://claude.ai/artifact/EQ6Zas4FD6GZHpu29TwjVv (source `scratchpad/atlas-fix-docs-qa.html`,
+builder `scratchpad/t10artifact.py`).
+
+**Operator rulings tonight (standing):** receipts rule (walk standard); presentation over function; no imposed freezes;
+walk baseline = caused or worsened by the train; Generate is never greyed out (A8 c5); **Class Schedule is the top
+priority after the current planners** — tabs stay, **Expert view retired**, baseline = relaxed header `3e894d0e`, one
+vocabulary (Generate → Draft → Published; "Planning" tab → "Draft"), one owner (A7) for its layout/words, proposal
+before code (operator reviews A7's per-tab proposal; show it to the operator when posted). ATLAS must propose placements
+for unplaced classes (A8 r1). Rollover still paused.
+
+**Running planners:** A2 c15 (grades), A2 c17 (preferences kept, both pages), A2 mc (swap stall, lock, place, preview;
+behaviour only), A3 p1 (Preferences Save — demo blocker), A3 c17 (teachers.docx 5 + profile), A5 c8 (+c8b chained: row
+menus), A6 c10r2 (cover flow; preview port must be 5200-5299), A7 c10b (calm timetable, proposal first; session
+`ses_f129d4df5ffeeTjrs5rghfXyZm`), A8 c5 (never-disabled Generate + receipt), A8 g1 (spread classes across days; HIGH),
+A8 r1 (placement proposals; HIGH), A9 c8 (Dashboard "could not check"), A9 m1 (campus map background). On main for
+train 11: A3 c16, A7 c8, A7 c9, A8 c4, A9 c7. Train 11 proposal: cut when A3 p1 + A5 c8 land (~22:30); the calm
+timetable follows. A4 release session id must be in its STAGING post; GO resume uses it with a numbered cutover prompt.
+
+**Open Codex jobs:** `codex-qa/tt-walk-a` then `tt-walk-b` (timetable component walk, read-only) — feed findings into
+`docs/prompts/timetable-calm-2026-09-29.md` for A7. Remaining drill rows not yet exercised: Grade/Section/Room and Excel
+exports, Expert/Advanced rules/Tutorial/Refresh (rerun after A2 mc lands). Preference test waits for A3 p1.
+
+**Tooling fixed tonight:** await.sh waits for runs not yet started; start-preview refuses ports outside 5200-5299; agents
+deny edits to D:/ATLAS; workflow-metrics records the train 10 cutover incident. Watchers: reaper, monitor, A7 proposal
+watcher (`scratchpad/await-a7-proposal.sh`).
+
+## Session checkpoint — 2026-09-30 00:12 +08 (Lane C, before compaction)
+**Live:** `8d98628d` (hotfixes: EnrollPro null active-term tolerated; Teaching Load header without Past years/switches +
+Show other subjects; suggestion apply 30 s; readiness budget 180 s). Tailnet serves `index-BfzPMwrg.js`. Active year
+**2025-2026** (EnrollPro id 4, mirror 632), context enrollpro-verified, terms cached; EnrollPro active-term = null,
+ATLAS picks T3 (atlas-unverified). Rollback basis `9462d82d` (`lane-a4-hotfix-term-prod`).
+**Train 11:** re-pinned to `bc94b10b` (adds A3 c17 profile, A5 c8 one filter bar, 63714b1f switches stay removed,
+Teaching Load verifyUpstream 176ff936, A3 p1 Preferences Save). A4 session `ses_f124d3556ffeD2leYFPJ6zt4RN`, run
+`a4-t11b` building staging; it must post STAGING RE-PIN with a staging account that opens /teaching-load and /timetable.
+Next: Codex walk in short jobs on 127.0.0.1:5274 incl. the new ROLLOVER row, then GO (numbered cutover, verify Tailnet chunk).
+**Blocker #1 for the demo:** live /timetable Generate disabled for 2025-2026 — 82 items, all on special-program sections
+(STE Bonifacio/Makatao/Rose/Silver, SPS Daisy, Jade): ~65 "A scheduling rule needs a decision" → Open Year Setup,
+15 "could not be placed" (GR7 Bonifacio STE), 5 "teacher at their limit" (STE_RESEARCH, STE_APPLIED_PHYS, SCI_BIO).
+Read-out: `docs/handoffs/tt-blockers-2526-live-readout.md`. The gate exists since 9e280369 (11 Sep). Owner:
+`a8-ds-unblock` (DeepSeek) — TRUE/FALSE per cause, fix FALSE, plain action for TRUE; watcher `await-a8-unblock.sh`
+fires on its post "A8 -> Lane C, unblock" (show the list to the operator). Suspect: mirror syncStatus
+`setup-review-required` never clears. A8 c5 (Generate never greyed out) still running on its branch.
+**A7:** `a7-ds-c11` (DeepSeek) — Step 0 per-tab proposal only; show the operator before header code. Tooltip slice
+aec13de2 on work/a7-c10-calm pushed, QA pending. DeepSeek agents live in ~/.config/opencode/agents (-ds, -ds-delegate).
+**Running:** a4-t11b, a7-ds-c11, a8-ds-unblock, a2-mc, a2-c16, a8-g1 (+ a8-c5, a3-c17 finished/landed?). Stopped by
+operator: A5 c8 (landed), A9 m1 (branch work/a9-m1-campus-background pushed) → train 12 fresh cycles.
+**Standing:** docs/plans/operator-decisions.md (locked calls); workflow changes in workflow-metrics.md (30 Sep 00:0x);
+launch.ps1 cap 6 / 6 GB commit (-Force for A4); DeepSeek credit watcher ds-quota-watch.sh; one fix per cycle.

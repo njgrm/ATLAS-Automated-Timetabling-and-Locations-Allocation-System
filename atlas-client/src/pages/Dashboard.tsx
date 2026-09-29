@@ -17,6 +17,7 @@ import { Button } from '@/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import { useDashboardData, type DashboardDerivedDemandState, type DashboardReadinessSourceState, type LifecyclePhase } from '@/hooks/useDashboardData';
+import { teachingRoomsFigure, teachingRoomsStatusLine, teachingRoomTotals } from '@/lib/teaching-room-readiness';
 import type { RolloverStatus } from '@/lib/settings';
 import { ReadinessCard } from '@/components/dashboard/ReadinessCard';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
@@ -33,6 +34,8 @@ interface StatTile {
 	icon: typeof BookOpen;
 	tone: StatTone;
 	warn?: boolean;
+	/** A9 c8 (F1) — the read is still in flight: no tick, no warning colour, no claim. */
+	pending?: boolean;
 	href: string;
 	actionLabel: string;
 }
@@ -461,6 +464,18 @@ export function ActiveTermHardViolationsRow(props: { count: number | null }) {
 	);
 }
 
+/**
+ * A9 c8 R1 (QA F-A) — WHAT A TILE MAY PRINT.
+ *
+ * The rule itself lives in `@/lib/dashboard-figure` (`dashboardFigure`), because the campus
+ * panel needs it too and a page cannot be imported by a component the page imports. It is
+ * re-exported here under the name the four tiles call, so a reader of this file does not have
+ * to go looking for it.
+ */
+import { dashboardFigure } from '@/lib/dashboard-figure';
+
+export const dashboardTileValue = dashboardFigure;
+
 export default function Dashboard() {
 	const [rolloverStatus, setRolloverStatus] = useState<RolloverStatus | null>(null);
 	const rolloverAligned = rolloverStatus?.drift.status === 'aligned';
@@ -468,12 +483,12 @@ export default function Dashboard() {
 
 	const {
 		loading, actorScopeBlocked, actorSchoolId, buildings, campusImageUrl, subjectCount, facultyCount, sectionCount,
-		unassignedSubjectCount, missingCoverageSubjectIds, buildingSetupStatus, teachingRoomCount,
-		totalRoomCount, activeSchoolYearLabel, activeTerm, activeTermPublished,
+		unassignedSubjectCount, missingCoverageSubjectIds, buildingSetupStatus,
+		activeSchoolYearLabel, activeTerm, activeTermPublished,
 		activeTermUnassignedCount, runWideHardViolationCount, runWideSoftViolationCount,
 		latestRunStatus,
 		assignedCount, unassignedCount, derivedDemand,
-		lifecyclePhase, readinessSourceState, readinessSourceMessage, refreshDashboard, retryActorScope,
+		lifecyclePhase, readinessSourceState, readinessSourceMessage, readinessPending, refreshDashboard, retryActorScope,
 		domainAvailability, dataSource,
 	} = useDashboardData();
 
@@ -482,17 +497,43 @@ export default function Dashboard() {
 	const degraded = readinessSourceState === 'partial_degraded';
 	const degradedTitle = dataSource === 'cached' ? 'Showing saved data' : 'Some checks are unavailable';
 
+	// A9 c8 (F1) — THE THREE ANSWERS A LINE MAY GIVE, decided once.
+	//
+	// `reading`  — the readiness read has not answered. The line may not claim anything,
+	//              so it says it is reading, in the source chip's own words.
+	// `unread`   — the read answered and this domain failed. The only state that earns
+	//              "Unavailable" and the only one that earns "could not check" below.
+	// otherwise  — the read answered with a value.
+	//
+	// Before this, `!domainAvailability.x` was true while the request was still in flight,
+	// so the four tiles printed "Enrollment unavailable / Unavailable / Synced from
+	// EnrollPro" for a working system — the same defect as the readiness header, one region
+	// over, and the reason four amber tiles appeared before any page had finished loading.
+	const reading = readinessPending;
+	const unread = (available: boolean) => !reading && !available;
+	const readingLabel = SOURCE_CHIP_COPY.checking_source;
+
 	const next = pickNextStep({
 		phase: lifecyclePhase, subjectCount, facultyCount, sectionCount,
 		unassignedSubjectCount, missingCoverageSubjectIds, buildingsDone: buildingSetupStatus.done,
 		latestRunStatus, hardViolationCount: runWideHardViolationCount, softViolationCount: runWideSoftViolationCount, derivedDemand, degraded,
 	});
 
+	// A9 c8 (F3) — ONE room figure, from ONE room list, through the definition `/map` uses.
+	// It replaces `teachingRoomCount/totalRoomCount`, which printed `78/103`: 78 TEACHING
+	// rooms over 103 rooms in the school, a fraction across two populations that read as
+	// "78 of 103 are ready" beside the Campus page's `78 of 78 teaching rooms are ready`.
+	const teachingRooms = teachingRoomTotals(buildings);
+
 	const stats: StatTile[] = [
-		{ label: 'Sections', value: loading ? '\u2026' : !domainAvailability.sections || sectionCount === null ? '\u2014' : `${sectionCount}`, footer: !domainAvailability.sections || sectionCount === null ? 'Enrollment unavailable' : activeSchoolYearLabel ? `S.Y. ${activeSchoolYearLabel}` : 'Active school year', icon: GraduationCap, tone: 'violet', warn: !domainAvailability.sections || sectionCount === null, href: '/sections', actionLabel: 'Check sections' },
-		{ label: 'Subjects', value: loading ? '\u2026' : !domainAvailability.subjects ? '\u2014' : `${subjectCount ?? 0}`, footer: !domainAvailability.subjects ? 'Unavailable' : 'Subject catalog loaded', icon: BookOpen, tone: 'brand', warn: !domainAvailability.subjects, href: '/subjects', actionLabel: 'Review subjects' },
-		{ label: 'Teachers', value: loading ? '\u2026' : !domainAvailability.faculty ? '\u2014' : `${facultyCount ?? 0}`, footer: !domainAvailability.faculty ? 'Unavailable' : 'Synced from EnrollPro', icon: UserCheck, tone: 'sky', warn: !domainAvailability.faculty, href: '/teachers', actionLabel: 'Review teachers' },
-		{ label: 'Teaching Rooms', value: loading ? '\u2026' : !domainAvailability.campus ? '\u2014' : `${teachingRoomCount}/${totalRoomCount}`, footer: !domainAvailability.campus ? 'Unavailable' : buildingSetupStatus.done ? 'Ready for placement' : 'Some rooms unmarked', icon: Building2, tone: !domainAvailability.campus ? 'amber' : buildingSetupStatus.done ? 'brand' : 'amber', warn: !domainAvailability.campus || (!buildingSetupStatus.done && !loading), href: '/map', actionLabel: 'Check rooms' },
+		{ label: 'Sections', value: dashboardTileValue({ loading, reading, available: domainAvailability.sections, measured: sectionCount }), footer: reading ? readingLabel : unread(domainAvailability.sections) || sectionCount === null ? 'Enrollment unavailable' : activeSchoolYearLabel ? `S.Y. ${activeSchoolYearLabel}` : 'Active school year', icon: GraduationCap, tone: 'violet', warn: !reading && (unread(domainAvailability.sections) || sectionCount === null), pending: reading, href: '/sections', actionLabel: 'Check sections' },
+		{ label: 'Subjects', value: dashboardTileValue({ loading, reading, available: domainAvailability.subjects, measured: subjectCount }), footer: reading ? readingLabel : unread(domainAvailability.subjects) ? 'Unavailable' : 'Subject catalog loaded', icon: BookOpen, tone: 'brand', warn: !reading && unread(domainAvailability.subjects), pending: reading, href: '/subjects', actionLabel: 'Review subjects' },
+		{ label: 'Teachers', value: dashboardTileValue({ loading, reading, available: domainAvailability.faculty, measured: facultyCount }), footer: reading ? readingLabel : unread(domainAvailability.faculty) ? 'Unavailable' : 'Synced from EnrollPro', icon: UserCheck, tone: 'sky', warn: !reading && unread(domainAvailability.faculty), pending: reading, href: '/teachers', actionLabel: 'Review teachers' },
+		// The room tile prints the Campus page's OWN figure and words. It is not a new
+		// control and not a new panel: same tile, same label, same link, one honest fraction.
+		// Its `measured` is computed unconditionally and gated by the SAME rule as the other
+		// three — A9 c8 R1: `0 of 0` from an empty room list is not a school with no rooms.
+		{ label: 'Teaching Rooms', value: dashboardTileValue({ loading, reading, available: domainAvailability.campus, measured: teachingRoomsFigure(teachingRooms) }), footer: reading ? readingLabel : unread(domainAvailability.campus) ? 'Unavailable' : teachingRoomsStatusLine(teachingRooms), icon: Building2, tone: unread(domainAvailability.campus) || (teachingRooms.ready < teachingRooms.teaching && !reading) ? 'amber' : 'brand', warn: !reading && (unread(domainAvailability.campus) || teachingRooms.ready < teachingRooms.teaching), pending: reading, href: '/map', actionLabel: 'Check rooms' },
 	];
 
 	// UX-C01 — derived-demand authority, in operator order: EnrollPro structure,
@@ -600,10 +641,10 @@ export default function Dashboard() {
 										{activeTerm?.activeTerm && (
 											<Popover>
 												<PopoverTrigger asChild>
-													<Badge
-														className='border-white/20 bg-white/20 text-white font-semibold gap-1.5 px-2.5 py-1.5 rounded-full cursor-pointer hover:bg-white/30'
-														data-testid='dashboard-active-term'
-													>
+											<Badge
+													className='h-7 gap-1.5 rounded-full border-white/20 bg-white/20 px-2.5 font-semibold text-white cursor-pointer hover:bg-white/30'
+													data-testid='dashboard-active-term'
+												>
 														Active Term: {activeTerm.activeTerm}
 													</Badge>
 												</PopoverTrigger>
@@ -639,7 +680,7 @@ export default function Dashboard() {
 										<Popover>
 											<PopoverTrigger asChild>
 												<Badge
-													className='border-white/20 bg-white/20 text-white font-semibold gap-1.5 px-2.5 py-1.5 rounded-full cursor-pointer hover:bg-white/30'
+													className='h-7 gap-1.5 rounded-full border-white/20 bg-white/20 px-2.5 font-semibold text-white cursor-pointer hover:bg-white/30'
 													data-testid='dashboard-source-health-panel'
 													data-source-decision={readinessSourceState}
 												>
@@ -763,19 +804,28 @@ export default function Dashboard() {
 												</div>
 											</div>
 											<div className='mt-auto pt-4 space-y-2 text-sm'>
-												<div className='flex items-center gap-1.5'>
-													{stat.warn ? (
-														<>
-															<AlertTriangle className='w-4 h-4 text-amber-500' />
-															<span className='font-medium text-amber-600'>{stat.footer}</span>
-														</>
-													) : (
-														<>
-															<CheckCircle2 className={`w-4 h-4 ${tone.footer}`} />
-															<span className={`font-medium ${tone.footer}`}>{stat.footer}</span>
-														</>
-													)}
-												</div>
+												{/* A9 c8 (F1) — while the read is in flight the footer claims NOTHING. A
+												    green tick beside "Checking source" asserts the data is good and an
+												    amber triangle asserts it is bad; the data has not arrived. The four
+												    tiles must not also answer in four different colours for one status
+												    (§8 one status per fact): neutral grey, no icon, same words on all. */}
+												{stat.pending ? (
+													<span className='font-medium text-muted-foreground'>{stat.footer}</span>
+												) : (
+													<div className='flex items-center gap-1.5'>
+														{stat.warn ? (
+															<>
+																<AlertTriangle className='w-4 h-4 text-amber-500' />
+																<span className='font-medium text-amber-600'>{stat.footer}</span>
+															</>
+														) : (
+															<>
+																<CheckCircle2 className={`w-4 h-4 ${tone.footer}`} />
+																<span className={`font-medium ${tone.footer}`}>{stat.footer}</span>
+															</>
+														)}
+													</div>
+												)}
 												<span className='inline-flex items-center gap-1 text-xs font-semibold text-primary'>
 													{stat.actionLabel}
 													<ChevronRight className='w-3.5 h-3.5' />
@@ -788,7 +838,28 @@ export default function Dashboard() {
 						})}
 					</div>
 
-					{/* Main Content Grid */}
+					{/* Main Content Grid.
+
+					    A9 c8 (F1) — WHILE THE READ IS IN FLIGHT THERE IS NO NEXT STEP, so the
+					    next-step card is not rendered and the readiness card takes the row on
+					    its own. `pickNextStep` over null inputs returns "Add subjects" — a real
+					    instruction, pointing at a page that shows 21 subjects, because nothing
+					    has been read yet. Publishing an ACTION from a pending read is the same
+					    defect as publishing a COUNT from it, one region over, and it is the
+					    button a demo-day scheduler is most likely to press.
+
+					    This is subtraction, not a new state: one card instead of two, one
+					    sentence instead of a title, a body, a button, a count and nine
+					    unresolved rows. */}
+					{reading ? (
+						<ReadinessCard
+							rows={checklist}
+							generationAvailable={domainAvailability.generation}
+							hardViolationCount={runWideHardViolationCount}
+							softViolationCount={runWideSoftViolationCount}
+							pending
+						/>
+					) : (
 					<div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
 						<div className='lg:col-span-2 space-y-6'>
 							{/* Next step */}
@@ -843,25 +914,31 @@ export default function Dashboard() {
 
 					{/* Setup readiness is `components/dashboard/ReadinessCard.tsx`,
 					    extracted when this file crossed the AGENTS.md 1000-physical-line
-					    cap. Three states: done, outstanding, and unresolved (a read that
-					    never arrived — not outstanding work). See its doc comment. */}
-					<ReadinessCard
-						rows={checklist}
-						generationAvailable={domainAvailability.generation}
-						hardViolationCount={runWideHardViolationCount}
-						softViolationCount={runWideSoftViolationCount}
-					/>
+					    cap. Three states: done, outstanding, and unresolved — and A9 c8 adds
+					    the fourth, a PENDING read, which is none of the three. See its doc
+					    comment. The retry belongs here: it is the only state that earns
+					    "could not check", so it is the only state that needs one. */}
+				<ReadinessCard
+					rows={checklist}
+					generationAvailable={domainAvailability.generation}
+					hardViolationCount={runWideHardViolationCount}
+					softViolationCount={runWideSoftViolationCount}
+					onRetry={refreshDashboard}
+				/>
 					</div>
+					)}
 
 
-					{/* Campus Map & Rooms – full-width */}
+					{/* Campus Map & Rooms – full-width. The room COUNTS are not passed in:
+					    A9 c8 (F3) retired the `teachingRoomCount/totalRoomCount` props, because a
+					    Dashboard that is handed a room total can only print a fraction across two
+					    populations. The panel derives the one honest figure itself, from the same
+					    `buildings` list, through the definition `/map` renders from. */}
 					<Suspense fallback={<Card><CardContent className='p-6 text-sm text-muted-foreground'>Loading campus map…</CardContent></Card>}>
 						<CampusReadinessCard
 							loading={loading}
 							buildings={buildings}
 							campusImageUrl={campusImageUrl}
-							teachingRoomCount={teachingRoomCount}
-							totalRoomCount={totalRoomCount}
 							setupStatus={buildingSetupStatus}
 						/>
 					</Suspense>

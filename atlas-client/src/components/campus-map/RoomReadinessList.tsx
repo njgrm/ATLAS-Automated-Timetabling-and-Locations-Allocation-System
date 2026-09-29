@@ -354,12 +354,63 @@ export function buildRoomProblemGroups(rooms: RoomWithBuilding[]): RoomProblemGr
 	return groups.sort((a, b) => b.problems.length - a.problems.length || a.buildingName.localeCompare(b.buildingName));
 }
 
-/** How many rooms across the page need something, and how many buildings carry them. */
-export function roomProblemSummary(groups: RoomProblemGroup[]): { rooms: number; buildings: number } {
-	return {
-		rooms: groups.reduce((total, group) => total + group.problems.length, 0),
-		buildings: groups.length,
-	};
+/**
+ * WHAT THE SUMMARY LINE COUNTS, and what it says.
+ *
+ * A9 c8 (2026-09-29). The live screen printed "0 rooms need something fixed, in 1
+ * building" while a building sat there with no teaching room at all, and it printed "58
+ * rooms need something fixed, in 7 buildings" on a page whose own banner reported 78 of 78
+ * teaching rooms ready. Both halves of that sentence were wrong, in the same direction:
+ *
+ *  · `rooms` counted EVERY `needs-*` status, and `needs-section` — "no section in the
+ *    latest draft" — is a timetable fact, not a room defect. The same screen counts those
+ *    rooms as READY in the banner, because A9 C3 deliberately keeps `needs-section` out of
+ *    the readiness figure. A room cannot be both ready and needing something fixed.
+ *  · a building whose rooms are all `unavailable` (a store room, a lobby) has ZERO problem
+ *    rooms, so the ROOM count was 0 for the one defect that blocks every placement in it.
+ *
+ * So the count is now the rooms that are genuinely broken — `needs-capacity` and
+ * `needs-room-type` — and the buildings that cannot hold a class are counted as buildings,
+ * in their own words, because they have no broken ROOM to count. The region still lists
+ * every group, keeps the per-building consequence and the one fix, and
+ * `buildRoomProblemGroups` is UNCHANGED: this is what the LINE says, not what the region
+ * measures.
+ */
+export function roomProblemSummary(groups: RoomProblemGroup[]): { rooms: number; buildings: number; buildingsWithoutTeachingRooms: number } {
+	let rooms = 0;
+	let buildingsWithoutTeachingRooms = 0;
+	for (const group of groups) {
+		rooms += group.problems.filter((problem) => problem.status === 'needs-capacity' || problem.status === 'needs-room-type').length;
+		if (group.teachingRooms === 0) buildingsWithoutTeachingRooms += 1;
+	}
+	return { rooms, buildings: groups.length, buildingsWithoutTeachingRooms };
+}
+
+/**
+ * THE SUMMARY SENTENCE, as a pure function so a control decides the exact wording instead
+ * of grepping the JSX (`a3-c4-home-room-truth.test.ts` exists because a suite once passed
+ * while the JSX said otherwise).
+ *
+ * It can never say "0 rooms need something fixed" while a building has no room to fix:
+ * a building with no teaching room is named in its own clause, and when it is the only
+ * problem it is the WHOLE sentence.
+ */
+export function roomProblemSummarySentence(groups: RoomProblemGroup[]): string {
+	const summary = roomProblemSummary(groups);
+	if (groups.length === 0) return 'Every teaching room is ready to be used for classes.';
+	const emptyClause = summary.buildingsWithoutTeachingRooms > 0
+		? `${summary.buildingsWithoutTeachingRooms} ${summary.buildingsWithoutTeachingRooms === 1 ? 'building has' : 'buildings have'} no room marked for classes`
+		: null;
+	if (summary.rooms === 0) {
+		return emptyClause === null
+			? 'Every teaching room is ready to be used for classes.'
+			: `${emptyClause}.`;
+	}
+	const roomsClause = `${summary.rooms} ${summary.rooms === 1 ? 'room needs' : 'rooms need'} something fixed`;
+	if (emptyClause === null) {
+		return `${roomsClause}, in ${summary.buildings} ${summary.buildings === 1 ? 'building' : 'buildings'}.`;
+	}
+	return `${roomsClause}, and ${emptyClause}.`;
 }
 
 export function RoomReadinessList({ buildings, roomOccupancy, compact = false }: RoomReadinessListProps) {
@@ -370,7 +421,6 @@ export function RoomReadinessList({ buildings, roomOccupancy, compact = false }:
 	// The problems region is built from the DECLARATION order and keeps its own worst-first
 	// sort; the natural order below is applied to a COPY, afterwards, for the full list only.
 	const groups = buildRoomProblemGroups(rooms);
-	const summary = roomProblemSummary(groups);
 	const counts = roomReadinessCounts(rooms);
 	const visibleRooms = rooms.filter((entry) => roomMatchesFilter(entry.status, filter)).sort(compareRoomNamesNatural);
 
@@ -385,9 +435,7 @@ export function RoomReadinessList({ buildings, roomOccupancy, compact = false }:
 					<p className="mt-1 text-xs text-muted-foreground" data-testid="room-readiness-summary">
 						{rooms.length === 0
 							? 'No rooms yet. Open Edit maps to add the first teaching room.'
-							: groups.length === 0
-								? 'Every teaching room is ready to be used for classes.'
-								: `${summary.rooms} ${summary.rooms === 1 ? 'room needs' : 'rooms need'} something fixed, in ${summary.buildings} ${summary.buildings === 1 ? 'building' : 'buildings'}.`}
+							: roomProblemSummarySentence(groups)}
 					</p>
 				</div>
 			</div>

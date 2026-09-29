@@ -25,11 +25,19 @@ import { splitSubjectFeatures, subjectFeatureHelp, ownerDepartmentRead } from '.
 import { ProgramScopeChips } from './ProgramScopeChips';
 import { SUBJECT_ACTION_CELL_Z, SUBJECT_ACTION_COLUMN_WIDTH_CLASS } from './subject-action-column';
 import type { Subject, SubjectCoverageRow } from '@/types';
+import type { SubjectCoverageVerdict } from '@/components/subjects/subjects-coverage-truth';
 
 interface SubjectRowProps {
 	subject: Subject;
 	timeMode: 'minutes' | 'hours';
 	coverageRow?: SubjectCoverageRow;
+	/**
+	 * A6 c10 — the page's shared coverage verdict, when it has resolved one. It
+	 * OVERRIDES the server's `status` for the words this row prints, because
+	 * `status: FULL` means "every class has an owner" and a to-be-hired record is
+	 * an owner. Absent, the row keeps the server's own answer.
+	 */
+	coverageVerdictBySubjectId?: Map<number, SubjectCoverageVerdict> | null;
 	onEdit: (subject: Subject) => void;
 	onDelete: (subject: Subject) => void;
 	onArchive: (subject: Subject) => void;
@@ -41,6 +49,7 @@ export function SubjectRow({
 	subject,
 	timeMode,
 	coverageRow,
+	coverageVerdictBySubjectId,
 	onEdit,
 	onDelete,
 	onArchive,
@@ -130,6 +139,22 @@ export function SubjectRow({
 	const isPartialCoverage = coverageStatus === 'PARTIAL';
 	const isZeroCoverage = coverageStatus === 'ZERO';
 
+	/*
+	 * A6 c10 — THE VERDICT, WHEN THE PAGE HAS ONE.
+	 *
+	 * `isFullCoverage` reads the server's own `status === 'FULL'`, which says a
+	 * subject's classes all have an OWNER — and a to-be-hired record is an owner.
+	 * That is how `/subjects` printed a green "Full coverage" on every row while
+	 * `/teaching-load` said 72 classes still need a real teacher, on the same data
+	 * (Codex audit, 2026-09-29, finding 7). `coverageVerdict` is the page's shared
+	 * decision, built from the roster's own `isPlaceholder` flag; when it is present
+	 * it OVERRIDES the server's `status` for the words this row prints, and when it
+	 * is absent (the read has not resolved) the row keeps the server's own answer
+	 * rather than inventing one.
+	 */
+	const coverageVerdict = coverageVerdictBySubjectId?.get(subject.id) ?? null;
+	const effectivelyFull = coverageVerdict ? coverageVerdict.fullyCoveredByRealTeachers : isFullCoverage;
+
 	/**
 	 * A6 c8 / operator fix 2.17.1: the sentence the deleted info icon used to carry.
 	 *
@@ -139,9 +164,11 @@ export function SubjectRow({
 	 * it, it is a button that opens the window, and saying so is the difference
 	 * between a status and an affordance. These are the packet's two exact strings.
 	 */
-	const coverageHelp = hasMissingCoverage
-		? `${coverageRow?.uncoveredSectionCount} section${coverageRow?.uncoveredSectionCount === 1 ? '' : 's'} still need a teacher. Click to see which.`
-		: 'All required sections have a teacher assigned.';
+	const coverageHelp = coverageVerdict && !coverageVerdict.fullyCoveredByRealTeachers
+		? `${coverageVerdict.openClassCount} of this subject's classes have no real teacher. Click to see which.`
+		: hasMissingCoverage
+			? `${coverageRow?.uncoveredSectionCount} section${coverageRow?.uncoveredSectionCount === 1 ? '' : 's'} still need a teacher. Click to see which.`
+			: 'All required sections have a teacher assigned.';
 
 	return (
 		<tr className="border-b last:border-0 hover:bg-muted/30 transition-colors group">
@@ -318,11 +345,28 @@ export function SubjectRow({
 								aria-label={coverageHelp}
 								onClick={() => onShowCoverage(subject)}
 							>
-								{isFullCoverage ? (
-									<Badge variant="outline" className="text-xs font-bold bg-emerald-50 text-emerald-700 border-emerald-200 shadow-none" aria-label={`${subject.name} has full section coverage`}>
-										Full coverage
-									</Badge>
-								) : isPartialCoverage ? (
+							{coverageVerdict && !coverageVerdict.fullyCoveredByRealTeachers ? (
+								/*
+								 * A6 c10 — THE HONEST CELL. The server's `status` says
+								 * "FULL" because every class has an owner, and a to-be-hired
+								 * record is an owner; the Codex audit's finding 7 is this cell
+								 * reading "Full coverage" over 50 placeholder-held classes. The
+								 * row now prints what is actually true, in the shared
+								 * verdict's own words, in the SAME amber the partial cell uses
+								 * — one warning look on one page.
+								 */
+								<Badge
+									variant="outline"
+									className="text-xs font-bold bg-amber-50 text-amber-700 border-amber-200 shadow-none"
+									aria-label={`${subject.name}: ${coverageVerdict.openClassCount} of its classes have no real teacher`}
+								>
+									{coverageVerdict.openClassCount === 1 ? 'No real teacher' : `${coverageVerdict.openClassCount} need a real teacher`}
+								</Badge>
+							) : isFullCoverage ? (
+								<Badge variant="outline" className="text-xs font-bold bg-emerald-50 text-emerald-700 border-emerald-200 shadow-none" aria-label={`${subject.name} has full section coverage`}>
+									Full coverage
+								</Badge>
+							) : isPartialCoverage ? (
 									<Badge variant="outline" className="text-xs font-bold bg-amber-50 text-amber-700 border-amber-200 shadow-none" aria-label={`${subject.name} has partial section coverage`}>
 										{coverageRow.ownedSectionCount}/{coverageRow.relevantSectionCount} covered
 									</Badge>

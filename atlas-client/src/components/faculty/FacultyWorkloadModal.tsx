@@ -107,13 +107,31 @@ export function FacultyWorkloadModal({
 				 * action (`components/faculty/FacultyRowActions.tsx`) is a DATA
 				 * surface: a weekly-load table the scheduler reads across, so it takes
 				 * the shared dialog's default `resizable` handling rather than a
-				 * local one. The only bounds kept here are the ones that are this
-				 * surface's own (`sm:max-w-2xl`, its own height cap, its own
-				 * `overflow-hidden` + internal scroll). The clamps and the drag
-				 * handles come from `@/ui/dialog`.
+				 * local one. The clamps and the drag handles come from `@/ui/dialog`.
+				 *
+				 * A3 c17 row 7 — THE LOCAL WIDTH CAP IS GONE, and it was the reason
+				 * this dialog did not resize while Profile and Subjects coverage
+				 * did. `sm:max-w-2xl` is a `max-width`, and CSS resolves
+				 * `max-width` against the drag handler's inline `style.width` LAST:
+				 * every leftward drag computed a new width and the box clamped back
+				 * to 672px, so the handle moved and nothing did. The right-hand
+				 * handle was worse — it sat on the edge the text occupied, so
+				 * dragging it selected text instead of resizing.
+				 *
+				 * What governs now is the shared primitive's own
+				 * `DIALOG_RESIZABLE_CLASSES` (`min-w-[min(480px,95vw)] max-w-[95vw]`),
+				 * which is the same bound every other resizable dialog in the app
+				 * obeys (AGENTS.md §8, one look per control). No local `style`
+				 * width, no local resize class and no local grip is added here:
+				 * a second width authority on this surface is what broke it.
+				 *
+				 * This surface's own `max-h-[85svh]` and its
+				 * `overflow-hidden flex flex-col p-0` stay — the inspector below
+				 * owns the internal scroll, so the page behind never grows a
+				 * scrollbar.
 				 */
 				resizable
-				className="sm:max-w-2xl max-h-[85svh] overflow-hidden flex flex-col p-0"
+				className="max-h-[85svh] overflow-hidden flex flex-col p-0"
 				data-testid="faculty-workload-modal"
 			>
 				<DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">

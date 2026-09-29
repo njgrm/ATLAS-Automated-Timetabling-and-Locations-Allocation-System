@@ -172,7 +172,11 @@ test('A9-C3-C3b: a building with nothing wrong is not listed at all', () => {
 	// "Building D — 20 of 20 ready" would be a second copy of the banner's own figure.
 	const groups = groupsFor([building(4, 'Building D', [room({ id: 40, name: 'Room 401' }), room({ id: 41, name: 'Room 402' })])]);
 	assert.deepEqual(groups, [], 'a healthy building was listed among the problems');
-	assert.deepEqual(roomProblemSummary(groups), { rooms: 0, buildings: 0 });
+	// A9 c8 (2026-09-29): `roomProblemSummary` gained a third field — the count of buildings
+	// with no teaching room, which is what lets the summary line name the Annex instead of
+	// reporting "0 rooms". The two original numbers are unchanged for this fixture (no
+	// groups, so nothing to count); the contract is pinned in `a9-c8-dashboard-truth.test.ts`.
+	assert.deepEqual(roomProblemSummary(groups), { rooms: 0, buildings: 0, buildingsWithoutTeachingRooms: 0 });
 });
 
 test('A9-C3-C3c: the worst building is first, and every problem room is still named', () => {

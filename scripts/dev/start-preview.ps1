@@ -1,7 +1,7 @@
 # Starts an atlas-client vite preview fully detached, so a planner's shell call returns.
 # Start-Process in any form keeps an opencode shell call open on Windows (2026-09-29); Win32_Process Create does not.
 # The preview always proxies to STAGING (AGENTS.md section 5). Usage:
-#   powershell -File scripts/dev/start-preview.ps1 -ClientDir <worktree>\atlas-client -Port 5399
+#   powershell -File scripts/dev/start-preview.ps1 -ClientDir <worktree>\atlas-client -Port 5230
 param([Parameter(Mandatory)][string]$ClientDir, [Parameter(Mandatory)][int]$Port)
 $out = Join-Path $env:TEMP "atlas-preview-$Port.log"
 # A6 c8 (2026-09-29): `VITE_ATLAS_API` is the axios BASE URL (`atlas-client/src/lib/api.ts`:
@@ -18,6 +18,8 @@ $out = Join-Path $env:TEMP "atlas-preview-$Port.log"
 # staging and never at the live 5001. Never drop the port or point this at 5001 (AGENTS.md section 5).
 # A4 train 9 (2026-09-29): a busy port answered 200 from ANOTHER lane's preview, so this reported READY while its own
 # vite had exited with "Port already in use". Refuse a busy port up front and require vite's own ready line in the log.
+# Staging CORS allows only 5200-5299 (atlas-staging.env CORS_EXTRA_ORIGINS); a port outside it signs in, then every API call is CORS-blocked (A6 c10, 2026-09-29).
+if ($Port -lt 5200 -or $Port -gt 5299) { "PORT_OUT_OF_RANGE ${Port}: staging CORS allows only 5200-5299; pick a free port there"; exit 3 }
 if (Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue) { "PORT_BUSY $Port is already in use by another preview; pick a free port in 5200-5299"; exit 2 }
 $apiBase = "http://127.0.0.1:5101/api/v1"
 $cl = "cmd /c `"cd /d $ClientDir && set VITE_ATLAS_API=$apiBase&& node node_modules/vite/bin/vite.js --port $Port --strictPort --host 127.0.0.1 > $out 2>&1`""

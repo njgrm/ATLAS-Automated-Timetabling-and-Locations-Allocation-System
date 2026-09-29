@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Group, Layer, Rect, Stage, Text } from 'react-konva';
-import { Move, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
-
+/* A9 c8 (2026-09-29): the toolbar's `100%` ZOOM readout is GONE, and this is the whole
+   point of removing it. It is a percentage with no denominator a scheduler can check,
+   printed on the Dashboard directly above a building whose panel said "0 teaching rooms
+   ready" — so a readiness percentage and a readiness sentence said opposite things in the
+   same panel, and the older the reader, the more the bare `100%` reads as "everything is
+   fine". A zoom control does not need a number: the three buttons say what they do, and
+   "Reset view" is the way back to the fit. `AGENTS.md` §11 rule 3 — subtraction, not a
+   new control to explain the old one. The same toolbar serves `/map`, so the label is
+   gone there too rather than left as a Dashboard-only variant (§8 one look per control). */
+import { RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 import type { Building } from '@/types';
 import { MAP_DEFAULT_STROKE, MAP_SELECTED_STROKE, getPrimaryCanvasColor } from '@/components/campus-map/campusMapPalette';
 import { Button } from '@/ui/button';
@@ -163,12 +171,8 @@ export function CampusMapCanvasPreview({
 									<RotateCcw className="size-4" />
 								</Button>
 							</TooltipTrigger>
-							<TooltipContent>Reset view</TooltipContent>
-						</Tooltip>
-						<div className="flex h-8 items-center gap-1 border-l border-slate-200 pl-2 pr-1 text-xs font-semibold text-muted-foreground">
-							<Move className="size-3.5" />
-							{Math.round(zoom * 100)}%
-						</div>
+						<TooltipContent>Reset view</TooltipContent>
+					</Tooltip>
 					</div>
 				</TooltipProvider>
 			)}

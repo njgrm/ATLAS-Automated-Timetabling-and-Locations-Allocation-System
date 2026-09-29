@@ -19,3 +19,18 @@ A2 c15/c17; merge origin/main before each slice. Receipts rule applies (`docs/pl
    and the Schedule history line in the same words.
 Proof: staging, real generated draft, 1366x768: screenshots of each; `ux-audit.js` 0 MAJOR; `test:encoding` green.
 Commit and push wip every 30 min.
+
+## Addendum 20:38 — live drill pass 3 (BLOCKERs for the demo)
+6. **Swap stalls:** More > Swap sessions, pick TLE (7-Rizal, Mon 6:00) and SCIENCE (same section, Mon 8:15): the dialog stays
+   on "Checking options..." with Swap disabled indefinitely. A swap of two classes of the same section must answer within a
+   few seconds (or say plainly why not), then save, with Undo and Redo working and Schedule history listing it.
+7. **Lock/pin is not reachable** from the normal selected-class actions; make "Lock this class" visible on a selected class,
+   show what locked looks like, and that Generate keeps it ("Locked classes kept 1").
+8. **Place session** for an unplaced class offered no candidate and no words; say "No free time: every time double-books
+   <teacher> or <room>" and offer the nearest swap.
+9. Print from Room Schedules ("Print this schedule") did not open a print view within the wait; check it opens promptly.
+
+## Addendum (operator, 21:50) — behaviour only
+The Class Schedule header, tabs and panel wording now have one owner (A7 c10, `timetable-calm-2026-09-29.md` CORRECTION).
+A2 mc fixes behaviour (swap stall, lock, place, preview speed, readiness counts from one source) and adds NO control,
+banner or sentence to the header. Where a receipt is needed, return the data; A7 decides where and how it shows.

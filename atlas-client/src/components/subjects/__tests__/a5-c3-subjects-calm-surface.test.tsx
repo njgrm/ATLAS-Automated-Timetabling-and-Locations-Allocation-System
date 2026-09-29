@@ -30,6 +30,7 @@ import { test } from 'node:test';
 import { act } from 'react';
 import type { Root } from 'react-dom/client';
 import { JSDOM } from 'jsdom';
+import { PICKER_CONTROL_HEIGHT_CLASS, PICKER_CONTROL_MIN_HEIGHT_CLASS } from '@/ui/picker-trigger';
 
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://localhost/subjects' });
 Object.assign(globalThis, {
@@ -381,10 +382,7 @@ test('A5-C3-A1b: the five triggers carry ONE width variant, and the search input
 			widths: triggers.map((t) => /(^|\s)(w-[\w-]+)/.exec(t.className)?.[2] ?? 'NONE'),
 			heights: triggers.map((t) => /(^|\s)(h-[\w-]+)/.exec(t.className)?.[2] ?? 'NONE'),
 			classes: triggers.map((t) => t.className),
-			// RE-PINNED BY A7 C8 SLICE 1 (2026-09-29): the shared height token moved
-			// h-9 -> h-10 (36px -> 40px). The CLAIM is unchanged: the search box and all
-			// five triggers still share ONE height token.
-			withSharedHeight: triggers.filter((t) => /(^|\s)h-10(?:\s|$)/.test(t.className)).length,
+			withSharedHeight: triggers.filter((t) => new RegExp(`(^|\\s)${PICKER_CONTROL_MIN_HEIGHT_CLASS}(?:\\s|$)`).test(t.className)).length,
 			searchClass: search?.className ?? 'NO_SEARCH_INPUT',
 		};
 	});
@@ -404,16 +402,32 @@ test('A5-C3-A1b: the five triggers carry ONE width variant, and the search input
 		'a trigger carries more than one width class, so its rendered width is ambiguous',
 	);
 	/* R1 J3: the search box and the triggers must share the height TOKEN, not two
-	 * hand-matched literals. */
-	// RE-PINNED BY A7 C8 SLICE 1: h-9 -> h-10, same claim, see the note above.
-	assert.match(seen.searchClass, /(^|\s)h-10(\s|$)/, `the search input no longer uses the shared height token: ${seen.searchClass}`);
+	 * hand-matched literals.
+	 *
+	 * A5 c8 (2026-09-29), RE-POINTED ON THE TRIGGER HALF ONLY. The search input still
+	 * takes `PICKER_CONTROL_HEIGHT_CLASS` verbatim and is asserted as such
+	 * below. The TRIGGERS now compose `h-auto min-h-9`: the shared `auto` variant
+	 * pairs a bounded, content-sized width with a trigger that WRAPS rather than
+	 * clipping, and `min-h-9` is the shared 36px floor it grows from. `whitespace-
+	 * nowrap` is gone from the same variant, which is what let a long face run past
+	 * its own border — the defect Lane C measured on `/sections`. The property this
+	 * row exists for is unchanged and is still asserted: every control on the row has
+	 * the same MINIMUM height, and the search box's height is the shared token rather
+	 * than a literal typed here. */
+	assert.match(seen.searchClass, new RegExp(`(^|\\s)${PICKER_CONTROL_HEIGHT_CLASS}(\\s|$)`), `the search input no longer uses the shared height token: ${seen.searchClass}`);
 	seen.heights.forEach((height, index) => {
-		assert.equal(height, 'h-10', `trigger ${index} does not use the shared height token: ${seen.classes[index]}`);
+		assert.equal(height, 'h-auto', `trigger ${index} does not use the shared growing height: ${seen.classes[index]}`);
 	});
+	for (const [index, cls] of seen.classes.entries()) {
+		assert.ok(
+			new RegExp(`(^|\\s)${PICKER_CONTROL_MIN_HEIGHT_CLASS}(\\s|$)`).test(cls),
+			`trigger ${index} lost the shared 36px floor, so the row is no longer one height: ${cls}`,
+		);
+	}
 	assert.equal(
 		seen.withSharedHeight,
 		5,
-		'every trigger must carry the shared height, with no competing height left in the class list',
+		'every trigger must carry the shared 36px floor, with no competing height left in the class list',
 	);
 });
 

@@ -84,3 +84,36 @@ Chrome cannot reach staging's loopback origin, one prompt quoted a stale number,
 "A4 release train N"); Lane C's GO resume uses that id and a numbered cutover prompt (record live-state, dry run,
 -Execute, verify served chunk, rollback, post); Lane C verifies the served chunk itself. Walk prompts never quote expected
 figures. The baseline rule is "caused or worsened by the train".
+
+## Hotfix #2 false "live" — 2026-09-29 22:35 +08 (Lane C)
+Lane C told the operator hotfix f4d34c75 was live after seeing the new chunk on :5174 mid-cutover; the supervisor then
+rolled it back (readiness 45 s budget, ~80 s cold start under memory pressure). **Standing fixes:** Lane C says "live" only
+after A4's LIVE post AND the Tailnet URL (https://njgrm.buru-degree.ts.net/) serves the new chunk; readiness budget is
+now 180 s (8d98628d / 029e5425).
+
+## Workflow changes after the 29 Sep night — 30 Sep 00:02 +08 (Lane C, operator asked)
+What went wrong tonight and the standing change for each (all in force now):
+1. **Operator decisions got undone by merges** (A5 c8 restored the Teaching Load switches). → `docs/plans/operator-decisions.md`
+   is the locked list; planners read it before every merge; each row has a guard test.
+2. **Too many planners at once** (10 running, 56/61 GB committed, a deploy failed its 45 s start). → `launch.ps1` refuses a
+   launch at 6 running planners or under 6 GB free commit (`-Force` only for A4 deploys); readiness budget 180 s.
+3. **Long multi-fix sessions drift and stop early** (~35 of 121 runs needed a relaunch). → **one fix per planner cycle for
+   every lane**, not only A7; the prompt names ONE deliverable and ends with an at-most-8-line report.
+4. **Stale facts in prompts** (A8 unblock was briefed on 2024-2025 minutes before a rollover to 2025-2026). → Lane C
+   re-checks year, term and live SHA with `ctx.cjs`/`term.cjs` immediately before every launch and writes them in the prompt.
+5. **"Live" claimed before it was** (hotfix #2). → live = A4 LIVE post + the Tailnet URL serves the new chunk.
+6. **Agent config silently ignored** (project `.opencode/agents` never applied; the D:/ATLAS write-deny never worked; a
+   DeepSeek launch ran on gpt-5.6-sol). → the global `~/.config/opencode/agents` is the source of truth; every launch
+   checks the run header shows the intended model; `rootchk` in status.sh stays the only D:/ATLAS guard.
+7. **Rollover paths were never walked** (terms contract, setup-review-required, special-program blockers all surfaced
+   only when the operator rolled over live). → every train walk gets a rollover row: fresh year on staging, Generate
+   enabled, setup/terms/Teaching Load verified, no false blocker.
+8. **Model split.** A7 (Class Schedule) and hard diagnosis (A8 unblock) run on DeepSeek V4.1 Flash; bounded
+   server/deploy work stays on space-bunny; Codex walks are the QA signal of record; planner self-QA is advisory.
+
+### Rule 9 (30 Sep 00:25) - re-check the live year before relaying any planner finding
+Incident: Lane C relayed A8's "live is on 2025-2026, EnrollPro drifted to 2026-2027" to the operator; A8's restore
+predated the operator's 00:05 rollover, and live was already aligned on 2026-2027. Before relaying a finding that names
+a year, term or live state, run `ctx.cjs` (verifyUpstream) and state the time of the planner's data next to it.
+Staging sign-in note: `/__dev/staging-login` exists only on a `vite` dev preview (e.g. :5277 over the :5101 API), not on
+the built staging server :5274.

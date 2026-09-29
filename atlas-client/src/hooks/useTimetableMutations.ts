@@ -14,6 +14,10 @@ import { resolvePublicationActionIntent } from '@/lib/publication-approval-actio
 // A2-UX-WIRE-C2 (item 5, #58): the ONE outcome message for one generation.
 import { generationOutcomeToastSentence } from '@/lib/timetable-plain-language';
 import { buildEditReceipt, receiptClassLabel } from '@/lib/timetable-edit-receipt';
+import {
+	formatFacultyDisplayName,
+	isPlaceholderSentinelName,
+} from '@/components/faculty/teacherNameDisplay';
 // A2-TIMETABLE-CUSTODY-R2: `deriveRedoAfterRevert` is retained (the accepted
 // wiring assertion in `timetable-dynamic-workspace-undo-redo.test.ts:112` still
 // holds) and is now reached only through `assessRedoAfterRevert`, which refuses a
@@ -695,7 +699,29 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		})) {
 			setPendingFacultyIssuePivot({
 				facultyId: target.facultyId,
-				teacherLabel: `${canonicalFaculty.lastName}, ${canonicalFaculty.firstName}`.trim().replace(/^,\s*/, ''),
+				// A3 C17 C1. This label is TRANSIENT UI STATE — it lands in
+				// `useState` and is read by exactly one consumer,
+				// `TimetableFacultyIssuePivotDialog`, as a dialog title
+				// ("Open <label>'s schedule?"). It is NOT written to any API
+				// payload, persisted record or audit row, so routing it through the
+				// shared display contract changes what a person READS and nothing
+				// about what is STORED — which is the line this change is not
+				// allowed to cross.
+				//
+				// Verified rather than assumed: `teacherLabel` appears in
+				// `useScheduleReviewWorkspaceState.ts` (the `useState` declaration
+				// and the close handler), `ScheduleReviewWorkspace.tsx` (a prop
+				// pass-through), this file, and the dialog — and in no request
+				// body, no `atlasApi` call and no audit payload anywhere in
+				// `atlas-client/src`.
+				//
+				// The trim/repair below is preserved for the real-teacher path, whose
+				// output stays byte-identical to today's.
+				teacherLabel: (isPlaceholderSentinelName(canonicalFaculty)
+					? formatFacultyDisplayName(canonicalFaculty)
+					: `${canonicalFaculty.lastName}, ${canonicalFaculty.firstName}`)
+					.trim()
+					.replace(/^,\s*/, ''),
 				violation: v,
 				entry: target.entry,
 			});

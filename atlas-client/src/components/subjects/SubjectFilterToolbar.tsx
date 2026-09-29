@@ -1,8 +1,6 @@
 import { ALL_ROOM_TYPES, GRADE_OPTIONS, PROGRAM_SCOPE_OPTIONS, ROOM_TYPE_LABELS } from '@/lib/subject-constants';
-import { Button } from '@/ui/button';
 import { FilterPicker } from '@/ui/filter-picker';
-import { PICKER_CONTROL_HEIGHT_CLASS } from '@/ui/picker-trigger';
-import { AdminSearchFilterToolbar } from '@/components/admin-workspace/AdminWorkspace';
+import { FilterBar } from '@/ui/filter-bar';
 import { TERM_FILTER_ALL, type TermFilterOption } from './subject-term-filter';
 import { gradeLabel } from '@/lib/grade-labels';
 import type { RoomType } from '@/types';
@@ -216,162 +214,179 @@ export function SubjectFilterToolbar({
 	// scheduler had to open, and §11 rule 4 counts controls a scheduler must
 	// find, not controls on screen.
 	//
-	// `filtersOpen` / `onToggleFilters`, DELIBERATELY (A5 C7). The shared
-	// `AdminSearchFilterToolbar` still requires both, and they exist only for ITS
-	// disclosure — a control this page no longer renders. Passing this page's old
-	// disclosure state would be a lie, and passing a real `useState` would keep a
-	// value nothing reads. So both are passed inert (`false` / a no-op): with
-	// `primaryFilterCount={1}` and exactly ONE child (the cluster) the shared
-	// component's `overflowChildren` is empty, and its `More filters` button and
-	// overflow panel are both guarded on that being non-empty, so neither renders.
-	// That is why no stray disclosure appears and `AdminWorkspace.tsx` — another
-	// lane's file — needs no change. The browser capture is the check; this
-	// comment is the reason to expect it.
+	// A5 C7's INERT-PROPS PARAGRAPH IS GONE WITH THE PROPS IT DESCRIBED (A5 c8,
+	// 2026-09-29). It recorded why `filtersOpen={false}` and `onToggleFilters={() => {}}`
+	// were passed to `AdminSearchFilterToolbar` to keep ITS disclosure from
+	// rendering. That component is deleted, so there is nothing left to keep off and
+	// the paragraph would have been an instruction to re-add a lie. The rule it
+	// reached for still holds and is now satisfied structurally rather than by
+	// argument: there is one bar implementation in the codebase, and it has no
+	// disclosure to switch off.
+	//
+	// A5 c8 (2026-09-29) — THE LAYOUT NOTE, BEFORE THE JSX. It supersedes the
+	// A5 C7 note above only where it described a workaround; the reasoning about
+	// `auto` below is unchanged and still load-bearing.
+	//
+	//   WHAT THE OPERATOR WANTS NOW. Lane C's sweep filed a MAJOR against this
+	//   page's `More filters` disclosure, and the operator's own ruling is
+	//   "we want filters to be shown instantly". A5 C7 had already moved the three
+	//   concealed filters into the row; what remained was the SHELL — a second
+	//   filter-bar implementation (`AdminSearchFilterToolbar`) plus two required
+	//   props that existed only to keep ITS disclosure from rendering, passed
+	//   inert, with a comment explaining why the lie was safe.
+	//
+	//   WHAT STAYS IN THE ROW .... everything. The search box, `Grade`, `Program`,
+	//                              `Status`, `Room`, `Term`, and `Reset` while a
+	//                              filter is set.
+	//   WHAT GOES ............... `AdminSearchFilterToolbar` and the two inert
+	//                              props (`filtersOpen`, `onToggleFilters`) plus the
+	//                              `primaryFilterCount={1}` that kept its overflow
+	//                              list empty. The shared row is now
+	//                              `@/ui/filter-bar`, so this page cannot drift from
+	//                              `/teachers` or `/teaching-load` again.
+	//   WHAT MOVES .............. the `subjects-filter-cluster` `data-testid` onto
+	//                              the bar's own container, and the `Reset` button
+	//                              onto `FilterBar`'s `onReset`. Both are the same
+	//                              control in the same place; the hook follows the
+	//                              control so the committed suites keep reaching it.
+	//
+	//   THE WIDTH, AND WHY IT IS `auto` NOT `md` (A5 C7, unchanged).
+	//
+	//   `picker-trigger.ts`'s own guard says a width that is not a fixed
+	//   rectangle ALWAYS FITS — and A5 c8 is why that stays true rather than
+	//   becoming a false failure: `auto` is now BOUNDED (`min-w-32 max-w-[22rem]`)
+	//   and its face WRAPS inside that box (`h-auto min-h-9`) instead of running
+	//   past its own border, which is the `/sections` spill Lane C measured. Fourteen
+	//   faces across the five filters exceed `md`'s published 12-character budget,
+	//   and every SET value on `Status` does, so a fixed rectangle is not available
+	//   to this row at any honest width.
+	//
+	//   ALL FIVE take `auto`, so §8 "One look per control" is untouched: the
+	//   height (`min-h-9`), radius, border, case treatment, `px-3`, `text-xs` and the
+	//   option-list search box all still come from `pickerTriggerClass`, and the
+	//   five remain ONE variant. What changes is only that the rectangle stops
+	//   being a fixed 128px that the content does not fit inside.
+	//
+	//   `flex-wrap` in `FilterBar` keeps a state that cannot fit degrading by
+	//   wrapping onto a second row rather than overflowing the page (§8's
+	//   no-scrollbar rule).
+	//
+	//   WHAT IS NOT CHANGED ..... every picker below is still the SAME
+	//                              `@/ui/filter-picker` with the same
+	//                              self-naming trigger, its own
+	//                              `ariaLabel` and its own `dataTestId`; the
+	//                              merged `SubjectStatusFilter` axis, its
+	//                              `shortLabels`, `ROOM_TYPE_SHORT_LABELS`,
+	//                              `gradeLabel(g)` and `TERM_FILTER_ALL` are all
+	//                              untouched. This is a layout change. If an edit
+	//                              here ever changes WHICH SUBJECTS a value
+	//                              selects, it has stopped being a layout change.
 	return (
-		<AdminSearchFilterToolbar
-			searchValue={searchQuery}
-			onSearchChange={onSearchChange}
-			searchPlaceholder="Search name or code..."
-			/* A5 C7: INERT, see the note above. Both are required props and both
-			   exist only for the shared component's own disclosure, which this page
-			   does not render. Nothing here reads either value. */
-			filtersOpen={false}
-			onToggleFilters={() => {}}
-			hasActiveFilters={hasActiveFilters}
-			/* A3-C10: the single wrapping cluster is the one primary child. It is
-			   a child of the row rather than a sibling set of children, which is
-			   what lets it wrap. */
-			primaryFilterCount={1}
-			primaryFilterLayout="inline"
-			searchMaxWidthClassName="w-[240px] max-w-[240px]"
-			/* A5: the search box matches the compact triggers' type size, and takes its
-			   HEIGHT from the same `@/ui` token the triggers take theirs from (R1 J3) —
-			   one `h-9`, not two hand-matched literals.
-
-			   `sm:text-xs` is NOT redundant. `@/ui` `Input` ends its base class
-			   with the responsive pair `text-base … sm:text-sm`, and
-			   tailwind-merge treats `sm:text-sm` as a different variant from a
-			   bare `text-xs`, so it keeps BOTH — and at any viewport ≥640px the
-			   `sm:` variant wins. The real-browser row measured 14px and caught
-			   exactly that: a class-list assertion could not, because the
-			   class-list assertion was true. */
-			searchInputClassName={`${PICKER_CONTROL_HEIGHT_CLASS} pl-9 text-xs sm:text-xs`}
+		<FilterBar
+			dataTestId="subjects-filter-cluster"
+			search={{
+				value: searchQuery,
+				onChange: onSearchChange,
+				placeholder: 'Search name or code...',
+				ariaLabel: 'Search subjects by name or code',
+			}}
+			onReset={hasActiveFilters ? onResetFilters : undefined}
+			resetTestId="subjects-reset-filters"
 		>
-			{/* ONE cluster, ONE line at 1366. `gap-2` is A5 C7's change from
-			    A5 C4's `gap-2.5` and is part of the budget arithmetic above; it is
-			    the spacing between siblings of a flex row, not chrome on a
-			    primitive, so §8 does not apply to it. */}
-			<div
-				className="flex min-w-0 flex-1 flex-wrap items-center gap-2"
-				data-testid="subjects-filter-cluster"
-			>
-				{/* R3 §1: the operator's own words are `Grade: All`, `Program: All` — the
-				    TRIGGER shows the filter's short name and a short value, the POPOVER keeps
-				    the full labels, and the ACCESSIBLE NAME keeps the long form composed from
-				    `ariaLabel`. R1 A1's `Grade: All grades` was the packet's own lengthening of
-				    that example, and it is what forced the cluster to wrap. This is
-				    `/timetable`'s entity picker unchanged: a compact trigger over a list of
-				    long options (R2-6 rule 5). */}
-				<FilterPicker
-					name="Grade"
-					width="auto"
-					ariaLabel="Filter by grade level"
-					value={String(gradeLevelFilter)}
-					onValueChange={(v) => onGradeLevelFilterChange(v === 'all' ? 'all' : Number(v))}
-					options={[
-						{ value: 'all', label: 'All grades' },
-						...GRADE_OPTIONS.map((g) => ({
-							value: String(g),
-							/* The shared compact grade form (`GR7`), the same one
-							   the grade chips and the coverage dialog use — not
-							   `Grade 7`, and not a second spelling. */
-							label: gradeLabel(g),
-						})),
-					]}
-				/>
-				<FilterPicker
-					name="Program"
-					width="auto"
-					ariaLabel="Filter by program scope"
-					value={programScopeFilter}
-					onValueChange={(v) => onProgramScopeFilterChange(v)}
-					options={[
-						{ value: 'all', label: 'All programs' },
-						...PROGRAM_SCOPE_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
-					]}
-					dataTestId="subjects-program-filter"
-				/>
+			{/* R3 §1: the operator's own words are `Grade: All`, `Program: All` — the
+			    TRIGGER shows the filter's short name and a short value, the POPOVER keeps
+			    the full labels, and the ACCESSIBLE NAME keeps the long form composed from
+			    `ariaLabel`. R1 A1's `Grade: All grades` was the packet's own lengthening of
+			    that example, and it is what forced the cluster to wrap. This is
+			    `/timetable`'s entity picker unchanged: a compact trigger over a list of
+			    long options (R2-6 rule 5). */}
+			<FilterPicker
+				name="Grade"
+				width="auto"
+				ariaLabel="Filter by grade level"
+				value={String(gradeLevelFilter)}
+				onValueChange={(v) => onGradeLevelFilterChange(v === 'all' ? 'all' : Number(v))}
+				options={[
+					{ value: 'all', label: 'All grades' },
+					...GRADE_OPTIONS.map((g) => ({
+						value: String(g),
+						/* The shared compact grade form (`GR7`), the same one
+						   the grade chips and the coverage dialog use — not
+						   `Grade 7`, and not a second spelling. */
+						label: gradeLabel(g),
+					})),
+				]}
+			/>
+			<FilterPicker
+				name="Program"
+				width="auto"
+				ariaLabel="Filter by program scope"
+				value={programScopeFilter}
+				onValueChange={(v) => onProgramScopeFilterChange(v)}
+				options={[
+					{ value: 'all', label: 'All programs' },
+					...PROGRAM_SCOPE_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+				]}
+				dataTestId="subjects-program-filter"
+			/>
 
-				{/* A5 C7: THE THREE THAT SAT BEHIND `More filters`, now IN the row.
-				 *
-				 * Their order is unchanged from the popover they came out of, and
-				 * every option list, `shortLabels` map, `ariaLabel` and
-				 * `dataTestId` is what it was. This is a MOVE, not a rewrite: the
-				 * A5 C4 QA that wrote most of these comments — that no filter may
-				 * claim `All` for a list with no `all` member, that the trigger is
-				 * compact while the list keeps the full label, that `gradeLabel`
-				 * is the one shared grade spelling — decided about the CONTROL,
-				 * and none of it depends on where the control sits. */}
-				<FilterPicker
-					name="Status"
-					width="auto"
-					ariaLabel="Filter by subject status"
-					value={subjectStatusFilter}
-					onValueChange={(v) => onSubjectStatusFilterChange(v as SubjectStatusFilter)}
-					options={[
-						{ value: 'all', label: 'All statuses' },
-						{ value: 'active', label: 'Active' },
-						{ value: 'inactive', label: 'Archived' },
-						/* The coverage-attention axis, folded into the one status
-						   control rather than dropped (see `SubjectStatusFilter`). */
-						{ value: 'missing-coverage', label: 'Missing teacher coverage' },
-						{ value: 'room-constrained', label: 'Room-constrained subjects' },
-					]}
-					shortLabels={{
-						active: 'Active',
-						inactive: 'Archived',
-						'missing-coverage': 'No coverage',
-						'room-constrained': 'Room-constrained',
-					}}
-					dataTestId="subjects-status-filter"
-				/>
-				<FilterPicker
-					name="Room"
-					width="auto"
-					ariaLabel="Filter by room type"
-					value={roomTypeFilter}
-					onValueChange={(v) => onRoomTypeFilterChange(v)}
-					options={[
-						{ value: 'all', label: 'All room types' },
-						...ALL_ROOM_TYPES.map((t) => ({ value: t, label: ROOM_TYPE_LABELS[t] })),
-					]}
-					/* R3 §1: the popover keeps the full labels (`Science Laboratory`,
-					   `ICT / Computer Lab`); only the trigger's rectangle is compact. */
-					shortLabels={ROOM_TYPE_SHORT_LABELS}
-					dataTestId="subjects-room-type-filter"
-				/>
-				<FilterPicker
-					name="Term"
-					width="auto"
-					ariaLabel="Filter by rotation term"
-					value={termFilter}
-					onValueChange={onTermFilterChange}
-					options={termOptions.map((option) => ({ value: option.value, label: option.label }))}
-				/>
-
-				{hasActiveFilters && (
-					<Button
-						variant="ghost"
-						size="sm"
-						className="h-9 shrink-0 whitespace-nowrap px-3 text-xs text-muted-foreground hover:text-foreground"
-						data-testid="subjects-reset-filters"
-						onClick={onResetFilters}
-					>
-						Reset
-					</Button>
-				)}
-			</div>
-		</AdminSearchFilterToolbar>
+			{/* A5 C7: THE THREE THAT SAT BEHIND the disclosure, now IN the row.
+			 *
+			 * Their order is unchanged from the popover they came out of, and
+			 * every option list, `shortLabels` map, `ariaLabel` and
+			 * `dataTestId` is what it was. This is a MOVE, not a rewrite: the
+			 * A5 C4 QA that wrote most of these comments — that no filter may
+			 * claim `All` for a list with no `all` member, that the trigger is
+			 * compact while the list keeps the full label, that `gradeLabel`
+			 * is the one shared grade spelling — decided about the CONTROL,
+			 * and none of it depends on where the control sits. */}
+			<FilterPicker
+				name="Status"
+				width="auto"
+				ariaLabel="Filter by subject status"
+				value={subjectStatusFilter}
+				onValueChange={(v) => onSubjectStatusFilterChange(v as SubjectStatusFilter)}
+				options={[
+					{ value: 'all', label: 'All statuses' },
+					{ value: 'active', label: 'Active' },
+					{ value: 'inactive', label: 'Archived' },
+					/* The coverage-attention axis, folded into the one status
+					   control rather than dropped (see `SubjectStatusFilter`). */
+					{ value: 'missing-coverage', label: 'Missing teacher coverage' },
+					{ value: 'room-constrained', label: 'Room-constrained subjects' },
+				]}
+				shortLabels={{
+					active: 'Active',
+					inactive: 'Archived',
+					'missing-coverage': 'No coverage',
+					'room-constrained': 'Room-constrained',
+				}}
+				dataTestId="subjects-status-filter"
+			/>
+			<FilterPicker
+				name="Room"
+				width="auto"
+				ariaLabel="Filter by room type"
+				value={roomTypeFilter}
+				onValueChange={(v) => onRoomTypeFilterChange(v)}
+				options={[
+					{ value: 'all', label: 'All room types' },
+					...ALL_ROOM_TYPES.map((t) => ({ value: t, label: ROOM_TYPE_LABELS[t] })),
+				]}
+				/* R3 §1: the popover keeps the full labels (`Science Laboratory`,
+				   `ICT / Computer Lab`); only the trigger's rectangle is compact. */
+				shortLabels={ROOM_TYPE_SHORT_LABELS}
+				dataTestId="subjects-room-type-filter"
+			/>
+			<FilterPicker
+				name="Term"
+				width="auto"
+				ariaLabel="Filter by rotation term"
+				value={termFilter}
+				onValueChange={onTermFilterChange}
+				options={termOptions.map((option) => ({ value: option.value, label: option.label }))}
+			/>
+		</FilterBar>
 	);
 }
 
