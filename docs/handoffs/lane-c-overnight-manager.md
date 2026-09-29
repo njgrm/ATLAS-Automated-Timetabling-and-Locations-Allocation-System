@@ -282,3 +282,26 @@ exports, Expert/Advanced rules/Tutorial/Refresh (rerun after A2 mc lands). Prefe
 **Tooling fixed tonight:** await.sh waits for runs not yet started; start-preview refuses ports outside 5200-5299; agents
 deny edits to D:/ATLAS; workflow-metrics records the train 10 cutover incident. Watchers: reaper, monitor, A7 proposal
 watcher (`scratchpad/await-a7-proposal.sh`).
+
+## Session checkpoint — 2026-09-30 00:12 +08 (Lane C, before compaction)
+**Live:** `8d98628d` (hotfixes: EnrollPro null active-term tolerated; Teaching Load header without Past years/switches +
+Show other subjects; suggestion apply 30 s; readiness budget 180 s). Tailnet serves `index-BfzPMwrg.js`. Active year
+**2025-2026** (EnrollPro id 4, mirror 632), context enrollpro-verified, terms cached; EnrollPro active-term = null,
+ATLAS picks T3 (atlas-unverified). Rollback basis `9462d82d` (`lane-a4-hotfix-term-prod`).
+**Train 11:** re-pinned to `bc94b10b` (adds A3 c17 profile, A5 c8 one filter bar, 63714b1f switches stay removed,
+Teaching Load verifyUpstream 176ff936, A3 p1 Preferences Save). A4 session `ses_f124d3556ffeD2leYFPJ6zt4RN`, run
+`a4-t11b` building staging; it must post STAGING RE-PIN with a staging account that opens /teaching-load and /timetable.
+Next: Codex walk in short jobs on 127.0.0.1:5274 incl. the new ROLLOVER row, then GO (numbered cutover, verify Tailnet chunk).
+**Blocker #1 for the demo:** live /timetable Generate disabled for 2025-2026 — 82 items, all on special-program sections
+(STE Bonifacio/Makatao/Rose/Silver, SPS Daisy, Jade): ~65 "A scheduling rule needs a decision" → Open Year Setup,
+15 "could not be placed" (GR7 Bonifacio STE), 5 "teacher at their limit" (STE_RESEARCH, STE_APPLIED_PHYS, SCI_BIO).
+Read-out: `docs/handoffs/tt-blockers-2526-live-readout.md`. The gate exists since 9e280369 (11 Sep). Owner:
+`a8-ds-unblock` (DeepSeek) — TRUE/FALSE per cause, fix FALSE, plain action for TRUE; watcher `await-a8-unblock.sh`
+fires on its post "A8 -> Lane C, unblock" (show the list to the operator). Suspect: mirror syncStatus
+`setup-review-required` never clears. A8 c5 (Generate never greyed out) still running on its branch.
+**A7:** `a7-ds-c11` (DeepSeek) — Step 0 per-tab proposal only; show the operator before header code. Tooltip slice
+aec13de2 on work/a7-c10-calm pushed, QA pending. DeepSeek agents live in ~/.config/opencode/agents (-ds, -ds-delegate).
+**Running:** a4-t11b, a7-ds-c11, a8-ds-unblock, a2-mc, a2-c16, a8-g1 (+ a8-c5, a3-c17 finished/landed?). Stopped by
+operator: A5 c8 (landed), A9 m1 (branch work/a9-m1-campus-background pushed) → train 12 fresh cycles.
+**Standing:** docs/plans/operator-decisions.md (locked calls); workflow changes in workflow-metrics.md (30 Sep 00:0x);
+launch.ps1 cap 6 / 6 GB commit (-Force for A4); DeepSeek credit watcher ds-quota-watch.sh; one fix per cycle.
