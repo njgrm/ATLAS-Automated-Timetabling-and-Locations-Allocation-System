@@ -42,7 +42,7 @@ import {
 	sectionHoverDeltaMinutesFor,
 } from '@/components/faculty-assignments/teachingLoadWorkspaceMetrics';
 import { useTeachingLoadRepairQueue } from '@/hooks/useTeachingLoadRepairQueue';
-import { useTeachingLoadRouteIntent } from '@/hooks/useTeachingLoadRouteIntent';
+import { useTeachingLoadLanding } from '@/hooks/useTeachingLoadLanding';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
 import type {
 	AutoFillSummaryResult, 
@@ -104,20 +104,9 @@ export default function TeachingLoad() {
 		}
 	}, [data.schoolId, data.activeSchoolYearId]);
 
-	// Apply inbound route intent exactly once per navigation entry.
-	// User actions (clicking tabs, selecting teachers/sections) immediately
-	// supersede the URL intent. A reload or new external navigation re-applies it.
-	useTeachingLoadRouteIntent(searchParams, {
-		setViewMode: ui.setViewMode,
-		setSelectedId: data.setSelectedId,
-		setSelectedSectionId: ui.setSelectedSectionId,
-		setSectionModeFilter: ui.setSectionModeFilter,
-		setSelectedSubjectId: ui.setSelectedSubjectId,
-		setSubjectSearch: ui.setSubjectSearch,
-		setLoadFilter: ui.setLoadFilter,
-		setFilterStatus: ui.setFilterStatus,
-		setShowTemporaryRoles: ui.setShowTemporaryRoles,
-	});
+	// A6-TL-DEEPLINK: the URL intent is NOT applied here any more — at this point
+	// the roster is empty and the scope unresolved, which is the load-order loss
+	// the packet fixes; both entry paths queue a target via `useTeachingLoadLanding`.
 
 	// A rollover or school switch must reset every mutable filter, dialog, and
 	// selection before the new scope renders. Draft/history clearing lives in the
@@ -135,6 +124,25 @@ export default function TeachingLoad() {
 		setSuggestionLoading(false);
 		setSuggestionApplying(false);
 	}, [data.scopeKey, resetForScope]);
+
+	// A6-TL-DEEPLINK: declared AFTER the scope-reset effect so the reset runs
+	// first on the resolving commit; `ready` gates on scope AND loaded roster.
+	const landingReady = data.scopeKey != null && !data.loading && data.faculty.length > 0;
+	const { landed: landedTarget, landTarget } = useTeachingLoadLanding({
+		searchParams,
+		ready: landingReady,
+		setViewMode: ui.setViewMode,
+		setSelectedId: data.setSelectedId,
+		setSelectedSectionId: ui.setSelectedSectionId,
+		setSectionModeFilter: ui.setSectionModeFilter,
+		setSelectedSubjectId: ui.setSelectedSubjectId,
+		setSubjectSearch: ui.setSubjectSearch,
+		setLoadFilter: ui.setLoadFilter,
+		setFilterStatus: ui.setFilterStatus,
+		setShowTemporaryRoles: ui.setShowTemporaryRoles,
+	});
+	const landingOpenEditorFacultyId = landedTarget?.openEditor ? landedTarget.facultyId : null;
+	const missingCoverageSubjectId = landedTarget?.missingCoverageOnly ? landedTarget.subjectId : null;
 
 	// A6 c5 — the derivations below moved to `teachingLoadWorkspaceMetrics.ts`
 	// (which records the extraction and its reason); the page decides WHEN.
@@ -585,7 +593,7 @@ export default function TeachingLoad() {
 		// is the defect A6 C2 already corrected once.
 		sourceState: { dataSource: data.dataSource, isOnline: data.isOnline },
 		writeBlockedReason: workspaceState.writeBlockedReason,
-		onSelectFaculty: data.setSelectedId,
+		onSelectFaculty: data.setSelectedId, onLandTarget: landTarget,
 		onSave: () => {
 			void handleSave();
 		},
@@ -876,7 +884,9 @@ export default function TeachingLoad() {
 							workspaceStateLabel={workspaceState.label}
 							workspaceStateNextAction={workspaceState.nextAction}
 							writeBlockedReason={workspaceState.writeBlockedReason}
-							onReviewLoad={openTeacherReviewFor}
+								onReviewLoad={openTeacherReviewFor}
+								// A6-TL-DEEPLINK (R-d): an Assign entry opens this teacher's editor.
+								landingOpenEditorFacultyId={landingOpenEditorFacultyId}
 							draftControls={(
 								/* FIX 40: the SAME element that used to be the bottom
 								 * sticky footer, now handed to the filter row. The
@@ -915,6 +925,9 @@ export default function TeachingLoad() {
 								teachingStandardHours={ui.teachingStandardHours}
 								selectedSectionId={ui.selectedSectionId}
 								onSelectSection={ui.setSelectedSectionId}
+								// A6-TL-DEEPLINK (E4/E5): subject focus + `filter=missing-coverage`.
+								focusSubjectId={missingCoverageSubjectId}
+								missingCoverageOnly={landedTarget?.missingCoverageOnly === true}
 								onSwapSectionOwnership={handleSwapRequest}
 								completedSectionIds={completedSectionIds}
 								workspaceStateLabel={workspaceState.label}

@@ -10,6 +10,13 @@ export type ParsedRouteIntent = {
 	sectionId: number | null;
 	subjectId: number | null;
 	task: string | null;
+	/**
+	 * A6-TL-DEEPLINK (E5) — the raw `filter` token, read here so a coverage deep
+	 * link (`?view=subjects&subjectId=N&filter=missing-coverage`, emitted by
+	 * SubjectCoverageSheet/Dashboard/Audit) can narrow the Sections view to the
+	 * uncovered sections for that subject. Never invented: absent stays null.
+	 */
+	filter: string | null;
 };
 
 type ApplyIntentParams = {
@@ -72,6 +79,7 @@ function parseNumericParam(value: string | null): number | null {
 export function parseRouteIntent(searchParams: URLSearchParams): ParsedRouteIntent {
 	const viewParam = searchParams.get('view');
 	const taskParam = searchParams.get('task');
+	const filterParam = searchParams.get('filter');
 	const facultyIdParam = parseNumericParam(searchParams.get('facultyId'));
 	const sectionIdParam = parseNumericParam(searchParams.get('sectionId'));
 	const subjectIdParam = parseNumericParam(searchParams.get('subjectId'));
@@ -85,6 +93,7 @@ export function parseRouteIntent(searchParams: URLSearchParams): ParsedRouteInte
 			sectionId: null,
 			subjectId: subjectIdParam,
 			task: taskParam,
+			filter: filterParam,
 		};
 	}
 
@@ -100,6 +109,7 @@ export function parseRouteIntent(searchParams: URLSearchParams): ParsedRouteInte
 			sectionId: sectionIdParam,
 			subjectId: subjectIdParam,
 			task: taskParam,
+			filter: filterParam,
 		};
 	}
 
@@ -111,6 +121,7 @@ export function parseRouteIntent(searchParams: URLSearchParams): ParsedRouteInte
 			sectionId: null,
 			subjectId: subjectIdParam,
 			task: taskParam,
+			filter: filterParam,
 		};
 	}
 
@@ -122,6 +133,7 @@ export function parseRouteIntent(searchParams: URLSearchParams): ParsedRouteInte
 			sectionId: null,
 			subjectId: subjectIdParam,
 			task: taskParam,
+			filter: filterParam,
 		};
 	}
 
@@ -133,6 +145,7 @@ export function parseRouteIntent(searchParams: URLSearchParams): ParsedRouteInte
 			sectionId: sectionIdParam,
 			subjectId: subjectIdParam,
 			task: taskParam,
+			filter: filterParam,
 		};
 	}
 
@@ -144,6 +157,7 @@ export function parseRouteIntent(searchParams: URLSearchParams): ParsedRouteInte
 			sectionId: null,
 			subjectId: subjectIdParam,
 			task: taskParam,
+			filter: filterParam,
 		};
 	}
 
@@ -155,6 +169,30 @@ export function parseRouteIntent(searchParams: URLSearchParams): ParsedRouteInte
 			sectionId: null,
 			subjectId: subjectIdParam,
 			task: taskParam,
+			filter: filterParam,
+		};
+	}
+
+	/*
+	 * A6-TL-DEEPLINK (E4) — a SUBJECT-only intent (`?subjectId=N`, emitted by
+	 * `DeleteSubjectDialog`) is NOT "no recognized intent".
+	 *
+	 * At base this fell to `viewMode: null`, and the caller's apply effect bailed
+	 * on `!viewMode && !facultyId && !sectionId && !task`, so the subject was
+	 * silently dropped. A subject is a target the same way a section is: it
+	 * resolves to the Sections/coverage surface with that subject focused. This
+	 * does not touch any other branch — every other test in
+	 * `useTeachingLoadRouteIntent.test.ts` and the A2 change-owner preservation
+	 * rows keep their exact expected values.
+	 */
+	if (subjectIdParam != null) {
+		return {
+			viewMode: 'allocation',
+			facultyId: null,
+			sectionId: null,
+			subjectId: subjectIdParam,
+			task: taskParam,
+			filter: filterParam,
 		};
 	}
 
@@ -165,6 +203,7 @@ export function parseRouteIntent(searchParams: URLSearchParams): ParsedRouteInte
 		sectionId: null,
 		subjectId: subjectIdParam,
 		task: null,
+		filter: filterParam,
 	};
 }
 

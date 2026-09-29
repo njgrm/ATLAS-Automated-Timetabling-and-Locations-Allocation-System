@@ -85,6 +85,19 @@ type UseTeachingLoadRepairQueueParams = {
 	 */
 	hasShortage?: boolean;
 	onSelectFaculty: (facultyId: number) => void;
+	/**
+	 * A6-TL-DEEPLINK (E9) — the SAME landing mechanism the URL path uses. The
+	 * repair queue no longer only rewrites the URL and selects a teacher: it
+	 * queues a landing target so the named teacher is selected, scrolled into
+	 * view, focused, and (for an Assign entry) has their editor opened, once the
+	 * loader data is in hand. Optional: a caller that omits it keeps the previous
+	 * behaviour exactly, so committed controls are untouched.
+	 */
+	onLandTarget?: (target: {
+		facultyId?: number | null;
+		openEditor?: boolean;
+		task?: string | null;
+	}) => void;
 	onSave: () => void;
 	onShowSubjectCoverage: () => void;
 	onShowTeachersWithoutLoad: () => void;
@@ -239,6 +252,7 @@ export function useTeachingLoadRepairQueue({
 	onShowOverloaded,
 	onShowPlaceholder,
 	onOpenReview,
+	onLandTarget = () => {},
 }: UseTeachingLoadRepairQueueParams) {
 	const [activeRepairId, setActiveRepairId] = useState<string | null>(null);
 	const teacherRepairIntent = searchParams.get('task');
@@ -507,6 +521,14 @@ export function useTeachingLoadRepairQueue({
 		setActiveRepairId(item.id);
 		updateRepairRoute(item);
 		if (item.facultyId) onSelectFaculty(item.facultyId);
+		// A6-TL-DEEPLINK (E9): queue the SAME landing target the URL path builds.
+		if (item.facultyId) {
+			onLandTarget({
+				facultyId: item.facultyId,
+				openEditor: item.kind === 'teacher-missing-load',
+				task: item.kind === 'teacher-missing-load' ? 'missing-load' : null,
+			});
+		}
 		if (item.kind === 'save-draft') return onSave();
 		if (item.kind === 'missing-load') onShowSubjectCoverage();
 		else if (item.kind === 'teacher-missing-load') onShowTeachersWithoutLoad();
@@ -518,6 +540,7 @@ export function useTeachingLoadRepairQueue({
 		// The grid is unconditional now, so the call is deleted rather than made
 		// conditional — there is no longer a state it could be guarding.
 	}, [
+		onLandTarget,
 		onOpenReview,
 		onSave,
 		onSelectFaculty,
@@ -532,7 +555,11 @@ export function useTeachingLoadRepairQueue({
 		setActiveRepairId(item.id);
 		updateRepairRoute(item);
 		if (item.facultyId) onSelectFaculty(item.facultyId);
-	}, [onSelectFaculty, updateRepairRoute]);
+		// A6-TL-DEEPLINK (E9): selecting a queue item lands on its teacher too —
+		// the next-teacher step goes through the same mechanism as the primary
+		// action, not a second one.
+		if (item.facultyId) onLandTarget({ facultyId: item.facultyId });
+	}, [onLandTarget, onSelectFaculty, updateRepairRoute]);
 
 	return {
 		activeRepairId,
