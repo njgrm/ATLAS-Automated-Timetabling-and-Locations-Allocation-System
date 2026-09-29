@@ -16,12 +16,15 @@ $out = Join-Path $env:TEMP "atlas-preview-$Port.log"
 # The ORIGIN here is still what keeps a loopback preview off live: `vite.config.ts`
 # `toProxyOrigin()` takes `.origin` for the `/api` proxy target, so the proxy also points at
 # staging and never at the live 5001. Never drop the port or point this at 5001 (AGENTS.md section 5).
+# A4 train 9 (2026-09-29): a busy port answered 200 from ANOTHER lane's preview, so this reported READY while its own
+# vite had exited with "Port already in use". Refuse a busy port up front and require vite's own ready line in the log.
+if (Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue) { "PORT_BUSY $Port is already in use by another preview; pick a free port in 5200-5299"; exit 2 }
 $apiBase = "http://127.0.0.1:5101/api/v1"
 $cl = "cmd /c `"cd /d $ClientDir && set VITE_ATLAS_API=$apiBase&& node node_modules/vite/bin/vite.js --port $Port --strictPort --host 127.0.0.1 > $out 2>&1`""
 $r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $cl }
 $deadline = (Get-Date).AddSeconds(60)
 while ((Get-Date) -lt $deadline) {
-  try { if ((Invoke-WebRequest "http://127.0.0.1:$Port/" -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200) { "READY http://127.0.0.1:$Port pid $($r.ProcessId) log $out"; exit 0 } } catch {}
+  try { if ((Select-String -Path $out -Pattern 'ready in|Local:' -Quiet -ErrorAction SilentlyContinue) -and (Invoke-WebRequest "http://127.0.0.1:$Port/" -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200) { "READY http://127.0.0.1:$Port pid $($r.ProcessId) log $out"; exit 0 } } catch {}
   Start-Sleep -Seconds 2
 }
 "NOT_READY after 60 s; see $out"; exit 1
