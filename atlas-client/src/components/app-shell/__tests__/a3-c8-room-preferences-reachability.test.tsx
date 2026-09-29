@@ -50,7 +50,10 @@
  */
 
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import {
 	breadcrumbGroups,
@@ -63,9 +66,77 @@ import {
 	type NavigationActor,
 } from '@/components/app-shell/navigation';
 
+const HERE = dirname(fileURLToPath(import.meta.url));
+const CLIENT_ROOT = resolve(HERE, '../../../..');
+
+function source(relativePath: string): string {
+	return readFileSync(resolve(CLIENT_ROOT, relativePath), 'utf8');
+}
+
 const ROOM_PREFERENCES_ROUTE = '/faculty/room-preferences';
 const ROOM_PREFERENCES_LABEL = 'Room Preferences';
 const TEACHERS_AND_ROOMS_GROUP = 'Teachers and Rooms';
+const FACULTY_PREFERENCES_ROUTE = '/faculty/preferences';
+const CONCERNS_ROUTE = '/faculty/concerns';
+const CONCERNS_LABEL = 'Teacher Concerns';
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * A3 c13 — SUPERSESSION RECORD (added 2026-09-29). Rows R1-R5 below are the
+ * original A3-C8 assertions, kept VERBATIM and kept PRESENT, but they now run
+ * through `assertSuperseded` instead of standing as the live contract.
+ *
+ * WHY THE PREMISE IS SUPERSEDED, not broken. A3-C8 recorded one defect: a
+ * fully built 692-line `OfficerRoomPreferences` review queue sat behind a
+ * registered route with zero inbound links, so no operator could reach it. The
+ * recorded decision was LINK IT, and for that surface that was right.
+ *
+ * A3 c13 folded that queue INTO Teacher Concerns, per the operator direction
+ * ("room preferences should not be a different page, it should be folded into
+ * teacher concerns so there is only one page the scheduler will fill out when
+ * speaking to a teacher"). `pages/OfficerRoomPreferences.tsx` is now
+ * `<Navigate to="/faculty/concerns" replace />`, and the queue's two real
+ * capabilities are both present on the selected teacher's form: the ZERO-WRITE
+ * preview and the one button that applies through the existing review PATCH.
+ *
+ * So the A3-C8 PREMISE ("a fully built page must have a nav item") no longer
+ * applies to this route: the page is not hidden, it is folded, and no operator
+ * loses access to anything. A nav item pointing at a route that immediately
+ * redirects would be a second name for one destination — the duplicate-link
+ * defect A3-C6 removed elsewhere on this very lane.
+ *
+ * NOTHING WAS DELETED OR WEAKENED. Every original assertion survives inside the
+ * `legacy` callback of its row, and the row now proves the retirement
+ * DELIBERATELY: it requires the old contract to have stopped holding. That
+ * makes each row a tripwire — if a later change re-adds the nav item, R1-R5
+ * turn RED again, because the retired surface has been resurrected and someone
+ * must decide whether the fold is still intended. The replacement contract is
+ * pinned by R7 at the end of this file.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+const SUPERSEDED_ON = '2026-09-29';
+const SUPERSESSION_REASON =
+	'A3 c13 folded the room-request review queue into /faculty/concerns; the route now redirects and the sidebar shows one label.';
+
+/**
+ * Run a legacy assertion and require it to have STOPPED holding, naming the
+ * date and reason. The callback is never edited or removed — it is the record.
+ */
+function assertSuperseded(row: string, legacy: () => void): void {
+	let stillHolds = true;
+	let failure = '';
+	try {
+		legacy();
+	} catch (error) {
+		stillHolds = false;
+		failure = error instanceof Error ? error.message : String(error);
+	}
+	assert.equal(
+		stillHolds,
+		false,
+		`${row} was retired on ${SUPERSEDED_ON} — ${SUPERSESSION_REASON} The legacy contract now HOLDS again, so the retired ${ROOM_PREFERENCES_ROUTE} surface has been resurrected. Either the fold is no longer wanted, or this file needs a new decision.`,
+	);
+	assert.ok(failure.length > 0, `${row} must fail for a real reason, not silently pass`);
+}
 
 /** The three roles the server's PRIVILEGED_ROLES set accepts. */
 const PRIVILEGED_ROLES = ['admin', 'officer', 'SYSTEM_ADMIN'] as const;
@@ -101,145 +172,167 @@ function schedulerAccessViolations(items: readonly NavItemDef[]): string[] {
 }
 
 // ── row 1: an admin can SEE it, under the agreed label ──────────────────────
+// SUPERSEDED 2026-09-29 by A3 c13 (see the record above). The assertions below
+// are unchanged; the row now requires them to have stopped holding.
 
-test('R1: an admin actor sees a /faculty/room-preferences nav item labelled exactly "Room Preferences"', () => {
-	const found = itemsAt(ROOM_PREFERENCES_ROUTE);
-	assert.equal(
-		found.length,
-		1,
-		`expected exactly one visible nav item at ${ROOM_PREFERENCES_ROUTE} for an admin, found ${found.length}`,
-	);
-	assert.equal(
-		found[0]!.label,
-		ROOM_PREFERENCES_LABEL,
-		'the sidebar label must match the route chrome title and the page PageHeader exactly',
-	);
+test('R1 [SUPERSEDED 2026-09-29]: an admin actor sees a /faculty/room-preferences nav item labelled exactly "Room Preferences"', () => {
+	assertSuperseded('R1', () => {
+		const found = itemsAt(ROOM_PREFERENCES_ROUTE);
+		assert.equal(
+			found.length,
+			1,
+			`expected exactly one visible nav item at ${ROOM_PREFERENCES_ROUTE} for an admin, found ${found.length}`,
+		);
+		assert.equal(
+			found[0]!.label,
+			ROOM_PREFERENCES_LABEL,
+			'the sidebar label must match the route chrome title and the page PageHeader exactly',
+		);
+	});
 });
 
 // ── row 2: it lands in the right GROUP ──────────────────────────────────────
+// SUPERSEDED 2026-09-29 by A3 c13. Assertions unchanged.
 
-test('R2: the item sits in "Teachers and Rooms", the same group as /teachers and /faculty/concerns', () => {
-	assert.equal(
-		groupLabelFor(ROOM_PREFERENCES_ROUTE),
-		TEACHERS_AND_ROOMS_GROUP,
-		'a link in the wrong group is still a false errand — it must be findable where teachers and rooms live',
-	);
-	assert.equal(groupLabelFor('/teachers'), TEACHERS_AND_ROOMS_GROUP, '/teachers group baseline');
-	assert.equal(groupLabelFor('/faculty/concerns'), TEACHERS_AND_ROOMS_GROUP, '/faculty/concerns group baseline');
-	assert.equal(
-		groupLabelFor(ROOM_PREFERENCES_ROUTE),
-		groupLabelFor('/teachers'),
-		'room preferences must share the group of /teachers, not merely a plausible one',
-	);
-	assert.ok(
-		teachersAndRoomsNav.some((item) => item.to === ROOM_PREFERENCES_ROUTE),
-		'the item must be a member of the exported teachersAndRoomsNav array itself',
-	);
+test('R2 [SUPERSEDED 2026-09-29]: the item sits in "Teachers and Rooms", the same group as /teachers and /faculty/concerns', () => {
+	assertSuperseded('R2', () => {
+		assert.equal(
+			groupLabelFor(ROOM_PREFERENCES_ROUTE),
+			TEACHERS_AND_ROOMS_GROUP,
+			'a link in the wrong group is still a false errand — it must be findable where teachers and rooms live',
+		);
+		assert.equal(groupLabelFor('/teachers'), TEACHERS_AND_ROOMS_GROUP, '/teachers group baseline');
+		assert.equal(groupLabelFor('/faculty/concerns'), TEACHERS_AND_ROOMS_GROUP, '/faculty/concerns group baseline');
+		assert.equal(
+			groupLabelFor(ROOM_PREFERENCES_ROUTE),
+			groupLabelFor('/teachers'),
+			'room preferences must share the group of /teachers, not merely a plausible one',
+		);
+		assert.ok(
+			teachersAndRoomsNav.some((item) => item.to === ROOM_PREFERENCES_ROUTE),
+			'the item must be a member of the exported teachersAndRoomsNav array itself',
+		);
+	});
 });
 
 // ── row 3: AUTHORITY PARITY with the server's PRIVILEGED_ROLES ──────────────
+// SUPERSEDED 2026-09-29 by A3 c13. The authority FACT these rows established is
+// unchanged and still carried by R7c: the server 403s every role outside
+// {admin, officer, SYSTEM_ADMIN} on the review PATCH.
 
-test('R3a: the item is adminOnly and carries NO schedulerAccess, matching server PRIVILEGED_ROLES', () => {
-	const [item] = itemsAt(ROOM_PREFERENCES_ROUTE);
-	assert.ok(item, `no visible nav item at ${ROOM_PREFERENCES_ROUTE}`);
-	assert.equal(item!.adminOnly, true, 'the queue is privileged, so the item must be adminOnly');
-	assert.notEqual(
-		item!.schedulerAccess,
-		true,
-		'schedulerAccess must stay ABSENT: the server 403s every role outside {admin, officer, SYSTEM_ADMIN}, so advertising the queue to a scheduler would be a NEW false errand',
-	);
-	assert.deepEqual(
-		schedulerAccessViolations(teachersAndRoomsNav),
-		[],
-		'the real nav array must contain no scheduler-visible room-preferences item',
-	);
+test('R3a [SUPERSEDED 2026-09-29]: the item is adminOnly and carries NO schedulerAccess, matching server PRIVILEGED_ROLES', () => {
+	assertSuperseded('R3a', () => {
+		const [item] = itemsAt(ROOM_PREFERENCES_ROUTE);
+		assert.ok(item, `no visible nav item at ${ROOM_PREFERENCES_ROUTE}`);
+		assert.equal(item!.adminOnly, true, 'the queue is privileged, so the item must be adminOnly');
+		assert.notEqual(
+			item!.schedulerAccess,
+			true,
+			'schedulerAccess must stay ABSENT: the server 403s every role outside {admin, officer, SYSTEM_ADMIN}, so advertising the queue to a scheduler would be a NEW false errand',
+		);
+		assert.deepEqual(
+			schedulerAccessViolations(teachersAndRoomsNav),
+			[],
+			'the real nav array must contain no scheduler-visible room-preferences item',
+		);
+	});
 });
 
-test('R3b: a scheduler with only timetable:read does NOT see the item, while officer/admin/SYSTEM_ADMIN DO', () => {
-	// Non-vacuity, for real. The previous form of this row asserted
-	// `itemsAt.length > 0`, which is the helper's ARITY and is therefore always
-	// true — it did not check what its message claimed (§11: a control must
-	// discriminate). This asserts the admin probe actually resolves the item,
-	// so a failure below can only mean the authority check flipped, never that
-	// the probe silently found nothing.
-	const adminProbe = itemsAt(ROOM_PREFERENCES_ROUTE);
-	assert.equal(
-		adminProbe.length,
-		1,
-		'sanity: the admin probe used by this file must resolve exactly one item, or the authority assertion below is vacuous',
-	);
-	const schedulerSees = canSeeNavItem(scheduler, adminProbe[0]!);
-	assert.equal(
-		schedulerSees,
-		false,
-		'a scheduler holding only timetable:read must not be shown an approve/reject queue the server 403s',
-	);
-	assert.equal(
-		getVisibleNavigation(scheduler).some((item) => item.to === ROOM_PREFERENCES_ROUTE),
-		false,
-		'and the scheduler must not reach it through the flattened visible navigation either',
-	);
-	// The server's own role set must be able to act on everything it is shown.
-	for (const role of PRIVILEGED_ROLES) {
+test('R3b [SUPERSEDED 2026-09-29]: a scheduler with only timetable:read does NOT see the item, while officer/admin/SYSTEM_ADMIN DO', () => {
+	assertSuperseded('R3b', () => {
+		// Non-vacuity, for real. The previous form of this row asserted
+		// `itemsAt.length > 0`, which is the helper's ARITY and is therefore always
+		// true — it did not check what its message claimed (§11: a control must
+		// discriminate). This asserts the admin probe actually resolves the item,
+		// so a failure below can only mean the authority check flipped, never that
+		// the probe silently found nothing.
+		const adminProbe = itemsAt(ROOM_PREFERENCES_ROUTE);
 		assert.equal(
-			canSeeNavItem({ role }, itemsAt(ROOM_PREFERENCES_ROUTE)[0]!),
-			true,
-			`${role} is in the server PRIVILEGED_ROLES set and must be able to reach the queue it may review`,
+			adminProbe.length,
+			1,
+			'sanity: the admin probe used by this file must resolve exactly one item, or the authority assertion below is vacuous',
 		);
-	}
-	// And a scheduler is NOT silently excluded from the neighbours it legitimately owns.
-	assert.equal(
-		canSeeNavItem(scheduler, teachersAndRoomsNav.find((item) => item.to === '/teaching-load')!),
-		true,
-		'control: the scheduler capability path is still live for items that DO opt in, so R3b is not passing because canSeeNavItem ignores capabilities',
-	);
+		const schedulerSees = canSeeNavItem(scheduler, adminProbe[0]!);
+		assert.equal(
+			schedulerSees,
+			false,
+			'a scheduler holding only timetable:read must not be shown an approve/reject queue the server 403s',
+		);
+		assert.equal(
+			getVisibleNavigation(scheduler).some((item) => item.to === ROOM_PREFERENCES_ROUTE),
+			false,
+			'and the scheduler must not reach it through the flattened visible navigation either',
+		);
+		// The server's own role set must be able to act on everything it is shown.
+		for (const role of PRIVILEGED_ROLES) {
+			assert.equal(
+				canSeeNavItem({ role }, itemsAt(ROOM_PREFERENCES_ROUTE)[0]!),
+				true,
+				`${role} is in the server PRIVILEGED_ROLES set and must be able to reach the queue it may review`,
+			);
+		}
+		// And a scheduler is NOT silently excluded from the neighbours it legitimately owns.
+		assert.equal(
+			canSeeNavItem(scheduler, teachersAndRoomsNav.find((item) => item.to === '/teaching-load')!),
+			true,
+			'control: the scheduler capability path is still live for items that DO opt in, so R3b is not passing because canSeeNavItem ignores capabilities',
+		);
+	});
 });
 
 // ── row 4: exactly ONE label reaches this route ────────────────────────────
+// SUPERSEDED 2026-09-29 by A3 c13. Its INTENT — one destination, one label —
+// survives and is re-pinned against the new single destination in R7a.
 
-test('R4: exactly one nav item anywhere resolves to /faculty/room-preferences', () => {
-	const everyItem = breadcrumbGroups.flatMap((group) => group.items);
-	const matches = everyItem.filter((item) => item.to === ROOM_PREFERENCES_ROUTE);
-	assert.equal(
-		matches.length,
-		1,
-		`one destination must carry one label; found ${matches.length} items at ${ROOM_PREFERENCES_ROUTE}`,
-	);
-	assert.equal(
-		navigationNav.some((item) => item.to === ROOM_PREFERENCES_ROUTE),
-		false,
-		'the queue must not be duplicated into the primary Navigation group',
-	);
-	// No OTHER label may resolve to the same route.
-	const otherLabels = everyItem
-		.filter((item) => item.to !== ROOM_PREFERENCES_ROUTE)
-		.map((item) => item.label)
-		.filter((label) => label === ROOM_PREFERENCES_LABEL);
-	assert.deepEqual(
-		otherLabels,
-		[],
-		`label "${ROOM_PREFERENCES_LABEL}" must identify exactly one destination, never two`,
-	);
+test('R4 [SUPERSEDED 2026-09-29]: exactly one nav item anywhere resolves to /faculty/room-preferences', () => {
+	assertSuperseded('R4', () => {
+		const everyItem = breadcrumbGroups.flatMap((group) => group.items);
+		const matches = everyItem.filter((item) => item.to === ROOM_PREFERENCES_ROUTE);
+		assert.equal(
+			matches.length,
+			1,
+			`one destination must carry one label; found ${matches.length} items at ${ROOM_PREFERENCES_ROUTE}`,
+		);
+		assert.equal(
+			navigationNav.some((item) => item.to === ROOM_PREFERENCES_ROUTE),
+			false,
+			'the queue must not be duplicated into the primary Navigation group',
+		);
+		// No OTHER label may resolve to the same route.
+		const otherLabels = everyItem
+			.filter((item) => item.to !== ROOM_PREFERENCES_ROUTE)
+			.map((item) => item.label)
+			.filter((label) => label === ROOM_PREFERENCES_LABEL);
+		assert.deepEqual(
+			otherLabels,
+			[],
+			`label "${ROOM_PREFERENCES_LABEL}" must identify exactly one destination, never two`,
+		);
+	});
 });
 
 // ── row 5: sidebar / shell title / breadcrumb all agree ────────────────────
+// SUPERSEDED 2026-09-29 by A3 c13. The three-way agreement it pinned is now
+// re-pinned for the destination that replaced it, in R7b.
 
-test('R5: sidebar label, route chrome title and breadcrumb leaf are all "Room Preferences"', () => {
-	const chrome = resolveRouteChrome(ROOM_PREFERENCES_ROUTE);
-	assert.equal(chrome.title, ROOM_PREFERENCES_LABEL, 'shell title must match the sidebar label');
-	assert.deepEqual(
-		chrome.breadcrumbs,
-		[TEACHERS_AND_ROOMS_GROUP, ROOM_PREFERENCES_LABEL],
-		`breadcrumbs must read Teachers and Rooms > ${ROOM_PREFERENCES_LABEL}, got ${JSON.stringify(chrome.breadcrumbs)}`,
-	);
-	// The three-way agreement: sidebar label === chrome title === breadcrumb leaf.
-	const [item] = itemsAt(ROOM_PREFERENCES_ROUTE);
-	assert.equal(item!.label, chrome.title, 'sidebar label and shell title must be one name, not two');
-	assert.equal(
-		chrome.breadcrumbs[chrome.breadcrumbs.length - 1],
-		item!.label,
-		'the breadcrumb leaf must equal the sidebar label',
-	);
+test('R5 [SUPERSEDED 2026-09-29]: sidebar label, route chrome title and breadcrumb leaf are all "Room Preferences"', () => {
+	assertSuperseded('R5', () => {
+		const chrome = resolveRouteChrome(ROOM_PREFERENCES_ROUTE);
+		assert.equal(chrome.title, ROOM_PREFERENCES_LABEL, 'shell title must match the sidebar label');
+		assert.deepEqual(
+			chrome.breadcrumbs,
+			[TEACHERS_AND_ROOMS_GROUP, ROOM_PREFERENCES_LABEL],
+			`breadcrumbs must read Teachers and Rooms > ${ROOM_PREFERENCES_LABEL}, got ${JSON.stringify(chrome.breadcrumbs)}`,
+		);
+		// The three-way agreement: sidebar label === chrome title === breadcrumb leaf.
+		const [item] = itemsAt(ROOM_PREFERENCES_ROUTE);
+		assert.equal(item!.label, chrome.title, 'sidebar label and shell title must be one name, not two');
+		assert.equal(
+			chrome.breadcrumbs[chrome.breadcrumbs.length - 1],
+			item!.label,
+			'the breadcrumb leaf must equal the sidebar label',
+		);
+	});
 });
 
 // ── row 6: DISCRIMINATING CONTROL — the detector can actually fail ──────────
@@ -272,5 +365,127 @@ test('R6: the detector flags a fabricated schedulerAccess:true item at this rout
 		schedulerAccessViolations([{ label: 'Teaching Load', to: '/teaching-load', icon: teachersAndRoomsNav[0]!.icon, adminOnly: true, schedulerAccess: true }]),
 		[],
 		'the detector is scoped to the room-preferences route and must not flag unrelated items',
+	);
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * row 7: the REPLACEMENT contract (added 2026-09-29 by A3 c13).
+ *
+ * This is the row that decides the lane now. R1-R5 are the record of what was
+ * true; this is what is true. It is written to discriminate: every "no item"
+ * claim is paired with a positive probe that the same helper DOES find the
+ * replacement item, so these cannot pass by finding nothing at all.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+test('R7a: the sidebar offers ONE teacher-concerns destination, labelled "Teacher Concerns", and no item for either folded route', () => {
+	// Positive control FIRST: the same probe must find the replacement, or every
+	// "zero items" assertion below is vacuous.
+	const concernsItems = itemsAt(CONCERNS_ROUTE);
+	assert.equal(concernsItems.length, 1, `sanity: the probe must resolve ${CONCERNS_ROUTE}, found ${concernsItems.length}`);
+	assert.equal(
+		concernsItems[0]!.label,
+		CONCERNS_LABEL,
+		'the one teacher-concerns destination carries exactly this name — one destination, one label',
+	);
+
+	// The fold: neither retired route may advertise itself anywhere in the nav.
+	for (const route of [ROOM_PREFERENCES_ROUTE, FACULTY_PREFERENCES_ROUTE]) {
+		assert.deepEqual(itemsAt(route), [], `${route} must not be advertised in the sidebar; it is folded into ${CONCERNS_ROUTE}`);
+		assert.equal(
+			teachersAndRoomsNav.some((item) => item.to === route),
+			false,
+			`${route} must not be a member of teachersAndRoomsNav`,
+		);
+		assert.equal(
+			navigationNav.some((item) => item.to === route),
+			false,
+			`${route} must not be duplicated into the primary Navigation group`,
+		);
+		assert.equal(
+			breadcrumbGroups.flatMap((group) => group.items).some((item) => item.to === route),
+			false,
+			`${route} must not appear in any nav group`,
+		);
+	}
+
+	// The retired LABELS must identify nothing at all — a label that survives on
+	// another row is the duplicate-link defect this lane exists to remove.
+	const everyLabel = breadcrumbGroups.flatMap((group) => group.items).map((item) => item.label);
+	for (const retired of [ROOM_PREFERENCES_LABEL, 'Faculty Preferences']) {
+		assert.equal(
+			everyLabel.includes(retired),
+			false,
+			`"${retired}" must identify no destination at all now that the page is folded`,
+		);
+	}
+});
+
+test('R7b: both folded URLs resolve the chrome of the page they actually land on, so neither flashes the generic "ATLAS" title', () => {
+	// This is the A3-C13 correction of the ux-r01 shared-chrome row: a URL that
+	// still exists — even one whose component is a redirect — must resolve a
+	// specific title. `resolveRouteChrome` falls through to 'ATLAS' on a miss,
+	// which is the generic flash that row forbids.
+	for (const route of [ROOM_PREFERENCES_ROUTE, FACULTY_PREFERENCES_ROUTE, CONCERNS_ROUTE]) {
+		const chrome = resolveRouteChrome(route);
+		assert.notEqual(chrome.title, 'ATLAS', `${route} must not fall through to the generic ATLAS title`);
+		assert.equal(chrome.title, CONCERNS_LABEL, `${route} lands on the teacher form, so it must name it`);
+		assert.deepEqual(
+			chrome.breadcrumbs,
+			[TEACHERS_AND_ROOMS_GROUP, CONCERNS_LABEL],
+			`${route} breadcrumbs must read ${TEACHERS_AND_ROOMS_GROUP} > ${CONCERNS_LABEL}, got ${JSON.stringify(chrome.breadcrumbs)}`,
+		);
+		assert.equal(
+			new Set(chrome.breadcrumbs).size,
+			chrome.breadcrumbs.length,
+			`${route} must not repeat a breadcrumb label`,
+		);
+	}
+});
+
+test('R7c: both folded pages redirect to the teacher form, and the fold kept the server authority boundary intact', () => {
+	// The redirect itself, read from the real page source: the two components the
+	// route table lazy-imports must carry the redirect and nothing else.
+	for (const page of ['src/pages/OfficerRoomPreferences.tsx', 'src/pages/OfficerPreferences.tsx']) {
+		const text = source(page);
+		assert.match(
+			text,
+			/<Navigate\s+to=["']\/faculty\/concerns["']\s+replace\s*\/>/,
+			`${page} must render <Navigate to="/faculty/concerns" replace />`,
+		);
+		// The retired review queue must not be resurrected behind the redirect.
+		assert.doesNotMatch(text, /useState|useEffect|atlasApi/, `${page} must be a redirect only, with no data fetching left behind`);
+	}
+
+	/*
+	 * The A3-C8 authority finding SURVIVES the fold and is the reason the apply
+	 * button is allowed to answer 403 rather than pretending. A scheduler holding
+	 * only `timetable:read` can reach the concerns page and RECORD a room need —
+	 * `assertFacultyOwnerOrOfficer` admits any admin/officer/SYSTEM_ADMIN for any
+	 * teacher — but the APPLY is the review PATCH, which the server guards with
+	 * PRIVILEGED_ROLES. So the nav must not claim more than the server grants.
+	 */
+	assert.deepEqual(
+		schedulerAccessViolations(teachersAndRoomsNav),
+		[],
+		'no scheduler-visible item may sit at the room-preferences route',
+	);
+	for (const role of PRIVILEGED_ROLES) {
+		assert.equal(
+			canSeeNavItem({ role }, itemsAt(CONCERNS_ROUTE)[0]!),
+			true,
+			`${role} is in the server PRIVILEGED_ROLES set and must be able to reach the page carrying the room apply`,
+		);
+	}
+	// The scheduler capability path still works for the item that legitimately opts
+	// in, so R7c cannot pass because canSeeNavItem ignores capabilities entirely.
+	assert.equal(
+		canSeeNavItem(scheduler, itemsAt(CONCERNS_ROUTE)[0]!),
+		true,
+		'a scheduler records room needs on this page, so the capability path must still admit it',
+	);
+	assert.equal(
+		canSeeNavItem(scheduler, teachersAndRoomsNav.find((item) => item.to === '/teaching-load')!),
+		true,
+		'control: the scheduler capability path is live for items that opt in',
 	);
 });

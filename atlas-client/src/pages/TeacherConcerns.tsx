@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ClipboardList, Info, RefreshCcw } from 'lucide-react';
-import { toast } from 'sonner';
+import { AlertTriangle, ClipboardList, Info, MoreHorizontal, RefreshCcw } from 'lucide-react';
 
+import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
 import { SearchableSelect } from '@/ui/searchable-select';
 import { Skeleton } from '@/ui/skeleton';
 import { PageHeader } from '@/components/app-shell/PageHeader';
@@ -13,23 +19,31 @@ import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import { describeSavedTermSource, describeSchoolYearSource, describeUnresolvedTermReason, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { resolveVerifiedActiveTermIndex } from '@/lib/timetable-data/timetablePrefetch';
 import type {
-	FacultyAvailabilityRecord,
-	FacultyConcernReviewDecision,
 	FacultyMirror,
+	FacultyRoomPreferenceEntry,
+	FacultyRoomPreferenceState,
 	GenerationInputComparison,
+	PreviewResult,
 } from '@/types';
 import {
+	applyConcernRoomRequest,
 	availabilityRecordToPickerSlots,
+	concernApiErrorMessage,
 	fetchConcernFaculty,
+	fetchConcernRoomOptions,
+	fetchConcernRoomState,
 	fetchFacultyAvailability,
 	fetchLatestRunInputState,
 	pickerSlotsToAvailability,
-	reviewFacultyAvailability,
-	saveFacultyAvailabilityDraft,
-	submitFacultyAvailability,
+	previewConcernRoomRequest,
+	saveAndBindAvailability,
+	saveConcernRoomDraft,
+	submitConcernRoom,
 	type AvailabilityPickerSlot,
 } from '@/components/faculty-shared/teacher-concern-client';
-import { composeConcernNotes, parseConcernNotes } from '@/components/faculty-shared/teacher-concern-helpers';
+import { composeConcernNotes, concernSaveStateLabel, concernSaveStateTone, describeSavedConcern, parseConcernNotes } from '@/components/faculty-shared/teacher-concern-helpers';
+import type { ConcernRoomDraft } from '@/components/faculty-shared/TeacherConcernWorkspace';
+import type { RoomOption } from '@/components/sections/SectionRoomPicker';
 import RunAvailabilityDriftCard from '@/components/faculty-shared/RunAvailabilityDriftCard';
 import TeacherConcernWorkspace from '@/components/faculty-shared/TeacherConcernWorkspace';
 
@@ -43,13 +57,13 @@ function isCurrentEpoch(token: string | null, epoch: number): boolean {
 }
 
 /**
- * S2 — the scheduler concern workspace.
+ * A3 c13 — Teacher Concerns is the ONE page a scheduler fills while talking to
+ * one teacher. Room Preferences and Faculty Preferences folded into it; those
+ * two routes now redirect here.
  *
- * One surface where a scheduler records a teacher's availability grid, notes
- * and room requests, drives the reviewed S1 authority (`faculty-availability`),
- * and sees the run's input freshness routed to regenerate/revision. The actor
- * school and year come only from the session; an unresolved scope or ordered
- * term fails closed and every write stays disabled — there is no `?? 1`.
+ * The two-row header (AGENTS §8) is: row 1 = title, ONE status chip, `More`;
+ * row 2 = the teacher picker. The single primary action — Save — lives at the
+ * end of the form, not in the header, so it is not duplicated.
  */
 export default function TeacherConcerns() {
 	const { actorSchoolId, resolved: scopeResolved } = useActorSchoolScope();
@@ -66,38 +80,45 @@ export default function TeacherConcerns() {
 	const [facultyError, setFacultyError] = useState<string | null>(null);
 	const [selectedFacultyId, setSelectedFacultyId] = useState<number | null>(null);
 
-	const [availability, setAvailability] = useState<FacultyAvailabilityRecord | null>(null);
+	const [availability, setAvailability] = useState<Awaited<ReturnType<typeof fetchFacultyAvailability>>>(null);
 	const [pickerSlots, setPickerSlots] = useState<AvailabilityPickerSlot[]>([]);
 	const [notes, setNotes] = useState('');
 	const [roomRequests, setRoomRequests] = useState('');
-	const [reviewerNotes, setReviewerNotes] = useState('');
 	const [inputState, setInputState] = useState<GenerationInputComparison | null>(null);
+
+	/* ── Rooms ── */
+	const [roomState, setRoomState] = useState<FacultyRoomPreferenceState | null>(null);
+	const [roomOptions, setRoomOptions] = useState<RoomOption[]>([]);
+	const [roomDrafts, setRoomDrafts] = useState<Record<string, ConcernRoomDraft>>({});
+	const [roomPreviews, setRoomPreviews] = useState<Record<number, PreviewResult>>({});
+	const [previewingEntryId, setPreviewingEntryId] = useState<string | null>(null);
+	const [applyingEntryId, setApplyingEntryId] = useState<string | null>(null);
+	const [roomError, setRoomError] = useState<string | null>(null);
 
 	const [loadingConcern, setLoadingConcern] = useState(false);
 	const [concernError, setConcernError] = useState<string | null>(null);
+	const [saveFailure, setSaveFailure] = useState<string | null>(null);
+	const [savedMessage, setSavedMessage] = useState<string | null>(null);
+	/**
+	 * N2 — the ONE status chip's source of truth, as a union rather than a
+	 * sentence. `SAVED_NOT_BINDING` means the server stored the record and then
+	 * refused to make it count for the next timetable; that is a real answer
+	 * about the teacher's load, and the chip says so without parsing prose.
+	 */
+	const [saveOutcome, setSaveOutcome] = useState<'SAVED' | 'SAVED_NOT_BINDING' | null>(null);
 	const [saving, setSaving] = useState(false);
 	const [refreshNonce, setRefreshNonce] = useState(0);
 	/**
 	 * A5-C2A — a separate nonce for the canonical term RESOLUTION, not just the
-	 * concern read. Without it the "Re-check the active term" button would
-	 * re-fetch the teacher's record while leaving the unresolved term untouched,
-	 * which is the exact "handler wired, outcome wrong" defect.
+	 * concern read. Without it the "Check for updates" action would re-fetch the
+	 * teacher's record while leaving the unresolved term untouched, which is the
+	 * exact "handler wired, outcome wrong" defect.
 	 */
 	const [termRefreshNonce, setTermRefreshNonce] = useState(0);
 
 	const loadSeqRef = useRef(0);
 
-	/* ── Actor-school → active school year + verified ordered term ──
-	 *
-	 * A5-C2A: this page reads the SAME canonical resolver the app shell and the
-	 * concern WRITE path use. There is no page-local notion of the active term.
-	 * The previous copy resolved the term from a live-only EnrollPro read, so a
-	 * truthful reachable `ACTIVE_TERM_UNRESOLVED` (host clock outside every term
-	 * of the active year) produced "Active ordered term unresolved" and disabled
-	 * the whole teacher workflow while the shell showed the saved term. The
-	 * server resolver now degrades that case to LABELLED saved data carrying its
-	 * real capture time, and this page renders that label.
-	 */
+	/* ── Actor-school → active school year + verified ordered term ── */
 	useEffect(() => {
 		if (actorSchoolId == null) {
 			setSchoolYearId(null);
@@ -111,11 +132,9 @@ export default function TeacherConcerns() {
 		const epoch = getAtlasTokenEpochVersion();
 		const isCurrent = () => !cancelled && isCurrentEpoch(token, epoch);
 		setYearError(null);
-		// `forceRefresh` is load-bearing, not cosmetic. The concern WRITE path
+		// `forceRefresh` is load-bearing, not cosmetic: the concern WRITE path
 		// re-resolves the active term live on the server and rejects a mismatched
-		// termIndex with `TERM_SCOPE_MISMATCH`, so a 10-minute-old client cache
-		// could make this page show a term the server no longer holds. Asking for
-		// a current answer is what makes the read and the write agree.
+		// termIndex with `TERM_SCOPE_MISMATCH`.
 		resolveActiveSchoolYearContext({ schoolId: actorSchoolId, allowStaleOnError: true, allowEnrollProFallback: false, forceRefresh: true })
 			.then((context) => {
 				if (!isCurrent()) return;
@@ -166,7 +185,31 @@ export default function TeacherConcerns() {
 		};
 	}, [actorSchoolId]);
 
-	/* ── Selected teacher: current authority + latest-run freshness ── */
+	/* ── Room options: the SAME read the Sections room picker uses, so the
+	 *   control is identical on both pages rather than a local variant. ── */
+	useEffect(() => {
+		if (actorSchoolId == null || schoolYearId == null) {
+			setRoomOptions([]);
+			return;
+		}
+		let cancelled = false;
+		const token = getPreferredAccessToken();
+		const epoch = getAtlasTokenEpochVersion();
+		fetchConcernRoomOptions(actorSchoolId, schoolYearId)
+			.then((rooms) => {
+				if (cancelled || !isCurrentEpoch(token, epoch)) return;
+				setRoomOptions(rooms);
+			})
+			.catch(() => {
+				if (cancelled || !isCurrentEpoch(token, epoch)) return;
+				setRoomOptions([]);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [actorSchoolId, schoolYearId]);
+
+	/* ── Selected teacher: availability + run freshness + room state ── */
 	const loadConcern = useCallback(async () => {
 		if (actorSchoolId == null || schoolYearId == null || selectedFacultyId == null) return;
 		const seq = ++loadSeqRef.current;
@@ -175,21 +218,27 @@ export default function TeacherConcerns() {
 		const isCurrent = () => seq === loadSeqRef.current && isCurrentEpoch(token, epoch);
 		setLoadingConcern(true);
 		setConcernError(null);
+		const [record, runInputState] = await Promise.all([
+			fetchFacultyAvailability({ schoolId: actorSchoolId, schoolYearId, facultyId: selectedFacultyId }),
+			fetchLatestRunInputState(actorSchoolId, schoolYearId).catch(() => null),
+		]);
+		if (!isCurrent()) return;
+		setAvailability(record);
+		setInputState(runInputState);
+
+		/*
+		 * The room read is SEPARATE and is never allowed to masquerade as "no
+		 * timetable". `fetchConcernRoomState` maps only `NO_ACTIVE_DRAFT` to null;
+		 * anything else is a real failure and is shown as one, because a silent
+		 * catch here would render an outage as a calm, reassuring absence.
+		 */
 		try {
-			const [record, runInputState] = await Promise.all([
-				fetchFacultyAvailability({ schoolId: actorSchoolId, schoolYearId, facultyId: selectedFacultyId }),
-				fetchLatestRunInputState(actorSchoolId, schoolYearId).catch(() => null),
-			]);
+			setRoomState(await fetchConcernRoomState({ schoolId: actorSchoolId, schoolYearId, facultyId: selectedFacultyId }));
+			setRoomError(null);
+		} catch {
 			if (!isCurrent()) return;
-			setAvailability(record);
-			setInputState(runInputState);
-		} catch (error) {
-			if (!isCurrent()) return;
-			setAvailability(null);
-			setInputState(null);
-			setConcernError(getActionableApiError(error, 'Failed to load this teacher’s availability authority.'));
-		} finally {
-			if (isCurrent()) setLoadingConcern(false);
+			setRoomState(null);
+			setRoomError('Could not read this teacher’s rooms just now. Reload to try again — nothing was changed.');
 		}
 	}, [actorSchoolId, schoolYearId, selectedFacultyId]);
 
@@ -205,6 +254,13 @@ export default function TeacherConcerns() {
 		setAvailability(null);
 		setInputState(null);
 		setConcernError(null);
+		setRoomState(null);
+		setRoomDrafts({});
+		setRoomPreviews({});
+		setRoomError(null);
+		setSavedMessage(null);
+		setSaveFailure(null);
+		setSaveOutcome(null);
 	}, [selectedFacultyId]);
 
 	/* ── Availability record → editable form state ── */
@@ -213,8 +269,46 @@ export default function TeacherConcerns() {
 		const parsed = parseConcernNotes(availability?.notes ?? null);
 		setNotes(parsed.notes);
 		setRoomRequests(parsed.roomRequests);
-		setReviewerNotes('');
 	}, [availability]);
+
+	/*
+	 * The preview line. `preview` is ZERO-WRITE on the server, so it is safe to
+	 * run as soon as a class has a saved request — which is what makes the
+	 * preview visible BEFORE the move, the way the page promises.
+	 */
+	useEffect(() => {
+		if (actorSchoolId == null || schoolYearId == null || selectedFacultyId == null || roomState == null) return;
+		const entries = roomState.entries.filter((entry) => entry.requestId != null && entry.requestedRoomId != null);
+		if (entries.length === 0) return;
+		let cancelled = false;
+		const token = getPreferredAccessToken();
+		const epoch = getAtlasTokenEpochVersion();
+		const isCurrent = () => !cancelled && isCurrentEpoch(token, epoch);
+		setPreviewingEntryId(entries[0]?.entryId ?? null);
+		Promise.all(
+			entries.map(async (entry) => {
+				try {
+					const response = await previewConcernRoomRequest(
+						{ schoolId: actorSchoolId, schoolYearId, facultyId: selectedFacultyId },
+						roomState.runId,
+						entry.requestId as number,
+					);
+					return [entry.requestId as number, response.preview] as const;
+				} catch {
+					return null;
+				}
+			}),
+		).then((results) => {
+			if (!isCurrent()) return;
+			const next: Record<number, PreviewResult> = {};
+			for (const result of results) if (result) next[result[0]] = result[1];
+			setRoomPreviews(next);
+			setPreviewingEntryId(null);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [actorSchoolId, schoolYearId, selectedFacultyId, roomState]);
 
 	const selectedFaculty = useMemo(
 		() => faculty.find((entry) => entry.id === selectedFacultyId) ?? null,
@@ -230,33 +324,41 @@ export default function TeacherConcerns() {
 
 	/**
 	 * A5-C2A — one action that re-runs BOTH the term resolution and the concern
-	 * read, so "re-check" actually changes the outcome on the page rather than
-	 * just refetching the record behind an unchanged verdict.
+	 * read, so "check for updates" actually changes the outcome on the page rather
+	 * than just refetching the record behind an unchanged verdict.
 	 */
 	const bumpRefresh = () => {
 		setRefreshNonce((nonce) => nonce + 1);
 		setTermRefreshNonce((nonce) => nonce + 1);
 	};
 
-	const runWrite = async (action: () => Promise<FacultyAvailabilityRecord>, successMessage: string) => {
+	const handleRoomDraftChange = useCallback((entryId: string, patch: Partial<ConcernRoomDraft>) => {
+		setRoomDrafts((current) => {
+			const base = current[entryId] ?? { requestedRoomId: null, rationale: '' };
+			return {
+				...current,
+				[entryId]: { requestedRoomId: base.requestedRoomId, rationale: base.rationale, ...patch },
+			};
+		});
+	}, []);
+
+	/* ── THE ONE SAVE ──
+	 *
+	 * Availability is carried through save → submit → review, because the server
+	 * reads `status: 'REVIEWED'` ONLY when building a timetable
+	 * (faculty-availability.service.ts:345). A page that stopped at a draft would
+	 * be a false errand. Room needs are written as drafts, which is a real,
+	 * complete record and — unlike a submitted request — does not block the next
+	 * generation run (generation.service.ts:1183 counts SUBMITTED+PENDING only).
+	 */
+	const handleSave = async () => {
+		if (actorSchoolId == null || schoolYearId == null || selectedFacultyId == null || activeTermIndex == null || !selectedFaculty) return;
 		setSaving(true);
 		setConcernError(null);
+		setSaveFailure(null);
+		setSaveOutcome(null);
 		try {
-			const record = await action();
-			setAvailability(record);
-			bumpRefresh();
-			toast.success(successMessage);
-		} catch (error) {
-			setConcernError(getActionableApiError(error, 'The availability authority was not saved.'));
-		} finally {
-			setSaving(false);
-		}
-	};
-
-	const handleSaveDraft = () => {
-		if (actorSchoolId == null || schoolYearId == null || selectedFacultyId == null || activeTermIndex == null) return;
-		void runWrite(
-			() => saveFacultyAvailabilityDraft({
+			const { availability: record, bindFailure } = await saveAndBindAvailability({
 				schoolId: actorSchoolId,
 				schoolYearId,
 				facultyId: selectedFacultyId,
@@ -264,64 +366,169 @@ export default function TeacherConcerns() {
 				slots: pickerSlotsToAvailability(pickerSlots),
 				notes: composeConcernNotes(notes, roomRequests),
 				version: availability?.version ?? null,
-			}),
-			'Availability draft saved for the active term.',
-		);
+			});
+			setAvailability(record);
+
+			let rooms = roomState;
+			if (rooms != null) {
+				for (const entry of rooms.entries) {
+					const draft = roomDrafts[entry.entryId];
+					if (draft?.requestedRoomId == null || draft.requestedRoomId === entry.requestedRoomId) continue;
+					rooms = await saveConcernRoomDraft({
+						schoolId: actorSchoolId,
+						schoolYearId,
+						facultyId: selectedFacultyId,
+						runId: rooms.runId,
+						entryId: entry.entryId,
+						requestedRoomId: draft.requestedRoomId,
+						rationale: draft.rationale.trim() || null,
+						expectedRunVersion: rooms.runVersion,
+						requestVersion: entry.version ?? null,
+					});
+				}
+				setRoomState(rooms);
+			}
+
+			const counts = describeSavedConcern({
+				teacherName: facultyLabel(selectedFaculty),
+				availabilityWindows: pickerSlots.length,
+				roomNeeds: rooms?.entries.filter((entry) => entry.requestedRoomId != null).length ?? 0,
+				hasNote: notes.trim().length > 0,
+				bindFailure,
+			});
+			setSavedMessage(counts);
+			/*
+			 * N2 — the chip reads a TYPED state, never a substring of the sentence
+			 * above. A copy edit to `describeSavedConcern` can no longer silently
+			 * turn "Saved" into "Saved, not yet counted" or back: the reason the
+			 * server gave us is carried beside the sentence as data.
+			 */
+			setSaveOutcome(bindFailure == null ? 'SAVED' : 'SAVED_NOT_BINDING');
+			bumpRefresh();
+		} catch (error) {
+			setSaveFailure(concernApiErrorMessage(error));
+			setConcernError(getActionableApiError(error, 'This teacher’s concerns were not saved.'));
+		} finally {
+			setSaving(false);
+		}
 	};
 
-	const handleSubmitForReview = () => {
-		if (actorSchoolId == null || schoolYearId == null || selectedFacultyId == null || availability == null) return;
-		void runWrite(
-			() => submitFacultyAvailability({
+	/* ── THE APPLY — the existing review path, which is what moves the class ── */
+	const handleApplyRoom = async (entry: FacultyRoomPreferenceEntry) => {
+		if (actorSchoolId == null || schoolYearId == null || selectedFacultyId == null || roomState == null || entry.requestId == null) return;
+		setApplyingEntryId(entry.entryId);
+		setRoomError(null);
+		try {
+			/*
+			 * `submitConcernRoom` RE-BUMPS the request version on an existing row
+			 * (`version: { increment: 1 }`, room-preference.service.ts:699), so the
+			 * review PATCH must carry the version the submit just returned. Sending
+			 * the pre-submit version is a 409 VERSION_CONFLICT and the move silently
+			 * would not happen — which is exactly the false errand this page exists
+			 * to remove.
+			 */
+			const submitted = await submitConcernRoom({
 				schoolId: actorSchoolId,
 				schoolYearId,
 				facultyId: selectedFacultyId,
-				version: availability.version,
-				slots: pickerSlotsToAvailability(pickerSlots),
-				notes: composeConcernNotes(notes, roomRequests),
-			}),
-			'Availability submitted for review.',
-		);
-	};
-
-	const handleReview = (decision: FacultyConcernReviewDecision) => {
-		if (actorSchoolId == null || schoolYearId == null || selectedFacultyId == null || availability == null) return;
-		void runWrite(
-			() => reviewFacultyAvailability({
+				runId: roomState.runId,
+				entryId: entry.entryId,
+				requestedRoomId: entry.requestedRoomId as number,
+				rationale: roomDrafts[entry.entryId]?.rationale.trim() || entry.rationale || null,
+				expectedRunVersion: roomState.runVersion,
+				requestVersion: entry.version ?? null,
+			});
+			const fresh = submitted.entries.find((candidate) => candidate.entryId === entry.entryId);
+			await applyConcernRoomRequest({
 				schoolId: actorSchoolId,
 				schoolYearId,
 				facultyId: selectedFacultyId,
-				version: availability.version,
-				decision,
-				reviewerNotes: reviewerNotes.trim() || null,
-			}),
-			decision === 'REVIEWED' ? 'Availability approved and bound to generation.' : 'Availability returned for correction.',
-		);
+				runId: roomState.runId,
+				requestId: entry.requestId,
+				expectedRunVersion: submitted.runVersion,
+				requestVersion: fresh?.version ?? 1,
+				reviewerNotes: null,
+			});
+			setRoomDrafts((current) => {
+				const next = { ...current };
+				delete next[entry.entryId];
+				return next;
+			});
+			// A move bumps the run version, so the next move must read it fresh.
+			bumpRefresh();
+		} catch (error) {
+			setRoomError(concernApiErrorMessage(error));
+		} finally {
+			setApplyingEntryId(null);
+		}
+	};
+
+	/*
+	 * N2 — derived from the typed `saveOutcome` union, never from the saved
+	 * sentence. A pre-existing record that already binds also reads as SAVED, so
+	 * a reload lands on the same chip as the save that produced it.
+	 */
+	const bindFailure = saveOutcome === 'SAVED_NOT_BINDING';
+	const statusInput = {
+		selected: selectedFacultyId != null,
+		saved: saveOutcome != null || (availability != null && availability.status === 'REVIEWED'),
+		bindFailure,
 	};
 
 	return (
 		<div className='flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden bg-muted/30'>
 			<div className='flex-1 min-h-0 overflow-auto px-4 py-5 sm:px-6'>
 				<div className='mx-auto w-full max-w-6xl space-y-4'>
-					<PageHeader
-						title='Teacher Concerns'
-						eyebrow='Teachers and Rooms'
-						subtitle='Record a teacher’s availability, notes and room requests; review the authority that binds generation.'
-						primaryAction={(
-							<Button type='button' variant='outline' size='sm' onClick={bumpRefresh} disabled={selectedFacultyId == null}>
-								<RefreshCcw className='mr-1.5 size-4' aria-hidden='true' />
-								Check for updates
-							</Button>
-						)}
-					/>
+					<div className='space-y-3'>
+						<PageHeader
+							title='Teacher Concerns'
+							source={
+								<Badge variant={concernSaveStateTone(statusInput)} data-testid='concern-save-state'>
+									{concernSaveStateLabel(statusInput)}
+								</Badge>
+							}
+							secondaryActions={(
+								<DropdownMenu>
+									<DropdownMenuTrigger asChild>
+										<Button type='button' variant='outline' size='sm' aria-label='More'>
+											<MoreHorizontal className='size-4' aria-hidden='true' />
+											More
+										</Button>
+									</DropdownMenuTrigger>
+									<DropdownMenuContent align='end'>
+										<DropdownMenuItem onSelect={bumpRefresh}>
+											<RefreshCcw className='mr-1.5 size-4' aria-hidden='true' />
+											Check for updates
+										</DropdownMenuItem>
+									</DropdownMenuContent>
+								</DropdownMenu>
+							)}
+							testId='teacher-concerns-header'
+						/>
+						{/* Row 2 — the pickers. One picker, one teacher; the room picker
+						    lives with the class it belongs to, below. */}
+						<div className='flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-soft'>
+							<div className='w-full max-w-xs space-y-1.5'>
+								<p className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>Teacher</p>
+								<SearchableSelect
+									items={facultyOptions}
+									value={selectedFacultyId == null ? '' : String(selectedFacultyId)}
+									onValueChange={(value) => setSelectedFacultyId(value ? Number(value) : null)}
+									placeholder={facultyError ? 'Teacher roster unavailable' : faculty.length === 0 ? 'No teachers loaded' : 'Search a teacher by name…'}
+									disabled={faculty.length === 0}
+									disabledReason={facultyError ?? 'Load the teacher roster first.'}
+									triggerClassName='w-full'
+								/>
+							</div>
+							{facultyError ? <p className='text-xs text-destructive'>{facultyError}</p> : null}
+						</div>
+					</div>
 
 					{schoolYearNotice && <p className='text-xs text-muted-foreground'>{schoolYearNotice}</p>}
 
-					{/* A5-C2A — the saved-data label. Rendered whenever the canonical
+					{/* A5-C2A — the saved-data label, rendered whenever the canonical
 					    resolver answered from the saved verified ordered-term snapshot,
-					    with the REAL capture time, and the workflow stays usable. This
-					    is the one place this page describes its term source, so no second
-					    page-local notion of the active term can appear. */}
+					    with the REAL capture time, and the workflow stays usable. */}
 					{savedTermNotice && (
 						<p className='flex items-center gap-1.5 text-xs text-muted-foreground' data-testid='concern-saved-term-notice'>
 							<Info className='size-3.5 shrink-0' aria-hidden='true' />
@@ -365,10 +572,6 @@ export default function TeacherConcerns() {
 										{unresolvedTermReason ?? 'Availability is term-scoped, so ATLAS will not record a concern until an ordered term is verified.'}
 										Writes stay disabled rather than defaulting to Term 1.
 									</p>
-									{/* A5-C2A — one recoverable action, never a dead end. "Check for
-					    updates" re-runs the canonical resolver; if EnrollPro is back
-					    and its term structure still matches the saved one, the term
-					    resolves and this whole notice disappears. */}
 									<Button type='button' variant='outline' size='sm' onClick={bumpRefresh}>
 										<RefreshCcw className='mr-1.5 size-4' aria-hidden='true' />
 										Re-check the active term
@@ -377,24 +580,6 @@ export default function TeacherConcerns() {
 							</CardContent>
 						</Card>
 					)}
-
-					<Card className='rounded-2xl border-border/60 shadow-sm'>
-						<CardContent className='flex flex-col gap-3 p-4 sm:flex-row sm:items-end sm:justify-between'>
-							<div className='w-full max-w-sm space-y-1.5'>
-								<p className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>Teacher</p>
-								<SearchableSelect
-									items={facultyOptions}
-									value={selectedFacultyId == null ? '' : String(selectedFacultyId)}
-									onValueChange={(value) => setSelectedFacultyId(value ? Number(value) : null)}
-									placeholder={facultyError ? 'Teacher roster unavailable' : faculty.length === 0 ? 'No teachers loaded' : 'Select a teacher…'}
-									disabled={faculty.length === 0}
-									disabledReason={facultyError ?? 'Load the teacher roster first.'}
-									triggerClassName='w-full'
-								/>
-							</div>
-							{facultyError && <p className='text-xs text-destructive'>{facultyError}</p>}
-						</CardContent>
-					</Card>
 
 					{concernError && (
 						<Card className='rounded-2xl border-destructive/20'>
@@ -420,15 +605,22 @@ export default function TeacherConcerns() {
 									onPickerChange={setPickerSlots}
 									notes={notes}
 									onNotesChange={setNotes}
-									roomRequests={roomRequests}
-									onRoomRequestsChange={setRoomRequests}
-									reviewerNotes={reviewerNotes}
-									onReviewerNotesChange={setReviewerNotes}
 									writesDisabled={writesDisabled}
 									saving={saving}
-									onSaveDraft={handleSaveDraft}
-									onSubmitForReview={handleSubmitForReview}
-									onReview={handleReview}
+									onSave={handleSave}
+									schoolId={actorSchoolId}
+									roomState={roomState}
+									roomOptions={roomOptions}
+									roomDrafts={roomDrafts}
+									onRoomDraftChange={handleRoomDraftChange}
+									roomPreviews={roomPreviews}
+									onApplyRoom={handleApplyRoom}
+									previewingEntryId={previewingEntryId}
+									applyingEntryId={applyingEntryId}
+									roomError={roomError}
+									legacyRoomNote={roomRequests.trim() || null}
+									savedMessage={savedMessage}
+									saveFailure={saveFailure}
 								/>
 							)}
 							<RunAvailabilityDriftCard inputState={inputState} facultyName={selectedFaculty ? facultyLabel(selectedFaculty) : null} />
@@ -450,13 +642,8 @@ export default function TeacherConcerns() {
 								<div className='min-w-0 space-y-1.5'>
 									<p className='text-sm font-semibold text-foreground'>Choose a teacher to begin</p>
 									<p className='text-xs leading-relaxed text-muted-foreground'>
-										This page records one teacher&apos;s weekly availability, notes and room requests for the active
-										term, and shows how those records bind to the run being generated.
-									</p>
-									<p className='text-xs leading-relaxed text-muted-foreground'>
-										Nothing is recorded or listed until you pick a teacher. Use the teacher picker above, then mark
-										their unavailable and preferred windows, add any notes or room requests, and save the draft
-										for review.
+										This page records one teacher&apos;s weekly availability, the rooms they need, and anything
+										else you need to remember, then saves it in one go.
 									</p>
 								</div>
 							</CardContent>
