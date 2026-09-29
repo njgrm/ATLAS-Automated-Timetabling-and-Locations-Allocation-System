@@ -67,3 +67,47 @@ The premise of the packet is confirmed — same-day repeats are real on live-sha
 here; 31 pairs, worst 5-15 in Run 347). The proposed lever is not the one that produces them. Re-scope to the
 hybrid scheduler's repair and seed selection, or authorise the constructor change as a defensive invariant
 for the direct-constructor path and say so explicitly. Do not record A8 g1 as fixed.
+
+---
+
+## Post-action review addendum (2026-09-29) — `ses_f1217d774ffe1o8YJb4CoNZgz7`
+
+`VERDICT: POST_ACTION_CORRECTION_REQUIRED`, tally 3/6/0/0. **The inertness finding is independently confirmed
+and no row of the measurement is wrong (P1 PASS):** production calls `runHybridScheduler(constructorInput)`
+at `generation.service.ts:1006`, and `repairUnassignedByEjection` relocated 40 entries after the constructor
+with no same-day-repeat constraint. The frame is production-representative and `FRAME_NOT_REPRESENTATIVE` is
+a real, unit-proven guard. The reviewer agrees with not merging and adds one reason the merge would have been
+worse than neutral.
+
+**BLOCKING-1 — `spreadReport` is computed on pre-repair entries and persisted onto post-repair entries.**
+`hybrid-scheduler.ts:1103-1106` persists the constructor's `spreadReport`, while the entries it describes were
+subsequently relocated (40 of them, `proof-attempt-3.log:17`). Its message asserts a causal claim about a
+named day ("no other day was free") that the repair pass can falsify, and `a8-g1-spread-sessions.test.ts`
+asserts only that the field is present. **A re-scope must recompute the spread report after repair, or drop
+it.** It must not ship the receipt as it stands.
+
+**Corrections to this document's own prose (findings 2, 4, 5, 6) — the re-scope must not act on them as
+written:**
+- "The premise is confirmed" overstates it: the measured worst cell is 4, the packet's is 5, and the repeat
+  metric is term-blind while only the overlap counter is term-keyed, so 25 cannot be decomposed from repo
+  evidence. Start from `proof-attempt-3.log`, not from this prose.
+- "Reproduces Run 347's frame exactly" conflicts with the harness's own `A8G1_PACKET_REFERENCE` line, which
+  says the table's frame is a different frame from the packet's 910/920. The 910/10 equality is a match on
+  totals, not the packet's stated frame.
+- "Worst 15" (attempt 1) / "worst 5" (packet) / "worst 5-15" (this doc) are three unreconciled figures; the
+  15 most likely came from a 3-term `draft_entries` read.
+- "A seed/repair combination that no spread ordering can influence" is **false**: `spreadOrdering` reaches
+  every seed profile through `hybrid-scheduler.ts:1003`, and both sides ran the identical seven profiles with
+  identical per-profile counts. The constructor change is not worthless in general; it is invisible because
+  the repair pass overwrites it.
+
+**NON_BLOCKING, for the re-scope:** stale harness header comment (`:38-42`) still documents the replaced
+method; the harness threshold (`count<2`), its announced target (`ceil(sessions/5)`) and the product rule
+(`> max(1, ceil(sessions/5))`) disagree for subjects with more than 5 sessions, and the proof never validates
+the receipt; the handoff `docs/handoffs/a8-g1-spread-sessions.md` still carries `<n> <m> <R> <W>`
+placeholders and an un-reconciled prediction, and was rewritten in place twice, so a re-scope reader must
+start from the log and this addendum. Evidence additivity and custody PASS: artifacts are strictly additive,
+the branch is pushed and reachable from the shared repository, and no live/staging/runtime action occurred.
+
+**Disposition unchanged: the candidate does not merge, two correction rounds are spent, and the re-scope
+belongs in `atlas-server/src/services/hybrid-scheduler.ts`.**
