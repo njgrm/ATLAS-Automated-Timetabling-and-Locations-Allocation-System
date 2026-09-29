@@ -267,3 +267,11 @@ Baseline measured on `a1f0c727` in this worktree before any edit (recorded by th
 - The rendered capture: what was measured at 1366×768 before and after, in both states, with the numbers.
 - Known risks, each marked `BLOCKING` or `NON_BLOCKING`.
 - Verdict. Worktree disposition: `KEEP_ACTIVE` (the planner retires it after integration).
+
+## Addendum 11:00 — Codex train 7 walk (docs/reviews/codex-staging-train7-e9ddda71/report.md), binding for QA
+A6 c5 shipped in `e9ddda71`, but on staging (S.Y. 2022-2023) the page showed only the generic
+"25 classes still need a real teacher." — no per-subject shortage line and no "Cover these classes" control.
+Find out why c5's surface did not render there (data state? a gate that hides it?) and make it show whenever
+classes lack a teacher. Also: "SET OWNER" / "CHANGE OWNER" -> "Assign teacher" / "Change teacher"; after an assign,
+show an obvious "Undo" beside the confirmation; replace "Next step Last saved data — Assign teachers to open classes
+Unverified" with one plain line.
