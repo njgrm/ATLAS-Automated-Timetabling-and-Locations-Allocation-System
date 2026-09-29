@@ -104,6 +104,13 @@ test('UX-R03d row 1: the outlet key is DERIVED by the helper, in both the shell 
 	//   2. the outlet RECEIVES it as a prop and does not recompute or re-derive it.
 	// A future edit that moved the derivation into the outlet, or inlined a template
 	// anywhere in either file, is red.
+	//
+	// A5 C4 QA N1 (2026-09-29, correction round 2, NON_BLOCKING): the outlet-side
+	// template check below is case-INsensitive, because the real identifier is
+	// `routeEpoch` and a case-sensitive `epoch` could never match the spelling this
+	// codebase actually uses - the assertion was vacuous rather than wrong. Adding
+	// `/i` makes it live; the shell-side check at :113 already names the exact
+	// spelling and needs no flag.
 	const usages = shell.match(/resolveOutletKey\(location\.pathname, routeEpoch\)/g) ?? [];
 	assert.equal(
 		usages.length,
@@ -129,7 +136,7 @@ test('UX-R03d row 1: the outlet key is DERIVED by the helper, in both the shell 
 	);
 	assert.doesNotMatch(
 		outletCode,
-		/\$\{[^}]*pathname[^}]*\}:\$\{[^}]*epoch[^}]*\}/,
+		/\$\{[^}]*pathname[^}]*\}:\$\{[^}]*epoch[^}]*\}/i,
 		'no raw pathname:epoch template may exist in RouteOutlet either',
 	);
 	// And it really is a prop, applied to the element the shell used to key twice.
