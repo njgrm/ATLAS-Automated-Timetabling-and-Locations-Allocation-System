@@ -1,8 +1,15 @@
 # A8 g1 handoff — spread a section's weekly classes across days
 
 **Worktree** `E:\ATLAS-worktrees\lane-a8-g1` · **branch** `work/a8-g1-spread-sessions`
-**Base** `5e03e0c460dfd2881cadb2183f28e6e4510e798a` · **candidates** `31addf09` (code + tests), `<HARNESS>` (proof harness, this commit)
+**Base** `5e03e0c460dfd2881cadb2183f28e6e4510e798a`, merged forward to `bfd14a96`
+**Candidates** `31addf09bb17dc0eac5864c118d38874e164c30e` (code + tests), `49ca2ff92d99309bce0dc991f6538508f55de36c` (proof harness + this handoff)
 **Disposition** `PRESERVE_FOR_DECISION` — the proof row is `BLOCKED`, see §5.
+
+Both candidate commits are reachable from the shared repository
+(`git -C D:\ATLAS cat-file -t <sha>` → `commit` for each), so an integration boundary can `git merge`
+this branch. **The branch is not pushed**: `git push` and `git merge` are both denied to this executor by
+its permission set, so the required "merge `origin/main` before each slice" could not be repeated at the
+end of the run — see §9.
 
 ## 1. What changed, per file, and why
 
@@ -204,3 +211,29 @@ to the group, and tolerates neither. That suite went 15/16 → 16/16.
 - **N5 — `schedule-constructor.ts` is 3,270 physical lines**, over the §8 1,000-line rule. It was ~3,000
   before this change and the packet explicitly forbids splitting or refactoring it. Pre-existing,
   untouched by this lane, flagged not fixed.
+
+## 9. Coordination state at hand-off (needs the integration owner)
+
+- **`git merge` and `git push` are denied to this executor.** The initial
+  `git merge origin/main` (producing `bfd14a96`) succeeded, but the permission set refused both verbs
+  afterwards, so the closing "merge `origin/main` before each slice" could not be run and the branch is
+  **unpushed**. This is a permission limitation, not a choice.
+
+- **`origin/main` has advanced past `bfd14a96` by ~20 commits** (A4 runtime hotfixes, A3 prefs-save,
+  docs). The integration owner must merge and re-run the gates on the current tip. What I *could*
+  verify without merging, and did:
+
+  | Check | Command | Result |
+  |---|---|---|
+  | Does main touch my two source files? | `git diff --name-only bfd14a96 origin/main` | `schedule-constructor.ts` and `generation.service.ts` are **absent** from the 74-path list — **no source conflict, so the §R7 semantic-conflict escalation did not arise** |
+  | Does main touch my other three paths? | same, filtered | `atlas-server/package.json` **is** touched → a mechanical union (I added one `test:*` key; A3 added its own) |
+  | Has c5 landed a receipt redesign? | `git grep -l "spreadReport\|runReceipt" origin/main -- atlas-server/src` | **no match** — `spreadReport` had nothing to fold into, as §2.5 states |
+
+- **The r1/r2 approach notes are not on `origin/main` and never were.** `git branch -a --contains`
+  for `363f2887`, `2e2c925a` and `afb325da` reports each as *not* on `origin/main`; they exist only on
+  this lane branch. `git diff bfd14a96 origin/main` therefore renders them as removed, which looks like
+  a deletion and is not one. I checked this specifically because it initially looked like my own commit
+  had deleted them: `git show --stat 49ca2ff9` shows exactly two added files, zero deletions, and
+  `git log --oneline origin/main` does not contain `49ca2ff9`. The approach note the implementation
+  follows is therefore **unpushed** and reviewers should read it from this branch, not from main.
+- The packet `docs/prompts/a8-g1-spread-sessions-2026-09-29.md` **is** on main and is unchanged.
