@@ -289,17 +289,34 @@ const EXPECTED_EXCLUDED_RESIDUAL = 16;
  * A count that had become 0 in the page AND 0 in the panel would have been a real
  * regression; 8 -> 4 and 4 is the honest result of a split.
  *
- * A5 C5 (2026-09-29) — AND THEN IT FELL BY ONE, BECAUSE A PAGE WAS EMPTIED. The Room
- * Schedules rewrite took `src/pages/RoomSchedules.tsx` to zero raw neutrals, so it no
- * longer appears in the ratchet scope's file list at all: 29 -> 28. This is the different
- * case from A5 C4's split. A split moves a file's residue and raises the count; an emptying
- * removes a file from the list and lowers it. Leaving 29 here would have been a gate
- * counting a file that no longer exists.
+ * A9 C3 (2026-09-29) — `CampusMapOverview.tsx` 10 -> 9, and this is a SWEEP of one
+ * residual, not a split. Counting method, unchanged and re-run over the same corpus:
+ * one occurrence per `\btext-(?:slate|zinc|gray|neutral|stone)-\d{2,3}\b` match in the
+ * file's bytes, compared base `955d2e7a` against the working tree. The single line
+ * that left is `text-slate-800` on the "Selected building" room-total line, which was
+ * reworded into the consequence sentence
+ * ("None of its 20 rooms are marked as a teaching classroom, so no class can be held
+ * there.") and now uses `text-sm text-muted-foreground`. Nothing was ADDED anywhere in
+ * the file, and `EXPECTED_TOTAL` / `EXPECTED_IN_SCOPE_RESIDUAL` / `EXPECTED_FILE_COUNT`
+ * do not move for this change alone, because this is one occurrence leaving one file
+ * that still holds 9. Measured with the same detector the client-wide ratchet uses,
+ * not by eye.
+ *
+ * A5 C5 (2026-09-29) — AND THEN THE FILE COUNT FELL, BECAUSE A PAGE WAS EMPTIED. The
+ * Room Schedules rewrite took `src/pages/RoomSchedules.tsx` to zero raw neutrals, so it
+ * no longer appears in the ratchet scope's file list at all: 29 -> 28, exactly undoing
+ * the rise A5 C4's split caused. This is the different case from both A5 C4's split and
+ * A9 C3's sweep. A split moves a file's residue and raises the file count; a sweep
+ * lowers one file's residual and leaves the list alone; an emptying removes a file from
+ * the list and lowers the count. Leaving 29 here would have been a gate counting a file
+ * that no longer exists. The residual total falls by the 7 that Room Schedules held
+ * (108 -> 97 measured; the 95 pin is a stale pre-existing red this change does not
+ * re-pin, and it moved the measured number the right way).
  */
 const EXPECTED_FILE_COUNT = 28;
 const STEP_2_SURVIVING_RESIDUALS: ReadonlyArray<readonly [string, number]> = [
 	['src/components/campus-map/BuildingGradeScopeControl.tsx', 1],
-	['src/components/campus-map/CampusMapOverview.tsx', 10],
+	['src/components/campus-map/CampusMapOverview.tsx', 9],
 	['src/components/dashboard/CampusReadinessCard.tsx', 11],
 	['src/pages/Audit.tsx', 4],
 	['src/components/audit/AuditFindingsPanel.tsx', 4],

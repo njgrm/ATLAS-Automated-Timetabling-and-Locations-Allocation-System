@@ -16,7 +16,7 @@ import {
 } from '@/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { Link } from 'react-router-dom';
-import { SectionRoomPicker, type RoomOption } from './SectionRoomPicker';
+import type { RoomOption } from './SectionRoomPicker';
 import { resolveHomeRoom } from './home-room-readiness';
 import { gradeCompact } from '@/lib/deped-glossary';
 import type { ExternalSection } from '@/types';
@@ -61,25 +61,17 @@ interface SectionRowProps {
 	section: SectionDetail;
 	homeRoomOptions: RoomOption[];
 	isReadOnly: boolean;
-	isSaving: boolean;
-	onHomeRoomChange: (section: SectionDetail, value: number | null) => void;
 	onShowDetails: (section: SectionDetail) => void;
 	/** A3 C4: opens the existing room map scoped to THIS section. */
 	onShowRoomMap: (section: SectionDetail) => void;
-	schoolId: number;
-	roomOccupancy?: Map<number, string>;
 }
 
 export function SectionRow({
 	section,
 	homeRoomOptions,
 	isReadOnly,
-	isSaving,
-	onHomeRoomChange,
 	onShowDetails,
 	onShowRoomMap,
-	schoolId,
-	roomOccupancy,
 }: SectionRowProps) {
 	const fill = section.maxCapacity > 0 ? Math.round((section.enrolledCount / section.maxCapacity) * 100) : 0;
 	const gKey = gradeKey(section.gradeLevelName);
@@ -181,28 +173,49 @@ export function SectionRow({
 			</td>
 
 			<td className="px-4 py-3">
-				<div className="space-y-1.5">
-					<SectionRoomPicker
-						sectionId={section.id}
-						sectionName={section.name}
-						value={section.homeRoomId ?? null}
-						options={homeRoomOptions}
-						onSelect={(roomId) => onHomeRoomChange(section, roomId)}
-						disabled={isReadOnly}
-						isSaving={isSaving}
-						schoolId={schoolId}
-						roomOccupancy={roomOccupancy}
-					/>
-					<div className="flex items-start gap-1.5 text-[0.6875rem] font-semibold leading-4 text-muted-foreground">
-						{selectedRoom ? <Home className="mt-0.5 size-3 shrink-0 text-emerald-600" /> : <AlertTriangle className="mt-0.5 size-3 shrink-0 text-amber-600" />}
-						<span>
-							{selectedRoom
-								? `Ready: ${selectedRoom.buildingName}`
-								: isReadOnly
-								? 'Needs home room. Edits paused.'
-								: 'Needs home room. Choose a room.'}
-						</span>
-					</div>
+				{/* A9 C3 (2026-09-29) — THE INLINE PICKER IS GONE FROM THE TABLE, AND THIS
+				    CELL IS WHAT REPLACES IT.
+
+				    THE DEFECT. The older-user audit rejected `/sections` for showing "20 need
+				    rooms" beside 20 identical "Choose home room" selectors: the same control
+				    twenty times, each one a decision the scheduler had to make by hand before
+				    she could do anything else. That is the tedium score (2/5) in the audit's
+				    own words, and it is why the page now has ONE guided step
+				    (`HomeRoomAutoAssignDialog`) that reads the server's own matching rules.
+
+				    WHAT THIS CELL IS. A plain READ of the current room — no control, one line.
+				    It answers "does this section have a room, and which one" at a glance, which
+				    is what a scrolling table is for, and it costs the row nothing: the previous
+				    version put a 9px-tall control plus a second line of status text in every
+				    row, so removing them is where the page got SHORTER.
+
+				    WHY NO CAPABILITY IS LOST — and this is the part that has to be true, so it
+				    is worth being exact. A section that needs a room is now changed in the
+				    guided review list, which carries this same `SectionRoomPicker` primitive
+				    (§8 one look per control: the review row and the old row control are the
+				    same component, so the look cannot drift). A section that ALREADY has a
+				    room is not in that list at all — the preview runs with
+				    `overwriteExisting: false` and reports those sections as
+				    `existingPreserved` — so re-pointing one is reached through the row's OWN
+				    map button, which is one click away on every row, has always been there,
+				    and writes through the very same `onHomeRoomChange` this cell used to call
+				    (`SectionsHomeRoomMapModals` passes it straight to `handleHomeRoomChange`).
+				    No path to a room assignment was removed; the twenty repeated ways of
+				    reaching it were.
+
+				    `resolveHomeRoom` is still the ONE definition of "has a room" (A3 C4 defect
+				    A), and the amber icon moved to the measured `--warning` family rather
+				    than a raw amber class, which is the direction the c8 ratchet exists to
+				    push (a3-c8-warning-token.test.ts). */}
+				<div className="flex items-start gap-1.5 text-xs font-semibold leading-4 text-muted-foreground">
+					{selectedRoom
+						? <Home className="mt-0.5 size-3 shrink-0 text-emerald-600" />
+						: <AlertTriangle className="mt-0.5 size-3 shrink-0 text-warning" />}
+					<span data-testid="section-row-home-room">
+						{selectedRoom
+							? `${selectedRoom.name} · ${selectedRoom.buildingName}`
+							: 'Needs a home room'}
+					</span>
 				</div>
 			</td>
 

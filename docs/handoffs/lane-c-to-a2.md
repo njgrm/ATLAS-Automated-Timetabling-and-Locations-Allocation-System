@@ -1651,3 +1651,190 @@ your Codex walk returned **GO, 0 blockers**. Live is `e9ddda71`; `ce1257c8` is t
 
 **Next action (single):** Lane C runs the S-W2 browser rows on `https://njgrm.buru-degree.ts.net` - `/timetable`
 and `/teaching-load` - and posts the result here.
+
+---
+
+# A4 STAGING at `3216d383` - train 8 up at staging 2026-09-29 11:20 +08
+
+**`A4 STAGING at 3216d383ce033a3447067255bbe554910fb78595`.** Pin = the `origin/main` tip when step 1 started
+(`3216d383 docs(prompts): A4 train 8 …`), on branch `release/2026-09-29-8`. **Live is untouched at `e9ddda71`.**
+Staging: `https://njgrm.buru-degree.ts.net:8443` (API 5101, client 5274), loopback `http://127.0.0.1:5274`.
+Release dir `E:\ATLAS-staging\3216d383ce033a3447067255bbe554910fb78595…`, `releaseSha` == pin in its own
+`supervisor-state.json`, task `ATLAS-Staging-Supervisor` (SYSTEM, at startup), listeners 5101 -> **34488**,
+5274 -> **33052**. Deploy `STAGING_DEPLOYED` in **103.4 s**; DB re-streamed from live (`SNAPSHOT_REFRESHED`,
+`liveSignatureBefore == liveSignatureAfter == stagingSignature = 1132|493|11`).
+
+## In the train
+
+- **A8 `6a496cbd`** - managed SSE stream lifecycle: the failed heartbeat write is now authoritative, the
+  response is ended, the heartbeat cleared and the subscription released, with a per-`user:school:schoolYearId`
+  cap and a 429 on refusal. **It is not a freeze fix and I am not describing it as one.**
+- **A2 c13 `5a7552bd`** - "Your schedule is still loading." with Retry after 8 s, one name "Class Schedule",
+  and a disabled Generate with its reason.
+- **A6 c6 `a3819321`** - Teaching Load jargon to plain words, one main button, Sort no longer cut off, calmer density.
+- **A3 c13 `557d1bb9`** - one Teacher Concerns page; `/faculty/room-preferences` and `/faculty/preferences` redirect
+  to `/faculty/concerns`; one menu item.
+- **73 paths** since `e9ddda71`, **0 under `prisma/`**. A5 c5, A7 c6 and A9 c3 had **not** posted
+  `ready for release` before the pin, so they are **NOT IN TRAIN** and ride train 9.
+
+## GATE: PASS
+
+| Row | Result |
+|---|---|
+| S-Z2 Prisma | **PASS** - `git diff --name-only e9ddda71..3216d383 -- prisma/` = **0 paths**; live migrations 11 |
+| `test:staging-guards` | **PASS 20/20**, fail 0 (real script, dry-run refusals + positive controls) |
+| Client suite delta | **PASS - 0 new failures introduced by this train.** See the finding below |
+| Live-data invariants | **PASS** - `is_active AND NOT is_archived` year mirrors = **1** (id 564, year `2022-2023`); fixture external ids 900000-999999 = **0** in `enrollpro_school_year_mirrors`, `section_mirrors` and `faculty_mirrors`; migrations 11 |
+| S-R live untouched | **PASS** - listeners 5001 -> **30904**, 5174 -> **4940** (identical before and after), machine scope still `E:\ATLAS-worktrees\lane-a4-release-20260929-7prod` / `e9ddda71`, live signature `1132\|493\|11` unchanged |
+| S-H1 staging health | **PASS** - loopback 5101 health 200, ready 200, 5274 `__host/live` 200, `__host/ready` 200, DB-backed `GET /api/v1/subjects?schoolId=1` 200; Tailnet 8443 health 200, ready 200, subjects 200; live 443 health 200 |
+| S-D1 shipped-vs-claimed | **PASS, non-vacuous** - 8 discriminators, every one new-vs-old (below) |
+| Capacity | E: **27.11 -> 28.64** before the build, **26.48** after it, **28.01** after retiring the displaced staging tree |
+
+### S-D1 discriminators (new build vs the e9ddda71 build, both real chunks)
+
+| Bullet | Probe | new | old |
+|---|---|---|---|
+| A2 c13 loading band | `Your schedule is still loading` in `atlas-client/dist` | **1** | 0 |
+| A2 c13 **Publish renders no source text** | `hoist the publish note` in the built client | **0** | 0 |
+| A2 c13 same row, second probe | `A2 C13` marker anywhere in the built client | **0** | 0 |
+| A6 c6 degraded help | `Why the numbers may be from the last saved roster` | **1** | 0 |
+| A6 c6 offline lead | `You are offline, so ATLAS is showing the last saved roster.` | **1** | 0 |
+| A3 c13 one menu item | `Room Preferences` in the built client | **0** | 3 |
+| A3 c13 one destination | `Teacher Concerns` in the built client | **5** | 3 |
+| A8 SSE cap | `DEFAULT_SSE_STREAMS_PER_PRINCIPAL` in `atlas-server/dist` | **3** | 0 |
+
+The A2 row is the one A2's QA round 1 asked for: the Publish control's JSX comment words are **absent** from the
+built chunk, so the control is not rendering source text.
+
+### One finding you should have, and it is not this train's
+
+`test:client-suite` at the pin reports **2 failing tests that are NOT in the KNOWN_RED baseline**
+(`docs/reviews/client-suite-baseline-20260929/baseline.md`, captured 06:10 against train 5 `ce1257c8`):
+
+- `a2-c11-s2-header-banners.test.tsx` - "ITEM 1 RENDERED: the REAL Simple header prints ONE sentence, no second
+  title, no timestamp and no alarm colour" (`1 !== 0` heading elements in the row)
+- the same file - "ITEM 2 STRUCTURAL …: the header renders TWO row bands" (row 1 is `timetable-simple-header-row-1`,
+  the test expects `timetable-simple-status-region`)
+
+**I did not treat them as a NO_GO, and here is the proof rather than the assertion.** I built a throwaway
+worktree at `e9ddda71` - the live release, i.e. the rollback basis - with a `node_modules` junction to this
+worktree's tree, and ran that one file there: **the same 2 tests fail, byte-identical, at the same source offsets
+(10498 and 15642) and with the same messages.** So they are **carried by the release that is live right now**;
+train 8 introduces nothing. One baseline entry went green in this train
+(`UX-R03e setup: every touched component file stays under the 1000-line cap`), which is why 39 baseline entries
+against 40 measured names nets to +2 rather than +3. I deleted the probe worktree, junction first, then
+`git worktree remove` + `prune`.
+
+**Routed to A2, not fixed here** (A4 edits no product or test code): A2's c13 changed the Simple header and its
+own gates disagree about the heading element and the row-1 testid. Two ways to close it, both A2's call - update
+the two assertions to the c13 contract, or restore the contract they pin. **The baseline doc also needs those two
+names added**; it is Lane C's artifact, so I did not edit it.
+
+### Capacity, and the reclaim candidates I refused
+
+E: was **27.11 GiB**, so the reclaim ran before the build. Retired, non-forced `git worktree remove` + `prune`,
+each restored to clean first and each scanned for reparse points and live processes:
+`E:\ATLAS-staging\ce1257c8…` (train 5 staging, superseded, ancestor of the pin) and
+`E:\ATLAS-worktrees\lane-a4-prod-record-20260929` (ancestor of the pin). **27.11 -> 28.64 GiB.**
+After the deploy, `E:\ATLAS-staging\e9ddda71…` was retired the same way -> **28.01 GiB**.
+
+**I did not reach the packet's "above 30 GiB" and I am recording why rather than forcing it.** The two other
+candidates the last record named - `lane-a4-release-20260929-6` and `lane-a4-release-c02-20260929` - each carry
+commit **`e85ee949 test(teaching-load): route-level proof for the coverage/repair actor-JWT guard`**, which is
+**not an ancestor of the pin**. That is an unintegrated candidate, so the preserve rule outranks the capacity
+preference and I left both alone. `lane-a4-release-20260929-5` stays as rollback depth; `-4prod`, `-7prod` (live)
+and `lane-a4-handoff-20260928-1` (not an ancestor) untouched. **E: 28.01 GiB is above the §3 warn line; the
+staging deploy needs ~2.1 GiB and it fit.**
+
+### Not fixed here, still routed
+
+- **The staging quiesce defect from train 7 did not bite this time, and the reason matters.** The task
+  `ATLAS-Staging-Supervisor` was in state **Running**, so `schtasks /end` collected the tree and 5101/5274 went
+  clear on their own; the deploy's own quiesce then found nothing to refuse. It will bite again the moment that
+  task is `Ready` with a detached supervisor. The script fix is still owed and is not mine to make.
+- `powershell -File deploy-staging.ps1` still cannot run (empty `$PSScriptRoot` in the `param()` default); I
+  invoked it with `&`, as train 7 did.
+- **The runbook's 8443-vs-443 byte discriminator is now dead and should be struck.** Both return **19 509 B** for
+  `GET /api/v1/subjects?schoolId=1`, because staging is a fresh re-stream of live. Port identity now rests on the
+  active release's own `supervisor-state.json`, the deploy's `M3` environment proof, and live's listeners being
+  unchanged - all three recorded above.
+
+**Worktrees:** `lane-a4-release-20260929-7` = `KEEP_ACTIVE` (this train's gate worktree, on
+`release/2026-09-29-8` at the pin, and the deploy source).
+`lane-a4-release-20260929-6`, `lane-a4-release-c02-20260929` = `PRESERVE_FOR_DECISION` (unintegrated `e85ee949`).
+`lane-a4-release-20260929-7prod` = `KEEP_ACTIVE` (live runtime source dir).
+`lane-a4-handoff-20260928-1` = `PRESERVE_FOR_DECISION` (not an ancestor of the pin).
+
+**Next action (single):** Lane C runs the Codex walk on staging at `3216d383`
+(`https://njgrm.buru-degree.ts.net:8443`) and resumes A4 with **GO**; A4 then cuts production over to the SAME pin,
+rolling back to `e9ddda71` on failure.
+
+---
+
+# A4 LIVE at `3216d383` - train 8 in production 2026-09-29 11:21 +08
+
+**`A4 LIVE at 3216d383ce033a3447067255bbe554910fb78595`.** On Lane C's GO, on the SAME pin that was gated and
+walked on staging. Cutover **11:21:30 +08** -> `CUTOVER_STARTED`, audit
+`C:\ProgramData\ATLAS\release-audit\3216d383-20260929-112130\`. **No rollback was needed and none was run.**
+
+| | |
+|---|---|
+| **LIVE** | `3216d383ce033a3447067255bbe554910fb78595` |
+| **Live dir** | `E:\ATLAS-worktrees\lane-a4-release-20260929-8prod`, HEAD == pin, `git status --short` empty, 0 reparse points, own dependency trees (`npm ci` x3) |
+| **Listeners** | 5001 -> **23456**, 5174 -> **17856** (were 30904 / 4940 under `e9ddda71`) |
+| **Machine scope** | both variables repointed to `…-8prod` / `3216d383…`; task action `…-8prod\ops\runtime\cli.mjs start`, Running; the active `supervisor-state.json` reads `state running`, `releaseSha 3216d383…`, server 23456, client 17856 |
+| **Rollback basis** | `e9ddda71562742fd00d6ad881c1751f3ac1a0e7c`, dir `…-7prod` @ clean, HEAD == pin, both `dist`s present, 0 reparse points. One-step supervised reset. |
+| **Scope** | 73 paths vs `e9ddda71`, **0 `prisma/`**, 11 migrations before and after |
+
+## Acceptance - every row run, none skipped
+
+- **S-W1 PASS** - public origin `https://njgrm.buru-degree.ts.net`: `/api/v1/health` 200, `/api/v1/health/ready` 200
+  with `{"status":"ready","checks":{"database":"ok"}}`, `/` 200 (5 382 B).
+- **S-H1 PASS** - loopback 5001 ready 200, 5174 `/__host/ready` 200, and the load-bearing DB-backed read
+  `GET /api/v1/subjects?schoolId=1` **200 (19 509 B)** on both loopback and the Tailnet origin. Health is liveness
+  only; the read is the part that counts.
+- **S-Z1 PASS - 0 of 50 tables changed.** Baseline captured **before** the quiesce: every `@@map` table that exists
+  in the live database (50 of 75 mapped names; the other 25 are enums/views), each `count(*)` + `max(id)` +
+  per-row `md5` of the ordered row text. Re-read after the cutover: **`Compare-Object` diff = 0 rows** - and
+  `audit_logs` (494 rows, max id 1133) is in that set and unmoved. This is a stronger baseline than train 7's 17
+  tables.
+- **S-R2 PASS** - **0** `audit_logs` rows with `createdAt` inside the cutover window 03:20-03:24Z. The newest row in
+  the whole table is `2026-09-29 03:13:22.208Z`, **8 minutes before** the supervisor started the new release at
+  03:21:59Z. No generation, publication, migration or term-cache write on boot.
+- **S-R1 PASS** - the **live runtime's own** `cli.mjs status`, run from `…-8prod` with the machine-scope values
+  injected explicitly (never read from `Env:`), self-reports `ROLLOVER_AUTO_SYNC_ENABLED: "false"`. The contract
+  invariant decides, not the env file: a restart cannot reach `applyRolloverSync`. EnrollPro rollovers stay PAUSED.
+- **S-D1 PASS, non-vacuous, and I checked it discriminates before relying on it.** Client: `index-DzhMkC-M.js`
+  **200 (307 086 B)** on the live origin and the previous build's `index-Dy1q6261.js` **404**. Server:
+  `DEFAULT_SSE_STREAMS_PER_PRINCIPAL` appears **3** times in the new `dist` and **0** in the old. **The obvious
+  server probe would have lied:** `atlas-server/dist/services` is **393 files in both builds**, and
+  `dist/lib/sse.js` exists in both - neither discriminates. I did not use `dist/server.js` as a marker either; it
+  is a 3 KB entry stub.
+- **S-B1 PASS** - rollback basis verified above, one supervised reset away.
+- **Staging still up at the same pin** (5101 / 5274, `/__host/ready` 200), so a same-pin re-stage remains available.
+
+## Two things I did that you should know about
+
+1. **The harness did need the register first, exactly as you anticipated.** `deploy-runner.ps1`
+   `Assert-LiveReleaseRecorded` fails closed unless `docs/plans/live-state.md` at `origin/main` names the target
+   8-char prefix inside the `## Live release` section. I recorded the CUTOVER TARGET (full SHA, rollback basis, dir,
+   build provenance) and pushed it as `4f60b5a3` **before** the dry run, then re-wrote the same block as the LIVE
+   record after the cutover. A dry run came first and printed `mutates: false` with the lineage verified
+   (supervisor 38220 owning listeners 30904/4940) and the gate **passed**.
+2. **The client build's companion origin came from the durable live env key `ENROLLPRO_PROXY_ORIGIN`**, read inside
+   the build process and injected as `VITE_ENROLLPRO_URL`. The value is in no log, no doc and no transcript. The
+   staging leg had used the runbook's literal default; production used the same source the previous live build used,
+   which is the point of reading it rather than retyping it.
+
+**Capacity:** E: **28.02 -> 25.25** after the prod build, then **26.79** after retiring
+`lane-a4-release-20260929-5` (train 5's prod dir - two releases back, clean, ancestor of the pin, 0 reparse points,
+0 processes using it, non-forced remove + prune). Still short of 30 GiB, for the same reason as before:
+`-6` and `-c02-20260929` carry unintegrated `e85ee949` and stay `PRESERVE_FOR_DECISION`. Above the §3 warn line,
+which is what the next train's build needs.
+
+**Worktrees:** `lane-a4-release-20260929-8prod` = `KEEP_ACTIVE` (live). `lane-a4-release-20260929-7prod` = rollback
+basis. `lane-a4-release-20260929-7` = `KEEP_ACTIVE` (train 8 gate worktree, `release/2026-09-29-8`).
+
+**Next action (single):** Lane C runs the **production** browser rows on `https://njgrm.buru-degree.ts.net` -
+`/timetable`, `/teaching-load`, `/faculty/concerns` - and posts the result here. The staging walk is evidence about
+the candidate; only these rows are about production.
