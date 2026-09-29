@@ -4554,3 +4554,71 @@ right**: AP is demanded for all 20 sections; TL should count the same 264. Fix b
 
 **Boundary:** no live write, no generation run, no deploy, no rollover sync, no companion edit; the drill DB
 `atlas_restore_drill_20260930_a8gen` and its dump are dropped by this cycle. Worktrees retired after this post.
+
+## 2026-09-30 ~03:0x +08 — Lane A8 c5: the timetable is always fixable, on `main` at `c0a92dc0`
+
+**1 fix live and seen / 1 integrated / 0 dropped.** Candidate `5f4fa86d` (base `f925045c`), 58 paths, pushed to
+`main` at merge **`c0a92dc0`**. Packet `docs/prompts/a8-c5-generation-always-fixable-2026-09-29.md` plus the
+`truth-fixes` A8 section its addendum 17:25 made a prerequisite. **A4 owns the deploy; A8 has not deployed and
+will not.** No generation, no publication, no live or staging write, no migration, no runtime/env/task change.
+
+**To the operator's two questions, in Lane C's own words.**
+
+*"Can we expect that timetable will always be available and/or fixable?"* — **Fixable, yes; available, not yet,
+and the reason is not a defect in this change.** Every hard blocker code the preflight can emit now resolves
+through ONE shared table to a plain sentence, a class count, and a real route, so no blocker is a dead end. The
+operator's own example shape is what it prints: *"3 classes have no home room — Give them rooms ›"*. The panel
+keeps one line per root cause and one "Check again" for the whole panel, never 651 rows. A placeholder-owned
+class is a named **third state** — on a to-be-hired teacher — that is not counted as a real owner, is listed by
+name, and blocks **neither** generation nor publication; an **open** class still blocks both, unchanged. The
+server never defaulted a school-year id: those three write paths now fail closed with a typed
+`ACTIVE_SCHOOL_YEAR_UNRESOLVED` instead of quietly writing to year 1.
+
+*"It should never be disabled."* — **Done, and proven wider than the test that claims it.** QA swept
+**614,400 capability inputs**: the Generate button is enabled in every state except a run in progress. Every
+former denial became a named cause in the dialog with a count, one button that opens the exact place, and one
+"Check again" — never a greyed button with a tooltip. A check that could not run now **really does retry itself
+once** and then says what it tried, in words. The server's own `deriveGenerateDecision` is untouched and still
+refuses on its own terms (39/39 preserved).
+
+**Also fixed from `truth-fixes` §A8:** the hire estimate uses the saved workload policy instead of a fixed 30 h,
+and both official exports label the weekly total as per week rather than "PER DAY". Addendum 20:10's `/subjects`
+20.5 s cold load is now **968 ms to first contentful paint** with all 22 subjects on screen and a real receipt
+("showing 22 subjects from the server, loaded at 01:04 today").
+
+**Three things Lane C and the operator must know, none of them hidden.**
+
+1. **The new surface has NOT been seen rendered on real staging data.** The blocker panel, the Generate dialog
+   and the publish dialog are all behind a workspace that will not mount: staging's active year is **2023-2024**
+   while EnrollPro has moved to **2026-2027**, and the page says so with a working "Open Year Setup" button.
+   Starting the new year is a rollover apply — **a HIGH action this lane is not authorized to perform** — so
+   those three surfaces rest on jsdom evidence only. Lane C's B4 "then generate" step is likewise a generation
+   run and is **NOT GRANTED**. What staging *does* render, `/timetable`'s term state, passes `ux-audit` at
+   **`major: 0`**.
+2. **`/subjects` fails the rendered gate at `ux-audit major: 17`** — all sub-12px chip and badge text
+   (9.6/10.4/11.2px), **none of it in this candidate's diff**; the chip components predate it. **Owner A7 c9**,
+   which owns the type-scale re-fit. Reported as a failure, not smoothed over.
+3. **Two pre-existing reds, both re-baselined, not fixed here:** `TimetableSimpleHeader` can read
+   **"Ready to publish" on a year with 468 blockers** because `setupBlockerCount` reads `blockerCount` unguarded
+   (**owner A2 c12** — this is the H4 A/B failure), and client `tsc` is red on `main` at
+   `timetable-truth-labels-a2.test.ts:523` (**owner A2**).
+
+**Review record, stated plainly because it is not a clean pass.** The packet passed an independent HIGH
+**pre-action** review (`PACKET_APPROVED`; 17/17 acceptance rows decidable by a harness that exists; 7/7 prior
+findings closed). Post-action QA then returned `CORRECTION_REQUIRED` **twice**. F1 — the source and its tests
+claimed a self-retry that **nothing implemented**, i.e. exactly the false-truth defect class this packet exists
+to remove — was closed by an executor round with a failing-first control. F4 — the dialog then claimed
+**"already tried this check twice" on a path that had read nothing** — was closed **planner-applied and is
+therefore the one piece of this candidate no independent reviewer has seen**; its table-driven test turns 3 rows
+red when the gate is removed. AGENTS.md 11 allows two review rounds and no third, so this is the sanctioned
+**ship-with-findings-recorded** path, not `ACCEPT_READY`.
+
+**A correction to my own instructions, for the record:** I ordered a 12px→14px text fix in the blocker panel
+based on a reported measurement. It was wrong — `text-xs` is 14px in this theme since A7 c8 — and the executor
+proved it at the compiled-CSS level instead of making the change. The real adjacent defect it found instead is
+that the shared `@/ui` Button `sm` size carries `text-[0.8rem]` = **12.8px**, and the panel's local class is the
+only thing holding those controls at 14px. That is now a committed control rather than a comment.
+
+**Worktrees:** `lane-a8-c5-fixable` (branch) and `lane-a8-c5-integration` (merge boundary) → **retired** in this
+closure. Branch `work/a8-c5-generation-fixable` is retained unpushed-to-delete, at `5f4fa86d`, an ancestor of
+`main`.

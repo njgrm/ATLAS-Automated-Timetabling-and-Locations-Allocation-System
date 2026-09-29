@@ -6304,3 +6304,59 @@ wall.** Follow-up, SERVER/DATA HIGH: promote session to a first-class blocker fi
 
 **Next action for me:** nothing. Not deployed and not waiting on anyone; the rendered rows and the count follow-up
 are named owners above.
+
+## Lane A8 - c5 the timetable is always fixable, 2026-09-30 (written only by Lane A8)
+
+**Stream:** c5 = Lane C's `a8-c5-generation-always-fixable` packet, plus the `truth-fixes` A8 section its
+addendum 17:25 made a prerequisite. **On `main` at `c0a92dc0` (merge of candidate `5f4fa86d` over base
+`f925045c`). 58 paths. NOT DEPLOYED - A4 owns the release. No generation, no publication, no live or staging
+write, no migration, no runtime/env/task change.**
+
+**Shipped.** Server truth: the three `activeYear?.id ?? 1` write paths now fail closed with a typed
+`ACTIVE_SCHOOL_YEAR_UNRESOLVED` (new code, marked new) instead of defaulting a year; a placeholder-owned class
+is a real THIRD state (real owner / on a to-be-hired teacher / open) that is not a real owner in coverage
+figures, is named in words, and blocks NEITHER generation NOR publication, while an OPEN class still blocks
+both; `recommendedNewHires` divides by the saved workload policy, not a fixed 30 h; both official exports label
+the weekly total per week. Client contract: one shared code->sentence->route table covering every hard blocker
+code the preflight can emit, so no blocker is a dead end; **Generate is never greyed out** except while a run is
+in progress, and clicking it always opens a dialog naming each cause with a count, one fix button and one
+"Check again"; a check that could not run really does retry itself once and says what it tried; `/subjects`
+paints its saved catalog immediately with a real receipt.
+
+**Dated blockers, each with what would prove it closed.**
+1. **2026-09-30 - the new surface has NOT been seen rendered on real staging data.** `/subjects` was measured
+   at **968 ms to first contentful paint** with 22 subjects and a real receipt (passes), and the one `/timetable`
+   state staging renders is honest and passes `ux-audit` at `major: 0`. But the blocker panel, the Generate
+   dialog and the publish dialog are all behind a workspace that will not mount: staging's active year is
+   2023-2024 while EnrollPro has moved to 2026-2027, and starting the new year is a **rollover apply - a HIGH
+   action this lane is not authorized to perform**. They rest on jsdom evidence only. Proof would be: the term
+   / rollover state is advanced on staging, then these three surfaces are screenshotted at 1366x768 with
+   `ux-audit` `major: 0`.
+2. **2026-09-30 - `/subjects` fails the rendered gate at `ux-audit major: 17`.** All 17 are sub-12px text
+   (9.6/10.4/11.2px chips, badges and "Owned by" spans) and **none is in this candidate's diff** - the chip
+   components carry those sizes and predate it. Owner: **A7 c9**, which owns the type-scale re-fit and the
+   `a7-c8-type-scale` ratchet. Proof: A7 c9's re-fit lands and `/subjects` re-runs at `major: 0`.
+3. **2026-09-30 - `TimetableSimpleHeader.tsx` can say "Ready to publish" on a year with 468 blockers**, because
+   `setupBlockerCount` reads an unguarded `blockerCount`. **Pre-existing** - QA confirmed the base fixture and
+   base header are byte-identical to the candidate's and the range does not touch those identifiers. It is the
+   H4 A/B failure in `a2-header-budget-2026-09-29.test.tsx` (27/29, the two reds are H4 A and H4 B). Owner:
+   **A2 c12**, whose chip copy it is. Proof: those two rows green.
+4. **2026-09-30 - client `tsc --noEmit` is red on `main`**, one pre-existing `TS2367` at
+   `atlas-client/src/lib/__tests__/timetable-truth-labels-a2.test.ts:523`. Out of this range; owner **A2**.
+   Re-baselined at integration, not fixed here.
+5. **2026-09-30 - the DB-backed half of A1/A2/A4 is `UNPERFORMED`**: `npm run test:server-db` cannot run in
+   this environment (no disposable-Postgres admin credential; `atlas-server/.env` points at the protected
+   `atlas_staging`, which the runner correctly refuses). Those rows pass hermetically with injected clients.
+   Proof would be: one `npm run test:server-db` run on a disposable database.
+
+**Review record, stated plainly.** The packet passed an independent HIGH **pre-action** review
+(`PACKET_APPROVED`, 17/17 rows decidable, 7/7 prior findings closed). Post-action QA then returned
+`CORRECTION_REQUIRED` **twice**: F1 (source and tests claimed a self-retry that nothing implemented) was closed
+by an executor round with a failing-first control, and F4 (the dialog then claimed "already tried twice" on a
+path that read nothing) was closed **planner-applied, therefore NOT independently re-reviewed**, with a
+table-driven test whose failing-first turns 3 rows red when the gate is removed. Per AGENTS.md 11's two-round
+rule there was no third review round; **this is the sanctioned ship-with-findings-recorded path, not a clean
+`ACCEPT_READY`**, and the F4 fix is the one piece of this candidate no independent reviewer has seen.
+
+**Next action for me:** none that I can take. The deploy, the staging year advance, and the generation run in
+B4 all need the operator or A4.
