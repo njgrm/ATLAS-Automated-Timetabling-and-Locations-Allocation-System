@@ -191,8 +191,8 @@ test('D1+D3. S2-shape/L2 — the draft contract is built for grade 7 and adopts 
 	});
 	assert.ok(canonicalRows.length > 0, 'the grade-7 canonical grid must be seeded');
 	assert.equal(canonicalRows.every((row: any) => row.gradeLevel === 7), true, 'every canonical row is scoped to grade 7');
-	const canonicalTimes = new Set(canonicalRows.map((row: any) => `${row.startTime}-${row.endTime}`));
-	const gridTimes = new Set(board.periodSlots.map((slot) => `${slot.startTime}-${slot.endTime}`));
+	const canonicalTimes = new Set<string>(canonicalRows.map((row: any) => `${row.startTime}-${row.endTime}`));
+	const gridTimes = new Set<string>(board.periodSlots.map((slot) => `${slot.startTime}-${slot.endTime}`));
 	const adopted = [...canonicalTimes].filter((time) => gridTimes.has(time));
 	assert.ok(
 		adopted.length >= 3,

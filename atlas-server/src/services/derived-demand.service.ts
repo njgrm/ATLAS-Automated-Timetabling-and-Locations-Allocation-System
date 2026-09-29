@@ -1104,18 +1104,20 @@ export async function buildDerivedDemand(
 		sections: sectionRows.map((section) => ({
 			sectionMirrorId: section.id,
 			externalId: section.externalId,
-			// A2 c15 (2026-09-29) precedence correction. The former comment here read
+			// A2 c15 (2026-09-29) comment truthfulness. The former comment here read
 			// "`displayOrder` is presentation ordering only and must never determine
-			// curriculum demand scope (GEN-C02R Correction 6)". That is no longer
-			// what the code does, and the measured staging surface says it should not
-			// be: `grade_level_name` is always "Grade 7".."Grade 10" AND
-			// `display_order` is always 7..10 in every school year, while the
-			// EnrollPro `grade_level_id` is an opaque FK that re-mints on every wipe
-			// (5..8, then 17..20, then 1..4 as of 2026-09-28). The authority's order is
-			// now: grade NAME, then `displayOrder` when it is a real grade (7-12),
-			// then the school-year registry learned from names, then the legacy id
-			// map. The raw `grade_level_id` alone never determines demand scope — that
-			// half of the old rule still holds, and it is the half that matters.
+			// curriculum demand scope (GEN-C02R Correction 6)". After the correction
+			// round that is accurate again, and the reason matters: the shared
+			// authority on this path is `resolveSectionGradeLevel`, which reads the
+			// grade NAME, then the school-year registry learned from names, then the
+			// legacy id map. It does NOT read `displayOrder` — that separation is
+			// load-bearing, because `teaching-load-carry-forward-postgres.test.ts`
+			// seeds archived source sections with `displayOrder = 9` against a
+			// `gradeLevelName` of "Grade 7" to prove that identity comes from the
+			// name, not the order. Sites that DO want the `displayOrder` leg call
+			// `gradeNumberOf` (name, then order 7-12, then null) instead.
+			// The half of the old rule that still holds: the raw `grade_level_id`
+			// alone never determines demand scope, and it is the half that matters.
 			gradeLevel: resolveSectionGradeLevel(section, gradeRegistry),
 			programType: section.programType,
 			isActiveForScheduling: section.isActiveForScheduling,

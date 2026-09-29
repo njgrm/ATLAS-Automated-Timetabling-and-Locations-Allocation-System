@@ -7,17 +7,17 @@
  *      e.g. "Grade 7"). EnrollPro re-mints `grade_level_id` on every wipe or
  *      rollover (observed: 5..8, then 17..20, then 1..4), so the id is never a
  *      stable grade. The name is.
- *   1b. `displayOrder`, the mirror's own grade number, but only when it is a
- *      real grade (7..12). Measured as 7..10 in every school year, so it is a
- *      safe stand-in for a row that carries no usable name.
  *   2. A registry learned from `section_mirrors (grade_level_id, grade_level_name)`
  *      of the requested school year, for call sites that only hold an id.
  *   3. The legacy id map (5..8 and 17..20 -> 7..10, 7..10 pass-through, >=100 % 100).
  *      Kept only for rows with no usable name. It must never override 1 or 2.
  *
- * `gradeNumberOf` is the name+`displayOrder` authority and is the entry point
- * every grade-reading site uses. `resolveSectionGradeLevel` is that plus the
- * registry and legacy legs, for consumers that must return a `number`.
+ * `gradeNumberOf` is the second entry point, and the one most sites use: the
+ * grade name, else `displayOrder` when it is a real grade (7-12), else `null`.
+ * It exists because `displayOrder` is measured as the true grade 7..10 in every
+ * school year, so a caller that can represent "no grade" should prefer it over
+ * the id. `resolveSectionGradeLevel` deliberately does NOT read `displayOrder` —
+ * see its comment for the carry-forward control that depends on that.
  */
 
 /** gradeLevelId -> numeric grade, learned from mirror rows' grade names. */
@@ -138,29 +138,38 @@ export function gradeNumberOf(ref: {
 
 /**
  * Resolve a section's numeric grade for a consumer that structurally requires a
- * `number`: the stated grade (`gradeNumberOf`), then the registry learned from
- * the requested year, then the legacy id map.
+ * `number`: the grade NAME, then the registry learned from the requested year,
+ * then the legacy id map. This is the 2026-09-28 hotfix behaviour, UNCHANGED.
  *
- * WHERE THIS DIFFERS FROM `gradeNumberOf`, and why:
- *   - `gradeNumberOf` returns `null` for a reference with no name and no real
- *     `displayOrder`. This function must return something, so it falls through
- *     to the registry and then the legacy id map — which is why the legacy map
- *     has no `1 -> 7` entry: an unnamed post-wipe id `1` must stay unresolvable
- *     rather than silently become Grade 7.
- *   - A name outside 7..12 is rejected here too, so a mirror naming a
- *     non-JHS grade can no longer leak through the name leg.
- *   - Adding the `displayOrder` leg means an unnamed mirror row now resolves to
- *     its true grade instead of its id's legacy reading. That is the same fix
- *     applied to every former "display order, else the EnrollPro id" call site,
- *     and it cannot turn a correct grade into a wrong one.
+ * WHERE THIS DIFFERS FROM `gradeNumberOf`, and why — the difference is
+ * deliberate, and a 2026-09-29 correction round learned it the hard way:
+ *   - `gradeNumberOf` accepts `displayOrder` as a second source; this function
+ *     does NOT. `displayOrder` is the mirror's own grade number on every row
+ *     measured on staging (7..10 in every school year), but it is not
+ *     universally the grade: `teaching-load-carry-forward-postgres.test.ts`
+ *     seeds archived source sections with `displayOrder = 9` against a
+ *     `gradeLevelName` of "Grade 7" precisely to prove that carry-forward
+ *     identity comes from the name, not the order. Adding the order leg here
+ *     turned those two exact carries into three and broke that control.
+ *   - `gradeNumberOf` returns `null` for a reference with no usable name or
+ *     order. This function must return something, so it falls through to the
+ *     registry and then the legacy id map — which is why the legacy map has no
+ *     `1 -> 7` entry: an unnamed post-wipe id `1` must stay unresolvable rather
+ *     than silently become Grade 7.
+ *   - A name outside 7..12 is rejected here too, so a mirror naming a non-JHS
+ *     grade can no longer leak through the name leg.
+ *
+ * SO: use `gradeNumberOf` wherever a null is representable (a displayed badge, a
+ * label, a scope key, a nullable payload field), and this function where a
+ * number is structurally required and the registry/legacy legs are wanted.
  */
 export function resolveSectionGradeLevel(
 	ref: GradeLevelRef,
 	registry?: GradeLevelRegistry | null,
 	fallback: LegacyGradeFallback = 'internal-id',
 ): number {
-	const stated = gradeNumberOf(ref);
-	if (stated !== null) return stated;
+	const fromName = gradeFromGradeLevelName(ref.gradeLevelName);
+	if (fromName !== null && fromName >= MIN_GRADE && fromName <= MAX_GRADE) return fromName;
 	const fromRegistry = registry?.get(ref.gradeLevelId);
 	if (fromRegistry !== undefined) return fromRegistry;
 	return fallback === 'grade-first'
