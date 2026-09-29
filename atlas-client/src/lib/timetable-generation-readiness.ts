@@ -280,11 +280,12 @@ const GENERIC_CAUSE_PHRASE = 'need attention';
 const LEGACY_CAUSE_NOUN = 'attention';
 
 /**
- * The noun and the verb for one root cause, so the line reads as a sentence an
- * older scheduler can act on: "50 classes need a teacher", "4 teachers are over
- * their weekly limit". The COUNT is the server's; only the wording is here.
+ * A8-C5 S2.2 — the noun and verb for the A8 C3 ADVISORY causes only, which are
+ * not hard blockers and therefore carry no row in the shared code table. Every
+ * hard blocker cause is composed from that table instead. See the note on
+ * `groupHeadline` for why this map is retained rather than merged.
  */
-const GROUP_CAUSE_COPY: Record<string, { noun: string; verb: string }> = {
+const LEGACY_CAUSE_COPY: Record<string, { noun: string; verb: string }> = {
 	TEACHER_COVERAGE_GAP: { noun: 'classes', verb: 'need a teacher' },
 	FACULTY_OVERLOAD: { noun: 'teachers', verb: 'are over their weekly limit' },
 	WORKLOAD_POLICY_BLOCK: { noun: 'classes', verb: 'have a teacher at their limit' },
@@ -334,14 +335,57 @@ export function presentGenerationBlockerGroups(input: {
 	}];
 }
 
+/**
+ * A8-C5 S2.2 — the headline for a group is now composed from the ONE shared
+ * code→sentence table, not from a second local copy of the same vocabulary.
+ *
+ * Before, `GROUP_CAUSE_COPY` (here) and `actionForCause` (the server) and
+ * `deriveTimetableReadinessRepair` (here) each decided what a code meant, and
+ * they could disagree. The table is now the single authority: a group's
+ * representative code resolves its sentence and its fix route from
+ * `timetable-blocker-code-copy.ts`, so the headline, the button and the repair
+ * cannot drift apart.
+ *
+ * `LEGACY_CAUSE_COPY` below is retained ONLY for the A8 C3 advisory causes, which
+ * are not hard blockers and therefore deliberately carry no row in that table (see
+ * the test's `NOT_PREFLIGHT_BLOCKERS`). Deleting it would drop four live lines
+ * from the panel; the alternatives — adding advisory rows to a blocker table, or
+ * inventing a second table — are both worse. Its scope is asserted in
+ * `a8-c5-generate-gaps-groups.test.tsx`.
+ */
 function groupHeadline(group: TimetableGenerationBlockerGroup): string {
-	const copy = GROUP_CAUSE_COPY[group.cause];
-	if (!copy) return `${group.count} ${group.count === 1 ? 'item' : 'items'} ${GENERIC_CAUSE_PHRASE}`;
 	// The server has already counted THIS group in classes, so the line reads
 	// `group.count`. It must not borrow the panel-wide `gapClassCount`: that is a
 	// different population (every class in any gap), and a group that is not the
 	// whole coverage cause would otherwise print someone else's number.
+	//
+	// A folded group (the two coverage codes) has several codes; the FIRST one the
+	// table knows is the representative sentence, and because both coverage codes
+	// share one table row they produce the SAME words — one line, not two.
+	const representative = group.codes.find((code) => Object.prototype.hasOwnProperty.call(BLOCKER_CODE_COPY, code))
+		?? (Object.prototype.hasOwnProperty.call(BLOCKER_CODE_COPY, group.code) ? group.code : null);
+	if (representative) {
+		const sentence = blockerSentence(representative, group.count);
+		assertPlainGroupSentence(sentence, group);
+		return sentence;
+	}
+	const copy = LEGACY_CAUSE_COPY[group.cause];
+	if (!copy) return `${group.count} ${group.count === 1 ? 'item' : 'items'} ${GENERIC_CAUSE_PHRASE}`;
 	return `${group.count} ${group.count === 1 ? singular(copy.noun) : copy.noun} ${copy.verb}`;
+}
+
+/**
+ * A rendered headline must never leak a raw engine token or a truncated name
+ * (AGENTS.md §8). The shared table's own test proves this per code; this is the
+ * RENDERED guard, so a future edit that bypasses the table is caught here too.
+ */
+function assertPlainGroupSentence(sentence: string, group: TimetableGenerationBlockerGroup): void {
+	if (/\b[A-Z][A-Z0-9_]{5,}\b/.test(sentence) || sentence.includes('…') || sentence.includes('..')) {
+		throw new Error(
+			`blocker group "${group.cause}" rendered a non-plain headline: ${JSON.stringify(sentence)}. `
+			+ 'A scheduler-facing line must be words, never a code, an id or a truncated name.',
+		);
+	}
 }
 
 function singular(noun: string): string {
