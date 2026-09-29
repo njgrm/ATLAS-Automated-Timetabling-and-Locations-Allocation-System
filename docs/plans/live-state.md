@@ -9,28 +9,38 @@ credential incident re-derived. See the dated correction blocks in the Lane A se
 
 ## Lane A3 — current lane (written only by Planner A3)
 
-- **Stream:** p1 **Teacher Preferences Save** — **INTEGRATED on `main` at `effc8362`** (candidate `33d54706`;
-  range `7d894255...33d54706`, branch `fix/a3-prefs-save`). QA `ACCEPT_READY` 9/9/0/0 after one correction
-  round; one planner-applied pin commit included. **Client-only** — no server production, generation,
-  publication or migration file moved. **NOT deployed**; A4 owns the train. Handoff:
-  `docs/handoffs/lane-c-to-a2.md` (A3 → Lane C, 2026-09-29 22:50).
-- **Root cause (2026-09-29, proven on real staging data):** `resolveActiveTermAuthority`'s second parameter is a
-  *discard* predicate (`true` = obsolete) and `TeacherConcerns.tsx` passed its `isCurrent` closure, whose
-  `true` means the opposite. Every healthy term resolution was discarded, `schoolYearId` stayed `null`, the
-  availability read never fired, and Save/"Anything else" stayed disabled **with no on-screen reason** (the
-  term card is gated on `schoolYearId != null`). The term data was healthy throughout. Fixed at the contract:
-  a named `{ isStillCurrent }` option; a bare predicate is now a compile error (TS2345).
-- **Dated blocker for the operator's demo — 2026-09-29 14:44 UTC, measured on staging:** EnrollPro has rolled
-  over. `GET /api/v1/runtime/context?schoolId=1&verifyUpstream=true` returns `upstream.verified:false`,
-  `matched:false`, `activeSchoolYearId: 3 (2024-2025)`, `activeYearDrift.status:"atlas-stale"`,
-  `recommendedAction:"RUN_ROLLOVER_SYNC"`, `activeTerm.code:"ACTIVE_TERM_YEAR_MISMATCH"`. The same endpoint
-  returned a verified `T1` for ATLAS year 2 at 11:29 UTC the same day. So after this fix reaches live, Save
-  will still read disabled — now with the real reason named — **until the rollover/term-cache sync runs**.
-- **Next action (not A3's):** A4/operator — put `effc8362` in the next train, then run the rollover sync
-  (HIGH) before the demo. A3's remaining rows are release-acceptance only: one staging generation proving the
-  Unavailable slot stays empty, and in-repo rendered artifacts.
-- **Worktrees:** `E:/ATLAS-worktrees/lane-a3-prefs-save` (`PRESERVE_FOR_DECISION`),
-  `E:/ATLAS-worktrees/lane-a3-integration` (`RETIRE_AFTER_INTEGRATION`). `D:\ATLAS` never written.
+- **Stream:** c17 **Teachers profile grouping / hours / to-be-hired identity** — **INTEGRATED on `main` at
+  `c38e0226`** (code `3947aa5b`, range `aeb1bd2c..3947aa5b`, 13 commits, branch
+  `work/a3-c17-teachers-profile`). **Client-only**; no server, schema or data file moved. **NOT deployed** — A4
+  owns the train. `0 live and seen / 7 integrated / 0 dropped`, browser-verified on staging at 1366×768.
+  Handoff: `docs/handoffs/lane-c-to-a2.md` (A3 → Lane C, 2026-09-29).
+- **Seen on staging:** item 5's worked example renders exactly — MAPEH → `GR7 Grade 7` chips
+  `Aguinaldo · Bonifacio · Luna · Mabini · Rizal`, `GR8 Grade 8` `Maka-Diyos · Makakalikasan · Makatao`;
+  `8 classes · 30h a week`; `To be hired: MAPEH` with a `To be hired` badge and no `#ID-PENDING`/`Active
+  teacher`; real teacher keeps `#1000018`; Review load opened at 1298px and **both** handles resized
+  (left 1298→1078, right →1178), no horizontal scroll. 0 MAJOR on the audit, nothing under 14px.
+- **Rejected by the planner, kept visible in the tests:** the executor derived the subject total from a *rounded*
+  per-section figure, so 8×225min read **"30.4h a week"** — not that teacher's load, and contradicting the card's
+  own server-fed 30h. Total is now always the truthful minute sum and the "each" clause is **omitted** when its
+  hours form cannot reproduce it (the requester wrote "if useful").
+- **Two neighbouring files changed deliberately, both needing a decision:** (1) A6 c10's "Teaching permissions"
+  heading was 11.2px **inside** the 14px-floor profile dialog → raised to `text-sm` (`52e3b29b`); (2) A7 c8's
+  `More filters` ratchet (A7C8-2) was **red on `main`** because A5 c8 had landed and deleted the last occurrence —
+  allowlist emptied per that row's own contract, now a hard fail on any occurrence. Both were previously-open
+  defects, not introduced here.
+- **Open rows, 2026-09-29, not blocking:** (a) the Teaching Load / Timetable *rendered* views of row 4 need an
+  account that can open them — `/teaching-load` returned `WORKSPACE UNAVAILABLE` on the staging QA account, so
+  that half of the row is proven at call sites, not seen; (b) `TeacherWorkloadAuditSummary.tsx:183` calls
+  `formatFacultyInitials` without `isPlaceholder` (its `TeacherWorkloadAuditRow` lacks the field) so a to-be-hired
+  record shows `M—` there — pre-existing, type+call-site change, not in this range; (c) `main` moved 70 then 50
+  commits mid-flight, both merges resolved keeping both sides and verified — **A4 should pin `3947aa5b` and
+  re-check `FacultyProfileSheet.tsx`, `Faculty.tsx`, `types.ts`, `package.json` if `main` has moved again.**
+- **Prior stream, still open:** p1 Teacher Preferences Save **INTEGRATED at `effc8362`**, not deployed. Its demo
+  blocker is dated 2026-09-29 14:44 UTC on staging: EnrollPro has rolled over (`upstream.verified:false`,
+  `RUN_ROLLOVER_SYNC`, `ACTIVE_TERM_YEAR_MISMATCH`), so Save will read disabled after deploy **until the rollover
+  / term-cache sync runs** (HIGH, A4/operator). A3's remaining rows there are release-acceptance only.
+- **Worktrees:** `lane-a3-c17-teachers-profile` (`RETIRE_AFTER_INTEGRATION`, retired this cycle),
+  `E:/ATLAS-worktrees/lane-a3-prefs-save` (`PRESERVE_FOR_DECISION`). `D:\ATLAS` never written.
 
 ## Writing protocol — four planner lanes share this file
 

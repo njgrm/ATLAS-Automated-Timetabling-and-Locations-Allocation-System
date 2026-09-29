@@ -203,6 +203,7 @@ permission to omit. Both superseded forms are preserved in comments and assertio
 
 Evidence: `docs/prompts/a3-c17-teachers-profile-2026-09-29.md` (packet). Worktree
 `E:/ATLAS-worktrees/lane-a3-c17-teachers-profile` — `RETIRE_AFTER_INTEGRATION`, branch pushed, clean.
+
 ## 🟢 A3 → Lane C, 2026-09-29 22:50 — **p1 Teacher Preferences Save is ON MAIN at `effc8362`**; the page defect is gone, and the demo blocker is now an upstream rollover you can see on screen
 
 **0 fixes live and seen / 1 integrated / 0 dropped.** Integrated on `main` at **`effc8362`** (candidate `33d54706`;
@@ -3888,3 +3889,32 @@ is no longer current; the host-memory stop is cleared.
 attention 0 · Unavailable 25`) still sit above a listed problem group; `roomReadinessCounts` is untouched by this
 range and the pairing predates it. F-E — the app shell clips its first two sidebar lines at 1364 px, identical on
 every page, outside this range. Both are follow-up rows for a later A9 cycle.
+
+## Lane C -> A8 unblock (a8-ds-unblock), 29 Sep 23:53 — the operator rolled over AGAIN: live is now 2025-2026
+- Live active year is now **EnrollPro id 4, 2025-2026** (ATLAS context enrollpro-verified, drift aligned). Terms T1-T3
+  2025-06-08..2026-04-xx; EnrollPro active-term answers 200 activeTerm null again, while ATLAS's context reports activeTerm
+  T3 with source atlas-unverified. Reproduce on 2025-2026, not 2024-2025: take a FRESH backup of live (Lane C's
+  livedump pattern, read-only) rather than the pre-drill dump.
+- **New suspect:** the rollover mirror row keeps syncStatus `setup-review-required`
+  (enrollpro-rollover.service.ts:1825/1851) and NOTHING in atlas-server/src ever moves it on (only a disposable-baseline
+  script sets `synced`). Check whether any readiness, capability, dashboard or Setup check reads it (directly or via
+  rollover-status / RolloverGuidanceCard); if so that is the permanent "setup not done". The fix is a transition when the
+  scheduler finishes the year's setup (or derive it from the real checks), not a manual DB edit.
+- Include the term picker: which term the timetable scopes to when EnrollPro has no current term.
+
+## Lane C -> A8 unblock, 29 Sep 23:58 — what live /timetable actually says for 2025-2026 (Codex read-out, verbatim)
+Full text: docs/handoffs/tt-blockers-2526-live-readout.md. Generate is **disabled** with "Setup inputs are not
+ready" / "27 setup items to fix" (the dialog then says "Show all 82 setup items"). Every item is on a SPECIAL-PROGRAM
+section: STE GR7 Bonifacio, GR8 Makatao, GR9 Rose, GR10 Silver; SPS GR9 Daisy; GR10 Jade.
+- 15 x "A session could not be placed with the current setup" - all GR7 Bonifacio STE, 5 per term.
+- ~65 x "A scheduling rule needs a decision before a schedule can be made" per session, each with "Open Year Setup"
+  (Year Setup has nothing to decide - wrong destination). Find the code and data behind it: likely CANONICAL_SHAPE /
+  class-program template for STE/SPS (class_program_slots exist for school_year_id 4: REGULAR 40, STE/SPS/SPA 48) or a
+  program/policy rule. Is it TRUE? Run 347 (2023-2024) generated with the same template.
+- "5 classes have a teacher at their limit": STE_APPLIED_PHYS Silver, STE_RESEARCH Makatao, STE_RESEARCH Rose, SCI_BIO
+  Daisy, SCI_BIO Jade - specialised subjects with few qualified teachers; raw codes on screen.
+- Teaching Load says 100% staffed. Dashboard: "7 OF 10 READY", "2 buildings have no rooms", "ATLAS could not count the
+  problems that must be fixed". Year Setup: "TERM 3, from saved data".
+- Presentation defects to fix in the same cycle: 82 near-identical lines (group them: "GR9 Rose STE: 15 sessions,
+  one cause"), raw subject codes, "1 item need attention", every item routed to Open Year Setup.
+Your deliverable stands: each cause TRUE/FALSE with its data; fix FALSE ones; plain action for TRUE ones.
