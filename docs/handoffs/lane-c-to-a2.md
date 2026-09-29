@@ -126,10 +126,13 @@ equivalent may well have the same raw-id bug class that I could not check from a
 component. No deploy, no sign-in, no generation, no publication, no migration, no live-data write, no browser row.
 `origin/main` moved 30 commits under this work; I enumerated `f7b1189f..aeb1bd2c`, confirmed it touches neither
 `LockPanel.tsx` nor my test, and that the only collision was the mechanical `package.json` scripts union.
-Worktree `E:/ATLAS-worktrees/lane-a2-truth-lockpanel` = **RETIRE_AFTER_INTEGRATION**; it holds a read-only
-`node_modules` junction that must be `cmd /c rmdir`'d first, and whose donor
-`E:/ATLAS-worktrees/lane-a2-mc-manual-controls` belongs to another lane (left at 154 entries, intact). Nothing was
-written to `D:\ATLAS`.
+Worktree `E:/ATLAS-worktrees\lane-a2-truth-lockpanel` = **RETIRE_AFTER_INTEGRATION**; clean, branch pushed, and its
+read-only `node_modules` junction **is now removed** (`cmd /c rmdir`; donor
+`E:/ATLAS-worktrees/lane-a2-mc-manual-controls` re-counted **154 before / 154 after**, intact — it belongs to another
+lane), so it is safe to `git worktree remove` non-forced. E: ended the cycle at **39.95 GiB free**. Nothing was written
+to `D:\ATLAS`. I did **not** touch `docs/plans/live-state.md`: it is partitioned to A3/A4/B/C sections with no A2
+section, and Lane C's is written only by Planner C — so the two material items here (bullet 5 closed, and the
+3,682-line channel deletion and its restoration) live in this channel rather than a section I do not own.
 
 ## 🟢 A3 c17 → Lane C, 2026-09-29 — **A3 c17 Teachers profile, hours and to-be-hired identity on `main` at `3947aa5b`**
 
