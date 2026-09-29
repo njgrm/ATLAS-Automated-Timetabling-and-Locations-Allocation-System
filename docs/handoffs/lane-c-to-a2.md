@@ -2271,3 +2271,31 @@ rollback to `e75d6b8f` on failure, and post `A4 LIVE at cd542245`.
    legacy fallback for an older server. It is the only new-code defect this gate surfaced.
 2. **A3** - `docs/prompts/a4-train-2026-09-29-8.md:16-17` still describes `/faculty/preferences` as the thing
    that redirects. (You already flagged it; repeating so it is not lost in a night of trains.)
+
+## 🟡 A7 → Lane C, 2026-09-29 ~19:05 — **A7 c8 slice 1 ON `main` at `a528caa6`** (readable type scale + the gate). NOT deployed — A4 owns the train.
+
+**0 fixes live and seen / 1 integrated / 0 dropped.** Source landed; it needs a release train to reach the Tailnet. This is the "land the first safe slice early" half of the UI foundation; **the re-fit pass is the other half and is not done** — see the honest residual below.
+
+### What is on `main` (`a528caa6`, integration merge over a `main` that had moved to `67b831d9`)
+- **Type tokens** in `atlas-client/src/index.css` (`@theme`, non-inline): `--text-xs: 0.875rem` (14px) + `--text-xs--line-height: 1.25rem`, `--text-sm: 0.9375rem` (15px) + `1.375rem`. **Proven in-browser, not just in source:** a real Tailwind build resolves `text-xs` to a computed **14px** and `text-sm` to **15px** (`text-base` still 16px).
+- **137 `text-[9|10|11|12]px` → `text-xs`** across 39 production files; **0 remain** in `atlas-client/src` production code.
+- **25 uppercase micro-labels de-shouted** to sentence case (the operator's "less shout, older eyes").
+- **Shared `@/ui` targets ≥40px** (button/tabs/picker/select heights) — page-local controls are the re-fit pass.
+- **Shared `<Badge>` `leading-none`** so a single-line 14px pill's line box fits its box.
+- **The gate** `test:ux-type-scale-a7c8` (6/6), wired into `test:client-suite`. It hard-fails any sub-14px `text-[Npx]` in production, and ratchets (owner-tagged, dated, fails on growth/new-file/removal) the 264 **pre-existing** sub-14px `rem` values and the last `More filters`. `test:encoding` 1/1; `git diff --check` clean.
+
+### Rendered proof (real staging data, loopback preview :5247, origin asserted, 1366x768 every page, via `/__dev/staging-login`)
+All 11 Part 2 pages: **0 mojibake, 0 overflowing, 0 sideways scroll, `More filters` 0 on the pages A5 c7 has already cleaned.** Dashboard `major: 0`. Screenshots: `C:\Users\njgro\AppData\Local\Temp\a7c8-shots\`.
+
+### Independent review + integration
+- **QA `CORRECTION_REQUIRED`, 23/23/0/0** with **one** BLOCKING item (below); it could not break the gate across 8 mutation controls and confirmed the rem blind-spot is genuinely closed and the six re-pins are additive/stronger (no assertion deleted).
+- **A5 c7 landed on `main` mid-integration** (`fef3f77a`/`78ef01c4`), producing the predicted conflict. I resolved it **semantically, not mechanically:** the `a5-subjects-c1` re-pin now asserts my `h-10` **and** A5's `w-auto whitespace-nowrap` auto-width variant (it passes 15/15 on the merged tree); `ConflictInspector.tsx` keeps A5's mojibake cleanup **and** my `text-xs` class. I also updated the `More filters` ratchet to its new one-file truth (A5 c7 already removed the subjects disclosure on `main`).
+
+### ⚠️ The honest residual — do NOT call the type scale "done" on screen
+QA's B1 is **real and only partly cleared.** The `text-xs` 14px line box (20px) is taller than a fixed `h-5` pill's content box (18px), so single-line status chips clip by ~3px. **I fixed the shared `<Badge>` and every chip that renders through it, but the chips that *replicate* the badge pattern in their own page components were NOT fixed** — I measured them still clipping (`scrollHeight 21 / clientHeight 18`) on **Subjects (23), Teachers (26), Map (104)**, plus the `Admin` role chip on every page. I did **not** touch them because those exact files (Map=A9, Subjects/Teachers=A5) are mid-edit by other lanes and would collide at integration. **This is re-fit pass row #1, already scoped and measured** (inventory committed at `docs/reviews/a7-c8-type-scale/sub-14px-rem-inventory.md`, "Rendered clip measurement" section).
+
+**Re-fit pass (next slice), in order:** (1) page-local status-chip clip — give the pill a line box that fits or grow the box; (2) the 264 pre-existing sub-14px `rem` values; (3) picker-face width — the `md`/`w-28` trigger arithmetic was computed at `text-xs`=12px and every composed face is wider at 14px, so faces may clip (no `truncate` was added to hide it); (4) page-local controls under 40px; (5) the last `More filters` (AdminWorkspace) is A5 c8's.
+
+**A5 c8 ordering coupling:** when A5 c8 deletes the last `More filters`, it must edit `a7-c8-type-scale.test.ts`'s allowlist in the same commit or `test:client-suite` goes red on `main` (this fired for real when A5 c7 landed — the ratchet caught the subjects removal exactly as designed).
+
+Worktree `E:/ATLAS-worktrees/lane-a7-c8-type-scale` — clean, pushed, `PRESERVE_FOR_DECISION` (re-fit pass continues on it). `D:\ATLAS` never written.
