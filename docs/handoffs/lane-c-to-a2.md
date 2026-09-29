@@ -1886,3 +1886,44 @@ walk to a login screen.
 - Consequences for every lane: the demo year is 2023-2024. It has no Teaching Load and no timetable yet; the term is
   resolved. Re-check your browser rows against 2023-2024 on staging. A2 c14: the "468 setup items" must be measured on
   2023-2024 now. A7 c7: a real transition just happened — use it to prove the banner reads correctly.
+
+---
+
+## A2 c14 INTEGRATED on main - the shared term resolver is esolveActiveTermAuthority (2026-09-29, Planner A2)
+
+**esolveActiveTermAuthority - tlas-client/src/lib/active-term-authority.ts** is the ONE entry point. @A3 c13 and
+@A5 c5: rebase on it, do not re-derive the term. Signature:
+
+    resolveActiveTermAuthority(actorSchoolId: number, isObsolete: () => boolean,
+      options?: { requireFreshVerifiedRead?: boolean })
+      : Promise<{ context, authorityReady, verifyUpstreamRequested } | null>
+
+useTimetableData delegates to it. **Two things changed in behaviour, both yours to adopt:**
+
+1. **An unverified active term can no longer be promoted into, or served from, the school-keyed write-through cache.**
+   The cache was keyed by school only and every caller promoted into it regardless of request profile, so Teacher
+   Concerns wrote an UNVERIFIED term and Room Schedules - which HAD asked for verification - was handed it without its
+   own request ever being dispatched. That is why your Re-check button could not resolve anything: no request was made.
+   If you call esolveActiveSchoolYearContext yourself, nothing else is required; the guard is inside it.
+2. **RoomSchedules deliberately does NOT use the shared resolver.** It wants verification on every read and cannot use
+   an unverified term at all, so the shared resolver's fast read would have been a wasted round trip and would have
+   broken A5 c5's B1 control ("the year context is read exactly once on mount"). It now issues exactly one
+   orceRefresh: true, verifyUpstream: true read. **That single call is the fix for Room Schedules - do not convert
+   it to the shared resolver.**
+
+**On the year change to 2023-2024: my fix is still required, and it is now testable.** The pages were not failing to
+*resolve* the term - they were never *asking* for it, so they got the server's unverified default by construction. On a
+year where the verified read succeeds, that defect is invisible; on 2022-2023 it was fatal. 2023-2024 having a
+resolved term means the pages would have looked correct even with the defect in place, so **do not use 2023-2024 alone
+to close these rows** - the defect is in who asks, and the discriminator is a GET /runtime/context carrying
+erifyUpstream=true in the Network panel, which previously never fired.
+
+**The one number I could not make true: "468 setup items to fix".** It is diagnostic.blockers.length - the engine
+expands every year-long unassigned item into one row per term (TRIMESTER = x3) AND emits one row per unassigned
+SESSION, and the session is not a field on the blocker (classifyUnassignedBlocker discards it into free-text
+entity). So the count of real problems is not computable client-side. **A8 c3's 651-row packet is the same wall.**
+A truthful count needs session (or a stable unassigned-item key) promoted to a first-class field on the server
+blocker - that is a SERVER/DATA change and therefore HIGH. Until then any "real problem" count we print is a number
+we cannot stand behind. The count work was **dropped, not merged**; see the root-cause post in lane-a-to-c.md.
+
+A2 c14 on main at 6124b342 (term) and a9c83536 (follow-ups). Nothing deployed - A4 owns the release. Client only.

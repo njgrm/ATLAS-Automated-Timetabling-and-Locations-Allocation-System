@@ -2758,3 +2758,75 @@ commands QA named - no third review round.
    that the "ATLAS could not check these" rows never appear as outstanding work; and that the forced
    unresolved state does **not** claim a step is incomplete while another card says the schedule is published.
    **Also judge the A5 h1 collision above** - that one is a pixel judgement only you can make.
+
+---
+
+## A2 c14 INTEGRATED on main at 6124b342 + a9c83536 - 2026-09-29 (Planner A2)
+
+**1 fix integrated, seen 0 times, dropped 1 of 2 items.** Root cause posted 10:50 (deadline 13:00). Term fix on
+main at 14:10. **Not deployed - A4 owns the release (§14). I ran no browser.**
+
+**The root cause was not the one the report implied, and that is the finding.** The active term was not *failing to
+resolve*: TeacherConcerns and AdminYearSetup called esolveActiveSchoolYearContext with erifyUpstream absent, the
+client default is false (enrollpro-public-settings.ts:252), the server therefore skipped its whole resolution block
+and returned its literal default string "Active term verification not requested." - the exact third string in your
+screenshot - and esolveVerifiedActiveTermIndex failed closed as designed. RoomSchedules *did* ask, but without
+orceRefresh the school-keyed cache handed it the unverified entry the other two pages had just written. So one
+client-side default plus one cache key produced all three dead pages. The canonical server resolver
+(ctive-term-resolver.service.ts) was correct throughout and is untouched. Full analysis:
+docs/reviews/a2-c14-root-cause/root-cause.md.
+
+**Fixed:** one shared resolver tlas-client/src/lib/active-term-authority.ts (fast read, then exactly one
+orceRefresh + verifyUpstream:true read), adopted by TeacherConcerns and AdminYearSetup; RoomSchedules issues one
+verified read directly, because it cannot use an unverified term and a shared-resolver round trip broke A5 c5's
+"read exactly once on mount" control. Plus the cache guard: an unverified ctiveTerm can no longer be promoted into
+or served from the cache. **A missing term identity still never becomes Term 1** - the fail-closed gate is unchanged;
+only who asks changed.
+
+**Follow-ups on main at 9c83536:** 	est:timetable-ux-rehaul 33/35 -> **35/35** (the TEST was wrong, not the
+product - c77bd594 had already re-pinned this exact stale pin in a sibling file and missed this one; the drift
+banner still renders with an equivalent prop list); /timetable Retry armed at exactly 8000 ms so it fired *on* the
+promised instant and still needed a render - promise stays 8000, arming moves to 7500, no word added; and
+alue={... : undefined} on a Radix Select, which is how it is told to be UNCONTROLLED, fixed at **both** term
+pickers with a shared SELECT_NO_VALUE on @/ui/select - not a suppression, so every other input stays free to warn.
+
+**What I DROPPED, and why you should care about the reason.** "468 setup items to fix" is
+diagnostic.blockers.length. It is inflated twice over: once per term (TRIMESTER = x3) **and** once per unassigned
+SESSION - and the session is not a field on the blocker, because classifyUnassignedBlocker
+(generation-preflight.service.ts:402-418) discards it into free-text entity. QA executed the real engine: one
+section, one subject, **three unassigned sessions** = 9 engine rows, and every client-side dedup key I tried returned
+**1**. So the count of real problems is not computable client-side at all, and my first candidate would have told a
+scheduler "1 setup item to fix" for three real problems. Two QA rounds returned CORRECTION_REQUIRED; per §11 I took no
+third round and dropped it. **A8 c3's new 651-row packet is standing on the same wall.** A truthful count needs
+session promoted to a first-class field on the server blocker - **SERVER/DATA, HIGH tier.** Any "real problem"
+count printed before that is a number we cannot stand behind. This is a follow-up row, not a done item.
+
+**Evidence.** Round 1 QA over 63086a09..31800099: CORRECTION_REQUIRED 11/12, the single failure in the dropped
+half; term rows PASS with the cache fix mutation-proven load-bearing. Round 2 QA CORRECTION_REQUIRED 5/7, both
+findings in the dropped half, C5 proving the term half byte-identical. Drop verified mechanically: the four
+count-half files are IDENTICAL-TO-BASE to 63086a09 and the six term-half files are PRESERVED from 31800099.
+Merged-tree gates after rebasing onto A3 c13's and A5 c5's rewrites of both pages: 2-c14-active-term 9/9,
+dup-read-callers 75/75, 	imetable-term-gate-c01 8/8, 5-c2a-term-truth 11/11, oom-schedules-term-c01 8/8,
+uxc01r 38/38, 5-c5-term-retry **3/3** (it was 2/1 after my first merge - the shared resolver's fast read had
+doubled the reads on mount; that regression is fixed, not waived), 	est:client-suite **1250/39 identical to base**,
+	sc 5 == 5 pre-existing. Follow-up gates: 	imetable-ux-rehaul 35/35, 	est:ux-a2-c14-followups 5/5 with the
+mutant at 2/3, 2-header-budget 28/28, 	est:client-suite 1255/41 base -> 1257/39 with a failing-test NAME-SET
+diff of **2 fixed, 0 new**, 	sc 5 == 5.
+
+**Rendered evidence: NONE. 0 fixes seen rendered, and I am not dressing a source test as one.** The four
+loopback rows are UNPERFORMED; the executor's first attempt redirected to /login because it built without
+VITE_ATLAS_API, and QA showed the fix it proposed (/api/v1) is discarded by ite.config.ts:38 and would have
+left the preview proxy aimed at **live 127.0.0.1:5001**. **@Lane C / @A4: the correct value is
+VITE_ATLAS_API=http://127.0.0.1:5101/api/v1 (staging) plus an authenticated session.**
+
+**The check that closes this, on 2023-2024 or any year:** on /faculty/concerns and /room-schedules, the Network
+panel must show a GET /runtime/context carrying erifyUpstream=true. It never fired before. Do not close these
+rows on "the term shows correctly" - the new year would have looked fine with the defect still in place.
+
+**@A4:** pin 6124b342 (term, the release blocker) and 9c83536 (follow-ups). **9 + 7 client paths, no
+tlas-server/, no prisma/, no ops/, no lockfile, no env, no migration, no dependency change - nothing here needs
+a HIGH gate.**
+
+**Next action for me:** the term-cache apply is A3's HIGH action and I am not touching it. If my fix lands and that
+one verified request still returns erified:false, the root cause is the missing 	ermContractCache row for the
+active mirror and the apply is the whole remedy. Nothing is owed back to me.
