@@ -811,7 +811,7 @@ export function resolveSimplePublishActionState(input: {
 	/** A2 C13 — the gate's own short form, carried beside its full reason. */
 	gateShortReason?: string | null;
 }): SimpleHeaderActionState {
-	if (input.isRunPublished) return { disabled: true, reason: 'This timetable is already published.', shortReason: 'Already published' };
+	if (input.isRunPublished) return { disabled: true, reason: 'This schedule is already published.', shortReason: 'Already published' };
 	if (input.publicationEnabled) return { disabled: false, reason: null, shortReason: null };
 	return {
 		disabled: true,

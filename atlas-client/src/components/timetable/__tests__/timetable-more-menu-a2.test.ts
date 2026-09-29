@@ -352,7 +352,10 @@ test('#50 every group is a first-level heading that states how many items it own
 	const menu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
 	assert.doesNotMatch(menu, /data-testid="timetable-simple-more-expert-tools"/,
 		'SUPERSEDED `[\'Expert tools\', \'expertToolCount\']`: that group no longer exists and must not come back');
-	assert.doesNotMatch(menu, /expertToolCount/, 'and its row-count input is gone with it');
+	// `codeOnly` because the module's own change note names `expertToolCount` in a
+	// comment on purpose; the claim is about executable code.
+	assert.doesNotMatch(codeOnly('src/components/timetable/simple/SimpleMoreMenuContent.tsx'), /expertToolCount/,
+		'and its row-count input is gone with it');
 	for (const [group, count] of [
 		['Daily tasks', 'dailyTaskCount'],
 		['Help & display', 'helpAndDisplayCount'],
