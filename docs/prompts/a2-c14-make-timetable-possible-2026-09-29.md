@@ -46,3 +46,9 @@ Lane C's go, and make sure the product can trigger it itself (a scheduler must n
 returns `404 NO_RUNS` for room requests (no draft run yet), which your generate fix unblocks.
 Also yours: `test:timetable-ux-rehaul` is 33/35 on main (two rows assert `<SimpleDriftBanner` in a file that no
 longer has it) — make it green, name which side was wrong.
+
+## Addendum 12:10 — from Codex train 8 walk (docs/reviews/codex-staging-train8-3216d383/report.md)
+- Teacher Concerns hides the whole form (times, rooms, notes, Save) while the term is unresolved; Re-check does not
+  resolve it. Your term fix is the release blocker for the evening train.
+- MINOR: `/timetable` Retry not visible at 8 s (load settled at 14.1 s); show it at the stated time.
+- MINOR: console "Select is changing from uncontrolled to controlled" on route change (`/room-schedules` and others).
