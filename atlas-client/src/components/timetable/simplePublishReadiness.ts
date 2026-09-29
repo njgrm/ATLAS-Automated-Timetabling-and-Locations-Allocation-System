@@ -1,5 +1,6 @@
-import type { DraftReport, UnassignedItem, UnassignedReason, Violation } from '@/types';
+import type { DraftReport, ScheduledEntry, UnassignedItem, UnassignedReason, Violation } from '@/types';
 import { CLASS_NOUN, mustFixProblemCountLabel, MUST_FIX_LABEL, UNLABELLED_RULE_SENTENCE } from '@/lib/timetable-plain-language';
+import { NO_SECTION_ON_RECORD, NO_SUBJECT_ON_RECORD, resolveViolationEntityIdentity } from '@/lib/timetable-violation-identity';
 
 export type BlockerReason =
 	| 'FACULTY_OVERLOADED'
@@ -37,6 +38,17 @@ export type BlockerGroup = {
 	actionHref: string;
 	/** Whether this group was derived from run-wide truth or the selected term. */
 	scope: BlockerGroupScope;
+	/**
+	 * A2 mc S1c — WHAT this group's count counts, in the operator's words.
+	 *
+	 * The recorded defect: the header chip, the sheet gate, the selected-term line
+	 * and this list all wore the same word and described three populations, and
+	 * nothing on screen said so. `blockerGroups` is a RENDERING list (see the note
+	 * above `unresolvedGroupCount`), so the honest fix is to LABEL the list, never
+	 * to re-derive the gate — `hasBlockers`, `runWideBlockingHard` and
+	 * `runWideUnassigned` are untouched by this slice.
+	 */
+	populationLabel: string;
 	items: BlockerItem[];
 };
 
@@ -49,6 +61,15 @@ export type BlockerItem = {
 	reason: string;
 	plainReason: string;
 	nextStep: string;
+	/**
+	 * A2 mc S1b — the identity of THIS item, so its own fix button can deep-link to
+	 * this row and not to the group's first. Resolved from the violation's own
+	 * `entities.entryIds` when the violation carries no ids (see
+	 * `lib/timetable-violation-identity.ts`).
+	 */
+	sectionId: number | null;
+	subjectId: number | null;
+	facultyId: number | null;
 };
 
 export type WarningItem = {
@@ -462,6 +483,9 @@ function buildItemsFromUnassigned(
 			reason: item.reason,
 			plainReason: config.plainLabel,
 			nextStep: config.nextStep,
+			sectionId: item.sectionId ?? null,
+			subjectId: item.subjectId ?? null,
+			facultyId: item.facultyId ?? null,
 		});
 	}
 
@@ -501,6 +525,12 @@ function buildItemsFromResourceDiagnostics(
 					reason: reasonCode,
 					plainReason: config.plainLabel,
 					nextStep: config.nextStep,
+					// A3 c16: this diagnostic row has a subject but no section and no
+					// teacher, so its item identity carries only what it really holds. A
+					// fix button that cannot deep-link to an entity must not claim to.
+					sectionId: null,
+					subjectId: entry.subjectId,
+					facultyId: null,
 				});
 			}
 		}
@@ -509,11 +539,28 @@ function buildItemsFromResourceDiagnostics(
 	return groups;
 }
 
+/**
+ * A2 mc S2 — resolve a violation's section and subject from ITS OWN entries.
+ *
+ * `atlas-server/src/services/constraint-validator.ts` emits
+ * `entities: { facultyId, day, entryIds }` with no `sectionId` and no `subjectId`
+ * for several codes, so this file used to render the literal
+ * `Unknown section · Unknown subject` on a row the run could name exactly. The
+ * evidence was already here: `entities.entryIds` names the run's entries, and
+ * every entry carries `sectionId`/`subjectId`.
+ *
+ * When several named entries disagree the FIRST in `entryIds` order wins and
+ * nothing false is said — a row that names one real class of a conflict beats a
+ * row that names neither. When nothing resolves, the fallback states WHAT IS
+ * MISSING in the operator's words (`No section on this record`) instead of the
+ * word `Unknown`, and it never prints a raw id.
+ */
 function buildItemsFromViolations(
 	violations: Violation[],
 	sectionLabel: (id: number) => string,
 	subjectLabel: (id: number) => string,
 	facultyLabel: (id: number) => string,
+	entries: readonly Pick<ScheduledEntry, 'entryId' | 'sectionId' | 'subjectId' | 'facultyId'>[] = [],
 ): Map<string, BlockerItem[]> {
 	const groups = new Map<string, BlockerItem[]>();
 	const hardViolations = violations.filter(isBlockingHardViolation);
@@ -524,26 +571,32 @@ function buildItemsFromViolations(
 			groups.set(reason, []);
 		}
 		const config = BLOCKER_CONFIG[reason] ?? DEFAULT_BLOCKER_CONFIG;
+		const identity = resolveViolationEntityIdentity(v, entries);
 		groups.get(reason)!.push({
-			sectionLabel: v.entities.sectionId != null ? sectionLabel(v.entities.sectionId) : 'Unknown section',
-			subjectLabel: v.entities.subjectId != null ? subjectLabel(v.entities.subjectId) : 'Unknown subject',
+			sectionLabel: identity.sectionId != null ? sectionLabel(identity.sectionId) : NO_SECTION_ON_RECORD,
+			subjectLabel: identity.subjectId != null ? subjectLabel(identity.subjectId) : NO_SUBJECT_ON_RECORD,
 			gradeLabel: '—',
 			sessionNumber: 0,
 			facultyLabel: v.entities.facultyId != null ? facultyLabel(v.entities.facultyId) : 'No teacher assigned',
 			reason: v.code,
 			plainReason: config.plainLabel,
 			nextStep: config.nextStep,
+			sectionId: identity.sectionId,
+			subjectId: identity.subjectId,
+			facultyId: identity.facultyId,
 		});
 	}
 
 	return groups;
 }
 
+/** A2 mc S2 — the same resolution for the SOFT/informational warning rows. */
 function buildWarningGroups(
 	violations: Violation[],
 	sectionLabel: (id: number) => string,
 	subjectLabel: (id: number) => string,
 	facultyLabel: (id: number) => string,
+	entries: readonly Pick<ScheduledEntry, 'entryId' | 'sectionId' | 'subjectId' | 'facultyId'>[] = [],
 ): WarningGroup[] {
 	// Soft warnings plus informational (non-allowlisted) HARD severities: both are
 	// reviewable but neither blocks publication.
@@ -552,9 +605,10 @@ function buildWarningGroups(
 
 	for (const v of warningViolations) {
 		const items = groups.get(v.code) ?? [];
+		const identity = resolveViolationEntityIdentity(v, entries);
 		items.push({
-			sectionLabel: v.entities.sectionId != null ? sectionLabel(v.entities.sectionId) : 'Unknown section',
-			subjectLabel: v.entities.subjectId != null ? subjectLabel(v.entities.subjectId) : 'Unknown subject',
+			sectionLabel: identity.sectionId != null ? sectionLabel(identity.sectionId) : NO_SECTION_ON_RECORD,
+			subjectLabel: identity.subjectId != null ? subjectLabel(identity.subjectId) : NO_SUBJECT_ON_RECORD,
 			facultyLabel: v.entities.facultyId != null ? facultyLabel(v.entities.facultyId) : 'No teacher assigned',
 		});
 		groups.set(v.code, items);
@@ -576,6 +630,20 @@ function summaryField(summary: unknown, key: string): number | null {
 	return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
+/**
+ * A2 mc S1c — the population a blocker group's count actually covers, in the
+ * operator's words, using the SHARED vocabulary (`CLASS_NOUN`,
+ * `classesNeedingTime`) rather than a fourth noun of this slice's own.
+ *
+ * A group derived from the UNRESOLVED queue counts classes that have no time
+ * yet. A group derived from HARD violations counts must-fix problems. Nothing
+ * else exists on this list, and a third possibility would be a lie.
+ */
+export function blockerPopulationLabel(reason: string): string {
+	if (reason in REASON_GROUPS) return `${CLASS_NOUN}es with no time yet`;
+	return `${MUST_FIX_LABEL} problems`;
+}
+
 export function deriveSimplePublishReadiness(
 	draft: DraftReport | null,
 	violations: Violation[],
@@ -586,6 +654,8 @@ export function deriveSimplePublishReadiness(
 ): SimplePublishReadiness {
 	const unassignedItems = draft?.unassignedItems ?? [];
 	const summary = draft?.summary ?? null;
+	/** A2 mc S2 — the run's own entry set, so a violation with no ids can be named. */
+	const runEntries = draft?.entries ?? [];
 
 	let itemGroups: Map<string, BlockerItem[]>;
 	let groupScope: BlockerGroupScope;
@@ -598,7 +668,7 @@ export function deriveSimplePublishReadiness(
 			itemGroups = diagnosticsGroups;
 			groupScope = 'run-wide';
 		} else {
-			itemGroups = buildItemsFromViolations(violations, sectionLabel, subjectLabel, facultyLabel);
+			itemGroups = buildItemsFromViolations(violations, sectionLabel, subjectLabel, facultyLabel, runEntries);
 			groupScope = 'selected-term';
 		}
 	}
@@ -613,6 +683,7 @@ export function deriveSimplePublishReadiness(
 				actionLabel: config.actionLabel,
 				actionHref: config.actionHref,
 				scope: groupScope,
+				populationLabel: blockerPopulationLabel(reason),
 				items,
 			};
 		})
@@ -625,7 +696,7 @@ export function deriveSimplePublishReadiness(
 	const unresolvedGroupCount = blockerGroups
 		.filter((group) => group.scope === 'run-wide')
 		.reduce((sum, group) => sum + group.count, 0);
-	const warningGroups = buildWarningGroups(violations, sectionLabel, subjectLabel, facultyLabel);
+	const warningGroups = buildWarningGroups(violations, sectionLabel, subjectLabel, facultyLabel, runEntries);
 	const selectedTermWarningCount = warningGroups.reduce((sum, g) => sum + g.count, 0);
 
 	/** Allowlist-filtered HARD violations in the selected-term list. */

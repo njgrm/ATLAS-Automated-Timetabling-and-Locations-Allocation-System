@@ -1,4 +1,4 @@
-import { DndContext, DragOverlay, pointerWithin, useDndContext } from '@dnd-kit/core';
+import { DndContext, DragOverlay, pointerWithin } from '@dnd-kit/core';
 import { useScheduleReviewWorkspaceState } from '@/hooks/useScheduleReviewWorkspaceState';
 import { ScheduleReviewWorkspaceHeader } from '@/components/timetable/ScheduleReviewWorkspaceHeader';
 import { TimetableSimpleHeader } from '@/components/timetable/TimetableSimpleHeader';
@@ -18,24 +18,27 @@ import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
 import { Button } from '@/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/dropdown-menu';
-import { AlertCircle, ArrowRight, ArrowRightLeft, BookOpen, DoorOpen, GraduationCap, MoreHorizontal, Move, Redo2, RefreshCw, Undo2, UserRoundX } from 'lucide-react';
+import { AlertCircle, ArrowRight, ArrowRightLeft, BookOpen, DoorOpen, GraduationCap, Lock, MoreHorizontal, Move, Redo2, RefreshCw, Undo2, UserRoundX } from 'lucide-react';
 import { lazy, Profiler, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { ScheduledEntry } from '@/types';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
-import { describeMoveTargets, type MoveSlot } from '@/components/timetable/timetableMoveTargets';
+import { describeMoveTargets, toMoveOccupants, type MoveSlot } from '@/components/timetable/timetableMoveTargets';
 import { setTimetableEntryReadOnly } from '@/components/timetable/TimetableDraggableEntry';
 import { TimetableUndoRedoControl } from '@/components/timetable/TimetableUndoRedoControl';
 import { dispatchUndoByLedger, UNDO_CONFLICT_MESSAGE } from '@/components/timetable/timetableUndoRedoState';
 import { createSwapArmHandler } from '@/components/timetable/timetableSwapArming';
 import { createTeacherDepartureJump } from '@/components/timetable/timetableTeacherDepartureJump';
 import { TimetableMoveStatusLine } from '@/components/timetable/TimetableMoveStatusLine';
+import { TimetableDragOverlay } from '@/components/timetable/TimetableDragOverlay';
 import ConcurrentCommitNoticeBar from '@/components/timetable/ConcurrentCommitNoticeBar';
 import { buildScopeKey, clearScopeState, shouldClearForScopeChange } from '@/components/timetable/timetableScopeHygiene';
 import { SimplePastYearView } from '@/components/timetable/simple/SimplePastYearView';
 import { SimplePastYearReadOnlySurface, type PastYearViewMode } from '@/components/timetable/simple/SimplePastYearReadOnlySurface';
 import { buildPastYearBackHref, resolvePastYearViewState } from '@/components/timetable/simple/pastYearViewState';
 import { usePastYearTimetable } from '@/components/timetable/simple/usePastYearTimetable';
+import { useSelectedClassLock, useTimetableLocks } from '@/hooks/useTimetableLocks';
+import { ScheduleReviewWorkspaceSelectedActions } from '@/components/timetable/ScheduleReviewWorkspaceSelectedActions';
 import { YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
 import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
 
@@ -44,13 +47,10 @@ const TeacherDepartureRecoverySheet = lazy(() => import('@/components/timetable/
 })));
 
 /** A2 C13 — extracted so this file sits UNDER §8's 1000-line cap with real headroom: it
- *  stood at 997 and the two props A2 C13 adds took it to 1000, which is AT the line but
- *  has zero room for the next edit — that is how a cap gets breached later. §8 says
- *  EXTRACT, never delete a comment, so the C11 M3 record stays on the call site. Pure,
- *  not a hook, so hook order is untouched and the #310 hazard below cannot return. */
-type MoveOccupant = { entryId: string; day: string; startTime: string; endTime: string };
-const toMoveOccupants = (es: Array<Record<string, unknown>>): MoveOccupant[] =>
-	es.map((e) => ({ entryId: String(e.entryId), day: String(e.day), startTime: String(e.startTime), endTime: String(e.endTime) }));
+ *  stood at 995 physical lines at the merge-base, and §8 says EXTRACT, never delete a
+ *  comment, so the C11 M3 record stays on the call site. `MoveOccupant`,
+ *  `TimetableDragOverlay` and the selected-class menu have since each moved to their
+ *  own file for the same reason. Pure, not a hook, so hook order is untouched. */
 
 export const onProfilerRender = (id: string, phase: string, actualDuration: number, baseDuration: number) => {
 	if (typeof window !== 'undefined') {
@@ -59,31 +59,6 @@ export const onProfilerRender = (id: string, phase: string, actualDuration: numb
 		win.__reactProfilerLogs.push({ id, phase, actualDuration, baseDuration, timestamp: Date.now() });
 	}
 };
-
-function TimetableDragOverlay({
-	subjectLabel,
-	sectionLabel,
-}: {
-	subjectLabel: (id: number) => string;
-	sectionLabel: (id: number) => string;
-}) {
-	const { active } = useDndContext();
-	const source = active?.data.current as any;
-	if (!source?.type) return null;
-	const label = source.type === 'entry'
-		? subjectLabel(source.entry.subjectId)
-		: source.type === 'draftQueue'
-			? `${subjectLabel(source.item.subjectId)} · ${source.item.sectionName}`
-			: source.type === 'draftPlacement'
-				? `Draft · ${subjectLabel(source.placement?.subjectId ?? source.entry?.subjectId)}`
-				: `${subjectLabel(source.item.subjectId)} · ${sectionLabel(source.item.sectionId)}`;
-	return (
-		<div className="rounded border border-primary/60 bg-card px-2.5 py-1.5 text-xs shadow-md pointer-events-none select-none">
-			<p className="font-medium">{label}</p>
-			<p className="mt-0.5 text-xs text-muted-foreground">Release on a highlighted cell to review move or swap.</p>
-		</div>
-	);
-}
 
 export default function ScheduleReviewWorkspace() {
 	const state = useScheduleReviewWorkspaceState();
@@ -299,6 +274,14 @@ export default function ScheduleReviewWorkspace() {
 		return () => setTimetableEntryReadOnly(false);
 	}, [isDraftPublished]);
 
+	/* A2 mc R2, item 7 — the lock read. Declared ABOVE every early return (the
+	 * #310 hazard) and happy with a null scope, so the hook count cannot depend on
+	 * which branch a render takes. */
+	const locks = useTimetableLocks({
+		schoolId: state.headerContext?.schoolId ?? null,
+		schoolYearId: state.headerContext?.schoolYearId ?? null,
+	});
+
 	/**
 	 * C11 M3 — the legal move targets in the CURRENT view, from the very slots and
 	 * entries the grid is already rendering (no new data, no new request).
@@ -311,8 +294,20 @@ export default function ScheduleReviewWorkspace() {
 		slots: (state.centerWorkspaceContext?.timeSlots ?? []) as MoveSlot[],
 		occupants: toMoveOccupants((state.centerWorkspaceContext?.draftEntries ?? []) as unknown as Array<Record<string, unknown>>),
 		movingEntry: state.selectedEntry
-			? { entryId: state.selectedEntry.entryId, day: String(state.selectedEntry.day), startTime: String(state.selectedEntry.startTime) }
+			? { entryId: state.selectedEntry.entryId, day: String(state.selectedEntry.day), startTime: String(state.selectedEntry.startTime),
+				// A2 mc R1 (3a) — the identity the swap rule needs. `state.selectedEntry`
+				// is a real `ScheduledEntry`, so these are the entry's own fields; the
+				// projection on `occupants` guards the `unknown`-typed side.
+				sectionId: state.selectedEntry.sectionId, subjectId: state.selectedEntry.subjectId,
+				facultyId: state.selectedEntry.facultyId, roomId: state.selectedEntry.roomId, termIndex: state.selectedEntry.termIndex ?? null }
 			: null,
+		// A2 mc R1 (3b) — BOTH resolvers, or `describeMoveSwapOffers` produces
+		// nothing at all (`if (input.subjectLabel && input.facultyLabel)`). This is
+		// the change that makes the offers exist. Read pre-guard, so both are
+		// optional-chained; by the time the status line renders, the context guard
+		// has already proved they are functions.
+		subjectLabel: state.subjectLabel,
+		facultyLabel: state.headerContext?.facultyLabel,
 	});
 
 	/**
@@ -354,6 +349,30 @@ export default function ScheduleReviewWorkspace() {
 		requestedSchoolYearId: new URLSearchParams(location.search).get('schoolYearId'),
 		termOrder: pastYearTermOrder,
 	});
+
+	/* A2 mc R2, item 7 — the lock action. The server capability exists
+	 * (`GET/POST/DELETE …/locks`) and no client surface called it, so this is the
+	 * first reachable `Lock this class` on `/timetable`. The label, the enabled state
+	 * and the reason are ONE derivation in `useSelectedClassLock`, so they cannot
+	 * disagree. Above the past-year gate for the same reason as `pastYear` above. */
+	const selectedClassLock = useSelectedClassLock(
+		locks,
+		state.selectedEntry
+			? {
+					entryId: state.selectedEntry.entryId,
+					sectionId: state.selectedEntry.sectionId,
+					subjectId: state.selectedEntry.subjectId,
+					facultyId: state.selectedEntry.facultyId,
+					roomId: state.selectedEntry.roomId,
+					day: String(state.selectedEntry.day),
+					startTime: String(state.selectedEntry.startTime),
+					endTime: String(state.selectedEntry.endTime),
+					entryKind: state.selectedEntry.entryKind,
+					cohortCode: state.selectedEntry.cohortCode,
+				}
+			: null,
+		(status) => state.setInlineActionStatus(status),
+	);
 
 	/**
 	 * A2 C12 / ITEM S2 — the gate.
@@ -455,6 +474,17 @@ export default function ScheduleReviewWorkspace() {
 				? 'Select an available slot on the grid. Because this schedule is published, you will choose a start date next.'
 				: `Select one of the ${moveTargetNotice.slotKeys.length} highlighted free time slots to preview this move.`,
 		});
+	};
+
+	/* A2 mc R1 (3c/3d) — choosing a swap offer arms the EXISTING swap workflow: it
+	 * dispatches the grid's own `handleKbPlace` for that slot, which is the exact
+	 * call the grid cell makes, and that handler runs `findRegularSwapCandidate`
+	 * then `openRegularSwapPrompt` with the same plain sentence as a drag into an
+	 * occupied cell. The armed move is cleared on the way (3d), because that
+	 * handler returns early on the swap branch without disarming. */
+	const startSwapFromOffer = (offer: { day: string; startTime: string; endTime: string }) => {
+		void state.centerWorkspaceContext.handleKbPlace(offer.day, offer.startTime, offer.endTime);
+		state.headerContext.setKbSelectedSource(null);
 	};
 
 	const openSimpleSelectedDetails = () => {
@@ -604,6 +634,9 @@ export default function ScheduleReviewWorkspace() {
 						state.headerContext.setKbSelectedSource(null);
 						state.setInlineActionStatus(null);
 					}}
+					/* A2 mc R1 (3c) — supplied, so the offers render as real `@/ui` buttons;
+					 * without it the component deliberately falls back to plain words. */
+					onSelectSwap={startSwapFromOffer}
 				/>
 			) : null}
 			{/* B1 — universal inline preview-before-save. Never a modal: the grid
@@ -700,50 +733,20 @@ export default function ScheduleReviewWorkspace() {
 									<span className="hidden sm:inline">More</span>
 								</Button>
 							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end" className="w-64">
-								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); state.headerContext.setSelectedEntry(null); }} data-testid="timetable-simple-dismiss-selection">
-									Dismiss selection
-								</DropdownMenuItem>
-								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); startMoveSelectedEntry(); }}>
-									<Move className="mr-2 size-3.5" aria-hidden="true" />
-									Choose a new time
-								</DropdownMenuItem>
-								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); openSelectedChangeRoom(); }} data-testid="timetable-simple-selected-change-room-action">
-									<DoorOpen className="mr-2 size-3.5" aria-hidden="true" />
-									Change room
-								</DropdownMenuItem>
-								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); armSwapSessions(); }} data-testid="timetable-simple-selected-swap-action">
-									<ArrowRightLeft className="mr-2 size-3.5" aria-hidden="true" />
-									Swap with another class
-								</DropdownMenuItem>
-								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); openSimpleSelectedDetails(); }} data-testid="timetable-simple-selected-details-action">
-									<BookOpen className="mr-2 size-3.5" aria-hidden="true" />
-									View class details
-								</DropdownMenuItem>
-								<DropdownMenuSeparator />
-								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); openSelectedOwnerRepair(); }} data-testid="timetable-simple-selected-owner-repair-action">
-									<GraduationCap className="mr-2 size-3.5" aria-hidden="true" />
-									<span className="flex flex-col">
-										<span>Change Teaching Load owner</span>
-										<span className="text-xs text-muted-foreground">Opens Teaching Load for this subject, section, and teacher</span>
-									</span>
-								</DropdownMenuItem>
-								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); openTeacherDepartureRecovery(state.selectedEntry?.facultyId ?? null); }} data-testid="teacher-departure-selected-action">
-									<UserRoundX className="mr-2 size-3.5" aria-hidden="true" />
-									<span className="flex flex-col">
-										<span>Teacher leaving (all classes)</span>
-										<span className="text-xs text-muted-foreground">Bulk repair for every class this teacher handles</span>
-									</span>
-								</DropdownMenuItem>
-								<DropdownMenuItem onSelect={(event) => {
-									event.preventDefault();
+							<ScheduleReviewWorkspaceSelectedActions
+								onDismissSelection={() => state.headerContext.setSelectedEntry(null)}
+								onChooseNewTime={startMoveSelectedEntry}
+								onChangeRoom={openSelectedChangeRoom}
+								onSwap={armSwapSessions}
+								lock={selectedClassLock}
+								onViewDetails={openSimpleSelectedDetails}
+								onChangeOwner={openSelectedOwnerRepair}
+								onTeacherLeaving={() => openTeacherDepartureRecovery(state.selectedEntry?.facultyId ?? null)}
+								onExpertDetails={() => {
 									setLayoutMode('advanced');
 									window.requestAnimationFrame(() => state.rightPanelContext?.rightPanelRef?.current?.expand());
-								}}>
-									<GraduationCap className="mr-2 size-3.5" aria-hidden="true" />
-									Expert details
-								</DropdownMenuItem>
-							</DropdownMenuContent>
+								}}
+							/>
 						</DropdownMenu>
 					</div>
 				</div>

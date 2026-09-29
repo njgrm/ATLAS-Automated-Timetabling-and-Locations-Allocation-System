@@ -12,15 +12,27 @@ function source(path: string): string {
 
 test('R3 the selected-class Swap arms the same workflow as the task path', () => {
 	const workspace = source('src/components/timetable/ScheduleReviewWorkspace.tsx');
+	// REPOINTED (A2 mc R2, 2026-09-30), not weakened. The selected-class
+	// `DropdownMenuContent` moved to `ScheduleReviewWorkspaceSelectedActions.tsx` so the
+	// workspace could stay under AGENTS.md section 8's 1000-line cap while the class-lock
+	// row was added. The markup and the arming wiring are unchanged; only the file holding
+	// the `DropdownMenuItem` moved, so this row reads the extracted file for the testid and
+	// the workspace for the wiring. Every assertion below is still the original one.
+	const selectedActions = source('src/components/timetable/ScheduleReviewWorkspaceSelectedActions.tsx');
 	const arming = source('src/components/timetable/timetableSwapArming.ts');
 	assert.match(workspace, /createSwapArmHandler/);
-	assert.match(workspace, /data-testid="timetable-simple-selected-swap-action"/);
-	assert.match(workspace, /armSwapSessions\(\)/);
+	assert.match(selectedActions, /data-testid="timetable-simple-selected-swap-action"/);
+	assert.match(selectedActions, /onSwap\(\)/);
 	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): the details moved to
 	// `simple/SimpleSessionDetails`; its Swap button calls the same handler.
 	// assert.match(workspace, /data-testid="timetable-simple-details-swap"/);
 	assert.match(source('src/components/timetable/simple/SimpleSessionDetails.tsx'), /onClick=\{run\(props\.onSwap\)\} data-testid="timetable-simple-details-swap"/);
+	// A2 mc R2 (QA N4, 2026-09-30): the two rows above prove the two ENDS of the
+	// chain and nothing joined them — nothing asserted that the workspace actually
+	// hands `armSwapSessions` to the extracted component. This is that link.
 	assert.match(workspace, /onSwap=\{armSwapSessions\}/);
+	assert.match(workspace, /<ScheduleReviewWorkspaceSelectedActions/);
+	assert.match(selectedActions, /onSelect=\{\(event\) => \{ event\.preventDefault\(\); onSwap\(\); \}\}/);
 	// The arming transition is the real production module, not a state-only no-op.
 	assert.match(arming, /mode: 'select-first'/);
 	assert.match(arming, /deps\.setTask\('swap-sessions'\)/);

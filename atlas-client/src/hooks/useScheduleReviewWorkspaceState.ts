@@ -21,6 +21,8 @@ import {
 import { buildAcademicTermOptions, isVerifiedOrderedActiveTerm, repairTermFilter, type OrderedAcademicTerm } from '@/lib/academic-term';
 import { isTargetSlotOccupiedForTerm } from '@/lib/timetable-term-scope';
 import { formatTime } from '@/lib/utils';
+import { buildEditReceipt, receiptClassLabel, receiptProblemSentence } from '@/lib/timetable-edit-receipt';
+import { plainConflictDetail } from '@/lib/manual-edit-conflict-summary';
 import atlasApi from '@/lib/api';
 import type {
 	Building,
@@ -1528,13 +1530,32 @@ export function useScheduleReviewWorkspaceState() {
 				});
 				return;
 			}
-			if (decision.kind === 'review-blocked') {
-				setInlineActionStatus({
-					tone: 'error',
-					message: preview?.humanConflicts.find((hc) => hc.severity === 'HARD')?.humanTitle ?? 'Placement blocked by hard conflicts.',
-				});
-				return;
-			}
+		if (decision.kind === 'review-blocked') {
+			/* A2 mc R2, item 8 — PLACE SESSION SAYS SOMETHING.
+			 *
+			 * The recorded defect: placing an unplaced class offered no candidate and
+			 * no words, and the one message that did exist named a CATEGORY
+			 * (`Teacher double-booked`) instead of the teacher. The packet's words are
+			 * `No free time: every time double-books <teacher> or <room>`.
+			 *
+			 * So the sentence is composed from the item's OWN resolved teacher and
+			 * room — never an id — and then names the first obstruction in the words
+			 * `buildHumanConflicts` already produced, put through the ONE scrubber
+			 * (`plainConflictDetail`) the preview path uses. No new vocabulary and no
+			 * second scrubber. */
+			const room = defaultRoomId != null && roomMap.has(defaultRoomId) ? roomMap.get(defaultRoomId) : undefined;
+			const teacher = item.facultyId != null ? facultyLabel(item.facultyId) : 'a teacher who is not assigned yet';
+			const roomPart = room ? room.name : 'a room';
+			const obstruction = preview?.humanConflicts.find((hc) => hc.severity === 'HARD');
+			const detail = obstruction ? plainConflictDetail(obstruction.code, obstruction.humanDetail) : '';
+			setInlineActionStatus({
+				tone: 'error',
+				message: detail
+					? `No free time: this slot double-books ${teacher} or ${roomPart}. ${detail}`
+					: `No free time: this slot double-books ${teacher} or ${roomPart}.`,
+			});
+			return;
+		}
 			setInlineActionStatus(null);
 		}
 
@@ -1604,12 +1625,26 @@ export function useScheduleReviewWorkspaceState() {
 				endTime: preview.endTime,
 				roomLabel: preview.roomLabel ?? 'Room saved',
 			});
-			setInlineActionStatus({
-				tone: preview.softCount > 0 ? 'warning' : 'success',
-				message: preview.softCount > 0
-					? `Placed ${preview.subjectLabel} with ${preview.softCount} acknowledged warning${preview.softCount === 1 ? '' : 's'}. Undo below.`
-					: `Placed ${preview.subjectLabel} in ${preview.day} ${preview.startTime}-${preview.endTime}. Undo below.`,
-			});
+		/* A2 mc S5 — the PLACE path speaks the SAME receipt as move and swap. It
+		 * previously built its own sentence from raw `preview.day`/`startTime` and,
+		 * on a soft run, printed a count rather than a sentence. */
+		const placeReceipt = buildEditReceipt({
+			editType: pending.proposal.editType,
+			classLabel: receiptClassLabel({
+				subjectLabel: preview.subjectLabel,
+				sectionLabel: preview.sectionLabel,
+			}),
+			from: null,
+			to: { day: String(preview.day), startTime: String(preview.startTime) },
+			problems: {
+				now: commitResult.violationDelta.hardAfter + commitResult.violationDelta.softAfter,
+				before: commitResult.violationDelta.hardBefore + commitResult.violationDelta.softBefore,
+			},
+		});
+		setInlineActionStatus({
+			tone: placeReceipt.tone,
+			message: `${placeReceipt.sentence} Undo below.`,
+		});
 			setInlinePlacementPending(null);
 		} finally {
 			setInlinePlacementSaving(false);
@@ -1948,14 +1983,36 @@ export function useScheduleReviewWorkspaceState() {
 					? `${roomMap.get(proposal.targetRoomId)!.name} - ${roomMap.get(proposal.targetRoomId)!.buildingShortCode || roomMap.get(proposal.targetRoomId)!.buildingName}`
 					: '',
 			});
-			setInlineActionStatus({
-				tone: scopedPreview.softViolations.length > 0 ? 'warning' : 'success',
-				message: scopedPreview.softViolations.length > 0
-					? `Move applied with ${scopedPreview.softViolations.length} soft warning(s).`
-					: `Moved to ${proposal.targetDay ?? ''} ${proposal.targetStartTime ?? ''}–${proposal.targetEndTime ?? ''}. Undo below.`,
-			});
-		},
-		[captureReviewFocusReturn, dragItem, previewEdit, commitEditWithMeta, stagePreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, placeGeneratedUnassigned, subjectLabel, roomMap, setLastAutoSaveUndo],
+		/* A2 mc S5 — the ONE receipt derivation (`lib/timetable-edit-receipt.ts`),
+		 * derived from the COMMITTED delta, never the optimistic proposal. Replaces
+		 * `Moved to MONDAY 07:00–08:00. Undo below.` / `Move applied with N soft
+		 * warning(s).`, which named neither the class nor where it came from. */
+		const moveReceipt = buildEditReceipt({
+			editType: proposal.editType,
+			classLabel: receiptClassLabel({
+				subjectLabel: subjectLabel ? subjectLabel(entry.subjectId) : null,
+				sectionLabel: sectionLabel ? sectionLabel(entry.sectionId) : null,
+			}),
+			from: { day: String(entry.day), startTime: String(entry.startTime) },
+			to: { day: String(proposal.targetDay ?? ''), startTime: String(proposal.targetStartTime ?? '') },
+			problems: {
+				now: commitResult.violationDelta.hardAfter + commitResult.violationDelta.softAfter,
+				before: commitResult.violationDelta.hardBefore + commitResult.violationDelta.softBefore,
+				/* A2 mc R2 (B2) - the DETAIL, not the TITLE. humanTitle for a teacher
+				 * conflict is the category (Teacher double-booked); the packet's own
+				 * example sentence is Mr Cruz already teaches 8-Luna at that time.,
+				 * which is humanDetail, and uildHumanConflicts already produces it.
+				 * It goes through the ONE scrubber the preview path uses, so no engine
+				 * token can reach a receipt either. */
+					firstNewSentence: receiptProblemSentence(scopedPreview.humanConflicts),
+			},
+		});
+		setInlineActionStatus({
+			tone: moveReceipt.tone,
+			message: `${moveReceipt.sentence} Undo below.`,
+		});
+	},
+		[captureReviewFocusReturn, dragItem, previewEdit, commitEditWithMeta, stagePreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, placeGeneratedUnassigned, subjectLabel, sectionLabel, roomMap, setLastAutoSaveUndo],
 	);
 
 	/** Keyboard-accessible placement confirm */
@@ -2074,15 +2131,35 @@ export function useScheduleReviewWorkspaceState() {
 					? `${roomMap.get(proposal.targetRoomId)!.name} - ${roomMap.get(proposal.targetRoomId)!.buildingShortCode || roomMap.get(proposal.targetRoomId)!.buildingName}`
 					: '',
 			});
-			setInlineActionStatus({
-				tone: scopedPreview.softViolations.length > 0 ? 'warning' : 'success',
-				message: scopedPreview.softViolations.length > 0
-					? `Move applied with ${scopedPreview.softViolations.length} soft warning(s).`
-					: `Moved to ${proposal.targetDay ?? ''} ${proposal.targetStartTime ?? ''}–${proposal.targetEndTime ?? ''}. Undo below.`,
-			});
-			setKbSelectedSource(null);
-		},
-		[captureReviewFocusReturn, kbSelectedSource, preGenKbSource, previewEdit, commitEditWithMeta, stagePreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, placeGeneratedUnassigned, subjectLabel, roomMap, setLastAutoSaveUndo],
+		/* A2 mc S5 — the SAME derivation as the drag path above. Two move entry
+		 * points produced two sentences before this slice; they now produce one. */
+		const kbReceipt = buildEditReceipt({
+			editType: proposal.editType,
+			classLabel: receiptClassLabel({
+				subjectLabel: subjectLabel ? subjectLabel(fakeItem.entry.subjectId) : null,
+				sectionLabel: sectionLabel ? sectionLabel(fakeItem.entry.sectionId) : null,
+			}),
+			from: { day: String(fakeItem.entry.day), startTime: String(fakeItem.entry.startTime) },
+			to: { day: String(proposal.targetDay ?? ''), startTime: String(proposal.targetStartTime ?? '') },
+			problems: {
+				now: commitResult.violationDelta.hardAfter + commitResult.violationDelta.softAfter,
+				before: commitResult.violationDelta.hardBefore + commitResult.violationDelta.softBefore,
+				/* A2 mc R2 (B2) - the DETAIL, not the TITLE. humanTitle for a teacher
+				 * conflict is the category (Teacher double-booked); the packet's own
+				 * example sentence is Mr Cruz already teaches 8-Luna at that time.,
+				 * which is humanDetail, and uildHumanConflicts already produces it.
+				 * It goes through the ONE scrubber the preview path uses, so no engine
+				 * token can reach a receipt either. */
+					firstNewSentence: receiptProblemSentence(scopedPreview.humanConflicts),
+			},
+		});
+		setInlineActionStatus({
+			tone: kbReceipt.tone,
+			message: `${kbReceipt.sentence} Undo below.`,
+		});
+		setKbSelectedSource(null);
+	},
+		[captureReviewFocusReturn, kbSelectedSource, preGenKbSource, previewEdit, commitEditWithMeta, stagePreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, placeGeneratedUnassigned, subjectLabel, sectionLabel, roomMap, setLastAutoSaveUndo],
 	);
 
 	/** Load edit history on mount / run change */

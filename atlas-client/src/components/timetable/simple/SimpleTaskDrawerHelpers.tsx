@@ -5,6 +5,12 @@ import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
 import { ALL_SERIOUS_PROBLEMS_LABEL, HARD_COUNT_RELATIONSHIP_NOTE, MUST_FIX_LABEL, plainScopeLabel, runAnchorLabel } from '@/lib/timetable-plain-language';
 import { isBlockingHardViolation, resolveBlockerDestination } from '@/components/timetable/simplePublishReadiness';
+import {
+	NO_SECTION_ON_RECORD,
+	NO_SUBJECT_ON_RECORD,
+	resolveViolationEntityIdentity,
+	type ViolationIdentityEntry,
+} from '@/lib/timetable-violation-identity';
 import type { Violation } from '@/types';
 
 export type RepairOrigin = {
@@ -88,12 +94,24 @@ function isGroupableBlocker(violation: Violation): boolean {
 	return isBlockingHardViolation(violation) || Boolean(UNASSIGNED_GROUP_MAP[violation.code]);
 }
 
+/**
+ * A2 mc S2 — this surface had the same two literals as `simplePublishReadiness`
+ * (`'Unknown section'` / `'Unknown subject'`) and the same cause: a violation
+ * that carries no `sectionId` and no `subjectId`, only `entities.entryIds`.
+ *
+ * The optional sixth argument is the run's own entry set. It is OPTIONAL so every
+ * existing caller keeps compiling and keeps its current behaviour; the
+ * Publish-checklist caller (`PublishChecklistContent`) has no entry set to pass
+ * and therefore keeps the honest missing-fact fallback rather than inventing a
+ * name.
+ */
 export function buildBlockerGroups(
 	violations: Violation[],
 	sectionLabelFn: (id: number) => string,
 	subjectLabelFn: (id: number) => string,
 	facultyLabelFn: (id: number) => string,
 	scope: BlockerGroupScope = 'run-wide',
+	entries: readonly ViolationIdentityEntry[] = [],
 ): BlockerGroup[] {
 	const hardViolations = violations.filter((v) => v.severity === 'HARD' && isGroupableBlocker(v));
 	const groups = new Map<string, BlockerGroup>();
@@ -117,14 +135,20 @@ export function buildBlockerGroups(
 		const group = groups.get(code)!;
 		group.count += 1;
 
-		const sectionName = v.entities.sectionId != null ? sectionLabelFn(v.entities.sectionId) : '';
-		const subjectName = v.entities.subjectId != null ? subjectLabelFn(v.entities.subjectId) : '';
+		// The identity first: a violation naming no section/subject of its own may
+		// still name the ENTRIES it is about, and an entry knows both.
+		const identity = resolveViolationEntityIdentity(v, entries);
+		const sectionName = identity.sectionId != null ? sectionLabelFn(identity.sectionId) : '';
+		const subjectName = identity.subjectId != null ? subjectLabelFn(identity.subjectId) : '';
 		const facultyName = v.entities.facultyId != null ? facultyLabelFn(v.entities.facultyId) : '';
 
-		if (sectionName || subjectName) {
+		// A row is listed when it can name AT LEAST ONE real entity. Before this
+		// slice a violation with only `entryIds` named neither and was dropped from
+		// the list entirely — the item existed in the count and nowhere else.
+		if (sectionName || subjectName || facultyName) {
 			group.items.push({
-				sectionName: sectionName || 'Unknown section',
-				subjectName: subjectName || 'Unknown subject',
+				sectionName: sectionName || NO_SECTION_ON_RECORD,
+				subjectName: subjectName || NO_SUBJECT_ON_RECORD,
 				facultyName: facultyName || 'No teacher assigned',
 				nextStep: groupConfig.nextStep,
 			});
