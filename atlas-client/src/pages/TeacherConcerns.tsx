@@ -16,7 +16,8 @@ import { PageHeader } from '@/components/app-shell/PageHeader';
 import { getActionableApiError } from '@/lib/actionable-api-error';
 import { getAtlasTokenEpochVersion, getPreferredAccessToken } from '@/lib/auth';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
-import { describeSavedTermSource, describeSchoolYearSource, describeUnresolvedTermReason, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { describeSavedTermSource, describeSchoolYearSource, describeUnresolvedTermReason } from '@/lib/enrollpro-public-settings';
+import { resolveActiveTermAuthority } from '@/lib/active-term-authority';
 import { resolveVerifiedActiveTermIndex } from '@/lib/timetable-data/timetablePrefetch';
 import type {
 	FacultyMirror,
@@ -132,12 +133,23 @@ export default function TeacherConcerns() {
 		const epoch = getAtlasTokenEpochVersion();
 		const isCurrent = () => !cancelled && isCurrentEpoch(token, epoch);
 		setYearError(null);
-		// `forceRefresh` is load-bearing, not cosmetic: the concern WRITE path
-		// re-resolves the active term live on the server and rejects a mismatched
-		// termIndex with `TERM_SCOPE_MISMATCH`.
-		resolveActiveSchoolYearContext({ schoolId: actorSchoolId, allowStaleOnError: true, allowEnrollProFallback: false, forceRefresh: true })
-			.then((context) => {
+		// A2-C14 — the shared resolver asks for upstream verification exactly
+		// once when the fast read has not already verified the term. The old
+		// `forceRefresh`-only call guaranteed the server's unverified default
+		// ("Active term verification not requested"), so the gate below could
+		// never be satisfied and the whole write path stayed disabled.
+		//
+		// `requireFreshVerifiedRead` is load-bearing here, not cosmetic — and so
+		// was the `forceRefresh` it replaces. The concern WRITE path re-resolves
+		// the active term live on the server and rejects a mismatched termIndex
+		// with `TERM_SCOPE_MISMATCH`, so a cached-but-verified term can make this
+		// page show a term the server no longer holds. The read and the write
+		// must agree, so this page still gets a current answer.
+		resolveActiveTermAuthority(actorSchoolId, isCurrent, { requireFreshVerifiedRead: true })
+			.then((resolution) => {
 				if (!isCurrent()) return;
+				if (resolution == null) return;
+				const context = resolution.context;
 				setSchoolYearId(context.activeSchoolYearId);
 				setSchoolYearNotice(describeSchoolYearSource(context));
 				const resolvedTerm = resolveVerifiedActiveTermIndex(context.activeTerm);

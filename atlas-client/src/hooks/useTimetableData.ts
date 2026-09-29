@@ -3,6 +3,10 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 
 import { resolveActiveSchoolYearContext, type ActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import {
+	resolveActiveTermAuthority,
+	type ActiveTermAuthorityResolution,
+} from '@/lib/active-term-authority';
 import { resolveActorSchoolId } from '@/lib/settings';
 import { findGradeWindow, getProgramBadgeLabel, matchesEntryKindFilter, matchesProgramFilter, resolveSectionGradeNumber } from '@/lib/schedule-review-helpers';
 import {
@@ -383,63 +387,20 @@ export function resolveTimetableLoadGate(args: {
 	return { kind: 'blocked-setup' };
 }
 
-export type TimetableTermAuthorityResolution = {
-	context: ActiveSchoolYearContext;
-	authorityReady: boolean;
-	verifyUpstreamRequested: boolean;
-};
-
 /**
- * D1 — resolve term authority for the timetable bootstrap. The fast cached
- * read stays the first step so navigation never blocks on upstream
- * verification; when it leaves authority unresolved, exactly one
- * `verifyUpstream: true` call follows (deduped by request profile inside
- * `resolveActiveSchoolYearContext`). Returns null when the actor school moved
- * on while a read was in flight (late-response discard). A failed verification
- * keeps the fast-read state so the caller can fall back to an explicit scope.
+ * D1 — resolve term authority for the timetable bootstrap.
+ *
+ * A2-C14: the two-step sequence this function describes now lives in ONE place,
+ * `@/lib/active-term-authority` (`resolveActiveTermAuthority`), because three
+ * other surfaces need the identical answer and two of them were asking for it
+ * wrongly. This export is kept as the hook's public contract so its existing
+ * callers and tests are unchanged; the implementation is shared, not copied.
+ *
+ * @see resolveActiveTermAuthority
  */
-export async function resolveTimetableTermAuthority(
-	actorSchoolId: number,
-	isObsolete: () => boolean,
-): Promise<TimetableTermAuthorityResolution | null> {
-	const context = await resolveActiveSchoolYearContext({
-		schoolId: actorSchoolId,
-		// Prefer cached school-year immediately so timetable bootstrap doesn't
-		// block waiting on a forced upstream verification on every navigation.
-		preferCache: true,
-		backgroundRefresh: true,
-		allowStaleOnError: true,
-		allowEnrollProFallback: false,
-	});
-	// Discard a late response whose actor school changed while it was in flight.
-	if (isObsolete()) return null;
-	let current = context;
-	let authorityReady = isTermAuthorityVerified(current.activeTerm);
-	let verifyUpstreamRequested = false;
-	if (!authorityReady) {
-		try {
-			verifyUpstreamRequested = true;
-			// forceRefresh bypasses the fresh-cache short-circuit: a fresh but
-			// unverified cache entry would otherwise satisfy this call without
-			// ever dispatching, and the gate would stay unsatisfiable. The
-			// request still dedupes by profile, so this is exactly one call.
-			const verified = await resolveActiveSchoolYearContext({
-				schoolId: actorSchoolId,
-				forceRefresh: true,
-				verifyUpstream: true,
-				allowStaleOnError: true,
-				allowEnrollProFallback: false,
-			});
-			if (isObsolete()) return null;
-			current = verified;
-			authorityReady = isTermAuthorityVerified(current.activeTerm);
-		} catch {
-			// Keep the fast-read state. The load gate falls back to an explicit
-			// term scope (D3) instead of dead-ending.
-		}
-	}
-	return { context: current, authorityReady, verifyUpstreamRequested };
-}
+export type TimetableTermAuthorityResolution = ActiveTermAuthorityResolution;
+
+export const resolveTimetableTermAuthority = resolveActiveTermAuthority;
 
 /**
  * Resolve the route's term gate before any run query is enabled. The initial

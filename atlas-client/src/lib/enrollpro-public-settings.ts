@@ -1,3 +1,4 @@
+import { isVerifiedOrderedActiveTerm } from './academic-term';
 import { fetchAtlasRuntimeContext, fetchPublicSettings } from './settings';
 
 const ACTIVE_SCHOOL_YEAR_CACHE_PREFIX = 'atlas:active-school-year-context:v3';
@@ -223,6 +224,34 @@ function isFresh(cachedAtIso: string, maxAgeMs: number): boolean {
 	return Date.now() - cachedAtMs <= maxAgeMs;
 }
 
+/**
+ * A2-C14 — may THIS request profile be answered from the cache at all?
+ *
+ * THE DEFECT (root-cause §Term 3). The write-through cache is keyed by school
+ * ONLY (`activeSchoolYearCacheKey`), and the fresh-cache short-circuit below
+ * returned whatever the last caller happened to write. TeacherConcerns and
+ * AdminYearSetup wrote an UNVERIFIED `activeTerm` (they never asked for
+ * verification), and RoomSchedules — which DID ask — was then handed that
+ * unverified entry without its own request ever being dispatched. The
+ * fail-closed gate did the only honest thing it could and reported
+ * "Term not verified", so the verified read was never actually performed.
+ *
+ * THE RULE. A cached `activeTerm` is admissible to a caller only when it
+ * satisfies the canonical gate on its own merits
+ * (`isVerifiedOrderedActiveTerm`). That predicate reads the payload's own
+ * `verified` flag and ordered contract, so it is decidable from the cache
+ * record alone — the cache never has to guess who wrote an entry.
+ *
+ * A caller that asked for `verifyUpstream` is asking for a checked answer. A
+ * cached answer that has not been checked is not that answer, so it must go to
+ * the network. A caller that did NOT ask for verification keeps its existing
+ * behaviour, including the honest unverified reason string.
+ */
+function cachedActiveTermIsAdmissible(record: ActiveSchoolYearCacheRecord, verifyUpstream: boolean): boolean {
+	if (!verifyUpstream) return true;
+	return isVerifiedOrderedActiveTerm(record.activeTerm);
+}
+
 // DUP-READ-CALLERS-C01 (A2) — the in-flight registry is keyed by the FULL
 // request profile, not just the school, so no caller can join an in-flight
 // request whose load-bearing options differ. `verifyUpstream` is load-bearing
@@ -260,7 +289,9 @@ export async function resolveActiveSchoolYearContext(options: ResolveActiveSchoo
 
 	// preferCache: return cached immediately (even if stale) and optionally
 	// kick off a background re-verification so the next caller gets fresher data.
-	if (preferCache && cached) {
+	// A2-C14: never short-circuit a `verifyUpstream` caller with a cache entry
+	// whose term has not been verified — that is the poisoned-read path.
+	if (preferCache && cached && cachedActiveTermIsAdmissible(cached, verifyUpstream)) {
 		if (backgroundRefresh) {
 			// Fire-and-forget — deduplicate so rapid mounts don't stack requests.
 			if (!inflightBySchool.has(inflightKey)) {
@@ -281,7 +312,10 @@ export async function resolveActiveSchoolYearContext(options: ResolveActiveSchoo
 		};
 	}
 
-	if (!forceRefresh && cached && hasFreshCache) {
+	// A2-C14: the same admissibility rule as `preferCache` above. Without it a
+	// fresh-but-unverified entry satisfies a `verifyUpstream: true` caller and
+	// the requested verification is never dispatched at all.
+	if (!forceRefresh && cached && hasFreshCache && cachedActiveTermIsAdmissible(cached, verifyUpstream)) {
 		return {
 			activeSchoolYearId: cached.activeSchoolYearId,
 			activeSchoolYearLabel: cached.activeSchoolYearLabel,
@@ -321,11 +355,22 @@ async function _fetchRuntimeContext(
 	try {
 		const runtimeContext = await fetchAtlasRuntimeContext(schoolId, verifyUpstream);
 		if (runtimeContext?.activeSchoolYearId) {
+			// A2-C14 — a promotion must never DOWNGRADE a verified cached term.
+			// TeacherConcerns and AdminYearSetup write an UNVERIFIED term on
+			// every mount; without this, one such write would discard the
+			// verified term a later caller still depends on. An unverified
+			// answer is retained only when nothing verified is being replaced.
+			// The caller below still receives this response's own truthful
+			// `activeTerm`; only what is retained FOR OTHERS is protected.
+			const incomingTerm = runtimeContext.activeTerm ?? null;
+			const retainedTerm = isVerifiedOrderedActiveTerm(incomingTerm) || !isVerifiedOrderedActiveTerm(cachedFallback?.activeTerm)
+				? incomingTerm
+				: cachedFallback?.activeTerm ?? null;
 			cacheActiveSchoolYearContext(
 				schoolId,
 				runtimeContext.activeSchoolYearId,
 				runtimeContext.activeSchoolYearLabel ?? null,
-				runtimeContext.activeTerm ?? null,
+				retainedTerm,
 			);
 			const updated = readCachedActiveSchoolYear(schoolId);
 

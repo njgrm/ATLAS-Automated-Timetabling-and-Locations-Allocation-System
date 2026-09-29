@@ -122,7 +122,8 @@
     "test:a5-c4-filter-disclosure": "tsx --test src/components/subjects/__tests__/a5-c4-subjects-filter-disclosure.test.tsx",
     "test:a5-c5-room-schedules": "tsx --test src/lib/__tests__/a5-c5-room-schedules-questions.test.ts src/lib/__tests__/room-schedules-term-c01.test.ts src/lib/__tests__/timetable-c05-beneficiary-export.test.ts src/lib/__tests__/global-scrollbars-c01.test.ts",
     "test:a5-c4-catalog-loading": "tsx --test src/components/subjects/__tests__/a5-c4-subjects-catalog-loading.test.tsx",
-    "test:a5-c4-route-outlet": "tsx --test src/components/app-shell/__tests__/a5-c4-route-outlet-loading.test.tsx"
+    "test:a5-c4-route-outlet": "tsx --test src/components/app-shell/__tests__/a5-c4-route-outlet-loading.test.tsx",
+    "test:a2-c14-active-term": "tsx --test src/lib/__tests__/a2-c14-active-term-authority.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
