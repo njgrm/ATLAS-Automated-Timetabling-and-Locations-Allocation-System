@@ -73,3 +73,14 @@ exit and reviews trends after every 3 rows; each process change is logged below 
 - Fix: rule in planner + qa/executor/wave-auditor (`f2eeefa7`, `3b8774f2`): merge `origin/main` if the route 404s; never
   read the env file, never serve a secret. Reaper now also reaps `cmd` shells >20 min and kills any `relay|token-server`
   node on sight. Staging QA password to be rotated by A4 after train 9 (staging-only, loopback exposure).
+
+## Train 10 cutover incident — 2026-09-29 19:53 +08 (Lane C)
+GO posted ~19:33; live at 19:52 after three attempts. (1) Lane C resumed the wrong OpenCode session (a sub-review
+session, found by grepping the log for ses_ ids); it rightly refused. (2) The real A4 session, resumed with a one-line GO,
+re-read a 2,600-line channel file and a 6,000-line live-state.md, built the prod tree, then derailed before running
+deploy-runner. (3) A third resume with numbered steps finished it. Before that: the walk took three Codex passes because
+Chrome cannot reach staging's loopback origin, one prompt quoted a stale number, and the baseline rule was worded too broadly.
+**Fixes, standing from train 11:** A4's STAGING post must include its OpenCode session id (`opencode session list` title
+"A4 release train N"); Lane C's GO resume uses that id and a numbered cutover prompt (record live-state, dry run,
+-Execute, verify served chunk, rollback, post); Lane C verifies the served chunk itself. Walk prompts never quote expected
+figures. The baseline rule is "caused or worsened by the train".

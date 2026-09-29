@@ -543,6 +543,10 @@ function SimpleDraftQueueRow({
 	roomMap: LeftRailContentContext['roomMap'];
 }) {
 	const { isDesktop } = context;
+	// A3 c16: the injected `subjectLabel` is the plain name authority. The queue
+	// row used to print `item.subjectCode`, so the drawer led with an internal
+	// token while the name was already resolvable from the same context.
+	const subjectText = context.subjectLabel(item.subjectId);
 	const status = getDraftQueueStatus(item, roomMap);
 	const isCurrent = displayed || index === 0;
 	const ownerLabel = item.facultyOptions[0] ? formatFacultyInitials(item.facultyOptions[0]) : 'No owner';
@@ -553,7 +557,7 @@ function SimpleDraftQueueRow({
 				variant="ghost"
 				className="h-auto min-w-0 justify-start p-0 text-left hover:bg-transparent"
 				onClick={() => onSelect(item)}
-				aria-label={`${status.actionLabel}: ${item.subjectCode} for ${item.sectionName}, session ${item.sessionNumber}`}
+				aria-label={`${status.actionLabel}: ${subjectText} for ${item.sectionName}, session ${item.sessionNumber}`}
 				aria-pressed={selected}
 			>
 				<div className="min-w-0">
@@ -563,7 +567,7 @@ function SimpleDraftQueueRow({
 						<span className="truncate font-semibold text-foreground">{item.sectionName}</span>
 					</div>
 					<p className="mt-0.5 truncate text-xs text-muted-foreground">
-						{item.subjectCode} · Session {item.sessionNumber}/{item.sessionsPerWeek} · {ownerLabel}
+						{subjectText} · Session {item.sessionNumber}/{item.sessionsPerWeek} · {ownerLabel}
 					</p>
 					<p className={cn('mt-1 inline-flex max-w-full rounded-full border px-2 py-0.5 text-xs font-semibold', status.className)}>
 						<span className="truncate">{status.label}</span>

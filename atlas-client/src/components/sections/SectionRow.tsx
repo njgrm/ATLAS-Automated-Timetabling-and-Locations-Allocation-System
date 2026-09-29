@@ -16,7 +16,7 @@ import {
 } from '@/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { Link } from 'react-router-dom';
-import type { RoomOption } from './SectionRoomPicker';
+import { SectionRoomPicker, type RoomOption } from './SectionRoomPicker';
 import { resolveHomeRoom } from './home-room-readiness';
 import { gradeCompact } from '@/lib/deped-glossary';
 import type { ExternalSection } from '@/types';
@@ -61,6 +61,12 @@ interface SectionRowProps {
 	section: SectionDetail;
 	homeRoomOptions: RoomOption[];
 	isReadOnly: boolean;
+	/** A9 C7: one WRITE control is back on the row, so it needs the page's
+	 *  actor-school scope and the occupancy map the picker shows. */
+	schoolId: number;
+	roomOccupancy?: Map<number, string>;
+	isSaving?: boolean;
+	onHomeRoomChange: (section: SectionDetail, roomId: number | null) => void;
 	onShowDetails: (section: SectionDetail) => void;
 	/** A3 C4: opens the existing room map scoped to THIS section. */
 	onShowRoomMap: (section: SectionDetail) => void;
@@ -70,6 +76,10 @@ export function SectionRow({
 	section,
 	homeRoomOptions,
 	isReadOnly,
+	schoolId,
+	roomOccupancy,
+	isSaving = false,
+	onHomeRoomChange,
 	onShowDetails,
 	onShowRoomMap,
 }: SectionRowProps) {
@@ -172,50 +182,91 @@ export function SectionRow({
 				</span>
 			</td>
 
-			<td className="px-4 py-3">
-				{/* A9 C3 (2026-09-29) — THE INLINE PICKER IS GONE FROM THE TABLE, AND THIS
-				    CELL IS WHAT REPLACES IT.
+			{/* A9 C7 R5: `w-[200px]` ALONE DID NOT CONSTRAIN THE COLUMN, so the cap is
+			    explicit. In an auto-layout table a `width` is a HINT: the cell still lays
+			    out at its content's intrinsic width, and the shared trigger's intrinsic
+			    width is what pushed the table past its panel. Measured on the R4
+			    candidate: `scrollWidth 1105` against a panel of `clientWidth 1070` at
+			    1366x768 (984 at 1280x720), with the row's "More actions" button outside
+			    the visible panel on every row. A width is not a cap; `max-w-[200px]` is.
+			    It is the SAME number as the header's width, so the two cannot disagree.
 
-				    THE DEFECT. The older-user audit rejected `/sections` for showing "20 need
-				    rooms" beside 20 identical "Choose home room" selectors: the same control
-				    twenty times, each one a decision the scheduler had to make by hand before
-				    she could do anything else. That is the tedium score (2/5) in the audit's
-				    own words, and it is why the page now has ONE guided step
-				    (`HomeRoomAutoAssignDialog`) that reads the server's own matching rules.
+			    The content inside has to be ABLE to shrink, or a cap just clips it: the
+			    `div` is a flex line, so it also carries `min-w-0`, and the picker
+			    trigger's own `truncate` then reaches its ellipsis instead of the content
+			    pushing the column back out.
 
-				    WHAT THIS CELL IS. A plain READ of the current room — no control, one line.
-				    It answers "does this section have a room, and which one" at a glance, which
-				    is what a scrolling table is for, and it costs the row nothing: the previous
-				    version put a 9px-tall control plus a second line of status text in every
-				    row, so removing them is where the page got SHORTER.
+			    `SectionRoomPicker` is untouched — no width, no cap, no className
+			    override. One look per control (AGENTS.md §8): the same component must
+			    look and behave identically on the mobile card and in the guided dialog.
+			    The constraint belongs to the one table column that cannot fit it. */}
+			<td className="w-[200px] min-w-0 max-w-[200px] px-4 py-3">
+				{/* A9 C7 (2026-09-29) — THE ROW PICKER IS BACK, ON LANE C's BINDING ADDENDUM.
+				    THE HISTORY, so this cell is not re-litigated a third time. A9 C3
+				    (`86665f48`) removed the inline picker from this table and left a plain
+				    READ, because the older-user audit had graded the twenty repeated
+				    "Choose home room" controls as tedium. That decision was OVERRULED: the
+				    operator reported item 46 against the row control she actually uses, and
+				    manual assignment is the demo priority. So on 2026-09-29 at 15:55 Lane C
+				    issued a binding addendum — packet
+				    `docs/prompts/fix-3-2026-09-29.md`, item 46 plus that addendum — and the
+				    per-row picker was restored. The guided bulk step
+				    (`HomeRoomAutoAssignDialog`) is still the PRIMARY action; this row is the
+				    manual override beside it, not a replacement for it, and the two write
+				    through the same `onHomeRoomChange`.
 
-				    WHY NO CAPABILITY IS LOST — and this is the part that has to be true, so it
-				    is worth being exact. A section that needs a room is now changed in the
-				    guided review list, which carries this same `SectionRoomPicker` primitive
-				    (§8 one look per control: the review row and the old row control are the
-				    same component, so the look cannot drift). A section that ALREADY has a
-				    room is not in that list at all — the preview runs with
-				    `overwriteExisting: false` and reports those sections as
-				    `existingPreserved` — so re-pointing one is reached through the row's OWN
-				    map button, which is one click away on every row, has always been there,
-				    and writes through the very same `onHomeRoomChange` this cell used to call
-				    (`SectionsHomeRoomMapModals` passes it straight to `handleHomeRoomChange`).
-				    No path to a room assignment was removed; the twenty repeated ways of
-				    reaching it were.
-
-				    `resolveHomeRoom` is still the ONE definition of "has a room" (A3 C4 defect
-				    A), and the amber icon moved to the measured `--warning` family rather
-				    than a raw amber class, which is the direction the c8 ratchet exists to
-				    push (a3-c8-warning-token.test.ts). */}
-				<div className="flex items-start gap-1.5 text-xs font-semibold leading-4 text-muted-foreground">
-					{selectedRoom
-						? <Home className="mt-0.5 size-3 shrink-0 text-emerald-600" />
-						: <AlertTriangle className="mt-0.5 size-3 shrink-0 text-warning" />}
-					<span data-testid="section-row-home-room">
+				    WHAT DID NOT CHANGE, and is the part that has to stay true:
+				    - NO write path was added or removed. The picker calls the page's
+				      `handleHomeRoomChange` — the same callback the row's map button
+				      reaches through `SectionsHomeRoomMapModals` and the same one the
+				      guided dialog reaches. It was already in this file's props before
+				      A9 C3 and is being restored, not added.
+				    - `resolveHomeRoom` is still the ONE definition of "has a home room"
+				      (A3 C4 defect A) for the status line below the control, and the
+				      amber icon is the measured `--warning` token, not a raw amber
+				      class (a3-c8-warning-token.test.ts).
+				    - ONE primitive, THREE surfaces: this row, `SectionMobileCard` and
+				      the guided dialog all render the SAME `SectionRoomPicker`, so the
+				      control cannot look different per page (AGENTS.md §8). A9 C7's
+				      item-46 geometry fix therefore lands on all three at once.
+				    - The SHAPE is the mobile card's (`SectionMobileCard.tsx:88-104`): the
+				      control in a `space-y-1.5` block with ONE status line under it,
+				      minus the card's extra chrome. The status line is a fixed `h-4`
+				      one-line row with a `truncate`d span, so assigning a room changes
+				      its TEXT and never the row's HEIGHT — a table that jumps when you
+				      save is a table you lose your place in. The A9 C3 wording the C4
+				      suites assert is kept verbatim (`Needs a home room` / `{room} ·
+				      {building}`); the pre-A9-C3 "Needs home room. Choose a room." /
+				      "Ready: …" sentences and any read-only sentence are NOT brought
+				      back, because the control itself already says what it is. */}
+				{/* `min-w-0` on this flex line is what makes the cell's cap usable: a flex
+				    item's default `min-width: auto` refuses to shrink below its content,
+				    so without it the cap would clip the trigger instead of letting its
+				    own `truncate` reach an ellipsis. */}
+				<div className="min-w-0 space-y-1.5">
+					<SectionRoomPicker
+						sectionId={section.id}
+						sectionName={section.name}
+						value={section.homeRoomId ?? null}
+						options={homeRoomOptions}
+						onSelect={(roomId) => onHomeRoomChange(section, roomId)}
+						disabled={isReadOnly}
+						isSaving={isSaving}
+						schoolId={schoolId}
+						roomOccupancy={roomOccupancy}
+					/>
+					{/* ONE line, ALWAYS h-4, so the row does not change height when a room
+						is assigned. The cue icons are the A9 C3 ones. */}
+					<div className="flex h-4 items-center gap-1.5 text-xs font-semibold leading-4 text-muted-foreground">
 						{selectedRoom
-							? `${selectedRoom.name} · ${selectedRoom.buildingName}`
-							: 'Needs a home room'}
-					</span>
+							? <Home className="size-3 shrink-0 text-emerald-600" aria-hidden="true" />
+							: <AlertTriangle className="size-3 shrink-0 text-warning" aria-hidden="true" />}
+						<span data-testid="section-row-home-room" className="min-w-0 truncate">
+							{selectedRoom
+								? `${selectedRoom.name} · ${selectedRoom.buildingName}`
+								: 'Needs a home room'}
+						</span>
+					</div>
 				</div>
 			</td>
 

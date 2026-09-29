@@ -578,8 +578,31 @@ test('FIX-03 control: the committed CSS floor and cap are the exported constants
 	assert.doesNotMatch(className, /\bw-\[min\(22rem/, 'the fixed 22rem body is the recorded defect');
 	assert.doesNotMatch(className, /\bw-\[\d+px\]/, 'the body must not return to a fixed pixel width');
 
-	// The height cap is untouched, so the LIST scrolls and the page never does.
-	assert.match(className, /\bh-100\b/, 'the bounded h-100 body must be retained');
+	// The height cap is still bounded, so the LIST scrolls and the page never
+	// does — but the BOUND is no longer a fixed `h-100`. A9 C7, item 46 (Lane C,
+	// 2026-09-29), quoted from the row this replaces:
+	//   assert.match(className, /\bh-100\b/, 'the bounded h-100 body must be retained');
+	// Its recorded FIX-03 reason was that the body must not grow with the list.
+	// A fixed 400px body has a second, worse consequence Radix resolves by
+	// COLLISION: a trigger near the top of the viewport cannot fit 400px below
+	// itself, so the popover was pushed UP over the sticky toolbar and the
+	// Auto-assign / Sync buttons. The fix is the same cap expressed against the
+	// space Radix actually has, so the body SHRINKS to what is below the trigger
+	// and never needs to flip.
+	assert.match(
+		className,
+		/max-h-\[min\(25rem,var\(--radix-popover-content-available-height\)\)\]/,
+		'the body cap is the available height, following the pattern `ui/searchable-select.tsx` already uses',
+	);
+	// 25rem is the old 400px ceiling in rem, so the list is never shorter than it
+	// was on a tall window; it is only as tall as the space below allows.
+	const heightCapRem = Number(/max-h-\[min\((\d+(?:\.\d+)?)rem/.exec(className)?.[1] ?? '0');
+	assert.equal(heightCapRem * 16, 400, `the rem cap must be the old 400px ceiling; got ${heightCapRem}rem`);
+	// And the fixed height is gone: a fixed `h-` token is what cannot shrink.
+	assert.doesNotMatch(className, /\bh-\d/, 'no fixed h- token may return to the body');
+	// The body clips, so the shrink-0 header/footer rows stay intact and the one
+	// ScrollArea absorbs the remainder.
+	assert.match(className, /\boverflow-hidden\b/, 'the body must clip so its header/footer cannot be squeezed');
 
 	// The footer action cannot clip: it is a full-width control with no fixed
 	// pixel size, in a shrink-0 row, so it lays out inside whatever width the

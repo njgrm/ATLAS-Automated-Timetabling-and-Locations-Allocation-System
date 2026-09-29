@@ -98,8 +98,19 @@ interface LockPanelProps {
 	onBoardChange?: (board: DraftBoardState) => void;
 }
 
-function queueLabel(item: DraftQueueItem) {
-	return `${item.subjectCode} · ${item.sectionName}${item.cohortCode ? ` · ${item.cohortCode}` : ''} · ${item.sessionNumber}/${item.sessionsPerWeek}`;
+/**
+ * A3 c16: the drag-ghost label led with `item.subjectCode`, so a scheduler
+ * reading the ghost had to decode a token. `subjects` is already a prop of this
+ * panel; the persisted subject NAME is the label, and the code is the fallback
+ * for a subject id the map does not carry.
+ */
+function subjectTextFor(item: DraftQueueItem, subjects: Map<number, Subject>) {
+	const subject = subjects.get(item.subjectId);
+	return subject?.name?.trim() || item.subjectCode;
+}
+
+function queueLabel(item: DraftQueueItem, subjects: Map<number, Subject>) {
+	return `${subjectTextFor(item, subjects)} · ${item.sectionName}${item.cohortCode ? ` · ${item.cohortCode}` : ''} · ${item.sessionNumber}/${item.sessionsPerWeek}`;
 }
 
 function placementLabel(placement: DraftPlacement, sections: Map<number, ExternalSection>, subjects: Map<number, Subject>) {
@@ -297,13 +308,13 @@ export default function LockPanel({ schoolId, schoolYearId, sections, subjects, 
 			endTime: slot.endTime,
 			cohortCode: item.cohortCode,
 			source: 'queue',
-			queueLabel: queueLabel(item),
+			queueLabel: queueLabel(item, subjects),
 			roomType: item.preferredRoomType,
 			expectedEnrollment: item.expectedEnrollment,
 		};
 		setAllowSoftOverride(false);
 		setPending(nextPending);
-	}, [chooseDefaultFaculty, chooseDefaultRoom]);
+	}, [chooseDefaultFaculty, chooseDefaultRoom, subjects]);
 
 	const stagePlacementMove = useCallback((placement: DraftPlacement, day: string, slot: PeriodSlot) => {
 		const subject = subjects.get(placement.subjectId);
@@ -322,7 +333,10 @@ export default function LockPanel({ schoolId, schoolYearId, sections, subjects, 
 			notes: placement.notes ?? null,
 			expectedVersion: placement.version,
 			source: 'placement',
-			queueLabel: `${subject?.code ?? `Subj #${placement.subjectId}`} move`,
+			// A3 c16: same substitution as `queueLabel` above. The name leads; the
+			// code is the fallback, and a subject the map does not carry is named in
+			// words instead of printing `Subj #12`.
+			queueLabel: `${subject?.name?.trim() || subject?.code || 'Unknown subject'} move`,
 			roomType: subject?.preferredRoomType ?? 'CLASSROOM',
 			expectedEnrollment: sections.get(placement.sectionId)?.enrolledCount ?? null,
 		};
@@ -514,7 +528,7 @@ export default function LockPanel({ schoolId, schoolYearId, sections, subjects, 
 										<div className="min-w-0 flex-1">
 											<div className="flex items-center gap-1">
 												<Badge variant="outline" className={`h-4 px-1 text-[0.5rem] ${GRADE_BADGE[item.gradeLevel] ?? ''}`}>GR{item.gradeLevel}</Badge>
-												<span className="truncate text-[0.6875rem] font-medium">{item.subjectCode}</span>
+												<span className="truncate text-[0.6875rem] font-medium">{subjectTextFor(item, subjects)}</span>
 												<span className="text-[0.5625rem] text-muted-foreground">{item.sessionNumber}/{item.sessionsPerWeek}</span>
 											</div>
 											<div className="mt-0.5 text-[0.625rem] text-muted-foreground">{item.sectionName}{item.cohortCode ? ` · ${item.cohortCode}` : ''}</div>

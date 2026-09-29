@@ -196,12 +196,30 @@ test('T7/T8/T9 open event streams do not hide the blocking request or inflate in
 	}
 
 	const stalls = lines.filter((line) => line.startsWith('[event-loop-stall]'));
-	assert.equal(stalls.length, 1, `expected one stall line, got ${JSON.stringify(lines)}`);
-	assert.match(stalls[0], /active: GET \/api\/v1\/generation\/:n\/:n\/readiness\/diagnostic \(done, \d+ms\)/);
-	assert.doesNotMatch(stalls[0], /notifications/, 'streams must be counted, not listed');
-	assert.doesNotMatch(stalls[0], /more/, 'nothing may be elided when only one request was active');
-	assert.match(stalls[0], /; streams=9$/);
-	assert.match(stalls[0], /^\[event-loop-stall\] blocked ~\d+ms heap=\d+\/\d+MB; active: /);
+
+	// A8 c4 round-2 QA. SUPERSEDED, RETAINED AS THE RECORD — the assertion this
+	// replaces was `assert.equal(stalls.length, 1, 'expected one stall line')`.
+	//
+	// It asserted the SAMPLER'S COUNT, not the behaviour this test exists to pin
+	// (T7/T8/T9: open event streams must not hide the blocking request or inflate
+	// inFlight). How many samples land inside one 300 ms block at a 20 ms sample
+	// interval depends on machine load: the same unmodified commit produced 1, then
+	// 2, then 3 across three runs. That makes the gate red for reasons that have
+	// nothing to do with the code under test — a real trap, because the marginal
+	// trigger was three unrelated in-memory tests tipping the suite over the line.
+	//
+	// REPLACEMENT (below): at least one stall line, and then the SAME per-line
+	// invariants asserted on EVERY stall line. That is strictly stronger about the
+	// behaviour — one sample per block is a sampler detail, not an authority — and it
+	// is independent of machine speed.
+	assert.ok(stalls.length >= 1, `expected at least one stall line, got ${JSON.stringify(lines)}`);
+	for (const stall of stalls) {
+		assert.match(stall, /active: GET \/api\/v1\/generation\/:n\/:n\/readiness\/diagnostic \(done, \d+ms\)/);
+		assert.doesNotMatch(stall, /notifications/, 'streams must be counted, not listed');
+		assert.doesNotMatch(stall, /more/, 'nothing may be elided when only one request was active');
+		assert.match(stall, /; streams=9$/);
+		assert.match(stall, /^\[event-loop-stall\] blocked ~\d+ms heap=\d+\/\d+MB; active: /);
+	}
 
 	const slow = lines.filter((line) => line.startsWith('[slow-request]'));
 	assert.equal(slow.length, 1, `streams must never log as slow requests, got ${JSON.stringify(slow)}`);

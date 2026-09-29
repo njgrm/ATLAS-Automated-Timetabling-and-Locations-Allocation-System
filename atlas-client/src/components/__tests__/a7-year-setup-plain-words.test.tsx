@@ -917,8 +917,20 @@ test('A7-C2 item 4: the distribution block is plain, and both numbers are the se
 	const dept = host.querySelector('[data-testid="carry-forward-department-MATH"]');
 	assert.ok(dept, 'the per-department line did not render');
 	const deptText = dept!.textContent!.replace(/\s+/g, ' ').trim();
-	assert.equal(deptText, 'MATH: 2 would be copied · 2 would not be copied', `the bare "carry"/"skipped" pair is still on screen: ${deptText}`);
+	// SUPERSEDED by A3 c16 (2026-09-29), kept here so the correction is additive and
+	// the earlier control stays readable beside its replacement:
+	//   assert.equal(deptText, 'MATH: 2 would be copied · 2 would not be copied', ...)
+	// The department token was the raw DepEd code `MATH`. A3 c16 routed it through
+	// the committed glossary (`departmentLabel` in `src/lib/deped-glossary.ts`), so
+	// the line now reads "Mathematics: 2 would be copied · 2 would not be copied".
+	// The intent of this row was never the token - it is that the bare
+	// "carry"/"skipped" pair is gone - and the two assertions below keep that
+	// intent while pinning the resolved name. The `data-testid` still carries the
+	// code, so the selector above and the machine contract are untouched.
+	assert.equal(deptText, 'Mathematics: 2 would be copied · 2 would not be copied', `the per-department line must name the learning area; ${deptText}`);
 	assert.equal(/\bcarry\b/i.test(deptText), false, `"carry" is still on screen: ${deptText}`);
+	assert.equal(/\bskipped\b/i.test(deptText), false, `"skipped" is still on screen: ${deptText}`);
+	assert.ok(deptText.includes('2 would be copied') && deptText.includes('2 would not be copied'), `the carried/skipped counts must survive the wording change: ${deptText}`);
 
 	// The REAL production function, not a transcription of it.
 	const { overLimitSentence } = await import('@/components/runtime/CarryForwardReviewPanel');

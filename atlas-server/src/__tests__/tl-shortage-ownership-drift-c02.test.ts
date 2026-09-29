@@ -369,7 +369,15 @@ function buildState(overrides: Partial<ApplyState> = {}): ApplyState {
 		departmentAliases: [],
 		departmentLabels: [],
 		subjectOwnerPrefixes: [],
-		crossDepartmentPermissions: [{ schoolId: SCHOOL, facultyId: BEN, subjectId: FILI }],
+		// A8 c4 F2: every INSERT receiver must be qualification-valid, because
+		// apply now re-validates inserts exactly as it re-validates moves. ALICE is
+		// in MATH and ESP is ESP-owned, so she needs the same persisted permission
+		// BEN already holds for FILI. Additive: the drift logic reads ownership
+		// rows, not permissions.
+		crossDepartmentPermissions: [
+			{ schoolId: SCHOOL, facultyId: BEN, subjectId: FILI },
+			{ schoolId: SCHOOL, facultyId: ALICE, subjectId: ESP },
+		],
 		specializationAliases: [],
 		cycles: [],
 		audits: [],

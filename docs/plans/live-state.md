@@ -487,8 +487,40 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
-- **— LIVE: `e75d6b8f5a430578c551e4177d7cc6f065db697c` @ DEPLOYED TO PRODUCTION 2026-09-29 15:25 +08 by Lane A4
-  (train 9) on Lane C GO. Rollback basis `3216d383` (the incumbent).**
+- **— LIVE: `cd54224522d44c39f8f3877134b08488541f415f` @ DEPLOYED TO PRODUCTION 2026-09-29 19:48 +08 by Lane A4
+  (train 10) on the operator's GO after Lane C's staging walk. Rollback basis `e75d6b8f` (the incumbent).**
+
+  | | |
+  |---|---|
+  | **LIVE** | **`cd54224522d44c39f8f3877134b08488541f415f`** |
+  | **Live dir** | `E:\ATLAS-worktrees\lane-a4-release-20260929-10prod`, branch `release/2026-09-29-10-prod`, HEAD == pin, `status --short` empty, 0 reparse points, own dependency trees (seeded from `-9prod` + `prisma generate`; server `tsc` 0, client `vite` 0 with `VITE_ENROLLPRO_URL`) |
+  | **Listeners** | 5001 → **49120**, 5174 → **47192** (were 20432 / 17156) |
+  | **Machine scope** | both runtime variables repointed to `-10prod` / `cd542245…`; task `ATLAS-Runtime-Supervisor` **Running**, action + Start In both `-10prod` |
+  | **Rollback basis** | **`e75d6b8f5a430578c551e4177d7cc6f065db697c`**, dir `E:\ATLAS-worktrees\lane-a4-release-20260929-9prod` @ HEAD == pin. One-step supervised reset. |
+  | **Scope** | 153 paths vs `e75d6b8f`, **0 `prisma/`** → no migration (11 before and after) |
+  | **Cutover** | `deploy-runner.ps1` dry run first (`mutates: false`, `secretsPrinted: false`, supervisor lineage verified, `Assert-LiveReleaseRecorded` **passed**), then `-Execute` → **`CUTOVER_STARTED`**. Audit `C:\ProgramData\ATLAS\release-audit\cd542245-20260929-194826\` |
+  | **Acceptance** | **DEPLOYED, all rows PASS.** Loopback + Tailnet health/ready **200** with DB-backed `GET /api/v1/subjects?schoolId=1` **200 (19 482 B)** · **zero write** — all 10 signature tables byte-identical before/after, baseline captured **before** the quiesce · **live-data invariant 1 active mirror, `2023-2024`** · **S-D1 non-vacuous** served `index.html` → `/assets/index-BdvkYd2N.js` **200 (307 649 B)**, old `/assets/index-GM9QISwG.js` **404** |
+  | **Data-portability fix** | the incumbent's **10 runtime campus uploads** (referenced by `schools.campus_image_url`) were copied into the new tree before the cutover; `/atlas-server/uploads/` is in `.git/info/exclude` so the target passes `Get-GitIdentity`'s clean gate. |
+  | **Evidence** | `docs/handoffs/lane-c-to-a2.md`, "A4 LIVE at `cd542245`" |
+
+  Supervisor log: `All targets healthy (liveness and dependency readiness)`, `DB connected, 2 school(s) found`,
+  `[rollover-automation] Disabled via ROLLOVER_AUTO_SYNC_ENABLED=false` — a restart cannot reach `applyRolloverSync`.
+
+- **— CUTOVER TARGET, recorded 2026-09-29 ahead of the cutover by Lane A4 (AGENTS.md §13 — a pin is a commit, not a
+  description). Required by `deploy-runner.ps1` `Assert-LiveReleaseRecorded`, which fails closed without it. Target
+  release `cd542245` (full `cd54224522d44c39f8f3877134b08488541f415f`), rollback basis `e75d6b8f` (full
+  `e75d6b8f5a430578c551e4177d7cc6f065db697c`, the incumbent).** Train 10, on the operator's GO after Lane C's staging
+  walk. Target tree `E:\ATLAS-worktrees\lane-a4-release-20260929-10prod`, branch `release/2026-09-29-10-prod`,
+  HEAD == pin, `status --short` empty, own dependency trees (seeded from `-9prod` + `prisma generate`; server
+  `tsc` 0, client `vite` 0 with `VITE_ENROLLPRO_URL`), live entry chunk `index-BdvkYd2N.js` which is NOT the
+  incumbent's `index-GM9QISwG.js`, and the incumbent's 10 runtime campus uploads copied in for data portability.
+  Train 10 = **153 paths** vs `e75d6b8f`, **0 `prisma/`** → no migration. Staging already served this exact pin;
+  staging leg recorded in `docs/handoffs/lane-c-to-a2.md`, "A4 STAGING at `cd542245`". **Superseded — the cutover
+  ran; see the LIVE row above.**
+
+- **— PREVIOUS LIVE (was): `e75d6b8f5a430578c551e4177d7cc6f065db697c` @ DEPLOYED TO PRODUCTION 2026-09-29 15:25 +08 by Lane A4
+  (train 9) on Lane C GO. Rollback basis `3216d383` (the incumbent).** Displaced by train 10; retained as the
+  **current rollback basis**.
 
   | | |
   |---|---|
@@ -4241,6 +4273,31 @@ Both blobs byte-identical at base and HEAD; **owned by the A2/header lane**, not
 staging/live after a verified active term exists. Worktree `E:/ATLAS-worktrees/lane-a3-c13-concerns` =
 `RETIRE_AFTER_INTEGRATION`.
 
+## Lane A3 - 2026-09-29 c16: "no codes on screen" (on `main`; NOT deployed)
+
+**Integrated at `3c6d819b`; product tip `27bf0e02`.** Lane C packet `docs/prompts/truth-fixes-2026-09-29.md`,
+section A3 c16. Handoff + evidence: `docs/reviews/a3-c16-codes-20260929/handoff.md`. **NOT deployed** —
+A4 owns the release, and nothing here is a live-row claim.
+
+- **Seen rendered on real staging data** (loopback preview :5241 -> staging :5101, 1366x768, asserted origin,
+  `/__dev/staging-login`): `/teachers` **0 raw codes across 50 roster cells**; `/audit` section-coverage
+  cards now name their subjects and title/body agree; `/timetable` 0 raw tokens. `ux-audit` major on
+  `/teachers` is **7, unchanged from Lane C's own baseline** for that page (all pre-existing).
+- **Gates:** `test:a3-c16-no-codes` **16/16**, `test:a3-c10-teacher-surface` 21/21, `test:a6-teachers` 13/13,
+  `test:a7-year-setup-plain-words` 17/17, `test:plain-language-j2j3-c01` 18/18, `test:encoding` 1/1.
+  `test:a3-c4-copy` 18/14/**1**/3 and `test:ux-audit-findings` 22/21/**1** at my tip: both pre-existing,
+  reproduced on base by QA. **`test:client-suite` is red at base (43) and at the candidate (42), with
+  no candidate-only failure** — do not read those numbers as this lane's debt.
+- **Two independent QA rounds, both `CORRECTION_REQUIRED`; B1 and B2 closed; no third round** (two-round
+  rule). Round 2's open items are corrected in `27bf0e02` and the residue is numbered in the handoff.
+- **Next action for A3: `docs/prompts/a3-prefs-save-2026-09-29.md` is on `main` (`7d894255`) and is a
+  DEMO BLOCKER** — Teacher Preferences cannot be saved. Not started.
+- **Blocking nothing, but the roster's real defect is a column width, not a code:** the "Assigned classes"
+  column is **158.6px** (126.6px of text) in a 1111px table whose `Actions` column is 319px, and a
+  subject name does not fit 126.6px (`Mathematics - 8 sections` = 25 chars). The column definitions are
+  in `pages/Faculty.tsx`, **A6 c10's in-flight file**, so A3 did not touch them. Owner: A6 or whoever
+  next holds the roster table; it needs its own before/after screenshots.
+
 ## Lane A3 - current lane (written only by Planner A3)
 
 ### Live release `d11304e8` is DEPLOYED; browser acceptance is INCOMPLETE and BLOCKED
@@ -5648,6 +5705,47 @@ created 5 `schools` rows "ROLLOVER-AUTOMATION DISPOSABLE PREMISE — SAFE TO DEL
 `atlas_staging` (backup `atlas-server-dotenv.before` there). Live and staging runtimes do not read that file (supervisor
 injects D:/ATLAS-runtime-config). Older residue kept: school 261 "C01R2 … Quarterly" (2026-09-12) on live and staging.
 
+## Lane A9 — c7 home-room picker, 2026-09-29 19:40 +08 (written only by Lane A9)
+
+**ON `main` at `7c2bc4b6` (candidate `fa57114c..1f377866`). 0 fixes live and seen / 2 fixes integrated and SEEN RENDERED
+on real staging data / 0 dropped. NOT deployed — A4 owns every release (§14).** Lane C packet
+`docs/prompts/fix-3-2026-09-29.md` item 46 + the binding 15:55 addendum; handoff
+`docs/handoffs/a9-c7-to-lane-c-20260929.md`; evidence `docs/reviews/a9-c7-home-room-picker-20260929/` (11 PNGs).
+`main` moved 84 commits during the cycle (train 10 cutover `cd542245`, A9 m1 packet) — **no overlap** on the sections
+paths; the merged product files are byte-identical to the reviewed candidate.
+
+- **Item 46 fixed on every row at 1366x768 and 1280x720.** Rows 1 / mid-panel open `side=bottom` at 396 / 248 / 224px
+  with 5 / 3 rooms on screen, clearing the header and `Sync sections`; every row's list viewport measures
+  `clientHeight < scrollHeight 5448`, so all 78 rooms are scrollable.
+- **The bottom-most row of a bottom-scrolled list opens UPWARD, deliberately.** Only 86px sit below it — exactly the
+  popover's 86px of chrome. Unfixed it opened with the room list at `clientHeight 0`: a search box, a footer and **no
+  rooms**. It now opens up at 192px with two rooms and covers nothing.
+- **The 15:55 addendum is honoured** — one outlined chevroned button per row, guided bulk step still primary, and the
+  row height **83px before and after an assignment** (measured on `Luna`).
+- **QA found what I missed, and it is visible in my own screenshot**: the restored control had pushed the table 35px
+  past its panel, `DETAILS` rendering as `DETA` and every row's "More actions" button outside the visible area. The table
+  now fits exactly at both widths (1070/1070, 984/984, overflow 0, kebab inside the panel).
+- **QA verdicts**: pass 1 `CORRECTION_REQUIRED` 6/8 (0px list, table overflow, two false measurements in comments);
+  pass 2 on the delta 5/6 with both BLOCKING findings **reproduced read-only in the browser and PASS**, the one failure
+  being three false comment statements, applied and verified by me as documentation-only (§11). Gates on the merged tree:
+  27/27, 42/42, 22/23, 17/17, 9/9 — the one red row is **pre-existing and blob-identical** at base and tip.
+- **Disclosures (2026-09-29):** (1) staging's home-room assignments were changed by this browser session, 1 of 20
+  assigned → 20 of 20, staging API `:5101` only and never live; the roster has since re-streamed on its own and no
+  manual restore was attempted after I noticed. (2) Choosing `Unassigned` issues **no request** — pre-existing, not this
+  range; route to the home-room write-path owner. (3) I **exceeded the two-round guidance** (3 corrections + 2
+  micro-rounds), each measured and each on Lane C's own proof rows, flagged rather than hidden.
+- **My own mistakes, recorded so they are not repeated:** my R2 "the list jumps to the top" was a Playwright auto-scroll
+  artefact, not a product defect; I **mislabelled two mid-panel rows as "the last visible row"**, which is why the bottom
+  of the list went unrendered until QA found it; and my own `max-h` instruction caused the clipped list — **a maximum is
+  not a height**, it leaves the flex container's height indefinite so the ScrollArea viewport never shrinks.
+- **Follow-ups, none blocking:** the status line repeats the button's label (packet-mandated — the C4 suites assert that
+  wording); the `Unassigned` no-write above; `/sections`' header is four rows over §8's budget; and
+  `docs/reference/ux-communication-rubric` does not exist although the directive cites it.
+- **Worktree** `E:/ATLAS-worktrees/lane-a9-c7-home-room` = `RETIRE_AFTER_INTEGRATION`, pushed and clean,
+  `node_modules` is a real directory, not a junction. Preview `:5262` (PID 2620) still running, mine to kill on request.
+- **Next action (single):** Lane C runs the deployed rows for `/sections` — three rows at 1366x768 and 1280x720, an
+  assign-and-clear from the row picker, and a before/after row height — once A4 ships a train containing `7c2bc4b6`.
+
 ## Lane A9 — TEACHING personnel only (written only by Lane A9)
 
 **`A9 ready for release at 98cc1e34`. 0 fixes live and seen / 1 integrated / 0 dropped. NOT deployed — A4 owns
@@ -5802,6 +5900,49 @@ RENDERED on real staging data / 0 dropped. NOT deployed — A4 owns every releas
   (branch pushed and merged; A4 owns junction-safe reclamation, §14).
 - **Next action (single):** A4 puts `0c3cf139` in the next train and runs the 2023-2024 staging rows — Generate
   enabled with the 50 gaps, the panel at ~3 lines, the run naming the gaps, and publication still refused.
+
+## Lane A8 — c4 "Cover a class" server (written only by Lane A8)
+
+**Server source for the cover flow is complete and independent-reviewed. NOT deployed, NOT seen rendered — A4
+owns every release (§14).** Worktree `E:/ATLAS-worktrees/lane-a8-c4-cover` (**`PRESERVE_FOR_DECISION`**), branch
+`work/a8-c4-cover-candidates`, base `5f181110`. **A6 c10 is coding against the contract NOW** — see the pinned
+section "A8 c4 (server) → A6 c10 (client): THE FIXED COVER CONTRACT" in `docs/handoffs/lane-c-to-a2.md`
+(`6c5987ed` + CORRECTION 1 `01fd64b3` + CORRECTION 2 `fbee9bdb`).
+
+**Delivered:** `POST/DELETE/GET /api/v1/faculty/:facultyId/subject-permissions` (officer-only, audit-logged,
+idempotent, cache-invalidated); `GET /api/v1/teaching-load/:schoolId/:schoolYearId/cover-candidates`
+(QUALIFIED → OTHER_DEPARTMENT → ANYONE, never a placeholder, over-cap rows present and flagged);
+`GET .../cover-open-classes` (a placeholder-owned class is **OPEN** — this is the server half of the Codex
+audit's "placeholders are counted as staffed" MAJOR); `POST .../cover-assignments` (one Serializable tx; 409
+`NEEDS_PERMISSION` then `grantPermission: true` writes the permission **and** the ownership together).
+No migration, no schema change, **no client file touched**.
+
+**Gates:** `tsc` 0 · `test:cover-candidates` 41/41 · teacherx-truth 20/20 · cap-rule 12/12 · placeholder-hire
+52/52 · ownership-drift 5/5 · one-load-definition 7/7 · grade-preference 12/12 · availability 12/12 ·
+DB-backed suggestion suites: `apply-parity` / `authority` / `authority-c03` **PASS** on a disposable
+`atlas_restore_drill_20260929_a8c4` (dropped, residue 0). QA round 1 `CORRECTION_REQUIRED` 13/14; round 2
+`44/46, blocked 0` with both BLOCKING findings closed by discriminating mutants.
+
+**Dated follow-ups (each needs a named owner; none blocks A6 c10):**
+- **2026-09-29 — `npm run test:server-suite` is intermittently red at 508/509** on
+  `src/__tests__/notification-inbox.test.ts:209` ("a dead durable listener never breaks the publish path"),
+  ~1 run in 3. **Not A8 c4's**: the file imports only the two notification services and appears **nowhere** in
+  this range. Owning lane A7. Proof it is not mine: `git diff origin/main...HEAD` contains no notification path.
+- **2026-09-29 — `teaching-load-suggestion-derived-demand-c03r2.test.ts` fails identically at BASE `5f181110`**
+  (`TypeError … 'findMany'` at `autoFill`'s `db().facultyGradePreference.findMany`). Proven by running it at base
+  in a scratch worktree, and independently re-proven statically by QA. It is **absent** from the `KNOWN_RED`
+  array in `atlas-server/scripts/run-db-suite.mjs`, which is currently **empty** and carries an orphaned comment
+  about a `department-authority-gates` entry that is not there. **Gate owner (Lane C / A4) to add both.**
+- **2026-09-29 — AUTH GAP, out of my range, routed: `faculty.router.ts` `PATCH /:id` has no
+  `requirePrivilegedRole`**, so any authenticated user can flip the blanket `canTeachOutsideDepartment` — which
+  is strictly broader authority than the officer-only `subject-permissions` surface A6's switch sits beside.
+  A one-line guard, but it is an **auth-boundary change and needs its own packet**; I did not touch it.
+- **2026-09-29 19:5x — CAPACITY, routed to A4: E: free is 24.55 GiB, BELOW the §3 25 GiB warn line** (D: 39.45).
+  Reclaim before the next release build; §3 says run it at the warning, not at the 15 GiB fail-closed line.
+  My own worktree is `PRESERVE_FOR_DECISION` and can be retired on A4's word once the candidate is in a train.
+
+**Next action (single):** A4 picks up the candidate for the next train and runs the **D-row browser proof** —
+the cover window itself is A6 c10's rendered evidence, not mine. Nothing else is owed by A8 c4.
 
 ## Lane A8 — Teaching Load shortage, server truth (written only by Lane A8)
 

@@ -136,6 +136,22 @@ export function resolveFocusGroupId(
 	return firstGroupWithFindings?.id ?? 'teacher-assignments';
 }
 
+/**
+ * A3 c16: how a section-coverage gap names its subject.
+ *
+ * The finding's TITLE already read `gap.subjectName` while its BODY repeated
+ * `gap.subjectCode`, so one finding named the same subject two ways and the
+ * scheduler had to decide which one was the subject. Modelled here, and used by
+ * BOTH lines, so the two agree by construction rather than by reviewer attention:
+ * if a future change re-splits them, the title/detail pair below is the one place
+ * to fix and this helper's contract is the one thing that has to change.
+ */
+export function sectionCoverageGapSubjectLabel(gap: { subjectName?: string | null; subjectCode?: string | null }): string {
+	const name = gap.subjectName?.trim();
+	if (name) return name;
+	return gap.subjectCode?.trim() || 'Unknown subject';
+}
+
 export default function Audit() {
 	const [searchParams] = useSearchParams();
 	const [loading, setLoading] = useState(true);
@@ -475,9 +491,11 @@ export default function Audit() {
 		...(unresolvedCoverageFinding ? [unresolvedCoverageFinding] : []),
 		...rosterGaps.map((gap, index) => ({
 			id: `section-gap-${gap.sectionId}-${gap.subjectId}-${index}`,
-			title: `${gap.sectionName} is missing ${gap.subjectName}`,
+			title: `${gap.sectionName} is missing ${sectionCoverageGapSubjectLabel(gap)}`,
 			blockedLabel: 'This section is not fully covered.',
-			detail: `Grade ${gap.gradeLevel} section has no assigned teacher for ${gap.subjectCode}.`,
+			// A3 c16: was `gap.subjectCode`, so the body disagreed with the title
+			// directly above it. Both read the name now, via one helper.
+			detail: `Grade ${gap.gradeLevel} section has no assigned teacher for ${sectionCoverageGapSubjectLabel(gap)}.`,
 			why: 'Every section needs complete subject coverage before scheduling review is meaningful.',
 			actionLabel: 'Assign teacher',
 			route: `/teaching-load?sectionId=${gap.sectionId}&subjectId=${gap.subjectId}`,
