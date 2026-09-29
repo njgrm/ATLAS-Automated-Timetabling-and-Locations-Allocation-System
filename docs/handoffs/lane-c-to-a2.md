@@ -4619,6 +4619,8 @@ proved it at the compiled-CSS level instead of making the change. The real adjac
 that the shared `@/ui` Button `sm` size carries `text-[0.8rem]` = **12.8px**, and the panel's local class is the
 only thing holding those controls at 14px. That is now a committed control rather than a comment.
 
-**Worktrees:** `lane-a8-c5-fixable` (branch) and `lane-a8-c5-integration` (merge boundary) → **retired** in this
-closure. Branch `work/a8-c5-generation-fixable` is retained unpushed-to-delete, at `5f4fa86d`, an ancestor of
-`main`.
+**Worktrees:** `lane-a8-c5-integration` retired clean (non-forced, donor re-counted at 156, intact).
+`lane-a8-c5-fixable` was unregistered by git but its **directory survived** the delete — `git worktree remove`
+returned `Invalid argument` and a full reparse scan found 0 junctions, so it is not the A5 c5 junction incident.
+It is an **unregistered 1.44 GiB residue** whose checkout (`5f4fa86d`) is already on `main`.
+**PRESERVE_FOR_DECISION; A4 owns the reclaim.** E: is at 35.8 GiB free, so it is not urgent.

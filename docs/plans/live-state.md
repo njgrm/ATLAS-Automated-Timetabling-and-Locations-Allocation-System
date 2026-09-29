@@ -6360,3 +6360,14 @@ rule there was no third review round; **this is the sanctioned ship-with-finding
 
 **Next action for me:** none that I can take. The deploy, the staging year advance, and the generation run in
 B4 all need the operator or A4.
+
+**Worktree disposition (2026-09-30, corrected the same day).** `lane-a8-c5-integration` retired clean via
+non-forced `git worktree remove`; the shared `node_modules` donor re-counted at **156** entries afterwards,
+intact. `lane-a8-c5-fixable` was unregistered by git but its **directory survived** — `git worktree remove`
+returned `error: failed to delete ... Invalid argument`, a Windows delete failure and **not** a junction: a
+full reparse-point scan of the tree found **0**. So `E:/ATLAS-worktrees/lane-a8-c5-fixable` is now an
+**unregistered 1.44 GiB residue directory** holding three real `node_modules` trees plus a checkout of
+`5f4fa86d`, which is already on `main`. **PRESERVE_FOR_DECISION, and A4 owns the reclaim** (§3: capacity and
+worktree reclamation are A4's, and clearing it here would need either the raw recursive deletion this
+directive prohibits or the `--force` that is also prohibited). E: stands at 35.8 GiB free, above the 25 GiB
+warn line, so it is not urgent.
