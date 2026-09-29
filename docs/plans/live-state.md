@@ -401,6 +401,18 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **— CUTOVER TARGET, recorded 2026-09-29 11:22 +08 by Lane A4 ahead of the cutover (AGENTS.md §13 — a pin is a
+  commit, not a description). Required by `deploy-runner.ps1` `Assert-LiveReleaseRecorded`, which fails closed
+  without it. Target release `3216d383` (full `3216d383ce033a3447067255bbe554910fb78595`), rollback basis
+  `e9ddda71` (full `e9ddda71562742fd00d6ad881c1751f3ac1a0e7c`, the incumbent).** Target dir
+  `E:\ATLAS-worktrees\lane-a4-release-20260929-8prod`, HEAD == pin, `git status --short` empty, own dependency
+  trees (`npm ci` x3), 0 reparse points. Built: server `tsc` exit 0, client `vite` exit 0 with
+  `VITE_ENROLLPRO_URL` set from the durable live env key `ENROLLPRO_PROXY_ORIGIN` (value never printed);
+  `atlas-server/dist/server.js` and `atlas-client/dist/index.html` present. Train 8 = **73 paths** vs `e9ddda71`,
+  **0 `prisma/`** @ no migration. Staging leg ran first at the SAME pin (`STAGING_DEPLOYED`, 103.4 s) and Lane C's
+  Codex walk on staging returned **GO, 0 blockers** (`docs/reviews/codex-staging-train8-3216d383/report.md`).
+  The staging record for this train is `docs/handoffs/lane-c-to-a2.md`, "A4 STAGING at `3216d383`".
+
 - **— LIVE: `e9ddda71562742fd00d6ad881c1751f3ac1a0e7c` @ DEPLOYED TO PRODUCTION 2026-09-29 10:48 +08 by Lane A4
   (train 7, `release/2026-09-29-7-prod`) on Lane C GO 10:5x +08. Rollback basis `ce1257c8` (the incumbent).**
 
