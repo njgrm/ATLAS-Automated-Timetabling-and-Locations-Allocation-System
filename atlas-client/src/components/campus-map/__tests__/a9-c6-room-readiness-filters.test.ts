@@ -116,6 +116,27 @@ function source(): string {
 }
 
 /**
+ * ANY ATLAS SOURCE FILE'S BYTES, newline-normalised, addressed by a path relative to
+ * `atlas-client`.
+ *
+ * This exists because of a real gap QA found in this very file. The only source
+ * assertions above call `source()` with no argument, so they all read
+ * `RoomReadinessList.tsx` — and the one that looks like it covers fix 1.2 item
+ * 10.2's FIRST-NAMED site actually does not. The operator wrote
+ * "`CampusMapOverview.tsx:722`, also check `BuildingView.tsx:834`", and the
+ * CampusMapOverview room name was changed in the same commit with no assertion
+ * anywhere: the marker the RoomReadinessList assertion matched exists only in
+ * that file, and the one rendered `CampusMapOverview` test uses `rooms: []` in its
+ * fixture, so it never renders a room row. Reverting `break-words` back to
+ * `truncate` on that one line was therefore SILENT under all fifteen named gates
+ * and under the full client suite. A helper that can only read one file is what
+ * let that happen, so this one can be pointed anywhere.
+ */
+function sourceOf(relativePath: string): string {
+	return readFileSync(resolve(CLIENT_ROOT, relativePath), 'utf8').replace(/\r\n/g, '\n');
+}
+
+/**
  * THE FILE'S MARKUP, with the leading header comment removed.
  *
  * The header is REQUIRED EVIDENCE here — the subtraction ledger has to name the control it
@@ -658,4 +679,69 @@ test('RENDERED: a school with no rooms keeps the sentence this card always print
 	assert.equal(host.querySelector('[data-testid="room-readiness-summary"]')?.textContent, 'No rooms yet. Open Edit maps to add the first teaching room.');
 	assert.equal(filterButtons(host).length, 0, 'no four-button row over a school with no rooms');
 	assert.equal(host.querySelector('[data-testid="room-readiness-empty"]'), null, 'the existing zero-rooms branch is kept, not replaced by a second empty state');
+});
+
+/* ── item 10.2, the site the operator named FIRST ─────────────────────────────────────────── */
+
+test('10.2: `CampusMapOverview.tsx` room names WRAP — the operator named this line first', () => {
+	// QA's BLOCKING finding on this candidate, and it is a coverage gap rather than a
+	// behaviour defect: the change is present and correct, and nothing decided it. The
+	// operator's text is "Building details: room names wrap instead of `truncate`
+	// (`CampusMapOverview.tsx:722`, also check `BuildingView.tsx:834`)" — this is the
+	// FIRST site she named, and the assertion that looks like it covers her lives in
+	// `RoomReadinessList.tsx`, so the CampusMapOverview row had no committed evidence at
+	// all. The only RENDERED `CampusMapOverview` test builds its fixture with `rooms: []`,
+	// so it never renders a room row. Reverting this one line to `truncate` was silent
+	// under all fifteen named gates and under the full client suite.
+	//
+	// This is a SOURCE assertion on purpose, and the distinction matters: there is no
+	// harness in this repo that mounts the real `CampusMapOverview` WITH a non-empty room
+	// list, so a rendered test here would have to invent a mount and would prove less than
+	// reading the committed class does. The rendered proof for this row is the loopback
+	// screenshot in `docs/handoffs/a9c6-rendered-proof.md`, which measured
+	// `textOverflow: clip` and no ellipsis character on the real surface.
+	const overview = sourceOf('src/components/campus-map/CampusMapOverview.tsx');
+
+	// The wrap itself, on the room name only.
+	assert.match(
+		overview,
+		/<span className="block break-words font-bold text-xs text-slate-800">\{room\.name\}<\/span>/,
+		'the Campus Explorer room name must WRAP: `block break-words`, not `truncate`',
+	);
+	// The truncation must be GONE from that row, not merely supplemented. Scoped to the
+	// row so an unrelated `truncate` elsewhere in an 868-line file cannot satisfy or
+	// break this.
+	const roomRow = /<div className="min-w-0">[\s\S]{0,1200}?ROOM_TYPE_LABELS\[room\.type\][\s\S]{0,120}?<\/div>/.exec(overview)?.[0] ?? '';
+	assert.notEqual(roomRow, '', 'precondition: the room-name row must be locatable in CampusMapOverview.tsx');
+	assert.doesNotMatch(
+		roomRow,
+		/\btruncate\b/,
+		'no `truncate` may survive anywhere in the room-name row; a second line grows the card rather than clipping it',
+	);
+
+	// …and the three things that had to survive the change, because "let it wrap" is not
+	// a licence to break the row: `min-w-0` is what lets the span shrink as a flex child
+	// at all, the `Cap:` badge stays `shrink-0` so the number is never the thing that
+	// disappears, and the room type keeps its own line.
+	assert.match(
+		roomRow,
+		/<div className="min-w-0">/,
+		'`min-w-0` must stay on the wrapping container, or `break-words` has no width to work in',
+	);
+	assert.match(
+		roomRow,
+		/ROOM_TYPE_LABELS\[room\.type\] \?\? room\.type/,
+		'the room type must keep its own line under the name',
+	);
+	const capacityBadge = /<Badge variant="secondary" className="h-5 shrink-0[^"]*">\s*Cap:/.exec(overview)?.[0] ?? '';
+	assert.notEqual(capacityBadge, '', 'the `Cap:` badge must stay beside the name');
+	assert.match(capacityBadge, /shrink-0/, 'the `Cap:` badge must stay `shrink-0`: on a wrapping row it is what stops the number being the thing that disappears');
+
+	// The pre-change form, recorded so the failure names what was reverted rather than
+	// only what is missing.
+	assert.doesNotMatch(
+		overview,
+		/font-bold text-xs text-slate-800 truncate block/,
+		'the pre-fix 10.2 class string is `truncate`; if this matches, the Campus Explorer room name is truncating again',
+	);
 });

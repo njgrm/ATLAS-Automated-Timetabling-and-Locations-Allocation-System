@@ -718,18 +718,15 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 															}`}
 														>
 															<div className="flex items-center justify-between w-full">
-															<div className="min-w-0">
-																{/* A9 C6, fix 1.2 item 10.2: the room NAME WRAPS
-																    instead of truncating, so `G10 Room 102 (Science)`
-																    is readable instead of ending in an ellipsis. `min-w-0`
-																    above is what lets this shrink as a flex child, and the
-																    row is `h-auto`, so a second line grows the card rather
-																    than clipping it. The `Cap:` badge stays `shrink-0`
-																    so the number is never the thing that disappears. The room
-																    TYPE beneath keeps its own line and its own integrity. */}
-																<span className="block break-words font-bold text-xs text-slate-800">{room.name}</span>
-															<span className="text-xs text-muted-foreground">{ROOM_TYPE_LABELS[room.type] ?? room.type}</span>
-															</div>
+																<div className="min-w-0">
+																	{/* A9 C6, fix 1.2 item 10.2: the room NAME WRAPS instead of
+																	    truncating. `min-w-0` above is what lets this shrink as a flex
+																	    child, and the row is `h-auto`, so a second line grows the card
+																	    rather than clipping it. The `Cap:` badge stays `shrink-0` so the
+																	    number is never the thing that disappears. */}
+																	<span className="block break-words font-bold text-xs text-slate-800">{room.name}</span>
+																	<span className="text-xs text-muted-foreground">{ROOM_TYPE_LABELS[room.type] ?? room.type}</span>
+																</div>
 														<Badge variant="secondary" className="h-5 shrink-0 px-1.5 py-0 text-xs">
 																	Cap: {room.capacity ?? '—'}
 																</Badge>

@@ -32,8 +32,18 @@ what the loopback render against REAL staging data actually found.
   CampusMapOverview 5->5, RoomReadinessList 2->2, CampusMap and
   TeacherAttentionFilters clean at both revisions), so it is not re-pinned.
 - `typecheck` 5 errors, all in files this range does not touch.
-- `test:client-suite` 1256/1296, 26 failing files, ALL timetable / teaching-load /
-  year-setup and none in this range's blast radius. The base comparison at
-  7d008db7 is recorded in the commit message.
+- Fresh independent QA over `7d008db7..08620fbd`: `CORRECTION_REQUIRED`, 26/27 rows
+  passed, 0 blocked, 0 unperformed. Both judgement questions answered YES: the
+  `TeacherAttentionFilters.tsx` change is justified and minimal under §8, and the
+  `BuildingView.tsx:834` decline is correct with the packet's line reference exact at
+  base. The single BLOCKING finding (B-1) and both documentation findings (NB-1, NB-3)
+  are closed in the tip commit; NB-4 (indentation) is closed there too.
+- `test:client-suite` **1257 pass / 39 fail of 1296**, across **24** failing files, ALL
+  timetable / teaching-load / year-setup and none in this range's blast radius. The
+  base `7d008db7` was measured at **1257 / 39** in a separate detached checkout, so
+  this range's delta on the full suite is **zero**. (An earlier revision of this file
+  recorded `1256/26`: that was the pre-`f39f4718` figure, before the `BuildingView.tsx`
+  line-cap fix removed the one failure this range had introduced. QA caught the stale
+  number; the corrected figure is the one above, measured at the candidate tip.)
 
 Worktree disposition: KEEP_ACTIVE until the train ships.

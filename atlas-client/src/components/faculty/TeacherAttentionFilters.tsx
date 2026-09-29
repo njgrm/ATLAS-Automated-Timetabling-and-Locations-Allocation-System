@@ -70,13 +70,14 @@ export function TeacherAttentionFilters({
 									// have left two filter rows on two pages looking different. Nothing else
 									// in this file changes — the label, the count, the tooltip helper and
 									// `aria-pressed` are all untouched, so fix 1.2 item 35.1's tooltip work
-									// on this row is unaffected.
-									// `text-muted-foreground`, so a real check of the ACTIVE chip found the count
-									// rendering dark slate on the filled green `default` background — low
-									// contrast on the one chip whose state the operator most needs to see.
-									// `opacity-80` tracks whatever foreground the variant supplies, so the
-									// count is legible on the outline chips AND on the active one. Applied to
-									// both rows together for the same §8 reason as the variant change.
+									// on this row is unaffected. The count below drops
+									// `text-muted-foreground` for `opacity-80`, because a real check of
+									// the ACTIVE chip found it rendering dark slate on the filled green
+									// `default` background — low contrast on the one chip whose state the
+									// operator most needs to see — and `opacity-80` tracks whatever
+									// foreground the variant supplies, so the count is legible on the
+									// outline chips AND on the active one. Applied to both rows together
+									// for the same §8 reason as the variant change.
 									className="h-8 shrink-0 cursor-pointer whitespace-nowrap rounded-full px-2.5 text-xs font-bold"
 									onClick={() => onApplyFilter(chip.id)}
 								>
