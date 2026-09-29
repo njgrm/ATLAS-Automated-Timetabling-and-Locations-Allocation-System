@@ -8,13 +8,11 @@ import {
 	Users,
 	MoreHorizontal,
 	Pencil,
-	RotateCcw,
-	Star
+	RotateCcw
 } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
 import { Skeleton } from '@/ui/skeleton';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import {
@@ -32,6 +30,7 @@ import { TeacherLoadReadout } from './TeacherLoadReadout';
 import { TeachingLoadFilterBar } from './TeachingLoadFilterBar';
 import { formatFacultyDisplayName } from '@/components/faculty/teacherNameDisplay';
 import { formatFacultyInitials } from '@/components/faculty/teacherNameDisplay';
+import { AdviserSectionLine } from '@/components/faculty-shared/AdviserSectionLine';
 import { countDistinctSections, countDistinctSubjects } from '@/lib/teaching-load-counts';
 import {
 	buildTeacherWorkloadAuditSnapshot,
@@ -438,14 +437,10 @@ export function TeacherGridMode({
 														<h4 className="text-sm font-semibold tracking-tight truncate">
 															{formatFacultyDisplayName(member)}
 														</h4>
-														{member.isClassAdviser && (
-															<Tooltip>
-																<TooltipTrigger asChild>
-																	<Star className="size-3.5 text-amber-500 fill-amber-500 shrink-0" />
-																</TooltipTrigger>
-																<TooltipContent side="top" className="font-semibold uppercase">Class Adviser</TooltipContent>
-															</Tooltip>
-														)}
+														<AdviserSectionLine
+															isClassAdviser={member.isClassAdviser}
+															advisedSectionName={member.advisedSectionName}
+														/>
 														{hasDraft && <Badge variant="secondary" className="h-4 px-1.5 text-xs font-semibold uppercase bg-sky-100 text-sky-700 animate-pulse">Draft</Badge>}
 													</div>
 													{/*
