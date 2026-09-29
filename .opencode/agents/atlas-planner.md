@@ -119,3 +119,9 @@ focus states. A number or chip that is clickable but looks like a read-only metr
 render. Conversely, read-only figures must not look pressable.
 
 **Never lose uncommitted work (2026-09-29, A6 c9 lost ~90 min).** Commit a `wip(...)` checkpoint to your work branch at least every 30 minutes and before any long step, and push the branch; an executor that nears its step limit commits first. Never `git checkout --`, `git reset --hard`, `git clean` or revert files with uncommitted changes: first `git stash push -u -m <why>` or commit them to a `backup/<lane>-<time>` branch. Never write a patch or measure file encoding through a PowerShell pipeline (`>`, `Set-Content`, `git show | ...` mangle UTF-16/CRLF/non-ASCII); use `git diff --output=<file>`, `git stash`, and `git status`/`git diff` as the authority.
+
+**UX regressions block (operator, 2026-09-29 16:40).** Live shipped a garbled Review load window, a leftover "More filters" and filter bars laid out differently on every page, overflowing text and "…" in dropdowns. From now on:
+1. Browser proof is the REAL page on staging data at 1366x768 (no harness pages, no fixtures). Screenshot every page and dialog your change touches AND every page that uses a shared component you changed; attach the paths in the handoff.
+2. Before done, check each screenshot for: any "More filters"/disclosure (filters are always inline), text outside its box, "…" in a trigger/menu item/chip/header, garbled characters, a horizontal scrollbar, a footer covering content, a clickable thing that looks like plain text. Any hit is a failing row, not a note.
+3. Use the shared components (filter bar, select, dialog, button) as they are; never restyle one locally. If the shared one is wrong, fix it there and screenshot every page that uses it.
+4. `npm run test:encoding` must pass.
