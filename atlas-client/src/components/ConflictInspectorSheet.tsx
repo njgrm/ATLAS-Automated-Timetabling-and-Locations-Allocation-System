@@ -33,8 +33,18 @@ export interface ConflictInspectorData {
 	startTime: string;
 	endTime: string;
 	roomName: string;
+	/**
+	 * A5 C5 (2026-09-29) — the run id is still carried here, because the sheet's links into
+	 * `/timetable?…&runId=…` genuinely need it. It is NOT shown. The visible row below names
+	 * `sourceMadeOn` instead: a scheduler reading a conflict is answering "when was this week
+	 * made?", and `Run #412 · COMPLETED` was a database key answering a question nobody asked.
+	 * A sheet whose only consumer is `pages/RoomSchedules.tsx` rendered that key one click from
+	 * the page the operator called confusing, so it counted as on-screen.
+	 */
 	runId: number;
 	runStatus: string;
+	/** `29 Sept` — the date the shown timetable was made, or `null` when none is recorded. */
+	sourceMadeOn?: string | null;
 	entries: RoomScheduleEntry[];
 	roomId: number;
 }
@@ -124,9 +134,13 @@ export function ConflictInspectorSheet({
 									</span>
 									<span className="text-muted-foreground">Room</span>
 									<span className="font-medium text-foreground">{data.roomName}</span>
-									<span className="text-muted-foreground">Run</span>
+									{/* A5 C5: the run id leaves the screen here too. `runStatus` is kept as
+									    the value on this row because it is a word a scheduler can act
+									    on ("this run never finished"), and it is shown ONLY when the
+									    timetable has no date — two facts, one row, never an id. */}
+									<span className="text-muted-foreground">Made on</span>
 									<span className="font-medium text-foreground">
-										#{data.runId} · {data.runStatus}
+										{data.sourceMadeOn ?? data.runStatus}
 									</span>
 								</div>
 							</div>

@@ -111,18 +111,29 @@ test('M17: the Simple header exposes one combined schedule download action', () 
 
 test('M11: the RoomSchedules page binds unified downloads to the current run, term, and selected entity', () => {
 	const page = source('src/pages/RoomSchedules.tsx');
-	assert.match(page, /onClick=\{\(\) => setDownloadSchedulesOpen\(true\)\}/, 'the room page entry point opens the unified dialog');
+	// A5 C5 (2026-09-29) — the entry point moved from a full-width `Download schedules` button in
+	// the filter band to the page's `More` menu, so the handler is a Radix `onSelect` rather than
+	// `onClick`, and it carries a `data-testid` a browser acceptance row can aim at. The INTENT of
+	// this row is unchanged and is now asserted in a way that survives the control's home moving.
+	assert.match(page, /onSelect=\{\(\) => setDownloadSchedulesOpen\(true\)\}/, 'the room page entry point opens the unified dialog');
+	assert.match(page, /data-testid="schedules-more-download"/, 'and the entry point is reachable by a test id from the More menu');
 	assert.match(page, /runId=\{state\.status === 'ok' \? state\.data\.source\.runId : null\}/, 'the dialog is bound to the run rendered in the room view');
-	assert.match(page, /termIndex=\{exportTerm === 'all' \? 'all' : Number\(exportTerm\)\}/, 'the dialog receives only the explicitly selected term');
+	// A5 C5 — the dialog's term binding is RE-PINNED, not dropped. The old form read a dedicated
+	// `exportTerm` state fed by a SECOND term picker used only by the download. The packet allows
+	// at most ONE term control, so the dialog now takes the term the grid is scoped to. The
+	// control this row protects is "the dialog gets one explicit ordered term, never a silent
+	// 'all'", and `viewTerm ?? 'all'` satisfies it for the same reason: 'all' is only reachable
+	// when no term is verified, which is exactly when the dialog refuses anyway.
+	assert.match(page, /termIndex=\{viewTerm \?\? 'all'\}/, 'the dialog receives the one verified term the grid is scoped to');
 	assert.match(page, /entityFilter=\{selectedEntityId\}/, 'the dialog receives the active room, teacher, or section');
-	assert.doesNotMatch(page, /SchedulerExportCenterDialog|Export Center|Export room program \(\.xlsx\)|handleRoomProgramExport|dispatchSimpleExport/);
+	assert.doesNotMatch(page, /exportTerm|SchedulerExportCenterDialog|Export Center|Export room program \(\.xlsx\)|handleRoomProgramExport|dispatchSimpleExport/);
 });
 
 test('RoomSchedules removes legacy office actions and uses the unified Word/Excel dialog', () => {
 	const page = source('src/pages/RoomSchedules.tsx');
 	assert.match(page, /<SchedulerPrintDialog/, 'Room Schedules opens the shared Word/Excel dialog');
 	assert.match(page, /runId=\{state\.status === 'ok' \? state\.data\.source\.runId : null\}/, 'the dialog uses the run currently rendered in the room view');
-	assert.match(page, /termIndex=\{exportTerm === 'all' \? 'all' : Number\(exportTerm\)\}/, 'the dialog uses the explicitly selected ordered term');
+	assert.match(page, /termIndex=\{viewTerm \?\? 'all'\}/, 'the dialog uses the same one term the grid shows');
 	assert.match(page, /entityFilter=\{selectedEntityId\}/, 'the dialog defaults to the selected room, teacher, or section');
 	assert.doesNotMatch(page, /SchedulerExportCenterDialog|Export Center|Export room program \(\.xlsx\)|handleRoomProgramExport|dispatchSimpleExport/, 'the parallel Office-only paths are no longer reachable');
 });

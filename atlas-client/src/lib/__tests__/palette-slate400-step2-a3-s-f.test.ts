@@ -216,10 +216,18 @@ const OWNED_FILES = [
 const EXPECTED_RATCHET_TOTAL = 95;
 /* A5 C4 ITEM 5: 28 -> 29. The residue is unchanged at 95, but it now lives in one more
  * FILE because `/audit` is two files. A file count that stayed at 28 would have been a
- * number describing a file layout that no longer exists. */
-const EXPECTED_RATCHET_FILE_COUNT = 29;
+ * number describing a file layout that no longer exists.
+ *
+ * A5 C5 (2026-09-29): 29 -> 28, and then down again, because the Room Schedules rewrite
+ * EMPTIED `src/pages/RoomSchedules.tsx`. A split raises the file count; an emptying removes a
+ * file from the ratchet scope entirely and lowers it. 28 is also what
+ * `palette-ratchet-a3-s-e.test.ts` has always pinned as `PINNED_FILE_COUNT`, so the two files
+ * now AGREE on the file count where they previously disagreed by one. The TOTAL pin above is a
+ * separate, pre-existing red and is deliberately left exactly as it was. */
+const EXPECTED_RATCHET_FILE_COUNT = 28;
 const EXPECTED_IN_SCOPE_RESIDUAL = 68;
-const EXPECTED_EXCLUDED_RESIDUAL = 27;
+/** Was 27 across THREE exclusions; A5 C5 lifted RoomSchedules' 11, leaving two exclusions. */
+const EXPECTED_EXCLUDED_RESIDUAL = 16;
 
 /**
  * Raw neutrals each swept file still holds, so EXPECTED_RATCHET_FILE_COUNT is not taken on faith.
@@ -1005,12 +1013,17 @@ test('control 3: every must-not-touch surface is intact, and the timetable walk 
 		'StackedWorkloadBar.tsx now contains ' + FROM_CLASS + '. Verify it really is text before accepting it.',
 	);
 
-	// 2. RoomSchedules: Lane A2's in-progress page, out of scope by decision.
+	// 2. RoomSchedules — A5 C5 (2026-09-29). This row used to be a DEBT PIN: "Lane A2's
+	// in-progress page, out of scope by decision" with exactly 2 `text-slate-400` sites that a
+	// rewrite would have to keep. The Room Schedules rewrite emptied the page, so the pin's premise
+	// is false and control 4 in the sibling sweep says what to do about that: lift the exclusion
+	// deliberately. It is lifted; the row is now a RATCHET at zero, which is strictly more evidence
+	// than a count of 2 — a debt count only notices a change, a zero breaks if a raw class returns.
 	const rooms = readFileSync(join(CLIENT_ROOT, 'src/pages/RoomSchedules.tsx'), 'utf8');
 	assert.equal(
 		occurrences(rooms, FROM_CLASS),
-		2,
-		'RoomSchedules.tsx must keep its 2 text-slate-400 sites (lines 721, 743). It is Lane A2\'s WIP page and out of scope by decision.',
+		0,
+		'RoomSchedules.tsx has been in scope since A5 C5 (2026-09-29) and must hold NO text-slate-400. A non-zero count means a raw slate class came back to the page.',
 	);
 
 	// 3. The timetable surface: walked for real, never skipped, so a zero is a measurement.

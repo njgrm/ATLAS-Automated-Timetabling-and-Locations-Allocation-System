@@ -108,10 +108,12 @@ import test from 'node:test';
  *    magnitude far inside the +-0.10 rename bound. Only the printed decimals differ, and they are
  *    retained above rather than replaced because the difference is a fact about two conversion
  *    implementations, not an error to be tidied away.
- * 2. **Two of the three deliberate exclusions are precautionary, not load-bearing.** Only
- *    `src/pages/RoomSchedules.tsx` actually holds occurrences of the two swept classes (7).
- *    `src/ui/confirmation-modal.tsx` and `src/pages/Login.tsx` hold **zero** `text-slate-900` and
- *    zero `text-slate-500`; all of their raw neutrals are `gray-*`, which this sweep never touches.
+ * 2. **Both remaining deliberate exclusions are precautionary, not load-bearing.** A5 C5
+ *    (2026-09-29) lifted `src/pages/RoomSchedules.tsx` out of this list and into `IN_SCOPE`: its
+ *    Room Schedules rewrite moved the page's raw neutrals onto the semantic tokens, and the page
+ *    now holds **zero** of the two swept classes. That leaves
+ *    `src/ui/confirmation-modal.tsx` and `src/pages/Login.tsx`, which hold **zero** `text-slate-900`
+ *    and zero `text-slate-500`; all of their raw neutrals are `gray-*`, which this sweep never touches.
  *    They are forward-looking scope fences — correct to keep, and still correct for the reason
  *    recorded — but a reader must not expect "3 and 13 swept occurrences" from them.
  *
@@ -201,17 +203,27 @@ const IN_SCOPE = [
 	'src/pages/Audit.tsx',
 	'src/pages/Dashboard.tsx',
 	'src/pages/MapEditor.tsx',
+	// A5 C5 (2026-09-29): joined IN_SCOPE when the Room Schedules rewrite emptied it. Control 3
+	// asserts every file in this list is free of the two swept classes, so the page is now guarded
+	// rather than merely counted.
+	'src/pages/RoomSchedules.tsx',
 ] as const;
 
 /**
  * Files that still hold raw neutrals **on purpose**. Control 4 keeps this honest; it is what
  * stops a later session from "finishing" the sweep into another lane's surface.
+ *
+ * A5 C5 (2026-09-29) — `src/pages/RoomSchedules.tsx` LEFT this list, deliberately. It was
+ * "Lane A2's WIP page, out of scope by decision", and control 4's own failure text says what
+ * happens when a page stops holding any raw neutral: *"Either the exclusion was lifted
+ * deliberately, or it was edited by mistake."* A5 C5 is the deliberate lift — the Room Schedules
+ * rewrite answered the operator's "it is confusing right now" and moved the page's 11 raw neutral
+ * classes onto `text-foreground` / `text-muted-foreground` / `text-destructive` in the same pass.
+ * It is now in `IN_SCOPE` and pinned at ZERO below, which is a ratchet rather than a debt count:
+ * a later session that reintroduces a raw neutral there goes red, where the old `=== 7` pin only
+ * noticed when the number moved.
  */
 const DELIBERATE_EXCLUSIONS: ReadonlyArray<readonly [string, string]> = [
-	[
-		'src/pages/RoomSchedules.tsx',
-		"Lane A2's WIP page. The c1 packet forbids redesigning it, so this sweep must not edit it.",
-	],
 	[
 		'src/pages/Login.tsx',
 		'Not a demo route and not on any listed work route, so it is out of this stream by scope.',
@@ -245,9 +257,18 @@ const PRE_SWEEP_FILES = 34;
 const PRE_STEP_2_TOTAL = 110;
 const STEP_2_SUBSTITUTIONS = 15;
 const EXPECTED_TOTAL = 95;
-/** 95 splits into 68 that are this stream's future work and 27 that sit in the three exclusions. */
+/**
+ * A5 C5 (2026-09-29) — `RoomSchedules.tsx` left the exclusions, so BOTH numbers below fall by what
+ * that page used to hold: 11 raw neutral classes out of the exclusions' residual (27 -> 16), and one
+ * file out of the ratchet scope's file count (29 -> 28). 28 is also what
+ * `palette-ratchet-a3-s-e.test.ts` has always pinned as `PINNED_FILE_COUNT`, so the two files now
+ * AGREE on the file count where they previously disagreed by one; the TOTAL disagreement (95
+ * pinned, 108 measured) is a separate pre-existing red that this change does not touch and does not
+ * hide.
+ */
+/** 95 splits into 68 that are this stream's future work and 27 that sit in the two exclusions. */
 const EXPECTED_IN_SCOPE_RESIDUAL = 68;
-const EXPECTED_EXCLUDED_RESIDUAL = 27;
+const EXPECTED_EXCLUDED_RESIDUAL = 16;
 
 /**
  * Step 2 emptied no file, which is why `EXPECTED_FILE_COUNT` is unchanged at 28 — AS
@@ -267,8 +288,15 @@ const EXPECTED_EXCLUDED_RESIDUAL = 27;
  *
  * A count that had become 0 in the page AND 0 in the panel would have been a real
  * regression; 8 -> 4 and 4 is the honest result of a split.
+ *
+ * A5 C5 (2026-09-29) — AND THEN IT FELL BY ONE, BECAUSE A PAGE WAS EMPTIED. The Room
+ * Schedules rewrite took `src/pages/RoomSchedules.tsx` to zero raw neutrals, so it no
+ * longer appears in the ratchet scope's file list at all: 29 -> 28. This is the different
+ * case from A5 C4's split. A split moves a file's residue and raises the count; an emptying
+ * removes a file from the list and lowers it. Leaving 29 here would have been a gate
+ * counting a file that no longer exists.
  */
-const EXPECTED_FILE_COUNT = 29;
+const EXPECTED_FILE_COUNT = 28;
 const STEP_2_SURVIVING_RESIDUALS: ReadonlyArray<readonly [string, number]> = [
 	['src/components/campus-map/BuildingGradeScopeControl.tsx', 1],
 	['src/components/campus-map/CampusMapOverview.tsx', 10],
@@ -736,9 +764,12 @@ test('CONTROL (A3-C8r1): the dark-writer scan CAN detect a writer, and is not fo
 
 test('control 3: every in-scope file is free of the two swept classes', () => {
 	// A5 C4 ITEM 5: 19 -> 20, because `/audit`'s extracted findings panel is now a swept
-// file of its own. The scope grew by an extraction, not by a sweep, and a scope count
-// that is not updated is a gate that lies about what it covers.
-assert.equal(IN_SCOPE.length, 20, 'the in-scope set is 20 files; a changed count means a scope edit');
+	// file of its own. The scope grew by an extraction, not by a sweep, and a scope count
+	// that is not updated is a gate that lies about what it covers.
+	// A5 C5 ITEM (2026-09-29): 20 -> 21, because the Room Schedules rewrite emptied that page
+	// and lifted its exclusion deliberately. The scope grew by a CONVERSION, and the count that
+	// says so moved with the code.
+	assert.equal(IN_SCOPE.length, 21, 'the in-scope set is 21 files; a changed count means a scope edit');
 	const offenders: string[] = [];
 	for (const rel of IN_SCOPE) {
 		const source = readFileSync(join(CLIENT_ROOT, rel), 'utf8');
@@ -761,12 +792,15 @@ test('control 4: the exclusions are deliberate, not forgotten', () => {
 				`Either the exclusion was lifted deliberately, or it was edited by mistake. Reason on record: ${reason}`,
 		);
 	}
-	// RoomSchedules specifically must keep the exact 7 the c1 packet reserved for A2.
+	// A5 C5 (2026-09-29): RoomSchedules left DELIBERATE_EXCLUSIONS deliberately (see the reason on
+	// the list). The old row pinned the 7 raw neutrals its rewrite removed; the row that replaces it
+	// is a RATCHET, which is strictly more evidence: 7 of debt that a change can move, versus zero
+	// that a change can break.
 	const roomSchedules = readFileSync(join(CLIENT_ROOT, 'src/pages/RoomSchedules.tsx'), 'utf8');
 	assert.equal(
-		(roomSchedules.match(/\btext-slate-(?:900|500)\b/g) ?? []).length,
-		7,
-		"RoomSchedules.tsx is Lane A2's WIP page and this sweep must not change it. Expected its 7 reserved occurrences.",
+		(roomSchedules.match(/\btext-(?:slate|zinc|gray|neutral|stone)-\d{2,3}\b/g) ?? []).length,
+		0,
+		'RoomSchedules.tsx is in scope as of A5 C5 (2026-09-29) and must hold NO raw neutrals. A non-zero count means a raw slate/zinc/gray/neutral/stone class came back.',
 	);
 });
 
@@ -820,8 +854,16 @@ test('control 5: the ratchet fell for exactly the reason this file states', () =
 		// pinned 95). An honest number that HIDES a diagnosis is worse than a wrong
 		// one, and the suite's failure count staying at 9/7/2 is exactly the AGENTS.md
 		// §11 trap of counting rows without checking they are the same rows.
-		PRE_SWEEP_FILES - 6 + 1,
-		'the expected file count is the pre-sweep file count, minus the six files this sweep emptied, plus the one file the A5 C4 /audit extraction split into',
+		//
+		// A5 C5 (2026-09-29) adds the EMPTYING term, `- 1`, and it belongs on the same
+		// derivation for the same reason the `+ 1` does: the A5 C5 Room Schedules rewrite took
+		// `pages/RoomSchedules.tsx` to zero raw neutrals, so that file left the ratchet scope
+		// entirely. Setting the const to 28 while leaving this derivation at `+ 1` would have
+		// reproduced the F3 self-contradiction in miniature — a constant nobody can derive.
+		// 34 - 6 emptied by this sweep + 1 file the A5 C4 split created - 1 file A5 C5 emptied
+		// = 28, which is also what `palette-ratchet-a3-s-e.test.ts` pins today.
+		PRE_SWEEP_FILES - 6 + 1 - 1,
+		'the expected file count is the pre-sweep file count, minus the six files this sweep emptied, plus the one file the A5 C4 /audit extraction split into, minus the one file the A5 C5 Room Schedules rewrite emptied',
 	);
 
 	// Recompute the ratchet's own scope from source, so this control independently confirms the pin
