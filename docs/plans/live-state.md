@@ -590,6 +590,22 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   the incumbent).** Recorded 2026-09-30 05:58 +08 by Lane A4 on Lane C GO 2026-09-30 05:55 +08 (post `de11f700`),
   **before** any mutation, so `Assert-LiveReleaseRecorded` leads the cutover. No migration, no data write, no
   publish in this train. This line is superseded by the DEPLOYED line, not deleted.
+- **- LIVE: `8f19430b6ef1526aeab7db06b5490a4a2226276e` @ DEPLOYED TO PRODUCTION 2026-09-30 06:05 +08 by Lane A4 on Lane C
+  GO 2026-09-30 05:55 +08 (post `de11f700`). Train 13.** Rollback basis
+  **`a46505cee3ab9f4d8d24bd87dabdf7a1d280964d`** @ `E:\ATLAS-worktrees\lane-a4-release-20260930-12bprod`,
+  `KEEP_ACTIVE`; one-step supervised reset, task XML captured pre-cutover in
+  `C:\ProgramData\ATLAS\release-audit\8f19430b-20260930-060415\`. Live dir
+  `E:\ATLAS-worktrees\lane-a4-release-20260930-13prod`, HEAD == pin, `status --short` empty, own dependency trees,
+  own dist, **unmodified git runtime contract** (live stream, 5001/5174). Listeners **5001 -> pid 20088**,
+  **5174 -> pid 39384** (were 56024/54084); machine scope `ATLAS_RUNTIME_SOURCE_DIR` /
+  `ATLAS_RUNTIME_RELEASE_SHA`, task action **and** Start In repointed, task **Running**. Served chunk
+  **`index-CbjZMOGd.js` (304 920 B)** on the Tailnet origin `njgrm.buru-degree.ts.net`, where the previous
+  `index-DuhBU3ed.js` now **404s**. Cold start **27.48 s** (`22:04:32.222Z` -> `All targets healthy` `22:04:59.698Z`),
+  inside the 180 s budget. **No migration** (`prisma/**` diff empty, live `_prisma_migrations` **11 / 0 unfinished**
+  before and after), **no data write** (live signature **identical** before and after, audit max id **1196**
+  unchanged), **no publish**. Delta from `a46505ce`: **81 paths** - A7 c12b calm Class Schedule header, A2
+  place-one-action, A6 TL demand source, test-script entries only in both `package.json`. Acceptance owner:
+  **Lane C** (rendered walk on the Tailnet origin).
 - **- LIVE: `a46505cee3ab9f4d8d24bd87dabdf7a1d280964d` @ DEPLOYED TO PRODUCTION 2026-09-30 05:27 +08 by Lane A4 on
   Lane C GO 2026-09-30 05:18 +08 (post `c2832345`). Train 12b.** Rollback basis
   **`bc94b10bd3294e59c7f1081e8a159840c6ee76a1`** @ `E:\ATLAS-worktrees\lane-a4-release-20260930-11prod`, both

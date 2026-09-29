@@ -5333,3 +5333,74 @@ a46505ce (E:\ATLAS-worktrees\lane-a4-release-20260930-12bprod); 3. readiness wit
 - **Not deployed**, no live write, no migration, no push beyond `main`. A4 owns the train.
 
 **Next action.** A4/Lane C: fold `main 25b29d7c` into the next train; the teacher dialog needs its 1366x768 rendered row on staging (one row action, 42rem width, no Profile button).
+
+---
+
+## Lane C -> A2, 2026-09-30 06:12 +08 - **A4 LIVE train 13 at `8f19430b`** - cutover executed, zero-write, no migration
+
+**0 fixes live and seen by me / 81 paths shipped to the Tailnet (A7 c12b, A2, A6) / 0 dropped.** Live is
+**`8f19430b6ef1526aeab7db06b5490a4a2226276e`**, cut over on Lane C's GO 2026-09-30 05:55 +08 (post `de11f700`) at
+**06:05 +08**. **I did not run the rendered acceptance walk** - that is Lane C's, and I am not claiming it.
+
+### What went live, enumerated (not from what I happened to review)
+
+`git diff --name-only a46505ce 8f19430b` = **81 paths**. Three lanes, all already integrated on `main`:
+**A7 c12b** calm Class Schedule header + one year authority + retired *Generate a timetable* (client);
+**A2** place-one-action draft (`atlas-server/src/routes/pre-generation-draft.router.ts`,
+`pre-generation-draft.service.ts` + client + tests); **A6** TL demand source
+(`derived-demand.service.ts`, `faculty-assignment.service.ts` + tests). Both `package.json` deltas are
+**test-script entries only - no dependency change**. `prisma/**` diff **empty**. `main` has since moved to
+`bff36612` (A3 docs); per 14 a pinned release is not reopened because `main` moved.
+
+### Runtime rows
+
+| Row | Result |
+|---|---|
+| Deploy runner dry run | exit 0, `mutates: false`, `secretsPrinted: false`, supervisor 5860, listenerPids `[56024, 54084]` - matching my independent pre-cutover reading |
+| Build (`lane-a4-release-20260930-13prod`) | `prisma generate` **33.8 s**, server `tsc` **19.7 s**, client `vite` **4.7 s**; deps robocopy-seeded from the same-pin staging tree (0 reparse points, `-XJ`), `VITE_ENROLLPRO_URL` set from `ENROLLPRO_PROXY_ORIGIN` |
+| Client dist integrity | **byte-identical to the same-pin staging build**: 222 files, 4 090 243 B, entry `index-CbjZMOGd.js` SHA-256 `EB19E001D1EFA542...` 304 920 B on both |
+| Cold start | **27.48 s** - `22:04:32.222Z` launch -> `22:04:59.698Z` `All targets healthy (liveness and dependency readiness)`; **inside the 180 s budget** |
+| Listeners | **5001 -> 20088**, **5174 -> 39384** (were 56024/54084); task **Running**, action **and** Start In repointed to the 13prod dir; machine scope repointed |
+| Environment proof | supervisor read `atlas-server.env`, `sourceDir 13prod`, `keyCount 18`, `DATABASE_URL` = live `atlas_recovery_clean_rebuild_20260905` |
+| Served chunk (Tailnet) | **`index-CbjZMOGd.js` 304 920 B**; the incumbent's **`index-DuhBU3ed.js` now 404s** - new != old, both named |
+| `tailscale serve status` | unchanged: Funnel 443 -> 5174, tailnet-only 8443 -> 5274 |
+| Migrations | **none** - `prisma/**` empty diff; live `_prisma_migrations` **11 / 0 unfinished** before and after |
+| Zero-write | live signature **identical** before and after: schools 2, sections 160, faculty 60, subjects 23, years 8, TL cycles 8, **generation runs 12**, published 6, manual edits 13, notifications 268, **audit 557 rows / max id 1196** |
+| Staging | **untouched** - 5101 -> 48876, 5274 -> 25428, the same PIDs as my 05:44 staging leg |
+| Publish / generation / sync / re-stream | **none** |
+
+### Two disclosures, neither of which I am papering over
+
+1. **The runner never printed its completion record.** Its log holds only
+   `{"result":"CUTOVER_STARTED", ...}` and the process is gone - the audit dir has `deployment-plan.json`,
+   `task-before.xml`, `task-target.xml` and no result file. **So my DEPLOYED verdict rests on the independent
+   evidence in the table above** (machine scope, listener PIDs, supervisor log, health, DB-backed read, chunk,
+   signature), not on the runner's own attestation. I am flagging it rather than reporting a green runner.
+2. **My first client build died and I rebuilt it.** Vite writes a CSS-optimisation warning to stderr, and under
+   `$ErrorActionPreference='Stop'` PowerShell promotes that to a terminating error - the exact trap
+   `deploy-runner.ps1` documents - so my script aborted mid-build. I deleted `dist`, re-ran the build the
+   sanctioned way, and **proved the result byte-identical to the same-pin staging build** before deploying, so
+   no partial artifact shipped. Server `tsc` was unaffected.
+
+### Capacity - the next build is blocked until someone reclaims
+
+**E: free is 14.87 GiB, below the 3 fail-closed line of 15 GiB.** Nothing is building, and this cutover is
+closed, but **the next release build must reclaim first**. The named candidate is
+`E:\ATLAS-worktrees\lane-a4-release-20260930-11prod` (1.51 GiB, `bc94b10b`) - now two generations back, with
+`a46505ce` as the current rollback basis. I did **not** retire it: it is live fallback lineage and 3 names
+fallback lineage as do-not-retire, so that call is the operator's or an explicit A4 reclaim, not a side effect
+of a release. This leg's own reclaim already took E: from 13.37 to 17.85 GiB (two superseded staging trees, plus
+my two train-12 gate worktrees).
+
+**Dispositions.** `E:\ATLAS-worktrees\lane-a4-release-20260930-13prod` = **KEEP_ACTIVE** (live).
+`lane-a4-release-20260930-12bprod` = **KEEP_ACTIVE** (rollback basis). `lane-a4-release-20260930-11prod` =
+**PRESERVE_FOR_DECISION** (named reclaim candidate above). Staging trees `8f19430b...` = KEEP_ACTIVE,
+`110cadd0...` = staging rollback basis. Gate worktree `lane-a4-train-20260930-13live` =
+RETIRE_AFTER_INTEGRATION. Audit trail `C:\ProgramData\ATLAS\release-audit\8f19430b-20260930-060415\`.
+`D:/ATLAS` was never written; no machine variable was written outside the runner's own repoint.
+
+**Next action.** Lane C: the rendered acceptance walk on `https://njgrm.buru-degree.ts.net` at 1366x768 - the
+A7 c12b timetable header, the year badge and the Setup card, then A2 place-one-action (the move/swap
+review-then-confirm step and the still-missing remove action you already noted exist on live). Record the
+verdict here. If any screen regresses, name it and I re-pin a correction; the rollback to `a46505ce` is one
+supervised reset with the task XML captured.
