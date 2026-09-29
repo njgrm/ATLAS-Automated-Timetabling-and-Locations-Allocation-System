@@ -118,7 +118,9 @@ async function unmount(): Promise<void> {
  * that 1px accessibility span, so a control written that way asserts against a
  * node that is NOT the bubble. The bubble is its PARENT — a structural
  * relationship, deliberately not a class filter, because a class filter would
- * make "the bubble carries the dark class" vacuous.
+ * make "the bubble carries the shared class list" vacuous. (A7 c10, 2026-09-29:
+ * that sentence used to read "the dark class", because the dark palette was
+ * still the asserted contract at the time this helper was written.)
  */
 function bubble(): HTMLElement {
 	const hidden = Array.from(document.body.querySelectorAll('[role="tooltip"]'))
@@ -181,7 +183,7 @@ function clippingAncestorClass(node: Element): string | null {
 	return null;
 }
 
-test('A5-34/35: the Subjects column-header bubble renders on document.body, outside the header cell, in the dark readable style', async () => {
+test('A5-34/35: the Subjects column-header bubble renders on document.body, outside the header cell, in the white bubble with a visible edge', async () => {
 	const host = await render(
 		<table>
 			<thead>
@@ -331,7 +333,7 @@ test('A5-34/35: aria-sort and the button accessible name carry the sort state in
 	}
 });
 
-test('A5-34/35 PRESERVATION: the Sections table header — a file this lane did not edit — now gets the same portalled dark bubble', async () => {
+test('A5-34/35 PRESERVATION: the Sections table header — a file this lane did not edit — now gets the same portalled white bubble', async () => {
 	// `sections/SectionsSortableHeader.tsx` is NOT in this lane's owned paths and
 	// was not touched. This row is the rendered proof that the shared primitive
 	// fixed the operator's `/sections` report anyway.

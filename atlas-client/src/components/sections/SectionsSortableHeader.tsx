@@ -75,7 +75,7 @@ export function SortableSectionHeader({
 							{label} <SortIcon field={field} sortField={sortField} sortDir={sortDir} />
 						</Button>
 					</TooltipTrigger>
-					<TooltipContent side="top" className="">{ariaLabel}</TooltipContent>
+					<TooltipContent side="top">{ariaLabel}</TooltipContent>
 				</Tooltip>
 			</TooltipProvider>
 		</th>

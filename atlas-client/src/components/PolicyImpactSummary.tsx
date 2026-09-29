@@ -72,7 +72,7 @@ export default function PolicyImpactSummary({
 										{trend > 0 ? `+${trend}` : String(trend)}
 									</span>
 								</TooltipTrigger>
-								<TooltipContent className="">
+								<TooltipContent>
 									{trend === 0 ? 'Same as previous run' : trend > 0 ? `${trend} more soft violations than previous run` : `${Math.abs(trend)} fewer soft violations than previous run`}
 								</TooltipContent>
 							</Tooltip>

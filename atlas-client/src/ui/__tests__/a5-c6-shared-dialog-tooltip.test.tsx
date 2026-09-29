@@ -294,9 +294,11 @@ test('A5-35.1-C2 MUTANT: a whitespace-nowrap tooltip is REJECTED by C1\'s predic
 		);
 	}
 	// And the pre-item-34 white pill is still rejected — and it is rejected for
-	// the reason that matters now: no edge, not "it is too light".
+	// the reason that matters now: no border TOKEN, not "it is too light". Note
+	// it did carry a bare `border` and a `shadow-md`; what it lacked is
+	// `border-border`, the hairline that is actually visible on this palette.
 	assert.ok(missing(MUTANTS[1]!).length > 0, 'the white-pill list passes, so the style check is not load-bearing');
-	for (const token of ['border-border', 'shadow-md', 'z-50', 'w-max', 'max-w-[22rem]', 'whitespace-normal', 'break-words', 'leading-normal']) {
+	for (const token of ['border-border', 'z-50', 'w-max', 'max-w-[22rem]', 'whitespace-normal', 'break-words', 'leading-normal']) {
 		assert.ok(
 			missing(MUTANTS[1]!).includes(token),
 			`MUTANT CONTROL DID NOT FIRE: the white-pill list must be rejected for "${token}", not merely for cosmetics`,

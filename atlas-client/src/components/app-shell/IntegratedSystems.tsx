@@ -49,7 +49,7 @@ function DisabledRow({ item }: { item: IntegratedSystemItem }) {
 					<span className='sr-only'>{reason}</span>
 				</div>
 			</TooltipTrigger>
-			<TooltipContent side='right' className=''>
+			<TooltipContent side='right'>
 				{reason}
 			</TooltipContent>
 		</Tooltip>

@@ -674,7 +674,7 @@ export function RolloverGuidanceCard({
 									<X className="size-3.5" />
 								</Button>
 							</TooltipTrigger>
-							<TooltipContent side="bottom" className="">Hide this status</TooltipContent>
+							<TooltipContent side="bottom">Hide this status</TooltipContent>
 						</Tooltip>
 					</TooltipProvider>
 				) : null}
@@ -781,7 +781,7 @@ export function RolloverGuidanceCard({
 											<X className="size-4" />
 										</Button>
 									</TooltipTrigger>
-									<TooltipContent side="bottom" className="">Hide this status. It returns when the year status changes.</TooltipContent>
+									<TooltipContent side="bottom">Hide this status. It returns when the year status changes.</TooltipContent>
 								</Tooltip>
 							</TooltipProvider>
 						) : null}
