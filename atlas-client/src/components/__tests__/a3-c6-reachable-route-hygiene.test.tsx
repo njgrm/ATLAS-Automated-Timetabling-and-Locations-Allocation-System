@@ -225,6 +225,9 @@ const EXPECTED_ROUTE_SHAPE = [
 	'/faculty',
 	'/assignments',
 	'/sections',
+	// A3 c15 — `/faculty/preferences` is the REAL teacher page (Teacher
+	// Preferences); `/faculty/concerns` is its RETIRED ALIAS. Both paths stay
+	// registered, and their ORDER is part of this pin.
 	'/faculty/preferences',
 	'/faculty/concerns',
 	'/timetable',

@@ -290,12 +290,27 @@ const DialogContent = React.forwardRef<
 				>
 					{children}
 					{resizable ? [resizeHandle('left'), resizeHandle('right')] : null}
-					{!hideClose && (
-						<DialogPrimitive.Close className="absolute right-4 top-4 z-20 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-accent-foreground">
-							<X className="h-4 w-4" />
-							<span className="sr-only">Close</span>
-						</DialogPrimitive.Close>
-					)}
+				{/*
+				 * A7 C8 SLICE 1 (2026-09-29) — the shared dialog CLOSE, given a real
+				 * hit area. It had NO size class at all: an inline `<button>` wrapping
+				 * a 16px `<X>`, so the target a scheduler has to hit was 16x16. It is
+				 * the one control on a dialog that is always in the same corner and
+				 * always says the same thing, which makes it the easiest one to hit
+				 * deliberately and the most costly one to miss.
+				 *
+				 * `size-10` (40px) is the packet's floor and the same number
+				 * `button-variants.ts`'s `icon` size now uses, so the close and an icon
+				 * button beside it are one size rather than two (§8). The `X` stays
+				 * `h-4 w-4` — a bigger glyph is a louder dialog, and the problem was
+				 * the target, not the mark. Centring it in the new box keeps the close
+				 * in the visual place it already occupied.
+				 */}
+				{!hideClose && (
+					<DialogPrimitive.Close className="absolute right-4 top-4 z-20 inline-flex size-10 items-center justify-center rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-accent-foreground">
+						<X className="h-4 w-4" />
+						<span className="sr-only">Close</span>
+					</DialogPrimitive.Close>
+				)}
 				</DialogPrimitive.Content>
 			</div>
 		</DialogPortal>

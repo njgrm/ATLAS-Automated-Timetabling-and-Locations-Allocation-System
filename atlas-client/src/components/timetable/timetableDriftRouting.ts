@@ -86,7 +86,7 @@ const DOMAIN_META: Record<GenerationInputDomain, Omit<RunInputDriftDomain, 'doma
 	// Reviewed teacher availability is a per-faculty authority, and the scheduler
 	// concern workspace is its canonical ATLAS home. `/faculty` is only a legacy
 	// route redirect to `/teachers`; it was never the availability authority.
-	availability: { label: 'Teacher availability', href: '/faculty/concerns' },
+	availability: { label: 'Teacher availability', href: '/faculty/preferences' },
 };
 
 /**

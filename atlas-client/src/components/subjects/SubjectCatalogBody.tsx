@@ -49,6 +49,7 @@ import { SubjectMobileList } from '@/components/subjects/SubjectMobileList';
 import { SubjectTablePagination } from '@/components/subjects/SubjectTablePagination';
 import { SubjectTermContractPopover } from '@/components/subjects/SubjectTermContractPopover';
 import { SortableHeader, type SortField, type SortDir } from '@/components/subjects/SortableHeader';
+import { SUBJECT_ACTION_COLUMN_WIDTH_CLASS, SUBJECT_ACTION_COLUMN_Z } from '@/components/subjects/subject-action-column';
 import type { Subject, TermAuthority, SubjectCoverageRow } from '@/types';
 
 /**
@@ -159,7 +160,24 @@ export function SubjectCatalogBody({
 				onDelete={onDelete}
 			/>
 			<table className="hidden w-full text-sm md:table">
-				<thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-md">
+				{/* A5 C7 ITEM 44 — THE HEADER ROW, RAISED ABOVE THE STICKY BODY CELLS.
+				 *
+				 * `sticky` + `z-index` creates a STACKING CONTEXT, so this `thead`'s
+				 * `z` is what decides the header row against everything OUTSIDE it,
+				 * and no `z` on a child `<th>` can change that. It used to be `z-10`
+				 * — the SAME value as every row's sticky action `<td>`
+				 * (`SubjectRow.tsx`) — and two siblings at the same `z` paint in
+				 * document order, so `tbody` won and the header's ACTION column was
+				 * covered by row buttons as soon as the list scrolled. The `th`'s own
+				 * `z-20` never fixed it: it was resolved inside this context.
+				 *
+				 * `bg-muted`, NOT `bg-muted/90`. The `/90` alpha plus a
+				 * `backdrop-blur` meant a row button underneath was legible THROUGH
+				 * the header. That is a read-only column of labels and the only
+				 * column with a `sticky` background, so it gets an opaque one; with
+				 * an opaque fill the blur has nothing to blur, so it is dropped
+				 * rather than left as an inert class. */}
+				<thead className={`sticky top-0 ${SUBJECT_ACTION_COLUMN_Z} bg-muted`}>
 					<tr className="border-b">
 						{/* Phase 2.4: SortableHeader helper mirrors Phase 1.5. aria-sort
 							exposes the sort state, the button carries an accessible
@@ -173,7 +191,28 @@ export function SubjectCatalogBody({
 							sort. Sorting by isSeedable presented bootstrap
 							seed state as operator priority. */}
 						<th className="px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-xs">Teacher coverage</th>
-						<th className="sticky right-0 z-20 border-l border-border/40 bg-muted/90 px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-xs backdrop-blur-md">Action</th>
+						{/* A5 C7 ITEM 44 — the `z-20` THAT WAS HERE IS DELIBERATELY GONE.
+						 *
+						 * It could never have worked: a `z-index` on a child is resolved
+						 * within its parent's stacking context, so raising this `th`
+						 * above the body cells was impossible while `thead` sat at
+						 * `z-10`. Leaving `z-20` in place would have been worse than
+						 * useless — it reads as "this cell is protected" and is exactly
+						 * the misreading that shipped the defect.
+						 *
+						 * Nothing is lost by dropping it. Within the `thead` this cell
+						 * still needs to beat its SIBLINGS, and a positioned element
+						 * paints above non-positioned ones regardless of `z-index`, so
+						 * `sticky right-0` alone keeps it above the other five headers.
+						 * Against the `tbody` the header row is now decided one level
+						 * up, by `SUBJECT_ACTION_COLUMN_Z` on the `thead`.
+						 *
+						 * The fixed width is shared with each row's `<td>` so the column
+						 * edge lines up instead of the header and the cells each
+						 * deciding it. */}
+						<th className={`sticky right-0 border-l border-border/40 bg-muted py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-xs ${SUBJECT_ACTION_COLUMN_WIDTH_CLASS}`}>
+							Action
+						</th>
 					</tr>
 				</thead>
 				<tbody className="divide-y divide-border/40">

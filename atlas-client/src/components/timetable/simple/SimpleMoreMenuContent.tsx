@@ -404,9 +404,9 @@ export function SimpleMoreMenuContent({
 				{/* S2 — the scheduler concern workspace is reachable from Simple's More
 				    menu as a real link (no state dispatch, no header prop change). */}
 				<DropdownMenuItem asChild className="h-9 gap-2 text-xs" data-testid="timetable-more-teacher-concerns">
-					<Link to="/faculty/concerns" onClick={onClose}>
+					<Link to="/faculty/preferences" onClick={onClose}>
 						<HeartHandshake className="size-3.5" aria-hidden="true" />
-						Teacher concerns
+						Teacher preferences
 					</Link>
 				</DropdownMenuItem>
 				<DropdownMenuItem asChild className="h-9 gap-2 text-xs" data-testid="timetable-more-map">

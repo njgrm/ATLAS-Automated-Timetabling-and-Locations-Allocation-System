@@ -122,7 +122,7 @@ export function ReadinessObjectRow({
 								<Icon className='size-4' />
 							</div>
 							<div className='min-w-0 flex-1'>
-								<p className='text-[11px] font-medium uppercase tracking-wider text-muted-foreground'>
+								<p className='text-xs font-medium uppercase tracking-wider text-muted-foreground'>
 									{object.label}
 								</p>
 								{loading ? (

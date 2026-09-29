@@ -38,3 +38,11 @@ alignment, any disclosure ("More filters" must not exist), legend lines.
 ## Report
 Line 1; the train rows; the filter-bar table; per page: MAJOR/MINOR with element, exact words, screenshot, one-line fix,
 and the audit summary numbers; "System fixes" (shared-component changes that fix the most at once).
+
+## Receipts (operator rule, 2026-09-29 19:20) — judged on every walk
+"Schedulers must always know what the system did, presented in an easy to consume way … assurance and transparency rather
+than guessing." Presentation outranks function. After every action the system takes for the scheduler (generate, auto-fill
+teaching load, auto-assign rooms, sync from EnrollPro, create to-be-hired teachers, publish, use of teacher preferences),
+check that a plain-words **receipt** exists: what was done, how many, what was not done and why, and the next step, shown
+on the page where the action happened AND on the page whose data it changed. A missing or vague receipt on a primary path
+is MAJOR ("the scheduler has to guess").

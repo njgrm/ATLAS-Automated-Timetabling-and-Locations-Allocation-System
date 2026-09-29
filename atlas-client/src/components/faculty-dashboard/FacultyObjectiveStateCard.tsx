@@ -22,13 +22,13 @@ export default function FacultyObjectiveStateCard({ objectiveState, compact = fa
 				<div className='flex items-start justify-between gap-3'>
 					<div className='min-w-0'>
 						<p className={compact ? 'text-[13px] font-semibold leading-tight' : 'text-[15px] font-semibold leading-tight'}>{objectiveState.title}</p>
-						<p className='mt-1 text-[12px] leading-snug opacity-85'>{objectiveState.message}</p>
+						<p className='mt-1 text-xs leading-snug opacity-85'>{objectiveState.message}</p>
 					</div>
 					<Badge variant={objectiveState.hasDraftEntries ? 'success' : objectiveState.hasTeachingLoad ? 'warning' : 'outline'} className='shrink-0'>
 						{objectiveState.nextActionLabel}
 					</Badge>
 				</div>
-				<p className='rounded-xl bg-white/70 px-3 py-2 text-[12px] leading-snug text-foreground/80'>
+				<p className='rounded-xl bg-white/70 px-3 py-2 text-xs leading-snug text-foreground/80'>
 					{objectiveState.roomRequestMessage}
 				</p>
 			</CardContent>

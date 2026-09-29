@@ -227,3 +227,27 @@ medium) then GO. After live: Sync now (reconcile) with operator → ids 3/20/33 
 - **Workflow state:** reaper (20-min shell kill + BelowNormal priority for planner/test/browser processes) and monitor
   running from the scratchpad; staging QA login via `/__dev/staging-login` (password rotated 15:15); rule "clickable
   must look clickable" in the planner agent.
+
+## Session checkpoint — 2026-09-29 18:05 (Lane C, before compaction)
+- **Live** `e75d6b8f` (train 9) on S.Y. 2023-2024 Term 1; 14 "to be hired" placeholders own the 50 open classes + 22
+  moved (operator: keep for now). Rollover PAUSED by the operator. Backups: `backups/pre-cover-50-20260929`,
+  `backups/pre-rollover-2-20260929`.
+- **Train 10** (`docs/prompts/a4-train-2026-09-29-10.md`) launched 18:02 as `a4-t10`; E: 19.4 GiB → A4 reclaims first.
+  On `A4 STAGING at <pin>`: run the Codex walk per `docs/plans/codex-walk-standard.md` (Part 1 rows: Year Setup calm,
+  Teacher Preferences rename, Subjects filters/ACTION header, staffing button + audit, generate with gaps on 2023-2024,
+  past-year TL, room filters, no garbled text) + Part 2 sweep with `scripts/qa/ux-audit.js`; new MAJOR = NO_GO; Lane C
+  looks at screenshots before GO. Then resume A4 with GO.
+- **Operator direction 16:40-17:00:** UX/UI quality and readability are top priority; be critical; UX regressions block;
+  bigger default text (min 14px). Operator resting; Lane C holds judgement calls.
+- **In flight:** A7 c8 type scale + gate; A5 c8 one filter bar + fitting selects; A2 c15 grade identity (HIGH; then
+  A2 c16 truth items); A8 c4 cover routes (then A8 c5 = truth BLOCKERs first, then fix-it blockers); A6 c10r (c9
+  follow-up → placeholders-not-staff → push, then cover window); A9 c7 row home-room picker (then A9 c8 Dashboard/rooms
+  truth); A3 c16 no codes on screen. Packets: `ui-foundation`, `truth-fixes`, `cover-class-flow`, `fix-3`,
+  `a2-c15-grade-identity`, `a8-c5-generation-always-fixable` (all 2026-09-29).
+- **Train 11 (target ~21:00):** A7 c8, A5 c8, A2 c15/c16, A6 c10r, A9 c7/c8, A3 c16, A8 c4/c5 as they land; then the
+  staging drill (rollover→sync→TL→generate→manual edits→publish) and the Codex manual-controls audit on a real timetable.
+- **Operator decision pending:** drill years 2029-2030..2031-2032 listed as "past" in Year Setup/TL history.
+- **Workflow state:** reaper (20-min shells, cmd too, token relays) + monitor (silent-exit check) running; executor 300
+  steps, planner 400; rules: checkpoint commits, never revert uncommitted work, staging sign-in only via
+  `/__dev/staging-login`, UX regressions block, ux-audit.js in every proof, `test:encoding`. Stop Codex only with
+  `scratchpad/codex-stop.ps1`.

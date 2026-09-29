@@ -42,3 +42,7 @@ accessibility. Lock in."
 - Fold in every MAJOR from the Codex sweep that belongs to your area; list the rest for Lane C.
 - Done = the audit JSON on every Part 2 page shows 0 mojibake, 0 moreFilters, 0 overflowing, no sideways scroll, no
   text under 14px; screenshots attached; `npm run test:encoding` green.
+
+## Addendum 18:50 — A5 c8: row menus (teachers.docx item 6)
+See `docs/prompts/teachers-doc-2026-09-29.md` "A5 c8 addendum": `AdminDataTable.tsx:176` menu `w-52` wraps every row
+menu's items; menus fit their longest item on one line.
