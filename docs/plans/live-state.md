@@ -2098,6 +2098,43 @@ or process borrower, and is `RETIRE_AFTER_INTEGRATION` (E: 47.55 GiB before reti
 
 ## Lane C — current lane (written only by Planner C)
 
+### A9 c6 — fix-1.2 items 7.2 + 10.2, Campus & Rooms — 2026-09-29 ~17:5x +08 — **on `main` at `91328502`; candidate `ee1a7ba0`**
+
+Packet `docs/prompts/fix-1.2-2026-09-29.md` A9 section. VISUAL tier (client only, 8 paths, 0 `atlas-server/`,
+0 `prisma/`, no migration, no auth, no data). **Not deployed** — A4 owns the cutover. Evidence:
+`docs/handoffs/a9-c6-rendered-proof.md`. **36.2 is NOT done** — it is a stretch gated on 7.2+10.2 having landed
+on `main`, which they now have; it is the next A9 item.
+
+- **7.2 — the readiness toggle became four real filters.** `All rooms` (default) / `Ready` / `Needs attention` /
+  `Unavailable`, rooms in natural name order, the operator's empty sentence verbatim. The `Show all rooms` toggle
+  is **removed**, not kept beside them. Seen rendered on **real staging data** at 1366x768 (loopback
+  `127.0.0.1:5231` → staging API `:5101`, staging QA login): **103 rooms / 78 Ready / 0 Needs attention /
+  25 Unavailable**, `aria-pressed` exclusive, and `G8 Room 101..106, 201..206, 301..306, 401..406, then G9 Room 101…`
+  — numeric-aware order, not lexicographic.
+- **10.2 — the inset and the wrapping.** `px-4 md:px-6` on the `BuildingView` utility bar and drawing surface,
+  `md:px-6` on the `CampusMap` toolbar. **Measured on the render:** surface `x=297 w=628`, canvas `x=322 w=578`
+  → a **25px** inset (1px border + 24px of `md:px-6`) on both sides, so `contentRect.width` really does exclude
+  the padding and the Konva `Stage` does not overflow; toolbar height still **28px**, so the three fixed-stage
+  callers (500 / 480 / 420) are unaffected. `BuildingView.tsx:834` was **checked and the `truncate` kept** — it is
+  the utilization legend, not a room name, its full sentence is already in the `TooltipContent` beneath it, and
+  wrapping it would add a line box to three fixed-height panes. That decline is now machine-checked.
+- **Two defects the render and the full suite caught, both fixed in the range:** the active filter was **invisible**
+  (`secondary` computed to `rgb(243,244,246)` with a *transparent* border, against inactive `rgb(255,255,255)` with
+  a visible one — the pressed chip looked less like a control than its neighbours), fixed in both this row and
+  `/teachers`' for §8 one-look-per-control; and `BuildingView.tsx` crossed §8's **1000-line component cap** at 1017,
+  caught by `test:timetable-relaxed-subpages` in the full suite, back to 1000.
+- **Gates:** 14 focused suites green (183 tests) on the merged tree. `typecheck` 5 errors, unchanged, all in files
+  this range does not touch. `test:client-suite` **1267/1305**, 38 pre-existing failures across 23 files, **zero
+  overlap** with this blast radius.
+- **TRAIN BLOCKER, NOT MINE — `as of 2026-09-29`:** `test:a3-palette-token-sweep` (8/9) and
+  `test:a3-palette-slate400-s-f` (7/9) are **red on `origin/main` at `5f181110` with no A9 c6 work present** —
+  proven in a detached checkout of that SHA. Cause: A5 c6 / A8 c3 changed `atlas-client/src/index.css`, and
+  `palette-slate400-step2-a3-s-f` states in its own assertion that a global token change is "not local to any one
+  stream" and requires that file and its handoff to be re-measured **in the same commit**. **`@/ui` owner = A5.**
+  `test:a3-c8-warning-token` is also red on `main` (repo-wide raw amber/yellow file-count pin 66 vs measured 67 at
+  both revisions) — pre-existing, not re-pinned.
+- **Next action:** A4 — A9 c6 is ready for the evening train; A5 to re-measure the two `index.css` ratchets.
+
 ### A7-C7 false "School year changed" banner — 2026-09-29 ~14:50 +08 — **on `main` at `3fef69c1`; candidate `3918902e`**
 
 Packet `docs/prompts/a7-c7-false-rollover-banner-2026-09-29.md`. MEDIUM (server + client), 11 paths, **0 `prisma/`**,
