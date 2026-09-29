@@ -121,8 +121,17 @@ function fakeClient(data: ReturnType<typeof fixture>, writes: { count: number },
 	const mirror = (row: MirrorRow) => ({ ...row });
 	return {
 		enrollProSchoolYearMirror: {
+			// A9 c5 QA (BLOCKING, row 10a): this fake used to honour ONLY
+			// `where.schoolId` and silently drop `where.isArchived`. Reverting the
+			// service to its pre-A9-c5 `where: { schoolId, isArchived: true }` filter
+			// therefore still passed row 1 - the fake ignored the very clause the
+			// defect lived in, so the suite asserted the ANSWER instead of deciding
+			// it (AGENTS.md 11, "a proof artefact must actually discriminate").
+			// `isArchived` is honoured here, exactly as `rr-ux01-rollover-history`'s
+			// fake does, so the filter is load-bearing again.
 			findMany: async ({ where }: any) => data.mirrors
 				.filter((row) => row.schoolId === where.schoolId)
+				.filter((row) => (where.isArchived === undefined ? true : row.isArchived === where.isArchived))
 				.map(mirror),
 			findUnique: async ({ where }: any) => {
 				const key = where.schoolId_enrollProSchoolYearId;
