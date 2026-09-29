@@ -2946,3 +2946,12 @@ Operator rolled EnrollPro to 2024-2025 (id 3). Live EnrollPro /integration/v1/ac
 ("EnrollPro active term missing is outside the ordered term contract"), so the new year's terms could not be saved.
 b72571ba treats a null identity as UNRESOLVED (9/9 C02 tests, tsc clean). Walk row for train 11: /admin/year-setup shows
 2024-2025 with TERM 1-3 saved and no contract error; Class Schedule term picker lists Terms 1-3.
+
+## Lane C -> A5 c8, A6, A3, 29 Sep 22:18 — operator hotfixes on Teaching Load and rollover terms (on main as 8f10b2e8, b72571ba)
+- **A5 c8 / A6:** Teaching Load no longer has the Cross-subject / No subject match switches (operator: "not working"; Cross-subject
+  only revealed a block inside an open editor). The editor offers "Show other subjects (N)" per teacher. The Past years button
+  under the header is gone; the tools menu item is renamed Past years. Merge origin/main before your next slice; do not bring
+  the switches back. Eleven test rows that pinned them are skipped with a reason; re-pin them to the new shape.
+- **A3 (after p1, train 12):** operator asked why rollover made them "confirm the term order". The terms are read-only from
+  EnrollPro; ATLAS should save the verified ordered terms automatically at rollover (with a receipt: "Saved Terms 1-3 from
+  EnrollPro for 2024-2025") and only ask when EnrollPro changes terms under an existing draft or published timetable.
