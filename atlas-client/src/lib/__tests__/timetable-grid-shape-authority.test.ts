@@ -127,11 +127,40 @@ function duplicateKeys(slots: GridDisplaySlot[]): string[] {
 	return [...duplicates];
 }
 
-// Live-shaped Grade 7 REGULAR section: the EnrollPro internal grade ID (17)
-// leaked into displayOrder/gradeLevelName, so the old literal resolver failed.
+/**
+ * A REAL staging row, as measured on `atlas_staging` 2026-09-28 (A2 c15 §0):
+ * a section always carries `gradeLevelName` "Grade 7".."Grade 10" AND
+ * `displayOrder` 7..10 alongside the OPAQUE EnrollPro `grade_level_id` (which
+ * reads 1..4 for school years 1 and 2 after the 2026-09-28 re-mint, and 17..20
+ * before it). The id is never the grade; the name and the order are.
+ *
+ * A2 c15 CORRECTION B1: this fixture previously stated the HISTORICAL
+ * id-leak shape (empty name, `displayOrder: 17`) and depended on the client
+ * twin falling back to the 17-20 id map to reach Grade 7. That fallback is
+ * exactly what the correction removed — a section with no usable grade must
+ * adopt NO shape contract — so the production rows below now run against the
+ * real surface. The id-leak shape is preserved as `ID_LEAK_LUNA` for the
+ * pre-fix control and for the new negative control; nothing was deleted.
+ */
 const LUNA: ExternalSection = {
 	id: 141,
 	name: 'Luna',
+	maxCapacity: 40,
+	enrolledCount: 38,
+	gradeLevelId: 17,
+	gradeLevelName: 'Grade 7',
+	displayOrder: 7,
+	programType: 'REGULAR',
+};
+
+/**
+ * The HISTORICAL id-leak shape: the EnrollPro internal grade ID reached
+ * `displayOrder` and the grade name was absent, so only an id map could recover
+ * a grade. The one authority returns `null` for it, deliberately.
+ */
+const ID_LEAK_LUNA: ExternalSection = {
+	id: 142,
+	name: 'Luna (id-leak shape)',
 	maxCapacity: 40,
 	enrolledCount: 38,
 	gradeLevelId: 17,
@@ -141,7 +170,7 @@ const LUNA: ExternalSection = {
 };
 
 test('resolves the G7 REGULAR shape from a 16-contract summary despite the EnrollPro internal grade ID', () => {
-	assert.equal(resolveSectionGradeNumber(LUNA), 7, 'internal grade ID 17 normalizes to Grade 7');
+	assert.equal(resolveSectionGradeNumber(LUNA), 7, 'a named Grade 7 section resolves to Grade 7 whatever its EnrollPro id');
 	const contract = resolveSectionShapeContract(LUNA, CONTRACTS);
 	assert.ok(contract, 'section contract resolves');
 	assert.equal(contract.gradeLevel, 7);
@@ -188,9 +217,9 @@ test('grid rows collapse a shape to one row per interval and fold the Monday fla
 });
 
 test('negative control: the pre-fix resolver fails and the raw union duplicates 06:45-07:30', () => {
-	// The old resolver returned null for the live-shaped section, so the grid
-	// fell back to the run-wide union.
-	assert.equal(legacyResolveSectionGradeNumber(LUNA), null, 'pre-fix resolver cannot read internal grade ID 17');
+	// The old resolver returned null for a section carrying only the EnrollPro
+	// internal id, so the grid fell back to the run-wide union.
+	assert.equal(legacyResolveSectionGradeNumber(ID_LEAK_LUNA), null, 'pre-fix resolver cannot read internal grade ID 17');
 
 	const union = buildUnionForTest(CONTRACTS);
 	assert.ok(union.length > 20, `union merges every shape (got ${union.length} rows)`);
@@ -202,6 +231,43 @@ test('negative control: the pre-fix resolver fails and the raw union duplicates 
 	assert.deepEqual(duplicateKeys(buildGridRows(union)), [], 'buildGridRows eliminates union duplicates');
 });
 
+test('A2 c15 negative control: a section with no usable grade adopts NO shape contract', () => {
+	// The deliberate half of the A2 c15 correction. A section whose only grade
+	// signal is the opaque EnrollPro `grade_level_id` (17 here, with no name and
+	// a `displayOrder` outside 7-12) resolves to NO grade, so it must adopt NO
+	// per-grade shape contract. It must never be handed Grade 7 through the old
+	// 17-20 id map: that is the same "an unnamed 1 must not become 7" rule the
+	// server authority applies at C15-L3-2, and this is its client twin.
+	assert.equal(resolveSectionGradeNumber(ID_LEAK_LUNA), null, 'an id-only section resolves to no grade, never Grade 7');
+	assert.equal(resolveSectionShapeContract(ID_LEAK_LUNA, CONTRACTS) ?? null, null, 'no shape contract is adopted for a section with no real grade');
+
+	// The consequence on the grid: the section view resolves the section's OWN
+	// contract, and with none it resolves no slots at all. It does NOT fall back
+	// to another grade's shape — inventing a Grade 7 grid for a section that
+	// names no grade is precisely the defect class this correction closes. A
+	// named sibling in the same map is unaffected.
+	assert.equal(
+		resolveEntityDisplaySlots({
+			viewMode: 'section',
+			entityFilter: String(ID_LEAK_LUNA.id),
+			sectionMap: new Map([[ID_LEAK_LUNA.id, ID_LEAK_LUNA], [LUNA.id, LUNA]]),
+			entries: [],
+			contracts: CONTRACTS,
+		}),
+		undefined,
+		'the section view renders no slots for a section with no real grade, rather than borrowing another grade\'s shape',
+	);
+	const namedSibling = resolveEntityDisplaySlots({
+		viewMode: 'section',
+		entityFilter: String(LUNA.id),
+		sectionMap: new Map([[ID_LEAK_LUNA.id, ID_LEAK_LUNA], [LUNA.id, LUNA]]),
+		entries: [],
+		contracts: CONTRACTS,
+	});
+	assert.ok(namedSibling, 'the named Grade 7 sibling still resolves its own shape');
+	assert.equal(namedSibling.length, 11, 'and it still gets its own 11-row Grade 7 shape');
+});
+
 test('teacher/room views union only the shapes the entity actually consumes', () => {
 	const g9: ExternalSection = {
 		id: 191,
@@ -209,8 +275,8 @@ test('teacher/room views union only the shapes the entity actually consumes', ()
 		maxCapacity: 40,
 		enrolledCount: 36,
 		gradeLevelId: 19,
-		gradeLevelName: '',
-		displayOrder: 19,
+		gradeLevelName: 'Grade 9',
+		displayOrder: 9,
 		programType: 'REGULAR',
 	};
 	const sectionMap = new Map<number, ExternalSection>([[LUNA.id, LUNA], [g9.id, g9]]);
