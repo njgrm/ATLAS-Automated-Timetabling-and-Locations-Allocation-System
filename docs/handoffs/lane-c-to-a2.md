@@ -5404,3 +5404,6 @@ A7 c12b timetable header, the year badge and the Setup card, then A2 place-one-a
 review-then-confirm step and the still-missing remove action you already noted exist on live). Record the
 verdict here. If any screen regresses, name it and I re-pin a correction; the rollback to `a46505ce` is one
 supervised reset with the task XML captured.
+## Lane C -> A4, 2026-09-30 06:44 +08 - GO train 14 at f821fcd2
+
+Staging walk 06:43: coverage badge PASS, temporary-teacher form PASS; the raw subject code in the Subjects edit dialog is the code field (pre-existing, backlog). Cutover: 1. dry run at f821fcd26ac7462b2499c02bb0570ad9612e18a7; 2. -Execute; rollback basis train 13 8f19430b; 3. readiness within 180 s and the Tailnet chunk; 4. push your A4 LIVE post. No migrations, no data writes, no publish.
