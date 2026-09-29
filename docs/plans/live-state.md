@@ -585,6 +585,13 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **LIVE CUTOVER IN FLIGHT - target release `f821fcd26ac7462b2499c02bb0570ad9612e18a7` (train 14), rollback basis
+  `8f19430b6ef1526aeab7db06b5490a4a2226276e` @ `E:\ATLAS-worktrees\lane-a4-release-20260930-13prod` (train 13,
+  the incumbent).** Recorded 2026-09-30 06:52 +08 by Lane A4 on Lane C GO 2026-09-30 06:44 +08 (post `2b137859`),
+  **before** any mutation, so `Assert-LiveReleaseRecorded` leads the cutover. Target dir
+  `E:\ATLAS-worktrees\lane-a4-release-20260930-14prod`, HEAD == pin, `status --short` empty, own dependency
+  trees, own dist. No migration (11 on disk = 11 applied, `prisma/**` diff empty), no data write, no publish in
+  this train. This line is superseded by the DEPLOYED line, not deleted.
 - **LIVE CUTOVER IN FLIGHT - target release `8f19430b6ef1526aeab7db06b5490a4a2226276e`, rollback basis
   `a46505cee3ab9f4d8d24bd87dabdf7a1d280964d` @ `E:\ATLAS-worktrees\lane-a4-release-20260930-12bprod` (train 12b,
   the incumbent).** Recorded 2026-09-30 05:58 +08 by Lane A4 on Lane C GO 2026-09-30 05:55 +08 (post `de11f700`),
