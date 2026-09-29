@@ -66,7 +66,7 @@ export function TimetableWorkflowDialogs({ context, isPublished = false }: { con
 
 	return <>
 		<Dialog open={showUnassignConfirm} onOpenChange={setShowUnassignConfirm}>
-			<DialogContent className="sm:max-w-sm">
+			<DialogContent resizable={false} className="sm:max-w-sm">
 				{/* NOUN RULE (item 4): the one noun for the unit a scheduler places.
 				 * The unassign dialog is the same surface family as the generate
 				 * dialog, so it speaks the same noun. */}
@@ -93,11 +93,11 @@ export function TimetableWorkflowDialogs({ context, isPublished = false }: { con
 		/>
 
 		<Dialog open={showResetDraftDialog} onOpenChange={setShowResetDraftDialog}>
-				<DialogContent className="sm:max-w-sm"><DialogHeader><DialogTitle>Reset the draft schedule?</DialogTitle><DialogDescription>Saved placements return to the queue without a time.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setShowResetDraftDialog(false)}>Cancel</Button><Button variant="destructive" onClick={() => void openPreGenerationWorkspace(true)}>Reset draft</Button></DialogFooter></DialogContent>
+				<DialogContent resizable={false} className="sm:max-w-sm"><DialogHeader><DialogTitle>Reset the draft schedule?</DialogTitle><DialogDescription>Saved placements return to the queue without a time.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setShowResetDraftDialog(false)}>Cancel</Button><Button variant="destructive" onClick={() => void openPreGenerationWorkspace(true)}>Reset draft</Button></DialogFooter></DialogContent>
 		</Dialog>
 
 		<Dialog open={showLeavePreGenDialog} onOpenChange={setShowLeavePreGenDialog}>
-			<DialogContent className="sm:max-w-sm"><DialogHeader><DialogTitle>Leave draft review?</DialogTitle><DialogDescription>Your saved anchors remain available when you return.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setShowLeavePreGenDialog(false)}>Stay here</Button><Button onClick={() => { setShowLeavePreGenDialog(false); const action = pendingCenterSwitch; setPendingCenterSwitch(null); action?.(); }}>Continue</Button></DialogFooter></DialogContent>
+			<DialogContent resizable={false} className="sm:max-w-sm"><DialogHeader><DialogTitle>Leave draft review?</DialogTitle><DialogDescription>Your saved anchors remain available when you return.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setShowLeavePreGenDialog(false)}>Stay here</Button><Button onClick={() => { setShowLeavePreGenDialog(false); const action = pendingCenterSwitch; setPendingCenterSwitch(null); action?.(); }}>Continue</Button></DialogFooter></DialogContent>
 		</Dialog>
 
 		<Sheet open={Boolean(requestPreview || requestPreviewLoading)} onOpenChange={(open) => { if (!open) closeRequest(); }}>
@@ -124,10 +124,10 @@ export function TimetableWorkflowDialogs({ context, isPublished = false }: { con
 			</SheetContent>
 		</Sheet>
 
-		<Dialog open={generating} modal><DialogContent className="sm:max-w-sm" hideClose onPointerDownOutside={(event) => event.preventDefault()}><div className="flex flex-col items-center gap-3 py-4"><Loader2 className="size-10 animate-spin text-primary" /><h3 className="font-semibold">Generating schedule</h3><p className="text-sm text-muted-foreground">Checking placements and scheduling rules.</p><span className="flex items-center gap-1 text-xs text-muted-foreground"><Clock className="size-3" />Elapsed: {generationElapsed}s</span></div></DialogContent></Dialog>
+		<Dialog open={generating} modal><DialogContent resizable={false} className="sm:max-w-sm" hideClose onPointerDownOutside={(event) => event.preventDefault()}><div className="flex flex-col items-center gap-3 py-4"><Loader2 className="size-10 animate-spin text-primary" /><h3 className="font-semibold">Generating schedule</h3><p className="text-sm text-muted-foreground">Checking placements and scheduling rules.</p><span className="flex items-center gap-1 text-xs text-muted-foreground"><Clock className="size-3" />Elapsed: {generationElapsed}s</span></div></DialogContent></Dialog>
 
 		<Dialog open={showPublishDialog} onOpenChange={(open) => { setShowPublishDialog(open); if (!open) setPublishAcknowledged(false); }}>
-			<DialogContent className="sm:max-w-md">
+			<DialogContent resizable={false} className="sm:max-w-md">
 				<DialogHeader>
 					<DialogTitle>{canRequestPublication ? 'Request schedule publication' : 'Publish schedule'}</DialogTitle>
 					<DialogDescription>
@@ -228,7 +228,7 @@ export function GenerateConfirmDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			{/* `hideClose`: the DialogContent `X` and `Cancel` were two controls for
 			 * one action, and the `X` carried no label. One real close remains. */}
-			<DialogContent className="sm:max-w-md" hideClose data-testid="timetable-generate-confirm-dialog">
+			<DialogContent resizable={false} className="sm:max-w-md" hideClose data-testid="timetable-generate-confirm-dialog">
 				<DialogHeader>
 					<DialogTitle data-testid="timetable-generate-confirm-title">{buildNewDraftDialogTitle(isPublished)}</DialogTitle>
 					<DialogDescription data-testid="timetable-generate-confirm-first-line">

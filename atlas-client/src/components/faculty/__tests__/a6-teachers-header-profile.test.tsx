@@ -174,28 +174,27 @@ const TEACHER: any = {
 
 /* ───────────────────────────── Item 24.1 — the header row ────────────────── */
 
-function renderHeader(nextTeacherNumber = 42) {
+function renderHeader() {
 	return render(
 		createElement(FacultyRosterActions as any, {
 			onCreateTemporary: () => {},
 			onRefreshRoster: () => {},
 			syncing: false, isOnline: true, refreshing: false,
-			nextTeacherNumber,
 		}),
 	);
 }
 
 test('A6-24.1-1 the rendered header row shows BOTH requested actions, as DIRECT buttons', () => {
-	const host = renderHeader(42);
+	const host = renderHeader();
 	const row = host.querySelector('[data-testid="faculty-roster-action-row"]');
 	assert.ok(row, 'the roster action row must render');
 	const texts = buttonsIn(row).map((b) => (b.textContent ?? '').trim());
 
-	// The operator's own two labels, verbatim. `42` is the REAL next teacher
-	// number the page passes, not a placeholder.
+	// The operator's own two labels, verbatim. `X` is a LITERAL capital X (fix
+	// 24.2), not the next roster number.
 	assert.deepEqual(
 		texts,
-		['Update teacher list', 'Create temporary teacher (Teacher 42)'],
+		['Update teacher list', 'Create temporary teacher (Teacher X)'],
 		`the row must carry exactly the two requested actions in the requested order; saw ${JSON.stringify(texts)}`,
 	);
 	// And the order the operator named, with `Help` supplied by the shared frame
@@ -211,7 +210,14 @@ test('A6-24.1-1 the rendered header row shows BOTH requested actions, as DIRECT 
 	// label cannot be correct in the component and wrong in the module.
 	assert.equal(UPDATE_TEACHER_LIST_LABEL, 'Update teacher list');
 	assert.equal((first as HTMLElement).getAttribute('data-label'), UPDATE_TEACHER_LIST_LABEL);
-	assert.equal((second as HTMLElement).getAttribute('data-label'), 'Create temporary teacher (Teacher 42)');
+	assert.equal((second as HTMLElement).getAttribute('data-label'), 'Create temporary teacher (Teacher X)');
+	// Fix 24.2: the parenthetical is a bare literal `X`. This is the row that
+	// fails if the number interpolation ever comes back.
+	assert.doesNotMatch(
+		(second as HTMLElement).getAttribute('data-label') ?? '',
+		/Teacher \d/,
+		'a teacher number was interpolated into the header label again',
+	);
 	// `Update` is a SECONDARY action beside the primary create action, so the two
 	// must be distinguishable by shape and not only by wording.
 	//
@@ -234,7 +240,7 @@ test('A6-24.1-2 NO control anywhere on the Teachers header reads `Review teacher
 	// copy. Both were reachable on the real page, so the assertion is made over
 	// the component AND over the page's wiring, because a component that no
 	// longer renders a button can still be mounted twice.
-	const host = renderHeader(42);
+	const host = renderHeader();
 	for (const button of buttonsIn(host)) {
 		assert.doesNotMatch(
 			(button.textContent ?? '').trim(),
@@ -280,7 +286,6 @@ test('A6-24.1-3 both header actions are reachable and DO something when clicked'
 			onCreateTemporary: () => { created += 1; },
 			onRefreshRoster: () => { synced += 1; },
 			syncing: false, isOnline: true, refreshing: false,
-			nextTeacherNumber: 43,
 		})));
 	});
 
@@ -295,7 +300,7 @@ test('A6-24.1-3 both header actions are reachable and DO something when clicked'
 	// temporary-teacher creation workflow.
 	const create = host.querySelector('[data-testid="faculty-create-temporary"]') as HTMLButtonElement;
 	assert.ok(create, 'the create action must render');
-	assert.equal((create.textContent ?? '').trim(), 'Create temporary teacher (Teacher 43)');
+	assert.equal((create.textContent ?? '').trim(), 'Create temporary teacher (Teacher X)');
 	click(create);
 	assert.equal(created, 1, 'the create action must open the temporary-teacher workflow');
 });
@@ -332,21 +337,61 @@ test('A6-23.1-1 the profile card is a RESIZABLE centred dialog with the requeste
 	const dialog = renderProfile();
 
 	const cls = dialog.getAttribute('class') ?? '';
-	// The resize treatment. `overflow-hidden` is not decoration: a native
-	// resize handle does not appear on a box that scrolls, so the card must clip
-	// and the inner body must scroll instead.
-	assert.match(cls, /\bresize\b/, 'the card must be user-resizable');
-	assert.match(cls, /\boverflow-hidden\b/, 'the card must clip for a resize handle to exist');
-	// The requested bounds, in the guarded `min(…,95vw)` form so a 390px viewport
+	// A5 item 23.2 moved the resize affordance to the SHARED primitive, so the
+	// card no longer carries a page-local `resize` class. The card's job now is
+	// to ASK (`resizable`), and the primitive supplies the clamps, the two visible
+	// drag handles and the flex centring. Asserting the absence of the local class
+	// is the control that stops a second dialect of "resizable" growing here again.
+	assert.doesNotMatch(cls, /(?:^|\s)resize(?:\s|$)/, 'the page-local `resize` class is back; the shared primitive owns this now');
+	assert.equal(
+		dialog.getAttribute('data-resizable'),
+		'true',
+		'the profile card must opt into the shared resizable contract',
+	);
+	// The card's own bounds, in the guarded `min(…,95vw)` form so a 390px viewport
 	// cannot produce a global horizontal scrollbar.
-	assert.match(cls, /\bmin-w-\[min\(500px,95vw\)\]/, 'the 500px width floor must be viewport-guarded');
 	assert.match(cls, /\bmin-h-\[min\(400px,90vh\)\]/, 'the 400px height floor must be viewport-guarded');
 	assert.match(cls, /\bmax-w-\[95vw\]/, 'the card must never exceed the viewport width');
 	assert.match(cls, /\bmax-h-\[90vh\]/, 'the card must never exceed the viewport height');
+	// EXACTLY ONE width floor, and it is this card's larger 500px one. The shared
+	// primitive's 480px floor is in the same Tailwind group, so `cn`/tailwind-merge
+	// resolves the two into one — a card rendering both would be ambiguous about
+	// which bound is real, and a control that cannot tell is a control that lies.
+	const widthFloors = cls.match(/min-w-\[[^\]]+\]/g) ?? [];
+	assert.deepEqual(
+		widthFloors,
+		['min-w-[min(500px,95vw)]'],
+		`the card must resolve to exactly one width floor; saw ${JSON.stringify(widthFloors)}`,
+	);
+	// The drag handles are VISIBLE affordances, not an invisible 2px line, and
+	// they are out of the tab order (a pointer drag is not a keyboard control).
+	const handles = Array.from(dialog.querySelectorAll('[data-testid="dialog-resize-handle"]'));
+	assert.equal(handles.length, 2, `the card must render a left and a right handle, saw ${handles.length}`);
+	for (const handle of handles as HTMLElement[]) {
+		const handleCls = handle.getAttribute('class') ?? '';
+		assert.match(handleCls, /\bcursor-ew-resize\b/, 'a handle must advertise that it drags sideways');
+		assert.match(handleCls, /\bbg-border\b/, 'a handle must be visible, not an invisible line');
+		assert.equal(handle.getAttribute('aria-hidden'), 'true', 'the handle must be hidden from assistive tech');
+		assert.equal(handle.getAttribute('tabindex'), '-1', 'the handle must be out of the tab order');
+	}
+	// `overflow-hidden` is still load-bearing: it keeps the card as the clipping
+	// box so the BODY, not the card, is the one scroll region.
+	assert.match(cls, /\boverflow-hidden\b/, 'the card must clip so the body is the only scroll region');
 	// A flex-column, non-scrolling shell, so the BODY is the one scroll region.
 	assert.match(cls, /\bflex\b/);
 	assert.match(cls, /\bflex-col\b/);
 	assert.match(cls, /\bp-0\b/, 'the card has no padding; the header and body supply their own');
+
+	// CENTRING IS THE FLEX PARENT, not a `left-[50%] top-[50%]` translate. A
+	// translate re-anchors the box for the size it was animated at, which is
+	// what made width drag unusable; the wrapper re-centres every frame.
+	const wrapper = dialog.parentElement;
+	assert.ok(wrapper, 'the dialog must be centred by a wrapper element');
+	assert.equal(wrapper!.getAttribute('data-dialog-centering'), 'flex');
+	assert.match(wrapper!.getAttribute('class') ?? '', /\bflex\b/);
+	assert.match(wrapper!.getAttribute('class') ?? '', /\bitems-center\b/);
+	assert.doesNotMatch(cls, /left-\[50%\]/, 'the translate centring anchor is back');
+	assert.doesNotMatch(cls, /top-\[50%\]/, 'the translate centring anchor is back');
 
 	// Exactly one scroll container inside the card: the body.
 	const scrollers = Array.from(dialog.querySelectorAll('*'))
@@ -430,6 +475,14 @@ test('A6-23.1-3 the profile dialog is still an accessible modal', () => {
 		Array.from(dialog.querySelectorAll('p')).some((p) => (p.textContent ?? '').includes('Roster source')),
 		'the dialog must still carry a description',
 	);
+	// A5 item 23.2: adding two drag handles must not break the close button or
+	// the keyboard path. The handles are inset from the top-right corner the close
+	// button occupies, and the close button still closes.
+	const close = Array.from(dialog.querySelectorAll('button')).find(
+		(b) => (b.textContent ?? '').includes('Close'),
+	);
+	assert.ok(close, 'the dialog lost its close button');
+	assert.equal(close!.tagName, 'BUTTON', 'the close control must be a real button element');
 	// No raw `title` anywhere in the rendered card.
 	for (const el of allRendered()) {
 		assert.equal(el.getAttribute('title'), null, 'no rendered element may carry a raw title attribute (AGENTS.md §8)');
@@ -440,10 +493,18 @@ test('A6-23.1-3 the profile dialog is still an accessible modal', () => {
 	assert.doesNotMatch(source, /<select\b/, 'no raw <select> in the profile dialog (AGENTS.md §8)');
 	assert.doesNotMatch(source, /<button\b/, 'no raw <button> in the profile dialog (AGENTS.md §8)');
 	// The card is still CENTRED, per the item: the operator asked for a resizable
-	// card, not a repositioned one.
+	// card, not a repositioned one. A5 item 23.2 changed HOW it is centred — the
+	// `left-[50%] top-[50%]` translate is replaced by a flex parent, because a
+	// transform computed for one size fights a box the operator is resizing — but
+	// the outcome the operator asked for is unchanged, so the CLAIM is re-asserted
+	// on the new mechanism rather than dropped.
 	const cardCls = dialog.getAttribute('class') ?? '';
-	assert.match(cardCls, /left-\[50%\]|left-1\/2|-translate-x-1\/2/, 'the card must stay horizontally centred');
-	assert.match(cardCls, /top-\[50%\]|top-1\/2/, 'the card must stay vertically centred');
+	const wrapperCls = dialog.parentElement?.getAttribute('class') ?? '';
+	assert.equal(dialog.parentElement?.getAttribute('data-dialog-centering'), 'flex', 'the card must be centred by the flex parent');
+	assert.match(wrapperCls, /\bjustify-center\b/, 'the centring wrapper must centre horizontally');
+	assert.match(wrapperCls, /\bitems-center\b/, 'the centring wrapper must centre vertically');
+	assert.doesNotMatch(cardCls, /left-\[50%\]|left-1\/2|-translate-x-1\/2/, 'the translate centring anchor is back on the card');
+	assert.doesNotMatch(cardCls, /top-\[50%\]|top-1\/2/, 'the translate centring anchor is back on the card');
 });
 
 /* ================================================================== *

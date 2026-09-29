@@ -189,7 +189,9 @@ function YearRow({ schoolId, year, onKept }: YearRowProps) {
 			</div>
 
 			<Dialog open={preview !== null} onOpenChange={(open) => { if (!open) closeDialog(); }}>
-				<DialogContent className="w-[calc(100%-2rem)] sm:max-w-md" hideClose={applying} data-testid="year-setup-keep-dialog">
+				{/* A5 item 23.2: a CONFIRMATION (keep this year / start a new one) —
+				    forced compact. */}
+				<DialogContent resizable={false} className="w-[calc(100%-2rem)] sm:max-w-md" hideClose={applying} data-testid="year-setup-keep-dialog">
 					<DialogHeader>
 						<DialogTitle>{plainKeepYearTitle(year.yearLabel)}</DialogTitle>
 						<DialogDescription>

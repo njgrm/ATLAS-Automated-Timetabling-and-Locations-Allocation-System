@@ -172,9 +172,30 @@ test('#58: the run lifecycle itself is unchanged — RUNNING, startedAt and the 
 // ─── The number on screen is the number the server computed ─────────────────
 
 test('U4: the printed count is the server-computed summary count, not a re-derivation', () => {
+	// SUPERSEDED IN PLACE, A8 C3 (2026-09-29) — the ORIGINAL literal below read
+	// `message: buildGenerationCompletedMessage(summary.unassignedCount)`.
+	// It is retained here as the record of the change, and is NOT run as
+	// pass/fail, because the call site is now the object form:
+	//
+	//     assert.match(
+	//         SERVICE_SOURCE,
+	//         /message: buildGenerationCompletedMessage\(summary\.unassignedCount\)/,
+	//         'the formatter must receive the same computed count the summary and metadata carry',
+	//     );
+	//
+	// WHAT THE ROW WAS PROTECTING is unchanged and is still asserted below: the
+	// number a scheduler reads is the number the server computed, never a
+	// re-derivation. A8 C3 only ADDED the teacher-gap class count next to it, and
+	// both still come from `summary` (the persisted run summary), so the
+	// protection holds. `U4R` beside this row is the replacement.
+	//
+	// WHY the object form is the correct fix rather than a loss: on live S.Y.
+	// 2023-2024 the single sentence told a scheduler that 570 unplaced sessions
+	// "need a time slot" — but those 50 classes had no TEACHER, so the sentence
+	// sent the operator to the wrong screen for all of them.
 	assert.match(
 		SERVICE_SOURCE,
-		/message: buildGenerationCompletedMessage\(summary\.unassignedCount\)/,
+		/message: buildGenerationCompletedMessage\(\{\s*unplacedCount: summary\.unassignedCount,/,
 		'the formatter must receive the same computed count the summary and metadata carry',
 	);
 	assert.match(
@@ -189,6 +210,36 @@ test('U4: the printed count is the server-computed summary count, not a re-deriv
 		SERVICE_SOURCE,
 		/export interface RunSummary \{[\s\S]*?unassignedCount: number;/,
 		'RunSummary.unassignedCount is a required number, so it cannot be silently absent',
+	);
+});
+
+test('U4R: the extra figures the formatter is given are the PERSISTED run summary figures', () => {
+	// A8 C3. The gap counts handed to the formatter must be the same objects the
+	// run persisted, so the sentence a scheduler reads after the run describes
+	// that run — not a pre-run guess that could have been overtaken.
+	assert.match(
+		SERVICE_SOURCE,
+		/teacherGapClasses: summary\.teacherGapClasses,/,
+		'the teacher-gap class count comes from the persisted run summary',
+	);
+	assert.match(
+		SERVICE_SOURCE,
+		/timeSlotClasses: summary\.timeSlotClasses,/,
+		'the time-slot class count comes from the persisted run summary',
+	);
+	assert.match(
+		SERVICE_SOURCE,
+		/summarizeTeacherGaps\(\{[\s\S]*?unassignedItems: resolvedUnassignedItems/,
+		'the breakdown is derived from the run\'s own resolved unassigned items, not the preflight',
+	);
+	// And the formatter still derives no number of its own: the same input yields
+	// the same sentence, and the unclassified arm is byte-identical to the pre-A8
+	// wording so no accepted copy changes silently.
+	assert.equal(buildGenerationCompletedMessage(3), buildGenerationCompletedMessage(3), 'deterministic');
+	assert.equal(
+		buildGenerationCompletedMessage({ unplacedCount: 3, teacherGapClasses: 0, timeSlotClasses: 0 }),
+		buildGenerationCompletedMessage(3),
+		'an unclassified run reads exactly as it did before A8 C3',
 	);
 });
 

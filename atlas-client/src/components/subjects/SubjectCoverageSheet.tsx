@@ -3,7 +3,6 @@ import {
 	AlertTriangle,
 	CheckCircle2,
 	ChevronRight,
-	GripHorizontal,
 	Info,
 	MapIcon,
 	RefreshCw,
@@ -103,24 +102,34 @@ export function SubjectCoverageSheet({
 		<Dialog open={!!subject} onOpenChange={(open) => !open && onClose()}>
 			<DialogContent
 				/*
-				 * A5 (operator item 17.1(1)) — RESIZABLE WHILE STILL CENTERED.
+				 * A5 item 23.2 — THE SHARED DIALOG IS THE RESIZE CONTRACT.
 				 *
-				 * Centring needs no JavaScript. The shared primitive positions with
-				 * `left-[50%] top-[50%]` and the `animate-modal-in` keyframes in
-				 * `src/index.css` hold `transform: translate(-50%,-50%)` with
-				 * `forwards`, so the browser re-centres the box at whatever size
-				 * it currently is — including the size CSS `resize` writes during
-				 * a drag. Anyone tempted to add JS re-centring here should read
-				 * that first.
+				 * This card used to answer "make it resizable" on its own: a
+				 * page-local `style={{ resize: 'both' }}`, its own `min-w`/`max-w`/
+				 * `min-h`/`max-h` bounds, its own `left-[50%] top-[50%]` centring note,
+				 * and a page-local grip icon. Four dialogs in the app were resizable
+				 * and none of them the same way.
 				 *
-				 * `resize` is set through `style`, not a Tailwind class, so it does
-				 * not depend on a `resize-*` utility existing in the installed
-				 * Tailwind version. `w-[42rem]` is the first-paint width the
-				 * `max-w-2xl` this replaced was showing, and `overflow-hidden` keeps
-				 * the drag from spilling the dialog's own children.
+				 * Now it asks the shared primitive (`resizable` defaults to true for a
+				 * data/form dialog) and keeps only what is genuinely THIS surface's:
+				 * its first-paint width, its own minimum height, and the internal
+				 * scroll region. The drag handles, the clamps, the flex centring and
+				 * the visible grips all arrive from `@/ui/dialog` — so there is one
+				 * answer, and a page can no longer grow a second dialect of it.
+				 *
+				 * `overflow-hidden` stays and is still load-bearing: the card clips so
+				 * the body below it, not the card, is the only scroll container
+				 * (AGENTS.md §8 — one scroll region, none of them global).
+				 *
+				 * NOTE the width/height clamps are GONE from this class, not merely
+				 * redundant: `cn()` merges with tailwind-merge, so a page-local
+				 * `min-w-`/`max-h-` here would win over the shared
+				 * `DIALOG_RESIZABLE_CLASSES` and silently un-apply the universal
+				 * contract (a card dragging to 90vh instead of 85vh). A page that
+				 * re-adds one is reintroducing the dialect item 23.2 removes.
 				 */
-				className="flex w-[42rem] min-w-[500px] max-w-[95vw] min-h-[420px] max-h-[90vh] flex-col gap-0 overflow-hidden p-0"
-				style={{ resize: 'both' }}
+				resizable
+				className="flex w-[42rem] min-h-[420px] flex-col gap-0 overflow-hidden p-0"
 				data-testid="subject-coverage-dialog"
 				data-presentation="centered-dialog"
 			>
@@ -243,31 +252,46 @@ export function SubjectCoverageSheet({
 										</div>
 
 										{t.sections.length > 0 ? (
-											/*
-											 * A5 (item 17.1(3)): `[colour-coded grade pill] Section
-											 * Name`, one pill per section, under the teacher's name.
-											 * The `ASSIGNED SECTIONS` subheader is gone — the chips
-											 * are self-describing and the heading duplicated the
-											 * "Assigned teachers" section title above it.
-											 *
-											 * The pill colour comes from the ONE shared DepEd palette
-											 * (`GRADE_COLORS`) and the text from the shared
-											 * `gradeLabel()`, so this surface cannot drift into a
-											 * second grade palette or a second spelling.
-											 */
-											<div className="flex flex-wrap gap-2 pt-2">
-												{t.sections.map((sec, idx) => (
-													<div key={sec.id ?? `section-${idx}`} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200/80">
-														{sec.grade != null ? (
-															<span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${GRADE_COLORS[String(sec.grade)] ?? ''}`}>
-																{gradeLabel(sec.grade)}
-															</span>
-														) : null}
-														<span className="text-xs font-medium text-slate-700">{sec.name}</span>
-													</div>
-												))}
-											</div>
-										) : (
+										/*
+										 * A5 (item 17.1(3) + 17.2): `[colour-coded grade pill]
+										 * Section Name`, one pill per section, under the
+										 * teacher's name. The `ASSIGNED SECTIONS` subheader is
+										 * gone — the chips are self-describing and the heading
+										 * duplicated the "Assigned teachers" section title above it.
+										 *
+										 * Item 17.2 sets the chip's own proportions — a roomier
+										 * pill (`px-3 py-1.5 gap-2 rounded-xl`), a legible grade
+										 * badge (`text-xs font-semibold px-2 py-0.5`, up from
+										 * `text-[10px] px-1.5`) and a readable section name
+										 * (`text-sm`, up from `text-xs`). The grade was previously
+										 * rendered at 10px inside a chip, which is smaller than
+										 * the helper text around it and is the grade the
+										 * scheduler is scanning for.
+										 *
+										 * The colour is still the ONE shared DepEd palette
+										 * (`GRADE_COLORS`) and the text the shared `gradeLabel()`,
+										 * so this surface cannot drift into a second grade palette
+										 * or a second spelling (AGENTS.md §8). The row WRAPS
+										 * (`flex flex-wrap gap-2`), so widening the dialog lays
+										 * the chips out on fewer lines instead of clipping them.
+										 */
+										<div className="flex flex-wrap gap-2 pt-2">
+											{t.sections.map((sec, idx) => (
+												<div
+													key={sec.id ?? `section-${idx}`}
+													data-testid="subject-coverage-section-chip"
+													className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50 px-3 py-1.5"
+												>
+													{sec.grade != null ? (
+														<span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${GRADE_COLORS[String(sec.grade)] ?? ''}`}>
+															{gradeLabel(sec.grade)}
+														</span>
+													) : null}
+													<span className="text-sm font-medium text-slate-700">{sec.name}</span>
+												</div>
+											))}
+										</div>
+									) : (
 											<p className="text-xs text-muted-foreground italic">No sections explicitly mapped.</p>
 										)}
 									</div>
@@ -389,22 +413,6 @@ export function SubjectCoverageSheet({
 							)}
 						</>
 					)}
-				</div>
-
-				{/*
-				 * A5 (item 17.1(1)) — the visible resize affordance. CSS `resize`
-				 * draws its own corner handle in most browsers, but an operator
-				 * cannot discover a behaviour they cannot see, so the grip is
-				 * explicit. It is `pointer-events-none` and `aria-hidden`: the DRAG
-				 * belongs to the card underneath it, and the grip is decoration,
-				 * not a control.
-				 */}
-				<div
-					aria-hidden="true"
-					data-testid="subject-coverage-resize-grip"
-					className="pointer-events-none absolute bottom-1.5 right-2 flex items-center justify-center text-slate-400"
-				>
-					<GripHorizontal className="size-4" />
 				</div>
 			</DialogContent>
 		</Dialog>

@@ -148,7 +148,17 @@ export function CreatePlaceholderDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-[480px]">
+			<DialogContent
+				/*
+				 * A5 item 23.2 — "Create temporary teacher", target 5 of 5. A DATA/FORM
+				 * surface: a form with six fields plus a notes box, so it takes the
+				 * shared dialog's default `resizable` handling. `sm:max-w-[480px]` is
+				 * kept as this form's own first-paint width; the drag handles and the
+				 * clamps come from `@/ui/dialog`.
+				 */
+				resizable
+				className="sm:max-w-[480px]"
+			>
 				<DialogHeader>
 					<DialogTitle className="text-xl font-bold">
 						{isEdit ? 'Edit Temporary Teacher' : 'Add Temporary Teacher'}

@@ -14,7 +14,9 @@ export type SetupImpactDialogProps = {
 export function SetupImpactDialog({ open, onOpenChange, inputState, changedDomainLabels }: SetupImpactDialogProps) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-md">
+			{/* A5 item 23.2: an ALERT ("Setup changes detected" / "Setup
+			    comparison unavailable") — forced compact. */}
+			<DialogContent resizable={false} className="sm:max-w-md">
 				<DialogHeader>
 					<DialogTitle>{inputState?.status === 'STALE' ? 'Setup changes detected' : 'Setup comparison unavailable'}</DialogTitle>
 					<DialogDescription>
@@ -52,7 +54,9 @@ export type SyncTimetableConfirmDialogProps = {
 export function SyncTimetableConfirmDialog({ open, onOpenChange, syncing, onSyncNow }: SyncTimetableConfirmDialogProps) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-md">
+			{/* A5 item 23.2: a CONFIRMATION (a write into the schedule draft) —
+			    forced compact. */}
+			<DialogContent resizable={false} className="sm:max-w-md">
 				<DialogHeader>
 					<DialogTitle>Sync {CLASS_SCHEDULE_LABEL} with Setup</DialogTitle>
 					<DialogDescription className="space-y-2">

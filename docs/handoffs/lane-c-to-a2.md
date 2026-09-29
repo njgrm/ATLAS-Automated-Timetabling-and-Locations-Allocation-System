@@ -2016,3 +2016,43 @@ ode_modules entries, unchanged. Staging (5101 -> 11024, 5274 -> 40336) and
   Authenticated Users: Modify ACE, and ensure-staging-qa-account.cjs writes it with a bare writeFileSync and no ACL
   handling - the same containment gap that forced the staging env's capture-then-restore. The password is now rotated, but
   the file remains world-readable-to-modify. Route to whoever owns scripts/dev/.
+
+- **A5 -> Lane C, 2026-09-29 ~17:15 +08 - fix-1.2 A5 items 24.2 / 35.1 / 23.2 / 17.2 are ON `main` at `f11cff49`. NOT deployed (A4 owns the release). 4 fixes integrated and seen on REAL staging data / 0 dropped.** Source landed at `01042d41`. No staging row is owed to you from me.
+  - **The thing I most want you to know, because it cost me twenty minutes and will cost the next lane the same: `/__dev/staging-login` means nobody needs the credential file.** This session is **denied `read` on `D:\ATLAS-runtime-config\atlas-staging-qa.env`**, so I concluded the staging rows were unperformable and started building a synthetic harness to render the shared primitives instead. The reasoning was sound and the conclusion was wrong - the dev server signs in to staging **server-side**. Your own handoff note above already recorded that this works. **Rule for every lane: if a preview needs a staging session, hit `/__dev/staging-login`; do not read the env file.** A false "BLOCKED" was one step from being handed to you as four decided rows.
+  - **What the real renders decided** (loopback preview `:5255`, staging API `:5101`, 1366x768, asserted origin, `/teachers` 20 active teachers and `/subjects` 21 active subjects, both `USING SAVED DATA`). `24.2` the live button reads exactly `+ Create temporary teacher (Teacher X)` - literal X, `hasAnyDigitsInParen: false`. `35.1` **all five** quick-filter helpers read in full at 1366: the two long ones wrap to exactly 2 lines at the 384px `md:max-w-sm` cap, the other three fit one line, none clipped, no horizontal scroll. `17.2` 16 real section chips, `rounded-xl` pills, `text-xs font-semibold` badges on the one shared DepEd palette, `text-sm font-medium` names, chips visibly reflowing. `23.2` the real coverage dialog is `data-resizable="true"`, centred by the flex parent, 2 handles, clamped 480px / 95vw / 85vh.
+  - **Two defects this cycle found and fixed, both real and both worth your eye.** (1) The Subject coverage card was still passing page-local `min-w-[500px] / max-h-[90vh]` through `cn()`, which merges with tailwind-merge, so **the shared contract never reached the card at all** - the universal change was inert on that surface. (2) **QA caught a BLOCKING one: `overflow-y-auto` had been confined to the confirm branch**, so every resizable dialog lost its scrollbar while Radix locked the page behind it. `CoverShortageDialog.tsx` (no `overflow` token anywhere in its file, body up to ten class names) and `CreatePlaceholderDialog.tsx` were the victims - a scheduler could not reach the footer. Moved onto the base class list; a page-owned `overflow-hidden` still wins because `className` merges last. Seen rendered: a tall no-scroller dialog scrolls 1488 vs 651, its footer lands inside the dialog and on screen, and the page does not move.
+  - **Two NON_BLOCKING findings left open for whoever owns the primitive, not fixed.** **F4** the drag handles are `w-1.5 -translate-x-1/2`, so the four `overflow-hidden` targets clip them to ~3px, and `bg-border` on a white card is low contrast - "clickable must look clickable" is met only just. **F3 (fixed as a one-liner, recorded because the pattern is systemic)** the shared clamp `max-w-[95vw]` beats the base `max-w-lg` in tailwind-merge, so any `<DialogContent>` stating no width opens at 95vw; `SchedulingPolicyDialogs.tsx:131` was the only such consumer and now states `max-w-lg`. **If another lane adds a bare data dialog, it will open full-width.**
+  - **Two measurement traps, both of which produce a confidently wrong reading.** (a) My first harness render came out **completely unstyled** - it never imported `@/index.css`, so the page "rendered" and every judgement taken from it was worthless. (b) Radix renders a second `aria-hidden` copy of tooltip content at **1x1 px**; querying `[role="tooltip"]` returns that copy and it reports `white-space: nowrap`, which reads as "the tooltip fix did not land". Measure the node inside `[data-radix-popper-content-wrapper]` that carries `rounded-md bg-slate-900`.
+  - **Dated observations, not mine, not re-pinned.** `docs/plans/live-state.md` carries **2 literal U+FFFD** on `main` (near the A7/A8 blocks, rendering `?11` and `?14` where a section sign belongs) - present at `338e47f9` and still at `3a86df63`, verified by reading the blob bytes, not by piping through a console. §2's named corruption class, and the owning lanes should repair it. `test:timetable-scheduler-clarity` is red, and pre-existing: the strings it asserts are absent from `SimpleDriftBanner.tsx` at base `7d008db7` as well. `npm run build` is still **blocked by design** on the repo's own fail-closed `VITE_ENROLLPRO_URL` guard - **A4 must satisfy it at release; no lane should invent a value.**
+  - **Worktree disposition:** `lane-a5-c6-fix12` is `RETIRE_AFTER_INTEGRATION` (pushed) - **but the two untracked harness files must be deleted first**, and `atlas-client/node_modules` there is a **junction** to `lane-a5-c3-20260929`, so `cmd /c rmdir` it before any `git worktree remove` and re-count the donor (A5 c5 emptied a shared donor with a bare `git worktree remove` earlier today - that rule exists because of it).
+  - Evidence: `docs/reviews/fix-1.2-a5-c6-20260929/rendered-evidence.md` plus seven PNGs, including the real-staging captures.
+
+## 2026-09-29 — A8 C3: the readiness panel is now GROUPED; A2 reconciliation note
+
+Candidate `d87e1b3e` + correction `73f479eb` on `work/a8-c3-generate-gaps` (base `f1fb076a`), integrated on
+`integration/a8-c3-20260929`. Handoff: `docs/reviews/a8-c3-generate-with-gaps/handoff.md`.
+
+**A2 — you own the client readiness panel; these are the client files I touched, please reconcile:**
+
+- `atlas-client/src/lib/timetable-generation-readiness.ts` — parses the server's new `groups` / `gaps` /
+  `blockerCount` / `gapCount` / `gapClassCount`; new `presentGenerationBlockerGroups`;
+  `deriveGenerationReadinessState` now gates on the server's BLOCKING count; `summarizeGenerationReadiness`
+  also returns a summary for a `blocked` state. Later correction: the group headline reads its OWN
+  `group.count`, and the group action model is narrowed to `{ kind: 'navigate'; label; href }`.
+- `atlas-client/src/lib/timetable-capabilities.ts` — the Generate gate is now `generateAllowed && zeroWrite`
+  only. `blockerCount` is carried for reporting and **no longer independently blocks** (620 of the 651 live
+  rows were one fact at two grains).
+- `atlas-client/src/components/timetable/simple/SimpleGenerationBlockerGroups.tsx` **(new)** — one line per
+  root cause counted in CLASSES + ONE "Check again" + the full row list behind the shared `@/ui` Accordion.
+- `atlas-client/src/components/timetable/simple/SimpleGenerationBlockerSheet.tsx` — the grouped view is the
+  default, the row list is preserved verbatim behind the disclosure, the per-row "Recheck generation readiness"
+  is removed, and the lead sentence is now "N setup items must be fixed before a timetable can be made."
+  instead of the "N things" jargon.
+- `atlas-client/src/components/timetable/TimetableSimpleHeader.tsx` and `TimetableSetupPane.tsx` — read
+  `diagnostic.blockerCount` (blocking) instead of `diagnostic.blockers.length` (rows).
+  `setupItemsToFixLabel` itself is UNCHANGED; it just receives the blocking count now.
+
+No header control was added, no chip was added, and no existing entry point moved.
+
+**Staging/live proof on 2023-2024 is A4's deployment-time row and is NOT yet performed** — this candidate is
+integrated, not deployed, and not seen rendered.

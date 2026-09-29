@@ -108,6 +108,16 @@ export function ConfirmationModal({
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
+				/*
+				 * A5 item 23.2 — FORCED COMPACT. This is the app's SHARED confirmation
+				 * dialog, so it is the single most important place to say no: a
+				 * question with two answers is not a data surface, and a draggable
+				 * 95vw panel for "Delete this?" is a worse dialog, not a better one.
+				 * `resizable={false}` here overrides the primitive's data/form
+				 * default, so every confirmation in the app is compact without each
+				 * call site having to remember.
+				 */
+				resizable={false}
 				className={cn(
 					'w-[calc(100%-2rem)] sm:max-w-sm rounded-3xl p-8 overflow-hidden',
 					'bg-sidebar shadow-2xl',

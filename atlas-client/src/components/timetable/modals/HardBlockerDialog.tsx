@@ -27,7 +27,8 @@ type HardBlockerDialogProps = {
 export function HardBlockerDialog({ open, items, onClose }: HardBlockerDialogProps) {
 	return (
 		<Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
-			<DialogContent className="w-[calc(100%-2rem)] sm:max-w-md rounded-2xl p-6 overflow-hidden">
+			{/* A5 item 23.2: an ALERT, not a data surface — forced compact. */}
+			<DialogContent resizable={false} className="w-[calc(100%-2rem)] sm:max-w-md rounded-2xl p-6 overflow-hidden">
 				<DialogHeader className="space-y-4">
 					<div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 ring-4 ring-red-50 mx-auto">
 						<ShieldAlert className="size-6 text-red-600" />
