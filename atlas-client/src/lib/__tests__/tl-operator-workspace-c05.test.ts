@@ -484,7 +484,12 @@ test('R1 the orphaned reconciliation panel has no remaining file or importer', (
 test('R1 dead props, dead literal, and the clipped candidate list are removed', () => {
 	const sectionGrid = source('src/components/faculty-assignments/SectionGridMode.tsx');
 	assert.doesNotMatch(sectionGrid, /max-h-75/);
-	for (const deadProp of ['savedOwnershipMap', 'pendingOwnershipMap', 'onSelectTeacher', 'onHoverTeacher', 'onClearHover', 'hasDraft']) {
+	// A6 c9 (train 9 gate row R1, packet addendum 14:47 — binding). `savedOwnershipMap`
+	// is NOT in this list. A6 c7 `951bec35` reintroduced it on `SectionGridMode` as a
+	// LIVE prop on purpose, so this row was asserting its absence and would have gone
+	// red on c9 for a prop that is meant to be there. The other five are still dead and
+	// are still asserted below, unchanged.
+	for (const deadProp of ['pendingOwnershipMap', 'onSelectTeacher', 'onHoverTeacher', 'onClearHover', 'hasDraft']) {
 		assert.doesNotMatch(sectionGrid, new RegExp(`\\b${deadProp}\\b`), `${deadProp} should be gone from SectionGridMode`);
 	}
 	const toolbar = source('src/components/faculty-assignments/WorkspaceToolbar.tsx');
