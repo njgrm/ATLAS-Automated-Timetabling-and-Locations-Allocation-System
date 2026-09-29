@@ -152,6 +152,9 @@ function fakeRuntimeContext(): RuntimeContextResult {
 
 const readyCampus = {
 	campusImageUrl: null,
+	// A9 m1: the stored background placement. `null` is the honest "nothing
+	// decided" state, and the client normalises it to "fit whole image, locked".
+	campusMapPlacement: null,
 	updatedAt: null,
 	buildings: [{
 		id: 1,

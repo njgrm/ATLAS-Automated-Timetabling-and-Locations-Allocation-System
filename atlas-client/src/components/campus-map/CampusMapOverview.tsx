@@ -50,6 +50,11 @@ const BuildingView = lazy(() => import('@/components/BuildingView').then((module
 export type CampusMapOverviewProps = {
 	buildings: Building[];
 	campusImageUrl: string | null;
+	/** A9 m1 — the stored background placement, or null for a school that never
+	 *  chose one. 
+ull renders the same 'fit whole image, locked' default the
+	 *  editor starts from, so no viewer needs a special case. */
+	campusMapPlacement?: unknown;
 };
 
 type SectionScheduleInfo = {
@@ -115,7 +120,7 @@ function buildingStatus(building: Building): 'ready' | 'attention' {
  *  and signature unchanged. */
 const getUtilizationColor = roomUtilizationColor;
 
-export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOverviewProps) {
+export function CampusMapOverview({ buildings, campusImageUrl, campusMapPlacement }: CampusMapOverviewProps) {
 	const [activeView, setActiveView] = useState<'map' | 'building'>('map');
 	// A3 c11 fix 37 — `showExplorer` is GONE. The operator's request is "Remove
 	// the `[Open map]` / `[Hide map]` button … Remove the collapsible state logic
@@ -470,6 +475,7 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 								<CampusMapCanvasPreview
 									buildings={buildings}
 									campusImageUrl={campusImageUrl}
+									campusMapPlacement={campusMapPlacement}
 									selectedBuildingId={selectedBuilding?.id ?? null}
 									onSelectBuilding={(buildingId) => {
 										selectBuilding(buildingId);

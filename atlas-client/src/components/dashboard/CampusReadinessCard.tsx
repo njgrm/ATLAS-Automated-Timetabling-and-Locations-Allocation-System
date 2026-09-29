@@ -49,6 +49,10 @@ export type CampusReadinessCardProps = {
 	loading: boolean;
 	buildings: Building[];
 	campusImageUrl?: string | null;
+	/** A9 m1 — the stored background placement, read by the Dashboard through the
+	 *  same shared seam as the map overview, so the two cards cannot frame the same
+	 *  photo differently. */
+	campusMapPlacement?: unknown;
 	teachingRoomCount: number;
 	totalRoomCount: number;
 	setupStatus: BuildingSetupStatus;
@@ -117,6 +121,7 @@ export function CampusReadinessCard({
 	loading,
 	buildings,
 	campusImageUrl,
+	campusMapPlacement,
 	teachingRoomCount: totalTeachingRooms,
 	totalRoomCount,
 	setupStatus,
@@ -410,8 +415,10 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 							{activeView === 'map' ? (
 								<CampusMapCanvasPreview
 									buildings={buildings}
-									campusImageUrl={campusImageUrl}
-									selectedBuildingId={selectedBuilding?.id ?? null}
+								campusImageUrl={campusImageUrl}
+								campusMapPlacement={campusMapPlacement}
+								selectedBuildingId={selectedBuilding?.id ?? null}
+
 									onSelectBuilding={(buildingId) => {
 										handleSelectBuilding(buildingId);
 										setActiveView('building');

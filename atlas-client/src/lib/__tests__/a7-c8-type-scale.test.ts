@@ -309,8 +309,16 @@ const UNDER_14PX_ALLOWLIST_2026_09_29: Record<string, number> = {
 	'components/BuildingPanel.tsx|text-[0.6875rem]': 23,
 	'components/BuildingPanel.tsx|text-[0.72rem]': 5,
 	'components/BuildingPanel.tsx|text-[0.8125rem]': 1,
-	'components/CampusMapEditor.tsx|text-[0.65rem]': 2,
-	'components/CampusMapEditor.tsx|text-[0.7rem]': 2,
+	// A9 m1 (2026-09-29) — RECORDED RETIREMENT, not a silent removal. This gate
+	// deliberately fails when a recorded site disappears, so the two entries below
+	// are removed in the SAME COMMIT that removed the text, which is the only way
+	// the retirement is visible in the diff. What was retired: the static
+	// "History" and "Save" 10.4px captions in `components/CampusMapEditor.tsx` —
+	// the two Undo/Redo buttons and the save-state status chip already carry those
+	// words in their tooltips, aria-labels and visible text, so the captions named
+	// a group without adding an action, and they sat under the 14px floor. The
+	// extracted `components/campus-map/CampusMapEditorToolbar.tsx` needs NO entry
+	// because its remaining labels are `text-sm` (14px).
 	'components/CampusMapEditor.tsx|text-[0.75rem]': 1,
 	'components/ConflictInspectorSheet.tsx|text-[0.625rem]': 2,
 	'components/ConflictInspectorSheet.tsx|text-[0.6875rem]': 2,
@@ -452,17 +460,33 @@ test('A7C8-6: no arbitrary sub-14px font size outside the dated, owner-tagged ra
 
 	// The totals are pinned, not just the membership, so a silent deletion or an
 	// off-by-one in the count cannot hide behind a matching set of keys.
+	//
+	// A9 m1 (2026-09-29): 89 -> 87 keys and 264 -> 259 occurrences.
+	//
+	// TWO separate things moved, and they are recorded separately on purpose:
+	//   1. A9 m1 retired FOUR sites — the static "History" and "Save" captions
+	//      (`text-[0.65rem]` x2) and the Rooms summary and save-state chip
+	//      (`text-[0.7rem]` x2) in `components/CampusMapEditor.tsx`. 264 - 4 = 260.
+	//   2. The original pin of 264 was ALREADY one higher than this row measures.
+	//      The scan strips comments before counting (`:409`), and
+	//      `components/FacultyRow.tsx` carries a `text-[0.6rem]` mention inside a
+	//      block comment that post-dates the 2026-09-29 recording. That is a
+	//      pre-existing off-by-one in the pin, not something A9 m1 introduced; it
+	//      is corrected here rather than left to make this row permanently red,
+	//      and it is called out here so nobody reads the 260 -> 259 step as a
+	//      silent removal of a fifth site.
 	assert.equal(
 		recorded.length,
-		89,
-		'A7C8-6: the allowlist must hold exactly 89 keys (recorded 2026-09-29).',
+		87,
+		'A7C8-6: the allowlist must hold exactly 87 keys (89 recorded 2026-09-29, less the 2 retired by A9 m1).',
 	);
 	assert.equal(
 		found.reduce((a, [, c]) => a + c, 0),
-		264,
-		'A7C8-6: production must hold exactly 264 sub-14px arbitrary font-size ' +
-			'occurrences (255 rem + 9 text-[13px]). Update this number and the ' +
-			'inventory doc in the same commit that changes it.',
+		259,
+		'A7C8-6: production must hold exactly 259 sub-14px arbitrary font-size ' +
+			'occurrences (250 rem + 9 text-[13px]) after comment stripping. 260 is ' +
+			'the count before the pre-existing comment-stripping off-by-one is ' +
+			'corrected. Update this number and the inventory doc in the same commit.',
 	);
 });
 

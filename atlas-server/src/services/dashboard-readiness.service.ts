@@ -63,6 +63,11 @@ type CampusReadinessData = {
 	available: boolean;
 	buildings: DashboardBuilding[];
 	campusImageUrl: string | null;
+	/** A9 m1 - the stored background placement, carried through the Dashboard summary
+	 *  so the campus card frames the photo the same way the map editor does. 
+ull is
+	 *  the honest 'nothing decided yet' and the client normalises it. */
+	campusMapPlacement: unknown;
 	teachingRoomCount: number | null;
 	totalRoomCount: number | null;
 	buildingSetupStatus: {
@@ -114,6 +119,7 @@ type LatestRunReadinessData = {
 /** Raw shapes returned by the individual domain reads before availability is applied. */
 type CampusReadData = {
 	campusImageUrl: string | null;
+	campusMapPlacement: unknown;
 	updatedAt: Date | null;
 	buildings: DashboardBuilding[];
 };
@@ -252,7 +258,7 @@ function source(
 	};
 }
 
-function summarizeCampus(buildings: DashboardBuilding[], campusImageUrl: string | null): CampusReadinessData {
+function summarizeCampus(buildings: DashboardBuilding[], campusImageUrl: string | null, campusMapPlacement: unknown): CampusReadinessData {
 	const teachingBuildings = buildings.filter((building) => building.isTeachingBuilding !== false);
 	const teachingBuildingsWithoutRooms = teachingBuildings.filter((building) => building.rooms.length === 0);
 	const placeholderNamedBuildings = teachingBuildings.filter((building) => /^Building \d+$/.test(building.name));
@@ -285,6 +291,7 @@ function summarizeCampus(buildings: DashboardBuilding[], campusImageUrl: string 
 		available: true,
 		buildings,
 		campusImageUrl,
+		campusMapPlacement,
 		teachingRoomCount,
 		totalRoomCount,
 		buildingSetupStatus: { done, ...(subMessage ? { subMessage } : {}) },
@@ -297,6 +304,7 @@ function unavailableCampus(): CampusReadinessData {
 		available: false,
 		buildings: [],
 		campusImageUrl: null,
+		campusMapPlacement: null,
 		teachingRoomCount: null,
 		totalRoomCount: null,
 		buildingSetupStatus: { done: false },
@@ -630,7 +638,7 @@ export async function getDashboardReadinessSummary(input: DashboardSummaryInput)
 			const [school, buildings] = await Promise.all([
 				prisma.school.findUnique({
 					where: { id: input.schoolId },
-					select: { campusImageUrl: true, updatedAt: true },
+					select: { campusImageUrl: true, campusMapPlacement: true, updatedAt: true },
 				}),
 				prisma.building.findMany({
 					where: { schoolId: input.schoolId },
@@ -668,6 +676,7 @@ export async function getDashboardReadinessSummary(input: DashboardSummaryInput)
 
 			return {
 				campusImageUrl: school?.campusImageUrl ?? null,
+		campusMapPlacement: school?.campusMapPlacement ?? null,
 				updatedAt: buildings.reduce<Date | null>((latest, building) => {
 					if (!latest || building.updatedAt > latest) return building.updatedAt;
 					return latest;
@@ -874,7 +883,7 @@ export function aggregateDashboardSummary(input: DashboardReadinessAggregateInpu
 	const { runtimeResult, runtimeContext, campusResult, subjectResult, facultyResult, sectionResult, generationResult, publicationResult, derivedDemandResult } = input;
 
 	const campus = campusResult.ok && campusResult.data
-		? summarizeCampus(campusResult.data.buildings, campusResult.data.campusImageUrl)
+		? summarizeCampus(campusResult.data.buildings, campusResult.data.campusImageUrl, campusResult.data.campusMapPlacement)
 		: unavailableCampus();
 	const subjects: SubjectReadinessData = subjectResult.ok && subjectResult.data
 		? { available: true, ...subjectResult.data }

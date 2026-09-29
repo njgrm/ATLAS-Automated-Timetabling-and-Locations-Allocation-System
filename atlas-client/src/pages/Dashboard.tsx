@@ -467,7 +467,7 @@ export default function Dashboard() {
 	const rolloverBlocking = rolloverStatus !== null && !rolloverAligned;
 
 	const {
-		loading, actorScopeBlocked, actorSchoolId, buildings, campusImageUrl, subjectCount, facultyCount, sectionCount,
+		loading, actorScopeBlocked, actorSchoolId, buildings, campusImageUrl, campusMapPlacement, subjectCount, facultyCount, sectionCount,
 		unassignedSubjectCount, missingCoverageSubjectIds, buildingSetupStatus, teachingRoomCount,
 		totalRoomCount, activeSchoolYearLabel, activeTerm, activeTermPublished,
 		activeTermUnassignedCount, runWideHardViolationCount, runWideSoftViolationCount,
@@ -860,6 +860,7 @@ export default function Dashboard() {
 							loading={loading}
 							buildings={buildings}
 							campusImageUrl={campusImageUrl}
+							campusMapPlacement={campusMapPlacement}
 							teachingRoomCount={teachingRoomCount}
 							totalRoomCount={totalRoomCount}
 							setupStatus={buildingSetupStatus}

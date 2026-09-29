@@ -5,6 +5,7 @@ import { MapPinned, MousePointer2, Pencil } from 'lucide-react';
 import { CampusMapOverview } from '@/components/campus-map/CampusMapOverview';
 import { SmartHelpTrigger } from '@/components/smart/SmartPageShell';
 import atlasApi from '@/lib/api';
+import { fetchCampusBackground } from '@/lib/campus-background-api';
 import { PageHeader } from '@/components/app-shell/PageHeader';
 import type { Building, Room } from '@/types';
 import { Button } from '@/ui/button';
@@ -28,6 +29,10 @@ export default function MapEditor() {
 
 	const [buildings, setBuildings] = useState<EditorBuilding[]>([]);
 	const [campusImageUrl, setCampusImageUrl] = useState<string | null>(null);
+	// A9 m1 - the stored background placement. Read WITH the photo in one call and
+	// handed to both the editor and the overview below, so the two views of the
+	// same school are framed by the same stored decision.
+	const [campusMapPlacement, setCampusMapPlacement] = useState<unknown>(null);
 	const [selectedId, setSelectedId] = useState<number | null>(null);
 	const [loading, setLoading] = useState(true);
 	const initialLoadDone = useRef(false);
@@ -69,13 +74,17 @@ export default function MapEditor() {
 	const fetchData = useCallback(async () => {
 		setLoading(true);
 		try {
-			const [buildingsRes, imageRes] = await Promise.all([
+			const [buildingsRes, background] = await Promise.all([
 				atlasApi.get<{ buildings: Building[] }>(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`),
-				atlasApi.get<{ campusImageUrl: string | null }>(`/map/schools/${DEFAULT_SCHOOL_ID}/campus-image`),
+				// A9 m1: ONE call for the photo AND its placement, so the editor and
+				// the overview below can never be handed a photo framed by a placement
+				// that was never fetched.
+				fetchCampusBackground(DEFAULT_SCHOOL_ID),
 			]);
 			const blds = buildingsRes.data.buildings.map((b) => ({ ...b, dirty: false, isNew: false }));
 			setBuildings(blds);
-			setCampusImageUrl(imageRes.data.campusImageUrl);
+			setCampusImageUrl(background.campusImageUrl);
+			setCampusMapPlacement(background.campusMapPlacement);
 
 			if (blds.length > 0) {
 				// On initial load: URL param → first building
@@ -97,6 +106,7 @@ export default function MapEditor() {
 		} catch {
 			setBuildings([]);
 			setCampusImageUrl(null);
+			setCampusMapPlacement(null);
 		} finally {
 			setLoading(false);
 		}
@@ -190,7 +200,7 @@ export default function MapEditor() {
 			// INLINE `ModeToggle` plus its inline help trigger, so the round trip
 			// between the two views is still one click in each direction — it is
 			// simply not painted over the page any more.
-			<CampusMapOverview buildings={buildings} campusImageUrl={campusImageUrl} />
+			<CampusMapOverview buildings={buildings} campusImageUrl={campusImageUrl} campusMapPlacement={campusMapPlacement} />
 		);
 	}
 
@@ -251,6 +261,7 @@ export default function MapEditor() {
 					schoolId={DEFAULT_SCHOOL_ID}
 					buildings={buildings}
 					campusImageUrl={campusImageUrl}
+					campusMapPlacement={campusMapPlacement}
 					onBuildingsChange={setBuildings}
 					selectedBuildingId={selectedId}
 					onSelect={setSelectedId}

@@ -19,6 +19,11 @@ import { Separator } from '@/ui/separator';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/tabs';
 import ConflictInspector from '@/components/faculty-shared/ConflictInspector';
+// A9 m1 - the room map inset now uses the SHARED world and framing, so it shows
+// the whole photo at its true proportions instead of cropping it with
+// ackgroundSize: cover and positioning buildings against a private bounding box.
+import { backgroundWorld, fitViewTransform } from '@/components/campus-map/campusMapBackground';
+import { useCampusImage, viewerPlacement } from '@/components/campus-map/CampusMapBackgroundLayer';
 
 type RoomOption = Room & { buildingName: string };
 
@@ -45,6 +50,9 @@ type RoomRequestSheetProps = {
 	requestRoomOptions: RoomOption[];
 	buildings: Building[];
 	campusImageUrl: string | null;
+	/** A9 m1 - the stored background placement, so this inset frames the photo the
+	 *  same way the editor does instead of cropping it with ackgroundSize: cover. */
+	campusMapPlacement?: unknown;
 	reason: string;
 	onReasonChange: (value: string) => void;
 	reasonRequired: boolean;
@@ -53,22 +61,6 @@ type RoomRequestSheetProps = {
 	submitting: boolean;
 	onSubmit: () => void;
 };
-
-function mapBounds(buildings: Building[]) {
-	if (buildings.length === 0) {
-		return { minX: 0, minY: 0, width: 100, height: 100 };
-	}
-	const minX = Math.min(...buildings.map((building) => building.x));
-	const minY = Math.min(...buildings.map((building) => building.y));
-	const maxX = Math.max(...buildings.map((building) => building.x + building.width));
-	const maxY = Math.max(...buildings.map((building) => building.y + building.height));
-	return {
-		minX,
-		minY,
-		width: Math.max(1, maxX - minX),
-		height: Math.max(1, maxY - minY),
-	};
-}
 
 export default function RoomRequestSheet({
 	open,
@@ -84,6 +76,7 @@ export default function RoomRequestSheet({
 	requestRoomOptions,
 	buildings,
 	campusImageUrl,
+	campusMapPlacement,
 	reason,
 	onReasonChange,
 	reasonRequired,
@@ -107,6 +100,8 @@ export default function RoomRequestSheet({
 		}
 		return map;
 	}, [requestRoomOptions]);
+
+	const campusImage = useCampusImage(campusImageUrl);
 
 	const buildingsWithRooms = useMemo(() => {
 		return buildings
@@ -136,7 +131,25 @@ export default function RoomRequestSheet({
 		[buildingsWithRooms, selectedBuildingId],
 	);
 
-	const bounds = useMemo(() => mapBounds(buildingsWithRooms), [buildingsWithRooms]);
+	// A9 m1 — the inset's world and its view, from the SHARED functions. `insetBox`
+	// is the free area the inset paints into; it is a constant because this inset
+	// is a fixed-height strip, and it is NAMED rather than inlined so the ratio it
+	// frames to is one edit. The private `mapBounds` normalisation that stood in
+	// for the world is gone: it had no relationship to the photo, so a building
+	// could sit anywhere on a cropped image.
+	const insetBox = { freeWidth: 600, freeHeight: 400 };
+	const insetWorld = useMemo(
+		() => backgroundWorld(
+			viewerPlacement(campusMapPlacement, campusImage, { width: insetBox.freeWidth, height: insetBox.freeHeight }),
+			buildingsWithRooms,
+			{ width: insetBox.freeWidth, height: insetBox.freeHeight },
+		),
+		[campusMapPlacement, campusImage, buildingsWithRooms],
+	);
+	const insetView = useMemo(
+		() => fitViewTransform({ content: insetWorld, box: insetBox, zoom: 1, pan: { x: 0, y: 0 } }),
+		[insetWorld],
+	);
 
 	return (
 		<Sheet open={open} onOpenChange={onOpenChange}>
@@ -250,27 +263,48 @@ export default function RoomRequestSheet({
 									</div>
 								) : (
 									<>
+										{/* A9 m1 — THE ROOM MAP INSET, on the shared framing.
+
+										    It was a 600x400 div with
+										    `backgroundSize: cover` and `backgroundPosition: center`,
+										    which CROPS any photo that is not 3:2 — the same
+										    "the map is cut off" defect the operator reported, in a
+										    sixth place, on a plain DOM element rather than a canvas.
+										    It is now the shared world (`backgroundWorld` over the
+										    buildings and the shared placement) projected through the
+										    shared `fitViewTransform`, so this inset shows the WHOLE
+										    photo at its true proportions, framed exactly like the
+										    editor, the overview, the Dashboard card and the room map —
+										    and a building's position relative to the photo is the same
+										    arithmetic everywhere rather than a private `bounds`
+										    normalisation that had no relationship to the image at all. */}
 										<div
 											className='overflow-auto rounded-xl border border-border bg-slate-50'
-											style={{ height: '14rem', touchAction: 'pan-x pan-y' }}
+											style={{ touchAction: 'pan-x pan-y' }}
 										>
 											<div
 												className='relative'
 												style={{
-													width: '600px',
-													height: '400px',
+													width: `${insetBox.freeWidth}px`,
+													height: `${insetBox.freeHeight}px`,
 													backgroundImage: campusImageUrl ? `url(${campusImageUrl})` : undefined,
-													backgroundSize: 'cover',
+													// `contain`, never `cover`: `cover` is precisely the crop
+													// this change removes, and `contain` cannot letterbox
+													// either because the div is already the fitted world.
+													backgroundSize: 'contain',
 													backgroundPosition: 'center',
+													backgroundRepeat: 'no-repeat',
 												}}
 											>
 												{buildingsWithRooms.map((building) => {
-													const MAP_W = 600;
-													const MAP_H = 400;
-													const left = ((building.x - bounds.minX) / bounds.width) * MAP_W;
-													const top = ((building.y - bounds.minY) / bounds.height) * MAP_H;
-													const width = Math.max(60, (building.width / bounds.width) * MAP_W);
-													const height = Math.max(44, (building.height / bounds.height) * MAP_H);
+													// The same world→screen projection the canvases use: a
+													// building's stored `x`/`y` is multiplied by the shared view
+													// scale and offset by the shared origin. Nothing is
+													// normalised against a private bounding box.
+													const left = building.x * insetView.scale + insetView.x;
+													const top = building.y * insetView.scale + insetView.y;
+													const width = building.width * insetView.scale;
+													const height = building.height * insetView.scale;
 													const isActive = selectedBuildingId === building.id;
 													return (
 												<Button
@@ -279,22 +313,23 @@ export default function RoomRequestSheet({
 															key={`request-map-building-${building.id}`}
 															aria-label={`Select ${building.shortCode ?? building.name}`}
 															onClick={() => setSelectedBuildingId(building.id)}
-													className={`absolute flex items-center justify-center rounded-md border p-0 font-semibold text-white shadow transition-all ${isActive ? 'border-white ring-2 ring-sky-400 shadow-lg' : 'border-white/70 hover:ring-1 hover:ring-white/60'}`}
+															className={`absolute flex items-center justify-center rounded-md border p-0 font-semibold text-white shadow transition-all ${isActive ? 'border-white ring-2 ring-sky-400 shadow-lg' : 'border-white/70 hover:ring-1 hover:ring-white/60'}`}
 															style={{
-																left: `${Math.min(540, left)}px`,
-																top: `${Math.min(356, top)}px`,
-																width: `${Math.min(160, width)}px`,
-																height: `${Math.min(100, height)}px`,
+																left: `${left}px`,
+																top: `${top}px`,
+																width: `${width}px`,
+																height: `${height}px`,
 																backgroundColor: building.color,
-																fontSize: '11px',
+																fontSize: '14px',
 															}}
 														>
 															<span className='px-1 text-center leading-tight line-clamp-2'>
 																{building.shortCode ?? building.name}
 															</span>
-												</Button>
+														</Button>
 													);
 												})}
+
 												{buildingsWithRooms.length === 0 && (
 													<div className='flex h-full items-center justify-center text-sm text-muted-foreground'>
 														No buildings match your search.

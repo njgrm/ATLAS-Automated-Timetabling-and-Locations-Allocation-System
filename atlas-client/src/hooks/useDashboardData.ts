@@ -135,6 +135,7 @@ export function initialDashboardDomainState() {
 	return {
 		buildings: [] as Building[],
 		campusImageUrl: null as string | null,
+		campusMapPlacement: null as unknown,
 		subjectCount: null as number | null,
 		facultyCount: null as number | null,
 		sectionCount: null as number | null,
@@ -252,6 +253,7 @@ type DashboardReadinessSummary = {
 		available: boolean;
 		buildings: Building[];
 		campusImageUrl: string | null;
+	campusMapPlacement: unknown;
 		teachingRoomCount: number | null;
 		totalRoomCount: number | null;
 		buildingSetupStatus: BuildingSetupStatus;
@@ -306,6 +308,7 @@ export type DashboardData = {
 	actorScopeBlocked: string | null;
 	buildings: Building[];
 	campusImageUrl: string | null;
+	campusMapPlacement: unknown;
 	subjectCount: number | null;
 	facultyCount: number | null;
 	sectionCount: number | null;
@@ -364,6 +367,11 @@ export function useDashboardData(): DashboardData {
 	const [actorScopeBlocked, setActorScopeBlocked] = useState<string | null>(null);
 	const [buildings, setBuildings] = useState<Building[]>([]);
 	const [campusImageUrl, setCampusImageUrl] = useState<string | null>(null);
+	// A9 m1 - the stored background placement, held beside the photo so the campus
+	// card frames the SAME image the map editor frames. Cleared and re-set together
+	// with the photo, so a Dashboard that lost its campus read shows no
+	// half-placed background.
+	const [campusMapPlacement, setCampusMapPlacement] = useState<unknown>(null);
 	const [loading, setLoading] = useState(true);
 	const [subjectCount, setSubjectCount] = useState<number | null>(null);
 	const [facultyCount, setFacultyCount] = useState<number | null>(null);
@@ -401,6 +409,7 @@ export function useDashboardData(): DashboardData {
 		const cleared = initialDashboardDomainState();
 		setBuildings(cleared.buildings);
 		setCampusImageUrl(cleared.campusImageUrl);
+		setCampusMapPlacement(cleared.campusMapPlacement ?? null);
 		setSubjectCount(cleared.subjectCount);
 		setFacultyCount(cleared.facultyCount);
 		setSectionCount(cleared.sectionCount);
@@ -536,6 +545,7 @@ export function useDashboardData(): DashboardData {
 				lastSuccessSchoolIdRef.current = schoolId;
 				setBuildings(summary.campus.buildings ?? []);
 				setCampusImageUrl(summary.campus.campusImageUrl ?? null);
+				setCampusMapPlacement(summary.campus.campusMapPlacement ?? null);
 				setSubjectCount(summary.subjects.subjectCount);
 				setUnassignedSubjectCount(summary.subjects.unassignedSubjectCount);
 				setFacultyCount(summary.faculty.facultyCount);
@@ -718,6 +728,7 @@ export function useDashboardData(): DashboardData {
 		actorScopeBlocked,
 		buildings,
 		campusImageUrl,
+		campusMapPlacement,
 		subjectCount,
 		facultyCount,
 		sectionCount,

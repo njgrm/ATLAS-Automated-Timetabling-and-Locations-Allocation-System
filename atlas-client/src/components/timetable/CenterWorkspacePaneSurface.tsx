@@ -39,6 +39,11 @@ import { AlertTriangle, Building2, CalendarClock, ChevronLeft, Loader2, Lock, Ma
 
 import { ClassProgramMatrixView } from '@/components/timetable/ClassProgramMatrixView';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
+// A9 m1 - the timetable centre pane's campus map now takes the same photo and
+// placement as every other map. Omitting them renders exactly the bare beige
+// view this pane has always shown, so nothing regresses for a caller that does
+// not supply them; see components/CampusMap.tsx.
+import { useCampusBackground } from '@/components/campus-map/useCampusBackground';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
@@ -342,6 +347,10 @@ export function CenterWorkspacePaneSurface(props: CenterWorkspacePaneSurfaceProp
 	} = props;
 
 	const { pathname } = useLocation();
+	// A9 m1 — the campus background for this pane's map view. Read through the
+	// shared client seam, keyed on the actor's school, and rendered only when the
+	// pane actually shows the map — so opening the schedule view dispatches nothing.
+	const campusBackground = useCampusBackground(defaultSchoolId);
 	// A7 — this surface is rendered at ONE position in `CenterWorkspace`, so a ref
 	// declared here survives every sub-page swap for the same reason the original
 	// did: the centre panel is never unmounted between centre views.
@@ -512,6 +521,8 @@ export function CenterWorkspacePaneSurface(props: CenterWorkspacePaneSurfaceProp
 					</div>
 					<Suspense fallback={<AdvancedSurfaceFallback label="Loading map workspace..." />}>
 						<CampusMap
+							campusImageUrl={campusBackground.campusImageUrl}
+							campusMapPlacement={campusBackground.campusMapPlacement}
 							buildings={buildings}
 							activeBuildingId={mapBuildingId}
 							onSelect={(buildingId) => {

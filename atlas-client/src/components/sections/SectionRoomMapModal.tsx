@@ -26,6 +26,7 @@ import type { Building, Room } from '@/types';
 import { Skeleton } from '@/ui/skeleton';
 import { ScrollArea } from '@/ui/scroll-area';
 import { CampusMap } from '@/components/CampusMap';
+import { fetchCampusBackground } from '@/lib/campus-background-api';
 import { BuildingView } from '@/components/BuildingView';
 import { cn } from '@/lib/utils';
 
@@ -108,6 +109,12 @@ export function SectionRoomMapModal({
 	const [activeBuildingId, setActiveBuildingId] = React.useState<number | null>(null);
 	const [selectedRoomId, setSelectedRoomId] = React.useState<number | null>(currentRoomId);
 	const [viewMode, setViewMode] = React.useState<'campus' | 'building'>('campus');
+	// A9 m1 - the photo and its placement, read through the SHARED client seam so
+	// this room map frames the campus the same way the editor and the overview do.
+	// A load failure leaves both null, which renders the same no-background view this
+	// modal has always shown rather than a half-placed photo.
+	const [campusImageUrl, setCampusImageUrl] = React.useState<string | null>(null);
+	const [campusMapPlacement, setCampusMapPlacement] = React.useState<unknown>(null);
 	const scrollAreaRef = React.useRef<HTMLDivElement>(null);
 	const activeRoomRef = React.useRef<HTMLButtonElement>(null);
 
@@ -116,7 +123,12 @@ export function SectionRoomMapModal({
 		setLoading(true);
 		setLoadFailure(null);
 		try {
-			const loadedBuildings = await fetchSectionRoomMapBuildings(schoolId);
+			const [loadedBuildings, background] = await Promise.all([
+				fetchSectionRoomMapBuildings(schoolId),
+				fetchCampusBackground(schoolId).catch(() => ({ campusImageUrl: null, campusMapPlacement: null })),
+			]);
+			setCampusImageUrl(background.campusImageUrl);
+			setCampusMapPlacement(background.campusMapPlacement);
 			if (loadedBuildings == null) {
 				// Unresolved/invalid actor school — never dispatch or render stale
 				// buildings from a previous scope.
@@ -587,8 +599,11 @@ export function SectionRoomMapModal({
 													setViewMode('building');
 												}
 											}} 
-											buildingOccupancy={buildingOccupancy}
-										/>
+										buildingOccupancy={buildingOccupancy}
+										campusImageUrl={campusImageUrl}
+										campusMapPlacement={campusMapPlacement}
+									/>
+
 									</div>
 								</div>
 							) : (
