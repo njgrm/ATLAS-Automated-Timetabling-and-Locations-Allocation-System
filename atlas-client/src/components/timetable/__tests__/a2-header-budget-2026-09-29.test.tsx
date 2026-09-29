@@ -853,12 +853,35 @@ const CLIENT_ROOT = resolve(import.meta.dirname, '../../../..');
 const REPO_ROOT = resolve(CLIENT_ROOT, '..');
 
 const SCOPE_FILES = [
-	'hooks/useScheduleReviewWorkspaceState.ts',
 	'components/timetable/simple/SimplePastYearView.tsx',
 	'components/timetable/simple/SimplePastYearReadOnlySurface.tsx',
 	'components/timetable/simple/usePastYearTimetable.ts',
 	'components/timetable/simple/pastYearViewState.ts',
 ] as const;
+
+/**
+ * A2 C13 (operator, 2026-09-29) — `hooks/useScheduleReviewWorkspaceState.ts` was
+ * REMOVED from this list, with a dated reason; the other four are unchanged and
+ * still protected exactly as before.
+ *
+ * It is the parked section-switch file, and A2 HEADER-BUDGET correctly parked it.
+ * A2 C13 brought it back into scope for one reason, and only one: item 1 needs to
+ * know whether a published run is ALREADY derivable from data on screen, so the
+ * `Show the last published schedule` control appears only when one truly exists and
+ * fires **no new fetch to find out**. That answer is `hasPublishedReturnState`
+ * (+18 lines), derived from the published-return capture the workspace already
+ * performs. The past-year read-only surface stays parked and is untouched — this is
+ * not a resurrection of the parked feature, and the four modules that carry it are
+ * still byte-identical to the base.
+ *
+ * This is the THIRD committed row in this range that pinned pre-change state and had
+ * to be corrected (after the two `bg-primary` pins). That pattern is the reusable
+ * lesson, not the three rows: a range that changes a surface must expect committed
+ * rows asserting the OLD surface, and must find them by running the gates that
+ * assert it — `test:ux-a2-header-budget` and `test:ux-a2-c11-s2-header` are both
+ * unreachable from `test:client-suite`, which is why a clean difference set did not
+ * surface them. Both are now wired into `test:client-suite`.
+ */
 
 test('H9 RANGE-SCOPE ROW (NOT a behavioural row): the parked section-switch file and every past-year module are byte-identical to the base', () => {
 	// LINE ENDINGS ARE NORMALISED, AND THAT IS DELIBERATE. `git show` returns the

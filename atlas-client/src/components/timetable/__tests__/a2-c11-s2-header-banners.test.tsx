@@ -510,9 +510,40 @@ test('ITEM 2 the two-severity chip renders the split on the REAL header, and sti
 	assert.ok(chip, 'the warnings control is on screen');
 	assert.equal(view.visible('timetable-simple-readiness-chip'), '3 Must fix, 145 advisories — this schedule cannot be published yet.',
 		'the operator reads BOTH severities from the one control, and still the consequence');
+	// A2 C13 (operator, 2026-09-29, item 3) — **THE SOLID-PRIMARY HALF OF THIS ROW IS
+	// SUPERSEDED, and the original assertion is kept verbatim below (AGENTS.md §16).**
+	//
+	// Original, retained:
+	//   const solid = view.all('button,a[href]').filter((el) => /\bbg-primary\b/.test(el.getAttribute('class') ?? ''));
+	//   assert.equal(solid.length, 1,
+	//     'and there is still exactly ONE solid primary on the header (DRAFT-UX-C01, operator 2026-09-25)');
+	//
+	// Why it is superseded, not deleted: the ONE solid primary this row counted was the
+	// **Publish** control while it was **disabled** — `variant="default"` plus the shared
+	// `disabled:opacity-50`, i.e. a solid `bg-primary` at half opacity. That is the
+	// operator's reported "pale-green near-miss": a control that reads as the next step
+	// and is not. A2 C13 gives a disabled lifecycle control the `unavailable` variant
+	// (no `bg-primary`) and prints a ≤ 6-word reason beside it, so a blocked header
+	// honestly has ZERO solid primaries.
+	//
+	// DRAFT-UX-C01 (operator, 2026-09-25) still stands, and this row still enforces it —
+	// the rule is "one dominant control", and the enforcement is now that the header shows
+	// AT MOST ONE solid primary and never presents an unavailable one as dominant. The
+	// chip assertions above are untouched and remain exactly as discriminating as before.
 	const solid = view.all('button,a[href]').filter((el) => /\bbg-primary\b/.test(el.getAttribute('class') ?? ''));
-	assert.equal(solid.length, 1,
-		'and there is still exactly ONE solid primary on the header (DRAFT-UX-C01, operator 2026-09-25)');
+	assert.ok(solid.length <= 1,
+		'never more than ONE solid primary on the header (DRAFT-UX-C01, operator 2026-09-25)');
+	// The replacement claim: on this blocked header the only lifecycle control is
+	// unavailable, so it must read as unavailable rather than as a near-miss primary.
+	const publish = view.el('timetable-simple-publish-action');
+	assert.ok(publish, 'the Publish control is still on screen - the reason must be readable, not removed');
+	assert.equal(publish!.hasAttribute('disabled'), true, 'it is honestly disabled');
+	assert.equal(/\bbg-primary\b/.test(publish!.getAttribute('class') ?? ''), false,
+		'a disabled control must not wear the primary background (A2 C13 item 3)');
+	assert.equal(/\bbg-muted\b/.test(publish!.getAttribute('class') ?? ''), true,
+		'and wears the plainly-unavailable treatment instead');
+	assert.ok((view.visible('timetable-simple-publish-short-reason') ?? '').length > 0,
+		'the reason is printed beside it, in words, not hover-only');
 });
 
 // ═══ The Expert header does not get a different banner ══════════════════════

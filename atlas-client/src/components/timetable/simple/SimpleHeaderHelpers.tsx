@@ -579,45 +579,63 @@ export function SimplePublishAction({
 	onClick: () => void;
 }) {
 	const { disabled, reason, shortReason } = actionState;
-	return (
-		<>
-			/* A2-C6-TRUTH (T3g) made this reason VISIBLE under the control, and its
-			 * accepted rendered row asserted `data-testid="timetable-publish-blocked-reason"`.
-			 *
-			 * A2 HEADER-BUDGET (operator, 2026-09-29) — **THAT ROW IS SUPERSEDED.** §8's
-			 * new "Header budget" rule is explicit: "disabled actions with nothing to do
-			 * … no helper sentence under a button (put it in a `Tooltip`)". The operator
-			 * reported this exact sentence in the screenshot as part of the "regressed /
-			 * messy" header. The reason is NOT lost, and the state is still never a red
-			 * button that looks broken with no explanation:
-			 *   - `GatedAction` puts it in a `@/ui` Tooltip on a FOCUSABLE wrapper, so a
-			 *     disabled button's reason is reachable by pointer AND keyboard
-			 *     (Radix will not fire from a disabled button itself);
-			 *   - the control's `aria-label` still carries the sentence verbatim, so
-			 *     nothing depends on a hover being available (AGENTS.md §8: never
-			 *     hover-only, never a raw `title`).
-			 * The row is marked SUPERSEDED in place, with this behaviour as its
-			 * replacement — it is NOT deleted (AGENTS.md §16).
-			 *
-			 * A2 C13 (operator, 2026-09-29, item 3c) — **THIS NOTE IS SUPERSEDED
-			 * AGAIN, and the original text above is kept verbatim (AGENTS.md §16).**
-			 * The same operator who imposed the Tooltip-only rule has now overridden it
-			 * for the header's disabled lifecycle controls: *"put the reason in words
-			 * beside it."* So a VISIBLE reason is back — but not the old sentence under
-			 * the button. It is a `text-xs` `text-muted-foreground` line rendered on the
-			 * SAME ROW, immediately beside the control, at most SIX words, and derived
-			 * from the same resolver (and for a gate, the same `denied()` call) that
-			 * produces the full `aria-label` sentence, so the two cannot drift. The
-			 * Tooltip and the full `aria-label` BOTH REMAIN: the override widened the
-			 * reason's reach, it did not narrow it.
-			 *
-			 * The old `timetable-publish-blocked-reason` testid is still
-			 * `SUPERSEDED` — the reason is visible again, but under a new testid
-			 * (`timetable-simple-publish-short-reason`) carrying a NEW, shorter
-			 * sentence, which is a different claim and must not be asserted through
-			 * the old row.
-			 */
-			<GatedAction disabled={disabled} reason={reason}>
+	/**
+	 * A2 C13 CORRECTION (QA F1, BLOCKING, 2026-09-29) — this note is hoisted ABOVE
+	 * the `return` on purpose, and must stay there.
+	 *
+	 * A2 C13's own correction wrapped this component's return in a fragment, which
+	 * moved this bare block comment INSIDE the JSX children list — where a block
+	 * comment is **text, not a comment**. 2,270 characters of this note, backticks and
+	 * `AGENTS.md` references included, rendered inside the Publish control on every
+	 * state. QA proved it differentially: base 28 characters of visible text and no
+	 * `A2-C6-TRUTH`; the candidate 2,270 and leaking. It passed every gate the
+	 * candidate ran, because `test:ux-a2-header-budget` and
+	 * `test:ux-a2-c11-s2-header` are not reachable from `test:client-suite`.
+	 *
+	 * The text below is unchanged and still required (AGENTS.md §16). Only its
+	 * POSITION is load-bearing: a comment in JSX children is a string a scheduler
+	 * reads. Do not move it back inside the fragment.
+	 */
+	/*
+	 * A2-C6-TRUTH (T3g) made this reason VISIBLE under the control, and its
+	 * accepted rendered row asserted `data-testid="timetable-publish-blocked-reason"`.
+	 *
+	 * A2 HEADER-BUDGET (operator, 2026-09-29) — **THAT ROW IS SUPERSEDED.** §8's
+	 * new "Header budget" rule is explicit: "disabled actions with nothing to do
+	 * … no helper sentence under a button (put it in a `Tooltip`)". The operator
+	 * reported this exact sentence in the screenshot as part of the "regressed /
+	 * messy" header. The reason is NOT lost, and the state is still never a red
+	 * button that looks broken with no explanation:
+	 *   - `GatedAction` puts it in a `@/ui` Tooltip on a FOCUSABLE wrapper, so a
+	 *     disabled button's reason is reachable by pointer AND keyboard
+	 *     (Radix will not fire from a disabled button itself);
+	 *   - the control's `aria-label` still carries the sentence verbatim, so
+	 *     nothing depends on a hover being available (AGENTS.md §8: never
+	 *     hover-only, never a raw `title`).
+	 * The row is marked SUPERSEDED in place, with this behaviour as its
+	 * replacement — it is NOT deleted (AGENTS.md §16).
+	 *
+	 * A2 C13 (operator, 2026-09-29, item 3c) — **THIS NOTE IS SUPERSEDED
+	 * AGAIN, and the original text above is kept verbatim (AGENTS.md §16).**
+	 * The same operator who imposed the Tooltip-only rule has now overridden it
+	 * for the header's disabled lifecycle controls: *"put the reason in words
+	 * beside it."* So a VISIBLE reason is back — but not the old sentence under
+	 * the button. It is a `text-xs` `text-muted-foreground` line rendered on the
+	 * SAME ROW, immediately beside the control, at most SIX words, and derived
+	 * from the same resolver (and for a gate, the same `denied()` call) that
+	 * produces the full `aria-label` sentence, so the two cannot drift. The
+	 * Tooltip and the full `aria-label` BOTH REMAIN: the override widened the
+	 * reason's reach, it did not narrow it.
+	 *
+	 * The old `timetable-publish-blocked-reason` testid is still
+	 * `SUPERSEDED` — the reason is visible again, but under a new testid
+	 * (`timetable-simple-publish-short-reason`) carrying a NEW, shorter
+	 * sentence, which is a different claim and must not be asserted through
+	 * the old row.
+	 */
+		return (
+			<>
+				<GatedAction disabled={disabled} reason={reason}>
 				<Button
 					type="button"
 					/**
