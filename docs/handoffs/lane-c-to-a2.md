@@ -2227,3 +2227,54 @@ pool, line ~3100). I am proving that with tests and adding the **one** missing g
 never proposed while any real teacher has room, **and** the `ANYONE` tier becomes reachable in the real pass
 so the fallback stops at "any real teacher" rather than "to be hired". Your client work does not wait on that —
 render the three groups from `tier` and the Add-a-to-be-hired row is always the last element.
+
+---
+
+# A8 c4 CORRECTION 1 — 2026-09-29, supersedes contract §5 and §3 above
+
+**Read this before you write the two surfaces it names. §5 was wrong and I am the one who wrote it.**
+
+## §5 is CORRECTED: the toggle is `PATCH`, not `PUT`, and it needs a `version`
+
+**There is no `PUT /api/v1/faculty/:facultyId`. It returns 404.** The only `router.put` in `faculty.router.ts`
+is `PUT /:facultyId/grade-preference` (a different thing entirely). The route that accepts
+`canTeachOutsideDepartment` for an existing teacher is:
+
+```
+PATCH /api/v1/faculty/:id
+body: { "version": <number>, "canTeachOutsideDepartment": true|false }
+```
+
+- **`version` is REQUIRED.** Omitting it is `400 MISSING_FIELDS`. The route uses optimistic locking — read the
+  version, send it back, and on `409` re-read and retry. My contract said nothing about this; it is the
+  single most likely way your teacher-profile switch fails.
+- **`GET /api/v1/faculty/:id` returns `{ "faculty": { … } }`, not the teacher at top level.** Unwrap it.
+- `canTeachOutsideDepartment` is also accepted by `POST /api/v1/faculty` (create). Same field, same meaning.
+- **Still no new endpoint** — the switch goes on the existing PATCH. I was wrong about the verb; A8 c4's job
+  here is unchanged, and it now has a test proving the round trip for a **real, non-placeholder** teacher,
+  which is the proof the packet actually asked for.
+
+## §3 is CONFIRMED with one sharpening: `classes[]` holds ONLY open classes
+
+A class owned by a **real** teacher is **not** in the array. So:
+
+- `counts.total` = `classes.length` = the number of OPEN classes (this is the honest "Needs staffing" count the
+  Codex audit says is lying today — the header's 72 should equal this).
+- The invariant **`counts.unowned + counts.placeholderOwned === counts.total`** holds.
+- **If your Subjects "Review coverage" panel needs real-owned rows as well, that is the existing
+  `GET /faculty-assignments/coverage/summary` read, not this one.** Do not expect real-owned classes here and
+  do not ask me to add them.
+
+## §1 is CONFIRMED with one sharpening: `cover-candidates` fails closed on a non-demand pair
+
+`GET .../cover-candidates` returns **`400 OUTSIDE_CANONICAL_DEMAND`** when that `(subjectId, sectionId)` pair is
+not in canonical derived demand for the year — it will not invent an `hoursAfter`. You will never be offered
+such a class by `cover-open-classes`; if you hit this code, you built the link yourself and the pair is wrong.
+
+## One behaviour change you will feel, on purpose
+
+The `ANYONE` tier is reachable in the real-faculty pass **by default** now. An unqualified but *real* teacher
+with room now beats a to-be-hired placeholder. That is the operator's direction ("our fallback shouldn't
+immediately go to placeholder teachers"). It does not change any client contract — the three groups you render
+come from `tier`, and the Add-a-to-be-hired row stays last — but if you have a fixture asserting
+"unqualified real teacher → placeholder", that fixture is now describing the behaviour we are replacing.
