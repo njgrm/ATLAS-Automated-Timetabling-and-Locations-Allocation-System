@@ -2902,3 +2902,22 @@ Full handoff with every measurement: `docs/handoffs/a9-c7-to-lane-c-20260929.md`
 `docs/reviews/a9-c7-home-room-picker-20260929/rendered-evidence.md` + 11 PNGs. Worktree
 `E:/ATLAS-worktrees/lane-a9-c7-home-room` = `RETIRE_AFTER_INTEGRATION`, `node_modules` is a real directory (not a
 junction). Preview `:5262` (PID 2620) still running, mine to kill on request.
+---
+
+## A8 g1 — spread weekly classes across days (train 11) — MEASURED, NOT FIXED, not merged
+
+Lane A8, cycle g1, 2026-09-29. Packet `docs/prompts/a8-g1-spread-sessions-2026-09-29.md`. The premise is
+confirmed on live-shaped data (a whole-DB copy of `atlas_staging` reproduces Run 347's frame exactly:
+910 placed / 10 unplaced of 920, 0/0/0 overlaps, 25 same-day repeat pairs, worst 4). **The change does not
+move those numbers: 25 -> 25, worst 4 -> 4, 10 -> 10.** Cause: production calls
+`runHybridScheduler(constructorInput)` (`generation.service.ts:1006`), and the hybrid scheduler's
+`repairUnassignedByEjection` relocates 40 entries **after** the constructor, with no same-day constraint.
+The constructor's `dayUseCount` ordering is correct but invisible in the real path. The fix belongs in
+`atlas-server/src/services/hybrid-scheduler.ts` (seed profiles + repair/ejection), which is a different area
+and shares the generation area with A8 c5.
+
+Nothing was pushed to `main`; the branch `work/a8-g1-spread-sessions` (tip `92e89bc8`) holds the source
+change, the tests and the now-discriminating proof harness, kept for the re-scope. Full finding and three
+measured attempts: `docs/reviews/a8-g1-spread-sessions/proof-attempt-3-finding.md`. No live, staging,
+runtime, migration or generation action was taken; the staging source signature was unchanged by all three
+proof runs.
