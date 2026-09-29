@@ -40,6 +40,31 @@ function err(statusCode: number, code: string, message: string, details?: Record
 
 const VALID_DAYS = new Set(['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY']);
 
+/** A2 place-one-action — the ordered-contract ceiling for a draft placement term. */
+export const MAX_PLACEMENT_TERM_INDEX = 4;
+
+/**
+ * A2 place-one-action — resolve the ordered term a commit will persist.
+ *
+ * `null`/`undefined` means "no explicit term": a create keeps the schema default
+ * and an update leaves the stored term unchanged. A provided term fails closed:
+ * a non-integer, an out-of-range value, or a value outside the school year's
+ * ordered contract is rejected rather than silently stored as Term 1.
+ */
+export function resolvePlacementTermIndex(
+	requested: number | null | undefined,
+	termIdentities: readonly string[],
+): number | null {
+	if (requested == null) return null;
+	if (!Number.isInteger(requested) || requested < 1 || requested > MAX_PLACEMENT_TERM_INDEX) {
+		throw err(400, 'INVALID_TERM_INDEX', `termIndex must be 1..${MAX_PLACEMENT_TERM_INDEX}.`);
+	}
+	if (termIdentities.length > 0 && requested > termIdentities.length) {
+		throw err(400, 'TERM_INDEX_OUTSIDE_CONTRACT', `termIndex ${requested} is outside the ${termIdentities.length}-term ordered contract.`);
+	}
+	return requested;
+}
+
 export interface DraftPlacementInput {
 	placementId?: number;
 	excludePlacementIds?: number[];
@@ -1295,6 +1320,11 @@ export async function getDraftPlacement(schoolId: number, schoolYearId: number, 
 
 export async function commitPlacement(schoolId: number, schoolYearId: number, actorId: number, input: DraftPlacementInput, allowSoftOverride = false, authToken?: string): Promise<DraftPlacementCommitResult> {
 	const ctx = await loadDraftContext(schoolId, schoolYearId, authToken);
+	// A2 place-one-action — validate the ordered term FIRST, before the preview can
+	// report a conflict. A term outside 1..4 or the year's contract is a malformed
+	// request and must fail closed on its own reason, never be masked by (or, worse,
+	// reach a write behind) a conflict message.
+	const termIndex = resolvePlacementTermIndex(input.termIndex, ctx.termIdentities);
 	const preview = await previewPlacement(schoolId, schoolYearId, input, authToken);
 	if (preview.hardViolations.length > 0) {
 		throw err(422, 'HARD_VIOLATION_BLOCK', 'Placement cannot be committed while hard conflicts remain.', { hardViolations: preview.hardViolations.map((violation) => violation.code) });
@@ -1331,6 +1361,8 @@ export async function commitPlacement(schoolId: number, schoolYearId: number, ac
 				endTime: input.endTime,
 				cohortCode: input.cohortCode ?? null,
 				notes: input.notes ?? null,
+				// A2 place-one-action — an absent term leaves the stored one alone.
+				termIndex: termIndex ?? undefined,
 				status: 'DRAFT',
 				lockedRunId: null,
 				version: { increment: 1 },
@@ -1352,6 +1384,9 @@ export async function commitPlacement(schoolId: number, schoolYearId: number, ac
 				endTime: input.endTime,
 				cohortCode: input.cohortCode ?? null,
 				notes: input.notes ?? null,
+				// A2 place-one-action — the term the operator placed into, never the
+				// schema default for an explicit placement.
+				termIndex: termIndex ?? undefined,
 				createdBy: actorId,
 				status: 'DRAFT',
 			},
@@ -1573,6 +1608,10 @@ export async function replacePlacementFromQueue(
 	const ctx = await loadDraftContext(schoolId, schoolYearId, authToken);
 	const displaced = getDraftPlacementOrThrow(ctx, input.displacedPlacementId, input.displacedExpectedVersion);
 	const placementInput = { ...input.placement, placementId: undefined, excludePlacementIds: [displaced.id] };
+	// A2 place-one-action — a queue item swapped into an occupied slot carries its
+	// own ordered term through the replacement, never the schema default. Validate
+	// it before the preview for the same fail-closed reason as `commitPlacement`.
+	const termIndex = resolvePlacementTermIndex(placementInput.termIndex, ctx.termIdentities);
 	const preview = await previewPlacement(schoolId, schoolYearId, placementInput, authToken);
 	if (preview.hardViolations.length > 0 || preview.dailyLoadBand === 'hard') {
 		throw err(422, 'HARD_VIOLATION_BLOCK', 'Replacement cannot be committed while hard conflicts remain.');
@@ -1598,6 +1637,7 @@ export async function replacePlacementFromQueue(
 				endTime: placementInput.endTime,
 				cohortCode: placementInput.cohortCode ?? null,
 				notes: placementInput.notes ?? null,
+				termIndex: termIndex ?? undefined,
 				createdBy: actorId,
 				status: 'DRAFT',
 			},

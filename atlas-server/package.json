@@ -57,6 +57,7 @@
     "test:export-center": "tsx --test src/__tests__/export-learner-count.test.ts src/__tests__/schedule-workbook-docx.test.ts src/__tests__/scheduler-print-xlsx-c01.test.ts",
     "test:timetable-sync-setup": "tsx src/__tests__/timetable-sync-setup.test.ts",
     "test:timetable-swap-custody-a2": "tsx src/__tests__/timetable-swap-custody-a2.test.ts",
+    "test:a2-place-one-action": "tsx --test src/__tests__/a2-place-one-action.test.ts",
     "test:timetable-autofix-break-window-a2": "tsx --test src/__tests__/timetable-autofix-break-window-a2.test.ts",
     "test:timetable-swap-notification-message-a2": "tsx --test src/__tests__/timetable-swap-notification-message-a2.test.ts",
     "test:notification-inbox-dedupe-a2": "tsx --test src/__tests__/notification-inbox-dedupe-a2.test.ts",
