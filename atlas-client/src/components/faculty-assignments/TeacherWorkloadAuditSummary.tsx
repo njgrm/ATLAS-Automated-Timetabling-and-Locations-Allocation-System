@@ -83,7 +83,7 @@ export function TeacherWorkloadAuditSummary({
 }: {
 	onSelectTeacher: (facultyId: number) => void;
 	/**
-	 * A6 c9 (38.1) ΓÇö the host owns the scroll region.
+	 * A6 c9 (38.1) — the host owns the scroll region.
 	 *
 	 * `ReviewTeachersModal` bounds this component itself, because it is the
 	 * outermost frame there. The header's `Load summary` window is NOT: it is a

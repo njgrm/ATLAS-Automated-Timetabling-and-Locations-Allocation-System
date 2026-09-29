@@ -925,12 +925,12 @@ test('A6C6-4 MUTANT ROW: ONE primary action on row 1, and `Load summary` opens t
 	const dialog = portalledDialog();
 	assert.ok(dialog, 'selecting the menu item must open the summary dialog');
 	assert.equal(dialog!.getAttribute('data-testid'), 'teaching-load-summary-dialog', 'the SAME dialog, by its own test id');
-	// A6 c9 (fix-1.2 38.1) ΓÇö the window now opens on the STAFF WORKLOAD AUDIT, and
+	// A6 c9 (fix-1.2 38.1) — the window now opens on the STAFF WORKLOAD AUDIT, and
 	// the totals table is behind ONE `More detail` disclosure at the bottom. The
 	// operator's words: "that's what the load summary should be, not a bunch of
 	// numbers that no one cares about", and "the old table of totals nobody reads
 	// goes (or behind 'More detail' at the bottom of that window)". The panel, its
-	// `truthModel` authority and every figure below are UNCHANGED ΓÇö they are one
+	// `truthModel` authority and every figure below are UNCHANGED — they are one
 	// press away instead of on open, which is the whole of the change.
 	// (Retained here, not deleted: the figures themselves are still asserted.)
 	const moreDetail = dialog!.querySelector('[data-testid="teaching-load-summary-more-detail-toggle"]');

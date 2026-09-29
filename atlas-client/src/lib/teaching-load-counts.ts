@@ -14,13 +14,13 @@ export function countDistinctSections(assignments: ReadonlyArray<{ sectionIds: R
 }
 
 /**
- * A6 c9 (fix-1.2 16.2) ΓÇö the number of SUBJECTS a teacher is given load in.
+ * A6 c9 (fix-1.2 16.2) — the number of SUBJECTS a teacher is given load in.
  *
  * Beside `countDistinctSections`, and for the same reason: a subject whose
  * `sectionIds` are empty is a record with no teaching in it, so it must not be
  * counted as a subject the teacher carries. c6 removed the row's `Subjects`
  * figure as density; the operator's fix-1.2 16.2 asks for it back as a
- * straight, fixed-width column, and this is its one derivation ΓÇö the row does
+ * straight, fixed-width column, and this is its one derivation — the row does
  * not add it up itself.
  */
 export function countDistinctSubjects(assignments: ReadonlyArray<{ subjectId: number; sectionIds: ReadonlyArray<number> }> | null | undefined): number {
