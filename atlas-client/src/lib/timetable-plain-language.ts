@@ -105,7 +105,7 @@ export function publishBlockedSentence(input: {
 }): string {
 	const unplaced = input.unassignedCount;
 	const tail = unplaced > 0
-		? `${unplaced} class${unplaced === 1 ? ' still needs' : 'es still need'} a time`
+		? classesNeedingTime(unplaced)
 		: mustFixCountLabel(input.blockingHardCount);
 	return `${tail} — this schedule cannot be published yet.`;
 }
@@ -504,9 +504,14 @@ export const ALL_SESSIONS_PLACED_LABEL = 'All classes placed';
 /** The ONE noun for the unit a scheduler places. Nothing user-facing says "session". */
 export const CLASS_NOUN = 'class';
 
-/** `classesNeedingTime(1)` -> `"1 class still needs a time"`, plural otherwise. */
+/**
+ * R1-C2 (decision 8, operator) — the ONE unplaced-count wording:
+ * `classesNeedingTime(1)` -> `"1 class needs a time slot"`, plural otherwise.
+ * It replaces `"N classes still need a time"`; every user-visible string that names
+ * the unplaced count goes through this function, so the noun phrase cannot drift.
+ */
 export function classesNeedingTime(count: number): string {
-	return `${count} ${count === 1 ? CLASS_NOUN : `${CLASS_NOUN}es`} still ${count === 1 ? 'needs' : 'need'} a time`;
+	return `${count} ${count === 1 ? CLASS_NOUN : `${CLASS_NOUN}es`} ${count === 1 ? 'needs' : 'need'} a time slot`;
 }
 
 /* ── U3a / #43 — the generate dialog, cut from 155 words to a 30-word budget ── */

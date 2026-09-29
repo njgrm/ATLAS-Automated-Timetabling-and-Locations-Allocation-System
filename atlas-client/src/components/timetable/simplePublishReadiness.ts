@@ -703,7 +703,7 @@ export function deriveSimplePublishReadiness(
 		 * need fixing" — the same two-verbs-on-one-clause defect the finding named.
 		 * "3 classes needing a time" is a noun phrase the template can finish. */
 		blockerClauses.push(
-			`${totalUnresolved} ${totalUnresolved === 1 ? CLASS_NOUN : `${CLASS_NOUN}es`} needing a time`,
+			`${totalUnresolved} ${totalUnresolved === 1 ? CLASS_NOUN : `${CLASS_NOUN}es`} needing a time slot`,
 		);
 	}
 	const blockerSentence = blockerClauses.length === 0
@@ -712,7 +712,7 @@ export function deriveSimplePublishReadiness(
 
 	let summaryText: string;
 	if (!draft) {
-		summaryText = `No timetable generated yet\nGenerate a timetable before reviewing publish readiness. Preview and readiness checks alone cannot be published.`;
+		summaryText = `No timetable generated yet\nGenerate a draft before reviewing publish readiness. Preview and readiness checks alone cannot be published.`;
 	} else if (hasBlockers) {
 		// The wording below is the SAME sentence `SimplePublishReadinessSheet`
 		// already renders, so the resolver's copy text and the rendered sheet can no

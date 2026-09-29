@@ -12,7 +12,7 @@ import { captureBridgeToken } from '@/lib/bridge';
 import { resolveEnrollProLogoutRedirect } from '@/lib/companion-config';
 import { applyEnrollProAccentTheme, fetchPublicSettings } from '@/lib/settings';
 import { verifySessionWithinDeadline } from '@/lib/session-verification';
-import { invalidateActiveSchoolYearContext, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { invalidateActiveSchoolYearContext, resolveActiveSchoolYearContext, resolveActiveYearLabel } from '@/lib/enrollpro-public-settings';
 import { isVerifiedOrderedActiveTerm } from '@/lib/academic-term';
 import {
 	clearRolloverAwarenessNotice,
@@ -26,6 +26,7 @@ import {
  * named `RolloverAwarenessNotice`, which collides with the NOTICE TYPE imported
  * above, so it is aliased here. */
 import { RolloverAwarenessNotice as RolloverAwarenessBanner } from '@/components/app-shell/RolloverAwarenessNotice';
+import { ActiveYearBadge } from '@/components/app-shell/ActiveYearBadge';
 import {
 	ATLAS_SESSION_EXPIRED_EVENT,
 	clearAtlasAuthStorage,
@@ -184,7 +185,11 @@ export function AppShell() {
 			const previous = runtimeYearRef.current;
 			runtimeYearRef.current = { id: context.activeSchoolYearId, label: context.activeSchoolYearLabel ?? null };
 			setSelectedYearId(context.activeSchoolYearId);
-			setActiveYearLabel(context.activeSchoolYearLabel ?? `School year ${context.activeSchoolYearId}`);
+			/* A7 c12b R1-C1 — the ONE string form of the ONE active-year authority
+			 * (`resolveActiveSchoolYearContext`'s `activeSchoolYearLabel`). The
+			 * timetable chip reads the same field; stringifying it here as well kept
+			 * a second, inline source alive. */
+			setActiveYearLabel(resolveActiveYearLabel(context));
 			setActiveTermLabel(isVerifiedOrderedActiveTerm(context.activeTerm)
 				? context.activeTerm?.activeTerm ?? null
 				: null);
@@ -554,9 +559,10 @@ export function AppShell() {
 							    that states both facts now lives where the term is chosen
 							    (`SimpleTermScopeLine`, and the Expert orientation strip). */}
 							{activeYearLabel && (
-									<Badge variant='outline' className='min-h-7 px-2 text-xs'>
-										Active year: {activeYearLabel}
-									</Badge>
+									/* A7 c12b R1-C1 — the badge is the extracted shared surface, so
+									 * the copy test renders EXACTLY what the scheduler sees. Words,
+									 * placement and role are unchanged. */
+									<ActiveYearBadge label={activeYearLabel} />
 								)}
 							</div>
 						</>

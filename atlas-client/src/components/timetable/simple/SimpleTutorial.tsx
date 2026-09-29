@@ -115,7 +115,7 @@ const GENERATED_STEPS: readonly SimpleTutorialStep[] = [
 	},
 	{
 		title: 'Understand publish blockers',
-		body: 'If the readiness chip shows Must fix, tap it to see which classes still need a time and why the schedule cannot be published yet.',
+		body: 'If the readiness chip shows Must fix, tap it to see which classes still need a time slot and why the schedule cannot be published yet.',
 		target: 'Readiness chip',
 		targetTestId: 'timetable-simple-readiness-chip',
 		icon: ListChecks,

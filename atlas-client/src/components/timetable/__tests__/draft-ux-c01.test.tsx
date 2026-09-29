@@ -1616,7 +1616,9 @@ test('PL-J4.1S an unplaced-only block names CLASSES on the chip, the one unit ev
 		draft: draft([unassignedItem(2, 701, 1), unassignedItem(2, 702, 1), unassignedItem(2, 703, 1)], { hardViolationCount: 0, unassignedCount: 3 }),
 	});
 	const text = chip.textContent ?? '';
-	assert.match(text, /3 classes still need a time — this schedule cannot be published yet\./, 'the unplaced clause names classes');
+	// R1-C2 (decision 8) SUPERSEDED the wording: `3 classes still need a time` is
+	// `3 classes need a time slot`. The property is unchanged.
+	assert.match(text, /3 classes need a time slot — this schedule cannot be published yet\./, 'the unplaced clause names classes');
 	assert.doesNotMatch(text, /session/i, 'the chip never falls back to the retired noun');
 });
 

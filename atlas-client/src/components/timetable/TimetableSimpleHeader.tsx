@@ -602,7 +602,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		context.termFilter,
 	);
 	const unassignedUnavailable = context.isPreGenerationWorkspace
-		? 'Unassigned sessions belong to a generated schedule; this is the working draft.'
+		? 'Classes needing a time slot belong to a generated schedule; this is the working draft.'
 		: !hasGeneratedRun ? 'No draft yet.' : null;
 
 	const exportRunId = context.draft?.runId ?? context.activeGeneratedRunId ?? null;

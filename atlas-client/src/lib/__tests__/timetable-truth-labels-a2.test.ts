@@ -521,10 +521,10 @@ test('item 4 the publish-checklist resolver says "class" everywhere, never "sess
 	// pre-fix shape of this row's own template plus a second verb produced
 	// "3 classes still need a time still need fixing", which is the same defect
 	// the finding named in the publish dialog.
-	const oneNounClause = `${3} ${3 === 1 ? CLASS_NOUN : `${CLASS_NOUN}es`} needing a time`;
+	const oneNounClause = `${3} ${3 === 1 ? CLASS_NOUN : `${CLASS_NOUN}es`} needing a time slot`;
 	assert.equal(
 		`${oneNounClause} still need fixing before this schedule can be published.`,
-		'3 classes needing a time still need fixing before this schedule can be published.',
+		'3 classes needing a time slot still need fixing before this schedule can be published.',
 		'the clause is a noun phrase the sentence template can finish, with no doubled verb',
 	);
 });
@@ -986,7 +986,7 @@ test('#58 one generation emits one outcome message, and it names the real number
 	);
 	assert.equal(
 		generationOutcomeToastSentence(12),
-		'Draft schedule ready — 12 classes still need a time. Review them, then publish.',
+		'Draft schedule ready — 12 classes need a time slot. Review them, then publish.',
 		'the non-zero case names the real number of classes without a time',
 	);
 	for (const unplaced of [0, 1, 12, 1295]) {
@@ -1005,7 +1005,7 @@ test('#58 one generation emits one outcome message, and it names the real number
 
 test('U4 the generation notification names the real number of classes still needing a time', () => {
 	assert.equal(generationNotificationSentence(0), 'New schedule ready. All classes placed.', 'the zero case is the recorded target copy');
-	assert.equal(generationNotificationSentence(12), 'New schedule ready. 12 classes still need a time.', 'the non-zero case names the real number');
+	assert.equal(generationNotificationSentence(12), 'New schedule ready. 12 classes need a time slot.', 'the non-zero case names the real number');
 	assert.equal(ALL_SESSIONS_PLACED_LABEL, 'All classes placed', 'and it reuses the one positive label, so the two cannot drift');
 	for (const unplaced of [0, 1, 3, 1295]) {
 		const sentence = generationNotificationSentence(unplaced);
@@ -1021,11 +1021,11 @@ test('U4 the generation notification names the real number of classes still need
 test('the publish-checklist sentence is one noun, present tense, and states the number once', () => {
 	assert.equal(
 		publishPlacementBlockedSentence(12),
-		'12 classes still need a time. Place them before you publish.',
+		'12 classes need a time slot. Place them before you publish.',
 		'one noun, one verb, the number once',
 	);
-	assert.equal(classesNeedingTime(1), '1 class still needs a time', 'singular is singular');
-	assert.equal(classesNeedingTime(12), '12 classes still need a time', 'plural is plural');
+	assert.equal(classesNeedingTime(1), '1 class needs a time slot', 'singular is singular');
+	assert.equal(classesNeedingTime(12), '12 classes need a time slot', 'plural is plural');
 	for (const count of [1, 2, 12, 1295]) {
 		const sentence = publishPlacementBlockedSentence(count);
 		assert.equal(sentence.split(String(count)).length - 1, 1, `"${sentence}" states the count exactly once`);

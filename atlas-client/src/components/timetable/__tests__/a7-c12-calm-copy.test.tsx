@@ -74,8 +74,20 @@ const { TimetableSimpleHeader } = await import('@/components/timetable/Timetable
 const { TimetableRunsPane } = await import('@/components/timetable/TimetableRunsPane');
 const { SimpleReadinessChip, resolveSimpleReadiness } = await import('@/components/timetable/simple/SimpleSetupSharedControls');
 const { deriveSimpleLifecycleAction } = await import('@/lib/simple-timetable-state');
-const { runAnchorLabel, runStateSentence, BUILD_NEW_DRAFT_LABEL, buildNewDraftDialogTitle, runStateBadgeLabel, PUBLISHED_SCHEDULE_STAYS_IN_USE } = await import('@/lib/timetable-plain-language');
+const { runAnchorLabel, runStateSentence, BUILD_NEW_DRAFT_LABEL, buildNewDraftDialogTitle, runStateBadgeLabel, PUBLISHED_SCHEDULE_STAYS_IN_USE, classesNeedingTime, generationOutcomeToastSentence, generationNotificationSentence, publishPlacementBlockedSentence, publishBlockedSentence } = await import('@/lib/timetable-plain-language');
 const { deriveTimetableCapabilities } = await import('@/lib/timetable-capabilities');
+const { simpleTutorialSteps } = await import('@/components/timetable/simple/SimpleTutorial');
+/* R1-C1: the two NEW shared members. On the pre-correction tip the namespace has no
+ * `resolveActiveYearLabel` and the badge module does not exist, so each is read
+ * through a guarded access and asserted by `typeof` — a real assertion, never a
+ * module-not-found. */
+const settingsAuthority = await import('@/lib/enrollpro-public-settings') as { resolveActiveYearLabel?: (context: { activeSchoolYearId: number; activeSchoolYearLabel: string | null }) => string };
+let ActiveYearBadge: ((props: { label: string }) => unknown) | undefined;
+try {
+	ActiveYearBadge = (await import('@/components/app-shell/ActiveYearBadge')).ActiveYearBadge;
+} catch {
+	ActiveYearBadge = undefined;
+}
 
 const CLIENT_ROOT = resolve(import.meta.dirname, '../../../..');
 const source = (relative: string) => readFileSync(resolve(CLIENT_ROOT, relative), 'utf8');
@@ -401,4 +413,109 @@ test('ROW 27 SOURCE: the export dialogs say `one Draft (or the Published schedul
 	assert.match(exportCenter, /one Draft \(or the Published schedule\) and one term/, 'the export centre dialog');
 	assert.doesNotMatch(print, /one completed run and one ordered term/, 'the retired phrase is gone from the print dialog');
 	assert.doesNotMatch(exportCenter, /from the selected run and ordered term/, 'and from the export centre dialog');
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CORRECTION R1 (fresh QA, a93e4785b..899cbd2e) — C1/C2/C3/C4. Additive only.
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('R1-C1 AUTHORITY: the app-shell `Active year:` badge and the timetable chip name the SAME persisted active-year field', () => {
+	// BRANCH (a): ONE authority and ONE field. The authority is
+	// `resolveActiveSchoolYearContext` (@/lib/enrollpro-public-settings) over the
+	// per-`schoolId` persisted entry; the field is `activeSchoolYearLabel`. AppShell
+	// must stringify it through the one shared helper, and the chip reads the same
+	// field, so a second source cannot be reintroduced unnoticed.
+	assert.equal(typeof settingsAuthority.resolveActiveYearLabel, 'function',
+		'the ONE shared active-year stringifier exists (fails on the pre-correction tip, where it does not)');
+	assert.equal(typeof ActiveYearBadge, 'function',
+		'the app-shell `Active year:` badge is a real renderable component (fails on the pre-correction tip)');
+
+	const context = { activeSchoolYearId: 5, activeSchoolYearLabel: '2026-2027' };
+	const badgeLabel = settingsAuthority.resolveActiveYearLabel!(context);
+	assert.equal(badgeLabel, '2026-2027', 'the shared helper names the active year from the field');
+
+	const snapshot = {
+		draft: null, blockingHardCount: 0,
+		summary: { isPublished: false, unassignedCount: 0, assignedCount: 0, hardViolationCount: 0 },
+		softCount: 0, isPreGenerationWorkspace: false,
+		schoolYearContext: { ...context, schoolId: 1, source: 'enrollpro', stale: false, cachedAt: '', activeTerm: null } as never,
+		hasGeneratedRun: false, isRunPublished: false,
+	};
+	const { readiness } = resolveSimpleReadiness(snapshot as never);
+
+	const badge = tree(renderToStaticMarkup(createElement(ActiveYearBadge as never, { label: badgeLabel } as never))).textContent ?? '';
+	assert.ok(badge.includes('Active year:'), 'the badge keeps its words and placement');
+	assert.ok(badge.includes('2026-2027'), 'and names the active year');
+	assert.ok(readiness.includes('2026-2027'), 'the timetable chip names the SAME active year from the same field');
+	assert.equal(badge.includes('2025-2026'), false, 'the badge never renders another year');
+	assert.equal(readiness.includes('2025-2026'), false, 'and neither does the chip');
+
+	const appShell = source('src/components/AppShell.tsx');
+	assert.match(appShell, /resolveActiveYearLabel\(/, 'AppShell derives the badge label from the one shared authority helper');
+	assert.doesNotMatch(appShell, /activeSchoolYearLabel \?\? `School year \$\{context\.activeSchoolYearId\}`/,
+		'the old inline second form is gone');
+	assert.doesNotMatch(appShell, /Active year:/, 'the badge literal lives in the ONE shared component, not in the shell');
+	assert.equal((appShell.match(/<ActiveYearBadge\b/g) ?? []).length, 1,
+		'exactly ONE `Active year:` badge is mounted on the same screen — a second one would fail this row');
+	assert.equal((source('src/components/app-shell/ActiveYearBadge.tsx').match(/Active year: \{label\}/g) ?? []).length, 1,
+		'and the badge component renders the words exactly once');
+});
+
+test('R1-C2: every user-visible unplaced-count string uses the decision-8 `need(s) a time slot`', () => {
+	// Decision 8 (operator) fixes the wording: singular `1 class needs a time slot`,
+	// plural `N classes need a time slot`. The scan is `need a time` NOT followed by
+	// ` slot`, so a partial fix (the old `still need a time`) fails here.
+	assert.equal(classesNeedingTime(1), '1 class needs a time slot', 'singular');
+	assert.equal(classesNeedingTime(3), '3 classes need a time slot', 'plural');
+
+	const produced: string[] = [
+		classesNeedingTime(1), classesNeedingTime(3),
+		generationOutcomeToastSentence(1), generationOutcomeToastSentence(3),
+		generationNotificationSentence(3),
+		publishPlacementBlockedSentence(3),
+		publishBlockedSentence({ blockingHardCount: 0, unassignedCount: 3 }),
+		publishBlockedSentence({ blockingHardCount: 0, unassignedCount: 1 }),
+	];
+	for (const sentence of produced) {
+		assert.doesNotMatch(sentence, /need a time(?! slot)/, `"${sentence}" must say "a time slot"`);
+	}
+
+	// The RENDERED header chip in the publish-blocked state.
+	const host = tree(headerMarkup(draftContext({ summary: { isPublished: false, unassignedCount: 3, assignedCount: 0, hardViolationCount: 0 } })));
+	assert.doesNotMatch(host.textContent ?? '', /need a time(?! slot)/,
+		'the rendered timetable surfaces never say "time" without "slot"');
+
+	// The readiness noun phrase and the tutorial copy.
+	const readinessSource = source('src/components/timetable/simplePublishReadiness.ts');
+	assert.match(readinessSource, /needing a time slot/, 'the readiness clause says "a time slot"');
+	assert.doesNotMatch(readinessSource, /needing a time`/, 'and never the truncated noun phrase');
+	for (const step of simpleTutorialSteps('generated-issues')) {
+		assert.doesNotMatch(step.body, /need a time(?! slot)/, `tutorial step "${step.title}" must say "a time slot"`);
+	}
+});
+
+test('R1-C3 SOURCE: `Generate a timetable` is gone from every named user-visible surface', () => {
+	for (const relative of [
+		'src/components/timetable/SimplePublishReadinessSheet.tsx',
+		'src/components/timetable/simple/SimpleTaskDrawerHelpers.tsx',
+		'src/components/timetable/simplePublishReadiness.ts',
+		'src/hooks/useTimetableData.ts',
+	]) {
+		assert.doesNotMatch(source(relative), /Generate a timetable/, `${relative} must not name the retired \`Generate a timetable\``);
+	}
+	assert.match(source('src/components/timetable/SimplePublishReadinessSheet.tsx'), /Generate a draft/);
+	assert.match(source('src/components/timetable/simple/SimpleTaskDrawerHelpers.tsx'), /Generate a draft/);
+	assert.match(source('src/components/timetable/simplePublishReadiness.ts'), /Generate a draft/);
+	assert.match(source('src/hooks/useTimetableData.ts'), /Generate a draft/);
+});
+
+test('R1-C4 SOURCE: the in-workspace leftovers use the decision-8 / Draft vocabulary', () => {
+	const drawer = source('src/components/timetable/TimetableTaskDrawer.tsx');
+	assert.doesNotMatch(drawer, /title: 'Unassigned sessions'/, 'the drawer title is not "Unassigned sessions"');
+	assert.match(drawer, /needing a time slot/, 'the drawer title uses the decision-8 noun phrase');
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	assert.doesNotMatch(header, /Unassigned sessions belong to/, 'the working-draft reason is not "Unassigned sessions"');
+	// User-visible: reachable when a stale stored `advanced` layout is restored.
+	assert.doesNotMatch(source('src/components/timetable/ScheduleReviewWorkspaceHeader.tsx'), /'Planning draft'/,
+		'the retired `Planning` word is gone from the task label');
 });

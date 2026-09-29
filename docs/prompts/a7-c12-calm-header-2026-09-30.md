@@ -146,3 +146,48 @@ and why) · the decisive commands actually run with their results (counts, not a
 evidence: the commit where the new tests fail and the literal assertion text that failed · known risks each marked
 BLOCKING or NON_BLOCKING · verdict`. Push the branch. Worktree disposition: `KEEP_ACTIVE` until integration, then
 `RETIRE_AFTER_INTEGRATION` (junction `rmdir` first).
+
+## Correction R1 (fresh QA, `a93e4785b..899cbd2e`)
+
+Fresh independent QA over `a93e4785b..899cbd2e` returned **CORRECTION_REQUIRED, mandatory 12 / passed 9 /
+blocked 0 / unperformed 0** with three blocking findings. This correction is ADDITIVE and bounded to them; no
+other behaviour, string, layout or gate moves. Each remedy is appended to the existing copy test
+(`__tests__/a7-c12-calm-copy.test.tsx`); no third test file is created.
+
+- **C1 (B1) — row 13 only partially fixed; a second year source on the same screen.** QA found
+  `AppShell.tsx:556-559` renders `Active year: {activeYearLabel}` fed from `resolveActiveSchoolYearContext(...)`
+  at `AppShell.tsx:187`, while the timetable chip derives its year from
+  `schoolYearContext.activeSchoolYearLabel`. **Determination, with evidence (branch (a)):** there is exactly ONE
+  persisted authority and ONE field behind both surfaces — the resolver `resolveActiveSchoolYearContext` in
+  `@/lib/enrollpro-public-settings`, which reads/writes the per-`schoolId` entry via
+  `readCachedActiveSchoolYear` / `cacheActiveSchoolYearContext`, field `activeSchoolYearLabel`. Both call sites
+  are named: `AppShell.tsx:177` (the badge) and `useTimetableData.ts:1394-1417` (the workspace's
+  `schoolYearContext`); the Step-0 divergence was cache *freshness* inside that one authority (the shell
+  verifies with `forceRefresh:true`, the timetable `preferCache`s), not a second authority. **Remedy:** add the
+  one shared stringifier `resolveActiveYearLabel(context)` and route AppShell's badge through it; extract the
+  badge to `components/app-shell/ActiveYearBadge.tsx` (words/placement/role byte-identical) so it is renderable;
+  pin, in the copy test, that the badge and the chip name the same `activeSchoolYearLabel` from one context and
+  that AppShell has exactly one year-label source. Residual (recorded, NON_BLOCKING): the two surfaces remain
+  two React subscribers of the one authority, so a refresh window can show a stale label briefly; full
+  reconciliation would need a shared runtime store, outside this bounded correction.
+- **C2 (B2) — decision-8 wording not universal.** `N classes need a time slot` existed only at
+  `simple/SimpleHeaderActions.tsx:390`. **Remedy:** `lib/timetable-plain-language.ts`
+  `classesNeedingTime` now yields `1 class needs a time slot` / `N classes need a time slot` (so the
+  generation-outcome toast `:705`, the generation notification `:720` and the publish-checklist sentence `:734`
+  all follow); `publishBlockedSentence` `:108` uses the same function; `lib simplePublishReadiness.ts:706`
+  becomes `needing a time slot`; `SimpleTutorial.tsx:118` says `need a time slot`. The copy test asserts
+  `need a time` **not followed by ` slot`** appears in none of the strings it produces or renders.
+- **C3 (B3) — old vocabulary survives.** `Generate a timetable` → `Generate a draft` at
+  `SimplePublishReadinessSheet.tsx:239`, `simple/SimpleTaskDrawerHelpers.tsx:294`,
+  `lib/simplePublishReadiness.ts:715`, `hooks/useTimetableData.ts:127`; a `git grep` confirms no other
+  non-test user-visible hit.
+- **C4 — in-workspace leftovers (NON_BLOCKING).** `TimetableTaskDrawer.tsx:110` title and
+  `TimetableSimpleHeader.tsx:605` move to the `classes … a time slot` vocabularly.
+  `ScheduleReviewWorkspaceHeader.tsx:390` is user-visible (reachable when a stale stored `advanced` layout is
+  restored), so `Planning draft` → `Draft`; `Draft planner` is already Draft-consistent. **OUT OF SCOPE,
+  recorded not changed:** `pages/Dashboard.tsx:668`, `pages/HowItWorks.tsx:72`,
+  `components/campus-map/CampusMapOverview.tsx:324`, `components/dashboard/CampusReadinessCard.tsx:302`
+  (other lanes' pages).
+- **C5 — housekeeping.** The QA worktree/junction/donor count are the planner's; not touched.
+- **C6 — close out.** Re-run the two acceptance files, every named preservation suite, typecheck and build;
+  re-baseline newly red suites against `cd06734c` before classifying; commit additively and push.
