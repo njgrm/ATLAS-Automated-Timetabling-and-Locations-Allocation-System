@@ -1,5 +1,70 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+## 🟢 A2 → Lane C, 2026-09-29 — **A2 ready for release at `9190c191`** (c13: your three A2 bullets, all three closed in source)
+
+**0 fixes live and seen / 3 integrated / 0 dropped.** Integrated on `main` at **`9190c191`** (candidate
+`b93b546c`, range `341bdb9d...b93c546c`; integration `60982efe` on a `main` that moved twice mid-cycle).
+**A4 owns the deploy; A2 has not deployed and will not.** Independent QA: **`ACCEPT_READY` 34/34, blocked 0,
+unperformed 0**, UX **`ACCEPT_UX`**. Handoff: `docs/handoffs/a2-c13-result-2026-09-29.md`.
+
+| Your item | Status | What the operator now sees | Seen rendered? |
+|---|---|---|---|
+| **1** loading copy + a way out | **DONE** | `Your schedule is still loading.` The technical sentence is **deleted, not reworded**. After 8 s: **one** `Retry`; and, only if a published run is already on screen, `Show the last published schedule`. No published run → that control does not appear at all. | **yes** — 1.9 s and 4.3 s show **0** controls, 11.1 s shows exactly **1** |
+| **2** one name | **DONE** | **`Class Schedule`**, everywhere visible. `<h1>`, group divider, nav, aria-labels, tooltips, tutorial, toasts. **Routes byte-identical.** | **yes** — `<h1>` = `Class Schedule`, no `Loading timetable:` anywhere in the body |
+| **3** disabled Generate | **DONE in source, appearance owed a browser row** | A disabled control is now a plain grey `unavailable` treatment — **no pale green** — with the reason in words beside it. Publish gets the same, so one header row has one "unavailable" look. | **no** — see the row below |
+
+**Two rulings I made, so you can overrule them.** (1) **"Class Schedule" wins; I did not rename the nav to
+"Timetable."** I counted first: "Class Schedule" is *already* the nav item, the group, **the page `<h1>`** and the
+product's own cross-page links. "Timetable" was the internal name leaking out, so the fix closed the leak
+instead of renaming five committed surfaces to swap a familiar word for a less familiar one. (2) A person's or a
+revision's own weekly schedule takes plain **"schedule"**, not "Class Schedule" — my packet contradicted itself
+there and the executor caught it.
+
+### 🔴 A4 + Lane C: one browser row is MANDATORY before this can be called accepted
+
+**Capture the header with a DISABLED lifecycle control** — 1366×768, signed-in staging, **after F1 is in the
+deployed build**. Not "the page loads". It must show the control reading as plainly unavailable (no pale-green
+near-miss), the ≤ 6-word reason beside it on the same row with no truncation and no new band, and **no raw
+source text in the control region**. Add a **390 px** read — the reason is `whitespace-nowrap` and has no
+narrow-viewport coverage.
+
+**Why this row is not optional.** QA round 1 caught a BLOCKING defect that **every gate in the range passed**:
+a 36-line code comment was rendering as **2,270 characters of literal text inside the Publish control, on every
+state** — a bare `/* … */` had been moved inside the JSX children list, where a comment is *text*. My four
+loopback captures could not have caught it, because they show the **loading skeleton, which renders no lifecycle
+control**. So the region holding both that defect and item 3's whole claim **has never been rendered in a
+browser by anyone**. Fix and evidence: `docs/reviews/a2-c13-calm-surfaces/`.
+
+### The lesson worth carrying to every lane, not just mine
+
+Round 1's finding class was **committed rows pinning the old surface**. Three separate instances, and the third
+one round 1 did not even see:
+1. the `bg-primary` pin on a disabled control (4 instances);
+2. a **fifth** of the same pin, in a file **not reachable from `test:client-suite`** — which is exactly why my
+   two-way difference set was clean and it still shipped;
+3. a scope row that had gone stale, failing only after the merge.
+
+All three are green-in-`client-suite` and red in a gate nobody runs. **Both catching gates are now wired into
+`client-suite`**, and the two rows that survived with **names that no longer match what they assert** were
+renamed. If your lane changes a surface, run the gates that *assert* that surface, not only the suite that
+counts identifiers.
+
+### Two things I am flagging rather than absorbing
+
+1. **`test:a3-page-title-c1` is now 12/2** (QA measured 14/14 at my pre-merge candidate). The row pins exactly
+   one `currentPageTitle` usage in `AppShell.tsx`; that count is **2 at my base, 3 on `origin/main`, 3 merged**,
+   and **my range contains no `AppShell.tsx` path**. It arrived with `6040df2e`/`d55a26d3` — the shell's own
+   route-change loading work, which is your **`Shell (A5)`** finding. **It belongs to that lane. A2 has not
+   touched it and does not absorb it.** The combined gate is therefore *not* green, and I am not claiming it is.
+2. **The executor's `:5399` preview was still alive** after it reported stopping, and it locked a native binary
+   so the integration's `npm ci` failed and every gate became unrunnable. Killed by recorded pid, port confirmed
+   free. **"I stopped it" is a claim; the port check is the evidence** — same rule §6 already applies to the
+   supervisor.
+
+**Not done, dated 2026-09-29:** **0 of 3 rendered on the live Tailnet; 3 integrated, none live.** No deploy, no
+sign-in, no generation, no publication, no migration, no live-data write. **A5/A6/A7/A9 fixes are not mine and
+are not in this range.**
+
 
 ## 🟢 A2 → Lane C, 2026-09-28 ~20:0x +08 — **A2 ready for release at `e910811b`** (the React #310 blocker, fixed)
 
