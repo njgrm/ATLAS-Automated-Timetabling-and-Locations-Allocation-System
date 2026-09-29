@@ -473,19 +473,45 @@ async function buildGenerationReadinessWithContext(
 	// the diagnostic's zero-write proof and its latency are unchanged.
 	const classification = classifyGenerationBlockers(sortedBlockers);
 
-	// A HARD violation counts as a GAP only when it names a (section, subject)
-	// pair this same diagnostic proved has no owner. A real teacher's weekly cap
-	// breach names only a `facultyId`, so it has no link to read: it becomes an
-	// ADVISORY (A8 C3 planner ruling) — recorded, grouped, and named in the run
-	// result, but it does not stop a reviewable schedule. Publication is unchanged
-	// and still refuses it. Any OTHER hard code stays fully blocking.
-	const advisoryClassHard = hardViolations.filter((violation) => {
-		if (!ADVISORY_CODES.has(violation.code)) return false;
+	// A8 C3 F1 CORRECTION — the three hard-violation classes are now computed
+	// EXPLICITLY and each is a genuine subset of `hardCount`.
+	//
+	// The previous form computed the attribution test and then discarded its
+	// result, so `hardGapCount` actually meant "every hard violation that is not
+	// advisory-class" and `blockingHardCount` was identically zero for every
+	// input. `generateAllowed` only held because the mirror loop above
+	// independently pushes a blocker row for each HARD validator violation. The
+	// hard term of the gate was therefore vacuous and `hardGapCount` was a false
+	// operator-facing claim on a public HIGH-gate field.
+	//
+	// The three classes, in the order they are decided:
+	//
+	//  1. ATTRIBUTABLE GAP — the violation's code is advisory-class AND it names
+	//     a (section, subject) pair this same diagnostic already proved has no
+	//     active Teaching Load owner. This is the only thing `hardGapCount`
+	//     counts, which is what its published meaning says.
+	//  2. ADVISORY — the violation's code is advisory-class but the attribution
+	//     cannot be read: a real teacher's weekly cap breach names only a
+	//     `facultyId`, so there is no pair to link. Recorded, grouped, named in
+	//     the run result; does not stop a reviewable schedule. Publication is
+	//     unchanged and still refuses it.
+	//  3. BLOCKING — every other hard violation: any non-advisory code, plus the
+	//     canonical shape violations folded into `hardCount` above, which carry no
+	//     `(section, subject)` pair to attribute in the first place.
+	//
+	// Because 1 and 2 are now real subsets of `hardCount`, the arithmetic in
+	// `deriveGenerateDecision` yields a real `blockingHardCount` that is non-zero
+	// whenever a genuine hard violation exists, and the gate's hard term is
+	// load-bearing rather than decorative.
+	const isAdvisoryClass = (violation: { code: string }): boolean => ADVISORY_CODES.has(violation.code);
+	const attributableGapHard = hardViolations.filter((violation) => {
+		if (!isAdvisoryClass(violation)) return false;
 		const key = pairKeyOf(violation.entities?.sectionId, violation.entities?.subjectId);
-		return key === null || !classification.uncoveredPairs.has(key);
+		return key !== null && classification.uncoveredPairs.has(key);
 	});
-	const hardGapCount = violations.hardCount === 0 ? 0 : hardViolations.length - advisoryClassHard.length;
-	const advisoryHardCount = violations.hardCount === 0 ? 0 : advisoryClassHard.length;
+	const advisoryClassHard = hardViolations.filter((violation) => isAdvisoryClass(violation) && !attributableGapHard.includes(violation));
+	const hardGapCount = attributableGapHard.length;
+	const advisoryHardCount = advisoryClassHard.length;
 
 	const decision = deriveGenerateDecision({
 		blockingBlockerCount: classification.blocking.length,

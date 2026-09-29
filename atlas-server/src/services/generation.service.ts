@@ -726,9 +726,19 @@ export function buildGenerationCompletedMessage(input: {
 	teacherGapClasses?: number;
 	timeSlotClasses?: number;
 	policyAdvisories?: number;
+	/** A8 C3 ITEM 5: at most a handful of real class names, so the sentence
+	 * NAMES the gaps the way the packet asks ("50 classes placed without a
+	 * teacher yet: MAPEH 7-A, …") rather than carrying a bare count. */
+	teacherGapExamples?: string[];
 }): string;
 export function buildGenerationCompletedMessage(
-	countOrInput: number | { unplacedCount: number; teacherGapClasses?: number; timeSlotClasses?: number; policyAdvisories?: number },
+	countOrInput: number | {
+		unplacedCount: number;
+		teacherGapClasses?: number;
+		timeSlotClasses?: number;
+		policyAdvisories?: number;
+		teacherGapExamples?: string[];
+	},
 ): string {
 	// A8 C3 — the object form names the THREE populations a scheduler has to act
 	// on, in CLASS counts taken from the run's OWN persisted rows. The old single
@@ -748,8 +758,19 @@ export function buildGenerationCompletedMessage(
 	if (unplacedCount === 0 && advisories === 0) {
 		return 'New schedule ready. All classes placed.';
 	}
+	// A8 C3 ITEM 5 — the names come from the run's own persisted unassigned rows
+	// (the same rows the count came from), capped, and are never truncated with an
+	// ellipsis (§8): the cap is applied by choosing how many to print, not by
+	// slicing a name. Without a name the clause simply carries the count, so a run
+	// whose classes cannot be named still reads honestly.
+	const examples = Array.isArray(input.teacherGapExamples)
+		? input.teacherGapExamples.filter((name): name is string => typeof name === 'string' && name.trim().length > 0).slice(0, 5)
+		: [];
 	const clauses: string[] = [];
-	if (teacherGap > 0) clauses.push(`${teacherGap} ${teacherGap === 1 ? 'class' : 'classes'} still ${teacherGap === 1 ? 'needs' : 'need'} a teacher`);
+	if (teacherGap > 0) {
+		const counted = `${teacherGap} ${teacherGap === 1 ? 'class' : 'classes'} still ${teacherGap === 1 ? 'needs' : 'need'} a teacher`;
+		clauses.push(examples.length > 0 ? `${counted}: ${examples.join(', ')}` : counted);
+	}
 	if (timeSlot > 0) clauses.push(`${timeSlot} ${timeSlot === 1 ? 'class' : 'classes'} still ${timeSlot === 1 ? 'needs' : 'need'} a time slot`);
 	if (advisories > 0) clauses.push(`${advisories} policy ${advisories === 1 ? 'advisory' : 'advisories'} to review before it can be published`);
 	if (clauses.length > 0) {
@@ -1244,6 +1265,7 @@ export async function triggerGenerationRun(
 				teacherGapClasses: summary.teacherGapClasses,
 				timeSlotClasses: summary.timeSlotClasses,
 				policyAdvisories: summary.policyAdvisoryCount,
+				teacherGapExamples: summary.teacherGapExamples,
 			}),
 			metadata: {
 				runId: run.id,

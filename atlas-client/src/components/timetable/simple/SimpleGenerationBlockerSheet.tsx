@@ -142,15 +142,15 @@ export function SimpleGenerationBlockerSheetBody({
 		</div>
 	);
 
-	// A8 C3 — the DEFAULT view is one line per root cause plus ONE "Check again".
-	// The per-row "Recheck generation readiness" control is gone from the default
-	// view because 620 identical buttons was the defect; the full list behind the
-	// disclosure keeps the same actions, and the panel-level control does the same
-	// in-place recheck the per-row button used to.
+	// A8 C3 ITEM 7 — the lead sentence must be plain for the older, mouse-first
+	// scheduler the rubric names. "N things must be fixed" was jargon on a page
+	// that otherwise says "classes", and it counted a number whose meaning
+	// (blocking items, not sessions) the operator could not see. The wording now
+	// matches the page's own noun.
 	const groupLead = blocking > 0
-		? `${blocking} ${blocking === 1 ? 'thing' : 'things'} must be fixed before a timetable can be made.`
+		? `${blocking} ${blocking === 1 ? 'setup item must' : 'setup items must'} be fixed before a timetable can be made.`
 		: gapClasses > 0
-			? `${gapClasses} ${gapClasses === 1 ? 'class' : 'classes'} need a teacher. The schedule can still be made.`
+			? `${gapClasses} ${gapClasses === 1 ? 'class needs' : 'classes need'} a teacher. The schedule can still be made.`
 			: 'Check the schedule information again.';
 	// The disclosure ALWAYS names the real row count, even when it happens to
 	// equal the number of lines: a control that silently changed what it counts

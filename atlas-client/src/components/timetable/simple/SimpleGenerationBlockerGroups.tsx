@@ -71,27 +71,22 @@ export function SimpleGenerationBlockerGroups({
 								) : null}
 							</div>
 						</div>
+						{/*
+						 * A8 C3 ITEM 8: every group's action is a real navigation to
+						 * the surface that fixes that cause, so there is no `retry`
+						 * branch. The one in-place recheck for the panel is the single
+						 * "Check again" below, which is the same control the removed
+						 * per-row buttons all called. A dead branch here would have been
+						 * an unreachable control path, and §8 allows no control that
+						 * cannot be reached.
+						 */}
 						<div className="mt-2 flex justify-start">
-							{group.action.kind === 'retry' ? (
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									className="h-9 gap-1.5 text-xs"
-									data-testid="timetable-generation-blocker-group-action"
-									onClick={onCheckAgain}
-								>
-									<RotateCw className="size-3.5" aria-hidden="true" />
+							<Button asChild variant="outline" size="sm" className="h-9 gap-1.5 text-xs">
+								<Link to={group.action.href} data-testid="timetable-generation-blocker-group-action">
+									<ExternalLink className="size-3.5" aria-hidden="true" />
 									{group.action.label}
-								</Button>
-							) : (
-								<Button asChild variant="outline" size="sm" className="h-9 gap-1.5 text-xs">
-									<Link to={group.action.href} data-testid="timetable-generation-blocker-group-action">
-										<ExternalLink className="size-3.5" aria-hidden="true" />
-										{group.action.label}
-									</Link>
-								</Button>
-							)}
+								</Link>
+							</Button>
 						</div>
 					</li>
 				))}

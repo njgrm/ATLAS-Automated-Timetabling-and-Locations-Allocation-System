@@ -260,8 +260,13 @@ export type TimetableGenerationBlockerGroupPresentation = {
 	headline: string;
 	/** The examples sentence, or null when the server named none. */
 	detail: string | null;
-	/** The real repair for this root cause. */
-	action: TimetableReadinessRepair;
+	/**
+	 * A8 C3 ITEM 8: the real repair for this root cause, and it is always a
+	 * `navigate` to the surface that fixes that cause. The type is narrowed
+	 * deliberately: an in-place recheck is a PANEL-level control, and modelling it
+	 * per group would have produced a dead branch in the rendered list.
+	 */
+	action: { kind: 'navigate'; label: string; href: string };
 };
 
 const GENERIC_CAUSE_PHRASE = 'need attention';
@@ -297,7 +302,7 @@ export function presentGenerationBlockerGroups(input: {
 	if (diagnostic.groups.length > 0) {
 		return diagnostic.groups.map((group, index) => ({
 			key: `generation-blocker-group-${group.cause}-${index}`,
-			headline: groupHeadline(group, diagnostic.gapClassCount),
+			headline: groupHeadline(group),
 			detail: group.examples.length > 0 ? `For example: ${group.examples.join(', ')}.` : null,
 			action: { kind: 'navigate', label: group.action.label, href: group.action.target },
 		}));
@@ -310,13 +315,14 @@ export function presentGenerationBlockerGroups(input: {
 	}];
 }
 
-function groupHeadline(group: TimetableGenerationBlockerGroup, gapClassCount: number): string {
+function groupHeadline(group: TimetableGenerationBlockerGroup): string {
 	const copy = GROUP_CAUSE_COPY[group.cause];
 	if (!copy) return `${group.count} ${group.count === 1 ? 'item' : 'items'} ${GENERIC_CAUSE_PHRASE}`;
-	// The teacher-coverage line is THE line the operator reads first, so it names
-	// the class count once — the class count, never the 570-row session count.
-	const count = group.cause === 'TEACHER_COVERAGE_GAP' && gapClassCount > 0 ? gapClassCount : group.count;
-	return `${count} ${count === 1 ? singular(copy.noun) : copy.noun} ${copy.verb}`;
+	// The server has already counted THIS group in classes, so the line reads
+	// `group.count`. It must not borrow the panel-wide `gapClassCount`: that is a
+	// different population (every class in any gap), and a group that is not the
+	// whole coverage cause would otherwise print someone else's number.
+	return `${group.count} ${group.count === 1 ? singular(copy.noun) : copy.noun} ${copy.verb}`;
 }
 
 function singular(noun: string): string {

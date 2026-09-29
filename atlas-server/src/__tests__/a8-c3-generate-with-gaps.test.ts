@@ -224,6 +224,36 @@ test('C3.12 the run breakdown counts the advisories it carried, and the message 
 		buildGenerationCompletedMessage({ unplacedCount: 2, teacherGapClasses: 1, timeSlotClasses: 1, policyAdvisories: 2 }),
 		'New schedule ready. 1 class still needs a teacher and 1 class still needs a time slot and 2 policy advisories to review before it can be published.',
 	);
+	// A8 C3 ITEM 5: the packet asks the run result to NAME the gaps, not just
+	// count them. The names come from the run's own persisted rows.
+	assert.equal(
+		buildGenerationCompletedMessage({
+			unplacedCount: 50,
+			teacherGapClasses: 50,
+			timeSlotClasses: 0,
+			policyAdvisories: 0,
+			teacherGapExamples: ['MAPEH 7-A', 'ENG 7-B', 'SCI 7-C'],
+		}),
+		'New schedule ready. 50 classes still need a teacher: MAPEH 7-A, ENG 7-B, SCI 7-C.',
+		'the gaps are named in plain words, as the packet requires',
+	);
+	// Capped rather than truncated, and never an ellipsis (§8).
+	const many = buildGenerationCompletedMessage({
+		unplacedCount: 50,
+		teacherGapClasses: 50,
+		teacherGapExamples: ['A 7-A', 'B 7-B', 'C 7-C', 'D 7-D', 'E 7-E', 'F 7-F', 'G 7-G'],
+	});
+	assert.doesNotMatch(many, /…|\.\.\./, 'a name is never sliced with an ellipsis');
+	assert.doesNotMatch(many, /F 7-F|G 7-G/, 'the example list is capped at five');
+	// A nameless run still reads honestly rather than printing an empty colon.
+	assert.equal(
+		buildGenerationCompletedMessage({ unplacedCount: 3, teacherGapClasses: 3, teacherGapExamples: [] }),
+		'New schedule ready. 3 classes still need a teacher.',
+	);
+	assert.equal(
+		buildGenerationCompletedMessage({ unplacedCount: 3, teacherGapClasses: 3, teacherGapExamples: ['  ', ''] }),
+		'New schedule ready. 3 classes still need a teacher.',
+	);
 	// A run with nothing unplaced but advisories still says so, and never claims
 	// "All classes placed" while advisories remain.
 	assert.equal(

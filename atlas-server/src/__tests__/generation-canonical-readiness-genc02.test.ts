@@ -35,7 +35,7 @@ import { runHybridScheduler } from '../services/hybrid-scheduler.js';
 import { getExpectedCanonicalSlots, normalizeInternalGradeId } from '../services/class-program-slot.service.js';
 import { buildGenerationReadiness } from '../services/generation-readiness.service.js';
 import { buildGenerationPreflight, buildPreflightConstructorInput } from '../services/generation-preflight.service.js';
-import { ADVISORY_CODES as ADVISORY_CODES_FOR_TEST } from '../services/generation-blocker-groups.service.js';
+import { ADVISORY_CODES as ADVISORY_CODES_FOR_TEST, deriveGenerateDecision } from '../services/generation-blocker-groups.service.js';
 import {
 	buildTimetableOutputProjections,
 	validateTermTeacherResolution,
@@ -187,6 +187,9 @@ interface MockOverrides {
 	/** A8 C3: every teacher's own weekly contract is 1 hour -> a real HARD
 	 * `FACULTY_OVERLOAD` whose entities carry no (section, subject) pair. */
 	lowWeeklyCap?: boolean;
+	/** A8 C3 F1: policy `maxTeachingMinutesPerDay: 30` -> a real HARD
+	 * `FACULTY_DAILY_MAX_EXCEEDED`, a code that is NOT advisory-class. */
+	tightDailyCap?: boolean;
 	/** C9: push MATH weekly minutes above canonical CLASS capacity. */
 	hugeMathMinutes?: boolean;
 	/** C6: change presentation ordering only; authoritative grade must not move. */
@@ -273,6 +276,14 @@ function buildMockClient(overrides: MockOverrides = {}) {
 		enableVacantAwareConstraints: false, targetFacultyDailyVacantMinutes: 60, targetSectionDailyVacantPeriods: 1,
 		maxCompressedTeachingMinutesPerDay: 300, lunchStartTime: '12:00', lunchEndTime: '13:00', enforceLunchWindow: false,
 		showSpecialEventsInGrid: false, enableFlagCeremony: false, flagCeremonyStartTime: '07:00', flagCeremonyEndTime: '07:30',
+		// A8 C3 F1: a NON-advisory HARD validator code, reachable ONLY through the
+		// policy. `maxTeachingMinutesPerDay: 30` makes the real `constraint-validator`
+		// emit `FACULTY_DAILY_MAX_EXCEEDED` for a teacher who is inside their WEEKLY
+		// cap but over their DAILY one — so the fixture is fully staffed, inside the
+		// workload policy, and still hard-blocked. This is the case the previous
+		// negative controls missed: they raised a PREFLIGHT blocker row instead, so
+		// `blockerCount` saved them and the gate's hard term was never exercised.
+		...(overrides.tightDailyCap ? { maxTeachingMinutesPerDay: 30 } : {}),
 		enableRecess: false, recessStartTime: '09:45', recessEndTime: '10:00', enableLunchWindow: false,
 		enableTleTwoPassPriority: true, allowFlexibleSubjectAssignment: false, allowConsecutiveLabSessions: false,
 		constraintConfig: null,
@@ -752,6 +763,125 @@ test('A8C3.5 the ADVISORY path (ruling): a year whose only findings are unattrib
 	assert.equal(readiness.status, 'READY');
 	assert.equal(readiness.generateAllowed, true, 'an advisory must not stop ATLAS from making a schedule to review');
 	assert.deepEqual(writes, [], 'the diagnostic stays zero-write with advisories present');
+});
+
+// ─── A8 C3 CORRECTION ROUND 1, F1: the gate's HARD term must be a real term ───
+//
+// THE DEFECT THIS ROW EXISTS FOR. The candidate computed the attribution test
+// (`code is advisory-class && pair is uncovered`) and then DISCARDED its result,
+// so `hardGapCount` actually meant "every hard violation that is not
+// advisory-class". The consequence was that `blockingHardCount =
+// hardCount - hardGapCount - advisoryHardCount` was identically 0 for EVERY
+// input, and `generateAllowed` reduced to `blockerCount === 0 && schedulerRan
+// && zeroWrite`. It only ever held because the mirror loop independently pushes
+// a blocker row for each HARD validator violation.
+//
+// WHY THE COMMITTED TESTS MISSED IT, stated plainly: both real-path negative
+// controls (A8C3.3a, A8C3.6a) used `hugeMathMinutes`, which raises a PREFLIGHT
+// blocker row (`CANONICAL_SHAPE_CAPACITY_EXCEEDED`). `blockerCount` therefore
+// blocked them and the hard term was never reached. And the pure-helper row
+// ("ONE real hard violation alongside advisories still blocks") hand-fed
+// `deriveGenerateDecision` an input shape the production call site could never
+// produce — a helper-only proof is not a real-path proof.
+//
+// THIS ROW IS THE REAL-PATH PROOF. It drives a NON-advisory HARD validator code
+// (`FACULTY_DAILY_MAX_EXCEEDED`, raised by the real `constraint-validator`
+// through the policy alone), on a year that is fully staffed and inside the
+// workload policy, and asserts that `blockingHardCount` is non-zero AND that
+// generation is refused BY THAT TERM — with no accompanying preflight blocker
+// row of that code to save it.
+
+test('A8C3.7 F1 real-path proof: a NON-advisory HARD violation blocks by the hard term alone, with no preflight blocker row of that code', async () => {
+	const { client } = buildMockClient({ distinctTeachers: true, tightDailyCap: true });
+	const readiness = await buildGenerationReadiness(SCHOOL_ID, SCHOOL_YEAR_ID, { client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+
+	// The finding is REAL, and it is the real production code path: the generic
+	// hard validator raised it, through the policy, with a fully staffed year.
+	assert.ok(readiness.violations.hardCount > 0, 'the fixture must really carry a hard violation');
+	assert.ok(
+		(readiness.violations.hardCodes.FACULTY_DAILY_MAX_EXCEEDED ?? 0) > 0,
+		`the hard violation must be FACULTY_DAILY_MAX_EXCEEDED, saw ${JSON.stringify(readiness.violations.hardCodes)}`,
+	);
+	assert.equal(
+		ADVISORY_CODES_FOR_TEST.has('FACULTY_DAILY_MAX_EXCEEDED'), false,
+		'and it must be a code the ruling did NOT make advisory — otherwise this row proves nothing',
+	);
+
+	// A daily cap of 30 minutes is also tighter than the scheduler can satisfy, so
+	// the constructor refuses some sessions outright. Those become
+	// `WORKLOAD_POLICY_BLOCK` rows, which the ruling classifies as ADVISORY. That
+	// is recorded rather than assumed, because it is exactly the population that
+	// must NOT be what blocks this fixture.
+	assert.ok(readiness.advisoryCount > 0, 'the tight daily cap does produce advisory-class refusals');
+	assert.equal(
+		readiness.advisories.every((row) => ADVISORY_CODES_FOR_TEST.has(row.code)), true,
+		'and every one of them is advisory-class, so none of them blocks',
+	);
+	assert.equal(readiness.gapCount, 0, 'the fixture must carry no teacher gap');
+
+	// THE ASSERTION F1 IS ABOUT: `blockingHardCount` is a REAL quantity now.
+	assert.ok(
+		readiness.violations.blockingHardCount > 0,
+		`blockingHardCount must be non-zero for a real hard violation, got ${readiness.violations.blockingHardCount}`,
+	);
+	assert.equal(
+		readiness.violations.blockingHardCount,
+		readiness.violations.hardCount - readiness.violations.hardGapCount - readiness.violations.advisoryHardCount,
+		'the three counts must partition hardCount',
+	);
+	assert.equal(readiness.violations.hardGapCount, 0, 'nothing here is attributable to an uncovered pair, so hardGapCount is 0');
+	assert.equal(readiness.violations.advisoryHardCount, 0, 'and nothing here is advisory-class, so advisoryHardCount is 0');
+
+	// And the gate is refused.
+	assert.equal(readiness.schedulerExecuted, true, 'the dry run ran, so this is not a missing-dry-run refusal');
+	assert.equal(readiness.databaseSignature.zeroWrite, true, 'and the diagnostic was zero-write, so this is not a zero-write refusal');
+	assert.equal(readiness.status, 'BLOCKED');
+	assert.equal(readiness.generateAllowed, false, 'a non-advisory HARD violation must block generation on its own');
+
+	// ── WHY THE PREVIOUS PROOFS MISSED IT, AND WHY THIS ONE CANNOT ──
+	// The readiness service mirrors every HARD validator violation into a blocker
+	// row, so on this fixture `blockerCount` also happens to be positive. The
+	// HIGH review named that redundancy as the reason the old controls were
+	// vacuous, so this row proves the hard term is load-bearing ON ITS OWN by
+	// re-running the REAL decision function with the reported numbers and with
+	// every blocker row stripped out. If the hard term were vacuous — as it was
+	// before this correction — this would return TRUE and the row would go red.
+	const blockingRowsExcludingHardMirrors = readiness.blockers.filter((row) => row.code !== 'FACULTY_DAILY_MAX_EXCEEDED').length;
+	const isolated = deriveGenerateDecision({
+		blockingBlockerCount: blockingRowsExcludingHardMirrors,
+		schedulerRan: readiness.schedulerExecuted,
+		hardCount: readiness.violations.hardCount,
+		hardGapCount: readiness.violations.hardGapCount,
+		advisoryHardCount: readiness.violations.advisoryHardCount,
+		zeroWrite: readiness.databaseSignature.zeroWrite,
+	});
+	assert.equal(
+		isolated.generateAllowed, false,
+		'with every blocker row removed, the hard term alone must still refuse: this is the term F1 found vacuous',
+	);
+	assert.ok(isolated.blockingHardCount > 0, 'and it must do so with a non-zero blocking hard count');
+});
+
+test('A8C3.8 F1: hardGapCount counts ONLY attributable violations, and the advisory class is its complement', async () => {
+	// A fully staffed year with a real teacher over their WEEKLY cap: the code IS
+	// advisory-class but carries no pair to attribute, so it must be counted as
+	// an ADVISORY and `hardGapCount` must stay 0. This is the second half of F1:
+	// a `hardGapCount` that claimed 3 here would be the false operator-facing
+	// claim the HIGH review named.
+	const { client } = buildMockClient({ distinctTeachers: true, lowWeeklyCap: true });
+	const readiness = await buildGenerationReadiness(SCHOOL_ID, SCHOOL_YEAR_ID, { client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+	assert.ok(readiness.violations.hardCount > 0, 'the fixture must really carry a hard violation');
+	assert.ok((readiness.violations.hardCodes.FACULTY_OVERLOAD ?? 0) > 0, 'and it must be FACULTY_OVERLOAD');
+	assert.equal(
+		readiness.violations.hardGapCount, 0,
+		'an unattributable advisory-class violation is NOT a gap: hardGapCount must not claim it',
+	);
+	assert.equal(
+		readiness.violations.advisoryHardCount, readiness.violations.hardCount,
+		'every hard violation here is advisory-class, and none is attributable',
+	);
+	assert.equal(readiness.violations.blockingHardCount, 0);
+	assert.equal(readiness.generateAllowed, true, 'the advisory path is unchanged by the F1 correction');
 });
 
 test('A8C3.6 NEGATIVE CONTROL for the ruling: advisories do NOT relax anything else', async () => {

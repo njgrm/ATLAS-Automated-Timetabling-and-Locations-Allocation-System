@@ -14,17 +14,25 @@
  * (`WORKLOAD_POLICY_BLOCK` 15, `FACULTY_SUBJECT_NOT_QUALIFIED` 12,
  * `FACULTY_OVERLOAD` 4).
  *
- * Two rules follow, and they are deliberately kept here rather than inside the
- * readiness service so both are pure, hermetic and independently testable:
+ * Three rules follow, and they are deliberately kept here rather than inside
+ * the readiness service so all are pure, hermetic and independently testable:
  *
  *  1. `classifyGenerationBlockers` — a GAP is a setup fact the scheduler can
  *     carry into the run (the class is listed as needing a teacher); a BLOCKER
  *     is a fact that makes a run wrong. Attribution is accepted ONLY when the
  *     violating (section, subject) pair is one the SAME diagnostic already
- *     proved has no active Teaching Load owner. Anything unprovable stays a
- *     blocker — the rule fails closed, because a wrongly downgraded hard
- *     violation would ship a schedule with a real policy breach in it.
- *  2. `buildGenerationBlockerGroups` — one line per ROOT CAUSE, counted in
+ *     proved has no active Teaching Load owner.
+ *  2. `ADVISORY_CODES` (A8 C3 planner ruling) — the three workload/qualification
+ *     codes are ADVISORY for generation in BOTH cases: attributable rows are
+ *     folded into the GAP population above, and unattributable ones (a real
+ *     teacher over their weekly cap names only a `facultyId`, so there is no
+ *     pair to read) become their own ADVISORY class. They are recorded, counted,
+ *     grouped and named in the run result; they do not stop a reviewable
+ *     schedule. Every OTHER code is a BLOCKER — the rule fails closed, because a
+ *     wrongly downgraded violation would ship a schedule with a real defect in
+ *     it. Note this is a deliberate, bounded relaxation: it applies to exactly
+ *     three codes and to nothing else.
+ *  3. `buildGenerationBlockerGroups` — one line per ROOT CAUSE, counted in
  *     CLASSES, deterministic order, and derived from the blocker objects the
  *     caller already assembled. No second scheduler run, no second database
  *     read, no extra latency: this is a pure fold over an array in memory.

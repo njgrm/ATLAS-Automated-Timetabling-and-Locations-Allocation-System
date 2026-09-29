@@ -153,3 +153,115 @@ unchanged**. `D:\ATLAS\atlas-client\node_modules` is unusable (no `@esbuild`); n
 - Rendered before/after screenshot comparison by a non-builder reviewer at 1366×768: **UNPERFORMED** (a §11
   design-judgement row for the review/integration step).
 - The `ux-communication-rubric` score for the new grouped panel: **UNPERFORMED** (same owner).
+
+---
+
+## Correction round 1 (HIGH review CORRECTION_REQUIRED, 25 pass / 1 blocked / 0 unperformed)
+
+**Round base** e14c04cd407fb318d6062b2be26d77aac2cffe19 (the previous tip). Additive commit on the same branch; nothing amended, rebased or reset.
+
+### F1 (BLOCKING) — fixed: the gate's hard term was vacuous and hardGapCount was a false claim
+
+**The defect.** generation-readiness.service.ts:482-488 computed the attribution test
+(code is advisory-class && pair is uncovered) and then **discarded its result**, so hardGapCount actually
+meant "every hard violation that is not advisory-class" and
+lockingHardCount = hardCount − hardGapCount − advisoryHardCount ≡ 0 for every input. generateAllowed
+therefore reduced to lockerCount === 0 && schedulerRan && zeroWrite and held only because the mirror loop at
+:446-459 independently pushes a blocker row per HARD validator violation. The HIGH reviewer proved it on the
+production path: 12 real FACULTY_DAILY_MAX_EXCEEDED violations classified hardGapCount=12 /
+blockingHardCount=0.
+
+**Why the committed tests missed it.** Both real-path negative controls (A8C3.3a, A8C3.6a) used
+hugeMathMinutes, which raises a **preflight** blocker row (CANONICAL_SHAPE_CAPACITY_EXCEEDED) — lockerCount
+saved them and the hard term was never reached. The pure-helper row at 8-c3-generate-with-gaps.test.ts:167-168
+hand-fed deriveGenerateDecision an input shape the production call site can never produce. A helper-only proof is
+not a real-path proof.
+
+**The fix.** The three hard-violation classes are now computed **explicitly**, each a genuine subset of hardCount:
+1. **attributable gap** — advisory-class code **and** a pair this diagnostic proved unowned (the only thing
+   hardGapCount counts, which is what its published meaning at generation-readiness.service.ts:118-127 says);
+2. **advisory** — advisory-class code whose attribution cannot be read (a real FACULTY_OVERLOAD names only a
+   acultyId);
+3. **blocking** — every other hard violation: any non-advisory code, plus the canonical shape violations folded
+   into hardCount at :432-438, which carry no pair to attribute at all.
+hardCount itself is untouched. The comment at :476-481 and the module doc at
+generation-blocker-groups.service.ts:17-33 are now aligned with what the code does.
+
+**The real-path proof (new rows A8C3.7, A8C3.8).** A8C3.7 drives maxTeachingMinutesPerDay: 30 through the
+real constraint-validator to raise **FACULTY_DAILY_MAX_EXCEEDED** — a code the ruling did *not* make advisory —
+on a fully staffed year, and asserts lockingHardCount > 0, hardGapCount === 0, dvisoryHardCount === 0, the
+three counts partitioning hardCount, and generateAllowed === false. It then re-runs the **real**
+deriveGenerateDecision with the reported numbers and **every blocker row stripped**, proving the hard term alone
+still refuses; a vacuous term would return 	rue and the row would go red.
+
+**Break-it-and-restore proof (literal).**
+- Mutant A — attribution forced to
+eturn true inside ttributableGapHard:
+
+px tsx --test src/__tests__/generation-canonical-readiness-genc02.test.ts → **	ests 24, pass 21, fail 3**;
+  A8C3.8 red.
+- Mutant B — the **original pre-F1 defect** restored verbatim (hardGapCount = hardViolations.length −
+  advisoryClassHard.length): same command → **	ests 24, pass 23, fail 1**; the failure is
+  A8C3.7, AssertionError: blockingHardCount must be non-zero for a real hard violation, got 0 — exactly the
+  vacuous-term symptom the reviewer named.
+- Restored byte-exact from a pre-mutation copy: SHA-256 BD114020C4BA30AFF4B07923DC221D45C8AC58F75A539E348957A5FACB4F8D22,
+  MUTANT-CODE-PRESENT: False, and the suite returns to **	ests 24, pass 24, fail 0**.
+
+### Items 5–8 (NON_BLOCKING) — all four done
+
+- **5 (packet wording match)** — the completed-run sentence now **names** the gaps, not just counts them:
+  uildGenerationCompletedMessage takes 	eacherGapExamples and prints
+  "New schedule ready. 50 classes still need a teacher: MAPEH 7-A, ENG 7-B, SCI 7-C." The examples are the run's
+  own persisted summary.teacherGapExamples, capped at five, and **capped rather than truncated** (§8: no
+  ellipsis). A nameless run still prints the bare count rather than an empty colon. Four new assertions in
+  8-c3-generate-with-gaps.test.ts C3.12; the single-number overload and the count-only object form are
+  unchanged, so no existing literal became invalid and **nothing was marked superseded or deleted for item 5**.
+- **6** — groupHeadline no longer substitutes the panel-wide gapClassCount for group.count; the server
+  already counted each group in classes, so the line reads group.count. Signature narrowed accordingly.
+- **7** — "N things must be fixed" replaced with "N setup items must be fixed before a timetable can be made."
+- **8** — the dead
+etry branch is **removed** from SimpleGenerationBlockerGroups.tsx, and the model is honest:
+  TimetableGenerationBlockerGroupPresentation.action is narrowed to { kind: 'navigate'; label; href }, so the
+  unreachable control path can no longer be written.
+
+### Re-run (literal, this round)
+
+| Command | Result |
+| --- | --- |
+|
+px tsx --test src/__tests__/generation-canonical-readiness-genc02.test.ts (candidate) | 	ests 24, pass 24, fail 0 |
+|
+pm run test:a8-c3-generate-gaps (server) | 	ests 12, pass 12, fail 0 |
+|
+pm run test:server-suite (server, detached) | **	ests 467, pass 467, fail 0** (was 465 — +2 from the new rows) |
+|
+px tsc --noEmit -p tsconfig.json (server) | 0 lines, no output |
+|
+px tsc --noEmit -p tsconfig.json (client) | 5 errors, unchanged and all pre-existing (4 × playwright missing from the junction donor, 1 × the 	imetable-truth-labels-a2 literal-type comparison) |
+|
+pm run test:a8-c3-generate-gaps (client) | 	ests 5, pass 5, fail 0 |
+|
+pm run test:generation-blockers-c02 (client) | 	ests 14, pass 13, fail 1 — the same pre-existing C2-a.7, nothing new |
+|
+pm run build (server, detached) | 	sc, 0 errors |
+|
+pm run build (client, detached, VITE_ENROLLPRO_URL set) | uilt in 11.77s, 0 errors |
+
+### Risks after this round
+
+- **B1 (unchanged, for the HIGH reviewer)** — the relaxation is wider than "coverage-attributable": per the planner
+  ruling the three workload/qualification codes are advisory for generation whether or not attributable. The live
+  2023-2024 split is still unverified by me.
+- **B2 (unchanged)** — a run admitted under the rule persists HARD advisories, so a generated-but-unpublishable run
+  is reachable. Intended; publication still refuses it.
+- **B3 (unchanged)** — placement is option (b): the 50 classes are listed, not placed with a placeholder.
+- **N5 (new, NON_BLOCKING)** — the hard term and the blocker-mirror loop overlap by design (defense in depth), so
+  on any given fixture more than one term can point at the same underlying violation. A8C3.7 isolates the hard
+  term explicitly; no other row depends on the overlap.
+- **N6 (new, NON_BLOCKING)** — lockingHardCount is now non-zero in cases where the gate is already refused by
+  lockerCount too, so a consumer reading it alone would see a larger number than strictly necessary. It is a
+  partition of the true hardCount and is documented as such; no consumer gates on it directly.
+
+**Staging/live acceptance on 2023-2024 remains UNPERFORMED and unclaimed** — A4's deployment-time row. No
+diagnostic, generation, publication, migration, deploy, restart, task/env change, login or browser action was run
+against live or staging in this round either.
