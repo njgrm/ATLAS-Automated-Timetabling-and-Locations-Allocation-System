@@ -211,7 +211,7 @@ function dialogContext(overrides: Record<string, any> = {}): Record<string, any>
 		openPreGenerationWorkspace: async () => {}, showLeavePreGenDialog: false, setShowLeavePreGenDialog: noop,
 		pendingCenterSwitch: null, setPendingCenterSwitch: noop, requestPreview: null,
 		requestPreviewLoading: false, setRequestPreview: noop, setSelectedRequestId: noop,
-		requestAppeals: noop, setAppealReason: noop, requestPreviewHardConflicts: [],
+		setRequestAppeals: noop, setAppealReason: noop, requestPreviewHardConflicts: [],
 		requestPreviewSoftWarnings: [], requestAppeals: [], appealsLoading: false,
 		isPrivilegedUser: true, canRequestPublication: true, canApprovePublication: true,
 		updateAppealStatus: async () => {}, appealReason: '', appealSubmitting: false,
