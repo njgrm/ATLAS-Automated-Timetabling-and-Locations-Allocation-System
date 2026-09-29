@@ -64,7 +64,7 @@ export type ConcernDriftView = {
 };
 
 /** This page's own route — a drift link back to it is a self-link, not a repair. */
-export const CONCERN_ROUTE = '/faculty/concerns';
+export const CONCERN_ROUTE = '/faculty/preferences';
 
 export function resolveConcernDriftView(inputState: GenerationInputComparison | null | undefined): ConcernDriftView {
 	const drift = describeRunInputDrift(inputState);

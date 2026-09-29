@@ -2,7 +2,7 @@
  * SchedulingPolicyPane
  *
  * Inline policy configuration panel rendered in the center pane of ScheduleReview.
- * Three columns, each with an independently scrollable body and a sticky header G��
+ * Three columns, each with an independently scrollable body and a sticky header —
  * so users can scroll one panel without disturbing the others.
  */
 
@@ -67,7 +67,7 @@ import { ensureTimetablePolicyAuxiliary } from '@/lib/timetable-data/timetableSe
 import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
 import { Badge } from '@/ui/badge';
 
-/* G��G��G�� Types G��G��G�� */
+/* ─── Types ─── */
 
 function policyToLocal(p: SchedulingPolicy): LocalPolicy {
 	// D9 — the two teacher-lunch switches are additive policy columns. The
@@ -139,9 +139,9 @@ function policyToLocal(p: SchedulingPolicy): LocalPolicy {
 	};
 }
 
-/* G��G��G�� Micro-components G��G��G�� */
+/* ─── Micro-components ─── */
 
-/* G��G��G�� Main export G��G��G�� */
+/* ─── Main export ─── */
 
 export default function SchedulingPolicyPane({
 	schoolId,
@@ -488,7 +488,7 @@ export default function SchedulingPolicyPane({
 			/>
 			<ReconciliationDialog state={reconciliationDialog} onClose={() => setReconciliationDialog(null)} />
 
-			{/* G��G�� Toolbar (non-scrolling) G��G�� */}
+			{/* ── Toolbar (non-scrolling) ── */}
 			<div className="shrink-0 flex flex-wrap items-center gap-2 px-4 py-2 border-b border-border bg-background/80 backdrop-blur-sm">
 				<TooltipProvider>
 					<Tooltip>
@@ -560,7 +560,7 @@ export default function SchedulingPolicyPane({
 				</Button>
 			</div>
 
-			{/* G��G�� Content G��G�� */}
+			{/* ── Content ── */}
 			{loading ? (
 				<div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
 					Loading policyGǪ
@@ -662,7 +662,7 @@ export default function SchedulingPolicyPane({
 							</div>
 						)}
 
-						{/* G��G�� Lunch Window G��G�� */}
+						{/* ── Lunch Window ── */}
 						<div className="pt-2 mt-2 border-t border-border/60 space-y-3">
 							<PolicySwitch
 								label="Show Special Events in Grid"
@@ -720,7 +720,7 @@ export default function SchedulingPolicyPane({
 									<div className="space-y-1.5">
 										<MetricExplain
 											label="Lunch Start"
-											explanation="Start of the lunch window G�� no classes will overlap this range."
+											explanation="Start of the lunch window — no classes will overlap this range."
 										/>
 										<Input
 											type="time"
@@ -732,7 +732,7 @@ export default function SchedulingPolicyPane({
 									<div className="space-y-1.5">
 										<MetricExplain
 											label="Lunch End"
-											explanation="End of the lunch window G�� classes resume after this time."
+											explanation="End of the lunch window — classes resume after this time."
 										/>
 										<Input
 											type="time"
@@ -834,7 +834,7 @@ export default function SchedulingPolicyPane({
 							)}
 						</div>
 
-						{/* G��G�� TLE Two-Pass Priority G��G�� */}
+						{/* ── TLE Two-Pass Priority ── */}
 						<div className="pt-2 mt-2 border-t border-border/60 space-y-3">
 							<PolicySwitch
 								label="TLE Two-Pass Priority"
@@ -849,7 +849,7 @@ export default function SchedulingPolicyPane({
 							)}
 						</div>
 
-						{/* G��G�� Flexible Subject Assignment G��G�� */}
+						{/* ── Flexible Subject Assignment ── */}
 						<div className="pt-2 mt-2 border-t border-border/60 space-y-3">
 							<PolicySwitch
 								label="Allow Flexible Subject Assignment"
@@ -859,12 +859,12 @@ export default function SchedulingPolicyPane({
 							/>
 							{local.allowFlexibleSubjectAssignment && (
 								<div className="flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[0.6875rem] text-amber-700">
-									<span className="font-medium">G��n+� Warning:</span> Teachers may be assigned to subjects outside their specialization. Review assignments carefully before publishing.
+									<span className="font-medium">Warning:</span> Teachers may be assigned to subjects outside their specialization. Review assignments carefully before publishing.
 								</div>
 							)}
 						</div>
 
-						{/* G��G�� Consecutive Lab Sessions G��G�� */}
+						{/* ── Consecutive Lab Sessions ── */}
 						<div className="pt-2 mt-2 border-t border-border/60 space-y-3">
 							<PolicySwitch
 								label="Allow Consecutive Lab Sessions"

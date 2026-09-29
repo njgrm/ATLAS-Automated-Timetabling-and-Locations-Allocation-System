@@ -48,8 +48,13 @@ export function CampusMap({ buildings, activeBuildingId, onSelect, buildingOccup
 
 	return (
 		<div className="h-full flex flex-col">
-			{/* Toolbar */}
-			<div className="shrink-0 mb-3 flex items-center gap-1.5 px-4 pt-4">
+			{/* Toolbar. A9 C6, fix 1.2 item 10.2: `md:px-6` matches `BuildingView`'s
+			    utility bar, so the zoom controls sit the same distance from the border on
+			    both campus maps ("one look per control", AGENTS.md §8). The `pt-4` is
+			    untouched and NO horizontal padding was added to the drawing surface below:
+			    its `Stage` is a hard-coded `width={920}` inside a `flex-1` box, so
+			    padding there would clip the canvas rather than inset it. */}
+			<div className="shrink-0 mb-3 flex items-center gap-1.5 px-4 pt-4 md:px-6">
 				<button
 					className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-xs font-bold text-foreground hover:border-primary hover:text-primary transition-all shadow-sm"
 					onClick={() => setScale((s) => Math.min(s + 0.15, 2.5))}

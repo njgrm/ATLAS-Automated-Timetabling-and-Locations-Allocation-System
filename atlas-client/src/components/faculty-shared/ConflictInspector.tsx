@@ -100,7 +100,7 @@ export default function ConflictInspector({
 
 					{!reason.trim() && (
 						<p className='text-[10px] text-destructive font-medium animate-pulse'>
-							âš  Please provide a reason to continue.
+							Please provide a reason to continue.
 						</p>
 					)}
 				</div>

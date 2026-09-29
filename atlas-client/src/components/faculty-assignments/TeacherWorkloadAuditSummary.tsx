@@ -77,7 +77,24 @@ function isClassifiable(snapshot: ReturnType<typeof useTeacherWorkloadAudit>): b
 	return snapshot.status === 'ready' && snapshot.standardHours != null && snapshot.policyReady;
 }
 
-export function TeacherWorkloadAuditSummary({ onSelectTeacher }: { onSelectTeacher: (facultyId: number) => void }) {
+export function TeacherWorkloadAuditSummary({
+	onSelectTeacher,
+	fill = false,
+}: {
+	onSelectTeacher: (facultyId: number) => void;
+	/**
+	 * A6 c9 (38.1) — the host owns the scroll region.
+	 *
+	 * `ReviewTeachersModal` bounds this component itself, because it is the
+	 * outermost frame there. The header's `Load summary` window is NOT: it is a
+	 * fixed-height flex column whose body is already the ONE `overflow-y-auto`
+	 * region, and a second bounded scroller inside it is the nested-scroll defect
+	 * a6 C2 measured on this dialog. `fill` therefore drops this component's own
+	 * `max-h` and scroller and lets the body scroll, and the roster is unchanged
+	 * either way.
+	 */
+	fill?: boolean;
+}) {
 	const snapshot = useTeacherWorkloadAudit();
 	const [filter, setFilter] = useState<TeacherWorkloadAuditFilter>('all');
 
@@ -95,7 +112,10 @@ export function TeacherWorkloadAuditSummary({ onSelectTeacher }: { onSelectTeach
 	);
 
 	return (
-		<div className="flex max-h-[70vh] min-h-0 flex-col" data-testid="workload-audit-summary">
+		<div
+			className={cn('flex min-h-0 flex-col', fill ? '' : 'max-h-[70vh]')}
+			data-testid="workload-audit-summary"
+		>
 			<div className="shrink-0 space-y-3 border-b border-border/40 px-6 py-4">
 				<h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60" data-testid="workload-audit-heading">
 					Teacher Workload Audit Summary
@@ -135,7 +155,7 @@ export function TeacherWorkloadAuditSummary({ onSelectTeacher }: { onSelectTeach
 				<AuditExplanation snapshot={snapshot} />
 			</div>
 
-			<div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+			<div className={cn('px-6 py-4', fill ? '' : 'min-h-0 flex-1 overflow-y-auto')}>
 				{snapshot.status === 'unavailable' || snapshot.status === 'loading' ? (
 					<AuditPlaceholder status={snapshot.status} />
 				) : rows.length === 0 ? (

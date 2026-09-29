@@ -82,6 +82,19 @@ export type SubjectShortageEntry = {
 	subjectName: string;
 	/** Classes in this subject with no REAL teacher (unowned OR placeholder-held). */
 	shortClassCount: number;
+	/**
+	 * A6 c9 — the SHORT classes by name, in the order the sections were supplied.
+	 *
+	 * c5 counted them and named the subjects; c9's `See who needs a teacher`
+	 * window has to name the CLASSES too (`MAPEH — 7-A, 7-B, 8-C`), because
+	 * "who still needs assigning" is a scheduler's question about sections, not
+	 * about subjects. They are collected INSIDE the same walk that already
+	 * decides which pairs are short, so the names and the count can never come
+	 * from two different passes — a list of names that did not sum to
+	 * `shortClassCount` would be exactly the quiet disagreement this module
+	 * exists to prevent.
+	 */
+	classNames: string[];
 };
 
 export type SubjectShortageResult = {
@@ -123,6 +136,7 @@ export function buildSubjectShortage(input: {
 			subjectCode: subject.code,
 			subjectName: subject.name,
 			shortClassCount: 0,
+			classNames: [],
 		};
 		for (const section of input.sections) {
 			if (!isSectionSubjectApplicable(subject, section)) continue;
@@ -133,7 +147,10 @@ export function buildSubjectShortage(input: {
 				&& input.activeFacultyIds.has(owner.facultyId)
 				&& !input.placeholderFacultyIds.has(owner.facultyId),
 			);
-			if (!hasRealTeacher) entry.shortClassCount += 1;
+			if (!hasRealTeacher) {
+				entry.shortClassCount += 1;
+				entry.classNames.push(section.name);
+			}
 		}
 		if (entry.shortClassCount > 0) bySubject.set(subject.id, entry);
 	}
@@ -286,6 +303,69 @@ export function buildStaffingTruthFigures(input: {
 		staffedPercent: total > 0 ? Math.round((real / total) * 100) : 0,
 		withoutRealTeacherCount: placeholder + unowned,
 	};
+}
+
+/**
+ * A6 c9 — THE HEADER'S PRIMARY CLAIM, as LABEL PARTS rather than one string.
+ *
+ * The operator overruled the previous arrangement twice over: the `% staffed`
+ * figure was a read-only METRIC, so it was passed over as a number nobody acts
+ * on, and the second clause had no verb, so the row read as a report rather than
+ * as a thing you can press. The label is therefore a FIGURE plus a VERB plus a
+ * destination, and the two verb clauses are the only variation: the percentage
+ * is never reworded, because it is a measurement and not copy.
+ *
+ * `withoutRealTeacherCount === 0` is the honest positive, not a suppressed
+ * figure: `Every class has a teacher` is what the scheduler wants to read, and
+ * the control still opens the (empty) window so the claim is checkable rather
+ * than asserted.
+ */
+export const STAFFING_FIGURE_SEE_CLAUSE = 'See who needs a teacher';
+export const STAFFING_FIGURE_CLEARED_CLAUSE = 'Every class has a teacher';
+
+export type StaffingFigureLabel = {
+	/** `84% staffed` — the measurement, never reworded. */
+	figure: string;
+	/** The verb clause, chosen by whether any class still lacks a teacher. */
+	clause: string;
+	/** The whole visible label, `84% staffed — See who needs a teacher`. */
+	label: string;
+	/** The accessible name: the same words, plus the destination. */
+	accessibleLabel: string;
+	/** Whether the window will list anything. */
+	hasShortage: boolean;
+};
+
+export function buildStaffingFigureLabel(input: StaffingTruthFigures): StaffingFigureLabel {
+	const figure = `${input.staffedPercent}% staffed`;
+	const hasShortage = input.withoutRealTeacherCount > 0;
+	const clause = hasShortage ? STAFFING_FIGURE_SEE_CLAUSE : STAFFING_FIGURE_CLEARED_CLAUSE;
+	const label = `${figure} — ${clause}`;
+	return {
+		figure,
+		clause,
+		label,
+		accessibleLabel: `${label}. Opens the list of classes that still need a teacher.`,
+		hasShortage,
+	};
+}
+
+/**
+ * A6 c9 — THE ONE QUIET SAVED-DATA LINE, and its date rule.
+ *
+ * The operator saw TWO amber surfaces making the same claim and asked for at
+ * most one quiet line, and for it to carry the date of the roster it is really
+ * showing. `SectionSummaryResponse.fetchedAt` is the only timestamp the client
+ * genuinely holds, so the date is read from it and DROPPED when it is absent or
+ * unparseable — never synthesised, and never replaced by "today".
+ */
+export const SAVED_ROSTER_NOTE_PREFIX = 'From the saved roster';
+
+export function formatSavedRosterNote(fetchedAt: string | null | undefined): string {
+	if (!fetchedAt) return SAVED_ROSTER_NOTE_PREFIX;
+	const parsed = new Date(fetchedAt);
+	if (Number.isNaN(parsed.getTime())) return SAVED_ROSTER_NOTE_PREFIX;
+	return `${SAVED_ROSTER_NOTE_PREFIX} (${parsed.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })})`;
 }
 
 /** The three cover options, and the ONE line of consequence each carries. */

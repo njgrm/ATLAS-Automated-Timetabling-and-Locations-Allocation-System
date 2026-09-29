@@ -20,13 +20,12 @@ import { createScopeEpoch, captureEpoch } from '@/lib/scope-request-epoch';
 import { useTeachingLoadData } from '@/hooks/useTeachingLoadData';
 import { useTeachingLoadUI } from '@/hooks/useTeachingLoadUI';
 import { useTeachingLoadOutage } from '@/hooks/useTeachingLoadOutage';
-import { TeachingLoadOutageSurface } from '@/components/faculty-assignments/TeachingLoadOutageSurface';
+import { useTeachingLoadHeaderClaims } from '@/components/faculty-assignments/useTeachingLoadHeaderClaims';
 import { TeacherGridMode } from '@/components/faculty-assignments/TeacherGridMode';
 import { SectionGridMode } from '@/components/faculty-assignments/SectionGridMode';
 import { TeachingLoadInspectorPanel } from '@/components/faculty-assignments/TeachingLoadInspectorPanel';
 import { WorkspaceToolbar, isTeachingLoadSourceDegraded } from '@/components/faculty-assignments/WorkspaceToolbar';
 import { TeachingLoadRepairQueue } from '@/components/faculty-assignments/TeachingLoadRepairQueue';
-import { openTeacherReview } from '@/components/faculty-assignments/teacherReviewEntry';
 import { TeachingLoadDraftActionBar } from '@/components/faculty-assignments/TeachingLoadDraftActionBar';
 import { TeachingLoadModals } from '@/components/faculty-assignments/TeachingLoadModals';
 import { TeachingLoadInspectorTriggers } from '@/components/faculty-assignments/TeachingLoadInspectorTriggers';
@@ -465,15 +464,12 @@ export default function TeachingLoad() {
 	});
 	const { cover } = outage;
 
-	// A6 c5 §3 + S9 — the honest "still need a real teacher" figure, ON THE PAGE.
-	// Count is `placeholder + unowned`: a to-be-hired record is not a teacher.
-	const stillNeedRealTeacherNote = useMemo(
-		() => teachingLoadShortageNote(
-			coverageHeadline.syntheticAssigned,
-			coverageHeadline.unassigned,
-		),
-		[coverageHeadline.syntheticAssigned, coverageHeadline.unassigned],
-	);
+	// A6 c9 — the `stillNeedRealTeacherNote` memo is GONE from this page. Its
+	// sentence now lives in the header's staffing-figure control, which is the
+	// one claim per fact AGENTS.md §8 asks for, and the count is not lost: the
+	// window that control opens names every short class by name. The
+	// `teachingLoadShortageNote` import stays — the auto-fill toast at
+	// `unresolvedCount` still carries the same shared sentence.
 
 	const emptyActiveYearTeachingLoad = useMemo(
 		() => !data.loading && coverageHeadline.total > 0 && coverageHeadline.assigned === 0 && data.activeDraftCount === 0,
@@ -541,14 +537,20 @@ export default function TeachingLoad() {
 	 * every string travelled byte-for-byte. The page still decides WHEN. */
 	const workspaceState = useMemo(() => buildTeachingLoadWorkspaceState({ isOnline: data.isOnline, dataSource: data.dataSource, canPersistAssignments: data.canPersistAssignments, activeDraftCount: data.activeDraftCount, degradedNotice: data.degradedNotice, error: data.error }), [data.isOnline, data.dataSource, data.canPersistAssignments, data.activeDraftCount, data.degradedNotice, data.error]);
 
-	/* FIX 16.1 + A6 C2 — the ONE production opener for a staff-workload review.
-	 * The select runs BEFORE the open deliberately: `reviewModalTitle` is derived
-	 * from `data.selected`, and a dialog that opened against the previous teacher
-	 * and corrected itself one render later is the defect this indirection causes. */
-	const openTeacherReviewFor = useCallback((facultyId?: number | null) => {
-		if (facultyId != null) data.setSelectedId(facultyId);
-		openTeacherReview({ setViewMode: ui.setViewMode, setReviewModalOpen });
-	}, [data.setSelectedId, ui.setViewMode]);
+	/*
+	 * A6 c9 (fix-1.2 38.1) — the page OWNS the summary window's open flag, and
+	 * the header's ONE claim is the staffing figure. Both live in
+	 * `useTeachingLoadHeaderClaims`, which exists because adding them inline
+	 * pushed this page over the AGENTS.md §8 1000-physical-line cap; the page
+	 * still decides WHEN, and still owns the figures the figure is built from.
+	 */
+	const { staffingFigureSlot, summaryControl, openTeacherReviewFor } = useTeachingLoadHeaderClaims({
+		outage,
+		writeBlockedReason: workspaceState.writeBlockedReason,
+		onShowCoverageDetail: showUnassignedTeachingLoad,
+		fetchedAt: data.sectionSummary?.fetchedAt,
+		onSelectTeacher: data.setSelectedId,
+	});
 
 	// A6 C2 CORRECTION: the SAME exported predicate the header's amber line uses, so the row cannot say "not reachable" and "looks ready" at once.
 	const sourceDegraded = isTeachingLoadSourceDegraded({ dataSource: data.dataSource, isOnline: data.isOnline, dataSourceNotice: data.degradedNotice });
@@ -599,8 +601,7 @@ export default function TeachingLoad() {
 			ui.setFilterStatus('all');
 			ui.setLoadFilter('all');
 		},
-		onOpenReview: () => openTeacherReviewFor(null),
-	});
+		onOpenReview: () => openTeacherReviewFor(null),	});
 
 	const sectionsBySubject = useMemo(() => {
 		return buildSectionsBySubject(data.sectionAssignedClassesIndex, data.sectionMap, ui.gradeLevelFilter);
@@ -677,21 +678,22 @@ export default function TeachingLoad() {
 		/>
 	);
 
-	/* A6 c5 §1 — the shortage line and its cover dialog, as ONE node. The
-	 * toolbar owns the row's position; this owns both halves of the content, so
-	 * the page wires one slot instead of two and there is one place to look when
-	 * the line and the dialog ever disagree. A6 c7 gates this slot on
-	 * `hasShortageToShow` — the question "do classes lack a teacher" — not on
-	 * source freshness, which is what left staging with no line at all. */
-	const shortageLineSlot = outage.hasShortageToShow ? (
-		<TooltipProvider delayDuration={200}>
-			<TeachingLoadOutageSurface
-				outage={outage}
-				writeBlockedReason={workspaceState.writeBlockedReason}
-				onShowCoverageDetail={showUnassignedTeachingLoad}
-			/>
-		</TooltipProvider>
-	) : null;
+	/* A6 c9 §1 — the header's ONE claim, and it is a CONTROL.
+	 *
+	 * It REPLACES three surfaces at once: the c7 per-subject shortage line, the
+	 * amber "last saved roster" pill, and the grey `N classes still need a real
+	 * teacher.` note this page used to print in the workspace body. The operator's
+	 * complaint was that the percentage was a read-only metric — "50 classes still
+	 * need a teacher is barely noticeable — that's what the load summary should
+	 * be" — and the fix is a control that says what it opens.
+	 *
+	 * It is supplied in EVERY state, which is what makes the amber pill
+	 * unreachable from this page rather than merely hidden: `WorkspaceToolbar`
+	 * still contains the pill for a host that supplies nothing, and no committed
+	 * control changes, but the real route never reaches it. The page passes the
+	 * node in UNCONDITIONALLY and never consults `hasShortageToShow`.
+	 */
+	const shortageLineSlot = staffingFigureSlot;
 
 	if (data.error && data.dataSource === 'none') {		return (
 			<div className="flex h-[calc(100svh-3.5rem)] items-center justify-center p-6">
@@ -745,6 +747,7 @@ export default function TeachingLoad() {
 					onRetrySource={() => data.fetchData({ forceRefresh: true })}
 					stateLineSlot={headerStateLine}
 					shortageLineSlot={shortageLineSlot}
+					summaryControl={summaryControl}
 					// FIX 38: the toolbar owns this control's POSITION, the surface owns its
 					// open state and the dialog, and the page still BUILDS the body, so
 					// `truthModel` has exactly one producer.
@@ -754,7 +757,7 @@ export default function TeachingLoad() {
 					// `indexOf` on that tag, and a prose mention would be the first
 					// match, so both would measure a comment and pass vacuously.
 					loadSummaryAction={(
-						<TeachingLoadSummarySurface>
+						<TeachingLoadSummarySurface teacherDetail={activeInspector}>
 							<TeachingLoadTruthPanel
 								expanded
 								vertical
@@ -807,25 +810,21 @@ export default function TeachingLoad() {
 							</div>
 						)}
 
-					{/* A6 c5: the note below is the page's OWN reading of the staffing figures, first in
-						the workspace so a scheduler who never opens a dialog still meets the honest
-						"still need a real teacher" count. `hidden` on short viewports matches the
-						rollover band above, so the workspace never grows a third band. It is deliberately
-						NOT a `shrink-0` band — it scrolls with the roster, and `a3-c10` T4 requires exactly
-						one such band, the out-of-fence rollover wrapper above. The truth strip, the repair
-						queue and the header's `Archived load` MENU item live in `headerStateLine` / the
-						toolbar (A3-C10-S3 / FIX 38). A6 c7: this stayed INLINE — extracting it broke
-						`A6C5-S9-1`, which c7 may not edit. */}
+					{/*
+					 * A6 c9 — THE GREY `N classes still need a real teacher.` NOTE IS
+					 * DELETED FROM THE WORKSPACE BODY, and this is the subtraction the
+					 * operator asked for: "there are two banners that say saved data —
+					 * it's overwhelming", and `50 classes still need a real teacher.`
+					 * was a THIRD statement of the same shortage the header figure now
+					 * carries and the window now lists by class name.
+					 *
+					 * `A6C5-S9-1` asserted that this note was on the PAGE. That
+					 * assertion is retained and marked superseded in its own file,
+					 * beside its replacement: the honest count is now stated in the
+					 * header's own control, which is a stronger home for it than a
+					 * static line under a filter bar.
+					 */}
 
-					{outage.staffingFigures.withoutRealTeacherCount > 0 && (
-						<p
-							data-testid="teaching-load-still-need-real-teacher"
-							data-staffed-percent={outage.staffingFigures.staffedPercent}
-							className="px-3 pt-1 text-xs font-semibold text-muted-foreground [@media(max-height:640px)]:hidden lg:px-5"
-						>
-							{stillNeedRealTeacherNote}
-						</p>
-					)}
 
 					<div className="flex min-h-[140px] flex-1 flex-col" data-testid="teaching-load-workspace">
 
