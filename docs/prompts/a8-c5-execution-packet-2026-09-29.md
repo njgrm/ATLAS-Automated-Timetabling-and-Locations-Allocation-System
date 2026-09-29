@@ -107,10 +107,11 @@ are correct. Control: the export test must fail on base with the old label and p
 **S2.0 (addendum 19:05) — guard `groups`.** `timetable-generation-readiness.ts:302` must treat a missing or
 non-array `groups` as empty and take the legacy one-line fallback its own comment promises. Then re-pin
 `a2-header-budget-2026-09-29.test.tsx` H4 state A (line 625) and state B (line 668), script
-`test:ux-2-header-budget` → `test:ux-a2-header-budget`, **on purpose**: both must keep their current labelled
+`test:ux-a2-header-budget` (that is already the committed name — there is no rename), **on purpose**: both
+must keep their current labelled
 behaviour, and both must now also render through the guard. Re-run the groups suite
 `atlas-client/src/components/timetable/__tests__/a8-c3-generate-gaps-groups.test.tsx` (script
-`test:a8-c3-generate-gaps`) unchanged.
+`test:a8-c3-generate-gaps`, the committed name) unchanged.
 
 **S2.1 (rules 2 + 3) — every hard blocker code has a sentence and a route, and the test proves it.**
 Build ONE shared, exported table of the hard blocker codes the preflight can emit, with, per code: the plain
@@ -151,10 +152,11 @@ Table-driven test over **every** capability input: no state returns a disabled G
 progress". Nothing that is only a warning may stop generation.
 
 **This change is presentational, never a new server gate.** The canonical decision stays
-`deriveGenerateDecision` in `generation.service.ts` (exercised by
-`atlas-server/src/__tests__/generation-canonical-readiness-genc02.test.ts:366,385,422`), which still refuses
-on its own terms. "Always enabled" means the operator always gets the dialog and an honest list; it does not
-mean the client became the only gate, and the server test must stay green and be re-run.
+`deriveGenerateDecision`, defined at `atlas-server/src/services/generation-blocker-groups.service.ts:217` and
+called in production from `generation-readiness.service.ts:516`; it still refuses on its own terms, exercised
+by `atlas-server/src/__tests__/generation-canonical-readiness-genc02.test.ts:366,385,422` (script
+`test:server-suite`). "Always enabled" means the operator always gets the dialog and an honest list; it does
+not mean the client became the only gate, and that server test must stay green and be re-run.
 
 **S2.4 (rule 4) — publication names the classes in the same words.** The client publish refusal surface must
 name placeholder-owned and open classes with the same sentence shape as S2.1, driven by the same table.
@@ -171,22 +173,25 @@ existing receipt pattern, do not invent a second one.
 | # | Row | Harness | Decided by |
 | --- | --- | --- | --- |
 | A1 | No write path defaults a school-year id; unresolved → typed 409, zero writes, zero dispatch | `atlas-server/src/__tests__/a8-c5-active-year-fail-closed.test.ts` on a **disposable** DB via `npm run test:server-db` | executor, then QA |
-| A2 | Placeholder-owned is a named third state: **not a real owner** and **listed by name** (both fail on base); blocks neither generation nor publication (preservation); **OPEN still blocks both** | `atlas-server/src/__tests__/a8-c5-placeholder-third-state.test.ts` (disposable DB) — the failing-first control is on "not a real owner" / "listed by name", which is where base is wrong; pair it with the **existing** OPEN-class refusal proof `atlas-server/src/__tests__/a8-c3-generate-with-gaps.test.ts:181-200` ("C3.11 SAFETY", script `test:a8-c3-generate-gaps`), which must stay green and must be re-run | executor, then QA |
-| A3 | Publication refusal names placeholder-owned classes in words | same suite as A2, plus a client assertion on the refusal sentence | executor, then QA |
+| A2 | Placeholder-owned is a named third state: **not a real owner** and **listed by name** (both fail on base); blocks neither generation nor publication (preservation); **OPEN still blocks both** | `atlas-server/src/__tests__/a8-c5-placeholder-third-state.test.ts` (disposable DB) — the failing-first control is on "not a real owner" / "listed by name", which is where base is wrong; pair it with the **existing** OPEN-class refusal proof `atlas-server/src/__tests__/a8-c3-generate-with-gaps.test.ts:181-200` ("C3.11 SAFETY", script `test:a8-c3-generate-gaps`), which must stay green and must be re-run. The **open-class** half of the row (`LACKING_FACULTY` refused by
+`countBlockingHardViolations`, `publication-contract.service.ts:117`) is asserted directly in the new
+`a8-c5-placeholder-third-state` suite, because C3.11 itself exercises the three advisory codes rather than
+the open class. | executor, then QA |
+| A3 | Publication refusal names placeholder-owned classes in words | same server suite as A2, plus a client assertion in `atlas-client/src/components/timetable/__tests__/a8-c3-generate-gaps-groups.test.tsx` (script `test:a8-c3-generate-gaps`) | executor, then QA |
 | A4 | `recommendedNewHires` follows the saved policy; a default policy reproduces the base number | `atlas-server/src/__tests__/a8-c5-hire-estimate-policy.test.ts` | executor, then QA |
 | A5 | Both exports label the total per week; day columns unchanged | workbook: re-pin `atlas-server/src/__tests__/tt-output-c03r.test.ts:433` (the only existing assertion of `'TOTAL MINUTES PER DAY'`, and it must FAIL on base and PASS on the fix). room-program: **no existing suite pins that label** — `exportRoomProgramWorkbook` is imported by `published-immutability-c08.test.ts:137` and `tt-output-c05-beneficiary-parity.test.ts:34`, neither of which asserts the totals row. Add the label assertion to `tt-output-c05-beneficiary-parity.test.ts` (the parity suite that already owns that writer) and name it in the handoff. | executor, then QA |
 | A6 | Missing `groups` takes the legacy fallback; H4 A/B re-pinned | `atlas-client/src/components/timetable/__tests__/a2-header-budget-2026-09-29.test.tsx` + the groups suite | executor, then QA |
 | A7 | Every hard blocker code maps to a non-empty sentence and a real route; a missing entry FAILS | new table-driven client test, **one fixture per code**, with a failing-first control | executor, then QA |
 | A8 | No capability input returns a disabled Generate except `generating`; each former denial is a named dialog stopper with a count and a fix route | new table-driven `timetable-capabilities` test over every input | executor, then QA |
-| A9 | The blocker panel renders one line per cause, count in classes, one fix button, one "Check again" | client rendered suite **+** the staging screenshot (B rows) | executor, then QA |
-| A10 | `/subjects` paints the saved catalog immediately and refreshes behind it, with a receipt | client test + the staging timing measurement (B3) | executor, then QA |
+| A9 | The blocker panel renders one line per cause, count in classes, one fix button, one "Check again" | `atlas-client/src/components/timetable/__tests__/a8-c3-generate-gaps-groups.test.tsx` (script `test:a8-c3-generate-gaps`), re-pinned for the S2.1 table **+** the staging screenshot (B1) | executor, then QA |
+| A10 | `/subjects` paints the saved catalog immediately and refreshes behind it, with a receipt | a client test in `atlas-client/src/pages/__tests__/` covering `atlas-client/src/pages/Subjects.tsx` first paint, named and added to a committed client script in the same commit + the staging timing measurement (B3) | executor, then QA |
 | G1 | `npm run test:encoding` passes | repo script | planner |
 | G2 | server tsc + client tsc + client build | repo scripts | planner |
 | G3 | `git diff --check` clean over the candidate range | git | planner |
 | B1 | 1366x768 staging render of `/timetable` with the blocker panel: no truncation, no codes, no `…`, clickable things look clickable | **Browser row.** `scripts/dev/start-preview.ps1` + `/__dev/staging-login` + `scripts/qa/ux-audit.js` (major = 0, nothing under 14px) | **planner** (browser custody) |
 | B2 | Each fix button opens the exact page/state it claims | **Browser row**, one per cause present on staging | **planner** |
 | B3 | `/subjects` first paint is immediate; the receipt names what was served | **Browser row**, with a measured first-contentful time | **planner** |
-| B4 | Force each of the top 4 blockers on a scratch year, screenshot, follow the button, fix, **generate** | **DEPLOYMENT-ACCEPTANCE / HIGH row.** The forcing and the fix are ordinary UI mutations (§12) and are authorized; the **generate step is a generation run and is NOT authorized** — it goes to the operator. A cause that cannot be forced without a generation or an apply is reported `UNPERFORMED(reason)`, never `N/A`. | **planner + operator** |
+| B4 | Force each of the top 4 blockers on a scratch year, screenshot, follow the button, fix, **generate**. "The top 4" is pinned here to the causes this packet names, so the row is not a judgement call: (1) **sections with no usable room** — `ROOMS_MISSING` / `ROOM_RESOURCE_UNAVAILABLE`; (2) **sections with no Teaching Load owner** — `TL_DEMAND_UNCOVERED` / `TEACHING_LOAD_REVIEW_REQUIRED`; (3) **no time window for a grade** — `GRADE_WINDOW_MISSING` / `POLICY_WINDOW_BLOCK`; (4) **term authority unresolved** — `TERM_AUTHORITY_UNRESOLVED` / `TERM_AUTHORITY_STALE`. Report which of the four the live staging data already presents (those need no forcing) and which had to be forced. | **DEPLOYMENT-ACCEPTANCE / HIGH row.** The forcing and the fix are ordinary UI mutations (§12) and are authorized; the **generate step is a generation run and is NOT authorized** — it goes to the operator. A cause that cannot be forced without a generation or an apply is reported `UNPERFORMED(reason)`, never `N/A`. | **planner + operator** |
 
 ## Throughput and hygiene
 
