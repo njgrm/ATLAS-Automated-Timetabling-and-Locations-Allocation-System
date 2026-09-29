@@ -504,10 +504,10 @@ export function FacultyProfileSheet({
 								 * The rule that makes both true at once: the friendly
 								 * "3.8h each" is printed ONLY when multiplying it by the
 								 * visible count reproduces the visible total at the displayed
-								 * one-decimal precision. For 225 minutes (3.75h) it does not,
-								 * so the clause falls back to the exact "225 min each",
-								 * which multiplies cleanly. For 230 minutes (3.8h x 3 = 11.4 =
-								 * 690/60) the two agree, so the friendly hours form stays.
+								 * one-decimal precision. For 225 minutes (3.75h) it does
+								 * not, so the clause is omitted entirely rather than stated
+								 * in minutes. For 240 minutes (4h) the two agree and the
+								 * friendly hours form stays.
 								 *
 								 * Truth is never traded for tidiness here: the total is the
 								 * teacher's real load, and it is the same number the server's
@@ -530,14 +530,27 @@ export function FacultyProfileSheet({
 										    name, and one readable label beats a name over a code the
 										    scheduler has to decode. What replaces it is the number the
 										    card was missing — what this subject costs THIS teacher. */}
-										<p className="text-sm text-muted-foreground">
-											{`${sectionTotal} ${sectionTotal === 1 ? 'class' : 'classes'} · ${totalHours}h a week`}
-											{sectionTotal > 1 && perSectionMinutes
-												? hoursClauseReproducesTotal
-													? ` · ${perSectionHours}h each`
-													: ` · ${perSectionMinutes} min each`
-												: ''}
-										</p>
+									<p className="text-sm text-muted-foreground">
+										{/*
+										 * A3 c17 C3-FIX, planner arbitration (2026-09-29). The TOTAL is
+										 * always the exact sum of the real minutes, and it is the same
+										 * number the server's "Current weekly hours" line above reports.
+										 *
+										 * The per-section CLAUSE is printed only when multiplying it by the
+										 * visible count reproduces that total at the displayed precision.
+										 * When it would not — 225 minutes is 3.75h, so "3.8h each" x 8 is
+										 * 30.4 against a real 30h — the clause is DROPPED rather than
+										 * restated in minutes. "225 min each" was tried and rejected: a
+										 * second unit on one calm card, next to a "3.8h" badge that answers
+										 * the same question, is more confusing than saying less. The
+										 * requester wrote "and, IF USEFUL, '3.8h each'", which is permission to
+										 * omit it. Subtract first.
+										 */}
+										{`${sectionTotal} ${sectionTotal === 1 ? 'class' : 'classes'} · ${totalHours}h a week`}
+										{sectionTotal > 1 && perSectionMinutes && hoursClauseReproducesTotal
+											? ` · ${perSectionHours}h each`
+											: ''}
+									</p>
 										</div>
 										{/* THE BADGE IS UNCHANGED AND DELIBERATELY SO. It is the
 										    requester's literal ask: `fs.subject.minMinutesPerWeek`

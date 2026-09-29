@@ -394,15 +394,24 @@ test('A3C17-2 the subject total is sections x minMinutesPerWeek, and "each" only
 		!text.includes('3.8h each'),
 		'a rounded hours "each" must not be printed beside a total it does not reproduce',
 	);
+	// PLANNER ARBITRATION (2026-09-29). The executor restated the per-section
+	// figure as "225 min each" so the multiplication would work. I rejected that:
+	// a second UNIT on one calm card, directly beside a "3.8h" badge answering the
+	// same question, is more confusing than saying less. The requester wrote "and,
+	// IF USEFUL, '3.8h each'" — that is permission to omit it. So the clause is
+	// DROPPED when the hours form would not reproduce the total.
+	//
+	// The superseded requirement is preserved below rather than deleted, per the
+	// additive-evidence rule: a reviewer must be able to see that both a
+	// minutes-fallback and a clause-drop were considered, and which was chosen.
 	assert.ok(
-		text.includes('225 min each'),
-		'when the hours clause would not reproduce the total, the per-section figure must be stated in exact minutes',
+		!text.includes('225 min each'),
+		'the per-section clause is OMITTED when the hours form cannot reproduce the total; a mixed-unit card is worse than a shorter one',
 	);
-	// The BADGE is the requester's literal ask and is deliberately NOT part of
-	// the totals arithmetic, so it still reads 3.8h even though the clause beside
-	// it now reads "225 min each". Both are true; they answer different
-	// questions. Asserted here so a future harmonisation is a visible change
-	// rather than a silent one.
+	// The BADGE is the requester's literal ask for `minMinutesPerWeek` as an hours
+	// figure, and it is the card's only per-section number once the clause is
+	// dropped. Asserted here so a future harmonisation is a visible change rather
+	// than a silent one.
 	assert.ok(text.includes('3.8h'), 'the per-section badge must still read 3.8h');
 	const badge = [...dialog.querySelectorAll('[data-slot="badge"], span')]
 		.map((el) => textOf(el))
@@ -441,20 +450,26 @@ test('A3C17-2 the subject total is sections x minMinutesPerWeek, and "each" only
 	//                                               not this teacher's load) and
 	//                                               contradicted the card's own
 	//                                               30h "Current weekly hours".
-	//   the one below                          — C3-FIX. Truthful total restored,
-	//                                               and the per-section clause
-	//                                               yields to exact minutes.
+	//   "8 classes · 30h a week"                  — C3-FIX as arbitrated. The
+	//                                               truthful total, and the
+	//                                               per-section clause dropped
+	//                                               rather than stated in a
+	//                                               second unit beside a "3.8h"
+	//                                               badge that already answers
+	//                                               the per-section question.
 	assert.equal(
 		hoursLineOf(dialog),
-		'8 classes · 30h a week · 225 min each',
-		'the total is the exact sum of minutes, and the per-section clause is exact minutes when hours would not reproduce it',
+		'8 classes · 30h a week',
+		'the total is the exact sum of minutes, and the per-section clause is omitted when its hours form cannot reproduce it',
 	);
-	// The identity the scheduler can actually check, at the precision both
-	// figures are displayed: 225 min x 8 = 1800 min = 30h.
+	// The identity the scheduler can actually check: 225 min x 8 = 1800 min = 30h,
+	// which is exactly the total on the card. This is the arithmetic the row is
+	// named for, asserted from the true minutes rather than from a rounded
+	// intermediate.
 	assert.equal(
 		225 * 8,
 		1800,
-		'precondition: 225 min each x 8 classes is 1800 minutes',
+		'precondition: 225 min per section x 8 classes is 1800 minutes',
 	);
 	assert.equal(
 		Number((1800 / 60).toFixed(1)),
@@ -468,6 +483,10 @@ test('A3C17-2 the subject total is sections x minMinutesPerWeek, and "each" only
 	assert.ok(
 		!/3\.8h each/.test(textOf(dialog)),
 		'a rounded "3.8h each" must never reappear beside a 30h total it does not reproduce',
+	);
+	assert.ok(
+		!/30\.4h/.test(textOf(dialog)),
+		'the total must never be the rounded-intermediate product (8 x 3.8 = 30.4); that is not this teacher\'s load',
 	);
 
 	// ONE section: singular, and no "each" — "1 classes" and "3.8h each" for a
@@ -625,6 +644,18 @@ test('A3C17-2B whatever pair of figures is rendered, the two agree', () => {
 		const hoursClause = /·\s*([\d.]+)h each/.exec(line);
 		const minutesClause = /·\s*(\d+) min each/.exec(line);
 
+		// PLANNER ARBITRATION (2026-09-29): the minutes clause is GONE, so the
+		// requirement changes. A per-section figure must never be stated in a
+		// second unit beside the card's "3.8h" badge. Either the hours clause is
+		// printed and it reproduces the total, or there is NO clause and the badge
+		// is the card's single per-section number. The two forms below are kept
+		// additive: a minutes clause is now itself a FAILURE, so a later editor who
+		// reinstates it sees why.
+		assert.ok(
+			!minutesClause,
+			`${label}: a per-section figure must not be restated in minutes beside the "3.8h" badge — "${line}"`,
+		);
+
 		if (hoursClause) {
 			// The friendly form is allowed ONLY when it reproduces the total.
 			assert.equal(
@@ -633,13 +664,16 @@ test('A3C17-2B whatever pair of figures is rendered, the two agree', () => {
 				`${label}: an hours "each" clause is printed but it does not reproduce the total — "${line}"`,
 			);
 		} else {
-			// Otherwise the clause must be exact minutes, and it must reproduce the
-			// total exactly. A card with no clause at all is the silent failure.
-			assert.ok(minutesClause, `${label}: the card must state a per-section figure: "${line}"`);
-			assert.equal(
-				Number(minutesClause![1]) * count,
-				minutes * count,
-				`${label}: the minutes clause must be the real per-section figure`,
+			// Omitted, which is correct when it would not reproduce. The card still
+			// states its class count and its truthful total, so the per-section
+			// figure is available in the badge and in the real minutes.
+			assert.ok(
+				!/\beach\b/.test(line),
+				`${label}: no clause at all means no "each" wording either — "${line}"`,
+			);
+			assert.ok(
+				/[\d.]+h a week/.test(line),
+				`${label}: the total must still be present on the card — "${line}"`,
 			);
 		}
 	}
