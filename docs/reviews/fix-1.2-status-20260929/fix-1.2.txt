@@ -1,0 +1,225 @@
+Fix 24.2
+**UI Refactor: Fix button label from "Teacher 21" to "Teacher X" on Teachers page**
+* **Location:** `Teachers` page (`/teachers`), top-right header action bar.
+* **Affected Element:** The solid maroon primary action button currently displaying `+ Create temporary teacher (Teacher 21)`.
+* **Core Issue:**
+* The button text dynamically computed or hardcoded `(Teacher 21)` based on the total roster count rather than using the intended placeholder convention `Teacher X`.
+* **Requested Fix:**
+* Update the button text to strictly read: **`+ Create temporary teacher (Teacher X)`**.
+* Ensure the string label is static (or consistently formats with the capital letter `X` as the placeholder indicator for temporary placeholder faculty).
+Fix 35.1
+**Global UI / Bug Fix: Resolve text clipping and container truncation across all filter pill tooltips via global tooltip provider**
+* **Location:** `Teachers` page (`/teachers`) and shared quick filter chip bars (including `No subjects assigned`, `Above weekly max`, `No sections assigned`, `Temporary teachers`, and `All teachers`).
+* **Core Issue:**
+* Tooltips across **all** quick-filter pills suffer from vertical/horizontal text cutoff when hovered.
+* The tooltip container has either an inflexible `h-[...]`, a fixed `max-w-[...]`, `overflow: hidden`, or is being clipped by a parent container's `overflow: hidden` / stacking context.
+* Multi-line explanations are cut in half horizontally or clamped prematurely.
+* **Requested Fixes:**
+1. **Global Tooltip Content Styling & Auto-Sizing:**
+* Inspect the shared `TooltipContent` component used by these filter chips.
+* Remove rigid height/width locks (`h-[...]`, `max-h-[...]`, or rigid `w-[...]`).
+* Apply flexible bounds that adapt naturally to text length:
+```css
+w-max max-w-xs md:max-w-sm h-auto min-h-fit
+p-2.5 px-3
+text-xs leading-normal font-normal
+whitespace-normal break-words
+overflow-visible
+```
+2. **Render Through Portal to Prevent Overflow Clipping:**
+* Ensure all filter pill tooltips are rendered inside a **Portal** (e.g., Radix UI `<TooltipPrimitive.Portal>` or standard React Portal attached directly to `document.body`).
+* This guarantees tooltips escape any `overflow-hidden` or `overflow-x-auto` rules on the filter pill row/wrapper.
+* Set `z-index: 50` or higher to ensure the bubble renders completely on top of all surrounding UI layers.
+3. **Collision Detection & Placement:**
+* Enable boundary detection (e.g., `collisionPadding={8}` or `side="top" align="center"`) so long tooltip text remains fully within the viewport without cutting off at the top or edges of the screen.
+* Verify that hovering over every pill (`No subjects assigned`, `Above weekly max`, `No sections assigned`, `Temporary teachers`, `All teachers`) displays the entire explanatory sentence cleanly without clipping.
+Fix 23.2**System-Wide UI / Architecture Refactor: Implement Universal Resizable Modals for all Data/Form Views (Excluding Confirmation Modals)**
+* **Scope:** Entire application design system (`/sections`, `/subjects`, `/teachers`, `/teaching-load`, `/map`).
+* **Core Rule:**
+* **All data, review, and form modals** (e.g., `Subject coverage`, `Teacher profile`, `Assign teaching load`, `Assign Home Room`, `Create temporary teacher`, etc.) must be dynamically adjustable/resizable by the user—specifically horizontal/width-adjustable while remaining centered on the screen.
+* **Exception:** Alert and confirmation modals (e.g., `Save Changes?`, `Delete`, `Discard draft` dialogs) must remain fixed, compact dialogs (`max-w-md`) with no resizing capability.
+---
+### Implementation Details:
+1. **Standardize the Reusable Modal/Dialog Component:**
+* Refactor the core modal wrapper (or Radix/shadcn `DialogContent`) to accept a `resizable?: boolean` prop (defaults to `true` for general content, set to `false` on confirmation dialogs).
+* Ensure centering is handled via a parent flex layout rather than CSS transforms, preventing coordinate jumps during dragging:
+```tsx
+<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm pointer-events-auto">
+  <div
+    style={{ width: `${width}px` }}
+    className="relative flex flex-col bg-white rounded-2xl shadow-2xl min-w-[480px] max-w-[95vw] min-h-[350px] max-h-[85vh] overflow-hidden"
+  >
+    {/* Dialog Content */}
+  </div>
+</div>
+```
+2. **Add Interactive Width-Resize Drag Handles:**
+* Implement pointer-driven horizontal drag handles along the left and right edges (using `cursor-ew-resize`) or a bottom-right corner grip (`cursor-se-resize`):
+* As the user drags outward or inward, update the modal `width` state smoothly while keeping the modal aligned in the center of the viewport.
+* Enforce strict boundary clamps: `min-w-[480px]` and `max-w-[95vw]` to prevent screen overflow.
+* Keep internal body cards, chips, and input rows responsive (`w-full flex-wrap`) so layout content expands fluidly to fill the newly available horizontal space.
+3. **Confirmation Modal Guardrail:**
+* Explicitly set `resizable={false}` on all confirmation, alert, and single-step decision modals (e.g., save confirmation, unsaved changes warning, delete confirmation) to keep them compact and fixed in size.
+Fix 16.2
+**UI Refactor & Bug Fix: Fix conflicting click handlers (stop event bubbling), relocate action buttons to far-right, and enforce strict column alignment on Teaching Load cards**
+* **Location:** `Teaching Load` page (`/teaching-load`), individual teacher card rows.
+* **Core Issues:**
+1. **Conflicting Click Events & Accidental Triggers:** Clicking the card body or the `[Edit assignments]` button unintentionally opens the `Review load` modal because the parent card container has an unhandled `onClick` or missing `e.stopPropagation()` on child buttons. Clicking the card also improperly triggers the edit assignment dropdown state.
+2. **Poor Layout Order:** Action buttons (`[Review load]`, `[Edit assignments]`) sit directly next to the teacher's name instead of at the far-right edge, breaking the natural reading hierarchy (Name → Status/Metrics → Actions).
+3. **Misaligned Buttons & Ragged Metrics:** Varying name lengths cause buttons to stagger unpredictably across rows, and metrics lack fixed-width grid slots.
+* **Requested Fixes:**
+1. **Decouple Click Handlers & Prevent Event Bubbling:**
+* **Card Body Interaction:** Remove the review modal trigger from the parent card wrapper's generic `onClick`.
+* **Dedicated Action Triggers:**
+* **`[Review load]` button:** Explicitly triggers the Teacher Load Review modal only.
+* **`[Edit assignments]` button:** Explicitly triggers its dropdown/drawer only.
+* **Event Protection:** Add `e.stopPropagation()` to both button click handlers to prevent any event bubbling to parent containers:
+```tsx
+const handleReviewClick = (e: React.MouseEvent) => {
+  e.stopPropagation();
+  openReviewModal(teacher.id);
+};
+const handleEditClick = (e: React.MouseEvent) => {
+  e.stopPropagation();
+  toggleEditDropdown(teacher.id);
+};
+```
+* If the whole card row is intended to be clickable, restrict that click trigger exclusively to row-selection or opening the modal, while ensuring clicking `[Edit assignments]` never triggers the review modal.
+2. **Reorder Card Elements (Name → Metrics → Actions):**
+* Shift the action button group to the **far right edge** of the card.
+* Place the workload metrics (`Hours/Week`, `Subjects`, `Sections`) in the middle between the teacher details and the action buttons:
+```text
+[ Avatar + Name / Dept ]  --->  [ Hours/Week ] [ Subjects ] [ Sections ]  --->  [ Review load ] [ Edit assignments ]
+      (flex-1 Left)                    (Fixed Grid Columns)                         (Pinned Far-Right Group)
+```
+3. **Strict Column & Button Alignment:**
+* Place workload metrics into fixed-width container slots so they form straight vertical columns across all rows:
+* `w-36 text-right` for **Hours / Week**
+* `w-20 text-right` for **Subjects**
+* `w-20 text-right` for **Sections**
+* Wrap `[Review load]` and `[Edit assignments]` inside `flex items-center gap-2 flex-shrink-0 ml-4`.
+* Give both buttons fixed, matched heights (`h-8 text-xs font-medium px-3 rounded-lg`) so they align in a uniform horizontal row across every teacher card.
+Fix 38.1
+**UI / UX Refactor: Re-wire Modal Routing between Header "Load summary" (School-Wide Audit) and Row "Review load" (Single Teacher Drilldown)**
+* **Location:** `Teaching Load` page (`/teaching-load` or `/faculty/load`).
+* **Objective:** Establish a clear two-tier modal workflow:
+1. The page header button **`[Load summary]`** opens the school-wide faculty audit list (Image 1).
+2. The per-row button **`[Review load]`** directly opens the individual teacher's workload detail breakdown (Images 2, 3, and 4).
+* **Implementation Requirements:**
+1. **Header Action `[Load summary]` -> School-Wide Faculty Audit (Image 1):**
+* Replace the old 13-row text receipt with the **`STAFF WORKLOAD AUDIT`** roster overview.
+* **Content displayed upon clicking `[Load summary]`:**
+* **Header:** Title `"STAFF WORKLOAD AUDIT"` and roster-level description.
+* **Summary Metrics Bar:** Badges for `TOTAL`, `UNDERLOADED`, `BALANCED`, and `OVERLOADED` (e.g., `TOTAL 20`, `UNDERLOADED 4`, `BALANCED 5`, `OVERLOADED 11`).
+* **Faculty List:** Scrollable roster showing each teacher's avatar, name, department, role pill (`ADVISER`), cap alert (`OVER CAP`), and workload metrics (`37.5h · 125% OF STANDARD >`).
+* **List Item Interaction:** Clicking any teacher card row navigates into that teacher's individual workload detail view (Images 2–4).
+2. **Per-Row Action `[Review load]` -> Individual Teacher Workload Drilldown (Images 2, 3, 4):**
+* When clicking `[Review load]` on any teacher row in the main page:
+* Bypass the school-wide list and render the modal directly in the detail view for that specific faculty member (`selectedTeacherId = teacher.id`).
+* **Content displayed:**
+* Header with subtitle: `"Narrowed to [TEACHER NAME]. This is one person inside the staff-wide workload audit..."`.
+* Navigation: Include the `[< All teachers]` back button at the top so the user can zoom out to the full roster audit (Image 1) if desired.
+* Faculty Profile: Avatar, name, department badge (`TLE`), status pill (`OVER MAXIMUM` / `BALANCED`), and `ADVISORY ASSIGNMENT` card.
+* Capacity Meter: Visual load progress bar showing weekly hours against the standard (e.g., `37.5h a week · 30h standard`).
+* Metric Stat Cards: `HOURS A WEEK (37.5h)` and `EXCESS TEACHING LOAD (+7.5h)`.
+* Class Allocation Section: `CLASSES TAUGHT` container with subject chips, section tags, and term badges (e.g., `[TLE Exploratory] AGUINALDO · GR7 · TERM 2`).
+* Calculation Breakdown: `HOW THIS LOAD IS COUNTED` key-value summary (`All classes added together`, `Subjects that rotate by term`, `Teaching hours in busiest term`, `Adviser credit`, `TOTAL WITH CREDIT`).
+3. **Event Bubbling & State Clean-Up:**
+* Attach `e.stopPropagation()` to each row's `[Review load]` button to prevent triggering parent row selection or other dropdown handlers.
+* Verify that navigating via `[< All teachers]` smoothly returns the view to the full roster list (Image 1) without closing the dialog.
+* Ensure this modal adheres to the universal resizable dialog system (`min-w-[540px] max-w-[95vw] max-h-[85vh]` centered).
+Fix 17.2
+**UI / UX Refactor: Enforce resizability and scale up Grade badge & Section chip sizing in Subject Coverage modal**
+* **Location:** `Subjects` page (`/subjects`), `Subject coverage` modal (opened via `[Review]` or `[Review coverage]`).
+* **Core Issues:**
+1. The modal container needs to support smooth dynamic resizing (width and height/corners) while maintaining centered alignment on the screen.
+2. The section pill containers and their inner grade labels (`GR7`, `GR8`, `GR9`, `GR10`) and section names (`Aguinaldo`, `Maka-Diyos`, etc.) are slightly undersized, leaving excess empty whitespace inside each teacher card.
+---
+### Implementation Instructions for Coding Agent:
+1. **Modal Resizability & Centering:**
+* Wrap the dialog inside the universal resizable modal wrapper centered via parent flex/grid (`fixed inset-0 flex items-center justify-center p-4`).
+* Ensure standard drag-resize handles are active on the borders/bottom-right corner (`min-w-[540px] max-w-[95vw] min-h-[420px] max-h-[90vh]`).
+* Keep inner content scrolling cleanly (`overflow-y-auto pr-1`).
+2. **Scale Up Section Chips & Grade Badges:**
+* Target the section pill elements inside each assigned teacher card:
+***Pill Container Padding:** Increase from compact micro padding to comfortable touch/scan sizing:
+```css
+px-3 py-1.5 gap-2 rounded-xl border border-slate-200/90 bg-white shadow-xs
+``
+* **Grade Badge (`GR7`, `GR8`, `GR9`, `GR10`):**
+* Increase text size and weight from micro/`text-[10px]` to `text-xs font-semibold`.
+* Increase inner pill padding: `px-2 py-0.5 rounded-md`.
+* Preserve distinctive grade color themes (green for GR7, gold/amber for GR8, red/pink for GR9, blue for GR10).
+* **Section Name Text (`Aguinaldo`, `Maka-Diyos`, `Tulip`, etc.):**
+* Increase typography from `text-xs` to `text-sm font-medium text-slate-800`.
+* Maintain `flex flex-wrap gap-2.5 pt-2` so chips flow naturally across the card as the modal is resized horizontally.
+Fix 7.2
+**UI / Feature Implementation: Turn Room Readiness Status Pills into Interactive Filters with Room-Ordered Default State**
+* **Location:** `Campus & Rooms` page (`/map` or `/campus-rooms`), `Room readiness` section.
+* **Core Issues:**
+1. The status pills at the top right (`78 Ready`, `25 Unavailable`, and the map-level `7 ready`, `2 need attention`) currently function merely as static stat indicators rather than actionable quick-filters.
+2. The room cards below need a consistent, intuitive default sorting order based on room designation/numbering.
+---
+### Implementation Instructions for Coding Agent:
+1. **Transform Status Pills into Interactive Toggle Filters:**
+* Make the status indicators (`Ready`, `Needs Attention`, `Unavailable`) interactive filter buttons with hover, active, and focus states.
+* Support a clear **"All"** toggle or allow deselecting the active filter to return to the full list:
+* **`[All Rooms]`** (shows all items; active by default)
+* **`[Ready]`** (filters list to only show rooms with status `Ready`)
+* **`[Needs Attention]`** (filters list to only show rooms with status `Needs Attention` / warning)
+* **`[Unavailable]`** (filters list to only show rooms with status `Unavailable`)
+* Style the active state with an accent ring, solid fill, or distinct border (e.g., matching the emerald border/fill for `Ready`, amber for `Needs Attention`, and slate/gray for `Unavailable`) so the selected filter is immediately obvious.
+2. **Establish Default Sorting by Room:**
+* When no filter or `"All"` is selected, display all rooms sorted predictably by **Room Name / Number**:
+* Implement natural alphanumeric sorting (e.g., Admin offices first or alphabetical, followed by `G10 Room 101`, `G10 Room 102` ... `G10 Room 201`, `G10 Room 301`, `G10 Room 401`, etc.) so numerical increments stay grouped and sequential.
+* Maintain this alphanumeric room ordering even when filtered by status.
+3. **Visual Feedback & Empty State:**
+* If a selected status filter returns zero rooms, show a clean, compact empty state:
+* e.g., *"No rooms currently marked as Needs Attention."*
+* Ensure clicking a filter smoothly updates the grid view without jumping scroll positions.
+Fix 36.2
+**UI / Architecture Refactor: Implement Centered Dynamic Infinite Canvas with Bidirectional Auto-Expansion (Top/Left/Right/Bottom)**
+* **Location:** `Campus & Rooms` page (`/map?mode=editor` or `/campus-rooms`), Canvas Editor area.
+* **Core Issue:**
+* The canvas currently pins its origin at `(0,0)` (top-left) and only auto-expands toward positive coordinates (right and bottom).
+* If a user tries to drag buildings or draw new structures toward the top or left boundary, they hit an artificial wall or cause clipping.
+---
+### Implementation Instructions for Coding Agent:
+1. **Center Canvas World in Viewport Container:**
+* Restructure the canvas layout so that the initial drawing surface is centered within a virtual scrolling container:
+* Instead of anchoring at `top: 0, left: 0`, use a centered flex or grid wrapper (`relative w-full h-full overflow-auto flex items-center justify-center bg-slate-100/50`) or center the initial pan offset $(X_0, Y_0)$ upon load.
+* Maintain a generous virtual coordinate space with plenty of padding on all four sides (`padding: 500px` or a large virtual bounds offset).
+2. **Bidirectional Auto-Expansion Logic (Handling Negative Deltas):**
+* Update the bounding-box auto-expansion calculation to watch all 4 boundaries:
+* **Right / Bottom:** When an object reaches within threshold padding of `width` or `height`, increase the canvas dimensions as currently done.
+* **Left / Top:** When an object is moved or drawn near the left boundary ($x < \text{threshold}$) or top boundary ($y < \text{threshold}$):
+* Dynamically prepend padding $\Delta X$ or $\Delta Y$ to the canvas bounds.
+* Normalize coordinate positions by translating all existing building coordinates and drawing paths by $(+\Delta X, +\Delta Y)$.
+* Symmetrically adjust the scroll container offset (`scrollLeft += deltaX`, `scrollTop += deltaY`) in the exact same render frame so the user perceives zero visual jumping or displacement.
+3. **Visual Grid & Centered Pan Support:**
+* Keep the background grid pattern seamless across negative and positive translations (`background-position` synced with pan coordinates).
+* Ensure drawing controls (`Draw building`, `Select`, `+ / - zoom`) correctly calculate relative coordinates against the translated centered canvas origin.
+fix 10.2
+**UI / UX Refactor: Prevent room name truncation/ellipses and fix container padding in Building Details view**
+* **Location:** `Campus & Rooms` page (`/map` or `/campus-rooms`), `Building Details` tab (`TLE and Livelihood Center` view).
+* **Core Issues:**
+1. Room names inside the building elevation boxes (`Home Economics...`, `AFA Demonstra...`) are truncated with ellipses instead of wrapping, forcing the user to guess the room title at first glance.
+2. The utility bar above the building elevation lacks horizontal container padding: the zoom controls (`+ - 175%`) are pressed right against the left border, while the legend helper text (`...use not available yet`) touches the right border.
+* **Requested Fixes:**
+1. **Eliminate Room Name Truncation (Full Visibility at First Glance):**
+* Target the room title labels inside each room box (`Home Economics Lab`, `AFA Demonstration Room`, `Entrepreneurship Room`).
+* Remove `truncate`, `text-ellipsis`, and single-line `overflow: hidden` from the title element.
+* Allow natural multi-line wrapping with clean typographic balancing:
+```css
+whitespace-normal break-words leading-tight line-clamp-none
+text-xs md:text-sm font-semibold
+```
+* Let the room card container expand dynamically in height or adjust minimum card dimensions so full room names and capacity labels render completely without clipping.
+2. **Add Container Padding to the Utility Bar & Viewer Canvas:**
+* Target the utility row container holding the zoom controls (`+`, `-`, `175%`) and legend text (`Use = share of periods in use · "n/a" = use not available yet`).
+* Add horizontal inner inset padding:
+```css
+px-4 md:px-6 py-2.5 w-full flex items-center justify-between
+``
+* Ensure the zoom pill on the left and the helper sentence on the right have comfortable clearance away from the container edges.
+* Apply matching `px-4 md:px-6` padding to the building graphic drawing surface so floor levels (`F1`, `F2`) and building walls maintain breathing room from the outer card borders.
