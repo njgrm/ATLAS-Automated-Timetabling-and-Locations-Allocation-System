@@ -487,6 +487,26 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **— CUTOVER TARGET, recorded 2026-09-29 22:2x +08 by Lane A4 ahead of the **operator-approved SECOND HOTFIX** (not
+  train 11). Required by `deploy-runner.ps1` `Assert-LiveReleaseRecorded`, which fails closed without it. Target
+  release `f4d34c75` (full `f4d34c7565b58e9201639e33d9e42527d7c94f07`), rollback basis `9462d82d` (the incumbent,
+  currently live).** Branch `hotfix/rollover-term-20260929`. **`9462d82d` is verified an ancestor of `f4d34c75`**
+  (`git merge-base --is-ancestor 9462d82d f4d34c75` → true), reached via the intermediate `11f103ed`, so the target
+  is exactly *live + the two approved changes*:
+  (a) **client** `atlas-client/src/pages/TeachingLoad.tsx` + `TeacherGridMode.tsx` + `TeachingLoadFilterBar.tsx` +
+  4 test files — the `Past years` button is removed from under the header (the tools-menu item keeps the name), the
+  `Cross-subject` and `No subject match` switches are gone, and a per-teacher **`Show other subjects`** control is
+  in the load editor;
+  (b) **server** `teaching-load-suggestion-proposal.service.ts` — all **three** Serializable transactions
+  (`create`, `apply`, `cancel`) get **`timeout: 30_000, maxWait: 10_000`**, replacing Prisma's 5 s default that
+  produced live `P2028` at 22:17.
+  Target tree `E:\ATLAS-worktrees\lane-a4-hotfix-tl-prod`, branch `release/2026-09-29-10-hotfix-tl`, HEAD == pin,
+  `status --short` empty, own dependency trees (seeded from `-hotfix-term-prod` + `prisma generate`; server `tsc` 0,
+  client `vite` 0 with `VITE_ENROLLPRO_URL`), the incumbent's **10 runtime campus uploads** copied in.
+  **8 paths vs live, 0 `prisma/`.** Regression: `term-contract-atlas-consumption-c02.test.ts` **9 pass / 0 fail,
+  exit 0**, so hotfix #1's term fix is carried forward intact. New entry chunk **`index-BfzPMwrg.js`**, old
+  **`index-BdvkYd2N.js`**.
+
 - **— LIVE: `9462d82d3a57f87d9020784ed12850ef91024869` @ DEPLOYED TO PRODUCTION 2026-09-29 22:13 +08 by Lane A4 —
   operator-approved HOTFIX (not train 11). Rollback basis `cd542245` (the incumbent).**
 
