@@ -147,8 +147,31 @@ test('A5-C2A C4: "Using saved term data from" is produced in exactly one place',
 test('A5-C2A C4b: both blocked surfaces read the shared helpers, not a local copy', () => {
 	const concerns = readFileSync(resolve(CLIENT_ROOT, 'src/pages/TeacherConcerns.tsx'), 'utf8');
 	const yearSetup = readFileSync(resolve(CLIENT_ROOT, 'src/pages/AdminYearSetup.tsx'), 'utf8');
+	const concernsHelpers = readFileSync(resolve(CLIENT_ROOT, 'src/components/faculty-shared/teacher-concern-helpers.ts'), 'utf8');
 	for (const [name, text] of [['TeacherConcerns.tsx', concerns], ['AdminYearSetup.tsx', yearSetup]] as const) {
-		assert.match(text, /describeSavedTermSource/, `${name} must use the shared saved-data wording`);
+		/*
+		 * A3 p1 (2026-09-29): SUPERSEDED IN PLACE, second time, same reason class.
+		 *
+		 * This row used to require `describeSavedTermSource` to appear in the PAGE.
+		 * The outage that day was caused by exactly this shape of page-local
+		 * wiring: Teacher Concerns bound the resolution itself, and a wrong
+		 * predicate made it silently bind nothing, so Save was dead with no
+		 * reason on screen. That binding now lives in ONE shared, tested
+		 * function (`bindConcernTermResolution`), so the requirement moves with
+		 * it - and moves to a STRONGER form: the page must reach the derivation
+		 * through that shared helper rather than binding it locally, and the
+		 * helper must be the one applying the shared saved-data wording.
+		 *
+		 * Only TeacherConcerns is held to that helper. AdminYearSetup binds into
+		 * its own `{ kind: ... }` state and is not this packet's surface; holding
+		 * it to a concerns-shaped helper would force a behavioural change to a
+		 * page outside this scope, so it stays pinned to the shared RESOLVER,
+		 * which is the part that actually decides the term.
+		 */
+		assert.match(concerns, /bindConcernTermResolution/,
+			'TeacherConcerns must reach the term binding through the shared helper, not bind it locally');
+		assert.match(concernsHelpers, /describeSavedTermSource/,
+			'the shared helper is where the saved-data wording is applied');
 		// ── SUPERSEDED IN PLACE, 2026-09-29, A2-C14 ──
 		// The ORIGINAL row asserted, verbatim and no longer run as pass/fail:
 		//   assert.match(text, /resolveActiveSchoolYearContext/, `${name} must use the canonical resolver`);
@@ -179,11 +202,25 @@ test('A5-C2A C4b: both blocked surfaces read the shared helpers, not a local cop
 
 test('A5-C2A C4c: Teacher Concerns resolves the term through the same verified helper the shell uses', () => {
 	const concerns = readFileSync(resolve(CLIENT_ROOT, 'src/pages/TeacherConcerns.tsx'), 'utf8');
-	assert.match(concerns, /resolveVerifiedActiveTermIndex/, 'the verified ordered-term helper is the single resolver');
+	const concernsHelpers = readFileSync(resolve(CLIENT_ROOT, 'src/components/faculty-shared/teacher-concern-helpers.ts'), 'utf8');
+	/*
+	 * A3 p1 (2026-09-29): the verified ordered-term helper moved out of the page
+	 * and into the shared binding helper. The INTENT is unchanged and now
+	 * stronger - the page cannot derive a term index locally at all, and the ONE
+	 * place that derives it is asserted here to be the shared verified reader.
+	 */
+	assert.doesNotMatch(concerns, /resolveVerifiedActiveTermIndex/,
+		'the page must not derive the verified term index itself; the shared helper owns that derivation');
+	assert.match(concernsHelpers, /resolveVerifiedActiveTermIndex/,
+		'the shared helper is the single resolver of the verified ordered term');
 	// The write path sends this exact termIndex and the server re-resolves it
 	// live, rejecting a mismatch with TERM_SCOPE_MISMATCH. A page-local
 	// derivation would make the page show a term the write path refuses.
 	assert.doesNotMatch(concerns, /termIndex:\s*1\b/, 'the write path must never send a hardcoded Term 1');
+	// A3 p1: the liveness handed to the resolver must be the NAMED still-current
+	// option. A bare predicate is what silently discarded every healthy read.
+	assert.match(concerns, /isStillCurrent/,
+		'the page must pass its liveness as the named still-current option');
 });
 
 test('A5-C2A C4d: Admin Year Setup no longer renders the self-link to the page it is on', () => {
