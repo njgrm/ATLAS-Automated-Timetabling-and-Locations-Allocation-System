@@ -182,6 +182,46 @@ export function popoverMaxHeightPx(triggerBottomPx: number, viewportHeightPx: nu
 	return Math.min(POPOVER_MAX_PX, Math.max(0, Math.round(spaceBelow)));
 }
 
+/* ═══════════════ A9 C7 R2 — bring the current room into view, INSIDE the list ═══════════════ */
+
+/** The picker's own scroll region. Row 01 pins that exactly one exists. */
+const LIST_SCROLL_SELECTOR = '[data-radix-scroll-area-viewport]';
+
+/**
+ * The scroll `Element.scrollIntoView` used to do, confined to the picker's own
+ * list. Returns the `scrollTop` it wrote, or `null` when there was nothing to do
+ * (no scroll region, no layout to compare, or the option is already in view).
+ *
+ * WHY NOT `scrollIntoView` — the recorded measurement is in the open effect's
+ * note above: it walks every scrollable ancestor, the popover is portalled to
+ * `document.body`, and one click sent a hand-scrolled sections list from
+ * `scrollTop = 400` back to 0. Writing one element's `scrollTop` cannot do that;
+ * it is confined to that element by construction.
+ *
+ * `block: 'center'` is preserved as centring WITHIN the viewport, which is what
+ * it meant here: the current room lands in the middle of the list the operator is
+ * already looking at, not in the middle of the page.
+ */
+export function centerOptionInPickerList(option: HTMLElement | null): number | null {
+	if (!option) return null;
+	const list = option.closest(LIST_SCROLL_SELECTOR) as HTMLElement | null;
+	if (!list) return null;
+	const listRect = list.getBoundingClientRect();
+	const optionRect = option.getBoundingClientRect();
+	// No layout (jsdom, or a hidden popover): every rect is 0×0, so there is
+	// nothing to centre and nothing is written. A zero-size list is not a list.
+	if (listRect.height <= 0 || optionRect.height <= 0) return null;
+	const current = list.scrollTop;
+	// The offset of the option's top from the list's top, plus half of each
+	// height's slack, is the delta that puts the option's middle on the list's
+	// middle.
+	const delta = optionRect.top - listRect.top - (listRect.height - optionRect.height) / 2;
+	const next = current + delta;
+	if (next === current) return null;
+	list.scrollTop = next;
+	return next;
+}
+
 export type RoomOption = {
 	id: number;
 	name: string;
@@ -432,20 +472,50 @@ export function SectionRoomPicker({
 		measureAndApplyWidth();
 	}, [open, groups, measureAndApplyWidth]);
 
-	// Phase 1.4: stop suppressing Radix's natural focus management so the
-	// search input becomes the first focus target on open (keyboard users
-	// land where they expect). The active-option scroll-into-view still
-	// runs after focus to bring the current room into view.
+	/* Phase 1.4: the search input is the first focus target on open (keyboard
+	 * users land where they expect), and the current room is brought into view
+	 * inside the list afterwards.
+	 *
+	 * A9 C7 R2 — WHY NEITHER STEP MAY SCROLL THE PAGE. Both of the calls this
+	 * effect used to make walk EVERY scrollable ancestor, and the popover is
+	 * portalled into `document.body`, so the browser scrolled the sections list
+	 * to "reveal" a node that was not in it. Measured on real staging data
+	 * (planner, 2026-09-29, preview :5262, 1366x768): with the list scrolled to
+	 * `scrollTop = 400` by hand, ONE click on a row's picker sent it to 0 — on
+	 * row 2 (unassigned, the `focus()` path) and on row 1 (assigned, the
+	 * `scrollIntoView` path) alike. The operator clicks row 17, the list jumps to
+	 * row 1, and the row they were working on leaves the screen. That is the
+	 * opposite of "no flicker".
+	 *
+	 * The effect is pre-existing, but A9 C3 removed this control from the table,
+	 * so `/sections` could not reach it until the binding 15:55 addendum put it
+	 * back; the mobile card and the guided dialog always could. Both fixes are in
+	 * the PRIMITIVE, so all three surfaces are correct at once (AGENTS.md §8):
+	 *
+	 *  - `focus({ preventScroll: true })` keeps the focus and stops the ancestor
+	 *    walk. The input is inside the popover Radix has just positioned; there
+	 *    is nothing to reveal.
+	 *  - the active option is scrolled by adding a DELTA to the picker's own
+	 *    `[data-radix-scroll-area-viewport]`'s `scrollTop` — the single scroll
+	 *    region row 01 already pins. That is the same "the current room comes
+	 *    into view" result, confined to the list, with `block: 'center'` kept as
+	 *    centring WITHIN the viewport rather than within the page.
+	 *
+	 * The R1 centring `scrollIntoView` on the TRIGGER is deliberately untouched:
+	 * it fires only when the space below is under 192px, it runs before the
+	 * popover mounts, and the render confirms it gives a usable 248px popover on
+	 * the last visible row. It is on the trigger, in the table, before the popover
+	 * exists — a different act from revealing the selection after open. */
 	React.useEffect(() => {
-		if (open) {
-			setTimeout(() => {
-				if (activeItemRef.current) {
-					activeItemRef.current.scrollIntoView({ behavior: 'auto', block: 'center' });
-				} else if (inputRef.current) {
-					inputRef.current.focus();
-				}
-			}, 50);
-		}
+		if (!open) return;
+		const id = setTimeout(() => {
+			if (activeItemRef.current) {
+				centerOptionInPickerList(activeItemRef.current);
+			} else if (inputRef.current) {
+				inputRef.current.focus({ preventScroll: true });
+			}
+		}, 50);
+		return () => clearTimeout(id);
 	}, [open]);
 
 	return (

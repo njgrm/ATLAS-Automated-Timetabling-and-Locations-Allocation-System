@@ -388,3 +388,157 @@ test('R1 control: the popover caps itself to the space BELOW the trigger, measur
 		Object.defineProperty(dom.window, 'innerHeight', { value: realInnerHeight, configurable: true, writable: true });
 	}
 });
+
+/* ───────── A9 C7 R2: opening the picker must not scroll the page behind it ───────── */
+
+test('R2 control: opening the picker never scrolls an ancestor, and reveals the current room inside the list', async () => {
+	// THE DEFECT, measured on real staging data (planner, 2026-09-29, preview
+	// :5262 → staging API :5101, 1366x768, origin asserted): with the sections list
+	// scrolled to `scrollTop = 400` by hand, ONE click on a row's picker sent it
+	// to 0 — on row 2 `Bonifacio` (unassigned, the `focus()` path) and on row 1
+	// `Aguinaldo` (assigned, the `scrollIntoView` path) alike. The operator clicks
+	// row 17, the list jumps to row 1, and the row they were working on leaves the
+	// screen. Both old calls walk EVERY scrollable ancestor, and the popover is
+	// portalled into `document.body`, so the browser scrolled the list to "reveal"
+	// a node that was not in it.
+	//
+	// So the recording is the assertion: every `scrollIntoView` target must be
+	// inside the picker body, and the search input's `focus` must carry
+	// `preventScroll: true`. jsdom runs no layout, so the option-reveal half is
+	// driven by stubbed rects that give the picker's scroll region a real size.
+	const realScrollIntoView = dom.window.Element.prototype.scrollIntoView;
+	const realFocus = dom.window.HTMLInputElement.prototype.focus;
+	const scrolled: Element[] = [];
+	const focusArgs: Array<unknown> = [];
+
+	// `Element.prototype`, not `HTMLElement.prototype`: the option is a <button>,
+	// and this must catch a call on ANY element, so the recording cannot be
+	// narrowed by which class the element happens to have.
+	dom.window.Element.prototype.scrollIntoView = function recorded(this: Element) {
+		scrolled.push(this);
+		return realScrollIntoView.call(this);
+	} as typeof realScrollIntoView;
+	dom.window.HTMLInputElement.prototype.focus = function recordedFocus(this: HTMLInputElement, arg?: FocusOptions) {
+		focusArgs.push(arg);
+		return realFocus.call(this);
+	} as typeof realFocus;
+
+	try {
+		// ── the ASSIGNED case: the current room is brought into view ──────────
+		// A value is set, so `activeItemRef` is populated and the reveal path runs
+		// (the defect's row-1 branch). Renders its own harness because the shared
+		// `renderPicker` starts unassigned.
+		const host = dom.window.document.createElement('div');
+		dom.window.document.body.appendChild(host);
+		hosts.push(host);
+		const r = createRoot(host);
+		roots.push(r);
+		act(() => {
+			r.render(createElement(() =>
+				createElement(SectionRoomPicker, {
+					sectionId: 11,
+					sectionName: 'Grade 7 - Rizal',
+					// Room 239 is the 40th of 40, i.e. well below the fold of any
+					// list, so "bring the current room into view" is a real scroll
+					// rather than a no-op.
+					value: 239,
+					options: OPTIONS,
+					onSelect: () => {},
+					schoolId: 1,
+					roomOccupancy: new Map<number, string>(),
+				})));
+		});
+		const assignedTrigger = host.querySelector('[role="combobox"]') as HTMLElement;
+		assert.ok(assignedTrigger, 'precondition: the assigned row carries a trigger');
+		act(() => { assignedTrigger.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true })); });
+		if (!dom.window.document.querySelector('[role="listbox"]')) {
+			act(() => { assignedTrigger.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true, cancelable: true })); });
+		}
+		assert.ok(dom.window.document.querySelector('[role="listbox"]'), 'the listbox must open');
+
+		// Give the scroll region and the active option real geometry, because
+		// "is the option in view" is arithmetic over two rects and jsdom supplies
+		// neither. 64px is the committed `h-16` option height; the list is 200px
+		// tall with the option 150px below its top, so centring it needs a scroll.
+		const list = dom.window.document.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement;
+		assert.ok(list, 'precondition: the picker owns a scroll region (row 01)');
+		const active = dom.window.document.querySelector('[role="option"][aria-selected="true"]') as HTMLElement;
+		assert.ok(active, 'precondition: the current room is rendered as the selected option');
+		// The geometry is stubbed ON THE TWO ELEMENTS, not on a prototype: this file's
+		// earlier R1 row leaves an own `getBoundingClientRect` on
+		// `HTMLElement.prototype` (it patches the prototype to capture the natural
+		// width), which would shadow any `Element.prototype` patch for every
+		// `<div>` and silently return zeros — the exact failure this control must
+		// not have.
+		Object.defineProperty(list, 'getBoundingClientRect', {
+			configurable: true,
+			value: () => ({ width: 300, height: 200, top: 100, left: 0, right: 300, bottom: 300, x: 0, y: 100, toJSON: () => ({}) }) as DOMRect,
+		});
+		Object.defineProperty(active, 'getBoundingClientRect', {
+			configurable: true,
+			value: () => ({ width: 280, height: 64, top: 250, left: 0, right: 280, bottom: 314, x: 0, y: 250, toJSON: () => ({}) }) as DOMRect,
+		});
+
+		// The reveal runs on a 50ms timer after open. Wait for it in real time —
+		// the point of the control is that the call actually happens, so faking
+		// the clock would test the mock.
+		await act(async () => { await new Promise((resolve) => setTimeout(resolve, 200)); });
+		delete (list as unknown as Record<string, unknown>).getBoundingClientRect;
+		delete (active as unknown as Record<string, unknown>).getBoundingClientRect;
+
+		// THE fix, the assigned branch: the reveal is a write to the picker's own
+		// scrollTop. delta = optionTop − listTop − (listH − optionH)/2
+		//         = 250 − 100 − (200 − 64)/2 = 150 − 68 = 82.
+		assert.equal(
+			list.scrollTop,
+			82,
+			`the current room must be centred by the picker's own scrollTop; got ${list.scrollTop}`,
+		);
+
+		// THE fix, the shared property: NOTHING outside the picker body was
+		// scrolled. In particular not the row's trigger and not the page.
+		const body = dom.window.document.querySelector('[data-testid="room-picker-popover-content"]') as HTMLElement;
+		assert.ok(body, 'precondition: the popover body is mounted');
+		for (const target of scrolled) {
+			assert.ok(
+				body.contains(target),
+				`no ancestor may be scrolled on open; ${target.tagName}.${target.className || '(no class)'} was scrolled`,
+			);
+		}
+		assert.ok(
+			!scrolled.includes(assignedTrigger as unknown as Element),
+			'the row trigger must never be the target of a scroll on open',
+		);
+
+		// ── the UNASSIGNED case: the focus path ───────────────────────────────
+		// The defect's row-2 branch: nothing is selected, so the search input is
+		// the focus target. Phase 1.4 made that load-bearing for keyboard users,
+		// so the focus is KEPT — it just must not drag the page with it.
+		act(() => { r.unmount(); });
+		dom.window.document.body.innerHTML = '';
+		hosts.length = 0;
+		scrolled.length = 0;
+		focusArgs.length = 0;
+
+		const unassignedHost = renderPicker();
+		openPopover(unassignedHost);
+		await act(async () => { await new Promise((resolve) => setTimeout(resolve, 200)); });
+
+		const search = dom.window.document.querySelector('input[aria-label="Search rooms or buildings"]') as HTMLInputElement;
+		assert.ok(search, 'precondition: the search input is mounted');
+		assert.equal(
+			(focusArgs[0] as FocusOptions | undefined)?.preventScroll,
+			true,
+			`THE fix: the search input must be focused with preventScroll; got ${JSON.stringify(focusArgs[0])}`,
+		);
+		for (const target of scrolled) {
+			assert.ok(
+				(dom.window.document.querySelector('[data-testid="room-picker-popover-content"]') as HTMLElement).contains(target),
+				'no ancestor may be scrolled on the focus path either',
+			);
+		}
+	} finally {
+		dom.window.Element.prototype.scrollIntoView = realScrollIntoView;
+		dom.window.HTMLInputElement.prototype.focus = realFocus;
+	}
+});
