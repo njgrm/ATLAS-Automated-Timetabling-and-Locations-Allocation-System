@@ -2603,3 +2603,64 @@ measurement and neither should you.
   Judge `/sections` and `/map` on staging :5274 after this train deploys.
 - **NON_BLOCKING**: `D:\ATLAS\atlas-client\node_modules` has NO @radix-ui scope (138 entries) - the shared Lane C
   checkout cannot build the client until that tree is repaired (not ours; A4/dependency integrity).
+
+**A7 c6 - Dashboard + side menu: INTEGRATED on main at `ecd69d27` (demo story steps 1 and 2; older-user
+fixes 6 and 8).** Base `955d2e7a`, candidate `342d45e6`. QA ran **2 rounds**: round 1 `REJECT_UX` 6/10,
+round 2 `CORRECTION_REQUIRED` 19/21 with the **design gate PASSED**; the last two blocking items were
+mechanical (a §8 line-cap breach and a false count in the note) and I closed them myself with the
+commands QA named - no third review round.
+- **Side menu**: `School Year` -> `/admin/year-setup` now exists as the first entry under School Setup.
+  Before, the step had **no menu item at all** - the only door was a Dashboard link to the raw path,
+  so a first-time scheduler could not find step 1 without being told the address. The lookup/print page
+  reads **"Look up & print schedules"** from one shared constant, so the sidebar and the deep-link chrome
+  cannot drift. `adminOnly` with no `schedulerAccess` is byte-identical to `AdminYearSetup.ADMIN_ROLES`,
+  so no scheduler gets a link to a page that refuses them.
+- **Dashboard**: the setup-readiness header **counts** (`N of 10 ready`, steps to go, and separately how
+  many ATLAS could not check) instead of a caps run-on that repeated every row beneath it; the
+  outstanding rows stay **expanded, in demo-story order, each a link to the page that fixes that step**,
+  and only "already done" is collapsed. The lifecycle card, the duplicate CTA, the `1/10` badge and the
+  phase rail are **gone**. **The defect this exists to prevent:** an unresolved hard-violation count used
+  to be promoted into "NOT READY" beside "Schedule is published" - an older scheduler reads that as
+  "my published timetable is wrong" and remakes it. Unknown now has its **own bucket**, guarded by 7
+  additive rows with a failing-first mutant (20/20 -> 15/20 on the broken source).
+- **How Scheduling Works**: "how many preferences the draft could not meet", "Apply this change", and
+  constraint weights 0-100 behind an **Advanced** disclosure.
+- **Two review findings I am flagging rather than burying**: round 1 caught the header enumerating all
+  nine outstanding steps as a 7-line uppercase run-on that pushed the actionable links below the fold,
+  and round 2 caught that the correction had pushed `Dashboard.tsx` to **1038 physical lines** over the
+  §8 cap **while the note asserted it was under it** - a number that had already survived one round
+  because round 1's "measured" figure was blank-line-excluding. Extracted to
+  `components/dashboard/ReadinessCard.tsx`; `Dashboard.tsx` is now **872** physical, the note carries
+  physical counts and the command that produced them.
+- **FOLLOW-UP for @A5, not fixed here - `RoomSchedules.tsx:564` renders its own `<h1>Schedules</h1>`.**
+  With the A5 c5 page now on main, the lookup/print destination answers to **three** names: the sidebar
+  "Look up & print schedules", the chrome title (same constant), and the page heading "Schedules". That
+  is the same duplicate-name defect this packet removed from the menu, moved into the page. A5 owns the
+  file; integration does not edit another lane's page. A5 must change the heading **and** the nav label
+  in the same commit, or one destination gets two names again.
+- **Boundaries verified at integration**: A2 c13's `CLASS_SCHEDULE_LABEL` preserved on every `/timetable*`
+  chrome entry and the `Class Schedule` label untouched; A3 c13's retired preference-route chrome kept
+  (its landing made A7 c6's "Room Preferences stays until A3 c13 lands" note **moot** - A3 c13 owns that
+  entry now); `RoomSchedules.tsx` not touched. A3 c13's follow-up to drop the `Room Preferences` nav entry
+  is **already satisfied upstream** - do not action it twice.
+- **Merged-tree gates**: `dashboard-truth-c01` **20/20**, `a3-c8-room-preach` **10/10**, `uxc01r` **38/38**,
+  `a3-c6-route-hygiene` **11/11**, `global-scrollbars` **1/1**; tsc **5** errors, all pre-existing, none in
+  a changed file; production build green; `diff --check` clean. The 5 base-red rows in `AppShell.tsx` /
+  `SubjectFormModal.tsx` / `SimpleHeaderHelpers.tsx` are unchanged in character and belong to their owners.
+- **Renders are `isolated` loopback** (`127.0.0.1`, staging API, mocked `/api/v1`) and prove the candidate
+  builds and reads calmer than base. They are **not** ATLAS acceptance.
+
+**@Lane C - TWO browser rows for A7 c6, both yours, both after the train deploys, on
+`https://njgrm.buru-degree.ts.net` at 1366x768 asserting `window.location.origin`:**
+1. **A first-time user finds every story step from the menu.** Expand the side menu and confirm the
+   entries read in order: **School Year -> Sections -> Subjects -> Teachers -> Teaching Load ->
+   Teacher Concerns -> Class Schedule -> Look up & print schedules**. Click **School Year** (School Year
+   Setup opens) and **Look up & print schedules** (the lookup page opens). Confirm the chrome title
+   matches the label on **both** `/schedules` and `/room-schedules`, that `Class Schedule` is unchanged,
+   and that a role holding only `timetable:read` sees **no** School Year entry and no dead link.
+2. **The Dashboard names what is not ready, each item linking to the page that fixes it.** On `/`, confirm
+   the header is a count plus how many steps to go and how many ATLAS could not check - **not** a caps
+   run-on; that every visible outstanding row is a link whose `href` is the fixing page and lands there;
+   that the "ATLAS could not check these" rows never appear as outstanding work; and that the forced
+   unresolved state does **not** claim a step is incomplete while another card says the schedule is published.
+   **Also judge the A5 h1 collision above** - that one is a pixel judgement only you can make.
