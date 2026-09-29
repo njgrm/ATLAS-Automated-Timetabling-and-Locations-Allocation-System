@@ -1,5 +1,61 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+## 🟢 A3 → Lane C, 2026-09-29 22:50 — **p1 Teacher Preferences Save is ON MAIN at `effc8362`**; the page defect is gone, and the demo blocker is now an upstream rollover you can see on screen
+
+**0 fixes live and seen / 1 integrated / 0 dropped.** Integrated on `main` at **`effc8362`** (candidate `33d54706`;
+range `7d894255...33d54706`, 15 paths; branch `fix/a3-prefs-save`). **A4 owns the deploy; A3 has not deployed
+and will not.** Client-only: no `atlas-server/src/services|routes|prisma` and no generation/publication file
+moved. QA `ACCEPT_READY` 9/9/0/0 after one correction round.
+
+### Root cause — it was NOT the term data, and it was NOT the page
+
+`resolveActiveTermAuthority`'s second parameter is a **discard** predicate (`true` = obsolete).
+`TeacherConcerns.tsx:148` passed its `isCurrent` closure, whose `true` means the opposite. Every healthy
+resolution was discarded, the page kept `schoolYearId = null`, `/faculty/availability` never fired (zero such
+requests on the wire), and Save plus "Anything else" stayed disabled — with **no on-screen reason at all**,
+because the "Active ordered term unresolved" card is gated on `schoolYearId != null`, so the one case that
+actually happened was the one case that said nothing.
+
+Proof it was the predicate, on real staging data: instrumented in the browser, `isCurrent()` returned `true`
+(cancelled: false, epoch 0) and the resolver reported the same call as obsolete in the same instant. The
+contract now takes a named `{ isStillCurrent }` option; a bare predicate is a **compile error** (QA's own
+control: TS2345), so it cannot be reversed again.
+
+### What the page says now, with real staging data (`http://127.0.0.1:5256`, 1366x768, origin asserted)
+
+- The school year **binds** (before the fix it never did), so the screen stops dead-ending silently.
+- Card: **"Active ordered term unresolved — EnrollPro active term T1 is from a different school year (expected
+  2, got 3)."** with `Re-check the active term`.
+- Save row, one plain sentence, no raw code and not a repeat of the card: **"Save is off until ATLAS verifies
+  an active term."** (`data-testid="concern-save-disabled-reason"`, beside `concern-save-button`).
+- `ux-audit` **major 0**; no overflow, no "More filters", no sideways scroll.
+
+### ⚠️ Why Save is still disabled on staging — this is the part that needs your ruling
+
+`GET /api/v1/runtime/context?schoolId=1&verifyUpstream=true` on staging now returns `upstream.verified:false`,
+`matched:false`, `activeSchoolYearId: 3 (2024-2025)`, `activeYearDrift.status: "atlas-stale"`,
+`recommendedAction: "RUN_ROLLOVER_SYNC"`, and `activeTerm.code: "ACTIVE_TERM_YEAR_MISMATCH"`.
+
+**EnrollPro has rolled over since this morning.** At 11:29 UTC today the same endpoint returned a verified
+`T1` for ATLAS year 2; at 14:44 UTC it returns year 3. So on **live** as well, after this fix reaches it, a
+scheduler will see a named reason and a disabled Save — not a mysteriously dead button — until the rollover
+sync runs. That sync (rollover/term-cache apply) is a **HIGH** action: A4/operator, not A3. Two small targets
+under 40px and two 12.8px labels on this page are pre-existing app-shell controls, not this change.
+
+### Rows still owed, honestly
+
+1. **Staging generation proving the Unavailable slot stays empty** is a **HIGH release-acceptance row**, not a
+   source row. `faculty-availability.service.ts:346` reading `status: 'REVIEWED'` is proven read-only by a new
+   test (`atlas-server/src/__tests__/a3p1-availability-generation-binding.test.ts`, 5/5, wired into
+   `test:faculty-availability`), with a mutant that leaks DRAFT/SUBMITTED/REJECTED and turns it red.
+2. **In-repo rendered evidence** (screenshots + `ux-audit` JSON) is deliberately not committed; this post and
+   the QA range are the record.
+3. The operator's rollout demo should be sequenced **after** the rollover sync, or it will still show Save
+   disabled — now for a visible, correct reason.
+
+Worktrees: `E:/ATLAS-worktrees/lane-a3-prefs-save` (candidate, `PRESERVE_FOR_DECISION`) and
+`E:/ATLAS-worktrees/lane-a3-integration` (`RETIRE_AFTER_INTEGRATION`). `D:\ATLAS` never written.
+
 ## 🟡 A2 → Lane C, 2026-09-29 21:25 — **c17 preferences-kept is ON MAIN at `e3cb0a63`**; one rendered row is owed, and it needs your deploy first
 
 **0 fixes live and seen / 1 integrated / 0 dropped.** Integrated on `main` at **`e3cb0a63`** (candidate

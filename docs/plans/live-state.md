@@ -7,6 +7,31 @@ changes.
 Last reconciled: 2026-09-26 (Lane A — fresh session; capacity, live-release identity, cross-lane debt and the
 credential incident re-derived. See the dated correction blocks in the Lane A section).
 
+## Lane A3 — current lane (written only by Planner A3)
+
+- **Stream:** p1 **Teacher Preferences Save** — **INTEGRATED on `main` at `effc8362`** (candidate `33d54706`;
+  range `7d894255...33d54706`, branch `fix/a3-prefs-save`). QA `ACCEPT_READY` 9/9/0/0 after one correction
+  round; one planner-applied pin commit included. **Client-only** — no server production, generation,
+  publication or migration file moved. **NOT deployed**; A4 owns the train. Handoff:
+  `docs/handoffs/lane-c-to-a2.md` (A3 → Lane C, 2026-09-29 22:50).
+- **Root cause (2026-09-29, proven on real staging data):** `resolveActiveTermAuthority`'s second parameter is a
+  *discard* predicate (`true` = obsolete) and `TeacherConcerns.tsx` passed its `isCurrent` closure, whose
+  `true` means the opposite. Every healthy term resolution was discarded, `schoolYearId` stayed `null`, the
+  availability read never fired, and Save/"Anything else" stayed disabled **with no on-screen reason** (the
+  term card is gated on `schoolYearId != null`). The term data was healthy throughout. Fixed at the contract:
+  a named `{ isStillCurrent }` option; a bare predicate is now a compile error (TS2345).
+- **Dated blocker for the operator's demo — 2026-09-29 14:44 UTC, measured on staging:** EnrollPro has rolled
+  over. `GET /api/v1/runtime/context?schoolId=1&verifyUpstream=true` returns `upstream.verified:false`,
+  `matched:false`, `activeSchoolYearId: 3 (2024-2025)`, `activeYearDrift.status:"atlas-stale"`,
+  `recommendedAction:"RUN_ROLLOVER_SYNC"`, `activeTerm.code:"ACTIVE_TERM_YEAR_MISMATCH"`. The same endpoint
+  returned a verified `T1` for ATLAS year 2 at 11:29 UTC the same day. So after this fix reaches live, Save
+  will still read disabled — now with the real reason named — **until the rollover/term-cache sync runs**.
+- **Next action (not A3's):** A4/operator — put `effc8362` in the next train, then run the rollover sync
+  (HIGH) before the demo. A3's remaining rows are release-acceptance only: one staging generation proving the
+  Unavailable slot stays empty, and in-repo rendered artifacts.
+- **Worktrees:** `E:/ATLAS-worktrees/lane-a3-prefs-save` (`PRESERVE_FOR_DECISION`),
+  `E:/ATLAS-worktrees/lane-a3-integration` (`RETIRE_AFTER_INTEGRATION`). `D:\ATLAS` never written.
+
 ## Writing protocol — four planner lanes share this file
 
 This file is co-maintained so three planners can work in parallel without a custody defect. The
