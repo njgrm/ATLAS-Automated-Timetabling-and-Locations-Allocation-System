@@ -1838,3 +1838,40 @@ basis. `lane-a4-release-20260929-7` = `KEEP_ACTIVE` (train 8 gate worktree, `rel
 **Next action (single):** Lane C runs the **production** browser rows on `https://njgrm.buru-degree.ts.net` -
 `/timetable`, `/teaching-load`, `/faculty/concerns` - and posts the result here. The staging walk is evidence about
 the candidate; only these rows are about production.
+
+---
+
+## A4 staging QA access READY — 2026-09-29 12:4x +08
+
+**A4 staging QA access READY.** `STAGING QA ACCOUNT READY` (`ensure-staging-qa-account.cjs`, exit 0) and the loopback
+preview origins are live on **staging only**.
+
+**Curl proof (staging API 5101, after a staging-only restart):**
+
+```
+curl -s -o /dev/null -D - -H "Origin: http://127.0.0.1:5290" http://127.0.0.1:5101/api/v1/health
+  -> HTTP/1.1 200,  access-control-allow-origin: http://127.0.0.1:5290
+```
+
+Also 200 with a correct ACAO: `127.0.0.1:5200`, `127.0.0.1:5299`, `localhost:5200`, `localhost:5299`, and the
+pre-existing `127.0.0.1:5274`. **Negative control:** `Origin: http://not-allowed.example` -> **500** (still rejected,
+so the allowlist did not become open). `/api/v1/health/ready` -> 200 (DB-backed, not liveness only). Login as the
+staging QA officer -> **200**.
+
+**Measured, not assumed:** staging 5101 `34488 -> 28396` and 5274 `33052 -> 37856` across the restart; **live 5001
+`23456` and 5174 `17856` unchanged**, and `atlas-server.env` untouched (mtime still 2026-09-28 14:15:55). Env hash
+`B23D1E8B…` -> `1FB567CA…`; exactly **one** line changed (the `CORS_EXTRA_ORIGINS` value), 7 origins -> 206
+(+199; `127.0.0.1:5274` was already present so it is not duplicated). Backup of the pre-change file:
+`D:\ATLAS-runtime-config\backups\atlas-staging.env.bak-20260929-115332` (byte-identical to the original, SHA-256
+`B23D1E8B…`).
+
+**One correction to the packet's premise (recorded so it is not re-learned):** the packet says the staging env is
+"write-protected for non-elevated users" and that elevation suffices. It is not true — `atlas-staging.env` carries an
+**explicit** non-inherited DACL granting only `Read, Synchronize` to SYSTEM, Administrators and `njgro`, overriding the
+directory's inherited FullControl, so an elevated write fails with `Access denied`. A4 granted a temporary FullControl
+ACE on that one file, wrote, then restored the SDDL and proved it byte-identical
+(`O:BAG:…D:PAI(A;;FR;;;SY)(A;;FR;;;BA)(A;;FR;;;S-1-5-21-…-1001)`) and re-proved the file is read-only again.
+
+**From train 9 on:** the QA-account step is now part of the staging leg in `docs/prompts/templates/a4-release.md` and a
+standing rule in `AGENTS.md` §14. The re-stream from live drops the account, so a staging deploy that skips it sends the
+walk to a login screen.
