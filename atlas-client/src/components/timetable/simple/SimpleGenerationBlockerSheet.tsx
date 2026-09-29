@@ -146,7 +146,7 @@ function SimpleGenerationBlockerSheetImpl({
 				data-testid="timetable-generation-blocker-sheet"
 			>
 				<SheetHeader className="border-b px-4 py-3">
-					<SheetTitle className="text-base">What is stopping a timetable</SheetTitle>
+					<SheetTitle className="text-base">What is stopping a schedule</SheetTitle>
 					<SheetDescription className="text-xs">
 						Fix these setup items, then check again.
 					</SheetDescription>

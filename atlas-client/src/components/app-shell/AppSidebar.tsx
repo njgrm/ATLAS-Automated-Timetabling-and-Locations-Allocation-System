@@ -46,6 +46,7 @@ import {
 } from './navigation';
 import { BackToEnrollProLink } from './BackToEnrollProLink';
 import { IntegratedSystems } from './IntegratedSystems';
+import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
 
 function enrollProAsset(path: string | null): string {
 	if (!path) return '';
@@ -210,7 +211,7 @@ export function AppSidebar({
 									<>
 										{isAdmin && <><NavDivider label='School Setup' />{renderNavGroup(setupNav, bridgeUser, pathname)}</>}
 										{(isAdmin || isScheduler) && <><NavDivider label='Teachers and Rooms' />{renderNavGroup(teachersAndRoomsNav, bridgeUser, pathname)}</>}
-										{(isAdmin || isScheduler) && <><NavDivider label='Class Schedule' />{renderNavGroup(timetableNav, bridgeUser, pathname)}</>}
+										{(isAdmin || isScheduler) && <><NavDivider label={CLASS_SCHEDULE_LABEL} />{renderNavGroup(timetableNav, bridgeUser, pathname)}</>}
 										{(isAdmin || isScheduler) && <><NavDivider label='Review and Publish' />{renderNavGroup(reviewPublishNav, bridgeUser, pathname)}</>}
 										{isAdmin && <><NavDivider label='Audit' />{renderNavGroup(auditNav, bridgeUser, pathname)}</>}
 									</>

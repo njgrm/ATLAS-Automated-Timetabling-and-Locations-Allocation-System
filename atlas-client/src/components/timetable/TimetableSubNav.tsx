@@ -1,6 +1,7 @@
 import { NavLink, useLocation } from 'react-router-dom';
 
 import { cn } from '@/lib/utils';
+import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
 import { resolveRouteChrome } from '@/components/app-shell/navigation';
 
 type TimetableSubNavItem = {
@@ -71,7 +72,7 @@ export function TimetableSubNavRow() {
 				{chrome.title}
 			</h1>
 			<nav
-				aria-label="Timetable sections"
+				aria-label={`${CLASS_SCHEDULE_LABEL} sections`}
 				data-testid="timetable-sub-nav"
 				className="flex min-w-0 flex-wrap items-center gap-1"
 			>

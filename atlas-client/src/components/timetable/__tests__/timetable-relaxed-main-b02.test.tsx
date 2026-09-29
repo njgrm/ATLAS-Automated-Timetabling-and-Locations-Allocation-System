@@ -439,8 +439,25 @@ test('B3 first paint: the shell, the labelled sub-nav and the skeleton all rende
 	for (const key of ['schedule', 'draft', 'setup', 'policies', 'runs']) {
 		assert.match(markup, new RegExp(`data-testid="timetable-sub-nav-${key}"`), `sub-nav ${key} must be visible on first paint`);
 	}
-	assert.match(markup, /Loading timetable:/, 'the honest loading copy renders');
-	assert.match(markup, /the grid fills as soon as the latest run resolves/, 'the copy states the progressive fill');
+	// ── SUPERSEDED (A2 C13, 2026-09-29) — the two COPY rows below, kept in place ──
+	// The ORIGINAL rows read, verbatim:
+	//     assert.match(markup, /Loading timetable:/, 'the honest loading copy renders');
+	//     assert.match(markup, /the grid fills as soon as the latest run resolves/,
+	//                  'the copy states the progressive fill');
+	//
+	// Lane C's staging walk graded that sentence MAJOR: *"'latest run resolves' is
+	// technical and passive; say 'Your schedule is still loading.'"* Both clauses
+	// named the MECHANISM. They are REMOVED, not reworded, and the band now reads
+	// exactly `Your schedule is still loading.` (the exported `LOADING_SENTENCE`).
+	//
+	// The rows are marked superseded and NOT deleted (AGENTS.md §16). Everything
+	// else this row decides is unchanged and still asserted below: the first-paint
+	// shell, the immediately-visible sub-nav, all five labelled destinations, the
+	// removal of the older blocking copy, and exactly one height-locked root.
+	// `L1` in `a2-c13-calm-loading.test.tsx` is the replacement for the copy.
+	assert.match(markup, /Your schedule is still loading\./, 'the plain loading sentence renders');
+	assert.doesNotMatch(markup, /latest run resolves/, 'the mechanism clause is REMOVED, not reworded');
+	assert.doesNotMatch(markup, /navigation is ready now/, 'and so is the "navigation is ready" clause');
 	assert.doesNotMatch(markup, /finding the latest run first, then adding labels/, 'the old blocking copy is gone');
 	// A single height-locked root: the sub-nav must not add a second 100svh frame.
 	assert.equal((markup.match(/calc\(100svh-3\.5rem\)/g) ?? []).length, 1, 'exactly one height-locked root');

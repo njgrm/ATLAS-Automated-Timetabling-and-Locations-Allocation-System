@@ -147,7 +147,7 @@ export function PublishedRevisionDialog({
 			<DialogContent className="isolate max-w-3xl gap-0 bg-background p-0 text-foreground shadow-2xl" data-testid="published-revision-dialog">
 				<DialogHeader className="border-b border-border px-5 py-4">
 					<div className="flex flex-wrap items-center gap-2">
-						<Badge className="h-5 px-2 text-xs">Timetable revision</Badge>
+						<Badge className="h-5 px-2 text-xs">Schedule revision</Badge>
 						<Badge variant="outline" className="h-5 px-2 text-xs">History preserved</Badge>
 					</div>
 					<DialogTitle>Schedule a published repair</DialogTitle>

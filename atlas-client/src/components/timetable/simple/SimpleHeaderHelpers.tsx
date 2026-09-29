@@ -466,15 +466,48 @@ import { GatedAction } from '@/components/timetable/simple/GatedAction';
 export const PUBLISHED_GENERATE_LABEL = BUILD_NEW_DRAFT_LABEL;
 export const PUBLISHED_GENERATE_DESCRIPTION = `${BUILD_NEW_DRAFT_LABEL}. ${PUBLISHED_SCHEDULE_STAYS_IN_USE}`;
 
+/**
+ * A2 C13 (item 3c) — the reason, IN WORDS, BESIDE the control.
+ *
+ * §8's "Header budget" rule (2026-09-29) put a disabled action's reason in a
+ * `Tooltip` only, on the grounds that a sentence printed under a button is
+ * clutter. **The operator has since overridden that for this control**: *"put the
+ * reason in words beside it."* A disabled Generate the scheduler cannot read the
+ * reason for is indistinguishable from a broken product.
+ *
+ * The override is honoured NARROWLY, and everything the original rule protected is
+ * kept:
+ *   - the `GatedAction` Tooltip stays (pointer AND keyboard reachable — a disabled
+ *     `<button>` takes no pointer events, so the trigger is a focusable wrapper);
+ *   - the control's `aria-label` still carries the FULL sentence verbatim, so
+ *     nothing depends on a hover or on seeing the short line (§8: never
+ *     hover-only, never a raw `title`);
+ *   - it is `text-xs` `text-muted-foreground`, ONE line, on the row the control
+ *     already occupies. No new band, no new row, no `truncate` and no ellipsis
+ *     (§8) — if a short form cannot fit, the WORDS get shorter, never the line.
+ */
+function UnavailableReason({ reason, testId }: { reason: string | null; testId: string }) {
+	if (!reason) return null;
+	return (
+		<span className="whitespace-nowrap text-xs font-normal text-muted-foreground" data-testid={testId}>
+			{reason}
+		</span>
+	);
+}
+
 export function SimpleGenerateAction({
-	disabled,
-	disabledReason,
+	actionState,
 	onClick,
 	published = false,
 	primary = false,
 }: {
-	disabled: boolean;
-	disabledReason: string | null;
+	/**
+	 * A2 C13 — the ONE state object, not separate `disabled`/`disabledReason`
+	 * props. Passing the whole object is what makes "the visible short reason and
+	 * the full aria-label came from the same source" structural rather than a
+	 * convention: there is no way to pass one without the other.
+	 */
+	actionState: SimpleHeaderActionState;
 	onClick: () => void;
 	/**
 	 * #56 — on a published schedule a bare "Generate" beside the published chip
@@ -489,24 +522,37 @@ export function SimpleGenerateAction({
 	 */
 	primary?: boolean;
 }) {
-	const reason = disabled ? (disabledReason ?? 'Generation is not available for this school year yet.') : null;
+	const { disabled, reason, shortReason } = actionState;
 	const name = published ? PUBLISHED_GENERATE_DESCRIPTION : 'Generate schedule';
 	return (
-		<GatedAction disabled={disabled} reason={reason}>
-			<Button
-				type="button"
-				variant={primary ? 'default' : 'outline'}
-				size="sm"
-				className={primary ? 'h-11 min-w-28 gap-1.5 px-3 text-sm' : 'h-8 gap-1.5 px-2.5 text-xs'}
-				disabled={disabled}
-				aria-label={reason ? `${published ? BUILD_NEW_DRAFT_LABEL : 'Generate schedule'} — ${reason}` : name}
-				onClick={onClick}
-				data-testid="timetable-simple-generate-action"
-			>
-				<Play className="size-3.5" aria-hidden="true" />
-				<span>{published ? PUBLISHED_GENERATE_LABEL : 'Generate'}</span>
-			</Button>
-		</GatedAction>
+		<>
+			<GatedAction disabled={disabled} reason={reason}>
+				<Button
+					type="button"
+					/**
+					 * A2 C13 (item 3a/3b) — a DISABLED control never wears `default`.
+					 * `default` is a solid `bg-primary`, and the shared base's
+					 * `disabled:opacity-50` turns a disabled primary into a pale-green
+					 * button that still reads as "the next step, nearly ready". The
+					 * `unavailable` variant is plainly grey, has no `bg-primary`, no
+					 * green and no `shadow-sm`, and lives in `@/ui` so every page gets
+					 * the same unavailable look. The base's `disabled:opacity-50` is
+					 * deliberately NOT fought — see the note on the variant.
+					 */
+					variant={disabled ? 'unavailable' : primary ? 'default' : 'outline'}
+					size="sm"
+					className={primary ? 'h-11 min-w-28 gap-1.5 px-3 text-sm' : 'h-8 gap-1.5 px-2.5 text-xs'}
+					disabled={disabled}
+					aria-label={reason ? `${published ? BUILD_NEW_DRAFT_LABEL : 'Generate schedule'} — ${reason}` : name}
+					onClick={onClick}
+					data-testid="timetable-simple-generate-action"
+				>
+					<Play className="size-3.5" aria-hidden="true" />
+					<span>{published ? PUBLISHED_GENERATE_LABEL : 'Generate'}</span>
+				</Button>
+			</GatedAction>
+			<UnavailableReason reason={disabled ? shortReason : null} testId="timetable-simple-generate-short-reason" />
+		</>
 	);
 }
 
@@ -520,54 +566,99 @@ export function SimpleGenerateAction({
  * definition of this control exists in the workspace.
  */
 export function SimplePublishAction({
-	enabled,
-	disabledReason,
+	actionState,
 	primary,
 	onClick,
 }: {
-	enabled: boolean;
-	disabledReason: string | null;
+	/** A2 C13 — see `SimpleGenerateAction`: ONE state object, no drift. */
+	actionState: SimpleHeaderActionState;
 	/** C01R C1 — the solid primary exactly when the lifecycle primary is
 	    suppressed for the publish slot; secondary/outline otherwise, so the
 	    header never shows two solid actions or two publish controls. */
 	primary: boolean;
 	onClick: () => void;
 }) {
-	const reason = enabled ? null : (disabledReason ?? 'Publishing is not available for this run yet.');
-	return (
-		/* A2-C6-TRUTH (T3g) made this reason VISIBLE under the control, and its
-		 * accepted rendered row asserted `data-testid="timetable-publish-blocked-reason"`.
-		 *
-		 * A2 HEADER-BUDGET (operator, 2026-09-29) — **THAT ROW IS SUPERSEDED.** §8's
-		 * new "Header budget" rule is explicit: "disabled actions with nothing to do
-		 * … no helper sentence under a button (put it in a `Tooltip`)". The operator
-		 * reported this exact sentence in the screenshot as part of the "regressed /
-		 * messy" header. The reason is NOT lost, and the state is still never a red
-		 * button that looks broken with no explanation:
-		 *   - `GatedAction` puts it in a `@/ui` Tooltip on a FOCUSABLE wrapper, so a
-		 *     disabled button's reason is reachable by pointer AND keyboard
-		 *     (Radix will not fire from a disabled button itself);
-		 *   - the control's `aria-label` still carries the sentence verbatim, so
-		 *     nothing depends on a hover being available (AGENTS.md §8: never
-		 *     hover-only, never a raw `title`).
-		 * The row is marked SUPERSEDED in place, with this behaviour as its
-		 * replacement — it is NOT deleted (AGENTS.md §16).
-		 */
-		<GatedAction disabled={!enabled} reason={reason}>
-			<Button
-				type="button"
-				variant={primary ? 'default' : 'outline'}
-				size="sm"
-				className="h-11 gap-1.5 px-3 text-sm"
-				disabled={!enabled}
-				aria-label={reason ? `Publish schedule — ${reason}` : 'Publish schedule'}
-				onClick={onClick}
-				data-testid="timetable-simple-publish-action"
-			>
-				<Send className="size-3.5" aria-hidden="true" />
-				<span>Publish schedule</span>
-			</Button>
-		</GatedAction>
+	const { disabled, reason, shortReason } = actionState;
+	/**
+	 * A2 C13 CORRECTION (QA F1, BLOCKING, 2026-09-29) — this note is hoisted ABOVE
+	 * the `return` on purpose, and must stay there.
+	 *
+	 * A2 C13's own correction wrapped this component's return in a fragment, which
+	 * moved this bare block comment INSIDE the JSX children list — where a block
+	 * comment is **text, not a comment**. 2,270 characters of this note, backticks and
+	 * `AGENTS.md` references included, rendered inside the Publish control on every
+	 * state. QA proved it differentially: base 28 characters of visible text and no
+	 * `A2-C6-TRUTH`; the candidate 2,270 and leaking. It passed every gate the
+	 * candidate ran, because `test:ux-a2-header-budget` and
+	 * `test:ux-a2-c11-s2-header` are not reachable from `test:client-suite`.
+	 *
+	 * The text below is unchanged and still required (AGENTS.md §16). Only its
+	 * POSITION is load-bearing: a comment in JSX children is a string a scheduler
+	 * reads. Do not move it back inside the fragment.
+	 */
+	/*
+	 * A2-C6-TRUTH (T3g) made this reason VISIBLE under the control, and its
+	 * accepted rendered row asserted `data-testid="timetable-publish-blocked-reason"`.
+	 *
+	 * A2 HEADER-BUDGET (operator, 2026-09-29) — **THAT ROW IS SUPERSEDED.** §8's
+	 * new "Header budget" rule is explicit: "disabled actions with nothing to do
+	 * … no helper sentence under a button (put it in a `Tooltip`)". The operator
+	 * reported this exact sentence in the screenshot as part of the "regressed /
+	 * messy" header. The reason is NOT lost, and the state is still never a red
+	 * button that looks broken with no explanation:
+	 *   - `GatedAction` puts it in a `@/ui` Tooltip on a FOCUSABLE wrapper, so a
+	 *     disabled button's reason is reachable by pointer AND keyboard
+	 *     (Radix will not fire from a disabled button itself);
+	 *   - the control's `aria-label` still carries the sentence verbatim, so
+	 *     nothing depends on a hover being available (AGENTS.md §8: never
+	 *     hover-only, never a raw `title`).
+	 * The row is marked SUPERSEDED in place, with this behaviour as its
+	 * replacement — it is NOT deleted (AGENTS.md §16).
+	 *
+	 * A2 C13 (operator, 2026-09-29, item 3c) — **THIS NOTE IS SUPERSEDED
+	 * AGAIN, and the original text above is kept verbatim (AGENTS.md §16).**
+	 * The same operator who imposed the Tooltip-only rule has now overridden it
+	 * for the header's disabled lifecycle controls: *"put the reason in words
+	 * beside it."* So a VISIBLE reason is back — but not the old sentence under
+	 * the button. It is a `text-xs` `text-muted-foreground` line rendered on the
+	 * SAME ROW, immediately beside the control, at most SIX words, and derived
+	 * from the same resolver (and for a gate, the same `denied()` call) that
+	 * produces the full `aria-label` sentence, so the two cannot drift. The
+	 * Tooltip and the full `aria-label` BOTH REMAIN: the override widened the
+	 * reason's reach, it did not narrow it.
+	 *
+	 * The old `timetable-publish-blocked-reason` testid is still
+	 * `SUPERSEDED` — the reason is visible again, but under a new testid
+	 * (`timetable-simple-publish-short-reason`) carrying a NEW, shorter
+	 * sentence, which is a different claim and must not be asserted through
+	 * the old row.
+	 */
+		return (
+			<>
+				<GatedAction disabled={disabled} reason={reason}>
+				<Button
+					type="button"
+					/**
+					 * A2 C13 (item 3b) — the SAME `unavailable` variant Generate uses
+					 * when disabled. It sits in the same header row; leaving Publish on a
+					 * pale-green `default` would put TWO different "unavailable" looks in
+					 * one row, which fails §8 "One look per control" harder than the
+					 * original defect did.
+					 */
+					variant={disabled ? 'unavailable' : primary ? 'default' : 'outline'}
+					size="sm"
+					className="h-11 gap-1.5 px-3 text-sm"
+					disabled={disabled}
+					aria-label={reason ? `Publish schedule — ${reason}` : 'Publish schedule'}
+					onClick={onClick}
+					data-testid="timetable-simple-publish-action"
+				>
+					<Send className="size-3.5" aria-hidden="true" />
+					<span>Publish schedule</span>
+				</Button>
+			</GatedAction>
+			<UnavailableReason reason={disabled ? shortReason : null} testId="timetable-simple-publish-short-reason" />
+		</>
 	);
 }
 
@@ -827,6 +918,16 @@ export function primaryDispatchesReviewIssues(input: {
 export type SimpleHeaderActionState = {
 	disabled: boolean;
 	reason: string | null;
+	/**
+	 * A2 C13 (item 3c) — the SAME reason in ≤ 6 words, printed BESIDE the disabled
+	 * control so the reason is visible on screen and not hover-only.
+	 *
+	 * It is produced by the SAME resolver call that produces `reason` (and, for a
+	 * capability gate, by the same `denied()` call in `timetable-capabilities.ts`),
+	 * so the two cannot drift: there is no second place either string is written.
+	 * §8 forbids truncating a sentence to fit, so every short form is authored.
+	 */
+	shortReason: string | null;
 };
 
 /**
@@ -846,24 +947,48 @@ export function shouldDispatchSimplePublish(publicationEnabled: boolean, isRunPu
 	return publicationEnabled && !isRunPublished;
 }
 
+/**
+ * A2 C13 (item 3c) — the last-resort short form.
+ *
+ * It is a FALLBACK for a gate that declared no `shortReason`, and it is written
+ * here rather than derived from `reason` because §8 forbids cutting a sentence to
+ * fit. `a2-c13-unavailable-generate.test.tsx` asserts that every generation and
+ * publication gate with a reason also carries a short form, which makes this
+ * branch unreachable in production and keeps it honest rather than clever.
+ */
+const GENERATE_SHORT_FALLBACK = 'Generation is not available';
+const PUBLISH_SHORT_FALLBACK = 'Publishing is not available';
+
 export function resolveSimpleGenerateActionState(input: {
 	canPlanOrGenerate: boolean;
 	loading: boolean;
 	generating: boolean;
 	gateReason: string | null;
+	/** A2 C13 — the gate's own short form, carried beside its full reason. */
+	gateShortReason?: string | null;
 }): SimpleHeaderActionState {
-	if (input.canPlanOrGenerate) return { disabled: false, reason: null };
-	if (input.generating) return { disabled: true, reason: 'A generation run is already in progress.' };
-	if (input.loading) return { disabled: true, reason: 'The timetable is still loading.' };
-	return { disabled: true, reason: input.gateReason ?? 'Generation is not available for this school year yet.' };
+	if (input.canPlanOrGenerate) return { disabled: false, reason: null, shortReason: null };
+	if (input.generating) return { disabled: true, reason: 'A generation run is already in progress.', shortReason: 'A generation run is in progress' };
+	if (input.loading) return { disabled: true, reason: 'The timetable is still loading.', shortReason: 'The schedule is still loading' };
+	return {
+		disabled: true,
+		reason: input.gateReason ?? 'Generation is not available for this school year yet.',
+		shortReason: input.gateShortReason ?? GENERATE_SHORT_FALLBACK,
+	};
 }
 
 export function resolveSimplePublishActionState(input: {
 	publicationEnabled: boolean;
 	isRunPublished: boolean;
 	gateReason: string | null;
+	/** A2 C13 — the gate's own short form, carried beside its full reason. */
+	gateShortReason?: string | null;
 }): SimpleHeaderActionState {
-	if (input.isRunPublished) return { disabled: true, reason: 'This timetable is already published.' };
-	if (input.publicationEnabled) return { disabled: false, reason: null };
-	return { disabled: true, reason: input.gateReason ?? 'Publishing is not available for this run yet.' };
+	if (input.isRunPublished) return { disabled: true, reason: 'This timetable is already published.', shortReason: 'Already published' };
+	if (input.publicationEnabled) return { disabled: false, reason: null, shortReason: null };
+	return {
+		disabled: true,
+		reason: input.gateReason ?? 'Publishing is not available for this run yet.',
+		shortReason: input.gateShortReason ?? PUBLISH_SHORT_FALLBACK,
+	};
 }

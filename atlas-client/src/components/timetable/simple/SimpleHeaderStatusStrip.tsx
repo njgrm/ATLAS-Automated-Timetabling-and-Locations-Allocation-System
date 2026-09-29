@@ -30,6 +30,7 @@ import { TimetableDraftStateStrip, type DraftStripActionPair } from '@/component
 import { SimpleHeaderMessageList, type SimpleHeaderMessage } from '@/components/timetable/simple/SimpleHeaderMessages';
 import { SimpleTermScopeLine } from '@/components/timetable/simple/SimpleTermScopeLine';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
+import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
 
 export type SimpleHeaderStatusStripProps = {
 	context: ScheduleReviewWorkspaceHeaderContext;
@@ -88,7 +89,7 @@ export function SimpleHeaderStatusStrip({
 	draftActions = null,
 }: SimpleHeaderStatusStripProps): ReactNode {
 	return (
-		<section data-testid="timetable-simple-status-region" role="region" aria-label="Timetable status" className="min-w-0 px-3">
+		<section data-testid="timetable-simple-status-region" role="region" aria-label={`${CLASS_SCHEDULE_LABEL} status`} className="min-w-0 px-3">
 			{/* A2 C12 / ITEM 1 — ONE LINE AT 1366. This is the status half of the
 			    two-row header, and `flex-wrap` is what let it spill onto a second
 			    visual line. From `lg` up it does not wrap, and the elastic children

@@ -13,9 +13,9 @@
  * (`docs/reviews/timetable-control-inventory-2026-09-26.md`, rows 140/141 and the
  * pass-2 correction) records the concrete consequence that pass 1 had missed:
  * both controls carried the **same** `data-testid="timetable-visible-undo"` and
- * the **same** `aria-label="Undo last manual timetable change"`, so
+ * the **same** `aria-label="Undo last manual schedule change"`, so
  * `getByTestId('timetable-visible-undo')` and
- * `getByRole('button', { name: 'Undo last manual timetable change' })` both
+ * `getByRole('button', { name: 'Undo last manual schedule change' })` both
  * resolved to TWO nodes.
  *
  * Reading the render tree at the candidate base found THREE Undo affordances,
@@ -34,6 +34,26 @@
  * testid, so it was not the reported defect — but it is a third control for the
  * identical action, and the instruction for this change was to reduce the screen
  * to the toolbar control. All three therefore reach one.
+ *
+ * ── A2 C13 (operator adjudication, 2026-09-29): the NAME below is SUPERSEDED ────
+ * Every row in this file pinned the accessible name
+ * `Undo last manual schedule change`. That string is SUPERSEDED by
+ * `Undo last manual schedule change`.
+ *
+ * It is NOT deleted and the rows are NOT skipped — the property each of them
+ * actually decides is UNCHANGED and still decided: exactly ONE Undo surface, it
+ * is the toolbar control, its accessible name is unique on screen, it is enabled
+ * when there is something to undo and carries no undo name when there is not.
+ * Only the word changed, so the rows now pin the new name and keep doing the job
+ * they were written to do.
+ *
+ * WHY "schedule" AND NOT "Class Schedule": this label names the CHANGE to one
+ * schedule, not the workspace the operator is standing in. §2a's place-name
+ * surfaces take the `CLASS_SCHEDULE_LABEL` constant; a person's or a revision's
+ * own weekly schedule takes the plain word, and sending an operator to a place
+ * called "Class Schedule" when they mean their own timetable is the mistake the
+ * rule exists to prevent. `TimetableFacultyIssuePivotDialog` and the
+ * `PublishedRevisionDialog` badge follow the same carve-out.
  *
  * THIS CANDIDATE REMOVES 1 AND 3 AND KEEPS 2. Nothing is deleted to make a test
  * pass: every accepted assertion that touched the removed controls is retained
@@ -155,7 +175,7 @@ test('U0 the Expert screen had THREE Undo affordances; the one that stayed is th
 		'exactly one Undo control declares the shared testid',
 	);
 	assert.equal(
-		occurrences('aria-label="Undo last manual timetable change"').length,
+		occurrences('aria-label="Undo last manual schedule change"').length,
 		1,
 		'exactly one control declares the shared accessible name',
 	);
@@ -184,7 +204,7 @@ test('U1 the guidance bar renders NO Undo even with a populated edit history, an
 			`editHistoryCount=${count} renders no Undo control`,
 		);
 		assert.doesNotMatch(markup, /Undo last change/, `editHistoryCount=${count} renders no "Undo last change" copy`);
-		assert.doesNotMatch(markup, /Undo last manual timetable change/, `editHistoryCount=${count} claims no undo name`);
+		assert.doesNotMatch(markup, /Undo last manual schedule change/, `editHistoryCount=${count} claims no undo name`);
 		// The bar's ONLY button is the status legend, which is a different action
 		// and legitimately a control — so the assertion is about which buttons
 		// render, not about there being none.
@@ -250,8 +270,8 @@ test('U3 the surviving Undo is still discoverable, still named, and still states
 	assert.match(markup, />History<|>Undo<|>Redo</, 'each carries a visible text label');
 
 	// Named: a screen reader hears one distinct, descriptive name — not two of one name.
-	assert.match(markup, /aria-label="Undo last manual timetable change"/);
-	assert.equal(occurrences('aria-label="Undo last manual timetable change"').length, 1, 'the name is unique on the screen');
+	assert.match(markup, /aria-label="Undo last manual schedule change"/);
+	assert.equal(occurrences('aria-label="Undo last manual schedule change"').length, 1, 'the name is unique on the screen');
 
 	// Honest: the same live blocked reason the duplicate used to repeat is still
 	// VISIBLE (role=status), so removing the guidance-bar tooltip lost no information.

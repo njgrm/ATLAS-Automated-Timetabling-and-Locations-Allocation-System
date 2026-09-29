@@ -15,6 +15,35 @@ export const buttonVariants = cva(
 				destructive:
 					'bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40 shadow-sm',
 				link: 'text-primary underline-offset-4 hover:underline',
+				/**
+				 * A2 C13 (item 3a) — the ONE "plainly unavailable" look, in `@/ui`, so
+				 * every page that needs it gets the same one (AGENTS.md §8 "One look per
+				 * control").
+				 *
+				 * WHY IT EXISTS. `variant="default"` is `bg-primary` (a solid green)
+				 * and the shared base adds `disabled:opacity-50`. A solid green button
+				 * at 50% opacity is a PALE GREEN button: it still reads as a primary
+				 * that is "almost ready". The operator's words on `/timetable` were
+				 * *"the disabled Generate reads as a pale-green near-miss"* — and for
+				 * this user the worst possible reading is a control that looks like
+				 * the next step and is not.
+				 *
+				 * WHY IT IS GREY, NOT A FADED GREEN. The defect is specifically the
+				 * retained `bg-primary`, not the opacity.
+				 *
+				 * WHY THERE IS NO `disabled:opacity-100` HERE. Two same-property
+				 * Tailwind utilities (`disabled:opacity-50` vs `disabled:opacity-100`)
+				 * are resolved by STYLESHEET order, not by class order, so "fixing" it
+				 * that way is a coin flip that flips on the next Tailwind build. The
+				 * base string is left exactly as it is. A pale GREY control already
+				 * reads as unavailable; the base's `disabled:opacity-50` only deepens
+				 * that, and a half-opacity neutral has no colour to misread.
+				 *
+				 * No `bg-primary`, no green, no `shadow-sm`: a raised edge is a
+				 * "pressable" signal and this control is not pressable.
+				 */
+				unavailable:
+					'border-border bg-muted text-muted-foreground shadow-none dark:border-input dark:bg-muted/40',
 			},
 			size: {
 				default: 'h-8 gap-1.5 px-2.5',

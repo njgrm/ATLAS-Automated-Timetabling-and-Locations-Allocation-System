@@ -24,6 +24,7 @@ import { MANUAL_EDIT_NEEDS_SELECTION_REASON } from '@/components/timetable/Cente
 // A2-C6-TRUTH (T1b): which sentence the Schedule history entry may print.
 import { editHistoryEmptyStateMessage, type EditHistoryReadState } from '@/lib/timetable-edit-history-truth';
 import { cn } from '@/lib/utils';
+import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
 import { RefreshSetupNamesButton } from '@/components/timetable/simple/SimpleSetupSharedControls';
@@ -384,7 +385,7 @@ export function SimpleMoreMenuContent({
 						<CircleHelp className="size-3.5" aria-hidden="true" />
 						Status key
 					</p>
-					<div className="grid gap-1" role="list" aria-label="Timetable status definitions">
+					<div className="grid gap-1" role="list" aria-label={`${CLASS_SCHEDULE_LABEL} status definitions`}>
 						{STATUS_ITEMS.map((item) => (
 							<div key={item.label} className="flex items-start gap-1.5" role="listitem">
 								<Badge variant="outline" className={cn('mt-0.5 h-5 shrink-0 px-1 text-xs font-semibold', item.tone)}>

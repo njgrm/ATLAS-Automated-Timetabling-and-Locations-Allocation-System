@@ -716,8 +716,26 @@ test('ROW 2 loading alone still renders the first-paint skeleton and NOT the gri
 	assert.ok(firstPaint, 'the loading surface is the real first-paint skeleton');
 	assert.match(firstPaint!.className ?? '', /h-\[calc\(100svh-3\.5rem\)\]/,
 		'and it keeps the bounded no-scroll viewport shell');
-	assert.match(firstPaint!.textContent ?? '', /Loading timetable/,
-		'and it still says what is loading and what arrives later');
+	// SUPERSEDED (A2 C13, 2026-09-29) — the copy assertion below, and only the copy
+	// assertion. The ORIGINAL row read:
+	//     assert.match(firstPaint!.textContent ?? '', /Loading timetable/, …)
+	// and it is retained here as the record of what this surface used to say.
+	// Lane C's staging walk graded it MAJOR — "'latest run resolves' is technical
+	// and passive" — so the whole sentence was SUBTRACTED and replaced by exactly
+	// `Your schedule is still loading.` (see `LOADING_SENTENCE`).
+	//
+	// WHAT THIS ROW STILL DECIDES, and why deleting it would be wrong: that the
+	// loading surface is still the real first-paint `TimetableSkeleton`, that it
+	// keeps the bounded no-scroll viewport shell, that it renders NO grid cell, and
+	// that the route-specific loading pane is not substituted. Those are the
+	// properties ROW 2 exists to protect, and they are all still asserted below and
+	// still pass. The #310 rows above are untouched and still pass.
+	//
+	// The replacement for the copy is `L1` in
+	// `a2-c13-calm-loading.test.tsx`, which renders the same band and asserts the
+	// exact new sentence AND that the old mechanism clauses are gone.
+	assert.match(firstPaint!.textContent ?? '', /Your schedule is still loading\./,
+		'and it says what is happening, in one plain sentence');
 	assert.equal(view.gridCells().length, 0, 'no grid cell is rendered while the run is still loading');
 	assert.equal(view.el('timetable-route-loading-state'), null,
 		'and `/timetable` itself is the plain skeleton, not a route-specific loading pane');
