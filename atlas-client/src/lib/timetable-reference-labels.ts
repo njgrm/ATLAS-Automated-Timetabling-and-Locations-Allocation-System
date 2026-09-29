@@ -36,7 +36,11 @@ export function buildSubjectLabel(
 	return (id) => {
 		const subject = subjectMap.get(id);
 		if (!subject) return `Subject #${id}`;
-		return subject.displayCode ?? subject.code;
+		if (subject.displayCode) return subject.displayCode;
+		// Lane C train 12: a code with an underscore (DEVL_READING, STE_APPLIED_PHYS) is an
+		// internal token, not a short label; the scheduler reads the subject's name instead.
+		if (subject.code.includes('_') && subject.name) return subject.name;
+		return subject.code;
 	};
 }
 

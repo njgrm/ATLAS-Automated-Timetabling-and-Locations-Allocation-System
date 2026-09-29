@@ -482,9 +482,9 @@ const GridCell = memo(function GridCell({
 								cellClass
 							)}
 						>
-							<div className="font-semibold text-[14px] truncate flex items-center gap-1">
+							<div className="font-semibold text-[14px] break-words flex items-center gap-1">
 								{readOnly ? null : <GripVertical className="size-2.5 text-muted-foreground/40 shrink-0" />}
-								<span className="min-w-0 flex-1 truncate">{entrySubjectLabel}</span>
+								<span className="min-w-0 flex-1 break-words">{entrySubjectLabel}</span>
 								{entryTermLabel ? (
 									<span
 										className="shrink-0 rounded bg-muted px-1 py-0.5 text-xs font-semibold tracking-wide text-muted-foreground"
@@ -551,7 +551,7 @@ const GridCell = memo(function GridCell({
 										<Tooltip>
 											<TooltipTrigger asChild>
 												<p
-													className="truncate text-[14px] font-medium text-muted-foreground/80 mt-0.5"
+													className="break-words text-[14px] font-medium text-muted-foreground/80 mt-0.5"
 													data-testid="timetable-cell-detail"
 													data-cell-term={entry.termIndex ?? ''}
 													data-cell-teacher={teacherText}
