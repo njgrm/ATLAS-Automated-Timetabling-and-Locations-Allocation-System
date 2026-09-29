@@ -837,8 +837,17 @@ const ROOM_SURFACE_DIRS = ['src/components/sections', 'src/components/campus-map
  * match the two pure-logic modules `buildingOccupancy.ts` and
  * `home-room-readiness.ts`, which render nothing, so the sweep would have
  * demanded that non-rendering files be typed. This token set matches exactly the
- * 11 files under the two directories that actually put a badge or a room name on
- * screen, all 11 of which are on the list above.
+ * 10 files under the two directories that still put a badge or a room name on
+ * screen, all 10 of which are on the list above.
+ *
+ * A9 C3 (2026-09-29): the count is 10, not 11, and that is a subtraction rather
+ * than a coverage loss. `SectionsHomeRoomActions.tsx` no longer renders room
+ * chrome at all — A9 C3 replaced the "N needs rooms" badge-and-popover with one
+ * button and one save-state line — so the marker correctly stops classifying it
+ * as a room surface. It REMAINS in `ROOM_SURFACE_OWNED` below, so the direct
+ * sub-11px offender scan still covers it byte-for-byte, and the anti-shrink,
+ * anti-duplication, anti-rot and exists-assertions over that list are untouched:
+ * the reach constant is the only thing that moved.
  */
 const ROOM_SURFACE_MARKER = /(<Badge\b|room\.name|roomName|buildingName|RoomTile|RoomCard)/;
 
@@ -885,7 +894,7 @@ test('fix 10 control: the owned list cannot shrink, cannot rot, and is complete'
 	// The sweep must not be vacuous: if the marker ever stops matching, this
 	// control would "pass" by scanning nothing. Pin its reach.
 	const swept = ROOM_SURFACE_DIRS.flatMap(sweepRoomSurfaceFiles).filter((f) => ROOM_SURFACE_MARKER.test(source(f)));
-	assert.ok(swept.length >= 11, `the structural sweep must still reach the room surfaces, reached ${swept.length}`);
+	assert.ok(swept.length >= 10, `the structural sweep must still reach the room surfaces, reached ${swept.length}`);
 });
 
 test('fix 10 control: the 11px threshold is the pinned one, and 0.6875rem is exactly AT it', () => {

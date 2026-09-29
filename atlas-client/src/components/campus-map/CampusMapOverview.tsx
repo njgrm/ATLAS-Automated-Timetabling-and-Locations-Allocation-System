@@ -141,10 +141,23 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 	const [sectionMap, setSectionMap] = useState<Map<number, SectionScheduleInfo>>(new Map());
 
 	const teachingBuildings = buildings.filter((building) => building.isTeachingBuilding !== false);
-	const totalRooms = buildings.reduce((acc, building) => acc + (building.rooms?.length ?? 0), 0);
 	const teachingRooms = buildings.reduce((acc, building) => acc + teachingRoomCount(building), 0);
-	const readyCount = buildings.filter((building) => buildingStatus(building) === 'ready').length;
-	const attentionCount = buildings.length - readyCount;
+	/**
+	 * A9 C3: the numerator of the inline banner, and the definition is the one stated at the
+	 * banner itself — a room the page can prove can hold a class. It is deliberately NOT
+	 * `buildingStatus(building) === 'ready'` (the removed "N ready" badge), which called a
+	 * building ready for holding ONE teaching room out of twenty; a building that cannot seat
+	 * a class is not ready, and the banner must not inherit that weaker claim.
+	 *
+	 * `type !== 'OTHER'` is the same persisted room-type signal
+	 * `home-room-auto-assign.service.ts` filters on (`type: 'CLASSROOM'`), so a room the
+	 * banner calls ready is a room the home-room step can actually assign.
+	 */
+	const readyTeachingRooms = buildings.reduce(
+		(acc, building) => acc + (building.rooms ?? []).filter((room) => room.isTeachingSpace && room.capacity && room.capacity > 0 && room.type !== 'OTHER').length,
+		0,
+	);
+	const attentionCount = buildings.filter((building) => buildingStatus(building) === 'attention').length;
 	
 	const selectedBuilding = buildings.find((building) => building.id === selectedId)
 		?? teachingBuildings.find((building) => buildingStatus(building) === 'attention')
@@ -508,12 +521,54 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 
 					{/* Sidebar Panel */}
 					<div className="flex flex-col gap-4 max-h-[640px]">
-						{activeView === 'map' ? (
-							<div className="flex min-h-0 flex-col gap-4 h-full">
-								<div className="grid grid-cols-2 gap-3 shrink-0">
-									<SummaryStat label="Buildings" value={buildings.length.toString()} icon={Building2} />
-									<SummaryStat label="Teaching rooms" value={`${teachingRooms}/${totalRooms}`} icon={DoorOpen} />
-								</div>
+					{activeView === 'map' ? (
+						<div className="flex min-h-0 flex-col gap-4 h-full">
+							{/* A9 C3 (2026-09-29): "78/103" WAS NOT A READINESS NUMBER, AND IT WAS
+							    A METRIC CARD.
+
+							    The old pair of `SummaryStat` cards rendered
+							    `${teachingRooms}/${totalRooms}` under the label "Teaching rooms" — 78
+							    teaching rooms out of 103 rooms in the school. It read as "78 of 103
+							    rooms are ready", it was two large cards (~90px) for one figure, and
+							    their icons carried `animate-pulse`, which on a page that is not
+							    loading says "something is happening" forever.
+
+							    `AGENTS.md` §8 requires inline stat banners for key figures, not
+							    massive metric Cards, so both cards are gone (with the last use of
+							    the local `SummaryStat` component) and the figure is one quiet line.
+
+							    WHICH "READY" IS PRINTED, stated here because it is the whole risk of
+							    the sentence: a teaching room (persisted `isTeachingSpace`) that has a
+							    seat count and a real room type — i.e. one that CAN hold a class. Both
+							    ends of the fraction come from the same room list, per the A3-C4 rule
+							    that a fraction across two populations is a fabrication the moment they
+							    diverge.
+
+							    The `needs-section` state is deliberately NOT in this figure. It depends
+							    on the latest generated draft, so including it would make a header
+							    figure swing every time a draft loads or the term authority resolves
+							    — and a headline that changes while nobody acted is worse than a
+							    narrower true one. Rooms that are fine but not yet in a timetable are
+							    reported where that fact lives: the problems region below, under
+							    "have no section yet". Nothing is hidden by the omission, and the
+							    problems region's own denominators are per-building, so the two never
+							    claim to be measuring the same thing. */}
+							<p
+								className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground"
+								data-testid="campus-teaching-rooms-banner"
+							>
+								<DoorOpen className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+								{readyTeachingRooms > 0 ? (
+									<span>
+										<span className="font-bold tabular-nums text-foreground">{readyTeachingRooms} of {teachingRooms} teaching rooms</span>
+										{' '}are ready to be used for classes.
+									</span>
+								) : teachingRooms > 0 ? (
+									<span>None of the {teachingRooms} teaching rooms can hold a class yet.</span>
+								) : (
+									<span>No rooms are marked as teaching classrooms yet.</span>
+								)}
+							</p>
 
 								<Card className="rounded-2xl border-0 bg-white p-0 shadow-soft-xl flex-1 overflow-auto">
 									<CardContent className="p-5">
@@ -526,22 +581,37 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 												</Badge>
 											) : null}
 										</div>
-										<h3 className="mt-2 truncate text-xl font-bold text-foreground">{selectedBuilding?.name ?? 'No building selected'}</h3>
-										<p className="mt-2 text-sm text-muted-foreground">
-											{selectedBuilding
-												? `${selectedTeachingRooms} teaching room${selectedTeachingRooms === 1 ? '' : 's'} out of ${selectedTotalRooms} total rooms.`
-												: 'Open editor mode to draw buildings and add rooms.'}
-										</p>
+									<h3 className="mt-2 truncate text-xl font-bold text-foreground">{selectedBuilding?.name ?? 'No building selected'}</h3>
+									<p className="mt-2 text-sm text-muted-foreground">
+										{selectedBuilding
+											? /* A9 C3: this sentence used to read "0 teaching rooms out of 20
+											 * total rooms", which states a ratio and no consequence. A
+											 * building with no teaching room is DEAD — no section can be
+											 * placed there and the scheduler has to know that before she
+											 * builds a timetable — so the zero case now says so, and the
+											 * non-zero case keeps the count. The fix for it is the one
+											 * action already below this card, so no second action was added. */
+												selectedTeachingRooms === 0
+													? `None of its ${selectedTotalRooms} ${selectedTotalRooms === 1 ? 'room is' : 'rooms are'} marked as a teaching classroom, so no class can be held there.`
+													: `${selectedTeachingRooms} of ${selectedTotalRooms} ${selectedTotalRooms === 1 ? 'room is' : 'rooms are'} used for classes.`
+											: 'Open editor mode to draw buildings and add rooms.'}
+									</p>
 
-										{selectedBuilding ? (
-											<div className="mt-3 grid grid-cols-3 gap-2 text-center">
-												<ReadinessChip label="Teaching rooms" value={`${selectedTeachingRooms}/${selectedTotalRooms}`} />
-												<ReadinessChip label="Floors" value={selectedFloors.toString()} />
-												<ReadinessChip label="Schedules" value={verifiedTermIndex == null
-				? UNVERIFIED_TERM_TITLE
-				: selectedScheduleState === 'scheduled' ? 'Available' : scheduleLoading ? 'Checking' : selectedScheduleState === 'empty' ? scheduleEmptyLabel : scheduleUnknownLabel} />
-											</div>
-										) : null}
+									{selectedBuilding ? (
+										/* A9 C3: the "Teaching rooms N/M" chip is GONE. It printed the
+										 * same figure as the banner two regions above, and §8 forbids two
+										 * chips saying the same thing — worse here, because one of them
+										 * was a fraction of a DIFFERENT population (this building's rooms,
+										 * not the school's), so the two numbers could disagree with no
+										 * visible reason. The floors and schedule chips are the two facts this
+										 * card is uniquely about, and the grid is two wide because of it. */
+										<div className="mt-3 grid grid-cols-2 gap-2 text-center">
+											<ReadinessChip label="Floors" value={selectedFloors.toString()} />
+											<ReadinessChip label="Schedules" value={verifiedTermIndex == null
+												? UNVERIFIED_TERM_TITLE
+												: selectedScheduleState === 'scheduled' ? 'Available' : scheduleLoading ? 'Checking' : selectedScheduleState === 'empty' ? scheduleEmptyLabel : scheduleUnknownLabel} />
+										</div>
+									) : null}
 
 										{selectedBuilding && (
 											<Button
@@ -553,29 +623,28 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 											</Button>
 										)}
 
-										{selectedBuilding ? (
-											<Button asChild variant="outline" className="mt-2 h-10 w-full justify-between rounded-xl">
-												<Link to={`/map?mode=editor&buildingId=${selectedBuilding.id}`}>
-													Review rooms in editor
-													<ArrowRight className="size-4" />
-												</Link>
-											</Button>
-										) : null}
-									</CardContent>
-								</Card>
-
-								<div className="flex flex-wrap gap-1.5 shrink-0">
-									<Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-										<CheckCircle2 className="size-3" />
-										{readyCount} ready
-									</Badge>
-									<Badge variant="outline" className={attentionCount > 0 ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-50 text-slate-600'}>
-										<AlertTriangle className="size-3" />
-										{attentionCount} need attention
-									</Badge>
-								</div>
-							</div>
-						) : selectedBuilding ? (
+									{selectedBuilding ? (
+										<Button asChild variant="outline" className="mt-2 h-10 w-full justify-between rounded-xl">
+											<Link to={`/map?mode=editor&buildingId=${selectedBuilding.id}`}>
+												Review rooms in editor
+												<ArrowRight className="size-4" />
+											</Link>
+										</Button>
+									) : null}
+								</CardContent>
+							</Card>
+							{/* A9 C3: the "N ready" / "N need attention" badge pair is GONE from
+							    here. It counted BUILDINGS using the page's own `buildingStatus`
+							    (a building is "ready" if it has any teaching room at all), which is
+							    a weaker claim than the banner's and than the problems region's —
+							    so the same screen carried three different readiness opinions, two
+							    of them as bare numbers with no consequence and no action. The
+							    problems region below now states the fact per building, with the
+							    consequence and the one fix, and a building with nothing wrong is
+							    not listed at all. The `attentionCount` this row consumed still
+							    drives the header's single "Fix rooms first" chip above. */}
+						</div>
+					) : selectedBuilding ? (
 							<Card className="rounded-2xl border-0 bg-white p-0 shadow-soft-xl flex-1 flex flex-col min-h-0">
 								<CardContent className="p-5 flex flex-col h-full min-h-0">
 									<div className="mb-3 shrink-0">
@@ -774,16 +843,6 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 					? UNVERIFIED_TERM_BODY
 					: 'Build Teaching Load before creating the first timetable.'}
 			/>
-		</div>
-	);
-}
-
-function SummaryStat({ label, value, icon: Icon }: { label: string; value: string; icon: LucideIcon }) {
-	return (
-		<div className="rounded-2xl bg-white p-4 shadow-soft">
-			<Icon className="size-4 text-primary animate-pulse" />
-			<p className="mt-2 text-xs font-semibold uppercase text-muted-foreground">{label}</p>
-			<p className="mt-1 text-2xl font-bold tabular-nums text-foreground">{value}</p>
 		</div>
 	);
 }

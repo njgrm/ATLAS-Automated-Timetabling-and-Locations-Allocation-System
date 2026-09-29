@@ -767,22 +767,20 @@ export default function Sections() {
 			description="Verify section roster data and home-room readiness before schedule generation. Start by syncing sections, then assign a home room to every section that still needs one."
 			sourceState={sectionSourceState}
 			sourceCopy={{
+				/* A9 C3: the home-room EDIT clause is gone from both sentences. It was a
+				 * THIRD, differently-worded statement of the writability fact, which now has
+				 * one home — the save-state line below. Full rationale in
+				 * `homeRoomEditStatus.ts`; ledger in `SectionsHomeRoomActions.tsx`. */
 				description:
-					sectionSourceState === 'verified-live'
-						? 'Sections were checked against the live roster source for the current school year, and home-room edits can be saved when you are online.'
-						: sectionSourceState === 'checking-source'
-						? 'ATLAS is verifying the roster source while the saved section list stays visible, so room edits are paused for now.'
-						: sectionSourceState === 'saved-data'
-						? isOnline ? 'ATLAS is showing the last safe section mirror because the live source is not fully verified. Home-room edits can be queued if saving fails.' : 'ATLAS is showing the last saved section mirror. Home-room edits will be queued on this device until you reconnect.'
-						: 'ATLAS has no safe section roster to show yet.',
+					sectionSourceState === 'verified-live' ? 'These sections were checked against the live roster for this school year.'
+					: sectionSourceState === 'checking-source' ? 'ATLAS is checking the roster source while the saved section list stays visible.'
+					: sectionSourceState === 'saved-data' ? (isOnline ? 'ATLAS is showing your last saved section list because the live source is not fully verified.' : 'You are offline, so ATLAS is showing your last saved section list.')
+					: 'ATLAS has no safe section roster to show yet.',
 				nextAction:
-					sectionSourceState === 'verified-live'
-						? 'Sync if the roster changed, then assign rooms for sections that still need one.'
-						: sectionSourceState === 'checking-source'
-						? 'Review roster readiness now, then wait before final home-room changes.'
-						: sectionSourceState === 'saved-data'
-						? 'Reconnect or sync before treating this as final roster truth.'
-						: 'Reconnect and sync sections before this page can be used.',
+					sectionSourceState === 'verified-live' ? 'Sync if the roster changed, then give the sections that need one a home room.'
+					: sectionSourceState === 'checking-source' ? 'Review the list now, then save room changes once the source settles.'
+					: sectionSourceState === 'saved-data' ? 'Reconnect or sync before treating this as the final roster.'
+					: 'Reconnect and sync sections before this page can be used.',
 			}}
 			stats={sectionStats}
 			secondaryActions={(
@@ -797,18 +795,6 @@ export default function Sections() {
 					<span className="sm:hidden">Rooms</span>
 				</Button>
 			)}
-			primaryActions={
-				<SectionsHomeRoomActions
-					canAutoAssign={!!activeSchoolYearId && state.status === 'ok' && sectionsNeedingRooms > 0}
-					syncing={syncing}
-					syncingQueuedEdits={syncingQueuedEdits}
-					stateStatus={state.status}
-					isOnline={isOnline}
-					sectionsNeedingRooms={sectionsNeedingRooms}
-					onAutoAssign={() => setAutoAssignOpen(true)}
-					onSync={handleSync}
-				/>
-			}
 			toolbar={(
 				<AdminSearchFilterToolbar
 					searchValue={searchQuery}
@@ -832,16 +818,30 @@ export default function Sections() {
 			)}
 		>
 
+			{/* A9 C3: the one action band, in the body rather than the frame's action slot
+				(§8's header budget is two calm rows). Ledger: SectionsHomeRoomActions.tsx. */}
+			<SectionsHomeRoomActions
+				canAutoAssign={!!activeSchoolYearId && state.status === 'ok' && sectionsNeedingRooms > 0}
+				syncing={syncing}
+				syncingQueuedEdits={syncingQueuedEdits}
+				stateStatus={state.status}
+				isOnline={isOnline}
+				sectionsNeedingRooms={sectionsNeedingRooms}
+				onAutoAssign={() => setAutoAssignOpen(true)}
+				onSync={handleSync}
+				editStatus={homeRoomEditStatus}
+			/>
+
 			<div className="shrink-0 px-4 pt-1 lg:px-5">
 				<ActorScopedRolloverGuidanceCard compact />
 			</div>
 
 			{/* Status Banners — extracted to components/sections/SectionsStatusBanners.tsx
-				(A3 C4 B1) to bring this page back under the 1000-line §8 cap. The
-				copy, the ordering, the pointer-events-none guard and the destructive
-				token choice all moved with it. Only the 'unavailable' and 'no-year'
-				states carry a message; the other two are narrowed off at the
-				call site so the prop is always a string. */}
+				(A3 C4 B1) to bring this page back under the 1000-line §8 cap. Only the
+				'unavailable' and 'no-year' states carry a message; the other two are
+				narrowed off at the call site so the prop is always a string. A9 C3:
+				`editStatus` is no longer passed — that banner duplicated the save-state
+				line's fact (see `SectionsStatusBanners.tsx`). */}
 			<SectionsStatusBanners
 				stateStatus={state.status}
 				stateMessage={state.status === 'unavailable' || state.status === 'no-year' ? state.message : ''}
@@ -850,7 +850,6 @@ export default function Sections() {
 				syncing={syncing}
 				isOnline={isOnline}
 				onSync={handleSync}
-				editStatus={homeRoomEditStatus}
 			/>
 
 			<AdminTableShell
@@ -913,7 +912,10 @@ export default function Sections() {
 									<tr><td colSpan={7} className="px-4 py-20 text-center text-sm text-muted-foreground">Waiting for your school scope…</td></tr>
 								) : (
 									paged.map((s) => (
-										<SectionRow key={s.id} section={s} homeRoomOptions={homeRoomOptions} isReadOnly={isReadOnlyMode} isSaving={savingMirrorId === s.id} onHomeRoomChange={handleHomeRoomChange} onShowDetails={(section) => setDetailTarget(section)} onShowRoomMap={(section) => setMapTarget(section)} schoolId={scopedSchoolId} roomOccupancy={roomOccupancyMap} />
+										/* A9 C3: no `onHomeRoomChange`/`schoolId` here — the row no longer
+										 * renders a picker. Its map button and the mobile card's picker are
+										 * unchanged; ledger in `SectionRow.tsx`. */
+										<SectionRow key={s.id} section={s} homeRoomOptions={homeRoomOptions} isReadOnly={isReadOnlyMode} onShowDetails={(section) => setDetailTarget(section)} onShowRoomMap={(section) => setMapTarget(section)} />
 									))
 								)}
 							</tbody>
@@ -968,15 +970,25 @@ export default function Sections() {
 		)}
 
 
-			{scopedSchoolId != null && activeSchoolYearId && (
-				<HomeRoomAutoAssignDialog
-					open={autoAssignOpen}
-					onOpenChange={setAutoAssignOpen}
-					schoolId={scopedSchoolId}
-					schoolYearId={activeSchoolYearId}
-					onApplied={() => void fetchSections({ forceRefresh: true })}
-				/>
-			)}
+		{scopedSchoolId != null && activeSchoolYearId && (
+			<>
+			{/* A9 C3: the step takes the page's room list, its occupancy map and its ONE
+			 * writability gate, so the review rows offer the same picker the rows used to
+			 * and the apply action is gated exactly as every other write here. */}
+			<HomeRoomAutoAssignDialog
+				open={autoAssignOpen}
+				onOpenChange={setAutoAssignOpen}
+				schoolId={scopedSchoolId}
+				schoolYearId={activeSchoolYearId}
+				homeRoomOptions={homeRoomOptions}
+				roomOccupancy={roomOccupancyMap}
+				canWrite={homeRoomWrite.canWrite}
+				notSavedNotice={homeRoomWrite.notSavedNotice}
+				onNotice={setCacheNotice}
+				onApplied={() => void fetchSections({ forceRefresh: true })}
+			/>
+			</>
+		)}
 		</AdminWorkspaceFrame>
 	);
 }
