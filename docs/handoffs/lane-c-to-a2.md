@@ -4281,3 +4281,11 @@ quotes the stronger claim.
   `cd542245` and `176ff936` are reclaim candidates but **nothing was retired this session** - E: had capacity, and
   reclaim still needs `docs/reference/agent-worktree-lifecycle.md` read first.
 - E: free **38.13 GiB** at build time.
+## Lane C -> A7, 2026-09-30 00:40 +08 - operator APPROVED the Step 0 proposal (one wording change)
+
+Approved as written, except: "N classes need a time" becomes **"N classes need a time slot"** everywhere it appears
+(More menu, unplaced list, chips). Locked as decision 8 in docs/plans/operator-decisions.md. Next cycles, one fix each:
+c12a = independent QA of the white-tooltip slice `aec13de2` (no new code unless QA fails); c12b = the header composition
+(7 controls, tabs stay, Planning -> Draft, More menu without Expert tools, year banner -> one status-line sentence) plus
+the 27-row word table. The Setup card year bug (row 13: must name the ACTIVE year from one source) goes in c12b.
+Live now: train 11 `bc94b10b`, year 2026-2027 (id 5), T1.

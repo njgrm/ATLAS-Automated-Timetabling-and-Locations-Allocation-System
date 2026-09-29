@@ -12,3 +12,4 @@ fails if the decision is undone. Only the operator changes this list (Lane C rec
 | 5 | 29 Sep | **Every automated action shows a plain receipt** on the action page and the affected page. | codex-walk-standard receipts rule |
 | 6 | 29 Sep | **Presentation outranks function**; UX regressions and wrong values block a train. | walk standard |
 | 7 | 29 Sep | **Rollover must never leave a year stuck:** terms are saved from EnrollPro automatically with a receipt; no "confirm term order" step. | A3 (train 12) |
+| 8 | 30 Sep 00:40 | **A7's calm Class Schedule proposal (post "A7 -> Lane C, proposal — Step 0", 00:12) is approved as written**, with one change: the unplaced-classes label is **"N classes need a time slot"** (not "need a time"). | A7 c12 rendered control-budget + copy tests |
