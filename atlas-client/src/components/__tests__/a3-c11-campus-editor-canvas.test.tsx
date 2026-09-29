@@ -172,9 +172,21 @@ async function renderEditor(buildings: Building[], host: { width: number; height
 	return { ...out, get changes() { return changes; } };
 }
 
-/** The ground rect is the one filled shape at the origin, at the canvas size. */
+/**
+ * The ground rect is the one LARGE filled shape — the canvas surface.
+ *
+ * A9 c4 changed the ORIGIN requirement here, and the reason is worth keeping:
+ * this helper used to demand `x === 0 && y === 0`, which was true only while
+ * the stage painted untransformed at the top-left of its box. A9 c4 item 36
+ * paints the canvas through a fitted, VERTICALLY CENTRED stage transform (the
+ * read-only overview has done this all along), so the ground legitimately paints
+ * lower down. The `x === 0 && y === 0` clause is dropped, NOT the `exactly one`
+ * clause: uniqueness is decided by the size filter, which no transformer anchor
+ * or shadowed building rect can reach, and every row below still asserts the
+ * ground's SIZE against the stage or the free area.
+ */
 function groundRect(fills: Array<{ x: number; y: number; width: number; height: number; fill: string }>) {
-	const candidates = fills.filter((f) => f.x === 0 && f.y === 0 && f.width > 400 && f.height > 300);
+	const candidates = fills.filter((f) => f.width > 400 && f.height > 300);
 	assert.equal(candidates.length, 1, `exactly one ground rect must be painted; got ${JSON.stringify(candidates)}`);
 	return candidates[0];
 }
@@ -320,22 +332,39 @@ test('36: the work area is the region box less its padding and its two content b
 /* ── auto-grow, which the scroll region makes reachable ────────────────────── */
 
 test('36 RENDERED: a building past the old 920 edge makes the canvas grow', async () => {
-	// The operator's own case: a building at x 1000 reaches 1140, well past the
-	// old 920 canvas. Growth still happens; what changed is that the region's
-	// scroll container makes the grown area reachable instead of clipped.
-	const out = await renderEditor([building(1, { x: 1000, width: 140 })], { width: workAreaAt1366, height: 640 });
-	try {
-		const required = 1000 + 140 + CANVAS_EDGE_PADDING;
-		assert.ok(
-			out.stageWidth >= required,
-			`the canvas must grow to hold the building: stage ${out.stageWidth} vs required ${required}`,
-		);
-		assert.ok(out.stageWidth > workAreaAt1366, 'and it must genuinely exceed the column, which is what the region then scrolls');
-		const ground = groundRect(out.fills);
-		assert.ok(ground.width >= 1140, `the painted ground must reach the building, got ${ground.width}`);
-	} finally {
-		out.unmount();
-	}
+    // The operator's own case: a building at x 1000 reaches 1140, well past the
+    // old 920 canvas. Growth still happens; what changed is that the region's
+    // scroll container makes the grown area reachable instead of clipped.
+    const out = await renderEditor([building(1, { x: 1000, width: 140 })], { width: workAreaAt1366, height: 640 });
+    try {
+        const required = 1000 + 140 + CANVAS_EDGE_PADDING;
+        assert.ok(
+            out.stageWidth >= required,
+            `the canvas must grow to hold the building: stage ${out.stageWidth} vs required ${required}`,
+        );
+        assert.ok(out.stageWidth > workAreaAt1366, 'and it must genuinely exceed the column, which is what the region then scrolls');
+        const ground = groundRect(out.fills);
+        // A9 c4 SUPERSEDES the third claim this row used to make —
+        //     assert.ok(ground.width >= 1140, 'the painted ground must reach the building')
+        // — and it is recorded here rather than deleted (AGENTS.md §16). WHY it had
+        // to go: the harness composes every recorded rect with the transform Konva
+        // set immediately before it (`konva-dom-render-harness.ts` `point`/`abs`),
+        // so a FITTED stage paints the ground at the fitted size. A9 c4 item 36 is
+        // precisely the operator's sentence "no building may sit under the panel …
+        // fit the canvas to the free area", so a control that REQUIRES a painted
+        // ground as wide as the content asserts the defect as if it were correct.
+        // The two STAGE-ATTRIBUTE claims above are untouched and still pass, which
+        // is the part of this row that is about the accepted size contract.
+        // Its replacement is "36+A9C4 RENDERED: the ground PAINTS fitted to the free
+        // area while the stage attribute still grows" in `a9-c4-map-fit.test.tsx`,
+        // which runs from the committed `test:a9-c4-map-fit` script.
+        assert.ok(
+            ground.width <= workAreaAt1366 + 1,
+            `the painted ground must now FIT the ${workAreaAt1366}px free area, got ${ground.width}`,
+        );
+    } finally {
+        out.unmount();
+    }
 });
 
 test('36: the size function is total, and each of the three inputs can win', () => {
