@@ -114,12 +114,46 @@ export type TimetableReadinessRepair =
 	| { kind: 'navigate'; label: string; href: string }
 	| { kind: 'retry'; label: string };
 
+/**
+ * A8 C5 CORRECTION 2 (F4) — HOW MANY READS ACTUALLY HAPPENED.
+ *
+ * `unavailable` and `failed` are reached by two genuinely different roads, and
+ * telling them apart by the state name is what made the dialog claim "ATLAS
+ * already tried this check twice" on a path that tried ZERO times:
+ *
+ *  - the scope guard refused before any read, so nothing was attempted;
+ *  - a read (or its single automatic retry) did not come back.
+ *
+ * `attempts` is therefore carried as a FACT on the state the retry module
+ * publishes, never inferred from `state`. It is absent (not 0) on a state that
+ * did not come from a read, so "no attempt" and "one attempt" cannot be
+ * confused with "two attempts".
+ */
+export type TimetableReadinessAttemptCount = number;
+
+/**
+ * Read the attempt fact off a readiness state WITHOUT narrowing on `state`.
+ *
+ * A direct `readiness?.attempts` does not type-check, because only the
+ * `unavailable` and `failed` members carry it and the union is not narrowed at
+ * the call site. This is the one place the fact is read, and it is deliberately
+ * total: a `loading` or `ready` state has no attempts and reads as `null`, which
+ * is the honest "no read finished" answer rather than a silent zero.
+ */
+export function readReadinessAttempts(
+	state: TimetableCurriculumReadinessState | null | undefined,
+): TimetableReadinessAttemptCount | null {
+	if (!state) return null;
+	if (state.state !== 'unavailable' && state.state !== 'failed') return null;
+	return typeof state.attempts === 'number' ? state.attempts : null;
+}
+
 export type TimetableCurriculumReadinessState =
 	| { state: 'loading'; message: string }
 	| { state: 'ready'; message: string; diagnostic: TimetableGenerationReadinessDiagnostic }
 	| { state: 'blocked'; message: string; code: string | null; repair: TimetableReadinessRepair; diagnostic: TimetableGenerationReadinessDiagnostic }
-	| { state: 'unavailable'; message: string }
-	| { state: 'failed'; message: string };
+	| { state: 'unavailable'; message: string; attempts?: TimetableReadinessAttemptCount }
+	| { state: 'failed'; message: string; attempts?: TimetableReadinessAttemptCount };
 
 export type TimetableReadinessDiagnosticSummary = {
 	generateAllowed: boolean;

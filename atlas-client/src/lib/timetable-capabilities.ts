@@ -63,6 +63,16 @@ export type TimetableCapabilityInput = {
 	/** False while the actor school/year scope is still unresolved. */
 	scopeResolved: boolean;
 	curriculumState: 'loading' | 'ready' | 'blocked' | 'unavailable' | 'failed';
+	/**
+	 * A8 C5 CORRECTION 2 (F4) — HOW MANY READS THE READINESS CHECK ACTUALLY MADE,
+	 * carried from the state the retry module published.
+	 *
+	 * `null` / absent means "no read was started" (the hook's scope guard refuses
+	 * before any read). It is the difference between telling a scheduler that
+	 * ATLAS tried twice and telling the truth, so it is a required field wherever
+	 * the state is known rather than a convenience.
+	 */
+	curriculumReadinessAttempts?: number | null;
 	generating: boolean;
 	isPreGeneration: boolean;
 	hasGeneratedRun: boolean;
@@ -300,6 +310,9 @@ export type TimetableGenerationStopperInput = Pick<
 	TimetableCapabilityInput,
 	| 'scopeResolved'
 	| 'curriculumState'
+	// A8 C5 CORRECTION 2 (F4): the attempt FACT the retry module published, so the
+	// "already tried twice" account is gated on what happened and not on a state name.
+	| 'curriculumReadinessAttempts'
 	| 'generating'
 	| 'generationDiagnostic'
 	| 'readinessRepair'
@@ -371,6 +384,15 @@ export function deriveTimetableGenerationStoppers(input: TimetableGenerationStop
 	}
 
 	if (input.curriculumState === 'unavailable' || input.curriculumState === 'failed') {
+		// A8 C5 CORRECTION 2 (F4): the "already tried twice" account is gated on the
+		// ATTEMPT FACT the retry module published, never on the state name.
+		// `unavailable` is ALSO how the hook reports "the scope guard refused before
+		// any read"; deriving the attempt count from the state printed "already tried
+		// this check twice" on a path that tried zero times. The honest account
+		// differs, so it is written per case.
+		const attempts = input.curriculumReadinessAttempts ?? null;
+		const exhaustedRetry = attempts !== null && attempts >= 2;
+		const neverAttempted = attempts === null || attempts === 0;
 		stoppers.push({
 			key: 'setup-check-failed',
 			line: 'The schedule check could not read this school year. ATLAS does not know yet whether the setup is ready.',
@@ -380,11 +402,13 @@ export function deriveTimetableGenerationStoppers(input: TimetableGenerationStop
 			actionLabel: 'Open Year Setup',
 			checkFailed: true,
 			retryLabel: 'Retry schedule check',
-			// The true sentence for the one cause the automatic retry exists for.
-			// `fetchCurriculumReadiness` read twice, on its own, and neither read
-			// came back — so this is what the operator is told, rather than a bare
-			// Retry button with no account of what already happened.
-			retryNote: 'ATLAS already tried this check twice on its own, and it did not come back either time.',
+			retryNote: exhaustedRetry
+				? 'ATLAS already tried this check twice on its own, and it did not come back either time.'
+				: neverAttempted
+					// The scope never loaded, so no readiness read was even started. This
+					// is the path that used to claim two attempts that never happened.
+					? 'ATLAS did not start this check, because it could not load your school and school year first.'
+					: 'ATLAS tried this check and it did not come back.',
 			repair: retry('Retry schedule check'),
 		});
 	}

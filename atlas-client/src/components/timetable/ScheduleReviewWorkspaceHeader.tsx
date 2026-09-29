@@ -41,7 +41,7 @@ import { TimetableExpertDraftActions } from '@/components/timetable/TimetableDra
 import { ScheduleReviewInputStateBanner } from '@/components/timetable/ScheduleReviewInputStateBanner';
 import { TimetableAdvancedHeaderHelp } from '@/components/timetable/TimetableAdvancedHeaderHelp';
 import { deriveTimetableCapabilities, YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
-import { summarizeGenerationReadiness } from '@/lib/timetable-generation-readiness';
+import { summarizeGenerationReadiness, readReadinessAttempts } from '@/lib/timetable-generation-readiness';
 import { createSyncSetupInFlightGuard, runSyncSetup } from '@/lib/timetable-sync-setup';
 import { resolveTermAuthorityNotice } from '@/hooks/useTimetableData';
 import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
@@ -307,6 +307,9 @@ function ScheduleReviewWorkspaceHeaderImpl({ context, onEditDraft, onDiscardDraf
 	const capabilities = deriveTimetableCapabilities({
 		scopeResolved,
 		curriculumState: context.curriculumReadiness?.state ?? 'unavailable',
+		// A8 C5 CORRECTION 2 (F4): the attempt FACT, so the Generate dialog never
+		// claims two tries on the path where the scope guard refused before any read.
+		curriculumReadinessAttempts: readReadinessAttempts(context.curriculumReadiness),
 		generating,
 		isPreGeneration: isPreGenerationWorkspace,
 		hasGeneratedRun: Boolean(draft),

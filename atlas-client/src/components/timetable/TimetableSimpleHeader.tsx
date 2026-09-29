@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { UNLABELLED_RULE_SENTENCE } from '@/lib/timetable-plain-language';
 import { deriveSimpleLifecycleAction } from '@/lib/simple-timetable-state';
 import { deriveTimetableCapabilities, describeSetupState, YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
-import { summarizeGenerationReadiness, generationBlockedOperatorSentence } from '@/lib/timetable-generation-readiness';
+import { summarizeGenerationReadiness, generationBlockedOperatorSentence, readReadinessAttempts } from '@/lib/timetable-generation-readiness';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/ui/dialog';
@@ -284,6 +284,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	const capabilities = deriveTimetableCapabilities({
 		scopeResolved,
 		curriculumState: context.curriculumReadiness?.state ?? 'unavailable',
+		// A8 C5 CORRECTION 2 (F4): the attempt FACT, so the Generate dialog never
+		// claims two tries on the path where the scope guard refused before any read.
+		curriculumReadinessAttempts: readReadinessAttempts(context.curriculumReadiness),
 		generating: context.generating,
 		isPreGeneration: context.isPreGenerationWorkspace,
 		hasGeneratedRun,

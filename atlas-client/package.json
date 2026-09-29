@@ -96,6 +96,7 @@
     "test:a8-c5-generate-gate": "tsx --test src/lib/__tests__/a8-c5-generate-never-disabled.test.ts",
     "test:a8-c5-generate-dialog": "tsx --test src/components/timetable/__tests__/a8-c5-generate-stoppers-dialog.test.tsx",
     "test:a8-c5-readiness-retry": "tsx --test src/lib/__tests__/a8-c5-readiness-retry.test.ts",
+    "test:a8-c5-retry-attempt-honesty": "tsx --test src/lib/__tests__/a8-c5-retry-attempt-honesty.test.ts",
     "test:a8-c5-subjects-cold-load": "tsx --test src/pages/__tests__/subjects-cold-load-a10.test.tsx",
     "test:a5-subjects-c1": "tsx --test src/components/subjects/__tests__/a5-subjects-c1.test.tsx",
     "test:a5-fix20-subject-discard": "tsx --test src/components/subjects/__tests__/a5-fix20-subject-discard.test.tsx",

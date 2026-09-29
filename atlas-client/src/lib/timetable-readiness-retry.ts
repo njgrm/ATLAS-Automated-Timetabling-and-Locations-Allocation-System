@@ -115,8 +115,13 @@ export async function readGenerationReadinessWithRetry(
 				if (input.isSuperseded()) return null;
 				continue;
 			}
-			input.onState(settled);
-			return settled;
+			// F4 CORRECTION 2: the settled state carries the ATTEMPT FACT, not a
+			// value the consumer infers from `state`. `interpret` can return
+			// `unavailable` for a payload that was read and could not be trusted,
+			// and the scope guard can return `unavailable` having read nothing at
+			// all; only this counter can tell those apart.
+			input.onState(withAttempts(settled, attempt));
+			return withAttempts(settled, attempt);
 		} catch (error) {
 			if (input.isSuperseded()) return null;
 			const failed: TimetableCurriculumReadinessState = {
@@ -132,8 +137,8 @@ export async function readGenerationReadinessWithRetry(
 			}
 			// Both attempts are done. The plain message and the Retry button are the
 			// answer, and there is no third attempt behind them.
-			input.onState(failed);
-			return failed;
+			input.onState(withAttempts(failed, attempt));
+			return withAttempts(failed, attempt);
 		}
 	}
 	// Unreachable by construction (every branch above either returns or continues
@@ -145,4 +150,24 @@ export async function readGenerationReadinessWithRetry(
 	};
 	input.onState(gaveUp);
 	return gaveUp;
+}
+
+/**
+ * A8 C5 CORRECTION 2 (F4) — the one place the attempt fact is attached.
+ *
+ * The two-attempt sentence in the Generate dialog may only be shown when the
+ * state really came from two reads. `unavailable` is also how the hook reports
+ * "the scope guard refused before any read", and a dialog that said "already
+ * tried twice" there would be telling the operator a lie about work ATLAS never
+ * did — the same defect class F1 was raised for, moved from a comment into
+ * rendered copy.
+ */
+function withAttempts(
+	state: TimetableCurriculumReadinessState,
+	attempts: number,
+): TimetableCurriculumReadinessState {
+	if (state.state === 'unavailable' || state.state === 'failed') {
+		return { ...state, attempts };
+	}
+	return state;
 }
