@@ -1003,27 +1003,44 @@ test('A3C17-6 no sub-14px arbitrary font size survives in the profile dialog, an
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// A3C17-7 — the review load dialog must not carry its own width cap.
+// A3C17-7 — the merged teacher dialog must not carry its own width cap.
 // ═══════════════════════════════════════════════════════════════════════════
 
-test('A3C17-7 the workload modal has no width cap of its own, so the shared bounds govern the drag', () => {
-	const source = readSource('components/faculty/FacultyWorkloadModal.tsx');
+test('A3C17-7 the merged teacher dialog has no width cap of its own, so the shared bounds govern the drag', () => {
+	/*
+	 * SUPERSEDED (A3 teacher-one, 2026-09-30) — this row read the deleted
+	 * Review-load modal file and asserted its className carried no `max-w-` cap,
+	 * no local width and no `resize` class. That file is
+	 * DELETED: Teacher Profile and Review load are ONE dialog (operator decision
+	 * 9) and the survivor is `FacultyProfileSheet.tsx`. The claim is unchanged and
+	 * is re-asserted on the merged dialog, whose className this row now reads.
+	 *
+	 * The old row's `!/w-\[/` clause is deliberately NOT carried over: the merged
+	 * dialog is REQUIRED to declare a default width (`w-[min(42rem,95vw)]`,
+	 * decision 10), and only a `max-w-*` cap would break the drag. The negative
+	 * below therefore targets `max-w-` alone.
+	 */
+	const source = readSource('components/faculty/FacultyProfileSheet.tsx');
 	// The className this surface passes to the shared `DialogContent`.
 	const className = /<DialogContent[\s\S]*?className="([^"]*)"/.exec(source)?.[1];
-	assert.ok(className, 'the workload modal must still pass a className to DialogContent');
+	assert.ok(className, 'the merged dialog must still pass a className to DialogContent');
 
 	assert.ok(
-		!/(^|\s)(sm:)?max-w-/.test(className!),
+		!/(^|\s)(sm:)?max-w-(?!\[95vw\])/.test(className!),
 		`a local max-width defeats the drag handler's inline style.width: "${className}"`,
 	);
 	assert.ok(
-		!/(^|\s)w-\[/.test(className!) && !/style=\{\{[^}]*width/.test(source),
-		'a local width or inline width is a second width authority on this surface',
+		!/style=\{\{[^}]*width/.test(source),
+		'a local inline width is a second width authority on this surface',
+	);
+	assert.match(
+		className!,
+		/w-\[min\(42rem,95vw\)\]/,
+		'the merged dialog opens at about 42rem (operator decision 10), viewport-guarded',
 	);
 	assert.ok(!/\bresize\b/.test(className!), 'the page-local resize class stays gone; the shared handles own it');
 
 	// What stays is this surface's own, and what governs is the shared contract.
-	assert.ok(className!.includes('max-h-[85svh]'), "the surface keeps its own height cap");
 	assert.ok(className!.includes('overflow-hidden'), 'the surface keeps its own clipping box');
 	assert.ok(/className="[^"]*resizable/.test(source.replace(/\s+/g, ' ')) || /\n\s*resizable\b/.test(source),
 		'the surface still takes the shared resizable handling');

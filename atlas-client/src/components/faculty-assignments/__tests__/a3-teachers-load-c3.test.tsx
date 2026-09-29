@@ -816,7 +816,18 @@ test('F25-2 opening and closing the review leaves filters, scroll, and selection
 	assert.deepEqual(filters, { query: 'dela', scheduling: 'active', assignment: 'assigned' });
 
 	// Close it.
-	click(buttonsIn(dom.window.document).find((b) => (b.textContent ?? '').trim() === 'Close profile')!);
+	/*
+	 * SUPERSEDED (A3 teacher-one, 2026-09-30) — this lookup was the literal
+	 * `'Close profile'`. The merged teacher dialog's footer label is now the
+	 * one-word `Close` (the old `Close profile` control was replaced by the
+	 * packet's §3 footer), so the literal no longer matched and the row threw
+	 * before it could assert anything. The ROUND TRIP claim below is untouched:
+	 * the close side still clicks the REAL production close control, now
+	 * addressed by its own stable `data-testid`, and every assertion that the
+	 * roster's markup, scroll, filters and selection survive is preserved
+	 * verbatim. The row is not deleted or weakened.
+	 */
+	click(dom.window.document.querySelector('[data-testid="faculty-profile-close"]') as HTMLElement);
 	assert.equal(reviewOpen, false, 'the profile must close');
 
 	assert.equal(roster.querySelectorAll('[data-row]').length, 40, 'closing must not remove rows');

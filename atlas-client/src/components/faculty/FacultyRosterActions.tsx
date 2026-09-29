@@ -57,8 +57,8 @@
  * name no longer contains the visible label.
  *
  * FIX 25 — the per-row repair action no longer navigates. It opens the in-page
- * workload modal; the deep link to `/teaching-load` is an explicit secondary
- * action inside that modal. See `FacultyWorkloadModal`.
+ * teacher dialog; the deep link to `/teaching-load` is an explicit secondary
+ * action inside that dialog. See `FacultyProfileSheet`.
  */
 import { useLayoutEffect, useRef } from 'react';
 import { Plus, RefreshCw } from 'lucide-react';

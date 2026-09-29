@@ -5204,6 +5204,7 @@ train-12 regression recheck you already ran on staging. If it holds, train 12b i
 screen and I will re-pin a correction; the rollback to `bc94b10b` is one supervised reset away and its task XML is
 captured.
 
+---
 ## Lane C -> A2, 2026-09-30 05:41 +08 — **A4 STAGING train 13 at `110cadd0`** — staging re-pinned, live untouched
 
 **0 fixes live and seen / 3 integrated and rendered on staging / 0 dropped.** Live is train 12b `a46505ce` and I did
@@ -5290,3 +5291,116 @@ Two A4 sessions held staging custody for about eight minutes. **I am not re-asse
 plus A7 c12b. `E:\ATLAS-staging\110cadd0c...` = **PRESERVE_FOR_DECISION** (quiesced, intact,
 `git rev-parse HEAD` == the pin). **Live is still train 12b `a46505ce`** — `index-DuhBU3ed.js`, pids 56024 and
 54084, unchanged throughout both staging swaps.
+
+
+---
+---
+
+## Lane C -> A2, 2026-09-30 05:50 +08 - **A4 STAGING train 13b at `8f19430b`** - delta scope + migration proof + owed reclaim
+
+**Read the 05:46 correction above first: this is the leg that performed that swap.** Two A4 sessions held staging custody
+05:38-05:47; the pin (`8f19430b`), the served chunk (`index-CbjZMOGd.js`) and the "live untouched" proof are the ones already
+recorded there, and **there is one walk to run, not two**. The items below are what this leg adds.
+
+**0 fixes live and seen / 0 live releases (live untouched at `a46505ce`) / 0 dropped.** Staging re-pinned from `110cadd0` to
+`8f19430b6ef1526aeab7db06b5490a4a2226276e`; **only staging (5101/5274) was touched**.
+
+- **Pin / session:** staging pin `8f19430b6ef1526aeab7db06b5490a4a2226276e` (= `origin/main` re-read at 05:39 +08), tree `E:\ATLAS-staging\8f19430b6ef1526aeab7db06b5490a4a2226276e` (`git rev-parse HEAD` == pin), `E:\ATLAS-staging\active-release.txt` repointed, task `ATLAS-Staging-Supervisor`. **Session id: I will not fabricate one** - the title *A4 release train 13b* plus this pin and the 05:38 +08 start identify the leg. Deploy result **`STAGING_DEPLOYED`**, 136.9 s: seed 8.6/14.1/23.4 s, server `tsc` 41.4 s, client `vite` 56.9 s (`VITE_ENROLLPRO_URL` set), health + ready + host live + host ready **all 200**, DB-backed `GET /api/v1/subjects` **200**, env proof `atlas-staging.env` / `sourceDir 8f19430b...` / `keyCount 18`. Staging listeners **5101 -> 48876, 5274 -> 25428**. **Live 5001 -> 56024 and 5174 -> 54084, identical before and after the whole leg.** Step 3 `node scripts/dev/ensure-staging-qa-account.cjs` in the new tree: exit 0, `STAGING QA ACCOUNT READY` (school 1, officer); no secret printed.
+- **Migrations: none - nothing applied, nothing pending.** 11 on-disk dirs at the pin (`0000_clean_baseline`, `0001_term_subject_authority`, `0002_companion_sso_code`, `0003_teacher_program_presentation`, `0004_notification_inbox`, `20260923000000_publication_approval_requests`, `20260924000000_unified_official_export_profile`, `20260924000001_teacher_lunch_window`, `20260925000000_faculty_grade_preference`, `20260925000001_shift_coherence`, `20260925000002_faculty_availability`) and staging `_prisma_migrations` read-only = **11 rows, 0 unfinished, 0 rolled back**. The range is client-only: `git diff --name-only 110cadd0 8f19430b` = 51 `atlas-client/**` + 3 docs paths, **no `atlas-server/**`, no `prisma/**`**.
+- **Served chunk (discriminating) + active year:** staging 5274 serves **`/assets/index-CbjZMOGd.js`**; the tree it replaced served `index-DkUy6NPG.js` - **new != old, both named**, so this proves the swap. Staging active school year **`2026-2027`** - ATLAS `enrollpro_school_year_mirrors` id **633**, EnrollPro school-year **5**, `is_active true`, `is_archived false`, term contract cache present (`semanticRevision d93b0118...`), `last_synced_at 2026-09-29T16:05:36.071Z`.
+
+**Two things you should know.** (1) **I ran no re-stream** (`-SkipDbRefresh`): the delta is client-only, so staging data is exactly what train 12b left, and your walk state is unchanged - the QA account was reported READY, not restored. (2) **The delta is larger than "the header"**: the range carries the whole A7 c12b chain (`e3756e45`..`f6dcf338`) - calm Class Schedule header, one year authority, universal decision-8 wording, retired *Generate a timetable* - plus my own 12b docs post. Still one lane, still client-only, but judge the timetable header, the year badge and the Setup card, not the header alone.
+
+**Reclaim: DONE after the deploy, and it was not optional.** E: free fell to **13.37 GiB** after this build's dependency seed and dists - **below the 3 fail-closed line of 15 GiB** - so the gate applied, not the warn line. Removed the two superseded staging trees A4 had already named reclaim candidates: `E:\ATLAS-staging\e75d6b8f...` and `E:\ATLAS-staging\176ff936...`. Both were dirty only in the **generated** `ops/runtime/runtime-contract.json` (the staging contract `deploy-staging.ps1` installs into every staging release dir); each copy was **preserved to `%TEMP%\a4-13b-preserved-contracts\`** before `git checkout --` restored it, then `node_modules` was `rmdir`'d with **0 reparse points**, then non-forced `git worktree remove` + one `git worktree prune`. **E: free 13.37 -> 16.5 GiB.** Re-counted the dependency donor afterwards: `lane-a4-release-20260930-12bprod\node_modules` = **218**, the running staging tree's own trees = **218 / 209 / 155** - **no donor was emptied**, and staging served `health/ready` **200** and `5274` **200** throughout. Still under the 25 GiB warn line, so the next release build owes another reclaim; `cd542245...`, `bc94b10b...`, `69b404ff...` and the live `a46505ce` staging tree are preserved. Gate worktree `E:\ATLAS-worktrees\lane-a4-train-20260930-13b` = RETIRE_AFTER_INTEGRATION (my push is landed). Staging tree `8f19430b...` = KEEP_ACTIVE; `110cadd0...` = staging rollback basis. `D:/ATLAS` was never written.
+
+**Next action (unchanged from the 05:46 correction).** Lane C: the 1366x768 walk of the A7 c12b timetable header, year badge and Setup card on staging at `8f19430b`, then GO or NO_GO. Rollback to `110cadd0` is one supervised reset.
+
+## Lane C -> A4, 2026-09-30 05:55 +08 - GO train 13 at 8f19430b
+
+Staging at 8f19430b (05:44). Manual-draft walk on the staging preview: no new defect against live; the move/swap
+review-then-confirm step and the missing remove action exist on live too (A2 cycle queued). Operator leaves 07:00.
+Cutover, in order: 1. dry run at 8f19430b6ef1526aeab7db06b5490a4a2226276e; 2. `-Execute`; rollback basis train 12b
+a46505ce (E:\ATLAS-worktrees\lane-a4-release-20260930-12bprod); 3. readiness within 180 s, confirm the Tailnet chunk;
+4. commit and push your A4 LIVE post. No migrations, no data writes, no publish.
+
+## A3 -> Lane C, 2026-09-30 06:05 +08 - **teacher-one INTEGRATED on `main` at `25b29d7c`** (A3 merge `eaef2bc4`; candidate `8759bb35`)
+
+**One thing, one dialog.** Teacher Profile and Review load are now ONE dialog: load figures on top, classes taught below, ONE row action ("Review load"), `FacultyWorkloadModal.tsx` deleted. Operator decisions **9** (one dialog) and **10** (`w-[min(42rem,95vw)]`, centred, resize kept) are decided by the rendered test rows; decision **11**'s rule is respected - the merged dialog performs no apply, so no second confirm was added (its A9 X4 guard belongs to A9).
+
+- **Range:** base `8f19430b` (train 13) -> A3 merge `eaef2bc4` -> after absorbing train 13b docs, **push tip `25b29d7c`**. The only overlapping path was `atlas-client/package.json` (branch script + main scripts in disjoint hunks): **clean auto-union, no conflict**, and every main addition survives.
+- **Gates on the merged tree (literal):** client `tsc --noEmit` = **5 errors, all pre-existing and none in a touched file** (`playwright` missing x3; one implicit-any; one `3`/`1` comparison - `timetable-post-deploy-c04/c05`, `timetable-scheduling-quality-c03`, `timetable-truth-labels-a2`); `test:a3-teacher-one` **6/6**; `test:a3-c17-teacher-profile` **89/91**; `test:a6-c11-teacher-truth` **6/6**; `git diff --check` clean.
+- **The 2 reds are PRE-EXISTING, not this candidate.** `timetable-cell-info.test.ts` (asserts `showTeacherDetails…pivotLabel` in `CenterWorkspace.tsx`) and `a7-c8-type-scale.test.ts` A7C8-6 (sub-14px in `ManualEditConflictInspector.tsx` absent from the dated allowlist). Both tests and the files they read are **byte-identical at base `5444c445`, `origin/main`, and the merge**, and the two files run on `origin/main` reproduce **12 pass / 2 fail**. Not touched by me - **A7 owns the allowlist, A6/A2 own manual-edit**.
+- **Not deployed**, no live write, no migration, no push beyond `main`. A4 owns the train.
+
+**Next action.** A4/Lane C: fold `main 25b29d7c` into the next train; the teacher dialog needs its 1366x768 rendered row on staging (one row action, 42rem width, no Profile button).
+
+---
+
+## Lane C -> A2, 2026-09-30 06:12 +08 - **A4 LIVE train 13 at `8f19430b`** - cutover executed, zero-write, no migration
+
+**0 fixes live and seen by me / 81 paths shipped to the Tailnet (A7 c12b, A2, A6) / 0 dropped.** Live is
+**`8f19430b6ef1526aeab7db06b5490a4a2226276e`**, cut over on Lane C's GO 2026-09-30 05:55 +08 (post `de11f700`) at
+**06:05 +08**. **I did not run the rendered acceptance walk** - that is Lane C's, and I am not claiming it.
+
+### What went live, enumerated (not from what I happened to review)
+
+`git diff --name-only a46505ce 8f19430b` = **81 paths**. Three lanes, all already integrated on `main`:
+**A7 c12b** calm Class Schedule header + one year authority + retired *Generate a timetable* (client);
+**A2** place-one-action draft (`atlas-server/src/routes/pre-generation-draft.router.ts`,
+`pre-generation-draft.service.ts` + client + tests); **A6** TL demand source
+(`derived-demand.service.ts`, `faculty-assignment.service.ts` + tests). Both `package.json` deltas are
+**test-script entries only - no dependency change**. `prisma/**` diff **empty**. `main` has since moved to
+`bff36612` (A3 docs); per 14 a pinned release is not reopened because `main` moved.
+
+### Runtime rows
+
+| Row | Result |
+|---|---|
+| Deploy runner dry run | exit 0, `mutates: false`, `secretsPrinted: false`, supervisor 5860, listenerPids `[56024, 54084]` - matching my independent pre-cutover reading |
+| Build (`lane-a4-release-20260930-13prod`) | `prisma generate` **33.8 s**, server `tsc` **19.7 s**, client `vite` **4.7 s**; deps robocopy-seeded from the same-pin staging tree (0 reparse points, `-XJ`), `VITE_ENROLLPRO_URL` set from `ENROLLPRO_PROXY_ORIGIN` |
+| Client dist integrity | **byte-identical to the same-pin staging build**: 222 files, 4 090 243 B, entry `index-CbjZMOGd.js` SHA-256 `EB19E001D1EFA542...` 304 920 B on both |
+| Cold start | **27.48 s** - `22:04:32.222Z` launch -> `22:04:59.698Z` `All targets healthy (liveness and dependency readiness)`; **inside the 180 s budget** |
+| Listeners | **5001 -> 20088**, **5174 -> 39384** (were 56024/54084); task **Running**, action **and** Start In repointed to the 13prod dir; machine scope repointed |
+| Environment proof | supervisor read `atlas-server.env`, `sourceDir 13prod`, `keyCount 18`, `DATABASE_URL` = live `atlas_recovery_clean_rebuild_20260905` |
+| Served chunk (Tailnet) | **`index-CbjZMOGd.js` 304 920 B**; the incumbent's **`index-DuhBU3ed.js` now 404s** - new != old, both named |
+| `tailscale serve status` | unchanged: Funnel 443 -> 5174, tailnet-only 8443 -> 5274 |
+| Migrations | **none** - `prisma/**` empty diff; live `_prisma_migrations` **11 / 0 unfinished** before and after |
+| Zero-write | live signature **identical** before and after: schools 2, sections 160, faculty 60, subjects 23, years 8, TL cycles 8, **generation runs 12**, published 6, manual edits 13, notifications 268, **audit 557 rows / max id 1196** |
+| Staging | **untouched** - 5101 -> 48876, 5274 -> 25428, the same PIDs as my 05:44 staging leg |
+| Publish / generation / sync / re-stream | **none** |
+
+### Two disclosures, neither of which I am papering over
+
+1. **The runner never printed its completion record.** Its log holds only
+   `{"result":"CUTOVER_STARTED", ...}` and the process is gone - the audit dir has `deployment-plan.json`,
+   `task-before.xml`, `task-target.xml` and no result file. **So my DEPLOYED verdict rests on the independent
+   evidence in the table above** (machine scope, listener PIDs, supervisor log, health, DB-backed read, chunk,
+   signature), not on the runner's own attestation. I am flagging it rather than reporting a green runner.
+2. **My first client build died and I rebuilt it.** Vite writes a CSS-optimisation warning to stderr, and under
+   `$ErrorActionPreference='Stop'` PowerShell promotes that to a terminating error - the exact trap
+   `deploy-runner.ps1` documents - so my script aborted mid-build. I deleted `dist`, re-ran the build the
+   sanctioned way, and **proved the result byte-identical to the same-pin staging build** before deploying, so
+   no partial artifact shipped. Server `tsc` was unaffected.
+
+### Capacity - the next build is blocked until someone reclaims
+
+**E: free is 14.87 GiB, below the 3 fail-closed line of 15 GiB.** Nothing is building, and this cutover is
+closed, but **the next release build must reclaim first**. The named candidate is
+`E:\ATLAS-worktrees\lane-a4-release-20260930-11prod` (1.51 GiB, `bc94b10b`) - now two generations back, with
+`a46505ce` as the current rollback basis. I did **not** retire it: it is live fallback lineage and 3 names
+fallback lineage as do-not-retire, so that call is the operator's or an explicit A4 reclaim, not a side effect
+of a release. This leg's own reclaim already took E: from 13.37 to 17.85 GiB (two superseded staging trees, plus
+my two train-12 gate worktrees).
+
+**Dispositions.** `E:\ATLAS-worktrees\lane-a4-release-20260930-13prod` = **KEEP_ACTIVE** (live).
+`lane-a4-release-20260930-12bprod` = **KEEP_ACTIVE** (rollback basis). `lane-a4-release-20260930-11prod` =
+**PRESERVE_FOR_DECISION** (named reclaim candidate above). Staging trees `8f19430b...` = KEEP_ACTIVE,
+`110cadd0...` = staging rollback basis. Gate worktree `lane-a4-train-20260930-13live` =
+RETIRE_AFTER_INTEGRATION. Audit trail `C:\ProgramData\ATLAS\release-audit\8f19430b-20260930-060415\`.
+`D:/ATLAS` was never written; no machine variable was written outside the runner's own repoint.
+
+**Next action.** Lane C: the rendered acceptance walk on `https://njgrm.buru-degree.ts.net` at 1366x768 - the
+A7 c12b timetable header, the year badge and the Setup card, then A2 place-one-action (the move/swap
+review-then-confirm step and the still-missing remove action you already noted exist on live). Record the
+verdict here. If any screen regresses, name it and I re-pin a correction; the rollback to `a46505ce` is one
+supervised reset with the task XML captured.

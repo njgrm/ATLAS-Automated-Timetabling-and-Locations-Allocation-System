@@ -84,7 +84,9 @@ const { MemoryRouter } = await import('react-router-dom');
 const { TooltipProvider } = await import('@/ui/tooltip');
 
 const { FacultyRosterActions } = await import('@/components/faculty/FacultyRosterActions');
-const { FacultyWorkloadModal } = await import('@/components/faculty/FacultyWorkloadModal');
+// A3 teacher-one (2026-09-30): the deleted Review-load modal is merged into
+// the survivor `FacultyProfileSheet`, which is what these F25 rows now exercise.
+const { FacultyProfileSheet } = await import('@/components/faculty/FacultyProfileSheet');
 const { FacultyIdentityCell } = await import('@/components/faculty/FacultyRow');
 const { getTeacherRepairIntent, useFacultyRowActions } = await import('@/components/faculty/FacultyRowActions');
 const {
@@ -535,13 +537,17 @@ test('F25-c10-1 the row action is a button for EVERY intent variant, not a link'
 });
 
 /**
- * Roster + row action + modal wired EXACTLY as `pages/Faculty.tsx` wires them.
+ * Roster + row action + merged teacher dialog wired EXACTLY as
+ * `pages/Faculty.tsx` wires them.
  *
  * This is a harness, not the page: it renders the real `useFacultyRowActions`,
- * `useRosterScrollMemory` and `FacultyWorkloadModal` in the same arrangement, so
+ * `useRosterScrollMemory` and `FacultyProfileSheet` in the same arrangement, so
  * the round trip below exercises production behaviour. The page's own use of the
- * same three symbols is asserted separately in `F25-c10-5`, so the harness
+ * same three symbols is asserted separately in `F25-c10-7`, so the harness
  * cannot quietly diverge from the page.
+ *
+ * A3 teacher-one (2026-09-30): the dialog is the MERGED survivor
+ * (`FacultyProfileSheet`), which replaced the deleted Review-load modal.
  */
 function RosterHarness(props: { faculty: any; searchQuery: string; sortField: string }) {
 	const [target, setTarget] = useState<any>(null);
@@ -551,7 +557,6 @@ function RosterHarness(props: { faculty: any; searchQuery: string; sortField: st
 			scroll.captureFrom(event.currentTarget);
 			setTarget({ faculty: teacher, intent: getTeacherRepairIntent(teacher) });
 		},
-		onOpenProfile: () => {},
 		onEditTemporary: () => {},
 		onDeleteTemporary: () => {},
 	});
@@ -568,12 +573,14 @@ function RosterHarness(props: { faculty: any; searchQuery: string; sortField: st
 			createElement('div', { 'data-testid': 'roster-sort' }, props.sortField),
 			rowActions.primary(props.faculty),
 		),
-		createElement(FacultyWorkloadModal as any, {
+		createElement(FacultyProfileSheet as any, {
 			faculty: target?.faculty ?? null,
 			open: target !== null,
+			onOpenChange: (open: boolean) => { if (!open) { scroll.restore(); setTarget(null); } },
+			sourceFreshness: 'Verified live',
 			intent: target?.intent ?? null,
-			scrollRegionRef: scroll.regionRef,
-			onClose: () => { scroll.restore(); setTarget(null); },
+			permissions: null,
+			schoolId: 1,
 		}),
 	);
 }
@@ -602,11 +609,11 @@ test('F25-c10-2 Review load opens the modal IN PLACE and does not navigate', () 
 	assert.deepEqual(navigations, [], 'opening the modal must not navigate');
 
 	// The dialog is centred, bounded and scrolls internally.
-	const content = dom.window.document.querySelector('[data-testid="faculty-workload-modal"]')!;
+	const content = dom.window.document.querySelector('[data-testid="faculty-profile-dialog"]')!;
 	const cls = content.getAttribute('class') ?? '';
 	// A3 C17 ROW 7 SUPERSEDES THE `sm:max-w-2xl` ASSERTION ABOVE THIS LINE, and
 	// the row it replaced is kept here rather than deleted, because the ORIGINAL
-	// row is still true and still the point: the modal must have a bounded,
+	// row is still true and still the point: the dialog must have a bounded,
 	// responsive width. What changed is WHERE the bound comes from.
 	//
 	// The old assertion pinned `sm:max-w-2xl` — a page-local `max-width`. CSS
@@ -620,20 +627,26 @@ test('F25-c10-2 Review load opens the modal IN PLACE and does not navigate', () 
 	// which every resizable dialog in the app obeys. So the same intent is
 	// asserted against the authority that now carries it: bounded on BOTH sides,
 	// viewport-guarded so no viewport can be forced into a horizontal scrollbar.
+	//
+	// A3 teacher-one (2026-09-30): this is now the MERGED teacher dialog, so the
+	// floor is the survivor's own larger 500px one (tailwind-merge resolves the
+	// shared 480px floor into it — one floor, not two), and the DEFAULT width is
+	// the required `w-[min(42rem,95vw)]`.
 	assert.match(
 		cls,
-		/min-w-\[min\(480px,95vw\)\]/,
-		'the shared resizable floor must govern this surface, not a page-local width',
+		/min-w-\[min\(500px,95vw\)\]/,
+		"the card's own viewport-guarded floor must govern this surface",
 	);
 	assert.match(cls, /max-w-\[95vw\]/, 'the shared resizable ceiling must govern this surface');
+	assert.match(cls, /w-\[min\(42rem,95vw\)\]/, 'the merged dialog opens at about 42rem, never near full screen');
 	assert.doesNotMatch(
 		cls,
 		/(^|\s)(sm:)?max-w-(?!\[95vw\])\S/,
 		'a page-local max-width defeats the drag handler; the shared bounds are the only width authority here',
 	);
-	assert.match(cls, /max-h-\[/, 'the modal must be height-bounded so it scrolls internally');
-	assert.match(cls, /overflow-hidden/, 'the modal frame must not itself scroll');
-	assert.ok(content.querySelector('.overflow-auto'), 'the modal body must scroll internally');
+	assert.match(cls, /max-h-\[/, 'the dialog must be height-bounded so it scrolls internally');
+	assert.match(cls, /overflow-hidden/, 'the dialog frame must not itself scroll');
+	assert.ok(content.querySelector('.overflow-y-auto'), 'the dialog body must scroll internally');
 });
 
 test('F25-c10-3 the modal data matches the SELECTED teacher', () => {
@@ -641,10 +654,10 @@ test('F25-c10-3 the modal data matches the SELECTED teacher', () => {
 	click(host.querySelector('[data-testid="teacher-row-primary-action"]')!);
 
 	// Identity, uppercase per Fix 22.
-	const title = dom.window.document.querySelector('[data-testid="faculty-workload-modal-title"]')!;
+	const title = dom.window.document.querySelector('[data-testid="faculty-profile-title"]')!;
 	assert.equal(title.textContent, 'DELA CRUZ, MARIA');
 
-	const dialogText = dom.window.document.querySelector('[data-testid="faculty-workload-modal"]')!.textContent ?? '';
+	const dialogText = dom.window.document.querySelector('[data-testid="faculty-profile-dialog"]')!.textContent ?? '';
 	// Weekly hours and the remaining-room figure, both from the selected teacher.
 	assert.match(dialogText, /20h/, 'the selected teacher\'s weekly teaching hours must be shown');
 	assert.match(dialogText, /Room for more classes/, 'remaining room for classes must be shown');
@@ -660,7 +673,7 @@ test('F25-c10-4 the deep link navigates ONLY when clicked, and carries the same 
 	const host = render(createElement(RosterHarness as any, { faculty: DELA_CRUZ, searchQuery: '', sortField: 'name' }));
 	click(host.querySelector('[data-testid="teacher-row-primary-action"]')!);
 
-	const deep = dom.window.document.querySelector('[data-testid="faculty-workload-deep-link"]') as HTMLAnchorElement;
+	const deep = dom.window.document.querySelector('[data-testid="faculty-profile-deep-link"]') as HTMLAnchorElement;
 	assert.ok(deep, 'the optional deep link must still exist');
 	assert.equal(deep.tagName, 'A', 'the deep link is the one anchor in the modal');
 	const href = deep.getAttribute('href') ?? '';
@@ -724,7 +737,7 @@ test('F25-c10-6 the scrollable ancestor is resolved from the clicked control, no
 test('F25-c10-7 the page wires the same three symbols the harness does', () => {
 	const page = read('src/pages/Faculty.tsx');
 	// The modal is a sibling of the table, so the roster is never unmounted.
-	assert.match(page, /<FacultyWorkloadModal/);
+	assert.match(page, /<FacultyProfileSheet/);
 	assert.match(page, /useRosterScrollMemory\(\)/);
 	assert.match(page, /useFacultyRowActions\(/);
 	// Filter/sort/page state is never reset by opening the modal.
@@ -767,16 +780,28 @@ test('F25-c10-8 the workload view projects the roster summary, not a different a
 	assert.equal(buildTeacherWorkloadView(null).loadProfile, null);
 });
 
-test('F25-c10-9 the modal reuses WorkloadInspector rather than copying its metrics', () => {
-	// The one place the modal renders the workload body must be the shared
-	// component from the other lane's directory, imported and never edited.
-	const modal = read('src/components/faculty/FacultyWorkloadModal.tsx');
-	assert.match(modal, /import \{ WorkloadInspector \} from '@\/components\/faculty-assignments\/WorkloadInspector'/);
-	assert.match(modal, /<WorkloadInspector/);
-	// And this lane did not touch that file.
-	assert.doesNotMatch(
-		modal,
-		/workload-headline|Room for more classes|Classes taught/,
-		'the modal must not re-declare the inspector\'s metrics',
+test('F25-c10-9 the merged dialog renders the load figures from the ONE shared projection', () => {
+	/*
+	 * SUPERSEDED (A3 teacher-one, 2026-09-30). This row asserted that the deleted
+	 * Review-load modal reuses `<WorkloadInspector>` rather than copying its
+	 * metrics. That file is DELETED: Teacher Profile and Review load are ONE
+	 * dialog (operator decision 9), and the packet's §2 requires a COMPACT
+	 * Review-load block, so the merged dialog does not mount the inspector.
+	 *
+	 * The claim that survives — "one authority, no copied arithmetic" — is
+	 * re-asserted here on the survivor: its figures come from the SAME shared
+	 * projection the inspector itself consumes (`buildTeacherWorkloadView`), so
+	 * the numbers still cannot drift. `F25-c10-8` continues to decide that
+	 * projection's own arithmetic.
+	 */
+	const source = read('src/components/faculty/FacultyProfileSheet.tsx');
+	assert.match(
+		source,
+		/import \{ buildTeacherWorkloadView \} from '@\/components\/faculty\/teacherWorkloadProfile'/,
+		'the merged dialog must read its load figures from the one shared projection',
 	);
+	assert.match(source, /buildTeacherWorkloadView\(faculty\)/, 'and it must be called with the selected teacher');
+	// The dialog must not re-derive a load status of its own: that would be a
+	// second authority beside the projection.
+	assert.doesNotMatch(source, /deriveLoadStatus\(/, 'the merged dialog must not re-derive a load status');
 });

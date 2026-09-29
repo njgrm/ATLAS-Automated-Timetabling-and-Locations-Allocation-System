@@ -336,3 +336,11 @@ GO; verify Tailnet chunk before saying live. Operator records 04:45-05:45, leave
 
 **After-demo backlog:** workflow-metrics.md "After-demo backlog from the 30 Sep click sweep"; re-run Teachers + TL click
 sweeps; Year Setup wrong-year link; help icons click-to-open; Room Schedules 11x6/13x6.
+
+## Operator approval - 2026-09-30 ~05:58 +08
+
+Operator (leaving 07:00): Lane C may release train 14 without the operator, same gates as trains 12b/13: only QA-passed
+work from main, A4 staging on :4097, Codex per-page walk on a :52xx preview, GO with a numbered cutover, Tailnet chunk
+and live check after, rollback basis train 13 (8f19430b). Candidates: A2 move/swap/remove (a2-ds-moveswap), A7 clipping
+and warnings list (a7-ds-clip), A6 saved-data banner (a6-ds-banner), A3 merged teacher dialog (a3-ds-integrate), A5/A9
+docx items. E: free space is 17 GiB: reclaim old staging trees before the build. Leave a short summary for the operator.
