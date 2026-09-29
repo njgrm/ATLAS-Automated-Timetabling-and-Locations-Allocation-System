@@ -13,6 +13,10 @@ import type { SimpleLifecycleKind } from '@/lib/simple-timetable-state';
 import { formatCheckedAtAge } from '@/components/timetable/timetableWorkspaceTruth';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
 import type { TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
+/* A8-C5: the action-state type now lives beside its resolvers (§8 extraction).
+   Imported here as well as re-exported below, because the two controls in this
+   file annotate their props with it and a re-export does not bind a local name. */
+import type { SimpleHeaderActionState } from './SimpleHeaderActionStates';
 /* ROW 37 / A2-UX-MENU-C2 — the tutorial moved to its own module so this file
  * stays inside the 1000-line component budget. Both exports are re-exported here
  * so `TimetableSimpleHeader`, the committed source contracts and every existing
@@ -911,97 +915,22 @@ export function primaryDispatchesReviewIssues(input: {
 	return input.lifecycleKind === 'review-warnings';
 }
 
+
 /* ------------------------------------------------------------------ *
- * UX-QUICKFIX-C01 — visible Generate/Publish dispatch guards
- * ------------------------------------------------------------------ */
-
-export type SimpleHeaderActionState = {
-	disabled: boolean;
-	reason: string | null;
-	/**
-	 * A2 C13 (item 3c) — the SAME reason in ≤ 6 words, printed BESIDE the disabled
-	 * control so the reason is visible on screen and not hover-only.
-	 *
-	 * It is produced by the SAME resolver call that produces `reason` (and, for a
-	 * capability gate, by the same `denied()` call in `timetable-capabilities.ts`),
-	 * so the two cannot drift: there is no second place either string is written.
-	 * §8 forbids truncating a sentence to fit, so every short form is authored.
-	 */
-	shortReason: string | null;
-};
-
-/**
- * The single guard behind the visible Generate control. A closed generation
- * gate must dispatch zero requests, so the click handler reads this decision
- * before it calls `context.handleTriggerGenerate()`.
- */
-export function shouldDispatchSimpleGenerate(canPlanOrGenerate: boolean): boolean {
-	return canPlanOrGenerate;
-}
-
-/**
- * The single guard behind the visible Publish control. A closed publication
- * gate (including an already-published run) must dispatch zero requests.
- */
-export function shouldDispatchSimplePublish(publicationEnabled: boolean, isRunPublished: boolean): boolean {
-	return publicationEnabled && !isRunPublished;
-}
-
-/**
- * A2 C13 (item 3c) — the last-resort short form.
+ * UX-QUICKFIX-C01 - visible Generate/Publish dispatch guards
  *
- * It is a FALLBACK for a gate that declared no `shortReason`, and it is written
- * here rather than derived from `reason` because §8 forbids cutting a sentence to
- * fit. `a2-c13-unavailable-generate.test.tsx` asserts that every generation and
- * publication gate with a reason also carries a short form, which makes this
- * branch unreachable in production and keeps it honest rather than clever.
- */
-const GENERATE_SHORT_FALLBACK = 'Generation is not available';
-const PUBLISH_SHORT_FALLBACK = 'Publishing is not available';
-
-export function resolveSimpleGenerateActionState(input: {
-	canPlanOrGenerate: boolean;
-	loading: boolean;
-	generating: boolean;
-	gateReason: string | null;
-	/** A2 C13 — the gate's own short form, carried beside its full reason. */
-	gateShortReason?: string | null;
-}): SimpleHeaderActionState {
-	if (input.canPlanOrGenerate) {
-		// A8-C5 S2.3: the control is ENABLED here, but the cause is still
-		// announced. Generate is no longer disabled for an unverified check — it
-		// opens the dialog that explains it — so returning `reason: null` would
-		// leave a screen-reader user with a bare "Generate schedule" and no way to
-		// learn what the dialog is about to tell them.
-		//
-		// Nothing is rendered beside the button: `SimpleGenerateAction` shows the
-		// visible short sentence only for a DISABLED control, and wears the solid
-		// primary variant when this is false. So the reason reaches the accessible
-		// name and nothing else — which is exactly the "less on screen" rule, not
-		// an exception to it.
-		return { disabled: false, reason: input.gateReason ?? null, shortReason: null };
-	}
-	if (input.generating) return { disabled: true, reason: 'A generation run is already in progress.', shortReason: 'A generation run is in progress' };
-	if (input.loading) return { disabled: true, reason: 'The timetable is still loading.', shortReason: 'The schedule is still loading' };
-	return {
-		disabled: true,
-		reason: input.gateReason ?? 'Generation is not available for this school year yet.',
-		shortReason: input.gateShortReason ?? GENERATE_SHORT_FALLBACK,
-	};
-}
-
-export function resolveSimplePublishActionState(input: {
-	publicationEnabled: boolean;
-	isRunPublished: boolean;
-	gateReason: string | null;
-	/** A2 C13 — the gate's own short form, carried beside its full reason. */
-	gateShortReason?: string | null;
-}): SimpleHeaderActionState {
-	if (input.isRunPublished) return { disabled: true, reason: 'This timetable is already published.', shortReason: 'Already published' };
-	if (input.publicationEnabled) return { disabled: false, reason: null, shortReason: null };
-	return {
-		disabled: true,
-		reason: input.gateReason ?? 'Publishing is not available for this run yet.',
-		shortReason: input.gateShortReason ?? PUBLISH_SHORT_FALLBACK,
-	};
-}
+ * A8-C5 (2026-09-29): this block moved to `./SimpleHeaderActionStates` because
+ * the S2.3 change pushed this file to 1007 physical lines and AGENTS.md section 8
+ * caps a component at 1000. The rule is to EXTRACT a block, never to delete a
+ * comment to make room, so the block moved whole and kept every comment.
+ *
+ * Re-exported here, so every importer path in the tree is UNCHANGED - the same
+ * shape this file already used for `./SimpleHeaderReadinessTypes`.
+ * ------------------------------------------------------------------ */
+export {
+	shouldDispatchSimpleGenerate,
+	shouldDispatchSimplePublish,
+	resolveSimpleGenerateActionState,
+	resolveSimplePublishActionState,
+} from './SimpleHeaderActionStates';
+export type { SimpleHeaderActionState } from './SimpleHeaderActionStates';
