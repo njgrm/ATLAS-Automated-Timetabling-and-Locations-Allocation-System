@@ -88,6 +88,7 @@
     "test:timetable-ux-rehaul": "tsx --test src/lib/__tests__/timetable-ux-rehaul-c01.test.ts src/lib/__tests__/ux-r02-simple-stripdown.test.ts src/lib/__tests__/ux-quickfix-c01-header-actions.test.ts src/lib/__tests__/ux-r01-shared-chrome.test.tsx",
     "test:draft-ux-c01": "tsx --test src/components/timetable/__tests__/draft-ux-c01.test.tsx",
     "test:generation-blockers-c02": "tsx --test src/components/timetable/__tests__/generation-blockers-c02.test.tsx",
+    "test:a8-c3-generate-gaps": "tsx --test src/components/timetable/__tests__/a8-c3-generate-gaps-groups.test.tsx",
     "test:a5-subjects-c1": "tsx --test src/components/subjects/__tests__/a5-subjects-c1.test.tsx",
     "test:a5-fix20-subject-discard": "tsx --test src/components/subjects/__tests__/a5-fix20-subject-discard.test.tsx",
     "test:a3-subjects": "tsx --test src/components/subjects/__tests__/subjects-ux-a3.test.tsx",

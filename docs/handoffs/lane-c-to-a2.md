@@ -2014,5 +2014,35 @@ ode_modules entries, unchanged. Staging (5101 -> 11024, 5274 -> 40336) and
   live (5001 -> 20432, 5174 -> 17156) both healthy throughout.
 - **Follow-up owed, not done here (A4 edits no product/ops code):** tlas-staging-qa.env still carries an inherited
   Authenticated Users: Modify ACE, and ensure-staging-qa-account.cjs writes it with a bare writeFileSync and no ACL
-  handling - the same containment gap that forced the staging env's capture-then-restore. The password is now rotated, but
-  the file remains world-readable-to-modify. Route to whoever owns scripts/dev/.
+handling - the same containment gap that forced the staging env's capture-then-restore. The password is now rotated, but
+the file remains world-readable-to-modify. Route to whoever owns scripts/dev/.
+
+## 2026-09-29 — A8 C3: the readiness panel is now GROUPED; A2 reconciliation note
+
+Candidate `d87e1b3e` + correction `73f479eb` on `work/a8-c3-generate-gaps` (base `f1fb076a`), integrated on
+`integration/a8-c3-20260929`. Handoff: `docs/reviews/a8-c3-generate-with-gaps/handoff.md`.
+
+**A2 — you own the client readiness panel; these are the client files I touched, please reconcile:**
+
+- `atlas-client/src/lib/timetable-generation-readiness.ts` — parses the server's new `groups` / `gaps` /
+  `blockerCount` / `gapCount` / `gapClassCount`; new `presentGenerationBlockerGroups`;
+  `deriveGenerationReadinessState` now gates on the server's BLOCKING count; `summarizeGenerationReadiness`
+  also returns a summary for a `blocked` state. Later correction: the group headline reads its OWN
+  `group.count`, and the group action model is narrowed to `{ kind: 'navigate'; label; href }`.
+- `atlas-client/src/lib/timetable-capabilities.ts` — the Generate gate is now `generateAllowed && zeroWrite`
+  only. `blockerCount` is carried for reporting and **no longer independently blocks** (620 of the 651 live
+  rows were one fact at two grains).
+- `atlas-client/src/components/timetable/simple/SimpleGenerationBlockerGroups.tsx` **(new)** — one line per
+  root cause counted in CLASSES + ONE "Check again" + the full row list behind the shared `@/ui` Accordion.
+- `atlas-client/src/components/timetable/simple/SimpleGenerationBlockerSheet.tsx` — the grouped view is the
+  default, the row list is preserved verbatim behind the disclosure, the per-row "Recheck generation readiness"
+  is removed, and the lead sentence is now "N setup items must be fixed before a timetable can be made."
+  instead of the "N things" jargon.
+- `atlas-client/src/components/timetable/TimetableSimpleHeader.tsx` and `TimetableSetupPane.tsx` — read
+  `diagnostic.blockerCount` (blocking) instead of `diagnostic.blockers.length` (rows).
+  `setupItemsToFixLabel` itself is UNCHANGED; it just receives the blocking count now.
+
+No header control was added, no chip was added, and no existing entry point moved.
+
+**Staging/live proof on 2023-2024 is A4's deployment-time row and is NOT yet performed** — this candidate is
+integrated, not deployed, and not seen rendered.

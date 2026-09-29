@@ -77,10 +77,12 @@ export type TimetableCapabilityInput = {
 	driftBlocked?: boolean;
 	driftMessage?: string | null;
 	/**
-	 * UX-C01R — the canonical generation diagnostic gate summary. When present,
-	 * generation is allowed only when `generateAllowed`, `zeroWrite`, and
-	 * `blockerCount === 0` all agree. This is defense-in-depth behind the
-	 * readiness adapter, which already only reports `ready` under those terms.
+	 * UX-C01R — the canonical generation diagnostic gate summary. A8 C3: when
+	 * present, generation follows the SERVER's `generateAllowed` and its zero-write
+	 * proof only. A raw `blockerCount` must never independently block here, because
+	 * a teacher gap is a setup fact the run carries and names. This is
+	 * defense-in-depth behind the readiness adapter, which already only reports
+	 * `ready` under those terms.
 	 */
 	generationDiagnostic?: TimetableReadinessDiagnosticSummary | null;
 	/** The one smallest repair for the exact current blocker, when known. */
@@ -173,9 +175,19 @@ export function deriveTimetableCapabilities(input: TimetableCapabilityInput): Ti
 			return denied('Schedule information could not be checked.', retry('Retry schedule check'), 'Schedule information unavailable');
 		}
 		// UX-C01R — never allow generation from a "ready" state whose canonical
-		// diagnostic does not prove allow + zero-write + no blockers.
+		// diagnostic does not prove allow + zero-write.
+		//
+		// A8 C3: `blockerCount` is DELIBERATELY not part of this expression. The
+		// old form (`blockerCount > 0`) let a raw row count independently block,
+		// and on live S.Y. 2023-2024 620 of the operator's 651 rows were ONE fact
+		// at two grains — 50 classes with no Teaching Load owner, reported once
+		// per pair and once per session of it. The server's `generateAllowed` is
+		// now computed from the BLOCKING count, so following it is both stricter
+		// (a real hard violation, a dry run that did not happen, or a writing
+		// diagnostic still blocks) and correct about teacher gaps. The count is
+		// still carried on the summary for REPORTING only.
 		if (input.generationDiagnostic
-			&& (!input.generationDiagnostic.generateAllowed || !input.generationDiagnostic.zeroWrite || input.generationDiagnostic.blockerCount > 0)) {
+			&& (!input.generationDiagnostic.generateAllowed || !input.generationDiagnostic.zeroWrite)) {
 			return denied(
 				'Generation readiness is not verified for this school year.',
 				retry('Retry schedule check'),
