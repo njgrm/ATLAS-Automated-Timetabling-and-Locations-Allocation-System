@@ -595,3 +595,42 @@ test('A5-23.2-C6 AUDIT: every confirm/alert dialog opts out, so none can become 
 // Keep the bundler honest about the unused import surface.
 void renderToStaticMarkup;
 void g;
+
+// ===========================================================================
+// A5-23.2-C7 — QA F1 (2026-09-29, BLOCKING): a resizable dialog keeps its
+// scrollbar.
+// ===========================================================================
+
+test('A5-23.2-C7 a RESIZABLE dialog still scrolls, and a page-owned scroller still wins', () => {
+	// The regression, stated as the operator would meet it: `CoverShortageDialog`
+	// has no `overflow` token anywhere in its file and a body up to ten class
+	// names long; `CreatePlaceholderDialog` is one of the five targets this cycle
+	// was asked to make resizable. With `overflow-y-auto` confined to the
+	// confirm branch, Radix locks the page behind the dialog and the content
+	// below the 85vh cap is unreachable — no scrollbar, no footer.
+	const data = renderDialogContent({ 'data-testid': 'a5-scroll-data-dialog' });
+	assert.ok(
+		hasClass(data.el, 'overflow-y-auto'),
+		'a RESIZABLE data dialog must keep `overflow-y-auto`; content taller than the 85vh cap would otherwise be unreachable',
+	);
+
+	// Same for a confirm: it is capped at `max-h-[85vh]` too, so it needs the
+	// scroll just as much.
+	const confirm = renderDialogContent({ resizable: false, 'data-testid': 'a5-scroll-confirm-dialog' });
+	assert.ok(hasClass(confirm.el, 'overflow-y-auto'), 'a compact confirm must keep `overflow-y-auto` under its height cap');
+
+	// AND the page-owned scroller must still win, or the five targets that own
+	// their internal scroll region would gain a second, outer scrollbar
+	// (AGENTS.md §8 — one scroll region, none of them global). `className` is
+	// merged LAST, so `overflow-hidden` overrides the base default.
+	const owned = renderDialogContent({ 'data-testid': 'a5-own-scroller-dialog', className: 'overflow-hidden' });
+	assert.ok(
+		hasClass(owned.el, 'overflow-hidden'),
+		'a surface that owns its own scroll region must keep `overflow-hidden`; the base default must not fight it',
+	);
+	assert.equal(
+		hasClass(owned.el, 'overflow-y-auto'),
+		false,
+		'the base `overflow-y-auto` and the page-owned `overflow-hidden` are both live; tailwind-merge must collapse them to the page-owned one',
+	);
+});

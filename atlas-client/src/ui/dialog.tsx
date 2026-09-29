@@ -263,9 +263,26 @@ const DialogContent = React.forwardRef<
 					data-resizing={isResizing ? 'true' : undefined}
 					style={{ ...style, ...(dragWidthPx != null ? { width: `${dragWidthPx}px` } : null) }}
 					className={cn(
-						'z-50 grid w-full max-w-lg h-fit gap-4 border border-border bg-background p-6 shadow-lg rounded-lg data-[state=open]:animate-modal-center-in data-[state=closed]:animate-modal-center-out',
+						'z-50 grid w-full max-w-lg h-fit gap-4 border border-border bg-background p-6 shadow-lg rounded-lg overflow-y-auto data-[state=open]:animate-modal-center-in data-[state=closed]:animate-modal-center-out',
 						resizable ? DIALOG_RESIZABLE_CLASSES : DIALOG_COMPACT_CLASSES,
-						!resizable && 'overflow-y-auto',
+						/*
+						 * `overflow-y-auto` is on the BASE, not on a branch.
+						 *
+						 * QA F1 (2026-09-29, BLOCKING): an earlier revision put it
+						 * behind `!resizable`, so every RESIZABLE dialog lost its
+						 * scrollbar while Radix locks the page behind it. A resizable
+						 * dialog whose body is tall and has no internal scroller —
+						 * `CoverShortageDialog.tsx` (no `overflow` token anywhere in
+						 * the file, body is data-dependent up to ten class names) and
+						 * `CreatePlaceholderDialog.tsx` (one of the packet's five
+						 * targets) — then painted its overflow past the 85vh cap, past
+						 * the viewport, with no way to reach the footer.
+						 *
+						 * A surface that DOES own its scroll region passes
+						 * `overflow-hidden` as `className`, which is merged LAST and
+						 * therefore wins in tailwind-merge. So the base default and the
+						 * page-owned scroller cannot fight.
+						 */
 						isResizing && 'select-none',
 						className,
 					)}
