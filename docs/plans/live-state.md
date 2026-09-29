@@ -26,6 +26,43 @@ rules are what make that safe:
    `docs/handoffs/planner-session-handoff.md`, Lane B in its own handoff file, Lane C in its
    section below until a stream needs a handoff.
 
+## Lane A4 — release lane, 2026-09-29 14:0x +08 (train 9 GATE = NO_GO; not deployed to staging)
+
+- **TRAIN 9 IS PINNED AT `9426902a378db7bd36a84547e9ad6595571e8c22` AND NOT DEPLOYED — the client-suite gate is
+  `NO_GO`.** Staging still serves `3216d383`; live was never a participant. **What proves it:** staging 5101 -> **28396**
+  and 5274 -> **37856** (unchanged by this session), live 5001 -> **23456** / 5174 -> **17856** (unchanged), machine
+  scope still `…-8prod` / `3216d383…`.
+- **Every other gate PASSES:** prisma diff **0** files (migrations **11 -> 11**, no migration) · `test:staging-guards`
+  **20/20** · live-data invariant **1 active mirror, `2023-2024`, on live and staging** (independently run by the
+  pre-action reviewer) · shipped-vs-claimed verified per lane · `E:` **28.34 GiB**.
+- **The NO_GO row — `R1`, and it is NOT the packet's size-cap exception.** Client suite `1296 tests / 1255 pass / 41 fail`.
+  Against the train-5 KNOWN_RED baseline (`docs/reviews/client-suite-baseline-20260929/baseline.md`) there are **4 new**
+  rows: **2 are the carried-by-live pair** in `a2-c11-s2-header-banners.test.tsx` (owner A2, already recorded, fail
+  byte-identically at live) and **1 is `R3`, a pure size-cap line** (`TeachingLoad.tsx` cap 1000; A6 c7 `951bec35` grew it
+  990 -> 999) which the packet excepts. The blocker is **`R1`**: `savedOwnershipMap should be gone from SectionGridMode`
+  in `tl-operator-workspace-c05.test.ts`. **What proves it:** `git log -S savedOwnershipMap 3216d383..9426902a` names
+  exactly one commit, `951bec35` (A6 c7), which added the prop to
+  `atlas-client/src/components/faculty-assignments/SectionGridMode.tsx` (+76 lines); the count is **0 at live, 3 at pin**;
+  and the test file is **unchanged in this range**. The prop is no longer dead — L200 reads it to resolve `savedOwnerId`
+  for the "Assign teacher" feature — so this is a **stale c05-era cleanup assertion**, not a code regression. It is still
+  a new `✖` that the packet does not except, so A4 holds.
+- **Minimal remedy (owner A6, one line):** drop `savedOwnershipMap` from the dead-prop list in
+  `tl-operator-workspace-c05.test.ts`, since A6 c7 re-introduced it as a live prop. `R3` needs no action to clear the
+  gate (excepted) but should be routed to A6/A3 as a split of `TeachingLoad.tsx`, the same treatment A3 gave `Audit.tsx`.
+  Either fix re-gates and stages, or Lane C explicitly waives `R1` as routed NON_BLOCKING and instructs A4 to stage.
+- **Pre-action review was `CORRECTION_REQUIRED` 22/28 with one BLOCKING row** (the step-2 "chunk discriminator" named no
+  artefact). **Applied as a docs-only packet correction at `8339cb56`** (§11: planner applies wording defects directly).
+  The pre-deploy asset baseline the row required **is captured**: 61 assets from `http://127.0.0.1:5274` at
+  `E:\ATLAS-staging\audit\pre-assets-9426902a.txt`.
+- **Capacity (§3 reclaim executed, E: 27.59 -> 29.11 GiB, then 28.34 after the gate's `npm ci`).** Retired
+  `E:\ATLAS-worktrees\lane-a4-release-20260929-7` — clean, HEAD `3216d383` == the live release commit and an ancestor of
+  the pin, reparse re-check 0, 0 processes, own dependency trees, non-forced `git worktree remove` + `prune`. Donors
+  re-counted 155/209 after; stash unchanged at 4. **Untouched:** `-8prod` (LIVE runtime source dir), `-7prod` (rollback
+  basis), `-4prod`, `-6` and `-c02-20260929` (PRESERVE_FOR_DECISION, unintegrated).
+- **Next action (single):** Lane C rules on `R1` — either send it to A6 for the one-line fix, or state that `R1` is
+  accepted NON_BLOCKING and instruct A4 to re-run the deploy. Production cutover (step 3) stays locked behind Lane C's GO
+  and has not been requested.
+
 ## Lane A4 — release lane, 2026-09-29 12:45 +08 (staging QA access READY; train 8 remains the live release)
 
 - **STAGING QA ACCESS READY (as of 2026-09-29 12:45 +08).** `STAGING QA ACCOUNT READY` (exit 0) plus the loopback

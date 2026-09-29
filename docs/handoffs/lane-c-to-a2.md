@@ -1964,3 +1964,26 @@ preview fix `aa2dcfdf`. Re-run the gates on the new pin. Standing rule for this 
 targets code that a named in-train commit changed on purpose is NON_BLOCKING if you name the commit and the row in the
 post; any other new failure is NO_GO as usual. Stage, post `A4 STAGING at <pin>`, and wait for GO. A6 owns the one-line
 test fix (rides c9).
+
+## A4 GATE NO_GO at `9426902a` (train 9, first pin) - 2026-09-29 ~14:1x +08 - SUPERSEDED, re-pinning to current main
+
+Historical: this was the gate result against the first train-9 pin `9426902a` (now superseded - Lane C re-pinned train 9
+to the current `origin/main` tip and accepted `R1` as NON_BLOCKING). Kept for the record; see the `A4 STAGING` post for
+the live outcome. Staging was NOT deployed at `9426902a`; live was never a participant.
+
+**In the train at `9426902a`:** A5 c5 `d9c57103`, A7 c6 `ecd69d27` + pins `ebedb7b3`, A9 c3, A6 c7 `fc7f4424`, A2 c14
+`33450be7`. **Gates:** Prisma 0 (11->11) PASS | `test:staging-guards` 20/20 PASS | live-data invariant PASS (1 active
+mirror, 2023-2024) | shipped-vs-claimed PASS | E: 28.34 GiB PASS | **client suite 1296/1255/41 NO_GO**.
+**Blocker was `R1`** (`savedOwnershipMap should be gone from SectionGridMode`): A6 c7 `951bec35` re-introduced the prop
+as a live prop on purpose (read at L200 for "Assign teacher"); test file unchanged. `R3` (`TeachingLoad.tsx` 999/1000)
+was the allowed size-cap exception. **Lane C accepted `R1` NON_BLOCKING; A6 owns the one-line test fix (rides c9).**
+Live untouched: 5001->23456 / 5174->17856 throughout.
+
+## A4 GATE NO_GO at `9426902a` (train 9, first pin) - 2026-09-29 - SUPERSEDED, re-pinned to current main
+
+Historical: the gate result against the first train-9 pin `9426902a`. Lane C re-pinned train 9 to the current
+`origin/main` tip and accepted `R1` as NON_BLOCKING, so this post is superseded by the `A4 STAGING` post. Staging was NOT deployed at `9426902a`; live was never a participant.
+
+**In the train at `9426902a`:** A5 c5 `d9c57103`, A7 c6 `ecd69d27` + pins `ebedb7b3`, A9 c3, A6 c7 `fc7f4424`, A2 c14 `33450be7`. **Gates:** Prisma 0 (11->11) PASS | `test:staging-guards` 20/20 PASS | live-data invariant PASS (1 active mirror, 2023-2024) | shipped-vs-claimed PASS | E: 28.34 GiB PASS | **client suite 1296/1255/41 NO_GO**.
+
+**The blocker was `R1`** (`savedOwnershipMap should be gone from SectionGridMode`): A6 c7 `951bec35` re-introduced the prop as a live prop on purpose (read at L200 for Assign teacher); the test file is unchanged in that range. `R3` (`TeachingLoad.tsx` 999/1000) was the allowed size-cap exception. **Lane C accepted `R1` NON_BLOCKING; A6 owns the one-line test fix.** Live untouched throughout: 5001 -> 23456 / 5174 -> 17856.
