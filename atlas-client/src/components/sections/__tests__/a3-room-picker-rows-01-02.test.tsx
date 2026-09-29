@@ -950,3 +950,62 @@ test('R4 control: the Home room column is sized, so the table cannot be pushed w
 		'the primitive must not gain a pixel width cap: the COLUMN is sized, not the control',
 	);
 });
+
+test('R5 control: the Home room cell carries a HARD cap, because a width is only a hint', () => {
+	// A9 C7 R5. R4 gave the column `w-[200px] min-w-0` on both the `<th>` and the
+	// `<td>`, and it did NOT constrain anything: measured on real staging data, the
+	// table still read `scrollWidth 1105` against a panel of `clientWidth 1070` at
+	// 1366x768 (984 at 1280x720), with the row's "More actions" button outside the
+	// visible panel on every row. In an auto-layout table a `width` is a HINT — the
+	// cell lays out at its content's intrinsic width, and the shared trigger's
+	// intrinsic width is what demanded the extra 35px. QA's own experiment is the
+	// proof of what a hard constraint does: hiding the picker buttons gave exactly
+	// 1070, and capping them at 180px also removed the overflow.
+	//
+	// So the cap is explicit, on the cell, equal to the header's width, and the
+	// content inside can actually shrink so the trigger's own `truncate` reaches an
+	// ellipsis instead of the content pushing the column back out.
+	const row = source('src/components/sections/SectionRow.tsx');
+	const header = source('src/pages/Sections.tsx')
+		.split(/\r?\n/)
+		.find((l) => l.includes('<th') && l.includes('Home room'));
+	assert.ok(header, 'precondition: the Home room <th> exists');
+	const cell = row.split(/\r?\n/).find((l) => l.includes('<td') && l.includes('w-[200px]'));
+	assert.ok(cell, 'the Home room <td> must still carry the explicit width');
+
+	const headerWidth = Number(/w-\[(\d+)px\]/.exec(header!)?.[1]);
+	const cellCap = /max-w-\[(\d+)px\]/.exec(cell!)?.[1];
+	// THE fix: a hard cap, and the SAME number as the header's width so the two
+	// cannot drift apart on a later edit.
+	assert.ok(cellCap, `THE fix: the Home room <td> must carry a hard max-w-[Npx] cap; got ${cell}`);
+	assert.equal(Number(cellCap), headerWidth, 'the hard cap must equal the header\'s width');
+	assert.ok(Number(cellCap) > 0, 'the cap must be a real number of pixels');
+
+	// And the cell must be able to SHRINK, or a cap only clips: a flex item's
+	// default `min-width: auto` refuses to shrink below its content, so the flex
+	// line inside the cell needs `min-w-0` for the trigger's own truncation to be
+	// reached instead of the content pushing the column back out.
+	assert.match(cell!, /\bmin-w-0\b/, 'the capped cell must also be min-w-0 so its content can shrink');
+	assert.match(
+		row,
+		/<div className="min-w-0 space-y-1\.5">/,
+		'the cell\'s flex line must carry min-w-0, or the cap clips instead of truncating',
+	);
+	// The width hint is kept, not replaced: together they are the contract.
+	assert.match(cell!, /\bw-\[200px\]/, 'the explicit width stays; the cap is added beside it, not instead of it');
+
+	// §8, the boundary this round exists to hold: the primitive gains NOTHING. A
+	// width or cap inside `SectionRoomPicker` would make the control look different
+	// in this table than on the mobile card or in the guided dialog.
+	const picker = source('src/components/sections/SectionRoomPicker.tsx');
+	for (const [what, pattern] of [
+		['a pixel width cap', /max-w-\[\d+px\]/],
+		['a pixel width override', /(?<!max-)w-\[\d+px\]/],
+		['a page-local className prop', /className=\{['"][^'"]*\b(?:w-|max-w-)\[/],
+	] as const) {
+		assert.doesNotMatch(picker, pattern, `the primitive must not gain ${what} (§8: one look per control)`);
+	}
+	// The primitive's own truncation is what the cap relies on, so it must still
+	// be there.
+	assert.match(picker, /\btruncate\b/, 'the trigger must keep its own truncation for the cap to land on an ellipsis');
+});

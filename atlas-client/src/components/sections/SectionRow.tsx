@@ -182,16 +182,25 @@ export function SectionRow({
 				</span>
 			</td>
 
-			{/* A9 C7 R4: the column carries an explicit width and this cell matches it,
-			    so the table cannot be pushed wider than the panel it scrolls in. The
-			    trigger keeps its own `w-full` and truncate, so the CONTROL is unchanged
-			    on all three surfaces (§8 one look per control) — only the column that
-			    holds it in this one table is sized. Measured before the fix at
-			    1366x768: table `scrollWidth 1105` inside a panel of `clientWidth
-			    1070`, `DETAILS` cut to `DETA`, and the row's "More actions" kebab at
-			    right edge 1365 against a panel edge of 1346 — outside the visible
-			    panel on every row. */}
-			<td className="w-[200px] min-w-0 px-4 py-3">
+			{/* A9 C7 R5: `w-[200px]` ALONE DID NOT CONSTRAIN THE COLUMN, so the cap is
+			    explicit. In an auto-layout table a `width` is a HINT: the cell still lays
+			    out at its content's intrinsic width, and the shared trigger's intrinsic
+			    width is what pushed the table past its panel. Measured on the R4
+			    candidate: `scrollWidth 1105` against a panel of `clientWidth 1070` at
+			    1366x768 (984 at 1280x720), with the row's "More actions" button outside
+			    the visible panel on every row. A width is not a cap; `max-w-[200px]` is.
+			    It is the SAME number as the header's width, so the two cannot disagree.
+
+			    The content inside has to be ABLE to shrink, or a cap just clips it: the
+			    `div` is a flex line, so it also carries `min-w-0`, and the picker
+			    trigger's own `truncate` then reaches its ellipsis instead of the content
+			    pushing the column back out.
+
+			    `SectionRoomPicker` is untouched — no width, no cap, no className
+			    override. One look per control (AGENTS.md §8): the same component must
+			    look and behave identically on the mobile card and in the guided dialog.
+			    The constraint belongs to the one table column that cannot fit it. */}
+			<td className="w-[200px] min-w-0 max-w-[200px] px-4 py-3">
 				{/* A9 C7 (2026-09-29) — THE ROW PICKER IS BACK, ON LANE C's BINDING ADDENDUM.
 				    THE HISTORY, so this cell is not re-litigated a third time. A9 C3
 				    (`86665f48`) removed the inline picker from this table and left a plain
@@ -230,7 +239,11 @@ export function SectionRow({
 				      {building}`); the pre-A9-C3 "Needs home room. Choose a room." /
 				      "Ready: …" sentences and any read-only sentence are NOT brought
 				      back, because the control itself already says what it is. */}
-				<div className="space-y-1.5">
+				{/* `min-w-0` on this flex line is what makes the cell's cap usable: a flex
+				    item's default `min-width: auto` refuses to shrink below its content,
+				    so without it the cap would clip the trigger instead of letting its
+				    own `truncate` reach an ellipsis. */}
+				<div className="min-w-0 space-y-1.5">
 					<SectionRoomPicker
 						sectionId={section.id}
 						sectionName={section.name}
