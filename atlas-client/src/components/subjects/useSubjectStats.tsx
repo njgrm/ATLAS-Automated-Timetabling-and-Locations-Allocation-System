@@ -1,11 +1,22 @@
 import { useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import type { Subject, SubjectCoverageRow } from '@/types';
+import type { SubjectCoverageVerdict } from '@/components/subjects/subjects-coverage-truth';
 import { splitSubjectFeatures } from './subject-feature-presentation';
 
 type SubjectStatsInput = {
 	subjects: Subject[];
 	coverageBySubjectId: Map<number, SubjectCoverageRow> | null;
+	/**
+	 * A6 c10 — the shared verdict, when the page has resolved it. It is a SEPARATE
+	 * argument rather than a replacement for `coverageBySubjectId` because the row
+	 * list still needs the server's own `SubjectCoverageRow` (its `ownedSectionCount`
+	 * and `relevantSectionCount` are not re-derivable here), and adding a second map
+	 * is cheaper than teaching one map two shapes. When it is absent this hook
+	 * falls back to the superseded predicate and says so through the spinner's help
+	 * text — it never silently prints a confident 0.
+	 */
+	coverageVerdictBySubjectId?: Map<number, SubjectCoverageVerdict> | null;
 };
 
 /**
@@ -60,13 +71,32 @@ export function countRoomConstrainedSubjects(subjects: Subject[]): number {
 	return subjects.filter(isRoomConstrainedSubject).length;
 }
 
-export function useSubjectStats({ subjects, coverageBySubjectId }: SubjectStatsInput) {
+export function useSubjectStats({ subjects, coverageBySubjectId, coverageVerdictBySubjectId }: SubjectStatsInput) {
 	return useMemo(() => {
 		const activeCount = subjects.filter((s) => s.isActive).length;
 		const archivedCount = subjects.length - activeCount;
 		const roomConstrainedCount = countRoomConstrainedSubjects(subjects);
-		const coverageRiskCount = coverageBySubjectId
-			? subjects.filter((s) => s.isActive && (coverageBySubjectId.get(s.id)?.uncoveredSectionCount ?? 0) > 0).length
+		/*
+		 * A6 c10 — the count reads the SHARED VERDICT, not `uncoveredSectionCount`.
+		 *
+		 * `uncoveredSectionCount > 0` is the predicate that printed `MISSING COVERAGE
+		 * 0` while 50 classes sat on to-be-hired records (Codex audit, 2026-09-29):
+		 * a placeholder-held class has an owner, so it was never "uncovered" and the
+		 * subject was counted as safe. `subjectCoverageVerdict` is the same decision
+		 * the row's own label makes, so the header and the row cannot disagree — and
+		 * a subject whose coverage read has not resolved is NOT counted as safe, it
+		 * is counted as not-yet-known, which is why the branch is `null`.
+		 */
+		const coverageRiskCount = coverageVerdictBySubjectId
+			? subjects.filter((s) => s.isActive && !coverageVerdictBySubjectId.get(s.id)?.fullyCoveredByRealTeachers).length
+			: coverageBySubjectId
+				? subjects.filter((s) => s.isActive && (coverageBySubjectId.get(s.id)?.uncoveredSectionCount ?? 0) > 0).length
+				: null;
+		const placeholderOnlyCount = coverageVerdictBySubjectId
+			? subjects.filter((s) => {
+				const verdict = coverageVerdictBySubjectId.get(s.id);
+				return s.isActive && verdict != null && !verdict.fullyCoveredByRealTeachers && verdict.label.startsWith('Covered by a to-be-hired teacher');
+			}).length
 			: null;
 		return [
 			{
@@ -83,9 +113,16 @@ export function useSubjectStats({ subjects, coverageBySubjectId }: SubjectStatsI
 					? <Loader2 className="size-3 animate-spin" data-testid="subjects-missing-coverage-spinner" />
 					: coverageRiskCount,
 				tone: coverageRiskCount === null ? 'info' as const : coverageRiskCount > 0 ? 'warning' as const : 'success' as const,
+				// A6 c10: the help text now says what is being counted, because the
+				// whole defect was a figure whose meaning its own label did not carry.
+				// A to-be-hired record is named here as one of the two ways a class
+				// is short, so a scheduler reading 0 can tell 0-from-nothing-apart
+				// from 0-not-yet-checked.
 				helpText: coverageRiskCount === null
 					? 'ATLAS is checking teaching-load coverage.'
-					: 'Active schedulable subjects with one or more uncovered sections in the current teaching load.',
+					: placeholderOnlyCount && placeholderOnlyCount > 0
+						? `Active subjects with a class that has no real teacher — ${placeholderOnlyCount} of them are covered only by a to-be-hired record.`
+						: 'Active subjects with a class that has no real teacher. A to-be-hired record does not count as one.',
 			},
 			{
 				label: 'Room constrained',
@@ -94,7 +131,7 @@ export function useSubjectStats({ subjects, coverageBySubjectId }: SubjectStatsI
 				helpText: 'Active subjects that need a specialized room type or room feature.',
 			},
 		];
-	}, [coverageBySubjectId, subjects]);
+	}, [coverageBySubjectId, coverageVerdictBySubjectId, subjects]);
 }
 
 type CoverageDetailInput = {

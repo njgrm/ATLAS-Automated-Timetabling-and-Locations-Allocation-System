@@ -312,16 +312,44 @@ test('the room-map control does not disturb the home-room edit path', () => {
 	const control = el.querySelector<HTMLButtonElement>('button[aria-label="View room map for G7 - Rizal"]');
 	act(() => { control!.click(); });
 	assert.equal(changed, 0, 'opening the map is not an assignment');
-	// A9 C3: the row's own `SectionRoomPicker` is GONE from the table, so the
-	// `assert.ok(el.querySelector('[role="combobox"]'), 'the home-room picker is intact')`
-	// line that used to sit here is superseded, and its replacement asserts the new
-	// invariant instead: the repeated per-row control is not rendered. Against the
-	// pre-A9-C3 row this FAILS (twenty comboboxes), which is what makes it evidence
-	// rather than a description.
+	// A9 C3 asserted, and it is QUOTED here rather than deleted because the
+	// binding addendum of 2026-09-29 15:55 (Lane C, item 46 +
+	// `docs/prompts/fix-3-2026-09-29.md`) OVERRULED the decision it recorded:
+	//   assert.equal(
+	//     el.querySelectorAll('[role="combobox"]').length,
+	//     0,
+	//     'the row still renders a home-room picker; the guided step owns that control now',
+	//   );
+	// Its reason was that the guided bulk step owned that control. It does not:
+	// the operator reported item 46 against the row control she actually uses,
+	// and manual assignment is the demo priority. The guided step stays the
+	// PRIMARY action; the row is the manual override beside it.
+	//
+	// The REPLACEMENT, which is the invariant that is actually true now:
+	//  - the row renders EXACTLY ONE combobox — the picker's own trigger, so the
+	//    repeated-control tedium the audit named is bounded at one per row and
+	//    the page still has ONE control that looks like itself everywhere;
+	//  - it is that trigger, carrying the picker's accessible contract, not some
+	//    other combobox;
+	//  - and the map control still cannot reach an assignment on its own (the
+	//    `changed === 0` assertion above, which is unchanged).
+	const triggers = el.querySelectorAll('[role="combobox"]');
 	assert.equal(
-		el.querySelectorAll('[role="combobox"]').length,
-		0,
-		'the row still renders a home-room picker; the guided step owns that control now',
+		triggers.length,
+		1,
+		'the restored row renders EXACTLY ONE combobox — the home-room picker trigger, one per row',
+	);
+	const trigger = triggers[0] as HTMLButtonElement;
+	assert.equal(trigger.tagName, 'BUTTON', 'the restored control is a real, keyboard-reachable button');
+	assert.equal(trigger.getAttribute('aria-haspopup'), 'listbox', 'it is the picker trigger: it opens a listbox');
+	assert.equal(trigger.getAttribute('aria-expanded'), 'false', 'and it starts closed');
+	assert.ok(
+		trigger.getAttribute('aria-controls'),
+		'the trigger names the listbox it controls',
+	);
+	assert.ok(
+		(trigger.textContent ?? '').includes('Room 501'),
+		`the trigger must show the section's CURRENT room, not a bare glyph: ${trigger.textContent}`,
 	);
 	// The editor is not lost, it moved: the row's map button opens a full room picker
 	// for THIS section, and it writes through the same `onHomeRoomChange` the row used
@@ -331,6 +359,42 @@ test('the room-map control does not disturb the home-room edit path', () => {
 		el.querySelector('button[aria-label="View room map for G7 - Rizal"]'),
 		'the per-row room editor (the map) is still on the row',
 	);
+});
+
+test('the restored row picker writes through onHomeRoomChange', () => {
+	// The binding addendum's whole point is that the control she uses REACHES the
+	// write. A restored control that renders but cannot save would be a worse
+	// defect than the one it replaced, so this opens the real popover with the
+	// same `pointerdown` Radix needs (copied from
+	// `a3-room-picker-rows-01-02.test.tsx`) and clicks a real room option.
+	const changes: Array<{ id: number; roomId: number | null }> = [];
+	const el = renderRow(RESOLVED, {
+		// Start unassigned, so the click is an assignment and not a no-op.
+		section: { ...RESOLVED, homeRoomId: null },
+		onHomeRoomChange: (s: Section, roomId: number | null) => { changes.push({ id: s.id, roomId }); },
+	});
+	const trigger = el.querySelector<HTMLButtonElement>('[role="combobox"]');
+	assert.ok(trigger, 'the row carries the picker trigger');
+	assert.match(
+		(trigger!.textContent ?? ''),
+		/Choose home room/,
+		'an unassigned row says what the control does — clickable, with a visible label',
+	);
+	// The two-step open is copied from `a3-room-picker-rows-01-02.test.tsx`:
+	// Radix opens the popover on `click`, and the `pointerdown` is the fallback
+	// for the harness's path. Both are dispatched for real, not simulated.
+	act(() => { trigger!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true })); });
+	if (!dom.window.document.querySelector('[role="listbox"]')) {
+		act(() => { trigger!.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true, cancelable: true })); });
+	}
+	const listbox = dom.window.document.querySelector('[role="listbox"]');
+	assert.ok(listbox, 'the popover must open on the real row');
+	const option = Array.from(dom.window.document.querySelectorAll('[role="option"]'))
+		.find((n) => (n.textContent ?? '').includes('Room 501'));
+	assert.ok(option, 'the room this section is assigned to must be offered');
+	act(() => { (option as HTMLElement).click(); });
+	assert.equal(changes.length, 1, 'picking a room fires exactly one change');
+	assert.deepEqual(changes[0], { id: RESOLVED.id, roomId: 501 }, 'and it names THIS section and the chosen room');
 });
 
 /* ───────────────── C: the read-only truth on the map control (review N2) ─────── */
@@ -378,20 +442,31 @@ test('a read-only row still opens the map, and says picking is paused', () => {
 	act(() => { control!.click(); });
 	assert.deepEqual(opened, [RESOLVED.id], 'read-only browsing still opens the map');
 
-	// A9 C3: the sibling assertion that used to close this row is superseded and is
-	// quoted, not deleted. It read:
-	//   const picker = el.querySelector('[role="combobox"]');
-	//   assert.equal(picker!.hasAttribute('disabled'), true, 'the sibling picker keeps its read-only disable');
-	// The desktop row no longer HAS a sibling picker, so that row could only be kept as
-	// a `null!.hasAttribute()` crash. The DIVERGENCE it protected is real and still
-	// required: browsing the map stays ENABLED in read-only while every WRITE control is
-	// disabled. It is now proved where the write control lives — the guided step's apply
-	// action, in `a9-c3-guided-home-room-step.test.tsx` — and the two halves are asserted
-	// here on the row that still owns one of them.
+	// A9 C3 asserted that a read-only row must not grow a write control back, and
+	// it is QUOTED rather than deleted:
+	//   assert.equal(
+	//     el.querySelectorAll('[role="combobox"]').length,
+	//     0,
+	//     'a read-only row must not grow a write control back',
+	//   );
+	// It was a direct consequence of the same decision the 15:55 addendum
+	// overruled, and its own adjacent comment says so. The DIVERGENCE it existed
+	// to protect is now restorable IN FULL rather than proved elsewhere: the row
+	// has its picker again, and that picker IS the write control — so the honest
+	// replacement is that it is present AND disabled, while the map browse
+	// control beside it stays enabled. This is exactly the divergence the quoted
+	// row's own predecessor (`picker!.hasAttribute('disabled') === true`) asserted
+	// before A9 C3 removed the sibling picker.
+	const readOnlyTriggers = Array.from(el.querySelectorAll('[role="combobox"]'));
 	assert.equal(
-		el.querySelectorAll('[role="combobox"]').length,
-		0,
-		'a read-only row must not grow a write control back',
+		readOnlyTriggers.length,
+		1,
+		'a read-only row still renders the one picker trigger — it is disabled, not absent',
+	);
+	assert.equal(
+		readOnlyTriggers[0]!.hasAttribute('disabled'),
+		true,
+		'a write control must never be live on a read-only row',
 	);
 	assert.equal(
 		control!.hasAttribute('disabled'),

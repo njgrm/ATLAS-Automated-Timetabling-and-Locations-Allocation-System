@@ -40,6 +40,14 @@ import {
 import { useRosterScrollMemory } from '@/components/faculty/rosterScrollMemory';
 import { formatFacultyDisplayName, teacherNameSortKey } from '@/components/faculty/teacherNameDisplay';
 import { buildDuplicateNameCue, duplicateTeacherNameKey } from '@/components/faculty/duplicateTeacherNames';
+/**
+ * A6 c11 (truth-fixes §A6) — the ONE three-state arithmetic this page's tiles and
+ * attention badges read. It exists because four inline filters each counted a
+ * to-be-hired record as a person, and `subjects-coverage-truth.ts` already
+ * settled the same question on the Subjects page; a second definition of "with
+ * load" is the defect, so the definition has exactly one home.
+ */
+import { teacherLoadTruth, teacherStatItems } from '@/components/faculty/teacherLoadTruth';
 import { TeacherAttentionFilters } from '@/components/faculty/TeacherAttentionFilters';
 // A5 C3 slice B / B3: the four roster filters, extracted so this file stays under §8's
 // 1000-line cap and so the one shared picker is the only way a filter is built here.
@@ -633,17 +641,21 @@ export default function Faculty() {
 		return 'no-saved-data';
 	}, [dataSource, loading, refreshing]);
 
-	const teacherStats = useMemo(() => {
-		const activeCount = rosterStats?.activeCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling).length;
-		const assignedCount = rosterStats?.assignedCount ?? faculty.filter((teacher) => (teacher.subjectCount ?? 0) > 0).length;
-		const unassignedCount = rosterStats?.unassignedCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.subjectCount ?? 0) === 0).length;
-		const overCapCount = rosterStats?.overCapCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.policyCreditedHours ?? 0) > teacher.maxHoursPerWeek).length;
-		return [
-			{ label: 'Active teachers', value: activeCount, tone: activeCount > 0 ? 'success' as const : 'warning' as const, helpText: 'Teachers currently available for scheduling.' },
-			{ label: 'With load', value: `${assignedCount}/${activeCount}`, tone: assignedCount > 0 ? 'info' as const : 'warning' as const, helpText: `${unassignedCount} of ${activeCount} active teachers still need a teaching load.` },
-			{ label: 'Above weekly max', value: overCapCount, tone: overCapCount > 0 ? 'warning' as const : 'success' as const, helpText: 'Active teachers above the weekly maximum. Move classes before generating.' },
-		];
-	}, [faculty, rosterStats]);
+	/*
+	 * A6 c11 (truth-fixes §A6) — ONE arithmetic for every teacher-facing count on
+	 * this page, and placeholders excluded from it.
+	 *
+	 * This block used to ask four separate questions in four inline filters, each
+	 * counting a to-be-hired record as a person: `(subjectCount ?? 0) > 0` for
+	 * "with load" and `isActiveForScheduling` alone for "active". That is how a
+	 * roster of 34 real + placeholder records read `34/34` — fully staffed, by
+	 * records that are not people — while Teaching Load said 72 classes were
+	 * short. `teacherLoadTruth` owns the arithmetic now; this page decides only
+	 * WHEN to read it, exactly as `subjects-coverage-truth.ts` works on Subjects.
+	 */
+	const loadTruth = useMemo(() => teacherLoadTruth({ roster: faculty, serverStats: rosterStats }), [faculty, rosterStats]);
+
+	const teacherStats = useMemo(() => teacherStatItems(loadTruth), [loadTruth]);
 
 	const profileSourceLabel = useMemo(() => {
 		if (teacherSourceState === 'verified-live') return timeSince ? `Verified live - ${timeSince}` : 'Verified live';
@@ -746,8 +758,14 @@ export default function Faculty() {
 	}, []);
 
 	const attentionChips = [
-		{ id: 'needs-load' as const, label: 'No subjects assigned', helper: 'Active teachers with no subject assigned in Teaching Load.', count: rosterStats?.unassignedCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.subjectCount ?? 0) === 0).length },
-		{ id: 'over-cap' as const, label: 'Above weekly max', helper: overCapChipHelper(faculty), count: rosterStats?.overCapCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.policyCreditedHours ?? 0) > teacher.maxHoursPerWeek).length },
+		/*
+		 * A3 c17 x A6 c11 union. A6 c11 owns the COUNTS (`loadTruth.*`, which
+		 * excludes synthetic placeholder load); A3 c17 owns the `over-cap`
+		 * helper TEXT, which must read the saved weekly maximum rather than a
+		 * hard-coded 40h. Keep their counts and my helper.
+		 */
+		{ id: 'needs-load' as const, label: 'No subjects assigned', helper: 'Active teachers with no subject assigned in Teaching Load.', count: loadTruth.withoutLoadCount },
+		{ id: 'over-cap' as const, label: 'Above weekly max', helper: overCapChipHelper(faculty), count: loadTruth.overCapRealCount },
 		{ id: 'no-active-load' as const, label: 'No sections assigned', helper: 'Active teachers with no section assigned yet.', count: faculty.filter((teacher) => teacher.isActiveForScheduling && !teacher.isPlaceholder && (teacher.sectionCount ?? 0) === 0).length },
 		{ id: 'placeholders' as const, label: 'Temporary teachers', helper: 'Placeholder records for teachers who have not been hired yet. Replace before publishing.', count: faculty.filter((teacher) => teacher.isPlaceholder).length },
 		{ id: 'all' as const, label: 'All teachers', helper: 'Clear the attention filter and show every teacher.', count: rosterStats?.totalCount ?? faculty.length },
@@ -951,13 +969,22 @@ return (
 				onClose={closeWorkloadModal}
 			/>
 
-			{/* Roster review / profile — Fix 23: a centred Dialog, opened in place. */}
+			{/* Roster review / profile — Fix 23: a centred Dialog, opened in place.
+			    A6 c10: it also carries `Teaching permissions` — the switch and the
+			    `Subjects they may also teach` list, which are the only controls in the
+			    product that can create a `CrossDepartmentPermission` outside the moment
+			    a class needs one (Codex audit finding 6; Lane C's "nothing can create
+			    or delete one"). `schoolId` is the ACTOR's, and the sheet takes no
+			    default for it. */}
 			<FacultyProfileSheet
 				faculty={profileTarget}
 				open={profileTarget !== null}
 				onOpenChange={(open) => !open && setProfileTarget(null)}
 				sourceFreshness={profileSourceLabel}
 				reviewLabel={nextTeacherIntent?.label ?? 'Review teaching load'}
+				permissions={null}
+				schoolId={actorSchoolId}
+				onPermissionsChanged={() => { void fetchFaculty({ forceRefresh: true }); }}
 			/>
 
 			{/* Create/Edit Placeholder Modal */}

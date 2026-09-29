@@ -496,12 +496,22 @@ export default function TeachingLoad() {
 	// row-level excess count exactly; with filters active it follows the facet context.
 	const excessTeachingCount = ui.statusFacetCounts['excess'] ?? 0;
 
-	const showExcessTeachingLoad = useCallback(() => {
-		ui.setViewMode('teacher');
-		ui.setLoadFilter('excess');
-		ui.setFilterStatus('all');
-	}, [ui]);
-
+	/*
+	 * A6 c11 — `showExcessTeachingLoad` and `showTemporarySubstitutes` are GONE.
+	 * They existed to be the alert chip's `onClick`, and the chip never wired it:
+	 * `WorkspaceToolbar` rendered the chip as a `<span>`, so both callbacks were
+	 * unreachable from every state of every screen. A page that holds a callback
+	 * no control can call is the same "signature claims a capability the product
+	 * does not have" defect A6 c4 corrected, so they are deleted rather than left
+	 * dormant.
+	 *
+	 * THE FACTS SURVIVE WITHOUT THEM. Both were a shortcut to "show me the teachers
+	 * above the maximum" and "show me the to-be-hired records", and the repair queue
+	 * in row 2 already offers exactly that, one item per teacher, each with its own
+	 * action — so the chip is a summary of work the scheduler can start one row
+	 * below. `showOverloadedTeachers` stays: the repair queue's `over-cap` items
+	 * route through it and it is therefore live.
+	 */
 	const showUnassignedTeachingLoad = useCallback(() => {
 		ui.setViewMode('allocation');
 		ui.setSectionModeFilter('unassigned');
@@ -521,17 +531,6 @@ export default function TeachingLoad() {
 		ui.setShowFilters(false);
 	}, [ui]);
 
-	// The "Temporary substitutes" readiness chip is a real control: it opens the
-	// teacher grid filtered to unmapped temporary placeholder rows so the operator
-	// can replace them before generating.
-	const showTemporarySubstitutes = useCallback(() => {
-		ui.setViewMode('teacher');
-		ui.setShowTemporaryRoles(true);
-		ui.setSectionModeFilter('all');
-		ui.setLoadFilter('all');
-		ui.setFilterStatus('all');
-		ui.setShowFilters(false);
-	}, [ui]);
 	/* A6 C3 SLICE 1 — the header's four strings live in
 	 * `buildTeachingLoadWorkspaceState`, which records that extraction and why
 	 * every string travelled byte-for-byte. The page still decides WHEN. */
@@ -722,10 +721,8 @@ export default function TeachingLoad() {
 						totalPairs={coverageHeadline.total}
 						overCapCount={overCapCount}
 						excessTeachingCount={excessTeachingCount}
-						policyReady={ui.policyReady}
-						onShowExcessTeachingLoad={showExcessTeachingLoad}
-						onShowTemporarySubstitutes={showTemporarySubstitutes}
-						autoFillLoading={data.loading || suggestionLoading}
+					policyReady={ui.policyReady}
+					autoFillLoading={data.loading || suggestionLoading}
 						autoFillEnabled={Boolean(data.schoolId && data.activeSchoolYearId) && data.canPersistAssignments}
 						onAutoFillClick={handlePreviewSuggestedTeachingLoad}
 						viewMode={ui.viewMode}

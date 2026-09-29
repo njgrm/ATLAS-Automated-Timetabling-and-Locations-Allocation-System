@@ -45,6 +45,7 @@
 import { BookOpen } from 'lucide-react';
 import { AdminStatePanel, AdminTableShell } from '@/components/admin-workspace/AdminWorkspace';
 import { SubjectRow } from '@/components/subjects/SubjectRow';
+import type { SubjectCoverageVerdict } from '@/components/subjects/subjects-coverage-truth';
 import { SubjectMobileList } from '@/components/subjects/SubjectMobileList';
 import { SubjectTablePagination } from '@/components/subjects/SubjectTablePagination';
 import { SubjectTermContractPopover } from '@/components/subjects/SubjectTermContractPopover';
@@ -74,7 +75,14 @@ type Props = {
 	loading: boolean;
 	paged: Subject[];
 	subjects: Subject[];
-	coverageBySubjectId?: Map<number, SubjectCoverageRow> | null;	termAuthority: TermAuthority | null;
+	coverageBySubjectId?: Map<number, SubjectCoverageRow> | null;
+	/**
+	 * A6 c10 — the page's shared coverage verdict, threaded to the desktop row.
+	 * `SubjectMobileList` is deliberately NOT given it: its coverage line is a
+	 * plain `<span>` with no "Full coverage" badge, so there is no false claim on
+	 * that surface to correct, and this packet is not a sweep.
+	 */
+	coverageVerdictBySubjectId?: Map<number, SubjectCoverageVerdict> | null;	termAuthority: TermAuthority | null;
 	sortField: SortField;
 	sortDir: SortDir;
 	onToggleSort: (field: SortField) => void;
@@ -96,6 +104,7 @@ export function SubjectCatalogBody({
 	paged,
 	subjects,
 	coverageBySubjectId,
+	coverageVerdictBySubjectId,
 	termAuthority,
 	sortField,
 	sortDir,
@@ -229,6 +238,7 @@ export function SubjectCatalogBody({
 								subject={s}
 								timeMode="hours"
 								coverageRow={coverageBySubjectId?.get(s.id) ?? undefined}
+							coverageVerdictBySubjectId={coverageVerdictBySubjectId ?? null}
 								onEdit={onEdit}
 								onDelete={onDelete}
 								onArchive={onArchive}

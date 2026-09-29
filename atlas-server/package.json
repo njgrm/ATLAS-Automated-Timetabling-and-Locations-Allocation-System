@@ -32,6 +32,7 @@
     "test:published-swap-term": "tsx --test src/__tests__/published-swap-term-guard-c04.test.ts",
     "test:published-load-transfer": "tsx --test src/__tests__/published-teaching-load-transfer-c05.test.ts",
     "test:faculty-availability": "tsx --test src/__tests__/faculty-availability-s1.test.ts",
+    "test:a2-c17-preference-adherence": "tsx --test src/__tests__/a2-c17-preference-adherence.test.ts src/__tests__/a2-c17-preference-adherence-route.test.ts",
     "test:active-term-live-resolution": "tsx --test src/__tests__/active-term-live-resolution-c01.test.ts",
     "test:a5-c2a-term-truth": "tsx --test src/__tests__/a5-c2a-active-term-resolver.test.ts",
     "test:a5-c2a-term-truth-readwrite": "tsx --test src/__tests__/a5-c2a-active-term-resolver.test.ts",
