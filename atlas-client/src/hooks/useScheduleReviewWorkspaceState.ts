@@ -21,7 +21,7 @@ import {
 import { buildAcademicTermOptions, isVerifiedOrderedActiveTerm, repairTermFilter, type OrderedAcademicTerm } from '@/lib/academic-term';
 import { isTargetSlotOccupiedForTerm } from '@/lib/timetable-term-scope';
 import { formatTime } from '@/lib/utils';
-import { buildEditReceipt, receiptClassLabel } from '@/lib/timetable-edit-receipt';
+import { buildEditReceipt, receiptClassLabel, receiptProblemSentence } from '@/lib/timetable-edit-receipt';
 import atlasApi from '@/lib/api';
 import type {
 	Building,
@@ -1936,7 +1936,13 @@ export function useScheduleReviewWorkspaceState() {
 			problems: {
 				now: commitResult.violationDelta.hardAfter + commitResult.violationDelta.softAfter,
 				before: commitResult.violationDelta.hardBefore + commitResult.violationDelta.softBefore,
-				firstNewSentence: scopedPreview.humanConflicts.find((c) => c.severity === 'HARD')?.humanTitle ?? null,
+				/* A2 mc R2 (B2) - the DETAIL, not the TITLE. humanTitle for a teacher
+				 * conflict is the category (Teacher double-booked); the packet's own
+				 * example sentence is Mr Cruz already teaches 8-Luna at that time.,
+				 * which is humanDetail, and uildHumanConflicts already produces it.
+				 * It goes through the ONE scrubber the preview path uses, so no engine
+				 * token can reach a receipt either. */
+					firstNewSentence: receiptProblemSentence(scopedPreview.humanConflicts),
 			},
 		});
 		setInlineActionStatus({
@@ -2076,7 +2082,13 @@ export function useScheduleReviewWorkspaceState() {
 			problems: {
 				now: commitResult.violationDelta.hardAfter + commitResult.violationDelta.softAfter,
 				before: commitResult.violationDelta.hardBefore + commitResult.violationDelta.softBefore,
-				firstNewSentence: scopedPreview.humanConflicts.find((c) => c.severity === 'HARD')?.humanTitle ?? null,
+				/* A2 mc R2 (B2) - the DETAIL, not the TITLE. humanTitle for a teacher
+				 * conflict is the category (Teacher double-booked); the packet's own
+				 * example sentence is Mr Cruz already teaches 8-Luna at that time.,
+				 * which is humanDetail, and uildHumanConflicts already produces it.
+				 * It goes through the ONE scrubber the preview path uses, so no engine
+				 * token can reach a receipt either. */
+					firstNewSentence: receiptProblemSentence(scopedPreview.humanConflicts),
 			},
 		});
 		setInlineActionStatus({

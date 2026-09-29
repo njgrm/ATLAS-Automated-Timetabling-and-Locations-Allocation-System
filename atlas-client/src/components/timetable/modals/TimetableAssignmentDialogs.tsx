@@ -182,6 +182,10 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 					const receipt = historyEditReceiptSentence(
 						edit,
 						context.editHistoryEntryClassName ?? (() => null),
+						// A2 mc R2 (B3) — when `autoMove` above already states where a
+						// class went, the receipt clause is suppressed: one change, one
+						// sentence about its destination, not two that disagree.
+						{ suppressWhenAutoMoveNamed: autoMove },
 					);
 					const canRevert = !isRevert && !isUndone && isHead && currentRunVersion != null && !revertLoading;
 					// A2-C7 correction (QA `ses_f19fa473bffeDm5iNBes3VX7PH` finding on

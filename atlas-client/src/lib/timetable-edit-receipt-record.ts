@@ -60,9 +60,25 @@ function readSlots(edit: ManualEditRecord): { from: ReceiptSlot | null; to: Rece
 	const directTo = readSlot(after) ?? readSlot(after.entry) ?? null;
 	if (directFrom || directTo) return { from: directFrom, to: directTo };
 
+	/* A2 mc R2 (B3) — a SWAP's destination is read from the AFTER payload.
+	 *
+	 * The pre-fix row composed `to` from `before.entryB`, which is the true
+	 * destination only for a CLEAN exchange. `timetable-edit-history-truth.ts`
+	 * (readEditAutoMove) shows that an `AUTO_FIX_MOVE_*` swap relocated A to
+	 * `after.entryA` — and `TimetableAssignmentDialogs` renders that
+	 * `Also moved … to …` sentence on the very same row, so the row stated TWO
+	 * different destinations for one class.
+	 *
+	 * `after` is the committed record, which is also where the receipt's own
+	 * contract says a receipt must be read from ("derived from the committed
+	 * record, not from the optimistic proposal"). */
 	const beforeA = readSlot(before.entryA);
 	const beforeB = readSlot(before.entryB);
-	if (beforeA || beforeB) return { from: beforeA, to: beforeB };
+	const afterA = readSlot(after.entryA);
+	const afterB = readSlot(after.entryB);
+	if (beforeA || beforeB || afterA || afterB) {
+		return { from: beforeA ?? afterA, to: afterA ?? afterB ?? beforeB };
+	}
 	return { from: null, to: null };
 }
 
@@ -87,11 +103,20 @@ export function readEditReceiptEntryId(edit: ManualEditRecord): string | null {
  * `null` is the fail-closed answer: a row that can resolve neither a class nor a
  * slot must NOT print a bare `Moved.`, which reads as a claim the record does not
  * carry. The row then keeps its badge and its actor sentence and adds nothing.
+ *
+ * A2 mc R2 (B3) — `suppressWhenAutoMoveNamed` is the second half of the fix. When
+ * the caller already renders `describeEditAutoMoveNamed(edit, …)` on this row —
+ * "Also moved <class> to <Mon 6:00>" — that sentence IS the destination, and a
+ * receipt clause beside it would state where the same class went a second time,
+ * differently. So the clause is SUPPRESSED on exactly those rows. Additive: the
+ * auto-move sentence is not touched, and a plain exchange still gets its receipt.
  */
 export function historyEditReceiptSentence(
 	edit: ManualEditRecord,
 	resolveClassName?: (entryId: string) => string | null,
+	options: { suppressWhenAutoMoveNamed?: string | null } = {},
 ): string | null {
+	if (options.suppressWhenAutoMoveNamed) return null;
 	const { from, to } = readSlots(edit);
 	const entryId = readEditReceiptEntryId(edit);
 	const classLabel = entryId && resolveClassName ? (resolveClassName(entryId) ?? '').trim() : '';

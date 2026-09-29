@@ -33,6 +33,7 @@
  */
 
 import { DAY_SHORT } from '@/components/manual-edit/manual-edit-foundation';
+import { plainConflictDetail } from '@/lib/manual-edit-conflict-summary';
 
 export type ReceiptSlot = {
 	day: string;
@@ -137,30 +138,74 @@ export function receiptClassLabel(input: {
 }
 
 /**
+ * The ONE sentence a receipt names when the edit made problems worse.
+ *
+ * A2 mc R2 (B2): the two move call sites passed `humanTitle`, which for a teacher
+ * conflict is the CATEGORY — `Teacher double-booked`. The packet's own example is
+ * `Mr Cruz already teaches 8-Luna at that time.`, which is `humanDetail`, and
+ * `buildHumanConflicts` already produces it. A category tells the operator nothing
+ * they can act on; a detail names the teacher and the class.
+ *
+ * The scrub is `plainConflictDetail` — the SAME guard the Conflict Inspector
+ * renders every conflict through (`lib/manual-edit-conflict-summary.ts`). It is
+ * reused, not reimplemented, so no engine token can reach a receipt by a second
+ * route.
+ *
+ * HARD first (a blocker outranks a warning), then the first warning. `null` when
+ * the preview carried no conflict the operator can be told about.
+ */
+export function receiptProblemSentence(
+	conflicts: ReadonlyArray<{ code: string; severity: string; humanDetail: string }> | null | undefined,
+): string | null {
+	const all = conflicts ?? [];
+	const hard = all.find((conflict) => conflict.severity === 'HARD');
+	const chosen = hard ?? all[0];
+	if (!chosen) return null;
+	const detail = plainConflictDetail(chosen.code, chosen.humanDetail).trim();
+	return detail === '' ? null : detail;
+}
+
+/**
  * The honest problem clause.
  *
+ * `now` is the RUN TOTAL after the edit, never the number of new problems. When
+ * `before` is a finite measurement, the two differ and the clause must say so in
+ * BOTH directions — that is the whole content of "state the delta honestly".
+ *
  *  - `now <= 0` -> `No new problems.` (the run is clean after the edit)
- *  - a measurable `before` -> states the TOTAL now and the DELTA, because "3
- *    problems now; 1 was already there" is the sentence an operator needs when
- *    the run was not clean before they touched it.
- *  - otherwise -> `2 new problems: <first one, in words>.` Naming the first is
- *    what makes the sentence actionable; a bare count is the defect.
+ *  - `before` measured and `now > before` -> the edit ADDED `added = now - before`:
+ *    `5 new problems: Mr Cruz already teaches 8-Luna at that time.` Naming the
+ *    first is what makes the sentence actionable; a bare count is the defect.
+ *    NOTE the pre-fix defect this branch closes: with no `before < now` branch
+ *    the run's whole 531 existing problems were reported as 531 NEW ones.
+ *  - `before` measured and `before >= now` -> the edit removed problems, and the
+ *    operator needs the total and the delta: `2 problems now; 1 was already there.`
+ *  - no measurement of `before` -> `now` IS the count: `2 new problems.`
  */
 export function receiptProblemClause(problems: ReceiptProblems | null | undefined): string {
 	if (!problems) return 'No new problems.';
 	const now = Number.isFinite(problems.now) ? Math.max(0, Math.trunc(problems.now)) : 0;
 	if (now === 0) return 'No new problems.';
 	const first = (problems.firstNewSentence ?? '').trim();
-	if (first && !/[.!?]$/.test(first)) return `${now} new ${pluralProblemWord(now)}: ${first}.`;
-	if (first) return `${now} new ${pluralProblemWord(now)}: ${first}`;
-	if (typeof problems.before === 'number' && Number.isFinite(problems.before)) {
-		const before = Math.max(0, Math.trunc(problems.before));
-		if (before >= now) {
-			const already = before - now;
-			return `${now} ${pluralProblemWord(now)} now; ${already} ${already === 1 ? 'was' : 'were'} already there.`;
+	const hasBefore = typeof problems.before === 'number' && Number.isFinite(problems.before);
+	const before = hasBefore ? Math.max(0, Math.trunc(problems.before as number)) : null;
+	// The number of problems this edit CREATED, which is never `now` when the run
+	// was already dirty.
+	const added = before == null ? now : Math.max(0, now - before);
+
+	if (first) {
+		const named = first.endsWith('.') || first.endsWith('!') || first.endsWith('?') ? first : `${first}.`;
+		if (before != null && before > now) {
+			// The edit removed problems; the remaining count is what the operator sees.
+			return `${now} ${pluralProblemWord(now)} now; ${before - now} ${before - now === 1 ? 'was' : 'were'} removed.`;
 		}
+		return `${added} new ${pluralProblemWord(added)}: ${named}`;
 	}
-	return `${now} new ${pluralProblemWord(now)}.`;
+	if (before != null && before > now) {
+		const already = before - now;
+		return `${now} ${pluralProblemWord(now)} now; ${already} ${already === 1 ? 'was' : 'were'} already there.`;
+	}
+	return `${added} new ${pluralProblemWord(added)}.`;
 }
 
 /**

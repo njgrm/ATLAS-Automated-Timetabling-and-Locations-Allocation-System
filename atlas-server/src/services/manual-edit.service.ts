@@ -2385,14 +2385,69 @@ function findAutoFixTarget(
 	const excludeOwn = (slot: { day: string; startTime: string; endTime: string }, moved: ScheduledEntry) =>
 		!(slot.day === moved.day && slot.startTime === moved.startTime && slot.endTime === moved.endTime);
 
+	/**
+	 * A2 mc R2 (B4a) — IS THE SLOT ACTUALLY FREE FOR THE ENTRY BEING MOVED?
+	 *
+	 * THE MEASURED DEFECT. `poolFor` is documented as "every slot the run uses in
+	 * this term inside the shift bounds", which on the operator's run means every
+	 * period of every day — mostly slots that are OCCUPIED. Each occupied slot was
+	 * then run through `applySwapWithTarget` + a WHOLE-RUN `validateHardConstraints`
+	 * + `buildSwapPreviewFromValidation`, and `buildSwapPreviewFromValidation` calls
+	 * `buildHumanConflicts` over every violation the run holds (525 of them on this
+	 * run). So one swap preview cost N x (whole-run validation + 525 human-conflict
+	 * sentences) with N around forty, twice over — once for the blocking pool and
+	 * once for the source pool — and the client has no timeout, so the dialog sat
+	 * on "Checking options..." indefinitely. That is the demo blocker.
+	 *
+	 * THE PREDICATE IS PROVABLY EQUIVALENT, so no outcome changes. Every hard
+	 * conflict the validator raises for a pair of overlapping entries is keyed on
+	 * section, room or faculty. Two classes that share none of those and overlap
+	 * are not a conflict at all; two that share any of them are a HARD violation
+	 * and the target would have been REJECTED by the very check this predicate
+	 * replaces. So a target occupied by any entry other than the one being moved
+	 * away could never become `bestBlocking`/`bestSource`, and skipping it removes
+	 * work only. (The pool is scoped to one term, so a same-slot copy in another
+	 * term does not count as occupying it.)
+	 */
+	const slotIsFreeFor = (slot: { day: string; startTime: string; endTime: string }, moved: ScheduledEntry): boolean =>
+		!entries.some((other) => (
+			other.entryId !== moved.entryId
+			&& effectiveTermsOverlap(termOf(other), termOf(moved))
+			&& other.day === slot.day
+			&& other.startTime < slot.endTime
+			&& slot.startTime < other.endTime
+		));
+
 	// `AUTO_FIX_MOVE_BLOCKING` relocates the BLOCKING entry (B) to a target;
 	// `AUTO_FIX_MOVE_SOURCE` relocates the SELECTED entry (A) instead. Each pool is
-	// bounded by the scope of the session it is about to move.
-	const blockingCandidates = poolFor(entryB).filter((slot) => excludeOwn(slot, entryB));
-	const sourceCandidates = poolFor(entryA).filter((slot) => excludeOwn(slot, entryA));
+	// bounded by the scope of the session it is about to move, and — A2 mc R2 (B4a) —
+	// by the slots that are actually free for it, so the loop below cannot walk
+	// forty occupied periods to rediscover that each one conflicts.
+	const blockingCandidates = poolFor(entryB)
+		.filter((slot) => excludeOwn(slot, entryB))
+		.filter((slot) => slotIsFreeFor(slot, entryB));
+	const sourceCandidates = poolFor(entryA)
+		.filter((slot) => excludeOwn(slot, entryA))
+		.filter((slot) => slotIsFreeFor(slot, entryA));
 
-	let bestBlocking: { target: { day: string; startTime: string; endTime: string }; preview: PreviewResult; softCount: number } | null = null;
-	let bestSource: { target: { day: string; startTime: string; endTime: string }; preview: PreviewResult; softCount: number } | null = null;
+	/**
+	 * The comparison a candidate must win, computed WITHOUT building its preview.
+	 *
+	 * `buildSwapPreviewFromValidation` derives `hardViolations` and `softViolations`
+	 * straight off `nextValidation` and then calls `buildHumanConflicts` over both —
+	 * the expensive half. The loop below used only the two counts, so it now reads
+	 * them off the validation and builds the winner's preview ONCE, after the loop.
+	 * `buildHumanConflicts` is a pure function of the same three arguments, so the
+	 * preview the operator finally sees is byte-identical to the one the per-candidate
+	 * call would have produced.
+	 */
+	const rank = (validation: ValidationResult): { hard: number; soft: number } => ({
+		hard: validation.violations.filter((v) => v.severity === 'HARD').length,
+		soft: validation.violations.filter((v) => v.severity === 'SOFT').length,
+	});
+
+	let bestBlocking: { target: { day: string; startTime: string; endTime: string }; entries: ScheduledEntry[]; validation: ValidationResult; softCount: number } | null = null;
+	let bestSource: { target: { day: string; startTime: string; endTime: string }; entries: ScheduledEntry[]; validation: ValidationResult; softCount: number } | null = null;
 
 	for (const target of blockingCandidates) {
 		if ((timeToMinutes(target.endTime) - timeToMinutes(target.startTime)) !== entryB.durationMinutes) continue;
@@ -2400,36 +2455,43 @@ function findAutoFixTarget(
 			entryATarget: { day: entryB.day, startTime: entryB.startTime, endTime: entryB.endTime },
 			entryBTarget: target,
 		});
-		const blockingValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, runId, blockingEntries, refData));
-		const blockingPreview = buildSwapPreviewFromValidation(currentValidation, blockingValidation, blockingEntries, refData, entryA, entryB, target);
-		if (blockingPreview.hardViolations.length === 0) {
-			const softCount = blockingPreview.softViolations.length;
-			if (!bestBlocking || softCount < bestBlocking.softCount) {
-				bestBlocking = { target, preview: blockingPreview, softCount };
-			}
-		}
+		const validation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, runId, blockingEntries, refData));
+		const { hard, soft } = rank(validation);
+		if (hard !== 0) continue;
+		if (bestBlocking && soft >= bestBlocking.softCount) continue;
+		bestBlocking = { target, entries: blockingEntries, validation, softCount: soft };
+		// Nothing can beat zero warnings, so the search is finished for this side.
+		if (bestBlocking.softCount === 0) break;
 	}
 
 	for (const target of sourceCandidates) {
 		if ((timeToMinutes(target.endTime) - timeToMinutes(target.startTime)) !== entryA.durationMinutes) continue;
 		const sourceEntries = applyMoveOnly(entries, entryA, target);
-		const sourceValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, runId, sourceEntries, refData));
-		const sourcePreview = buildSwapPreviewFromValidation(currentValidation, sourceValidation, sourceEntries, refData, entryA, entryB, {
-			day: entryB.day,
-			startTime: entryB.startTime,
-			endTime: entryB.endTime,
-		});
-		if (sourcePreview.hardViolations.length === 0) {
-			const softCount = sourcePreview.softViolations.length;
-			if (!bestSource || softCount < bestSource.softCount) {
-				bestSource = { target, preview: sourcePreview, softCount };
-			}
-		}
+		const validation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, runId, sourceEntries, refData));
+		const { hard, soft } = rank(validation);
+		if (hard !== 0) continue;
+		if (bestSource && soft >= bestSource.softCount) continue;
+		bestSource = { target, entries: sourceEntries, validation, softCount: soft };
+		if (bestSource.softCount === 0) break;
 	}
 
 	return {
-		blocking: bestBlocking ? { target: bestBlocking.target, preview: bestBlocking.preview } : null,
-		source: bestSource ? { target: bestSource.target, preview: bestSource.preview } : null,
+		blocking: bestBlocking
+			? {
+				target: bestBlocking.target,
+				preview: buildSwapPreviewFromValidation(currentValidation, bestBlocking.validation, bestBlocking.entries, refData, entryA, entryB, bestBlocking.target),
+			}
+			: null,
+		source: bestSource
+			? {
+				target: bestSource.target,
+				preview: buildSwapPreviewFromValidation(currentValidation, bestSource.validation, bestSource.entries, refData, entryA, entryB, {
+					day: entryB.day,
+					startTime: entryB.startTime,
+					endTime: entryB.endTime,
+				}),
+			}
+			: null,
 	};
 }
 
