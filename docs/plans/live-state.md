@@ -63,6 +63,32 @@ rules are what make that safe:
   accepted NON_BLOCKING and instruct A4 to re-run the deploy. Production cutover (step 3) stays locked behind Lane C's GO
   and has not been requested.
 
+## Lane A4 — release lane, 2026-09-29 (train 9 UP AT STAGING at `e75d6b8f`; live is still `3216d383`)
+
+- **STAGING IS UP at `e75d6b8f5a430578c551e4177d7cc6f065db697c` (train 9, re-pinned).** `https://njgrm.buru-degree.ts.net:8443`
+  (API 5101, client 5274), loopback `http://127.0.0.1:5274`. Release dir `E:\ATLAS-staging\e75d6b8f…`,
+  `environmentProof.sourceDir` == pin. Listeners 5101 -> **11024** / 5274 -> **40336**. Deploy `STAGING_DEPLOYED` in
+  **159.3 s**; `SNAPSHOT_REFRESHED`, `liveSignatureBefore == liveSignatureAfter == 1138|499|11`, `liveUnchanged: true`.
+  **140 paths** vs `3216d383` (75 client, 4 server, 54 docs), **0 `prisma/`** (11 migrations before and after).
+- **GATE: PASS** under Lane C's standing rule. Prisma 0 · `test:staging-guards` **20/20** · client suite
+  **1305/1266/39** with **4 new rows, all NON_BLOCKING and attributed**: `R1` (targets A6 c7 `951bec35` changed on
+  purpose; Lane C accepted it — A6 c9's fix is a prompt only, not in this pin), `R3` (`TeachingLoad.tsx` 999/1000, the
+  allowed size-cap exception, same commit), and `ITEM 1`/`ITEM 2` (the carried-by-live A2 `a2-c11-s2-header` pair —
+  neither file changed in this train). 2 real resolutions (the C01R pair).
+- **Post-deploy proof:** `STAGING QA ACCOUNT READY` (exit 0) · health/ready 200 · 5274 200 · 8443 Tailnet DB-backed read
+  200. **Chunk discriminator NON-VACUOUS:** 61 pre / 61 post assets but **46 post-only** served 200 and **46 pre-only**
+  now **404** — same count, all new content hashes, which is precisely why the old byte-count was dead.
+- **In the train:** A5 c5, A7 c6 + pins, A9 c3, A6 c7, A2 c14 `33450be7`, **A7 c7 `3918902e`** (false rollover banner,
+  demo blocker; all 4 server files are from it), A2 c14 follow-ups `a9c83536`, A6 c8 `b9ea9004`/`5f1c882f`, A9 c4
+  `26b887c4`, preview fix `aa2dcfdf`.
+- **LIVE UNTOUCHED, measured first-hand before and after:** 5001 -> **23456**, 5174 -> **17856** (same PIDs throughout),
+  machine scope still `…-8prod` / `3216d383…`. **Live remains `3216d383`; the production cutover is NOT started.**
+- **CAPACITY:** E: 28.08 before build -> **26.53** after (above the §3 25 GiB warn, below the packet's 30 GiB preference).
+  `E:\ATLAS-staging\3216d383…` is **PRESERVE_FOR_DECISION (dirty: `M ops/runtime/runtime-contract.json`)** — the
+  non-forced `git worktree remove` correctly refused and it was **not** forced.
+- **Next action (single):** Lane C runs the Codex walk on staging at `e75d6b8f` and issues **GO**; A4 then cuts
+  production over to the same pin, rollback basis `3216d383`. A4 does not touch live before that GO.
+
 ## Lane A4 — release lane, 2026-09-29 12:45 +08 (staging QA access READY; train 8 remains the live release)
 
 - **STAGING QA ACCESS READY (as of 2026-09-29 12:45 +08).** `STAGING QA ACCOUNT READY` (exit 0) plus the loopback
