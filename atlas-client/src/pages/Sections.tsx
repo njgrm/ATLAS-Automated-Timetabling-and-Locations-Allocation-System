@@ -912,10 +912,12 @@ export default function Sections() {
 									<tr><td colSpan={7} className="px-4 py-20 text-center text-sm text-muted-foreground">Waiting for your school scope…</td></tr>
 								) : (
 									paged.map((s) => (
-										/* A9 C3: no `onHomeRoomChange`/`schoolId` here — the row no longer
-										 * renders a picker. Its map button and the mobile card's picker are
-										 * unchanged; ledger in `SectionRow.tsx`. */
-										<SectionRow key={s.id} section={s} homeRoomOptions={homeRoomOptions} isReadOnly={isReadOnlyMode} onShowDetails={(section) => setDetailTarget(section)} onShowRoomMap={(section) => setMapTarget(section)} />
+										/* A9 C7: the row picker is back, on Lane C's binding addendum of
+										 * 2026-09-29 15:55 (item 46) — so the row again takes the four
+										 * props it needs to write: the actor-school scope, the occupancy
+										 * map, this row's saving flag and the page's ONE home-room write.
+										 * Ledger in `SectionRow.tsx`. */
+										<SectionRow key={s.id} section={s} homeRoomOptions={homeRoomOptions} isReadOnly={isReadOnlyMode} schoolId={scopedSchoolId} roomOccupancy={roomOccupancyMap} isSaving={savingMirrorId === s.id} onHomeRoomChange={handleHomeRoomChange} onShowDetails={(section) => setDetailTarget(section)} onShowRoomMap={(section) => setMapTarget(section)} />
 									))
 								)}
 							</tbody>

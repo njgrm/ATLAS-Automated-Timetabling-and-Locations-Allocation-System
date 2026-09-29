@@ -382,9 +382,36 @@ export function SectionRoomPicker({
 					 * Both rem values are the exported PICKER_MIN_WIDTH_PX / PICKER_MAX_WIDTH_PX
 					 * constants, and a control fails if the CSS and the JS clamp ever disagree.
 					 * The viewport bound is the outer one, so the picker stays inside a narrow
-					 * laptop, and `h-100` still caps the body so the list — not the page — scrolls. */
-					className="w-[min(18rem,calc(100vw-1.5rem))] max-w-[min(30rem,calc(100vw-1.5rem))] p-0 shadow-xl border-border/40 flex flex-col h-100"
+					 * laptop, and the height cap below still makes the list — not the page —
+					 * scroll. */
+					className="w-[min(18rem,calc(100vw-1.5rem))] max-w-[min(30rem,calc(100vw-1.5rem))] p-0 shadow-xl border-border/40 flex flex-col overflow-hidden max-h-[min(25rem,var(--radix-popover-content-available-height))]"
+					/* A9 C7 — item 46 (Lane C, 2026-09-29): the body was a FIXED
+					 * `h-100` (400px) and Radix's collision handling, so a row near
+					 * the TOP of the roster had its popover pushed UP, over the sticky
+					 * toolbar and the Auto-assign / Sync buttons the operator is
+					 * reaching for next.
+					 *
+					 * Two changes, and only two:
+					 *  - `side="bottom"` states the preference, so the list opens
+					 *    UNDERNEATH the row it belongs to; `collisionPadding` keeps it
+					 *    off the window edge. If there is genuinely no room below, Radix
+					 *    still flips — that is the correct last resort, and it is now
+					 *    rare instead of the common case for the first rows.
+					 *  - the fixed height became `max-h-[min(25rem,
+					 *    var(--radix-popover-content-available-height))]`, the pattern
+					 *    `ui/searchable-select.tsx` already uses in this repo, so the
+					 *    body SHRINKS to the space below instead of overflowing and
+					 *    flipping. `overflow-hidden` on the body keeps the
+					 *    `shrink-0` header/footer rows intact while the one `ScrollArea`
+					 *    absorbs the remainder, so the list still scrolls and the page
+					 *    never does (AGENTS.md §8).
+					 *
+					 * 25rem is the old 400px ceiling, so the list is never SHORTER than
+					 * it was on a tall window — only as tall as the space below allows. */
+				side="bottom"
 					align="start"
+					sideOffset={4}
+					collisionPadding={12}
 				>
 
 					{/* Header */}
