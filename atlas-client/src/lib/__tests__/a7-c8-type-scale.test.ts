@@ -295,6 +295,20 @@ test('A7C8-5: arbitrary font sizes are detected in px, rem and pt, and non-sizes
  *   px ones out would reintroduce exactly the px-only blind spot this row exists
  *   to close.
  *
+ *   RETIRED 2026-09-29 (A3 c17, Teachers profile) — 2 keys, 12 occurrences:
+ *   `components/faculty/FacultyProfileSheet.tsx|text-[0.65rem]` (5) and
+ *   `|text-[0.7rem]` (7). That dialog's uppercase micro-labels were 10.4px and
+ *   11.2px; A3 c17 raised all twelve to `text-sm` sentence case, which is the
+ *   re-fit this row exists to force.
+ *
+ *   THE OCCURRENCE TOTAL WAS ALSO OFF BY ONE BEFORE THAT. This row recorded
+ *   264 against a measured 263 on base `7110b031` (254 rem + 9 `text-[13px]`,
+ *   57 files), so 264 - 12 = 252 would have been a plausible-looking wrong
+ *   number. The total below is 251 = 263 measured - 12 retired, and it is
+ *   MEASURED, not derived: the same scan the row performs, run over every
+ *   production file at base `7110b031` via `git show`, counted 263. Re-derive
+ *   before changing this number rather than subtracting from a recorded one.
+ *
  *   OWNER: A7 C8 RE-FIT PASS (the next slice), which raises these to 14px and
  *   re-fits each surface. Several of these sites sit in FIXED-HEIGHT boxes, so a
  *   blind bump to `text-xs` clips them — that is why this is its own slice with
@@ -350,8 +364,6 @@ const UNDER_14PX_ALLOWLIST_2026_09_29: Record<string, number> = {
 	'components/faculty-dashboard/MobileDashboardLayout.tsx|text-[13px]': 3,
 	'components/faculty-dashboard/TeachingIdentityPanel.tsx|text-[13px]': 3,
 	'components/faculty-shared/FacultyGlobalHeader.tsx|text-[13px]': 1,
-	'components/faculty/FacultyProfileSheet.tsx|text-[0.65rem]': 5,
-	'components/faculty/FacultyProfileSheet.tsx|text-[0.7rem]': 7,
 	'components/faculty/FacultyRow.tsx|text-[0.6rem]': 3,
 	'components/faculty/FacultyRow.tsx|text-[0.65rem]': 6,
 	'components/room-schedules/OccupancyTemplatePreview.tsx|text-[0.625rem]': 1,
@@ -454,14 +466,15 @@ test('A7C8-6: no arbitrary sub-14px font size outside the dated, owner-tagged ra
 	// off-by-one in the count cannot hide behind a matching set of keys.
 	assert.equal(
 		recorded.length,
-		89,
-		'A7C8-6: the allowlist must hold exactly 89 keys (recorded 2026-09-29).',
+		87,
+		'A7C8-6: the allowlist must hold exactly 87 keys (89 recorded 2026-09-29, ' +
+			'less the two FacultyProfileSheet.tsx keys A3 c17 retired).',
 	);
 	assert.equal(
 		found.reduce((a, [, c]) => a + c, 0),
-		264,
-		'A7C8-6: production must hold exactly 264 sub-14px arbitrary font-size ' +
-			'occurrences (255 rem + 9 text-[13px]). Update this number and the ' +
+		251,
+		'A7C8-6: production must hold exactly 251 sub-14px arbitrary font-size ' +
+			'occurrences (242 rem + 9 text-[13px]). Update this number and the ' +
 			'inventory doc in the same commit that changes it.',
 	);
 });
@@ -484,25 +497,25 @@ test('A7C8-6: no arbitrary sub-14px font size outside the dated, owner-tagged ra
  * in the same commit that removes the occurrence, so the retirement is a recorded
  * event rather than a silent drift.
  *
- *   ALLOWLIST (recorded 2026-09-29, A7 C8 SLICE 1)
- *  1. components/admin-workspace/AdminWorkspace.tsx
+ *   ALLOWLIST (recorded 2026-09-29, A7 C8 SLICE 1) — NOW EMPTY.
+ *   1. components/admin-workspace/AdminWorkspace.tsx
  *        - a help-tour step whose body names the control in prose
  *        - the rendered `More filters` trigger label
- *   (components/subjects/SubjectFilterToolbar.tsx was ALSO here when this slice
- *    started — A5 C7, which has since landed on main (fef3f77a / 78ef01c4), moved
- *    /subjects to one always-inline filter row and deleted that `moreFiltersLabel`
- *    disclosure. That removal is the recorded event this ratchet exists to force, so
- *    the entry is now gone and a reintroduced subjects `More filters` fails the row.)
- *   OWNER: A5 C8, which deletes every `More filters` disclosure in favour of
- *   always-inline filters. When A5 C8 lands, DELETE the AdminWorkspace entry here in
- *   that same commit and this row becomes a hard fail on the empty set. Do not widen
- *   this list.
+ *   2. components/subjects/SubjectFilterToolbar.tsx
+ *        - deleted by A5 C7 (fef3f77a / 78ef01c4), which moved /subjects to one
+ *          always-inline filter row
+ *
+ *   A3 c17 (2026-09-29) — THE LAST ENTRY IS GONE. A5 C8 has now landed on main
+ *   and deleted the AdminWorkspace `More filters` disclosure, which is exactly the
+ *   recorded event this ratchet exists to force. The list is therefore EMPTY and
+ *   this row is now a HARD FAIL on any occurrence at all — which is what the row's
+ *   own contract above promised. Filters are always inline; there is no disclosure
+ *   to put behind, so any new `More filters` is a regression with no owner to name.
+ *   Do not widen this list.
  */
-const MORE_FILTERS_ALLOWLIST_2026_09_29 = [
-	'components/admin-workspace/AdminWorkspace.tsx',
-];
+const MORE_FILTERS_ALLOWLIST_2026_09_29: string[] = [];
 
-test('A7C8-2: `More filters` exists only in its two recorded A5-C8-owned files', () => {
+test('A7C8-2: `More filters` exists nowhere — A5 C8 deleted the last disclosure', () => {
 	const hits = findInProduction(/More filters/);
 	const files = [...new Set(hits.map((h) => h.file))].sort();
 	assert.deepEqual(

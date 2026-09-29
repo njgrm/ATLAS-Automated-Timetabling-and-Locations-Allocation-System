@@ -3,6 +3,10 @@ import { useCallback, useMemo, useRef } from 'react';
 import { gradeLabel } from '@/lib/grade-labels';
 import { getProgramBadgeLabel, resolveSectionGradeNumber } from '@/lib/schedule-review-helpers';
 import { formatWarningMessageText } from '@/lib/violation-presentation';
+import {
+	formatFacultyDisplayName,
+	isPlaceholderSentinelName,
+} from '@/components/faculty/teacherNameDisplay';
 import type { ExternalSection, FacultyMirror, ScheduledEntry, Subject, UnassignedItem } from '@/types';
 import type { RoomInfo, ViewMode } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 
@@ -61,7 +65,16 @@ export function useTimetableLookupHelpers({
 		});
 		const facultyFormatted = roomFormatted.replace(/\bfaculty\s+#?(\d+)\b/gi, (match, rawId: string) => {
 			const faculty = facultyMap.get(Number(rawId));
-			return faculty ? `${faculty.lastName}, ${faculty.firstName}` : match;
+			// A3 C17 C1: this is a SENTENCE a scheduler reads in a warning
+			// ("…assigned to faculty 9 in MONDAY"), so a to-be-hired record
+			// rendered here as "— TO BE HIRED, MAPEH" while the cell beside it read
+			// "To be hired: MAPEH". Routed through the same shared display contract
+			// the timetable label builders use, for the same reason and with the
+		// same guard: a real teacher's stored `Last, First` is unchanged.
+			if (!faculty) return match;
+			return isPlaceholderSentinelName(faculty)
+				? formatFacultyDisplayName(faculty)
+				: `${faculty.lastName}, ${faculty.firstName}`;
 		});
 		const sectionFormatted = facultyFormatted.replace(/\bsection\s+#?(\d+)\b/gi, (match, rawId: string) => {
 			return sectionMap.get(Number(rawId))?.name ?? match;

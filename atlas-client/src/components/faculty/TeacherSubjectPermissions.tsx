@@ -103,7 +103,14 @@ export function TeacherSubjectPermissions({
 
 	return (
 		<section className="space-y-3" data-testid="teacher-subject-permissions">
-			<h4 className="text-[0.7rem] font-bold uppercase tracking-widest text-muted-foreground">
+			{/*
+			 * A3 c17 (2026-09-29). This block renders INSIDE the Teacher profile
+			 * dialog, so it inherits that surface's 14px floor (AGENTS.md §8, and
+			 * A3 c17 row 6 "no Profile text under 14px"). `text-[0.7rem]` is
+			 * 11.2px. Raised to `text-sm` and de-shouted to sentence case, matching
+			 * the sibling section headings in the same dialog so the two agree.
+			 */}
+			<h4 className="text-sm font-bold text-muted-foreground">
 				Teaching permissions
 			</h4>
 

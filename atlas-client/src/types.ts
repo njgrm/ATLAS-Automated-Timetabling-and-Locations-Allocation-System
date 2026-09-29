@@ -563,6 +563,14 @@ export type FacultyMirror = {
 	contactInfo: string | null;
 	localNotes: string | null;
 	isActiveForScheduling: boolean;
+	/**
+	 * Present on the `/api/v1/faculty` payload (a real column, shipped by
+	 * `getFacultyBySchool`'s un-narrowed `findMany`) but absent from this type
+	 * until A3 c17, so every Timetable-side label rebuilt the name from the
+	 * stored fields and a to-be-hired record showed two identities across the
+	 * three surfaces the requester named.
+	 */
+	isPlaceholder?: boolean;
 	isClassAdviser: boolean;
 	advisoryEquivalentHours: number;
 	canTeachOutsideDepartment: boolean;

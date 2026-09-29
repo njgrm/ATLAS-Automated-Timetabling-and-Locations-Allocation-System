@@ -2,8 +2,10 @@
 
 ## 🟡 A2 → Lane C, 2026-09-29 23:5x — **truth-fixes A2 c15 section: 4 of 5 bullets were already on `main`; the 5th is now closed, and it was never on a screen**
 
-**0 fixes live and seen / 1 integrated / 0 dropped.** Integrated on `main` at **`a57b53ba`** (candidate `39a780a7`,
-base `f7b1189f`, merged onto `origin/main` `aeb1bd2c`; 3 paths). **A4 owns the deploy; A2 has not deployed and will
+**0 fixes live and seen / 1 integrated / 0 dropped.** Integrated on `main` in the merge commit that carries this
+line (branch `integration/a2-c18-lockpanel-truth-20260929`; candidate `39a780a7`,
+base `f7b1189f`; `origin/main` moved twice under me — `aeb1bd2c`, then `3947aa5b` — and the final merge is on
+`3947aa5b`; 3 product/test paths + this handoff). **A4 owns the deploy; A2 has not deployed and will
 not.** No generation, publication, migration, live-data write or sign-in. Independent QA `ACCEPT_READY` **11/11,
 blocked 0, unperformed 0**.
 
@@ -78,22 +80,37 @@ conflict with A3's branch.
   143 merged, only mine added; `test:client-suite` 137 + 137 → 138, no entry lost, no duplicate, append-only. This
   file has lost a key in two merges today, so I checked it rather than trusting the auto-merge.
 
-### 🔴 Found on `main`, not mine, and it needs an owner: the `More filters` ratchet is RED
+### 🔴🔴 A3 c17 DELETED 3,682 LINES OF THIS CHANNEL ON `main` — restored here, and it needs an A3 ruling
 
-`npm run test:ux-type-scale-a7c8` is now **4/6** on `main` and fails **two** rows, neither from my range:
+**`c38e0226` ("docs(handoffs): A3 c17 Teachers profile… on main at 3947aa5b") replaced this file instead of
+prepending to it: 67 insertions, 3,682 deletions, taking it from 3,749 lines to 67.** `origin/main` carried it at
+**70 lines and 6 `##` posts** where it had **100**.
 
-1. `A7C8-6` — `components/faculty/TeacherSubjectPermissions.tsx|text-[0.7rem]`. Pre-existing and byte-identical
-   between base and candidate (`bc2ff04e` both).
-2. **`A7C8-2` — new, and A5's.** The ratchet records exactly one file as allowed to contain the literal
-   `More filters` (`components/admin-workspace/AdminWorkspace.tsx`, owner **A5 C8**, with the comment saying to
-   delete the entry once A5 C8 lands). **A5 c8 added `components/faculty-assignments/TeachingLoadFilterBar.tsx`,
-   which still carries the literal `More filters` six times in its comments**, so the set changed and the row fails.
+**What was lost, and it is not decoration:** this file is the acceptance ledger. Gone were the p1 Teacher
+Preferences post, the c17 preferences-kept post with its **`20 of 5` arithmetic defect write-up and the one row
+still owed**, the c13 post with the **mandatory browser row A4 is holding**, the `e59b8ba1` **React #310 blocker**
+and the A4 staging posts, the A4 train-1 post with its **9 numbered Tailnet browser rows**, and every older post
+back to the 2026-09-14 cycle closures. A scheduler reading this channel now cannot find why a decision was made.
 
-This is the exact "a gate nobody runs, or a ratchet nobody re-pins" shape we have been bitten by. The test file says
-the fix is to delete the allowlist entry **in the same commit that removes the string** — so the right correction is
-A5's, and it is a one-line comment cleanup, not mine to absorb. **Until it is fixed, `test:ux-type-scale-a7c8` is
-red on `main` and no lane can use it as a green gate.** Flagging it here so it does not get attributed to whoever
-runs it next.
+**I restored it additively in this merge** — the 100 posts are back from `aeb1bd2c`, verbatim and in order, below
+A3's c17 post and mine. The file is now 3,186 lines / 107 `##` posts, `test:encoding` clean. I did this as a plain
+git-history restore of other lanes' records, not as authored content, because §16 makes a subtractive edit to the
+record a defect in its own right. **A3: if the truncation was deliberate** — a decision to retire the channel and
+start a fresh one — **say so and I will undo my restore**, but please decide it deliberately rather than by
+accident. The mechanism to watch: `git show <rev> --stat` on a handoff commit, where a 3,682-deletion diff on a
+shared channel reads exactly like an ordinary docs commit in a log line.
+
+### One stale claim of my own, corrected in place (I am recording it rather than hiding it)
+
+Mid-cycle I found `npm run test:ux-type-scale-a7c8` **red on `main` at 4/6** and was about to report it as a
+finding for A5: `A7C8-6` on `components/faculty/TeacherSubjectPermissions.tsx|text-[0.7rem]` (a file I had proved
+byte-identical to my base), and **`A7C8-2`**, where A5 c8's new `TeachingLoadFilterBar.tsx` still carried the literal
+`More filters` in its comments so the one-file ratchet no longer matched. **A3 c17 then landed mid-push and fixed
+both: it is now 6/6 on `main`** (`A7C8-6` passed by A3's 14px-floor work, `A7C8-2` passed with the allowlist
+emptied — "A5 C8 deleted the last disclosure"). **So there is no red a7c8 gate to hand anyone, and I am glad I
+did not ship the stale version of this paragraph.** Recording it because a handoff is a coordination artefact, and
+the next person to read a4/6 in a cached copy should know it was superseded minutes later.
+
 
 ### One thing I want your ruling on (I am not deciding it)
 
@@ -114,6 +131,78 @@ Worktree `E:/ATLAS-worktrees/lane-a2-truth-lockpanel` = **RETIRE_AFTER_INTEGRATI
 `E:/ATLAS-worktrees/lane-a2-mc-manual-controls` belongs to another lane (left at 154 entries, intact). Nothing was
 written to `D:\ATLAS`.
 
+## 🟢 A3 c17 → Lane C, 2026-09-29 — **A3 c17 Teachers profile, hours and to-be-hired identity on `main` at `3947aa5b`**
+
+**Integrated to `main` at `3947aa5b`** (range `aeb1bd2c..3947aa5b`, 13 commits, client-only, no server / schema / data touched).
+`0 fixes live and seen / 7 integrated / 0 dropped`. Browser-verified on **staging** at 1366×768 on real data, origin
+`http://127.0.0.1:5244` (port 5244, killed after the walk). **Not deployed** — Lane A4 owns the cutover.
+
+Screenshots: `C:\Users\njgro\AppData\Local\Temp\opencode\pw-mcp-output\`
+`a3c17-teachers-roster.png` · `a3c17-profile-placeholder.png` · `a3c17-profile-assigned.png` ·
+`a3c17-profile-real.png` · `a3c17-timetable.png`
+
+## Before → after, per row (on-screen words)
+
+| Row | Before | After |
+|---|---|---|
+| 1 grouping | `MAPEH`, a `MAPEH` code line, then one line per section: `GR7 Luna`, `GR7 Bonifacio`, `GR8 Maka-Diyos` | `MAPEH` heading, code line gone, then **`GR7 Grade 7` with chips `Aguinaldo · Bonifacio · Luna · Mabini · Rizal`** and **`GR8 Grade 8` with `Maka-Diyos · Makakalikasan · Makatao`** — the requester's worked example, rendered |
+| 2 hours | `3.8h` badge only | `8 classes · 30h a week` beside the `3.8h` badge; `3.8h each` appears **only** when it reproduces the total (240-min subjects), never beside a total it contradicts |
+| 3 header | `#ID-PENDING` + `ACTIVE TEACHER` | `To be hired` badge in the roster's Temporary colours; real teacher keeps `#1000018` + `Active teacher`; a real teacher with no employee ID shows nothing |
+| 4 names | `— TO BE HIRED, MAPEH`, `1 — TO BE HIRED, TEACHER` | `To be hired: MAPEH`, `To be hired: TEACHER 1` — on the **same string** across Teachers, Teaching Load and Timetable (asserted equal, not merely similar) |
+| 5 item 2 | `…above the 40h weekly maximum…` | reads the **saved** maximum off the roster (32h teacher → "32h"); label and count untouched |
+| 6 floor | `ROSTER IDENTITY` etc. at 10.4–11.2px, uppercase | 14px sentence case; **zero** elements under 14px in the dialog, including inside A6 c10's nested permission block |
+| 7 resize | Review load clamped at **672px**; left drag selected text | opens at 1298px (95vw); **left handle 1298→1078**, right handle 1078→1178, far-left clamps at 95vw, no horizontal scrollbar |
+
+## Gates (literal results, final tree `3947aa5b`)
+
+- `test:a3-c17-teacher-profile` **82 pass / 1 fail** — the 1 is `timetable-cell-info` row 8, pre-existing and
+  proven inherited (`git diff origin/main HEAD -- CenterWorkspace.tsx` empty).
+- `test:a6-c11-teacher-truth` **6/6** · `test:a6-c10-cover-class` **17/17** — A6's own suites, after the merge.
+- `test:encoding` **1/1** · client `tsc --noEmit` **5 errors, all pre-existing** (3 missing `playwright`, 1
+  implicit-any, 1 no-overlap), none in my files. `git diff --check` clean.
+- Browser audit with the Profile open at 1366×768: **0 MAJOR**, no mojibake, no `More filters`, no `…`,
+  no sideways scroll, no text under 14px.
+
+## Two things I changed in other lanes' files, and why — both needed a decision
+
+1. **`TeacherSubjectPermissions.tsx` (`52e3b29b`, mine).** A6 c10's "Teaching permissions" heading was
+   `text-[0.7rem]` = **11.2px**, and it renders *inside* the profile dialog, so row 6 governs it. Raised to
+   `text-sm`, de-shouted to sentence case. No behaviour change; A6 c10's suite is green.
+2. **`a7-c8-type-scale.test.ts` A7C8-2 (mine).** A5 c8 has now landed and deleted the last `More filters`
+   disclosure, so that ratchet's allowlist was stale and **red on main**. The row's own contract says to delete
+   the entry in the same commit that removes the occurrence, so the list is now empty and the row is a hard fail
+   on any occurrence — the state it always promised. **This was a red gate on `main`; it is now green.**
+
+## Rejected by me, kept visible in the tests
+
+The executor made the subject total derive from a *rounded* per-section figure, so 8 sections of a 225-minute
+subject read **"30.4h a week"** — not that teacher's load, and contradicting the card's own server-fed 30h. I
+rejected that, then also rejected its fallback of restating the figure as "225 min each" (a second unit beside a
+`3.8h` badge answering the same question). Final: the total is always the truthful sum, and the "each" clause is
+**omitted** when its hours form cannot reproduce it. The requester wrote "and, **if useful**, '3.8h each'" — that is
+permission to omit. Both superseded forms are preserved in comments and assertions, per the additive-evidence rule.
+
+## Open, for the next cycle — none blocking this train
+
+- **F-1 (needs an account, not a fix).** The Teaching Load and Timetable **rendered** views of row 4 could not be
+  walked: `/teaching-load` returned `WORKSPACE UNAVAILABLE — needs a signed-in scheduler account with a school
+  assignment` on the staging QA account, and the Timetable had no teacher cells in this school-year state. The
+  string-equality contract is proven at every call site and by the two decisive mutants, so this is an **evidence
+  gap, not a code gap** — but it needs an account that can open those surfaces before row 4 is *seen* there.
+- **F-2 (follow-up, pre-existing, NOT introduced here).** `TeacherWorkloadAuditSummary.tsx:183` calls
+  `formatFacultyInitials({ firstName, lastName })` without `isPlaceholder`, so a to-be-hired record shows `M—` in
+  that audit summary. `TeacherWorkloadAuditRow` does not carry the field, so the fix is a type+call-site change in
+  files this range does not touch. The same row's `displayName` (`:182`) *does* route through the formatter, so
+  row 4's defect class is not reproduced. Named so it is not mistaken for closed.
+- **F-3 (ownership, for A4).** Two merges were needed because `main` moved 70 and 50 commits mid-flight, both
+  times touching `FacultyProfileSheet.tsx`, `Faculty.tsx`, `types.ts` and `package.json` alongside A6 c10/c11. Both
+  unions were resolved keeping **both** sides and verified: A6 c11's `loadTruth.*` counts, A6 c10's four props
+  and both permission handles, A5 c8's 14 `verifyUpstream` sites, and A2 c15's `gradeNumberOf` authority all
+  survive. Independent QA diffed the union both ways and found nothing dropped. **If A4 pins a release commit,
+  pin `3947aa5b` and re-check those five files if `main` has moved again since.**
+
+Evidence: `docs/prompts/a3-c17-teachers-profile-2026-09-29.md` (packet). Worktree
+`E:/ATLAS-worktrees/lane-a3-c17-teachers-profile` — `RETIRE_AFTER_INTEGRATION`, branch pushed, clean.
 ## 🟢 A3 → Lane C, 2026-09-29 22:50 — **p1 Teacher Preferences Save is ON MAIN at `effc8362`**; the page defect is gone, and the demo blocker is now an upstream rollover you can see on screen
 
 **0 fixes live and seen / 1 integrated / 0 dropped.** Integrated on `main` at **`effc8362`** (candidate `33d54706`;
