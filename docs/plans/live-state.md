@@ -26,7 +26,33 @@ rules are what make that safe:
    `docs/handoffs/planner-session-handoff.md`, Lane B in its own handoff file, Lane C in its
    section below until a stream needs a handoff.
 
-## Lane A4 — release lane, 2026-09-29 11:20 +08 (train 8 UP AT STAGING; train 7 and earlier below as history)
+## Lane A4 — release lane, 2026-09-29 11:24 +08 (train 8 LIVE; train 7 and earlier below as history)
+
+- **TRAIN 8 IS LIVE at `3216d383`** (full table in the `## Live release` block). Cutover 11:21 +08 on Lane C's GO ->
+  `CUTOVER_STARTED`, audit `C:\ProgramData\ATLAS\release-audit\3216d383-20260929-112130\`. Rollback basis
+  `e9ddda71` / `…-7prod`. The staging leg ran first at the SAME pin and Lane C's Codex walk returned GO, 0 blockers.
+  Listeners 5001 -> **23456**, 5174 -> **17856**. **All acceptance rows PASS, S-Z1 0 of 50 tables changed.**
+- **In the train:** A8 `6a496cbd` (SSE slots released on every path + per-`user:school:schoolYearId` cap with 429 —
+  **not a freeze fix**), A2 c13 `5a7552bd`, A6 c6 `a3819321`, A3 c13 `557d1bb9`. **NOT IN TRAIN (correct):** A5 c5,
+  A7 c6, A9 c3 — no `ready for release` before the pin. They ride train 9.
+- **⚠ TWO CLIENT-SUITE FAILURES CARRIED BY LIVE (as of 2026-09-29 11:24 +08), owner A2.** Two rows in
+  `a2-c11-s2-header-banners.test.tsx` are absent from the KNOWN_RED baseline. **Not this train's:** the same two
+  fail **byte-identically at `e9ddda71`**, proven in a throwaway worktree. Train 8 added none, so the gate passed;
+  A2 owns the fix and Lane C owns adding the two names to the baseline doc.
+- **Staging is still up at the same pin** (5101 / 5274, `__host/ready` 200) — a same-pin re-stage target.
+- **Still routed, not fixed here:** the staging quiesce defect (only survived because `ATLAS-Staging-Supervisor`
+  was **Running** when `schtasks /end` ran — it bites again when the task is `Ready` with a detached supervisor);
+  `powershell -File` cannot run either deploy script (invoke with `&`); the runbook's dead 8443-vs-443 byte
+  discriminator.
+- **Worktrees:** `lane-a4-release-20260929-8prod` = `KEEP_ACTIVE` (live runtime source dir);
+  `lane-a4-release-20260929-7prod` = rollback basis; `lane-a4-release-20260929-7` = `KEEP_ACTIVE` (train 8 gate
+  worktree on `release/2026-09-29-8`); `-6` and `-c02-20260929` = `PRESERVE_FOR_DECISION` (unintegrated `e85ee949`);
+  `-4prod`, `lane-a4-handoff-20260928-1` untouched.
+- **Next action (single):** Lane C runs the production browser rows on `https://njgrm.buru-degree.ts.net`
+  (`/timetable`, `/teaching-load`, `/faculty/concerns`) and posts the result in
+  `docs/handoffs/lane-c-to-a2.md`.
+
+### Train 8's staging leg (kept: it is the evidence the GO rested on)
 
 - **STAGING IS UP at `3216d383` (train 8).** `https://njgrm.buru-degree.ts.net:8443` (API 5101, client 5274),
   loopback `http://127.0.0.1:5274`. Release dir `E:\ATLAS-staging\3216d383…`, `releaseSha` == pin, owns its dependency
@@ -57,8 +83,8 @@ rules are what make that safe:
 - **Worktrees:** `lane-a4-release-20260929-7` = `KEEP_ACTIVE` (gate worktree on `release/2026-09-29-8`, deploy
   source); `lane-a4-release-20260929-7prod` = `KEEP_ACTIVE` (live); `-6` and `-c02-20260929` =
   `PRESERVE_FOR_DECISION` (unintegrated `e85ee949`).
-- **Next action (single):** Lane C runs the Codex walk on staging at `3216d383`, then resumes A4 with **GO** for
-  the production cutover of the SAME pin; rollback basis `e9ddda71` / `…-7prod`.
+- **Next action (single), SUPERSEDED 11:21 +08 — the GO arrived and the cutover ran:** Lane C ran the Codex walk on
+  staging at `3216d383` (GO, 0 blockers) and resumed A4. Rollback basis used: `e9ddda71` / `…-7prod`.
 
 ## Lane A4 — release lane, 2026-09-29 10:35 +08 (train 7 UP AT STAGING; trains 1—5 below as history)
 
@@ -401,6 +427,27 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **— LIVE: `3216d383ce033a3447067255bbe554910fb78595` @ DEPLOYED TO PRODUCTION 2026-09-29 11:21 +08 by Lane A4
+  (train 8) on Lane C GO. Rollback basis `e9ddda71` (the incumbent).**
+
+  | | |
+  |---|---|
+  | **LIVE** | **`3216d383ce033a3447067255bbe554910fb78595`** |
+  | **Live dir** | `E:\ATLAS-worktrees\lane-a4-release-20260929-8prod`, HEAD == pin, `status --short` empty, 0 reparse points, own dependency trees |
+  | **Listeners** | 5001 -> **23456**, 5174 -> **17856** (were 30904 / 4940 under `e9ddda71`) |
+  | **Machine scope** | both runtime variables repointed to `…-8prod` / `3216d383…`; task action `…-8prod\ops\runtime\cli.mjs start`, Running; the active `supervisor-state.json` reports `releaseSha 3216d383…`, `state running`, server 23456, client 17856 |
+  | **Rollback basis** | **`e9ddda71562742fd00d6ad881c1751f3ac1a0e7c`**, dir `E:\ATLAS-worktrees\lane-a4-release-20260929-7prod` @ clean, HEAD == pin, both `dist`s present, 0 reparse points. One-step supervised reset. |
+  | **Scope** | 73 paths vs `e9ddda71`, **0 `prisma/`** @ no migration (11 migrations before and after) |
+  | **Cutover** | `deploy-runner.ps1` dry run first (`mutates: false`, lineage verified, `Assert-LiveReleaseRecorded` **passed** against the CUTOVER TARGET record below), then `-Execute` -> **`CUTOVER_STARTED`** 11:21:30 +08. Audit `C:\ProgramData\ATLAS\release-audit\3216d383-20260929-112130\` |
+  | **Acceptance** | **DEPLOYED, all rows PASS.** S-W1 public origin 200 · S-H1 loopback + Tailnet health/ready 200 with `"database":"ok"` plus DB-backed `GET /api/v1/subjects?schoolId=1` 200 (19 509 B) · **S-Z1 0 of 50 tables changed** (per-table `count` + `max(id)` + per-row `md5`, baseline captured **before** the quiesce; `audit_logs` included and unmoved) · **S-R2 0 `audit_logs` rows in the cutover window**, newest row 03:13:22Z, 8 min before the cutover at 03:21:59Z · **S-R1** the live runtime's own `cli.mjs status`, machine scope injected explicitly, self-reports `ROLLOVER_AUTO_SYNC_ENABLED: "false"` — a restart cannot reach `applyRolloverSync` · **S-D1 non-vacuous** client `index-DzhMkC-M.js` **200** (307 086 B) and the old `index-Dy1q6261.js` **404**; server `DEFAULT_SSE_STREAMS_PER_PRINCIPAL` **3** in the new `dist`, **0** in the old (the `dist/services` file count is 393 vs 393 and would NOT have discriminated) · S-B1 rollback basis verified clean |
+  | **Staging** | still up at the same pin, 5101 / 5274, `…\__host\ready` 200 — a same-pin rollback target remains available |
+  | **Evidence** | `docs/handoffs/lane-c-to-a2.md`, "A4 LIVE at `3216d383`" |
+  | **Capacity** | E: 28.02 -> **25.25** after the prod build, **26.79** after retiring `lane-a4-release-20260929-5` (train 5's prod dir, 2 releases back, clean, ancestor of the pin, 0 reparse points, 0 processes). `-6` and `-c02-20260929` stay `PRESERVE_FOR_DECISION` (unintegrated `e85ee949`); `-4prod` untouched. |
+
+  **Lane C Codex staging walk: GO, 0 blockers** (`docs/reviews/codex-staging-train8-3216d383/report.md`) — no
+  regression versus live `e9ddda71`, no code text on screen. That walk was on **staging**; the production browser
+  rows are Lane C's to run against the live origin.
+
 - **— CUTOVER TARGET, recorded 2026-09-29 11:22 +08 by Lane A4 ahead of the cutover (AGENTS.md §13 — a pin is a
   commit, not a description). Required by `deploy-runner.ps1` `Assert-LiveReleaseRecorded`, which fails closed
   without it. Target release `3216d383` (full `3216d383ce033a3447067255bbe554910fb78595`), rollback basis
