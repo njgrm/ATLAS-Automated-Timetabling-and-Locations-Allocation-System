@@ -38,8 +38,39 @@
 
 	--animate-modal-in: modal-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 	--animate-modal-out: modal-out 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+	--animate-modal-center-in: modal-center-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+	--animate-modal-center-out: modal-center-out 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 	--animate-in: fade-in 0.2s ease-out forwards;
 	--animate-out: fade-out 0.15s ease-in forwards;
+
+	/*
+	 * A5 item 23.2: `modal-in`/`modal-out` translate by -50%/-50% because the
+	 * shared dialog used to anchor itself with `left-[50%] top-[50%]`. The dialog is
+	 * now centred by a `fixed inset-0 flex` PARENT, so a translate here would shift
+	 * the box up and left by half its own size and it would never sit still. These
+	 * two keyframes are the same scale/fade with the translate removed; they are
+	 * additive, so anything still using the old pair keeps working.
+	 */
+	@keyframes modal-center-in {
+		from {
+			opacity: 0;
+			transform: scale(0.96);
+		}
+		to {
+			opacity: 1;
+			transform: scale(1);
+		}
+	}
+	@keyframes modal-center-out {
+		from {
+			opacity: 1;
+			transform: scale(1);
+		}
+		to {
+			opacity: 0;
+			transform: scale(0.96);
+		}
+	}
 
 	@keyframes modal-in {
 		from {

@@ -119,7 +119,7 @@ export function RolloverConfirmationDialogs(props: RolloverConfirmationDialogsPr
 			<Dialog open={showTermRepair} onOpenChange={(open) => {
 				onTermRepairOpenChange(open);
 			}}>
-				<DialogContent className="w-[calc(100%-2rem)] sm:max-w-md" hideClose={termApplying} data-testid="rollover-term-repair-dialog">
+				<DialogContent resizable={false} className="w-[calc(100%-2rem)] sm:max-w-md" hideClose={termApplying} data-testid="rollover-term-repair-dialog">
 					<DialogHeader>
 						<DialogTitle>Save school year terms</DialogTitle>
 						<DialogDescription>
@@ -196,7 +196,7 @@ export function RolloverConfirmationDialogs(props: RolloverConfirmationDialogsPr
 			<Dialog open={showRecoveryConfirm} onOpenChange={(open) => {
 				onRecoveryOpenChange(open);
 			}}>
-				<DialogContent className="w-[calc(100%-2rem)] sm:max-w-md" hideClose={recovering}>
+				<DialogContent resizable={false} className="w-[calc(100%-2rem)] sm:max-w-md" hideClose={recovering}>
 					<DialogHeader>
 						<DialogTitle>{plainLanguageNextStep ? 'Clear leftover test data and start the new year' : 'Clear test data and sync EnrollPro'}</DialogTitle>
 						<DialogDescription>
@@ -228,7 +228,7 @@ export function RolloverConfirmationDialogs(props: RolloverConfirmationDialogsPr
 			<Dialog open={showMarkTestDataConfirm} onOpenChange={(open) => {
 				onMarkTestDataOpenChange(open);
 			}}>
-				<DialogContent className="w-[calc(100%-2rem)] sm:max-w-md" hideClose={markingTestData}>
+				<DialogContent resizable={false} className="w-[calc(100%-2rem)] sm:max-w-md" hideClose={markingTestData}>
 					<DialogHeader>
 						<DialogTitle>Mark school year as test data</DialogTitle>
 						<DialogDescription>

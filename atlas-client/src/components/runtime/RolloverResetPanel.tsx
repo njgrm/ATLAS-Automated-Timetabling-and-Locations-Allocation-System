@@ -100,7 +100,10 @@ export function RolloverResetPanel({ schoolId, status, onApplied }: RolloverRese
 			</Accordion>
 
 			<Dialog open={resetOpen} onOpenChange={setResetOpen}>
-				<DialogContent className="w-[calc(100%-2rem)] sm:max-w-2xl" data-testid="rollover-reset-dialog">
+				{/* A5 item 23.2: a DESTRUCTIVE CONFIRMATION (erase ATLAS test data)
+				    — forced compact. Its own `sm:max-w-2xl` width is unchanged;
+				    what must never happen is this becoming a draggable panel. */}
+				<DialogContent resizable={false} className="w-[calc(100%-2rem)] sm:max-w-2xl" data-testid="rollover-reset-dialog">
 					<DialogHeader>
 						<DialogTitle>Erase ATLAS test data and start the new school year</DialogTitle>
 						<DialogDescription>This affects ATLAS only. It does not change EnrollPro and cannot be undone.</DialogDescription>

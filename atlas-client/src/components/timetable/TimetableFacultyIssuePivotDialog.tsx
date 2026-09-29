@@ -18,7 +18,9 @@ export function TimetableFacultyIssuePivotDialog({
 }: FacultyIssuePivotDialogProps) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent data-testid="timetable-faculty-issue-pivot-dialog">
+			{/* A5 item 23.2: a CONFIRMATION ("Open X's schedule?") — forced
+			    compact, never a draggable 95vw panel. */}
+			<DialogContent resizable={false} data-testid="timetable-faculty-issue-pivot-dialog">
 				<DialogHeader>
 				<DialogTitle>Open {teacherLabel}&apos;s schedule?</DialogTitle>
 				<DialogDescription>

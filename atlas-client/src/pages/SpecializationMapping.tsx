@@ -905,9 +905,11 @@ export default function SpecializationMapping() {
 			</Dialog>
 
 			<Dialog open={pendingRouteExit} onOpenChange={setPendingRouteExit}>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>Unsaved mapping changes</DialogTitle>
+			{/* A5 item 23.2: a CONFIRMATION (leave with unsaved changes) — forced
+			    compact, never a draggable 95vw panel. */}
+			<DialogContent resizable={false}>
+				<DialogHeader>
+					<DialogTitle>Unsaved mapping changes</DialogTitle>
 						<DialogDescription>
 							You changed specialization to subject mappings. Save first to avoid losing your updates.
 						</DialogDescription>

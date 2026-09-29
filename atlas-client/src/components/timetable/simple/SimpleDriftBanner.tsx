@@ -332,7 +332,9 @@ function RegenerateImpactDialog({
 }) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-md" data-testid="timetable-simple-regenerate-impact-dialog">
+			{/* A5 item 23.2: a CONFIRMATION ("Update this schedule") — forced
+			    compact so the regenerate impact is never a draggable 95vw panel. */}
+			<DialogContent resizable={false} className="sm:max-w-md" data-testid="timetable-simple-regenerate-impact-dialog">
 				<DialogHeader>
 					<DialogTitle>Update this schedule</DialogTitle>
 					<DialogDescription>

@@ -38,23 +38,31 @@
  */
 
 /**
- * `Create temporary teacher (Teacher X)`, with the real next teacher number.
+ * `Create temporary teacher (Teacher X)` — the operator's wording, LITERALLY.
  *
- * `X` is defensive on purpose. A missing or malformed number must NOT render the
- * literal "undefined" into a control a scheduler reads — an earlier iteration of
- * this file did exactly that when a caller omitted the prop, and the committed
- * `F24-2` control caught it by failing on `Create temporary teacher (Teacher
- * undefined)`. Production always passes a real number
- * (`(rosterStats?.totalCount ?? faculty.length) + 1` in `pages/Faculty.tsx`), so
- * the parenthetical is present on the real path; the fallback only covers a
- * caller that has no roster count to offer.
+ * FIX 24.2 (operator, 2026-09-29). The label used to interpolate the NEXT ROSTER
+ * NUMBER, so it rendered `Create temporary teacher (Teacher 42)` and grew with
+ * the roster. The operator's own words put a LITERAL capital `X` in that
+ * parenthetical, and the distinction is the whole point: `X` says "the next one,
+ * the one you are about to create", while a number says "this is teacher 42, and
+ * it already exists" — the opposite of what the button does. It also meant the
+ * label — and therefore the fit budget below — changed width every time a
+ * temporary teacher was added, so the control a scheduler re-reads all term was
+ * never the same width twice.
+ *
+ * The function keeps its name and its single-source role (it is still how the
+ * copy reaches `FacultyRosterActions`), but it is now a constant function with
+ * no arguments. An optional argument that no longer changes the result would be
+ * a parameter left behind to look load-bearing, so it is REMOVED rather than
+ * ignored: the number plumbing is gone from `pages/Faculty.tsx` and from
+ * `FacultyRosterActions` with it.
  */
-export function temporaryTeacherActionLabel(nextTeacherNumber?: number | null): string {
-	if (nextTeacherNumber == null || !Number.isFinite(nextTeacherNumber) || nextTeacherNumber <= 0) {
-		return 'Create temporary teacher';
-	}
-	return `Create temporary teacher (Teacher ${nextTeacherNumber})`;
+export function temporaryTeacherActionLabel(): string {
+	return CREATE_TEMPORARY_TEACHER_ACTION_LABEL;
 }
+
+/** The one string, so a test can pin it without re-typing it. */
+export const CREATE_TEMPORARY_TEACHER_ACTION_LABEL = 'Create temporary teacher (Teacher X)';
 
 /**
  * The requested update/refresh copy, verbatim: `Update teacher list`.
@@ -69,11 +77,12 @@ export const UPDATE_TEACHER_LIST_LABEL = 'Update teacher list';
 /**
  * The longest string the row can ever be asked to render.
  *
- * Teacher numbers are unbounded, so a row that fits three digits can still clip
- * at four. This is the string the fit budget is measured against, and it is what
- * the unit control renders.
+ * Since fix 24.2 the label is a FIXED literal — it no longer grows with the
+ * teacher count, so a row that fits this string fits it at every roster size.
+ * That is the whole point of the constant: the fit budget below is now decided
+ * once, at authoring time, instead of being re-derived from a live count.
  */
-export const LONGEST_ROSTER_ACTION_LABEL = temporaryTeacherActionLabel(9999);
+export const LONGEST_ROSTER_ACTION_LABEL = CREATE_TEMPORARY_TEACHER_ACTION_LABEL;
 
 /** Breathing room the label needs inside its container, in CSS pixels. */
 export const ACTION_LABEL_PADDING_PX = 16;

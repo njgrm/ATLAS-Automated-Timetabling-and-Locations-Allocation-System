@@ -1965,8 +1965,15 @@ test('A3-17: the coverage review surface is a centered, internally scrolling dia
 
 	const dialog = query(host, 'subject-coverage-dialog');
 	assert.ok(dialog, 'no coverage dialog rendered');
-	// Centered: the shared Dialog primitive positions with left/top 50%.
-	assert.match(dialog.className, /left-\[50%\][\s\S]*top-\[50%\]/, 'the coverage surface is not centered');
+	// Centered — now by the shared primitive's FLEX PARENT rather than by a
+	// `left-[50%] top-[50%]` translate. A transform computed for one size fights
+	// a box the scheduler is resizing, so the translate anchor is the thing item
+	// 23.2 removed; the wrapper re-centres at whatever size the box currently is.
+	const centringWrapper = dialog.parentElement;
+	assert.ok(centringWrapper, 'the coverage surface must be centred by a wrapper element');
+	assert.equal(centringWrapper!.getAttribute('data-dialog-centering'), 'flex');
+	assert.match(centringWrapper!.getAttribute('class') ?? '', /\bflex\b/);
+	assert.doesNotMatch(dialog.className, /left-\[50%\]/, 'the translate centring anchor is back');
 	// Not a side sheet.
 	assert.equal(/inset-y-0|right-0/.test(dialog.className), false, 'the coverage surface is still anchored to an edge');
 	// It owns its scroll, and it is bounded so it cannot push page scroll.
@@ -1975,11 +1982,26 @@ test('A3-17: the coverage review surface is a centered, internally scrolling dia
 	// the card is now resizable, so the `90svh` cap became `90vh`. The property
 	// this row protected — the dialog is height-bounded and cannot push page
 	// scroll — is asserted on the new bound below, plus all four resize bounds.
-	assert.match(dialog.className, /max-h-\[90vh\]/);
-	assert.match(dialog.className, /min-w-\[500px\]/, 'the resizable dialog has no minimum width bound');
+	// A5 item 23.2 moved the resize mechanism itself to the shared primitive
+	// (`data-resizable` + its two drag handles) and removed the page-local
+	// `style={{ resize: 'both' }}`; the bounded-ness this row protects is
+	// unchanged, and the primitive's own `max-h-[85vh]` cap now also applies.
+	// The two page-local bounds this row used to pin here — `max-h-[90vh]` and
+	// `min-w-[500px]` — are SUPERSEDED (recorded, not deleted) by item 23.2: they
+	// passed through `cn()` and won over the shared `DIALOG_RESIZABLE_CLASSES`,
+	// which silently un-applied the universal cap. The property this row protects
+	// (the dialog is width- AND height-bounded, so it cannot push page scroll) is
+	// unchanged and is now asserted on the bounds that actually govern it.
+	assert.match(dialog.className, /max-h-\[85vh\]/, 'the resizable dialog can grow past the viewport height');
+	assert.match(dialog.className, /min-w-\[min\(480px,95vw\)\]/, 'the resizable dialog has no minimum width bound');
 	assert.match(dialog.className, /max-w-\[95vw\]/, 'the resizable dialog can grow past the viewport');
 	assert.match(dialog.className, /min-h-\[420px\]/, 'the resizable dialog has no minimum height bound');
-	assert.equal(dialog.style.resize, 'both', 'the coverage dialog is not resizable');
+	assert.equal(dialog.getAttribute('data-resizable'), 'true', 'the coverage dialog must take the shared resizable contract');
+	assert.notEqual(dialog.style.resize, 'both', 'the page-local CSS `resize: both` is back');
+	assert.ok(
+		dialog.querySelectorAll('[data-testid="dialog-resize-handle"]').length === 2,
+		'the coverage dialog must render the shared left and right drag handles',
+	);
 	assert.match(dialog.className, /overflow-hidden/);
 	const scroller = query(host, 'subject-coverage-scroll');
 	assert.ok(scroller, 'no internal scroll region');
