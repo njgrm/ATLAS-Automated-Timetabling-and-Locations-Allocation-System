@@ -229,3 +229,52 @@ test('A9-C6-4: a rejected Undo says nothing was undone, through its own alert', 
 	assert.match(failure!.textContent ?? '', /No rooms were saved/, 'a rejected batch must say that nothing changed');
 	await close();
 });
+
+/* ═══════════════════ A9 c2 R2 (2026-09-30): ONE CLICK = ONE PUT ═══════════════════
+ * QA measured a programmatic double dispatch of `apply` in ONE tick sending TWO
+ * PUTs: the button's `disabled` is STATE, and two clicks in the same tick both
+ * pass a state check that has not re-rendered yet. The sibling write surface
+ * (`HomeRoomConfirmDialogs.tsx`) already solves this with a ref (`inFlightRef`).
+ * These rows dispatch two clicks SYNCHRONOUSLY inside one `act`, so no re-render
+ * can intervene — the only thing that can stop the second write is the ref. They
+ * fail first at `c886a410`, which sends 2 PUTs on Apply. */
+
+test('A9-C6-5 (R2): a double-click on Apply in ONE tick sends ONE write, not two', async () => {
+	await open();
+	const applyBtn = byTestId('guided-step-apply');
+	assert.ok(applyBtn, 'precondition: the apply control exists');
+	await act(async () => {
+		applyBtn!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+		applyBtn!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+		await Promise.resolve();
+		await Promise.resolve();
+		await Promise.resolve();
+	});
+	assert.equal(
+		transport.puts.length,
+		1,
+		'two clicks in one tick must not both pass a state check that has not re-rendered yet',
+	);
+	await close();
+});
+
+test('A9-C6-6 (R2): a double-click on Undo in ONE tick sends ONE write, not two', async () => {
+	await open();
+	await clickTestId('guided-step-apply');
+	assert.equal(transport.puts.length, 1, 'precondition: the apply wrote once');
+	const undoBtn = byTestId('guided-step-undo-action');
+	assert.ok(undoBtn, 'precondition: the Undo control is offered beside the receipt');
+	await act(async () => {
+		undoBtn!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+		undoBtn!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+		await Promise.resolve();
+		await Promise.resolve();
+		await Promise.resolve();
+	});
+	assert.equal(
+		transport.puts.length,
+		2,
+		'Undo must send exactly ONE more write (its own in-flight ref), not two',
+	);
+	await close();
+});

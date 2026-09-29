@@ -46,7 +46,7 @@
  * so `savedOutcomeSentence` names the rows that were left unchanged rather than implying the
  * whole batch landed.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, Loader2, Undo2 } from 'lucide-react';
 import atlasApi from '@/lib/api';
 import { Button } from '@/ui/button';
@@ -229,6 +229,21 @@ export function HomeRoomAutoAssignDialog({
 	 */
 	const [manualChoice, setManualChoice] = useState<Record<number, number | null>>({});
 
+	/**
+	 * A9 c2 R2 (2026-09-30) — a same-tick double dispatch must send ONE PUT.
+	 *
+	 * QA measured a programmatic double-click of Apply in one tick sending TWO
+	 * PUTs: the button's `disabled` is the visible affordance, but it is STATE,
+	 * and two clicks in the same tick both pass a state check that has not
+	 * re-rendered yet. A ref, set synchronously before the first `await`, is what
+	 * actually guards the tick — the same shape `HomeRoomConfirmDialogs.tsx`
+	 * uses for its `inFlightRef` ("two clicks in one tick must not both pass a
+	 * state check that has not re-rendered yet"). Undo carries its own ref, so
+	 * the two writers cannot share a guard and let one slip through.
+	 */
+	const applyInFlightRef = useRef(false);
+	const undoInFlightRef = useRef(false);
+
 	const fetchPreview = useCallback(async () => {
 		// ACTOR-SCOPE-C01: never dispatch while the actor school is unresolved.
 		if (!Number.isInteger(schoolId) || schoolId <= 0 || !Number.isInteger(schoolYearId) || schoolYearId <= 0) {
@@ -300,6 +315,7 @@ export function HomeRoomAutoAssignDialog({
 	 * a plain-words receipt through `onNotice` (the /sections channel) as well as in the dialog.
 	 */
 	const apply = useCallback(async () => {
+		if (applyInFlightRef.current) return;
 		if (!canWrite) return;
 		if (!Number.isInteger(schoolId) || schoolId <= 0 || !Number.isInteger(schoolYearId) || schoolYearId <= 0) return;
 		const assignments = rows
@@ -307,6 +323,7 @@ export function HomeRoomAutoAssignDialog({
 			.map((row) => ({ sectionId: row.assignment.sectionId, homeRoomId: row.roomId as number }));
 		if (assignments.length === 0) return;
 
+		applyInFlightRef.current = true;
 		setApplying(true);
 		setApplyError(null);
 		setOutcome(null);
@@ -332,6 +349,7 @@ export function HomeRoomAutoAssignDialog({
 			setLastApplied(null);
 			onNotice?.(sentence);
 		} finally {
+			applyInFlightRef.current = false;
 			setApplying(false);
 		}
 	}, [canWrite, onApplied, onNotice, result, rows, schoolId, schoolYearId]);
@@ -343,9 +361,11 @@ export function HomeRoomAutoAssignDialog({
 	 * (`undoing` disables it in flight), and leaves its OWN receipt.
 	 */
 	const undo = useCallback(async () => {
+		if (undoInFlightRef.current) return;
 		if (!canWrite || undoing || !lastApplied || lastApplied.length === 0) return;
 		if (!Number.isInteger(schoolId) || schoolId <= 0 || !Number.isInteger(schoolYearId) || schoolYearId <= 0) return;
 		const assignments = lastApplied.map((entry) => ({ sectionId: entry.sectionId, homeRoomId: null }));
+		undoInFlightRef.current = true;
 		setUndoing(true);
 		setUndoError(null);
 		setUndoOutcome(null);
@@ -365,6 +385,7 @@ export function HomeRoomAutoAssignDialog({
 			setUndoError(sentence);
 			onNotice?.(sentence);
 		} finally {
+			undoInFlightRef.current = false;
 			setUndoing(false);
 		}
 	}, [canWrite, lastApplied, onApplied, onNotice, schoolId, schoolYearId, undoing]);
