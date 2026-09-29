@@ -2299,3 +2299,76 @@ QA's B1 is **real and only partly cleared.** The `text-xs` 14px line box (20px) 
 **A5 c8 ordering coupling:** when A5 c8 deletes the last `More filters`, it must edit `a7-c8-type-scale.test.ts`'s allowlist in the same commit or `test:client-suite` goes red on `main` (this fired for real when A5 c7 landed — the ratchet caught the subjects removal exactly as designed).
 
 Worktree `E:/ATLAS-worktrees/lane-a7-c8-type-scale` — clean, pushed, `PRESERVE_FOR_DECISION` (re-fit pass continues on it). `D:\ATLAS` never written.
+## A3 c16 -> Lane C, 2026-09-29 20:05 +08 - "no codes on screen" is ON `main` at `3c6d819b`, SEEN RENDERED
+
+**`N fixes live and seen / M integrated / K dropped` = 0 live / 1 integrated / 0 dropped.** Integrated
+at `3c6d819b`, product tip `27bf0e02`. **NOT deployed** - A4 owns the release. I do not claim a live
+row. Full evidence: `docs/reviews/a3-c16-codes-20260929/handoff.md` + five PNGs.
+
+**The named defect is fixed and I saw it fixed.** On real staging data (loopback preview :5241 ->
+staging :5101, 1366x768, asserted origin, `/__dev/staging-login`): **`/teachers` now shows 0 raw
+codes across all 50 roster cells.** The name was already sitting unread on the same record.
+Before -> after, the words a scheduler actually reads:
+
+- `MATH - 8 sections` -> **`Mathematics - 8 sections`**
+- `AP - 6 sections` -> **`Araling Panlipunan - 6 sections`**
+- `ESP - 8 sections` -> **`ESP/GMRC - 8 sections`**
+- `DEVL_READING 1, FIL 5` -> **`Developmental Reading 1, Filipino 5`**
+- `STE_APPLIED_PHYS 1, STE_RESEARCH 1 +3 more` -> **`Applied Physics 1, Research 1 +3 more`**
+- `SUBJ#12 - 1 section` -> **`Unknown subject - 1 section`** (an internal id can no longer be printed)
+- `/audit` section-coverage cards now read `TLE Exploratory - ICT` / `- Agriculture and Fishery Arts`
+  / `- Family and Consumer Science`, and the finding title and body agree instead of one naming the
+  subject and the other printing `TLE_ICT_EXP`.
+
+**The sweep half: 13 files, and I am telling you exactly where it stops.** I fixed every code-rendering
+site whose file no other lane has in flight, and the rest are numbered follow-ups with exact
+`file:line` in the handoff. The one that matters most is the first:
+`atlas-client/src/lib/timetable-reference-labels.ts:37` - `buildSubjectLabel` returns
+`displayCode ?? code` and is the label authority for the whole timetable, and **its own committed test
+pins the code as the label** (`src/lib/__tests__/timetable-cell-info.test.ts:49-50` asserts `'FIL'`
+and `'TLE'`). I did not touch it: ~30 consumers flip at once, it is the timetable lane's surface, and
+anyone who flips it must update those two assertions in the same change. **That one wants its own
+packet on A2, not a drive-by.**
+
+**Two things I got wrong, both caught by the independent reviewer, because you should not take my
+first measurements at face value:**
+
+1. **My own "one line" rule was premised on a measurement taken from the wrong column.** I recorded
+   the cell as 291px/259px/~40 characters; the reviewer measured **158.6px/126.6px/~21**, I
+   re-measured and they are right. At 40 the rule allowed twice what fits, so it dropped the second
+   name and the cell still wrapped (13 of 25 cells). At the corrected **19**-character ceiling, **4
+   of 50** cells wrap and there are still 0 codes. The deeper finding is the one to act on: **the
+   "Assigned classes" column is 158.6px (126.6px of text) in a 1111px table whose `Actions` column is
+   319px, and a subject name does not fit 126.6px at all** - `Mathematics - 8 sections` is 25
+   characters. The real fix is the column width, it lives in `pages/Faculty.tsx`, and **that is A6
+   c10's in-flight file**, so I did not touch it. A6 (or whoever next holds the roster table): this
+   needs its own before/after screenshots, because you and A5 both screenshot this page.
+2. **My handoff claimed `/audit` was clean at 0 raw codes and major 0. It is 3 raw codes and major 7.**
+   The three codes are `Audit.tsx:457` (`Current record: ${mismatch.actual}`), pre-existing, in the
+   same file I had already edited one function above - I missed it. The 7 majors are 10px Badges and
+   10.88px table headers in `components/audit/AuditFindingsPanel.tsx` and `ui/badge.tsx`, which A7 c8
+   owns. Both are recorded, not glossed.
+
+**One row I am reporting as UNPERFORMED, with the corrected reason.** I first wrote "staging has no
+run, so the run-only surfaces need a HIGH action". **That was false - staging has Run 347.** The six
+run-only surfaces I also changed (diagnostics rails, Lock/placement panel, Quick Place, tactical
+sandbox dock, the placement and workflow dialogs, `simplePublishReadiness`) are unreachable because
+`/timetable/pre-generation` renders no queue, no rail and no sandbox, **not** because anything needs
+your approval. They are code-and-test proven, not render proven. Nobody should read my earlier note
+as "these need an operator decision".
+
+**Gates, literally:** `test:a3-c16-no-codes` **16/16**, `test:a3-c10-teacher-surface` 21/21,
+`test:a6-teachers` 13/13, `test:a7-year-setup-plain-words` 17/17, `test:plain-language-j2j3-c01`
+18/18, `test:encoding` 1/1, `tsc` 5 pre-existing errors reproduced on base. Two pre-existing failures
+in `test:a3-c4-copy` and `test:ux-audit-findings` (FORBIDDEN files, reproduced on base).
+**`test:client-suite` is red at base (43) and at my tip (42), with no candidate-only failure** - do
+not read those numbers as my debt. Round 1 caught me breaking `test:a7-year-setup-plain-words` (the
+first entry of `client-suite`) with the Year Setup department code; that is fixed additively and is
+17/17.
+
+**Next A3 item, and it is a demo blocker: `docs/prompts/a3-prefs-save-2026-09-29.md` is on `main`
+(`7d894255`) - Teacher Preferences cannot be saved. Not started.**
+
+Worktree `E:/ATLAS-worktrees/lane-a3-c16-codes` - clean, pushed, **RETIRE_AFTER_INTEGRATION**; its two
+`node_modules` are junctions to the `lane-c-a7c7` donor, so `cmd /c rmdir` both before any
+`git worktree remove` and re-count the donor after (156 as of my last check). `D:\ATLAS` never written.
