@@ -39,3 +39,11 @@ browse schedules" panel, a **"Generation run ID"** number input ("Use a whole nu
   staging API: the three questions answered, renders committed.
 - Shell calls are force-killed at 20 min: run suites and builds detached and poll the log.
 - Browser rows for Lane C: the three questions with click counts; no "run id" text anywhere; print opens.
+
+## Addendum 10:35 — Codex older-user audit (docs/reviews/codex-staging-untouched-24e268fb/report.md), binding for QA
+- Room names are ambiguous ("Room 101" exists in several grade wings): show the building/wing with the name.
+- Teacher picker is grouped by subject code (AP/ENG/ESP): make it one alphabetical, searchable list of names.
+- Section picker shows "Aguinaldo" only: always "Grade 7 – Aguinaldo".
+- "No completed generation runs found" -> "No timetable has been made yet" + link "Make the timetable".
+- Share/print has no findable path today ("Export CSV" disabled). "Print this schedule" must work, and the page must
+  be the obvious place to print/share (Lane C will ask A7 to name it so in the side menu).
