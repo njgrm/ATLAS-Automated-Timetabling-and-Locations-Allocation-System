@@ -40,7 +40,7 @@ import {
 	submitConcernRoom,
 	type AvailabilityPickerSlot,
 } from '@/components/faculty-shared/teacher-concern-client';
-import { composeConcernNotes, concernSaveStateLabel, concernSaveStateTone, concernSaveWroteAnything, bindConcernTermResolution, describeSavedConcern, parseConcernNotes, resolveConcernSaveAvailability, type ConcernYearResolution } from '@/components/faculty-shared/teacher-concern-helpers';
+import { composeConcernNotes, concernSaveStateLabel, concernSaveStateTone, bindConcernTermResolution, describeSavedConcern, parseConcernNotes, resolveConcernSaveAvailability, type ConcernYearResolution } from '@/components/faculty-shared/teacher-concern-helpers';
 import type { ConcernRoomDraft } from '@/components/faculty-shared/TeacherConcernWorkspace';
 import type { RoomOption } from '@/components/sections/SectionRoomPicker';
 import RunAvailabilityDriftCard from '@/components/faculty-shared/RunAvailabilityDriftCard';
@@ -480,21 +480,17 @@ export default function TeacherConcerns() {
 			 * turn "Saved" into "Saved, not yet counted" or back: the reason the
 			 * server gave us is carried beside the sentence as data.
 			 *
-			 * A3 p1 correction round 1, N6 — and the chip must also AGREE with
-			 * that sentence. An empty save writes no record, so the receipt reads
-			 * "Nothing to save for X yet." and the chip used to read "Saved" right
-			 * beside it. `concernSaveWroteAnything` is the single predicate both
-			 * statements are derived from, so they cannot drift. Leaving the
-			 * outcome null lets the chip fall back to the record's own status,
-			 * which is the truthful answer for a teacher with no stored record.
+			 * A3 p1 correction round 1, N6 — this line is deliberately left as the
+			 * simple typed assignment. Round 1 special-cased an empty save to
+			 * `null` so the chip would stop reading "Saved" beside a "Nothing to
+			 * save" receipt, but staging proved the empty save really does write a
+			 * REVIEWED record, so the chip was truthful and the RECEIPT was the
+			 * lie. Silencing the chip would have hidden a true statement and
+			 * weakened this N2 contract to do it. The receipt is corrected in
+			 * `describeSavedConcern` instead; an empty save still binds, and both
+			 * sentences now agree.
 			 */
-			setSaveOutcome(
-				!concernSaveWroteAnything(countsFor)
-					? null
-					: bindFailure == null
-						? 'SAVED'
-						: 'SAVED_NOT_BINDING',
-			);
+			setSaveOutcome(bindFailure == null ? 'SAVED' : 'SAVED_NOT_BINDING');
 			bumpRefresh();
 		} catch (error) {
 			setSaveFailure(concernApiErrorMessage(error));

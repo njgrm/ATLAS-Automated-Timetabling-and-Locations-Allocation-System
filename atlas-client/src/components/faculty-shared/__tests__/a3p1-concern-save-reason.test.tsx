@@ -35,9 +35,10 @@
  *  R9      The reason is on the SAME row as the button, not a block above it.
  *  R10-R12 The save receipt is truthful about the next timetable, and honest
  *         when nothing was written.
- *  R13     N6: the header chip and the receipt sentence AGREE, so a save that
- *         wrote nothing cannot show "Saved" beside "Nothing to save".
- *  R14-R15 The chip's derived label for an unsaved teacher is honest.
+ *  R13-R15 N6: an empty save is STILL a real save — staging returned a stored
+ *         REVIEWED record with `slots: []` — so the receipt acknowledges the
+ *         write and the chip's "Saved" beside it is truthful. What it must never
+ *         claim is that the next timetable will use a record with no slots.
  *
  * Run: `npm run test:a3p1-prefs-save`
  */
@@ -87,7 +88,7 @@ const { act } = await import('react');
 const { MemoryRouter } = await import('react-router-dom');
 
 const { default: TeacherConcernWorkspace } = await import('../TeacherConcernWorkspace');
-const { concernSaveStateLabel, concernSaveWroteAnything, describeSavedConcern, resolveConcernSaveAvailability } = await import('../teacher-concern-helpers');
+const { concernSaveRecordedAnything, concernSaveStateLabel, describeSavedConcern, resolveConcernSaveAvailability } = await import('../teacher-concern-helpers');
 
 /**
  * Render, then SNAPSHOT the HTML into a detached node before unmounting.
@@ -290,61 +291,70 @@ test('A3P1-R12 a save the server could not bind says so, and does not claim the 
 	assert.doesNotMatch(message, /next timetable/i, 'an unbound save must NOT claim the next timetable will use it');
 });
 
-test('A3P1-R13 a save that wrote nothing does not claim the next timetable will use it', () => {
+test('A3P1-R13 an empty save is still a real save, and says so WITHOUT claiming the next timetable', () => {
 	const message = describeSavedConcern({
-		teacherName: 'AGUILAR, CARLO MIGUEL',
+		teacherName: 'AQUINO, MARIA ANGELA',
 		availabilityWindows: 0,
 		roomNeeds: 0,
 		hasNote: false,
 		bindFailure: null,
 	});
-	assert.match(message, /nothing to save/i, 'an empty save says there was nothing');
+	/*
+	 * CORRECTED against observed staging behaviour, A3 p1 correction round 1 N6.
+	 * Round 0 of this candidate asserted `doesNotMatch(/^Saved/)` and produced
+	 * "Nothing to save for X yet." — which QA rejected as a false claim printed
+	 * beside a true chip. Saving an untouched form really does PUT -> submit ->
+	 * review and store a `status: "REVIEWED"` record with `slots: []`, so the
+	 * receipt must acknowledge the write.
+	 *
+	 * The claim it must NOT make is the one that would mislead: that the next
+	 * timetable will use this. A record with no slots adds no exclusion, so the
+	 * next timetable is unchanged, and saying otherwise would send a scheduler
+	 * away believing the teacher had been covered.
+	 */
+	assert.match(message, /^Saved an empty set of preferences for AQUINO, MARIA ANGELA/, 'the receipt acknowledges the record that was stored');
 	assert.doesNotMatch(
 		message,
-		/next timetable/i,
-		'no record was written, so claiming the next timetable will use it would be a false receipt',
+		/next timetable will use/,
+		'an empty record must NOT claim the next timetable will use it',
 	);
-	assert.doesNotMatch(message, /^Saved /, 'nothing was saved, so the receipt must not open with "Saved"');
+	assert.match(message, /next timetable is unchanged/, 'and it says plainly that the timetable is unaffected');
 });
 
 // ═══ R14 — N6: the chip and the receipt are one statement, not two ═══════════
 
-test('A3P1-R14 N6: an empty save leaves the chip NOT reading "Saved", and a real save does read it', () => {
+test('A3P1-R14 N6: the chip and the receipt AGREE on an empty save', () => {
 	const empty = {
-		teacherName: 'AGUILAR, CARLO MIGUEL',
+		teacherName: 'AQUINO, MARIA ANGELA',
 		availabilityWindows: 0,
 		roomNeeds: 0,
 		hasNote: false,
 		bindFailure: null,
 	};
 	/*
-	 * The page derives the chip's TYPED outcome and the receipt from the SAME
-	 * counts object through `concernSaveWroteAnything`, so this row asserts the
-	 * pairing the page performs: wrote-nothing => no 'SAVED' outcome, and the
-	 * chip then falls back to the record's own status.
+	 * The pairing the page performs. An empty save stores a real record, so the
+	 * chip's typed outcome is `SAVED` and the receipt must open with "Saved" —
+	 * the two statements a reader sees side by side on one screen.
 	 */
-	assert.equal(concernSaveWroteAnything(empty), false, 'an empty save wrote nothing');
-	assert.equal(
-		concernSaveWroteAnything({ ...empty, availabilityWindows: 1 }),
-		true,
-		'one painted window is something written',
-	);
-	assert.equal(concernSaveWroteAnything({ ...empty, hasNote: true }), true, 'a note is something written');
-	assert.equal(concernSaveWroteAnything({ ...empty, roomNeeds: 1 }), true, 'a room need is something written');
+	assert.equal(concernSaveRecordedAnything(empty), false, 'an empty save recorded nothing the timetable can use');
+	assert.equal(concernSaveStateLabel({ selected: true, saved: true, bindFailure: false }), 'Saved', 'the chip says Saved, because a record exists');
+	assert.match(describeSavedConcern(empty), /^Saved /, 'and the receipt beside it also says Saved — no contradiction on screen');
 
-	// And the sentence the operator reads next to the chip agrees.
-	const emptyReceipt = describeSavedConcern(empty);
-	assert.match(emptyReceipt, /nothing to save/i, 'the receipt says nothing was written');
-	assert.doesNotMatch(emptyReceipt, /^Saved /, 'so the chip beside it must not be allowed to read "Saved"');
+	// A recorded save is the other branch, and it does claim the timetable.
+	const recorded = { ...empty, availabilityWindows: 1 };
+	assert.equal(concernSaveRecordedAnything(recorded), true, 'one painted window is something recorded');
+	assert.equal(concernSaveRecordedAnything({ ...empty, hasNote: true }), true, 'a note is something recorded');
+	assert.equal(concernSaveRecordedAnything({ ...empty, roomNeeds: 1 }), true, 'a room need is something recorded');
+	assert.match(describeSavedConcern(recorded), /next timetable/i, 'a recorded save does claim the next timetable will use it');
 });
 
-test('A3P1-R15 the chip label for a non-saved teacher is honest about being unsaved', () => {
-	// The state the page lands in after an empty save: `saveOutcome` is null, so
-	// the chip is derived from the record, which is not REVIEWED.
+test('A3P1-R15 a genuinely unsaved teacher still reads honestly', () => {
+	// Before any save at all there is no record, so the chip must not claim one.
 	assert.equal(
 		concernSaveStateLabel({ selected: true, saved: false, bindFailure: false }),
 		'Nothing saved yet',
-		'the chip agrees with the receipt: nothing was written, so nothing is claimed',
+		'no record means no claim',
 	);
-	assert.equal(concernSaveStateLabel({ selected: true, saved: true, bindFailure: false }), 'Saved', 'a real save still reads Saved');
+	assert.equal(concernSaveStateLabel({ selected: true, saved: true, bindFailure: false }), 'Saved', 'a stored record reads Saved');
+	assert.equal(concernSaveStateLabel({ selected: true, saved: true, bindFailure: true }), 'Saved, not yet counted', 'an unbound record is named as unbound');
 });

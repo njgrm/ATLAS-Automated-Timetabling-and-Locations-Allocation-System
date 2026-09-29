@@ -281,10 +281,23 @@ export function describeSavedConcern(counts: ConcernSaveCounts): string {
 	if (roomNeeds > 0) parts.push(`${roomNeeds === 1 ? '1 room need' : `${roomNeeds} room needs`}`);
 	if (hasNote) parts.push('your note');
 
-	// Nothing was written, so there is nothing for the next timetable to use.
-	// Claiming otherwise here would be a false receipt, which is worse than a
-	// quiet one: it would send a scheduler away believing they were covered.
-	if (parts.length === 0) return `Nothing to save for ${teacherName} yet.`;
+	/*
+	 * A3 p1 correction round 1, N6 — THE EMPTY CASE IS STILL A REAL SAVE.
+	 *
+	 * Observed on staging: saving an untouched form PUT -> submit -> review and
+	 * the server returned a stored `status: "REVIEWED"` record with `slots: []`
+	 * and `notes: null`. The header chip therefore reads "Saved" and it is
+	 * telling the truth. So this receipt must agree that a record now exists,
+	 * while still refusing to claim the next timetable will use it: a record
+	 * with no slots adds no exclusion, so nothing about the timetable changes.
+	 *
+	 * Round 1 of this correction asserted the opposite ("Nothing to save for X
+	 * yet."), which is what QA caught: it printed a false claim directly beside a
+	 * true one. Corrected here, at the cause, rather than by silencing the chip.
+	 */
+	if (parts.length === 0) {
+		return `Saved an empty set of preferences for ${teacherName}: there was nothing to record, so the next timetable is unchanged.`;
+	}
 
 	const head = `Saved ${teacherName}: ${parts.join(', ')}.`;
 	if (bindFailure) {
@@ -427,16 +440,29 @@ export function resolveConcernSaveAvailability(input: ConcernSaveAvailabilityInp
 }
 
 /**
- * Did this save actually write anything?
+ * Did this save actually record anything the timetable can use?
  *
- * A3 p1 correction round 1, N6. The chip in the header is driven by a TYPED
- * `saveOutcome`, and the receipt sentence by these counts, so the two are two
- * statements about one event and they have to agree. A save with no windows, no
- * room needs and no note writes no record, so the receipt says "Nothing to save
- * for X yet." — and the chip must NOT read "Saved" beside it, which is what it
- * did. One predicate, used by both, so they cannot drift.
+ * A3 p1 correction round 1, N6. This is the branch selector between the two
+ * truthful outcomes, and it is deliberately NOT the same question as "did the
+ * save happen".
+ *
+ * STAGING PROVED THE DISTINCTION. An empty save is still a real write: the page
+ * PUT -> submit -> review and the server returned a stored record with
+ * `status: "REVIEWED"`, `slots: []` and `notes: null`. So the header chip
+ * truthfully reads "Saved" — a record exists — and the sentence beside it must
+ * not claim nothing happened.
+ *
+ * Round 1 of this correction got that backwards: it silenced the chip's typed
+ * outcome on an empty save to make the two agree, which left the LIE in place
+ * ("Nothing to save for X yet." beside a record that had just been created) and
+ * quietly weakened the N2 typed-state contract to do it. The chip was never the
+ * thing that was wrong. The receipt is corrected here instead, and the typed
+ * outcome is left intact.
+ *
+ * What an empty record must NOT do is claim the next timetable will use it: a
+ * record with no slots adds no exclusion, so the next timetable is unchanged.
  */
-export function concernSaveWroteAnything(counts: ConcernSaveCounts): boolean {
+export function concernSaveRecordedAnything(counts: ConcernSaveCounts): boolean {
 	return counts.availabilityWindows > 0 || counts.roomNeeds > 0 || counts.hasNote;
 }
 
