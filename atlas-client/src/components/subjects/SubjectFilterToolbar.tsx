@@ -56,8 +56,17 @@ type Props = {
  * the choices. Only the trigger's fixed rectangle is compact, so the value shown there is the
  * same room in the short words an office already uses. No room type is renamed in either place;
  * these are two lengths of the same nine names.
+ *
+ * EXPORTED since A5 C7, and the export is the point rather than an accident. The
+ * room row is the one picker whose trigger face this page SHORTENS from its own map,
+ * so the map is real surface a test needs to read: `AGENTS.md` §11 ("a control's
+ * fixture must come from the real surface, and a computed artifact's byte
+ * serialization must be recorded") rejected the invented-label fixture that A5 C3
+ * round 1 was caught using, and a test that re-declared these nine strings would be
+ * the same mistake one layer out. Reading the exported map is how the longest Room
+ * face is measured against `@/ui`'s real character budget.
  */
-const ROOM_TYPE_SHORT_LABELS: Record<string, string> = {
+export const ROOM_TYPE_SHORT_LABELS: Record<string, string> = {
 	CLASSROOM: 'Classroom',
 	LABORATORY: 'Laboratory',
 	COMPUTER_LAB: 'Computer lab',
