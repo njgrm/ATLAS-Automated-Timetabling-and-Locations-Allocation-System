@@ -295,9 +295,17 @@ const LEGACY_CAUSE_NOUN = 'attention';
  * Null means the table knows none of this group's codes. That is a defect the A7
  * table test fails on; the panel still renders (a scheduler must not meet a blank
  * panel because the server grew a code), and says so in plain words.
+ *
+ * A group field is guarded with `Array.isArray` for the same reason
+ * `presentGenerationBlockerGroups` guards `groups` (A8-C5 S2.0): this function
+ * is reachable with a diagnostic a caller BUILT rather than parsed — a payload
+ * whose group predates the `codes` field, or a fixture — and the parser's
+ * defaults are not a guarantee to code outside the parser. The single-code
+ * fallback below is what keeps such a group on its real, counted sentence.
  */
 export function representativeBlockerCode(group: TimetableGenerationBlockerGroup): string | null {
-	return group.codes.find((code) => Object.prototype.hasOwnProperty.call(BLOCKER_CODE_COPY, code))
+	const codes = Array.isArray(group.codes) ? group.codes : [];
+	return codes.find((code) => Object.prototype.hasOwnProperty.call(BLOCKER_CODE_COPY, code))
 		?? (Object.prototype.hasOwnProperty.call(BLOCKER_CODE_COPY, group.code) ? group.code : null);
 }
 
@@ -322,12 +330,21 @@ export function presentGenerationBlockerGroups(input: {
 	// actually measure (`blockerCount`).
 	const groups = Array.isArray(diagnostic.groups) ? diagnostic.groups : [];
 	if (groups.length > 0) {
-		return groups.map((group, index) => ({
-			key: `generation-blocker-group-${group.cause}-${index}`,
-			headline: groupHeadline(group),
-			detail: group.examples.length > 0 ? `For example: ${group.examples.join(', ')}.` : null,
-			action: groupFixAction(group),
-		}));
+		return groups.map((group, index) => {
+			// A8-C5 S2.2, same rule as `groups` above and for the same reason: the
+			// examples are optional detail, so an absent or malformed field costs
+			// the "For example" clause and nothing else. It must never cost the
+			// line.
+			const examples = Array.isArray(group.examples)
+				? group.examples.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+				: [];
+			return {
+				key: `generation-blocker-group-${group.cause}-${index}`,
+				headline: groupHeadline(group),
+				detail: examples.length > 0 ? `For example: ${examples.join(', ')}.` : null,
+				action: groupFixAction(group),
+			};
+		});
 	}
 	// A8-C5 S2.0: the fallback line. The verb is spelled out here, so the phrase
 	// constant is the COMPLEMENT ("attention", not "need attention") — the previous
