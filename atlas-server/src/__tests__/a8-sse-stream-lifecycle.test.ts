@@ -13,9 +13,124 @@
  */
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, it } from 'node:test';
 
 import { SseStreamRegistry, ssePrincipalKey } from '../lib/sse.js';
+
+/**
+ * A8 QA NON_BLOCKING: the behavioural rows drive the registry directly, so
+ * reverting any one of the four ROUTE call sites to a bare
+ * `setInterval(() => sseWrite(...))` left the whole suite green — and the
+ * original defect lived in the routes, not the registry. This is a wiring guard
+ * over the real route files, not a substitute for the behavioural rows above:
+ * it proves every SSE route goes through the managed lifecycle and takes its
+ * admission key from a verified payload.
+ */
+const ROUTE_DIR = join(import.meta.dirname, '..', 'routes');
+const SSE_ROUTES = [
+	'notification.router.ts',
+	'preference.router.ts',
+	'published-schedule.router.ts',
+	'room-preference.router.ts',
+] as const;
+
+/**
+ * Comments are removed before any positional or literal check. Without this the
+ * guard read its own explanatory comment — which names `flushHeaders()` above
+ * the real call — and reported a correct route as wrongly ordered. A text
+ * search cannot tell working code from a comment quoting it; that is the same
+ * defect A7's QA caught in a different lane, and it is why the strip is part of
+ * the guard rather than a comment on it.
+ */
+function stripComments(src: string): string {
+	return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+
+/**
+ * Split a router into its `router.get(...)` / `router.post(...)` handlers, so an
+ * ordering claim is made per handler rather than per file.
+ * `notification.router.ts` is why this matters: it holds `flushHeaders()` once,
+ * inside a shared `prepareSse()` helper, and two handlers call it. A whole-file
+ * offset comparison would compare one handler's admission against the helper
+ * that precedes both, and call a correct route broken.
+ */
+function handlerBlocks(src: string): string[] {
+	const starts = [...src.matchAll(/\brouter\.(get|post|put|patch|delete)\s*\(/g)].map((m) => m.index ?? 0);
+	if (starts.length === 0) return [src];
+	return starts.map((at, i) => src.slice(at, starts[i + 1] ?? src.length));
+}
+
+/** The point at which the status line becomes unwritable for this handler. */
+function flushOffsetIn(block: string): number {
+	const direct = block.search(/res\.flushHeaders\(\)/);
+	const viaHelper = block.search(/\bprepareSse\s*\(\s*res\s*\)/);
+	if (direct === -1) return viaHelper;
+	if (viaHelper === -1) return direct;
+	return Math.min(direct, viaHelper);
+}
+
+describe('A8 SSE route wiring', () => {
+	for (const file of SSE_ROUTES) {
+		it(`${file} registers every stream through the managed lifecycle`, () => {
+			const raw = readFileSync(join(ROUTE_DIR, file), 'utf8');
+			const src = stripComments(raw);
+			assert.match(src, /sseStreams\.manage\(/, `${file} must attach its heartbeat through sseStreams.manage`);
+
+			// No route may hand-roll a heartbeat again: a bare interval that
+			// writes without inspecting the result is the pre-A8 defect.
+			assert.equal(
+				/setInterval\(\s*\(\)\s*=>\s*sseWrite\(/.test(src),
+				false,
+				`${file} reintroduced a bare setInterval(sseWrite) heartbeat; the write result must be authoritative`,
+			);
+
+			// The admission key must be built from an identity the handler actually
+			// verified. A8 QA BLOCKING-1: two handlers verified the JWT into a
+			// local and never assigned it to `req.user`, so `req.user?.userId`
+			// was undefined and every user in the school collapsed into one
+			// `anon:` bucket. The shape differs per route — some pass a literal to
+			// `ssePrincipalKey`, some funnel through a local `admitStream` helper —
+			// so the row is stated as the property itself: a verified identity must
+			// reach the key.
+			assert.match(
+				src,
+				/userId:\s*(sseUser|req\.user|decoded)\b/,
+				`${file} must feed a verified identity into stream admission`,
+			);
+			assert.match(src, /ssePrincipalKey\(/, `${file} must build an admission key`);
+
+			// Per SSE handler: admission must precede the point at which the status
+			// line becomes unwritable, and must carry the response so the slot is
+			// returned when the handler throws before manage().
+			//
+			// Two shapes occur and both must hold. Some routes admit inline; some
+			// (notification.router.ts) funnel admission through a local
+			// `admitStream()` helper and flush through a shared `prepareSse()`.
+			// Comparing whole-file offsets cannot express either: it would weigh
+			// one handler's admission against a helper that precedes both.
+			const sseHandlers = handlerBlocks(src).filter((b) => flushOffsetIn(b) > -1);
+			assert.ok(sseHandlers.length > 0, `${file} has no recognisable SSE handler`);
+			for (const [i, block] of sseHandlers.entries()) {
+				const admitAt = block.search(/sseStreams\.admit\(|admitStream\s*\(/);
+				assert.ok(
+					admitAt > -1,
+					`${file} SSE handler ${i + 1} flushes headers without admitting through the stream registry`,
+				);
+				assert.ok(
+					admitAt < flushOffsetIn(block),
+					`${file} SSE handler ${i + 1} admits at ${admitAt} but flushes at ${flushOffsetIn(block)}; a 429 cannot reach the client after the flush`,
+				);
+			}
+			assert.match(
+				src,
+				/sseStreams\.admit\(principalKey, res\)/,
+				`${file} must pass res to admit so the slot returns on the error path`,
+			);
+		});
+	}
+});
 
 /** A minimal Express-like response whose write outcome we control. */
 class FakeResponse extends EventEmitter {
@@ -163,7 +278,7 @@ describe('A8 SSE stream lifecycle', () => {
 		// 50 connection attempts for one principal.
 		let handles = 0;
 		for (let i = 0; i < 50; i += 1) {
-			const streamId = registry.admit(key);
+			const streamId = registry.admit(key, res);
 			if (streamId === null) continue;
 			registry.manage({ req, res, principalKey: key, streamId, unsubscribe: () => {}, heartbeatPayload: () => ': hb\n\n' });
 			handles += 1;
@@ -174,9 +289,75 @@ describe('A8 SSE stream lifecycle', () => {
 
 		await within(wait(50), 2000, 'capped heartbeats');
 		assert.equal(registry.openCount, cap, 'the admitted streams are still open and healthy');
-		assert.equal(res.written.length >= cap, true, 'every admitted stream is being heartbeated');
+		assert.ok(res.written.length >= cap, 'every admitted stream is being heartbeated');
+		assert.equal(registry.activeHeartbeatCount, cap, 'no extra timer was created per request attempt');
 
+		// A8 QA R3: the assertion above is registry bookkeeping and cannot see a
+		// timer that outlives its stream — deleting `clearInterval(heartbeat)`
+		// from release() left this suite 4/4 green. So observe the timer
+		// BEHAVIOUR: after teardown no further write may ever reach the response.
 		req.emit('close');
 		assert.equal(registry.activeHeartbeatCount, 0, 'closing the request drops every timer');
+		const writesAtClose = res.written.length;
+		await within(wait(80), 2000, 'post-close silence');
+		assert.equal(
+			res.written.length,
+			writesAtClose,
+			`no heartbeat may be written after teardown (a surviving timer wrote ${res.written.length - writesAtClose} more)`,
+		);
+	});
+
+	it('returns an admitted slot when the handler throws before manage()', async () => {
+		// A8 QA BLOCKING-2: admit() used to be fire-and-forget, so anything
+		// throwing between admission and manage() burned a slot permanently and
+		// locked the principal out until process restart — while openCount
+		// reported 0, making the loss invisible.
+		const registry = new SseStreamRegistry({ streamsPerPrincipal: 3 });
+		const key = ssePrincipalKey({ userId: 31, schoolId: 1, schoolYearId: 1 });
+
+		// Simulate a handler that admits, then throws: the error handler ends the
+		// response, which is what releases the slot. Each failure is serial, so
+		// the count returns to 0 between attempts — the property under test is
+		// that three consecutive failures do not consume three slots.
+		for (let i = 0; i < 3; i += 1) {
+			const res = new FakeResponse();
+			const streamId = registry.admit(key, res);
+			assert.ok(streamId !== null, `admission ${i + 1} of 3 succeeds`);
+			assert.equal(registry.openCount, 1, 'the admitted slot is visible in the open count');
+			assert.equal(registry.countFor(key), 1, `the principal holds exactly one slot during attempt ${i + 1}`);
+			res.emit('close');
+			assert.equal(registry.openCount, 0, `slot returned after failed attempt ${i + 1}`);
+		}
+		assert.equal(registry.openCount, 0, 'every slot returned when its response closed');
+		assert.ok(registry.admit(key) !== null, 'the principal is not locked out after three failures');
+
+		// And the cap still holds once slots are genuinely held.
+		const held: FakeResponse[] = [];		for (let i = 0; i < 3; i += 1) {
+			const res = new FakeResponse();
+			held.push(res);
+			registry.admit(key, res);
+		}
+		assert.equal(registry.admit(key, held[0]), null, 'the cap still refuses the 4th held stream');
+	});
+
+	it('keying is per principal, so one user cannot consume another user\'s slots', () => {
+		// A8 QA BLOCKING-1: two handlers verified the token into a local and
+		// never wrote it back, so every authenticated user collapsed into
+		// `anon:<school>:<year>` and the cap became a school-wide bucket.
+		const registry = new SseStreamRegistry({ streamsPerPrincipal: 2 });
+		const a = ssePrincipalKey({ userId: 1000, schoolId: 1, schoolYearId: 1 });
+		const b = ssePrincipalKey({ userId: 1001, schoolId: 1, schoolYearId: 1 });
+		assert.notEqual(a, b, 'two distinct users get distinct keys');
+
+		assert.ok(registry.admit(a) !== null, 'user A stream 1');
+		assert.ok(registry.admit(a) !== null, 'user A stream 2');
+		assert.equal(registry.admit(a), null, 'user A is at their own cap');
+		assert.ok(registry.admit(b) !== null, 'user B is unaffected by user A reaching their cap');
+		assert.equal(registry.countFor(a), 2, "user A's count is theirs alone");
+		assert.equal(registry.countFor(b), 1, "user B's count is theirs alone");
+
+		// A key built without a userId is the shared anonymous bucket, and it is
+		// deliberately distinct from any named principal.
+		assert.notEqual(ssePrincipalKey({ schoolId: 1, schoolYearId: 1 }), a, 'an unidentified reader is not folded into a user');
 	});
 });

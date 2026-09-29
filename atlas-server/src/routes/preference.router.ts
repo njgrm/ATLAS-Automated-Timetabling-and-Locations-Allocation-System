@@ -458,6 +458,15 @@ router.get(
 			}
 			if (!decoded) { res.status(401).json({ code: 'INVALID_TOKEN', message: 'Invalid token.' }); return; }
 
+			// A8 (QA BLOCKING-1): this handler verified the token into a local
+			// `decoded` and never wrote it back, so keying admission on
+			// `req.user` yielded `anon:<school>:<year>` for every authenticated
+			// user and the per-principal cap collapsed into a school-wide
+			// 20-stream bucket. Key on the payload this handler actually
+			// verified, and publish it on `req.user` for parity with the
+			// notification and room-preference handlers.
+			req.user = decoded;
+
 			// Determine scope: teacher users get filtered to their own events.
 			// Use the canonical resolver so identity matches all other faculty
 			// routes (avoids SSE-only auth drift where a teacher's externalId
@@ -487,9 +496,9 @@ router.get(
 			// A8: admission is the FIRST thing that happens. Once flushHeaders()
 			// runs the status line is on the wire and a 429 can no longer reach
 			// the client, so a cap check after it would answer a refused stream
-			// with a lying 200.
-			const principalKey = ssePrincipalKey({ userId: req.user?.userId, schoolId, schoolYearId });
-			const streamId = sseStreams.admit(principalKey);
+			// with a lying 200. The key comes from the token verified above.
+			const principalKey = ssePrincipalKey({ userId: decoded.userId, schoolId, schoolYearId });
+			const streamId = sseStreams.admit(principalKey, res);
 			if (streamId === null) {
 				res.status(429).json({ code: 'TOO_MANY_STREAMS', message: 'Too many live event streams for this account. Close an open tab and try again.' });
 				return;

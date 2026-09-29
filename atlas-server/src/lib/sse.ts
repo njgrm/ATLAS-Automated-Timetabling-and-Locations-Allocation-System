@@ -75,11 +75,14 @@ export function registerSseCleanup(
  * This helper makes the failed write authoritative: it ends the response,
  * clears the heartbeat and releases the subscription. It also caps concurrent
  * streams per principal, so one client cannot pin an unbounded number of
- * heartbeat timers, and it keeps the open-stream count observable.
+ * heartbeat timers, and it returns the slot on every path out of the handler.
  *
  * This is NOT an SSE contract change. Event names, the `retry:` frame, replay
- * semantics and authentication are all untouched, and a client that loses a
- * dead stream reconnects through the `retry:` directive it already honours.
+ * semantics and authentication are all untouched, and a client whose stream is
+ * torn down here re-establishes it the way it already did — by its own timer.
+ * (The notification stream does not read the `retry:` value: it hardcodes
+ * `INITIAL_BACKOFF_MS` in `useNotificationStream.ts`. The `retry:` frame is
+ * still emitted unchanged, but do not credit this teardown with it.)
  */
 
 export const DEFAULT_SSE_HEARTBEAT_MS = 15_000;
@@ -87,15 +90,22 @@ export const DEFAULT_SSE_HEARTBEAT_MS = 15_000;
  * Concurrent live streams one principal may hold before new ones are refused.
  *
  * Deliberately generous, because refusing a legitimate stream is a visible
- * product failure (a screen silently stops receiving live updates) and the demo
- * is the worst possible place to discover that. Measured legitimate ceiling from
- * the client: `useNotificationStream` opens 2 connections per authenticated tab
- * (`useNotificationStream.ts:213-214` — the school-year stream plus the
- * conditional school stream), and `OfficerPreferences.tsx:171` and
- * `OfficerRoomPreferences.tsx:118` each add 1 on their own pages. That is 4 for
- * an officer with both pages open in one tab, so ~16 across four tabs. 20 leaves
- * headroom while still bounding the heartbeat timer count, which is the point of
- * the cap; the leak fix, not the cap, is what actually reclaims a dead stream.
+ * product failure and the demo is the worst possible place to discover that.
+ * Measured legitimate ceiling from the client: `useNotificationStream`
+ * (`useNotificationStream.ts:213-214`) opens 2 connections per authenticated
+ * tab — the school-year stream plus the school stream, which is conditional on
+ * `schoolEventsEnabled`. `OfficerPreferences.tsx:171` and
+ * `OfficerRoomPreferences.tsx:118` each add 1, but they are separate routes, so
+ * an officer has at most one of them mounted at a time: **3 per tab**, not 4.
+ * Four tabs is therefore ~12, and 20 leaves headroom.
+ *
+ * Two honest limits of this cap, both NON_BLOCKING and both about the refusal
+ * rather than the bound:
+ *  - the key is per user, so this bounds one account, not a school's total;
+ *  - a client refused here gets a 429, which a browser `EventSource` treats as
+ *    fatal and will not retry. That is acceptable only because the cap is set
+ *    far above any legitimate ceiling; lowering it turns a bounded resource
+ *    into a silent live-update outage.
  */
 export const DEFAULT_SSE_STREAMS_PER_PRINCIPAL = 20;
 
@@ -128,9 +138,10 @@ interface RegistryEntry {
 	streamId: number;
 	principalKey: string;
 	res: SseWritableResponse;
-	close: () => void;
 	openedAt: number;
 	heartbeatsWritten: number;
+	/** True once manage() has attached the heartbeat and teardown. */
+	live: boolean;
 }
 
 export class SseStreamRegistry {
@@ -138,17 +149,32 @@ export class SseStreamRegistry {
 	private readonly streamsPerPrincipal: number;
 	private readonly onCapRejected: (principalKey: string) => void;
 	private readonly now: () => number;
+	/**
+	 * Every admitted slot, including one whose handler has not reached
+	 * `manage()` yet. A8 QA BLOCKING-2: counting only managed streams made the
+	 * observability blind to exactly the leak that mattered — 20 slots consumed,
+	 * `openCount` reporting 0.
+	 */
 	private readonly byId = new Map<number, RegistryEntry>();
 	private readonly byPrincipal = new Map<string, Set<number>>();
+	/** Admission slots currently held. */
+	private admitted = 0;
+	/** Managed streams whose heartbeat timer is live. */
+	private liveTimers = 0;
+	/** One stderr line per principal, so a capped auto-reconnecting client cannot flood the log. */
+	private readonly capWarned = new Set<string>();
 	private nextId = 1;
-	private lastCloseReasonValue: 'peer-gone' | 'closed' | 'capped' = 'closed';
 
 	constructor(options: SseStreamRegistryOptions = {}) {
 		this.heartbeatMs = options.heartbeatMs ?? DEFAULT_SSE_HEARTBEAT_MS;
 		this.streamsPerPrincipal = options.streamsPerPrincipal ?? DEFAULT_SSE_STREAMS_PER_PRINCIPAL;
-		this.onCapRejected = options.onCapRejected ?? ((key) => {
-			console.warn(`[sse] refused stream: principal ${key} is at the concurrent-stream cap (${this.streamsPerPrincipal})`);
-		});
+		this.onCapRejected =
+			options.onCapRejected ??
+			((key) => {
+				if (this.capWarned.has(key)) return;
+				this.capWarned.add(key);
+				console.warn(`[sse] refused stream: principal ${key} is at the concurrent-stream cap (${this.streamsPerPrincipal}); further refusals for this principal are not logged`);
+			});
 		this.now = options.now ?? (() => Date.now());
 	}
 
@@ -157,27 +183,34 @@ export class SseStreamRegistry {
 		return this.byPrincipal.get(principalKey)?.size ?? 0;
 	}
 
-	/** Open streams across every principal. */
+	/** Admission slots held across every principal. */
 	get openCount(): number {
-		return this.byId.size;
+		return this.admitted;
 	}
 
 	/**
-	 * Live heartbeat timers, which is the per-tick background work this class
-	 * exists to bound: one timer per open stream, capped per principal.
+	 * Live heartbeat timers — the per-tick background work this class exists to
+	 * bound: one timer per managed stream, and managed streams are capped per
+	 * principal. Counted at the point the interval is created and cleared, not
+	 * inferred from the admission map, so a timer that outlives its stream is
+	 * visible here.
 	 */
 	get activeHeartbeatCount(): number {
-		return this.byId.size;
+		return this.liveTimers;
 	}
 
 	/**
 	 * Take a stream slot for `principalKey`, or return null when the principal
 	 * is at its cap. The caller is responsible for the HTTP rejection; this only
 	 * governs admission.
+	 *
+	 * The slot carries its own safety release: if the handler throws between
+	 * admission and `manage()`, Express's error handler ends the response,
+	 * `close` fires, and the slot returns. A8 QA BLOCKING-2: without this a
+	 * single throw locked a principal out until process restart.
 	 */
-	admit(principalKey: string): number | null {
+	admit(principalKey: string, res?: SseWritableResponse): number | null {
 		if (this.countFor(principalKey) >= this.streamsPerPrincipal) {
-			this.lastCloseReasonValue = 'capped';
 			this.onCapRejected(principalKey);
 			return null;
 		}
@@ -188,14 +221,19 @@ export class SseStreamRegistry {
 			this.byPrincipal.set(principalKey, set);
 		}
 		set.add(streamId);
+		this.admitted += 1;
+		if (res) {
+			// Idempotent: manage()'s teardown also releases, and release() tolerates
+			// a stream that is already gone.
+			res.on('close', () => this.release(principalKey, streamId));
+		}
 		return streamId;
 	}
 
 	release(principalKey: string, streamId: number): void {
-		this.byId.delete(streamId);
+		if (this.byPrincipal.get(principalKey)?.delete(streamId)) this.admitted -= 1;
 		const set = this.byPrincipal.get(principalKey);
 		if (!set) return;
-		set.delete(streamId);
 		if (set.size === 0) this.byPrincipal.delete(principalKey);
 	}
 
@@ -217,14 +255,15 @@ export class SseStreamRegistry {
 			settle = resolvePromise;
 		});
 
-		const entry: RegistryEntry = {
+		const entry: RegistryEntry = this.byId.get(streamId) ?? {
 			streamId,
 			principalKey,
 			res,
-			close: () => {},
 			openedAt: this.now(),
 			heartbeatsWritten: 0,
+			live: false,
 		};
+		entry.live = true;
 		this.byId.set(streamId, entry);
 
 		let heartbeat: NodeJS.Timeout | null = null;
@@ -232,8 +271,12 @@ export class SseStreamRegistry {
 		const release = (reason: 'peer-gone' | 'closed' | 'capped') => {
 			if (done) return;
 			done = true;
-			if (heartbeat) clearInterval(heartbeat);
+			if (heartbeat) {
+				clearInterval(heartbeat);
+				this.liveTimers -= 1;
+			}
 			heartbeat = null;
+			entry.live = false;
 			try {
 				unsubscribe();
 			} catch {
@@ -248,11 +291,11 @@ export class SseStreamRegistry {
 					// Already destroyed.
 				}
 			}
+			this.byId.delete(streamId);
 			this.release(principalKey, streamId);
 			settle(reason);
 		};
 
-		entry.close = () => release('closed');
 		heartbeat = setInterval(() => {
 			// A8: the write result is authoritative. A false result means the
 			// peer is gone; previously this was discarded and the stream, its
@@ -261,22 +304,29 @@ export class SseStreamRegistry {
 				release('peer-gone');
 				return;
 			}
-			const live = this.byId.get(streamId);
-			if (live) live.heartbeatsWritten += 1;
+			entry.heartbeatsWritten += 1;
 		}, this.heartbeatMs);
+		// A heartbeat must never be the reason the process stays alive; the
+		// HTTP server and its sockets hold the loop open on their own.
 		heartbeat.unref?.();
+		this.liveTimers += 1;
 
 		registerSseCleanup(req, res, () => release('closed'));
 		return { close: () => release('closed'), closedByPeer, streamId };
 	}
-
-	/** Test/observability affordance: why the most recent stream went away. */
-	get lastCloseReason(): 'peer-gone' | 'closed' | 'capped' {
-		return this.lastCloseReasonValue;
-	}
 }
 
-/** Stable key for stream admission. Anonymous public readers share one bucket. */
+/**
+ * Stable key for stream admission.
+ *
+ * It must be built from the identity the handler actually verified. A8 QA
+ * BLOCKING-1: two handlers verified the JWT into a local `decoded` and never
+ * assigned it to `req.user`, so `req.user?.userId` was undefined and every
+ * authenticated user in the school collapsed into one `anon:<school>:<year>`
+ * bucket — turning a per-user cap into a school-wide refusal. Unidentified
+ * readers (the unauthenticated public published-schedule stream) deliberately
+ * share the `anon:` bucket rather than inheriting a user's.
+ */
 export function ssePrincipalKey(input: {
 	userId?: number | null;
 	schoolId?: number | null;

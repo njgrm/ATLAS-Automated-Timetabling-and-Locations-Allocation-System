@@ -607,6 +607,13 @@ router.get(
 			}
 			if (!decoded) { res.status(401).json({ code: 'INVALID_TOKEN', message: 'Invalid token.' }); return; }
 
+		// A8 (QA BLOCKING-1): this handler verified the token into a local
+		// `decoded` and never wrote it back, so keying admission on `req.user`
+		// yielded `anon:<school>:<year>` for every authenticated user and the
+		// per-principal cap collapsed into a school-wide 20-stream bucket. Key
+		// on the payload this handler actually verified.
+		req.user = decoded;
+
 			// Determine scope: teacher users get filtered to their own events.
 			const isPrivileged = decoded.role === 'admin' || decoded.role === 'officer' || decoded.role === 'SYSTEM_ADMIN';
 			let scopeFacultyId: number | null = null;
@@ -629,10 +636,10 @@ router.get(
 			const lastIdRaw = req.headers['last-event-id'] as string | undefined;
 			const lastId = lastIdRaw ? parseInt(lastIdRaw, 10) : 0;
 
-			// A8: admission precedes flushHeaders(), after which a 429 can no longer
-			// reach the client.
-			const principalKey = ssePrincipalKey({ userId: req.user?.userId, schoolId, schoolYearId });
-			const streamId = sseStreams.admit(principalKey);
+		// A8: admission precedes flushHeaders(), after which a 429 can no longer
+		// reach the client. The key comes from the token verified above.
+		const principalKey = ssePrincipalKey({ userId: decoded.userId, schoolId, schoolYearId });
+			const streamId = sseStreams.admit(principalKey, res);
 			if (streamId === null) {
 				res.status(429).json({ code: 'TOO_MANY_STREAMS', message: 'Too many live event streams for this account. Close an open tab and try again.' });
 				return;

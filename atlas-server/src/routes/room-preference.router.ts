@@ -484,7 +484,7 @@ router.get(
 			// A8: admission precedes flushHeaders(), after which a 429 can no longer
 			// reach the client.
 			const principalKey = ssePrincipalKey({ userId: req.user?.userId, schoolId, schoolYearId });
-			const streamId = sseStreams.admit(principalKey);
+			const streamId = sseStreams.admit(principalKey, res);
 			if (streamId === null) {
 				res.status(429).json({ code: 'TOO_MANY_STREAMS', message: 'Too many live event streams for this account. Close an open tab and try again.' });
 				return;
