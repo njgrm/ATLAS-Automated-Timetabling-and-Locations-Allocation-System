@@ -143,7 +143,7 @@ export function TeacherWorkloadAuditSummary({
 								)}
 								data-testid={`workload-audit-filter-${entry.id}`}
 							>
-								<span className="text-[11px] uppercase tracking-tight opacity-80">{entry.label}</span>
+								<span className="text-xs tracking-tight opacity-80">{entry.label}</span>
 								<span className="text-base tabular-nums" data-testid={`workload-audit-count-${entry.id}`}>
 									{count === null ? '—' : count}
 								</span>
@@ -186,15 +186,15 @@ export function TeacherWorkloadAuditSummary({
 										<span className="flex items-center gap-2">
 											<span className="truncate text-sm font-semibold tracking-tight">{row.displayName}</span>
 											{row.isClassAdviser && (
-												<Badge variant="secondary" className="h-4 shrink-0 px-1.5 text-[11px] font-semibold uppercase">Adviser</Badge>
+												<Badge variant="secondary" className="h-4 shrink-0 px-1.5 text-xs font-semibold">Adviser</Badge>
 											)}
 											{row.isOverCap && (
-												<Badge variant="outline" className="h-4 shrink-0 border-rose-200 bg-rose-50 px-1.5 text-[11px] font-semibold uppercase text-rose-700">
+												<Badge variant="outline" className="h-4 shrink-0 border-rose-200 bg-rose-50 px-1.5 text-xs font-semibold text-rose-700">
 													Over cap
 												</Badge>
 											)}
 										</span>
-										<span className="block truncate text-[11px] font-bold uppercase tracking-tight text-muted-foreground">
+										<span className="block truncate text-xs font-bold tracking-tight text-muted-foreground">
 											{row.departmentLabel}
 										</span>
 									</span>

@@ -166,7 +166,7 @@ export function TeachingLoadRepairQueue({
 							/* A <span>, not a @/ui Badge: the badge primitive is a
 							 * <div>, and this chip is a <span> so it can sit inside the
 							 * state line without an invalid nested block element. */
-							<span className="h-5 shrink-0 rounded-full border border-current/30 bg-background/70 px-1.5 text-[11px] font-bold leading-5 text-foreground">
+							<span className="h-5 shrink-0 rounded-full border border-current/30 bg-background/70 px-1.5 text-xs font-bold leading-5 text-foreground">
 								{currentItem.countLabel}
 							</span>
 						)}

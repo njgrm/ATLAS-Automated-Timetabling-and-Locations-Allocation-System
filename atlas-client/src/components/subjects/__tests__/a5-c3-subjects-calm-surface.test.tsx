@@ -381,7 +381,10 @@ test('A5-C3-A1b: the five triggers carry ONE width variant, and the search input
 			widths: triggers.map((t) => /(^|\s)(w-[\w-]+)/.exec(t.className)?.[2] ?? 'NONE'),
 			heights: triggers.map((t) => /(^|\s)(h-[\w-]+)/.exec(t.className)?.[2] ?? 'NONE'),
 			classes: triggers.map((t) => t.className),
-			withSharedHeight: triggers.filter((t) => /(^|\s)h-9(?:\s|$)/.test(t.className)).length,
+			// RE-PINNED BY A7 C8 SLICE 1 (2026-09-29): the shared height token moved
+			// h-9 -> h-10 (36px -> 40px). The CLAIM is unchanged: the search box and all
+			// five triggers still share ONE height token.
+			withSharedHeight: triggers.filter((t) => /(^|\s)h-10(?:\s|$)/.test(t.className)).length,
 			searchClass: search?.className ?? 'NO_SEARCH_INPUT',
 		};
 	});
@@ -402,9 +405,10 @@ test('A5-C3-A1b: the five triggers carry ONE width variant, and the search input
 	);
 	/* R1 J3: the search box and the triggers must share the height TOKEN, not two
 	 * hand-matched literals. */
-	assert.match(seen.searchClass, /(^|\s)h-9(\s|$)/, `the search input no longer uses the shared height token: ${seen.searchClass}`);
+	// RE-PINNED BY A7 C8 SLICE 1: h-9 -> h-10, same claim, see the note above.
+	assert.match(seen.searchClass, /(^|\s)h-10(\s|$)/, `the search input no longer uses the shared height token: ${seen.searchClass}`);
 	seen.heights.forEach((height, index) => {
-		assert.equal(height, 'h-9', `trigger ${index} does not use the shared height token: ${seen.classes[index]}`);
+		assert.equal(height, 'h-10', `trigger ${index} does not use the shared height token: ${seen.classes[index]}`);
 	});
 	assert.equal(
 		seen.withSharedHeight,

@@ -101,7 +101,7 @@ export function OccupancyTemplatePreview({
 						</CardHeader>
 						<CardContent className="p-0">
 							<div className="overflow-auto">
-								<table className="min-w-215 w-full border-collapse text-[11px]">
+								<table className="min-w-215 w-full border-collapse text-xs">
 									<colgroup>
 										<col className="w-28" />
 										{view.days.map((day) => <col key={day} />)}
@@ -139,7 +139,7 @@ export function OccupancyTemplatePreview({
 																		<div key={entry.entryId} className="rounded border border-border bg-background px-2 py-1 shadow-sm">
 																			<div className="flex items-center justify-between gap-2">
 																			<span className="font-semibold text-foreground">{details.subject}</span>
-																			<span className="text-[10px] text-muted-foreground">{formatTime(entry.startTime)}-{formatTime(entry.endTime)}</span>
+																			<span className="text-xs text-muted-foreground">{formatTime(entry.startTime)}-{formatTime(entry.endTime)}</span>
 																		</div>
 																		<div className="mt-0.5 text-muted-foreground">{details.section}</div>
 																		<div className="mt-0.5 text-muted-foreground/80">{details.faculty}</div>

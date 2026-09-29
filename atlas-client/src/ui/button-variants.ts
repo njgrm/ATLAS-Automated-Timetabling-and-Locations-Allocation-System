@@ -46,16 +46,53 @@ export const buttonVariants = cva(
 					'border-border bg-muted text-muted-foreground shadow-none dark:border-input dark:bg-muted/40',
 			},
 			size: {
-				default: 'h-8 gap-1.5 px-2.5',
+				/**
+				 * A7 C8 SLICE 1 — the acting sizes, raised to the packet's floor.
+				 *
+				 * The operator, 2026-09-29: *"Our default text and sizes should
+				 * naturally be bigger"*, for older, mouse-first schedulers. A
+				 * control is the easiest thing on the page to hit, so it is the
+				 * first thing that has to be big enough to hit.
+				 *
+				 * THE NUMBERS, AND WHERE THEY COME FROM. `default` and `icon` were
+				 * `h-8`/`size-8` (32px) and are now `h-10`/`size-10` (40px).
+				 * `lg` and `icon-lg` were `h-9`/`size-9` (36px) and are now
+				 * `h-11`/`size-11` (44px) — the packet's 44px floor for a PRIMARY
+				 * action, and `lg` is the size a page reaches for when it means
+				 * "this is the thing to press". `sm` (`h-10`) and `icon-sm`
+				 * (`size-10`) were ALREADY 40px, which is why `sm` is the most
+				 * used size in the app (413 call sites) and why the fix lands on
+				 * `default` rather than on the common case.
+				 *
+				 * `default` MOVING TO `h-10` IS THE POINT, NOT A SIDE EFFECT: after
+				 * this change `default` and `sm` are the same height, so a page can
+				 * no longer produce a 32px button next to a 40px one and call it
+				 * styling. §8 "One look per control" is about exactly that.
+				 *
+				 * WHY `xs` AND `icon-xs` ARE DELIBERATELY NOT IN THIS TABLE'S 40px
+				 * SET. They stay at `h-6`/`size-6` (24px) and are recorded as an
+				 * open deviation, because their 32 call sites are not in page
+				 * furniture — they are INSIDE things that have a fixed geometry:
+				 * `CampusMapEditorZoomControls` stacks three of them in a map
+				 * corner, `TimetableGridConflictBadge` and `ScheduleEntryCell` sit
+				 * in timetable cells, and `BuildingPanel`/`SubjectRow`/`FacultyRow`
+				 * put them in repeated table rows. 40px there is not "bigger", it
+				 * is a broken grid, and this slice has no rendered row to catch it.
+				 * The honest fix is a re-fit pass that decides what each of those
+				 * surfaces gives up, which is the planner's next slice, not a
+				 * number typed into a variant here. 24px does clear WCAG 2.2 AA
+				 * 2.5.8 Target Size (Minimum).
+				 */
+				default: 'h-10 gap-1.5 px-2.5',
 				xs: "h-6 gap-1 rounded-[min(var(--radius-md),10px)] px-2 text-xs in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
 				sm: "h-10 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem] in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 [&_svg:not([class*='size-'])]:size-3.5",
-				lg: 'h-9 gap-1.5 px-2.5',
-				icon: 'size-8',
+				lg: 'h-11 gap-1.5 px-2.5',
+				icon: 'size-10',
 				'icon-xs':
 					"size-6 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-md [&_svg:not([class*='size-'])]:size-3",
 				'icon-sm':
 					'size-10 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-md [&_svg:not([class*="size-"])]:size-3.5',
-				'icon-lg': 'size-9',
+				'icon-lg': 'size-11',
 			},
 		},
 		defaultVariants: {

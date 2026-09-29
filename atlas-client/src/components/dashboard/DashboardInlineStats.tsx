@@ -84,7 +84,7 @@ export function DashboardInlineStats(props: DashboardInlineStatsProps) {
 					>
 						<div className="flex items-center gap-2">
 							<Icon className="size-3.5 text-muted-foreground/70" />
-							<span className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">
+							<span className="text-xs tracking-wider font-bold text-muted-foreground">
 								{it.label}
 							</span>
 						</div>
@@ -96,7 +96,7 @@ export function DashboardInlineStats(props: DashboardInlineStatsProps) {
 							</div>
 						)}
 						{it.hint && !loading && (
-							<div className="flex items-start gap-1 text-[10px] text-amber-700 leading-tight">
+							<div className="flex items-start gap-1 text-xs text-amber-700 leading-tight">
 								<AlertTriangle className="size-3 shrink-0 mt-px" />
 								<span className="truncate">{it.hint}</span>
 							</div>

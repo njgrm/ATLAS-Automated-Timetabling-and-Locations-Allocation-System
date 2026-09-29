@@ -150,7 +150,7 @@ export default function AvailabilityPicker({ slots, onChange, disabled }: Availa
 				<div className='flex items-center gap-2'>
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild disabled={disabled}>
-							<Button variant='outline' size='sm' className='h-8 text-[11px] font-bold gap-1.5 rounded-full px-3'>
+							<Button variant='outline' size='sm' className='h-8 text-xs font-bold gap-1.5 rounded-full px-3'>
 								<Zap className='size-3.5 text-amber-500 fill-amber-500' /> Quick Fill
 							</Button>
 						</DropdownMenuTrigger>
@@ -192,7 +192,7 @@ export default function AvailabilityPicker({ slots, onChange, disabled }: Availa
 					<div className='divide-y divide-border'>
 						{TIME_SLOTS.map(time => (
 							<div key={time} className='grid grid-cols-[80px_repeat(5,1fr)] group'>
-								<div className='p-1 text-[10px] font-bold text-muted-foreground border-r border-border bg-muted/5 flex items-center justify-center tabular-nums'>
+								<div className='p-1 text-xs font-bold text-muted-foreground border-r border-border bg-muted/5 flex items-center justify-center tabular-nums'>
 									{formatTime(time)}
 								</div>
 								{DAYS.map(day => {
@@ -226,7 +226,7 @@ export default function AvailabilityPicker({ slots, onChange, disabled }: Availa
 			</div>
 			<div className='flex items-center gap-2 px-1'>
 				<Info className="size-3 text-muted-foreground" />
-				<p className='text-[11px] text-muted-foreground font-medium italic'>
+				<p className='text-xs text-muted-foreground font-medium italic'>
 					Click or drag to paint your availability.
 				</p>
 			</div>
