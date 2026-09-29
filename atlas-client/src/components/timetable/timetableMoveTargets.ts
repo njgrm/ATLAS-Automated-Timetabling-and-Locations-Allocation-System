@@ -96,6 +96,52 @@ export const NO_TARGETS_IN_VIEW_REASON = 'This view has no time periods to move 
 /** A2 mc S3 — the one plain sentence naming why an occupied slot cannot be used. */
 export const NO_SWAP_PARTNER_REASON = 'The class in that slot shares no section, teacher or room, so the two cannot trade places.';
 
+/** A numeric identity field, or `null`. Never `NaN`, never a coerced string. */
+function identityNumber(value: unknown): number | null {
+	return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/** A text field, or `''`. Never the literal `String(undefined)`. */
+function identityText(value: unknown): string {
+	return typeof value === 'string' ? value : value == null ? '' : String(value);
+}
+
+/**
+ * A2 mc R1 (3a) — the occupant projection, declared next to the derivation that
+ * CONSUMES it because that is where its contract lives.
+ *
+ * WHY IT MOVED. `ScheduleReviewWorkspace.tsx` stood at 995 physical lines against
+ * the AGENTS.md §8 cap of 1000, and this projection had to GROW: it previously
+ * carried only `entryId`/`day`/`startTime`/`endTime`, which is why
+ * `describeMoveSwapOffers` returned `[]` in production and the grid's move path
+ * rendered no offer at all. §8 says EXTRACT rather than grow, and the C11 M3
+ * record that accompanied the block here is preserved in the move-status call
+ * site's own comment.
+ *
+ * WHAT IT CARRIES. `sectionId`, `subjectId`, `facultyId`, `roomId` and
+ * `termIndex` are exactly what `hasSwapIdentity` and `findRegularSwapCandidate`
+ * need. They are read off `draft.entries`, which arrives typed `unknown`, so a
+ * missing or non-numeric field degrades to `null` — never `NaN` (which would
+ * poison every numeric comparison silently) and never the string `"undefined"`.
+ *
+ * IT CHANGES NO DERIVATION BEHAVIOUR. `legalMoveTargets` reads only the four
+ * original fields, so the free-target list is byte-identical; the extra fields
+ * are consumed solely by the swap-offer derivation.
+ */
+export function toMoveOccupants(entries: ReadonlyArray<Record<string, unknown>>): MoveOccupant[] {
+	return entries.map((entry) => ({
+		entryId: identityText(entry.entryId),
+		day: identityText(entry.day),
+		startTime: identityText(entry.startTime),
+		endTime: identityText(entry.endTime),
+		sectionId: identityNumber(entry.sectionId),
+		subjectId: identityNumber(entry.subjectId),
+		facultyId: identityNumber(entry.facultyId),
+		roomId: identityNumber(entry.roomId),
+		termIndex: identityNumber(entry.termIndex),
+	}));
+}
+
 export function slotKey(day: string, startTime: string): string {
 	return `${day}-${startTime}`;
 }

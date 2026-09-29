@@ -1,4 +1,4 @@
-import { DndContext, DragOverlay, pointerWithin, useDndContext } from '@dnd-kit/core';
+import { DndContext, DragOverlay, pointerWithin } from '@dnd-kit/core';
 import { useScheduleReviewWorkspaceState } from '@/hooks/useScheduleReviewWorkspaceState';
 import { ScheduleReviewWorkspaceHeader } from '@/components/timetable/ScheduleReviewWorkspaceHeader';
 import { TimetableSimpleHeader } from '@/components/timetable/TimetableSimpleHeader';
@@ -23,13 +23,14 @@ import { lazy, Profiler, Suspense, useCallback, useEffect, useLayoutEffect, useM
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { ScheduledEntry } from '@/types';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
-import { describeMoveTargets, type MoveSlot } from '@/components/timetable/timetableMoveTargets';
+import { describeMoveTargets, toMoveOccupants, type MoveSlot } from '@/components/timetable/timetableMoveTargets';
 import { setTimetableEntryReadOnly } from '@/components/timetable/TimetableDraggableEntry';
 import { TimetableUndoRedoControl } from '@/components/timetable/TimetableUndoRedoControl';
 import { dispatchUndoByLedger, UNDO_CONFLICT_MESSAGE } from '@/components/timetable/timetableUndoRedoState';
 import { createSwapArmHandler } from '@/components/timetable/timetableSwapArming';
 import { createTeacherDepartureJump } from '@/components/timetable/timetableTeacherDepartureJump';
 import { TimetableMoveStatusLine } from '@/components/timetable/TimetableMoveStatusLine';
+import { TimetableDragOverlay } from '@/components/timetable/TimetableDragOverlay';
 import ConcurrentCommitNoticeBar from '@/components/timetable/ConcurrentCommitNoticeBar';
 import { buildScopeKey, clearScopeState, shouldClearForScopeChange } from '@/components/timetable/timetableScopeHygiene';
 import { SimplePastYearView } from '@/components/timetable/simple/SimplePastYearView';
@@ -43,14 +44,12 @@ const TeacherDepartureRecoverySheet = lazy(() => import('@/components/timetable/
 	default: module.TeacherDepartureRecoverySheet,
 })));
 
-/** A2 C13 — extracted so this file sits UNDER §8's 1000-line cap with real headroom: it
- *  stood at 997 and the two props A2 C13 adds took it to 1000, which is AT the line but
- *  has zero room for the next edit — that is how a cap gets breached later. §8 says
- *  EXTRACT, never delete a comment, so the C11 M3 record stays on the call site. Pure,
+/** A2 C13 — the `MoveOccupant` projection and its record moved to
+ *  `timetableMoveTargets.ts` next to the derivation that consumes it: this file
+ *  stood at 995 physical lines against §8's 1000, and the A2 mc R1 swap offers
+ *  required the projection to GROW (it carried no section/teacher/room/term, which
+ *  is why the grid's move path offered no swap at all). §8 says EXTRACT. Pure,
  *  not a hook, so hook order is untouched and the #310 hazard below cannot return. */
-type MoveOccupant = { entryId: string; day: string; startTime: string; endTime: string };
-const toMoveOccupants = (es: Array<Record<string, unknown>>): MoveOccupant[] =>
-	es.map((e) => ({ entryId: String(e.entryId), day: String(e.day), startTime: String(e.startTime), endTime: String(e.endTime) }));
 
 export const onProfilerRender = (id: string, phase: string, actualDuration: number, baseDuration: number) => {
 	if (typeof window !== 'undefined') {
@@ -59,31 +58,6 @@ export const onProfilerRender = (id: string, phase: string, actualDuration: numb
 		win.__reactProfilerLogs.push({ id, phase, actualDuration, baseDuration, timestamp: Date.now() });
 	}
 };
-
-function TimetableDragOverlay({
-	subjectLabel,
-	sectionLabel,
-}: {
-	subjectLabel: (id: number) => string;
-	sectionLabel: (id: number) => string;
-}) {
-	const { active } = useDndContext();
-	const source = active?.data.current as any;
-	if (!source?.type) return null;
-	const label = source.type === 'entry'
-		? subjectLabel(source.entry.subjectId)
-		: source.type === 'draftQueue'
-			? `${subjectLabel(source.item.subjectId)} · ${source.item.sectionName}`
-			: source.type === 'draftPlacement'
-				? `Draft · ${subjectLabel(source.placement?.subjectId ?? source.entry?.subjectId)}`
-				: `${subjectLabel(source.item.subjectId)} · ${sectionLabel(source.item.sectionId)}`;
-	return (
-		<div className="rounded border border-primary/60 bg-card px-2.5 py-1.5 text-xs shadow-md pointer-events-none select-none">
-			<p className="font-medium">{label}</p>
-			<p className="mt-0.5 text-xs text-muted-foreground">Release on a highlighted cell to review move or swap.</p>
-		</div>
-	);
-}
 
 export default function ScheduleReviewWorkspace() {
 	const state = useScheduleReviewWorkspaceState();
@@ -311,8 +285,20 @@ export default function ScheduleReviewWorkspace() {
 		slots: (state.centerWorkspaceContext?.timeSlots ?? []) as MoveSlot[],
 		occupants: toMoveOccupants((state.centerWorkspaceContext?.draftEntries ?? []) as unknown as Array<Record<string, unknown>>),
 		movingEntry: state.selectedEntry
-			? { entryId: state.selectedEntry.entryId, day: String(state.selectedEntry.day), startTime: String(state.selectedEntry.startTime) }
+			? { entryId: state.selectedEntry.entryId, day: String(state.selectedEntry.day), startTime: String(state.selectedEntry.startTime),
+				// A2 mc R1 (3a) — the identity the swap rule needs. `state.selectedEntry`
+				// is a real `ScheduledEntry`, so these are the entry's own fields; the
+				// projection on `occupants` guards the `unknown`-typed side.
+				sectionId: state.selectedEntry.sectionId, subjectId: state.selectedEntry.subjectId,
+				facultyId: state.selectedEntry.facultyId, roomId: state.selectedEntry.roomId, termIndex: state.selectedEntry.termIndex ?? null }
 			: null,
+		// A2 mc R1 (3b) — BOTH resolvers, or `describeMoveSwapOffers` produces
+		// nothing at all (`if (input.subjectLabel && input.facultyLabel)`). This is
+		// the change that makes the offers exist. Read pre-guard, so both are
+		// optional-chained; by the time the status line renders, the context guard
+		// has already proved they are functions.
+		subjectLabel: state.subjectLabel,
+		facultyLabel: state.headerContext?.facultyLabel,
 	});
 
 	/**
@@ -455,6 +441,17 @@ export default function ScheduleReviewWorkspace() {
 				? 'Select an available slot on the grid. Because this schedule is published, you will choose a start date next.'
 				: `Select one of the ${moveTargetNotice.slotKeys.length} highlighted free time slots to preview this move.`,
 		});
+	};
+
+	/* A2 mc R1 (3c/3d) — choosing a swap offer arms the EXISTING swap workflow: it
+	 * dispatches the grid's own `handleKbPlace` for that slot, which is the exact
+	 * call the grid cell makes, and that handler runs `findRegularSwapCandidate`
+	 * then `openRegularSwapPrompt` with the same plain sentence as a drag into an
+	 * occupied cell. The armed move is cleared on the way (3d), because that
+	 * handler returns early on the swap branch without disarming. */
+	const startSwapFromOffer = (offer: { day: string; startTime: string; endTime: string }) => {
+		void state.centerWorkspaceContext.handleKbPlace(offer.day, offer.startTime, offer.endTime);
+		state.headerContext.setKbSelectedSource(null);
 	};
 
 	const openSimpleSelectedDetails = () => {
@@ -604,6 +601,9 @@ export default function ScheduleReviewWorkspace() {
 						state.headerContext.setKbSelectedSource(null);
 						state.setInlineActionStatus(null);
 					}}
+					/* A2 mc R1 (3c) — supplied, so the offers render as real `@/ui` buttons;
+					 * without it the component deliberately falls back to plain words. */
+					onSelectSwap={startSwapFromOffer}
 				/>
 			) : null}
 			{/* B1 — universal inline preview-before-save. Never a modal: the grid
