@@ -101,12 +101,24 @@ const DEFAULT_COVERAGE_MODE: CoverageMode = 'REAL_FACULTY_STANDARD';
 const REAL_ONLY_STANDARD_MODE: CoverageMode = 'REAL_FACULTY_STANDARD';
 const REAL_ONLY_HARD_CAP_MODE: CoverageMode = 'REAL_FACULTY_HARD_CAP';
 
-type PersistedQualificationAuthority = {
+/**
+ * A8 c4: rank tier for a real teacher with no qualification match for the
+ * subject. The canonical resolver returns tier 3 for an out-of-department
+ * override, so 4 is the first free rank and stays below no real teacher.
+ */
+export const ANYONE_REAL_FACULTY_TIER = 4;
+
+export type PersistedQualificationAuthority = {
 	policy: QualificationPolicy;
 	specializationAliases: Array<{ alias: string; canonical: string }>;
 };
 
-async function loadPersistedQualificationAuthority(schoolId: number, client?: unknown): Promise<PersistedQualificationAuthority> {
+/**
+ * A8 c4: exported so `teaching-load-cover.service.ts` resolves qualification
+ * tiers through the SAME persisted-only policy snapshot the suggestion engine
+ * uses, instead of re-deriving a second policy view that could disagree with it.
+ */
+export async function loadPersistedQualificationAuthority(schoolId: number, client?: unknown): Promise<PersistedQualificationAuthority> {
 	const actor = (client ?? db()) as any;
 	const [aliasRows, labelRows, prefixRows, permissionRows, specializationAliases] = await Promise.all([
 		actor.departmentAlias.findMany({ where: { schoolId }, select: { alias: true, department: true } }),
@@ -140,6 +152,17 @@ interface AutoFillOptions {
 	 * to the ambient data context for read-only preview routes.
 	 */
 	client?: unknown;
+	/**
+	 * A8 c4 item 3: when `false`, the SAVED-placeholder pool is never consulted
+	 * and an unqualified real teacher is never proposed, so a caller can require
+	 * real teachers only ("no to-be-hired, ever"). Defaults to `true` so every
+	 * existing caller keeps the placeholder fallback it has today.
+	 *
+	 * This option does not change ORDER. A placeholder is reachable only once the
+	 * real pass has run and found nobody with room — see the ordering invariant on
+	 * the placeholder pool below.
+	 */
+	allowPlaceholders?: boolean;
 }
 
 export interface StaffingTruthBucket {
@@ -1498,6 +1521,69 @@ type ExistingOwnershipRow = {
 	};
 };
 
+/**
+ * A8 c4: the exact read shape `computeCanonicalConcurrentWeeklyMinutes` needs,
+ * exported so a consumer reads precisely these fields and no more.
+ */
+export type CanonicalConcurrentOwnershipRow = ExistingOwnershipRow;
+
+/** The subject semantics the canonical lane key needs. */
+export type CanonicalConcurrentSubjectRow = ExistingOwnershipRow['facultySubject']['subject'];
+
+/**
+ * A8 c4 (`cover-candidates.hoursNow`): THE canonical concurrent weekly teaching
+ * minutes for every teacher, produced by the SAME capacity ledger the auto-fill
+ * gate uses — raw placed minutes with the rotation-family concurrent-peak rule
+ * in `estimateCapacityLaneDeltaMinutes` (the 2026-09-02 PAOLO/FRANCIS 114h
+ * incident: same-term rotation sections run CONCURRENTLY and must add up, not
+ * collapse to a peak).
+ *
+ * This is an extraction, not a re-implementation. A consumer that copies the lane
+ * arithmetic gets a second, silently divergent peak rule; that is a defect. The
+ * arithmetic stays here.
+ */
+export function computeCanonicalConcurrentWeeklyMinutes(
+	existingOwnerships: readonly CanonicalConcurrentOwnershipRow[],
+): Map<number, number> {
+	return buildInitialCapacityTracking(existingOwnerships as ExistingOwnershipRow[]).capacityUsed;
+}
+
+/**
+ * A8 c4 (`cover-candidates.hoursAfter`): the canonical delta of adding one
+ * (subject, section) pair to one teacher, computed through the same ledger so a
+ * rotation-family section is billed its real concurrent minutes rather than the
+ * family's peak. `afterMinutes === currentMinutes + deltaMinutes`.
+ */
+export function estimateCanonicalConcurrentWeeklyDeltaMinutes(input: {
+	existingOwnerships: readonly CanonicalConcurrentOwnershipRow[];
+	facultyId: number;
+	subject: CanonicalConcurrentSubjectRow;
+	sectionId: number;
+}): { currentMinutes: number; deltaMinutes: number; afterMinutes: number } {
+	const minutes = Math.max(0, Number(input.subject.minMinutesPerWeek) || 0);
+	const { capacityLedgersByFaculty, capacityUsed } = buildInitialCapacityTracking(input.existingOwnerships as ExistingOwnershipRow[]);
+	const currentMinutes = capacityUsed.get(input.facultyId) ?? 0;
+	if (minutes <= 0) {
+		return { currentMinutes, deltaMinutes: 0, afterMinutes: currentMinutes };
+	}
+	const ledger = capacityLedgersByFaculty.get(input.facultyId) ?? createEmptyCapacityLedger();
+	const deltaMinutes = estimateCapacityLaneDeltaMinutes(
+		ledger,
+		buildCapacityLaneKey({
+			subjectId: input.subject.id,
+			subjectCode: input.subject.code,
+			rotationFamily: input.subject.rotationFamily,
+			modularGroupId: input.subject.modularGroupId,
+			modularOrder: input.subject.modularOrder,
+			termGroupId: input.subject.termGroupId,
+			termCount: input.subject.termCount,
+			sectionId: input.sectionId,
+		}),
+		minutes,
+	);
+	return { currentMinutes, deltaMinutes, afterMinutes: currentMinutes + deltaMinutes };
+}
+
 function buildInitialCapacityTracking(existingOwnerships: ExistingOwnershipRow[]): {
 	capacityLedgersByFaculty: Map<number, CapacityLedger>;
 	capacityUsed: Map<number, number>;
@@ -1818,6 +1904,16 @@ function findBestCandidateForMode(
 	sectionGradeLevel?: number,
 	preferredGradeLevelsByFacultyId?: ReadonlyMap<number, number[]>,
 	shiftCoherence?: ShiftCoherenceSelectionContext,
+	/**
+	 * A8 c4 item 3: when `allowUnqualified` is true, a real teacher with NO
+	 * qualification match for this subject becomes a candidate at
+	 * `ANYONE_REAL_FACULTY_TIER` — ranked after every QUALIFIED and
+	 * OTHER_DEPARTMENT candidate — so the coverage fallback stops at "any real
+	 * teacher" instead of dropping straight to a to-be-hired placeholder.
+	 *
+	 * It is OFF unless the caller asks, so every existing caller is byte-identical.
+	 */
+	candidateReach?: { allowUnqualified?: boolean },
 ): {
 	faculty: FacultyRow | null;
 	rejections: TeachingLoadCandidateRejection[];
@@ -1842,6 +1938,7 @@ function findBestCandidateForMode(
 	const rejections: TeachingLoadCandidateRejection[] = [];
 	const guardEnabled = shiftCoherence?.enabled === true;
 	const guardEnforce = guardEnabled && shiftCoherence?.enforce === true;
+	const allowUnqualifiedCandidates = candidateReach?.allowUnqualified === true;
 	const realCoverageMode = resolveRealCoverageMode(coverageMode);
 	const subjectMinutes = Math.max(0, Number(subjectRow.minMinutesPerWeek) || 0);
 	const laneKey = buildCapacityLaneKey({
@@ -1862,7 +1959,14 @@ function findBestCandidateForMode(
 			sectionProgramType,
 			qualificationAuthority,
 		);
-		if (qualification.tier == null || qualification.authority == null) {
+		// A8 c4: `PROGRAM_SCOPE_INCOMPATIBLE` is a STRUCTURAL rejection and stays
+		// one at every tier — a teacher whose program scope excludes this section can
+		// never cover it, so it is never reachable as an `ANYONE` candidate. Only
+		// the plain "no qualification match" case may become an `ANYONE` candidate,
+		// and only when the caller opted in.
+		const isProgramScopeIncompatible = qualification.reason === 'PROGRAM_SCOPE_INCOMPATIBLE';
+		const reachableAsAnyone = allowUnqualifiedCandidates && !isProgramScopeIncompatible;
+		if ((qualification.tier == null || qualification.authority == null) && !reachableAsAnyone) {
 			rejections.push({
 				subjectId: subjectRow.id,
 				subjectCode: subjectRow.code,
@@ -1870,10 +1974,11 @@ function findBestCandidateForMode(
 				sectionName,
 				facultyId: member.id,
 				facultyName: `${member.lastName}, ${member.firstName}`,
-				reason: qualification.reason === 'PROGRAM_SCOPE_INCOMPATIBLE' ? 'PROGRAM_SCOPE_INCOMPATIBLE' : 'NOT_QUALIFIED',
+				reason: isProgramScopeIncompatible ? 'PROGRAM_SCOPE_INCOMPATIBLE' : 'NOT_QUALIFIED',
 			});
 			continue;
 		}
+		const rankTier = qualification.tier ?? ANYONE_REAL_FACULTY_TIER;
 		const ledger = capacityLedgersByFaculty.get(member.id) ?? createEmptyCapacityLedger();
 		const used = capacityUsed.get(member.id) ?? 0;
 		const deltaMinutes = estimateCapacityLaneDeltaMinutes(ledger, laneKey, subjectMinutes);
@@ -1947,9 +2052,9 @@ function findBestCandidateForMode(
 			});
 		}
 
-		candidates.push({
-				faculty: member,
-				tier: qualification.tier,
+candidates.push({
+			faculty: member,
+			tier: rankTier,
 				projectedUsedMinutes: used + deltaMinutes,
 				subjectAssignedCount: subjectAssignmentCountByFacultyId?.get(member.id) ?? 0,
 				rotationLaneAssignedCount: rotationLaneAssignmentCountByFacultyId?.get(member.id) ?? 0,
@@ -2513,6 +2618,12 @@ export async function autoFill(
 	const previewOnly = options?.previewOnly ?? false;
 	const staffingOnly = options?.staffingOnly === true;
 	const coverageMode = options?.coverageMode ?? DEFAULT_COVERAGE_MODE;
+	// A8 c4 item 3. Defaults preserve every existing caller exactly: the
+	// placeholder pool stays available (`true`), and the ANYONE tier is reachable
+	// only when placeholders are reachable at all — "real teachers only" is one
+	// switch, not two that can disagree.
+	const allowPlaceholders = options?.allowPlaceholders !== false;
+	const allowUnqualifiedRealFaculty = allowPlaceholders;
 	const realCoverageMode = resolveRealCoverageMode(coverageMode);
 
 	// Canonical derived demand is the sole current-year pair authority. A typed
@@ -3087,7 +3198,10 @@ export async function autoFill(
 	 * ordering and qualification rules:
 	 *
 	 *  - consulted ONLY after the real-teacher pass below has run, so a real
-	 *    qualified teacher is never displaced;
+	 *    qualified teacher is never displaced. A8 c4 strengthened this: the real
+	 *    pass now also offers the `ANYONE` tier, so a placeholder is unreachable
+	 *    while ANY real teacher has room, not merely while a QUALIFIED one does;
+	 *  - never consulted at all when the caller passes `allowPlaceholders: false`;
 	 *  - only for a subject the placeholder holds a persisted `facultySubject`
 	 *    qualification row for in this school year;
 	 *  - only up to the placeholder's own `maxHoursPerWeek` budget, measured with
@@ -3207,6 +3321,7 @@ export async function autoFill(
 					sectionWindow: candidateShiftWindow,
 					assignmentsByFacultyId: shiftAssignmentsByFacultyId,
 				},
+				{ allowUnqualified: allowUnqualifiedRealFaculty },
 			);
 			appendBoundedCandidateRejections(autoFillCandidateRejections, selection.rejections);
 			if (selection.preferenceNotice && autoFillPreferenceNotices.length < MAX_CANDIDATE_REJECTIONS) {
@@ -3217,10 +3332,15 @@ export async function autoFill(
 			}
 			const candidate = selection.faculty;
 			if (!candidate) {
-				// TL-SHORTAGE-C02 item 3: every real, qualified teacher for this
-				// subject is at cap (or none exists), so the saved-placeholder pool
-				// is consulted NOW — never before the real pass.
-				const placeholder = tryAssignPlaceholder(pair);
+				// A8 c4 item 3 ORDER INVARIANT: the saved-placeholder pool is
+				// reachable ONLY when (a) the caller permits placeholders at all and
+				// (b) the real pass above — which now also offers the `ANYONE` tier,
+				// any real teacher with room — returned nobody. A placeholder is
+				// therefore never proposed while ANY real teacher has room, which is
+				// the operator's "absolute last resort" rule. This branch is the
+				// proof site: `selection.faculty === null` means the real pass,
+				// placeholders included in ranking, found no room.
+				const placeholder = allowPlaceholders ? tryAssignPlaceholder(pair) : null;
 				if (placeholder) {
 					placeholderAssignedFacultyIds.add(placeholder.id);
 					addPending(placeholder.id, pair.subjectId, pair.sectionId);
