@@ -488,7 +488,13 @@ function buildItemsFromResourceDiagnostics(
 			for (let i = 0; i < count; i++) {
 				existing.push({
 					sectionLabel: `${gradeLabel(entry.gradeLevel)} section`,
-					subjectLabel: entry.subjectCode || subjectLabel(entry.subjectId),
+					// A3 c16: the precedence is INVERTED on purpose. This line used to
+					// read `entry.subjectCode || subjectLabel(entry.subjectId)`, so the
+					// publish-readiness blocker always printed the code and the resolved
+					// name was never used — even though the name is what the same sheet
+					// prints for every other blocker source. The label leads; the code is
+					// the fallback for a row the label resolver cannot name.
+					subjectLabel: subjectLabel(entry.subjectId) || entry.subjectCode,
 					gradeLabel: gradeLabel(entry.gradeLevel),
 					sessionNumber: i + 1,
 					facultyLabel: 'No teacher assigned',

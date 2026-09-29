@@ -352,7 +352,7 @@ export function AutoFillSummaryModal({
 								].map((stat) => (
 									<div key={stat.label} className={`rounded-xl border border-border/40 px-3 py-2 text-center ${stat.tone}`}>
 										<p className="text-xl font-bold tabular-nums">{stat.value}</p>
-										<p className="text-[11px] font-bold uppercase tracking-wide opacity-80">{stat.label}</p>
+										<p className="text-xs font-bold tracking-wide opacity-80">{stat.label}</p>
 									</div>
 								))}
 							</div>
@@ -598,7 +598,7 @@ export function AutoFillSummaryModal({
 									].map((stat) => (
 										<div key={stat.label} className={`rounded-xl border border-border/40 px-3 py-2 text-center ${stat.tone}`}>
 											<p className="text-xl font-bold tabular-nums">{stat.value}</p>
-											<p className="text-[11px] font-bold uppercase tracking-wide opacity-80">{stat.label}</p>
+											<p className="text-xs font-bold tracking-wide opacity-80">{stat.label}</p>
 										</div>
 									))}
 								</div>

@@ -106,7 +106,7 @@ export function getFacultyLoadPresentation(faculty: FacultySummary): LoadPresent
 			// same word instead of two.
 			label: BELOW_STANDARD_LABEL,
 			// THE NEUTRAL TONE IS THE CUE. A teacher who is simply under the hours
-			// standard is not a defect, and amber made them read as one ΓÇö the operator
+			// standard is not a defect, and amber made them read as one — the operator
 			// saw a status they had to go and fix. `No load`, `Near cap`, `Over cap`
 			// and `Excluded` keep amber, orange, rose and slate, because those ARE
 			// actions: a coverage gap, a near ceiling, a blocked ceiling, a person who
@@ -117,7 +117,7 @@ export function getFacultyLoadPresentation(faculty: FacultySummary): LoadPresent
 			// that it is not a problem, and the ceiling. The old sentence said "below
 			// the 30h standard" and stopped, which left a scheduler deciding whether
 			// that was a warning.
-			help: `${actualTeachingHours} of the ${STANDARD_WEEKLY_TEACHING_HOURS}h standard so far. Not a problem ΓÇö this teacher can take more classes, up to ${maxHours}h.`,
+			help: `${actualTeachingHours} of the ${STANDARD_WEEKLY_TEACHING_HOURS}h standard so far. Not a problem — this teacher can take more classes, up to ${maxHours}h.`,
 		},
 		'above-standard': { label: 'Near cap', badgeClassName: 'border-orange-200 bg-orange-50 text-orange-700', help: `This teacher is above the ${STANDARD_WEEKLY_TEACHING_HOURS}h standard and still within the ${maxHours}h cap.` },
 		'over-cap': { label: 'Over cap', badgeClassName: 'border-rose-200 bg-rose-50 text-rose-700', help: `This teacher exceeds the ${maxHours}h cap. Move classes before generating the timetable.` },
@@ -140,7 +140,7 @@ export function getCompactLoadLabel(faculty: FacultySummary): string {
 }
 
 /**
- * A6 C3 (Lane C item #6) ΓÇö the same-name CUE, beside the name it belongs to.
+ * A6 C3 (Lane C item #6) — the same-name CUE, beside the name it belongs to.
  *
  * It is a cue and nothing more. The roster is NOT altered, merged, hidden,
  * reordered or paged: both records still render, each with its own load, and
@@ -234,10 +234,110 @@ type SectionInfo = {
 type SubjectSummary = {
 	code: string;
 	name: string;
+	/**
+	 * A3 c16: what the roster prints. The NAME leads. This is a separate field from
+	 * `code` on purpose: `code` is still the React key and still the "No sections yet"
+	 * filter, and those are identifiers, not labels.
+	 */
+	displayName: string;
+	/** A3 c16: the code, and only when it says something the name does not. */
+	codeDetail: string;
 	sectionCount: number;
 	gradeRange: string;
 	sections: SectionInfo[];
 };
+
+/**
+ * A3 c16 (D2) - the plain subject name, and never a bare identifier.
+ *
+ * The roster cell used to read `STE_APPLIED_PHYS 1` and `SUBJ#12` while the name
+ * ("Applied Physics") sat unread on the same record. A scheduler recognises a subject
+ * by its name, so the name leads. The code is the fallback for a record whose name is
+ * blank, and a row with no subject record at all says so in words instead of printing
+ * an internal id.
+ *
+ * Modelled here rather than in JSX so "no code leads a cell" is a testable table:
+ * if someone reintroduces a code at a render site, these helpers still hold.
+ */
+export function facultySubjectDisplayName(
+	subject: { code?: string | null; name?: string | null } | null | undefined,
+): string {
+	const name = subject?.name?.trim();
+	if (name) return name;
+	const code = subject?.code?.trim();
+	if (code) return code;
+	return 'Unknown subject';
+}
+
+/**
+ * A3 c16 (D2) - the muted detail under a subject, following
+ * `tlHistorySubjectCodeDetail` in `src/lib/teaching-load-history-plain.ts`.
+ *
+ * A code is acceptable as a secondary detail under a name that leads, and nowhere
+ * else. Returning `''` when the label already IS the code is what makes "the code
+ * appears once" true by construction; the view renders nothing when this is empty.
+ */
+export function facultySubjectCodeDetail(
+	subject: { code?: string | null; name?: string | null } | null | undefined,
+): string {
+	const code = subject?.code?.trim();
+	if (!code) return '';
+	return code.toLowerCase() === facultySubjectDisplayName(subject).trim().toLowerCase() ? '' : code;
+}
+
+/**
+ * A3 c16 (D3) - the width the "Assigned classes" cell can hold on ONE line.
+ *
+ * Showing names instead of codes made this cell better (`AP` -> `Araling Panlipunan`) and
+ * worse in one case: a teacher on two long special-program subjects read
+ * `Special Program in the Arts: Specialization 2, Special Program in Sports: Specialization 2
+ * +1 more` across three lines, with two near-identical 40-character titles. That is the "too
+ * literal" outcome - the packet said show names, so names were shown even where two of them
+ * do not fit.
+ *
+ * MEASURED, not assumed. At 1366x768 on real staging data, over the roster table: the table
+ * is 1111px and the "Assigned classes" column is **158.6px**, which with its 16px padding
+ * each side leaves a **126.6px** text column. The cell's text is 12px Inter Variable, measured
+ * by canvas `measureText` at **6.5px per character**, so one line holds about **19
+ * characters**. (An earlier revision of this comment claimed 291px/259px/~40 characters and
+ * was wrong by roughly 1.8x; the independent QA pass measured the same 158.6/126.6 this
+ * comment now records. Do not re-derive this from a `<td>` you measured on a different
+ * column.)
+ *
+ * The honest consequence, stated rather than papered over: at 19 characters a subject NAME
+ * often does not fit on one line by itself - `Mathematics · 8 sections` is 25 characters.
+ * The column is too narrow for names, and the real fix is a column width, which lives in
+ * `pages/Faculty.tsx` and is therefore not this lane's to change (recorded as follow-up
+ * item 11 in `docs/reviews/a3-c16-codes-20260929/handoff.md`). What this rule can honestly
+ * do is stop the cell carrying a SECOND name, which halves the wrapping; it cannot make the
+ * column wider.
+ */
+const INLINE_SUBJECT_LINE_BUDGET = 19;
+
+/** The exact text the two-subject branch renders, so the budget measures the LINE and not just the names. */
+function inlineSubjectLine(entries: { displayName: string; sectionCount: number }[], remaining: number): string {
+	const head = entries.map((s) => `${s.displayName} ${s.sectionCount}`).join(', ');
+	return remaining > 0 ? `${head} +${remaining} more` : head;
+}
+
+/**
+ * A3 c16 (D3) - the subjects shown inline, and the count hidden behind `+N more`.
+ *
+ * The composed line is measured, not the two names: the separator, both section counts and
+ * the ` +N more` overflow all occupy the same 40 characters. At least one subject is always
+ * shown, so a teacher is never left with an empty cell, and a `+N more` is only emitted when
+ * it is non-zero.
+ */
+export function pickInlineSubjects(summaries: SubjectSummary[]): { shown: SubjectSummary[]; remaining: number } {
+	const first = summaries[0];
+	if (!first) return { shown: [], remaining: 0 };
+	const second = summaries[1];
+	if (!second) return { shown: [first], remaining: 0 };
+	if (inlineSubjectLine([first, second], summaries.length - 2).length <= INLINE_SUBJECT_LINE_BUDGET) {
+		return { shown: [first, second], remaining: summaries.length - 2 };
+	}
+	return { shown: [first], remaining: summaries.length - 1 };
+}
 
 function buildSubjectSummaries(assignments: FacultyAssignmentRecord[]): SubjectSummary[] {
 	return assignments
@@ -256,8 +356,13 @@ function buildSubjectSummaries(assignments: FacultyAssignmentRecord[]): SubjectS
 				? `GR${gradeNums[0]}`
 				: `GR${gradeNums[0]}–GR${gradeNums[gradeNums.length - 1]}`;
 			return {
+				// A3 c16: `code` is the identity (React key, "No sections yet" filter),
+				// not the label. A missing subject record keeps a synthetic key but must
+				// never be printed.
 				code: a.subject?.code ?? `SUBJ#${a.subjectId}`,
 				name: a.subject?.name ?? '',
+				displayName: facultySubjectDisplayName(a.subject),
+				codeDetail: facultySubjectCodeDetail(a.subject),
 				sectionCount: a.sections.length,
 				gradeRange,
 				sections: sectionInfos,
@@ -287,8 +392,13 @@ function AssignmentBreakdownPopover({ assignments }: { assignments: FacultyAssig
 					{summaries.map((s) => (
 						<div key={s.code} className="flex items-center justify-between gap-2">
 							<div className="flex items-center gap-1.5 min-w-0">
-								<Badge variant="outline" className="h-4 shrink-0 px-1 text-[0.6rem] font-bold">{s.code}</Badge>
-								{s.gradeRange && <span className="text-muted-foreground">{s.gradeRange}</span>}
+								{/* A3 c16: the name leads in plain type. It was a code chip
+								 * (`h-4 text-[0.6rem]`), which made a 9.6px internal token the
+								 * loudest thing in the row; the name reads as a name and the code,
+								 * when it adds something, is a muted detail beside it. */}
+								<span className="min-w-0 font-medium">{s.displayName}</span>
+								{s.codeDetail && <span className="shrink-0 text-muted-foreground">{s.codeDetail}</span>}
+								{s.gradeRange && <span className="shrink-0 text-muted-foreground">{s.gradeRange}</span>}
 							</div>
 							<span className="shrink-0 font-semibold tabular-nums">{s.sectionCount} section{s.sectionCount === 1 ? '' : 's'}</span>
 						</div>
@@ -300,9 +410,9 @@ function AssignmentBreakdownPopover({ assignments }: { assignments: FacultyAssig
 						<div className="flex flex-wrap">
 							{assignments
 								.filter((a) => a.sections.length === 0 && a.subject?.code)
-								.map((a) => (
-									<Badge key={a.id} variant="outline" className="mr-1 mt-1 h-4 px-1 text-[0.6rem] font-bold">{a.subject.code}</Badge>
-								))}
+							.map((a) => (
+								<Badge key={a.id} variant="outline" className="mr-1 mt-1 h-4 px-1 text-[0.6rem] font-bold">{facultySubjectDisplayName(a.subject)}</Badge>
+							))}
 						</div>
 					</div>
 				)}
@@ -532,7 +642,7 @@ export function FacultyAssignedClassesCell({ faculty, onClick }: { faculty: Facu
 		return <span className="text-xs text-muted-foreground">No classes assigned</span>;
 	}
 
-	// Single subject: show code + section names
+	// Single subject: show the subject NAME + section names (A3 c16: was the code)
 	if (summaries.length === 1) {
 		const s = summaries[0];
 		const shownSections = s.sections.slice(0, 2);
@@ -540,7 +650,7 @@ export function FacultyAssignedClassesCell({ faculty, onClick }: { faculty: Facu
 
 		return (
 			<Wrapper {...wrapperProps}>
-				<span className="font-semibold">{s.code}</span>
+				<span className="font-semibold">{s.displayName}</span>
 				{' · '}
 				<span className="text-muted-foreground">{s.sectionCount} section{s.sectionCount === 1 ? '' : 's'}</span>
 				{s.sections.length > 0 && (
@@ -560,19 +670,17 @@ export function FacultyAssignedClassesCell({ faculty, onClick }: { faculty: Facu
 		);
 	}
 
-	// Multiple subjects: show up to two + overflow, with first section as discriminator
-	const shown = summaries.slice(0, 2);
-	const remaining = summaries.length - shown.length;
-	const firstSections = summaries[0]?.sections.slice(0, 2) ?? [];
-	const firstRemaining = (summaries[0]?.sections.length ?? 0) - firstSections.length;
+	// Multiple subjects: show what fits on one line + overflow, with first section as discriminator
+	const { shown, remaining } = pickInlineSubjects(summaries);
+	const firstSections = summaries[0]?.sections.slice(0, 2) ?? [];	const firstRemaining = (summaries[0]?.sections.length ?? 0) - firstSections.length;
 
 	return (
 		<Wrapper {...wrapperProps}>
 			<div>
 				{shown.map((s, i) => (
 					<span key={s.code}>
-						{i > 0 && <span className="text-muted-foreground">, </span>}
-						<span className="font-semibold">{s.code}</span>
+					{i > 0 && <span className="text-muted-foreground">, </span>}
+					<span className="font-semibold">{s.displayName}</span>
 						{' '}{s.sectionCount}
 					</span>
 				))}
@@ -662,6 +770,9 @@ export function FacultyMobileCard({
 	const presentation = getFacultyLoadPresentation(faculty);
 	const assignments = faculty.assignments ?? [];
 	const summaries = buildSubjectSummaries(assignments);
+	// A3 c16 (D3): the same one-line budget the desktop cell uses, so the mobile
+	// card and the table row never disagree about how many subjects are inline.
+	const inline = pickInlineSubjects(summaries);
 	const teacherName = formatFacultyDisplayName(faculty);
 
 	return (
@@ -691,7 +802,7 @@ export function FacultyMobileCard({
 				>
 					{summaries.length === 1
 						? <>
-							<span><span className="font-semibold text-foreground">{summaries[0].code}</span> · {summaries[0].sectionCount} section{summaries[0].sectionCount === 1 ? '' : 's'}</span>
+							<span><span className="font-semibold text-foreground">{summaries[0].displayName}</span> · {summaries[0].sectionCount} section{summaries[0].sectionCount === 1 ? '' : 's'}</span>
 							{summaries[0].sections.length > 0 && (
 								<div className="mt-0.5">
 									{summaries[0].sections.slice(0, 2).map((sec, i) => (
@@ -705,20 +816,20 @@ export function FacultyMobileCard({
 							)}
 						</>
 						: <>
-							<span>{summaries.slice(0, 2).map((s) => `${s.code} ${s.sectionCount}`).join(', ')}{summaries.length > 2 ? ` +${summaries.length - 2} more` : ''}</span>
-							{summaries[0].sections.length > 0 && (
-								<div className="mt-0.5">
-									<span className="text-foreground/70">Sections: </span>
-									{summaries[0].sections.slice(0, 2).map((sec, i) => (
-										<span key={sec.id} className="text-foreground/70">
-											{i > 0 && ', '}
-											{sec.gradeLabel} {sec.name}
-										</span>
-									))}
-									{summaries[0].sections.length > 2 && <span className="text-foreground/70"> +{summaries[0].sections.length - 2}</span>}
-								</div>
-							)}
-						</>
+								<span>{inlineSubjectLine(inline.shown, inline.remaining)}</span>
+								{summaries[0].sections.length > 0 && (
+									<div className="mt-0.5">
+										<span className="text-foreground/70">Sections: </span>
+										{summaries[0].sections.slice(0, 2).map((sec, i) => (
+											<span key={sec.id} className="text-foreground/70">
+												{i > 0 && ', '}
+												{sec.gradeLabel} {sec.name}
+											</span>
+										))}
+										{summaries[0].sections.length > 2 && <span className="text-foreground/70"> +{summaries[0].sections.length - 2}</span>}
+									</div>
+								)}
+							</>
 					}
 				</button>
 			)}

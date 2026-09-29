@@ -232,7 +232,7 @@ export function RoomScheduleOverlay({
 									</span>
 									<span className="text-border">•</span>
 									{schedule.summary.conflictCount > 0 ? (
-										<Badge variant="destructive" className="text-[11px]">
+										<Badge variant="destructive" className="text-xs">
 											<AlertTriangle className="mr-0.5 size-3" />
 											{schedule.summary.conflictCount} conflict{schedule.summary.conflictCount !== 1 ? 's' : ''}
 										</Badge>
@@ -330,7 +330,7 @@ function OverlayTimetableGrid({
 				{schedule.grid.map((row, rowIdx) => (
 					<tr key={rowIdx}>
 						<td className="sticky left-0 z-5 bg-background border-r border-b px-2 py-3 align-middle w-24">
-							<div className="text-[10px] font-semibold text-foreground leading-tight">
+							<div className="text-xs font-semibold text-foreground leading-tight">
 								{formatTime(row.timeSlot.startTime)}–{formatTime(row.timeSlot.endTime)}
 							</div>
 						</td>
@@ -367,7 +367,7 @@ function OverlayTimetableGrid({
 										/>
 									))}
 									{cell.conflict && (
-										<Badge variant="destructive" className="mt-0.5 text-[9px] px-1 py-0">
+										<Badge variant="destructive" className="mt-0.5 text-xs px-1 py-0">
 											<AlertTriangle className="mr-0.5 size-2.5" />
 											Conflict
 										</Badge>
@@ -400,7 +400,7 @@ function OverlayEntryCell({
 		? entry.facultyDisplayLabel ?? facultyMap.get(entry.facultyId) ?? 'Teacher not listed'
 		: 'Unassigned teacher';
 	return (
-		<div className="px-1.5 py-1 text-[11px] leading-snug">
+		<div className="px-1.5 py-1 text-xs leading-snug">
 			<div className="font-semibold text-foreground truncate">
 				{subjectLabel}
 			</div>

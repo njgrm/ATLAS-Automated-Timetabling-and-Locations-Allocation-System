@@ -411,7 +411,7 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 								</Button>
 								{showDiagnostics ? (
 									<div className="border-t border-border/70">
-										<GeneratedResourceDiagnostics summary={generatedSummary} />
+										<GeneratedResourceDiagnostics summary={generatedSummary} subjectLabel={subjectLabel} />
 									</div>
 								) : null}
 							</div>
@@ -495,7 +495,7 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 	);
 }
 
-function GeneratedResourceDiagnostics({ summary }: { summary: GeneratedSummary }) {
+function GeneratedResourceDiagnostics({ summary, subjectLabel }: { summary: GeneratedSummary; subjectLabel: (id: number) => string }) {
 	if (!summary.resourceDiagnostics) return null;
 
 	return (
@@ -505,7 +505,10 @@ function GeneratedResourceDiagnostics({ summary }: { summary: GeneratedSummary }
 				<div className="font-medium">Lowest teaching-load coverage</div>
 				{summary.resourceDiagnostics.qualifiedFacultyCoverageBySubject.slice(0, 3).map((row) => (
 					<div key={`coverage-${row.subjectId}`} className="flex items-center justify-between text-muted-foreground">
-						<span>{row.subjectCode}</span>
+						{/* A3 c16: `row.subjectCode` printed an internal token under a heading
+						 * a scheduler reads to find weak subjects. The rail's own
+						 * `subjectLabel` already resolves the name from the same id. */}
+						<span>{subjectLabel(row.subjectId)}</span>
 						<span className="font-semibold text-amber-700">{row.coveragePercent}%</span>
 					</div>
 				))}
@@ -523,7 +526,7 @@ function GeneratedResourceDiagnostics({ summary }: { summary: GeneratedSummary }
 				<div className="font-medium">Top unassigned clusters</div>
 				{summary.resourceDiagnostics.unassignedBySubjectGrade.slice(0, 3).map((row) => (
 					<div key={`unassigned-${row.subjectId}-${row.gradeLevel}`} className="flex items-center justify-between text-muted-foreground">
-						<span>{row.subjectCode} - GR{row.gradeLevel}</span>
+						<span>{subjectLabel(row.subjectId)} - GR{row.gradeLevel}</span>
 						<span className="font-semibold text-amber-700">{row.count}</span>
 					</div>
 				))}

@@ -158,9 +158,22 @@ test('A5-C3-PICKERa: FilterPicker has no className prop, so a page cannot restat
 
 test('A5-C3-PICKERb: the shared variant is one composed string from @/ui, and every width is a named variant', () => {
 	const source = uiSource('picker-trigger.ts');
-	for (const token of ['h-9', 'shrink-0 px-3 text-xs', 'font-normal normal-case tracking-normal']) {
+	// RE-PINNED BY A7 C8 SLICE 1 (2026-09-29). The shared height token moved `h-9` ->
+	// `h-10` (36px -> 40px), the floor for a control that acts, for older mouse-first
+	// schedulers. The CLAIM is unchanged and in fact stronger: there is still exactly
+	// ONE height literal, it still lives in `@/ui/picker-trigger.ts`, and a page still
+	// cannot restate it. Only the number it names moved. Re-pinned, not deleted (§16).
+	for (const token of ['h-10', 'shrink-0 px-3 text-xs', 'font-normal normal-case tracking-normal']) {
 		assert.ok(source.includes(`'${token}'`), `the shared variant no longer states ${token}`);
 	}
+	// A7 C8: the height must not drift back DOWN, which is the direction that hurts.
+	assert.equal(
+		source.includes(`'h-9'`),
+		false,
+		'the shared picker height token is back to h-9 (36px). A7 C8 raised it to h-10 ' +
+			'(40px) as the floor for a control that acts; shrinking it again puts the ' +
+			'control below the target size the operator asked to be locked in.',
+	);
 	/* `normal-case tracking-normal` is what makes the `uppercase tracking-tight` override
 	 * structurally impossible to reintroduce (R1 B4). */
 	assert.match(pickerTriggerClass('md'), /normal-case/, 'the shared trigger class lost its case normalisation');

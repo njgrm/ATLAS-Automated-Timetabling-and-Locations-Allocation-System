@@ -29,6 +29,43 @@
  *           -> `helpStep` below: the one new `Help` step, which adds the thing a
  *              hover cannot — that WAITING WILL NOT HELP while ATLAS is offline.
  *
+ * A6 c9 item 3 — THE `cached`-WHILE-ONLINE ANSWER, AND WHY THE DERIVATION IS
+ * THE THING TO FIX. This module is the calm face; the three predicates it reads
+ * live in `WorkspaceToolbar` and are unchanged. What c9 records here is WHY the
+ * header can say "the last saved roster, not the current one" on a school that
+ * was synced and whose roster was fetched.
+ *
+ * `dataSource` becomes `'live'` only when BOTH of these hold, in
+ * `useTeachingLoadData.fetchData`:
+ *
+ *  1. `isUpstreamBackedSchoolYearSource(yearContextSource)` — the active
+ *     school-year context resolved from a VERIFIED EnrollPro read. The server's
+ *     `runtime-context.service.ts` sets `source: 'enrollpro-verified'` only when
+ *     `upstreamMatched`, i.e. when EnrollPro's own ACTIVE year id equals the
+ *     mirrored year ATLAS has selected. A year ATLAS has mirrored and synced is
+ *     still reported `'atlas-persisted'` whenever EnrollPro's active year is a
+ *     DIFFERENT year — which is exactly the state a school is in after a sync
+ *     that did not move its active year.
+ *  2. `normalizedSectionSummary.source === 'enrollpro'` on
+ *     `GET /sections/summary/:yearId`.
+ *
+ * Anything else lands on `'cached'`, and this module then writes "These numbers
+ * come from the last saved roster, not the current one." THAT IS TRUE OF ATLAS's
+ * own sections mirror and false as a claim about EnrollPro being reachable — the
+ * two are different facts and the base string collapses them. So the defect is in
+ * the DERIVATION, not the words, and c9 did not change the derivation blind: a
+ * correct fix needs the runtime values of (1) and (2) on the affected school, and
+ * this lane is forbidden to start a server. What c9 DID change is the cost of
+ * being wrong: the claim is now ONE small grey line with a real date instead of
+ * two amber surfaces, and the cause sits in this Tooltip and the `Help` step.
+ *
+ * The concrete next probe, for whoever holds a browser: on the affected school,
+ * read `GET /api/v1/runtime-context?schoolId=1` and note `source` and `stale`,
+ * and `GET /api/v1/sections/summary/:schoolYearId?schoolId=1` and note `source`.
+ * If `runtime-context.source` is `atlas-persisted` while EnrollPro is reachable
+ * and the year is synced, the fix is a third upstream signal (the mirrored year's
+ * own last-sync provenance), not a new word.
+ *
  * NOTHING HERE IS A SECOND AUTHORITY. The cause clause is
  * `teachingLoadUnverifiedReason`, imported from the toolbar, so the Tooltip and
  * the Help step can never disagree with the repair queue about WHY a number is

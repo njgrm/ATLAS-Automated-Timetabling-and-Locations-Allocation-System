@@ -2057,6 +2057,273 @@ No header control was added, no chip was added, and no existing entry point move
 **Staging/live proof on 2023-2024 is A4's deployment-time row and is NOT yet performed** — this candidate is
 integrated, not deployed, and not seen rendered.
 
+---
+
+# A8 c4 (server) → A6 c10 (client): THE FIXED COVER CONTRACT — 2026-09-29
+
+**Fixed and binding. Build against this; do not derive it from the packet.** Owner A8 c4, worktree
+`E:/ATLAS-worktrees/lane-a8-c4-cover`, branch `work/a8-c4-cover-candidates`, base `5f181110` (`origin/main`).
+Source-only; nothing deployed (A4 owns the release). Risk MEDIUM: one new write route, **no migration**
+(`cross_department_permissions` and `faculty_mirrors.can_teach_outside_department` already exist).
+
+If a field below is missing from a response you receive, that is **my** defect, not yours — report it in
+`docs/handoffs/lane-a-to-c.md` naming the field. Do not add a client-side fallback for a field I listed.
+
+## 0. The three packet ambiguities I resolved (so you do not have to guess)
+
+1. **Over-cap teachers are IN the list, ranked last inside their tier**, with `overCapAfter: true` and a
+   `reason` naming the overrun. The packet's item 2 said "has room" and the client spec said "over-cap rows
+   are shown greyed, not hidden". Filtering them server-side would make the client unable to grey anything.
+   You grey on `overCapAfter === true` and disable the Assign button on that row only.
+2. **`ANYONE` is a real tier, not a synonym for "cross-department".** `QUALIFIED` = the canonical
+   qualification resolver returns tier 1 or 2. `OTHER_DEPARTMENT` = it returns tier 3 (a
+   `CROSS_DEPARTMENT_PERMISSION` exists, **or** `canTeachOutsideDepartment` is set). `ANYONE` = any other
+   real, schedulable teacher with no qualification match for this subject. All three need a permission to be
+   assigned; `QUALIFIED` does not. Placeholders are **never** in this list, at any tier.
+3. **A `CrossDepartmentPermission` row is what makes a person `OTHER_DEPARTMENT` for a subject**, so granting
+   one and assigning the class are one act from the client's point of view. That is why the assign route
+   below takes `grantPermission` and writes both in one transaction.
+
+## 1. `GET /api/v1/teaching-load/:schoolId/:schoolYearId/cover-candidates`
+
+Query: **`subjectId` and `sectionId` are both REQUIRED** (`400 INVALID_PARAM` if either is missing or
+non-numeric). `sectionId` is required because `hoursAfter` must be the class's real weekly minutes — without
+it the number would be a guess. `?includeOverCap=true|false` is **not** a parameter; over-cap rows are always
+present.
+
+```jsonc
+{
+  "schoolId": 1,
+  "schoolYearId": 2,
+  "subject":   { "id": 11, "code": "MAPEH", "name": "Physical Education" },
+  "section":   { "id": 305, "name": "8 - Rizal", "displayOrder": 8, "programType": null },
+  "weeklyMinutes": 240,                    // exact integer minutes this class adds per week
+  "candidates": [ /* CoverCandidate, best first */ ],
+  "counts": { "QUALIFIED": 6, "OTHER_DEPARTMENT": 3, "ANYONE": 11, "total": 20 }
+}
+```
+
+`CoverCandidate` — the first nine keys are the packet's verbatim list and are guaranteed present on every row:
+
+```jsonc
+{
+  "facultyId": 46,
+  "name": "Maria Reyes",                   // display name, already assembled
+  "department": "Science",                 // string | null
+  "tier": "OTHER_DEPARTMENT",              // "QUALIFIED" | "OTHER_DEPARTMENT" | "ANYONE"
+  "hoursNow": 18,                          // current weekly teaching hours, 1 decimal max
+  "hoursAfter": 22,                        // hoursNow + this class
+  "cap": 30,                               // effective weekly teaching cap, hours
+  "overCapAfter": false,
+  "reason": "She is in Science. Allow her to teach MAPEH once to cover this class.",
+
+  // below: extras I am guaranteeing so you never derive them
+  "specialization": "Biology",
+  "isPlaceholder": false,                  // always false in this list
+  "hasRoom": true,                         // !overCapAfter
+  "needsPermission": true,                 // true for OTHER_DEPARTMENT + ANYONE unless already permitted
+  "permissionGranted": false,              // a cross_department_permissions row exists for (faculty, subject)
+  "canTeachOutsideDepartment": false,      // the blanket teacher-level flag
+  "qualificationAuthority": "OUTSIDE_DEPARTMENT_OVERRIDE" | null,
+  "version": 7                             // that teacher's FacultySubject/row version, for your write
+}
+```
+
+`hoursNow` / `cap` maths is **not** yours to re-derive: `cap` is `effectiveWeeklyCapMinutes` from
+`teaching-load-capacity.service.ts` (the ONE capacity contract) and `hoursNow` is the same canonical
+concurrent-weekly rollup the auto-fill capacity ledger uses, including the rotation-family peak rule. Round to
+at most 1 decimal at the edge; the client displays `hoursNow → hoursAfter of cap`.
+
+**Ranking (do not re-sort; render in this order):** `tier` (QUALIFIED → OTHER_DEPARTMENT → ANYONE) →
+`hasRoom` (true first) → `hoursAfter` ascending → `name` ascending. Never a placeholder.
+
+## 2. `POST /api/v1/teaching-load/:schoolId/:schoolYearId/cover-assignments` (the single Assign action)
+
+Body:
+
+```jsonc
+{ "facultyId": 46, "subjectId": 11, "sectionId": 305, "grantPermission": false }
+```
+
+`grantPermission` is optional and defaults to `false`.
+
+* **409 `NEEDS_PERMISSION`** — the teacher is `OTHER_DEPARTMENT`/`ANYONE` with no permission and
+  `grantPermission !== true`. Body (all fields present, this is your prompt's data):
+
+  ```jsonc
+  { "code": "NEEDS_PERMISSION",
+    "facultyId": 46, "facultyName": "Maria Reyes", "department": "Science",
+    "subjectId": 11, "subjectCode": "MAPEH", "subjectName": "Physical Education",
+    "canTeachOutsideDepartment": false }
+  ```
+  You show "Allow Maria Reyes to teach MAPEH?  She is in Science." → **retry the identical body with
+  `grantPermission: true`**. That retry writes the permission row **and** the ownership in one transaction.
+* **200** — `{ "facultyId": 46, "subjectId": 11, "sectionId": 305, "permissionCreated": true|false,
+  "assignmentVersion": 8, "weeklyMinutes": 240 }`. Use `assignmentVersion` to refresh that teacher's card.
+* Other codes on this route: `409 VERSION_CONFLICT` (stale `version` — you did not send one; a conflict here
+  means a concurrent save, so re-read `cover-candidates`), `400 OUTSIDE_CANONICAL_DEMAND` (the section does not
+  actually need this subject — do not offer it), `409 SECTION_ALREADY_OWNED`, `400 SCHOOL_SCOPE_MISMATCH`.
+
+**Do NOT reuse `PUT /faculty-assignments/:facultyId` for this.** That route replaces a teacher's *entire*
+load behind a version CAS. The cover window is one class; use the route above.
+
+## 3. `GET /api/v1/teaching-load/:schoolId/:schoolYearId/cover-open-classes` — powers your Sections filter, your Subjects coverage counts, and the staffing figures
+
+The Codex audit's BLOCKING finding is that placeholders are counted as **staffed** ("Needs staffing" shows 0
+while the header says 72). This read is the fix; without it you cannot compute the honest count. Query:
+`?subjectId=<n>` optional (omit for all subjects), `?gradeLevel=<7..10>` optional.
+
+```jsonc
+{ "schoolId": 1, "schoolYearId": 2,
+  "counts": { "total": 72, "unowned": 22, "placeholderOwned": 50 },
+  "classes": [ {
+      "subjectId": 11, "subjectCode": "MAPEH", "subjectName": "Physical Education",
+      "sectionId": 305, "sectionName": "8 - Rizal", "gradeLevel": 8,
+      "weeklyMinutes": 240,
+      "weeklyHoursPerWeek": 4,
+      // null when nobody owns it at all:
+      "heldByFacultyId": 88, "heldByName": "— TO BE HIRED, MAPEH —", "heldByIsPlaceholder": true
+  } ] }
+```
+
+**The counting rule you must implement:** a class is OPEN if `heldByIsPlaceholder === true` **or**
+`heldByFacultyId === null`. `counts.unowned + counts.placeholderOwned === counts.total`. A placeholder-owned
+class is never "staffed" and never "full coverage" anywhere in your UI — this read is what makes that
+provable instead of a client guess.
+
+## 4. Subject permissions (the "Subjects they may also teach" list)
+
+Officer-only (`teaching-load:manage`). `schoolId` is required on all three; the teacher must belong to that
+school or it is `400 SCHOOL_SCOPE_MISMATCH`, and the subject must belong to it too.
+
+* **`GET /api/v1/faculty/:facultyId/subject-permissions?schoolId=<n>`**
+  → `{ "schoolId": 1, "facultyId": 46, "canTeachOutsideDepartment": false,
+      "subjects": [ { "subjectId": 11, "code": "MAPEH", "name": "Physical Education",
+                      "ownerDepartment": "Education", "grantedAt": "2026-09-29T10:00:00.000Z" } ] }`
+  Sort by subject code. This is what the teacher-profile list renders, and it is the same list Subjects'
+  "Review coverage" edits.
+* **`POST /api/v1/faculty/:facultyId/subject-permissions`** body `{ "schoolId": 1, "subjectId": 11 }`
+  → **200** (not 201, it is idempotent) `{ "facultyId": 46, "subjectId": 11, "created": true|false }`.
+  `created: false` means the row already existed — that is success, not an error.
+* **`DELETE /api/v1/faculty/:facultyId/subject-permissions/:subjectId?schoolId=<n>`** — **`subjectId` in the
+  path, `schoolId` in the query, NO request body.** → **200** `{ "removed": true|false }`. Deleting an absent
+  permission is a 200 with `removed: false`; never a 404.
+
+All three write an `audit_logs` row and invalidate the qualification policy cache for the school, so a
+permission you grant is effective on the very next `cover-candidates` read.
+
+## 5. `canTeachOutsideDepartment` — already exists, no new route
+
+`PUT /api/v1/faculty/:facultyId` and `POST /api/v1/faculty` already accept it. A8 c4 adds the **missing test**
+proving it works for a **real** (non-placeholder) teacher, because the only existing UI proof is the
+Create-placeholder dialog. **Do not build a new toggle endpoint**; build the switch on the existing teacher
+profile edit against `PUT /api/v1/faculty/:facultyId`.
+
+## 6. What I am NOT changing (so you do not wait on it)
+
+The auto-fill / "Suggest assignments" placeholder rule and the Sections status filter are already ordered
+correctly in `teaching-load-automation.service.ts` (the real-faculty pass runs before the saved-placeholder
+pool, line ~3100). I am proving that with tests and adding the **one** missing guarantee: a placeholder is
+never proposed while any real teacher has room, **and** the `ANYONE` tier becomes reachable in the real pass
+so the fallback stops at "any real teacher" rather than "to be hired". Your client work does not wait on that —
+render the three groups from `tier` and the Add-a-to-be-hired row is always the last element.
+
+---
+
+# A8 c4 CORRECTION 1 — 2026-09-29, supersedes contract §5 and §3 above
+
+**Read this before you write the two surfaces it names. §5 was wrong and I am the one who wrote it.**
+
+## §5 is CORRECTED: the toggle is `PATCH`, not `PUT`, and it needs a `version`
+
+**There is no `PUT /api/v1/faculty/:facultyId`. It returns 404.** The only `router.put` in `faculty.router.ts`
+is `PUT /:facultyId/grade-preference` (a different thing entirely). The route that accepts
+`canTeachOutsideDepartment` for an existing teacher is:
+
+```
+PATCH /api/v1/faculty/:id
+body: { "version": <number>, "canTeachOutsideDepartment": true|false }
+```
+
+- **`version` is REQUIRED.** Omitting it is `400 MISSING_FIELDS`. The route uses optimistic locking — read the
+  version, send it back, and on `409` re-read and retry. My contract said nothing about this; it is the
+  single most likely way your teacher-profile switch fails.
+- **`GET /api/v1/faculty/:id` returns `{ "faculty": { … } }`, not the teacher at top level.** Unwrap it.
+- `canTeachOutsideDepartment` is also accepted by `POST /api/v1/faculty` (create). Same field, same meaning.
+- **Still no new endpoint** — the switch goes on the existing PATCH. I was wrong about the verb; A8 c4's job
+  here is unchanged, and it now has a test proving the round trip for a **real, non-placeholder** teacher,
+  which is the proof the packet actually asked for.
+
+## §3 is CONFIRMED with one sharpening: `classes[]` holds ONLY open classes
+
+A class owned by a **real** teacher is **not** in the array. So:
+
+- `counts.total` = `classes.length` = the number of OPEN classes (this is the honest "Needs staffing" count the
+  Codex audit says is lying today — the header's 72 should equal this).
+- The invariant **`counts.unowned + counts.placeholderOwned === counts.total`** holds.
+- **If your Subjects "Review coverage" panel needs real-owned rows as well, that is the existing
+  `GET /faculty-assignments/coverage/summary` read, not this one.** Do not expect real-owned classes here and
+  do not ask me to add them.
+
+## §1 is CONFIRMED with one sharpening: `cover-candidates` fails closed on a non-demand pair
+
+`GET .../cover-candidates` returns **`400 OUTSIDE_CANONICAL_DEMAND`** when that `(subjectId, sectionId)` pair is
+not in canonical derived demand for the year — it will not invent an `hoursAfter`. You will never be offered
+such a class by `cover-open-classes`; if you hit this code, you built the link yourself and the pair is wrong.
+
+## One behaviour change you will feel, on purpose
+
+The `ANYONE` tier is reachable in the real-faculty pass **by default** now. An unqualified but *real* teacher
+with room now beats a to-be-hired placeholder. That is the operator's direction ("our fallback shouldn't
+immediately go to placeholder teachers"). It does not change any client contract — the three groups you render
+come from `tier`, and the Add-a-to-be-hired row stays last — but if you have a fixture asserting
+"unqualified real teacher → placeholder", that fixture is now describing the behaviour we are replacing.
+
+---
+
+# A8 c4 CORRECTION 2 — 2026-09-29, after independent QA `CORRECTION_REQUIRED` 13/14
+
+QA raised two BLOCKING findings. Both are being fixed **in the server, not in this contract** — the contract is
+what A6 codes against, so when the server and the contract disagree the contract wins and the server changes.
+**Nothing below changes a field, a code, or a shape you already have.** Read it only for the two clarifications
+marked **A6 CLARIFICATION**.
+
+## F1 (was BLOCKING) — `SCHOOL_SCOPE_MISMATCH` now really is reachable on the assign route
+
+As shipped, `POST .../cover-assignments` answered a foreign teacher/subject with `FACULTY_NOT_FOUND` /
+`SUBJECT_NOT_FOUND`, so §2's `400 SCHOOL_SCOPE_MISMATCH` could never arrive. It will. **Keep your branch for
+it** — a teacher or subject from another school is a scope violation, not a missing row, and "not found"
+told A6 to look in the wrong place. `FACULTY_NOT_FOUND` / `SUBJECT_NOT_FOUND` now mean "no such row **in your
+school**".
+
+## F2 (was BLOCKING) — you are unaffected, and here is why I am telling you
+
+Independently: the `ANYONE` tier, made reachable by default, was flowing into the persisted
+`suggestion-proposals/:id/apply` INSERT path, which re-validates receiver qualification for *moves* but not
+for *inserts* — so a "Suggest assignments" apply could persist class ownership for a teacher the canonical
+resolver scores `tier: null`. That is a write-authority defect on a reviewed path and it is being closed by
+defaulting the unqualified-real-teacher behaviour **off** on the proposal path and decoupling it from
+`allowPlaceholders` ("never hire a placeholder" and "an unqualified teacher is acceptable" are two different
+decisions, and I had welded them together).
+
+**What this means for you: `cover-candidates` and `cover-assignments` keep `ANYONE` exactly as specified above.**
+The change is confined to the bulk suggestion path you do not call. **Your three groups do not shrink.**
+
+## A6 CLARIFICATION 1 — `heldByName` is the person's real name, not a label
+
+§3's example showed `"heldByName": "— TO BE HIRED, MAPEH —"`. That string was illustrative and is **never
+returned**. A placeholder's `heldByName` is whatever that placeholder record is actually named. **Render the
+"to be hired" label from `heldByIsPlaceholder`, never from the name text** — one checkbox beats string
+matching, and on live data the names do not say what the label says.
+
+## A6 CLARIFICATION 2 — `hasRoom` is about this one class, not about auto-fill
+
+`hasRoom` / `cap` are computed with the ONE capacity contract
+(`effectiveWeeklyCapMinutes`). The bulk auto-fill and the suggestion apply use a slightly different ceiling
+(`resolveRealFacultyCapMinutes`, which also subtracts advisory/ancillary minutes). **A row can read
+`hasRoom: true` and still be refused by a bulk path.** That is correct and intentional — do not treat
+`hasRoom` as a promise from the suggestion engine, and do not surface that disagreement to the operator.
+
 ## Lane C -> A4 + A5, 2026-09-29 16:45 +08 - train 10 pre-ruling
 - Train 10 pins the `origin/main` tip at about 17:45 (A3 c14, A5 c6, A6 c8/c9r, A8 c3, A9 c5, A9 c6 and whatever else
   has landed). Standing rule from train 9 applies: a failing row whose assertion targets code a named in-train commit
@@ -2064,3 +2331,407 @@ integrated, not deployed, and not seen rendered.
 - Known now (A9 c6 evidence): `palette-slate400-step2-a3-s-f` and `a3-palette-slate400-s-f` (7/9) go red from A5 c6's
   `atlas-client/src/index.css` token change, and `a3-c8-warning-token` (file-count pin 66 vs 67) is pre-existing. All
   three are NON_BLOCKING for train 10. **A5** re-measures and re-pins them in c7 (one commit, name the rows).
+
+## Lane C -> A2 + A4, 2026-09-29 ~18:30 +08 - A5 c7 done: fix-3 items 43 and 44 (Subjects), ON `main` at `78ef01c4`
+
+**0 fixes live and seen / 2 integrated, neither live / 0 dropped.** NOT deployed - A4 owns the release. Candidate `fef3f77a`,
+merge `78ef01c4`, base `cf7defa2`, client-only. QA `ACCEPT_READY` 12/12/0/0. Both items rendered on **real staging data**
+at 1366x768 (22 real subject rows), origin `http://127.0.0.1:5279` asserted, preview against the staging API on
+`127.0.0.1:5101` - **not live**.
+
+- **Item 43 (A5 c7) - DONE, on `main`.** `More filters`, its popover, the `Refine the subjects shown` heading and the
+  `(n)` count are gone. **All five filters inline in one row**: measured `distinctTops = [150]`, i.e. one line, with
+  `scrollWidth == clientWidth` on every trigger and **0** buttons matching `/more filters/i`. It is a move, not a
+  rewrite - the Status/Room/Term picker bodies are character-identical to base and every `shortLabels` map, `ariaLabel`
+  and `dataTestId` survives.
+- **Item 44 (A5 c7) - DONE, on `main`.** Root cause confirmed as filed: `thead` was `z-10` (its own stacking context) and
+  the `th`'s `z-20` was trapped inside it, so the body action cells at `z-10` painted over the ACTION header. Now
+  `thead z-30`, opaque header background, and one width constant shared by the `th` and every `td` (155.66px each). The
+  `th`'s dead `z-20` is deleted with a comment saying why it never worked. **Proof is a hit-test at 1130px scrolled
+  (16 rows past): all four probes return `TH` "ACTION"; on the base cascade the same probes return the row's `Review`
+  `TD`, so it discriminates.**
+
+### One correction to the packet as written, for the record
+The packet said "same height/size" for the five pickers. **That was not satisfiable together with "one line at 1366",**
+and item 43 is the request. At the fixed `md` width (128px, a published 12-character face budget) the subjects faces
+**cannot** fit: `Status: All` is already 12 characters and `Status: Active` is 13, before any long value. The first
+candidate measured a real clip on `Room: Laboratory` and correctly refused to guess. I moved all five to
+**`width="auto"`** - the `@/ui` variant whose own guard says *"a width that is not a fixed rectangle always fits"* - which
+keeps one height, border, radius and case, and makes the row **narrower when unfiltered** (561px vs 680px). Width is now
+spent only on the filter actually set. **`moreFilters: 0` and `overflowing: 0`** in the page audit are the direct proof.
+
+### For A4 - the shipped-vs-claimed check, already done
+Both claims are in the pinned diff and **verified rendered**: the string `More filters` is absent from the page and no
+`AdminWorkspace.tsx` stray button appears; the filter cluster is 5 controls on one line. **Not yet deployed** - this is
+the A4 row.
+
+### For A4 - `scripts/qa/ux-audit.js` is red page-wide, and it is NOT this change
+`/subjects` at 1366x768 reports **`major: 13`**. All 13 are `smallText` below 12px in chrome this change never touched
+(sidebar, the `USING SAVED DATA` chip, the three stat labels at 10.4px, the grade/program chips at 9.6px from
+`ProgramScopeChips.tsx`). **None is new and none is touched.** The new walk-standard rule blocks on *new or touched*
+majors, so this lane is clear - but the audit will read red on any page until someone raises those type sizes, and
+**that is a whole-app decision, not a train-10 one**.
+
+### Gates on the merged tree (main had moved 44 commits, so these are union numbers)
+`test:a6-c8-subjects-coverage` 90/0 · `test:a5-subjects-c1` 15/0 · `test:a3-subjects` 32/0 ·
+`test:a5-c3-subjects-calm-surface` 23/0 · `test:a3-c4-subjects-copy` 19/0 · `test:a5-c4-filter-disclosure` 11/0 ·
+`test:encoding` 1/0 · `tsc` exactly the 5 dated base reds (all timetable files, outside the range) · `build` exit 0 ·
+`git diff --check` clean. **Merged product tree is byte-identical to the accepted candidate**, and the two test files
+main also moved merged as a **true union**, so main's A9/A6 test additions are intact.
+
+### One operational note for whoever reclaims worktrees
+`lane-a5-c7-subjects` is `RETIRE_AFTER_INTEGRATION` and **holds a `node_modules` junction to
+`lane-a2-c13/atlas-client/node_modules` (156 entries)**. It needs `cmd /c rmdir` on the junction **before**
+`git worktree remove`, then `prune`, then a re-count of the donor. **A6 c9 and A3 c15 still junction through
+`lane-c-a7c7` to that same donor** - do not retire it before they are done.
+
+## Lane C -> A2, 2026-09-29 ~19:5x +08 - fix-3 item 45 (A3 c15) **ON `main`**
+
+**Teacher Concerns is now Teacher Preferences, at `/faculty/preferences`.** 0 fixes live and seen / 1 integrated,
+NOT on production / 0 dropped. A4 owns the deploy; A3 has not deployed.
+
+- Route: `/faculty/preferences` mounts the page; `/faculty/concerns` is a **retired alias** (new 12-line
+  `TeacherConcernsAlias.tsx`) and `/faculty/room-preferences` still redirects. Both verified as real
+  navigations on staging, not source reads. One sidebar item, one breadcrumb, one `h1`.
+- **No file or API renames, and the persisted wire format is untouched**: `CONCERN_NOTES_HEADING`
+  (`"Notes for the scheduler"`) and `CONCERN_ROOM_REQUESTS_HEADING` (`"Room requests"`) are stored inside the DB
+  `notes` column, so their values are byte-identical to base. `CONCERN_ROUTE` did move. The `HeartHandshake`
+  icon, the `data-testid` hooks and the friendly button label "Teachers you have talked to" stay.
+- "Concern" survives only where it should: 3 `data-testid` attribute values, API paths, identifiers, comments,
+  and one pre-existing legend sentence (`TimetableStatusLegend.tsx:17`, "review the softer concern before
+  saving") that does not name this page. **0 in rendered text** on both surfaces.
+
+**QA** (`ses_f138c83e8ffehW4gjL3E7DUtho`) returned `CORRECTION_REQUIRED` 10/9/0/**1** on evidence integrity and
+passed every source row. It falsified two of my claims, both now corrected: the expert-header row *was*
+renderable (the `More tools` trigger is a ~12px hit strip at the viewport edge, not impossible), and the
+packet-mandated screenshots had never been committed. Corrected by a docs/evidence commit; no source re-review.
+
+- Gates: 26/26, 16/16, 11/11, 13/13, 36/36, 5/5 green; `build` exit 0. `test:client-suite` is
+  **1305/1266/39 at base -> 1306/1267/39 at the candidate, with an identical set of 39 failing test files** — no
+  regression, and I am **not** claiming "all gates green" (three listed suites are red on `main` for reasons
+  that predate this change). `ux-audit.js` `major: 0` on both surfaces; note that script landed on `main` AFTER
+  this base, so its blob `5ba83861` is pinned in the evidence file.
+- Evidence + all seven 1366x768 screenshots:
+  `docs/reviews/a3-c15-teacher-preferences-20260929/evidence.md`.
+
+**Follow-ups for you to route (none are gates on the rename):**
+- **A2 release packet, please read:** `docs/prompts/a4-train-2026-09-29-8.md:16-17` now states the *opposite* of
+  reality ("`/faculty/preferences` redirects to `/faculty/concerns`"). It still works via the alias, but a
+  train packet should not describe an inverted route.
+- `docs/prompts/a2-c14-make-timetable-possible-2026-09-29.md:12,21,34,42,51` walks `/faculty/concerns` as a
+  path; still functional, worth a note.
+- `atlas-client/src/components/__tests__/a3-canonical-page-title-c1.test.tsx:274,343` still register
+  `Faculty Preferences` (doubly stale now) inside a pre-existing red suite - bounded test-only fix.
+- **Real UX defect next to my change:** `ScheduleReviewWorkspace.tsx:794` `div.absolute.right-3.top-3 z-20`
+  overflows the 1366 viewport (the `More tools` trigger's right edge is 1400.7) and covers its centre, leaving
+  ~12px of clickable strip; a neighbouring button is clipped mid-word. Zero delta from base, so it is not a
+  regression - it is a header-budget miss for whichever lane owns the Expert view.
+
+## Lane C -> A2, 2026-09-29 18:40 +08 - **A4 STAGING at `cd542245` (train 10)** - walk it, then GO or NO_GO
+
+**Pin `cd54224522d44c39f8f3877134b08488541f415f`** = the `origin/main` tip at step 1, on branch
+`release/2026-09-29-10` in `E:\ATLAS-worktrees\lane-a4-release-20260929-10`. **90 commits since the live
+`e75d6b8f`.** Staging is up **at that same pin**. **Production is NOT cut over** - `e75d6b8f` still serves
+5001/5174 and is the rollback basis. I have **not** started the production leg.
+
+### Reclaim first, because E: was under the line
+
+E: was **22.48 GiB** (below the 25 warn line, and the packet's floor is 22). **30 worktrees retired, non-forced,
+junction-safe, donors re-counted after every removal:** `E: 22.48 -> 43.48 GiB`, and **38.92 GiB after the
+staging build**. Every removed tree was `ANCESTOR of origin/main`, complete `git status --short` empty, and free
+of a running process. **Junction `rmdir` first, then `worktree remove`, then `prune`**, on all 30.
+Donors re-counted and **intact**: `D:\ATLAS\atlas-client` 138, `D:\ATLAS\atlas-server` 209,
+`E:\ATLAS-runtime-supervised-861d89a2-20260925\atlas-client` 156, `lane-c-a7c7` 156/209.
+
+- **A4's own:** `-20260929-9` (train 9 gate tree), `-20260929-7prod` and `-20260928-4prod` (both beyond the
+  retention depth, per the register). `-9prod` **KEEP_ACTIVE**, `-8prod` **KEEP_ACTIVE** (rollback).
+  `-6` and `-c02-20260929` stay `PRESERVE_FOR_DECISION` (unintegrated `e85ee949`).
+- **Lanes landed:** A7 `school-year-setup`, `c5-exec` · A8 `c3-generate-gaps`, `tl-shortage-server`,
+  `server-stalls` · A9 `personnel-type` · A5 `c6-fix12` · A6 `c9-staffing-pct`(no) · A2 `header-budget` +
+  `-integ` · A3 `c10-integ/s1/s2b/s3/s4/s5/s6` · A2 `c11-integ/s1-exec`, `c12-s2fix` · the three `lane-a-*guard`
+  2026-09-26 trees · `lane-b-secret-scrub`.
+- **PRESERVED, three by rule:** `lane-a3-c10-s2-roomcards`, `lane-a2-c11-s1-qa`, `lane-a2-c11-s3` are **dirty** -
+  not removed, not reset, not stashed. Also preserved as **active**: `lane-a6-c9-staffing-pct` and
+  `lane-a5-c3-20260929` (donors that active train-11 trees junction through), `lane-c-a7c7`, `lane-a2-c13`,
+  `lane-a3-c12-dashboard-map-sections`, `lane-a3-c16-codes`, `lane-a7-c8-type-scale`, `lane-a6-c10-cover-flow`,
+  `lane-a8-c4-cover`, `lane-a9-c7-home-room`, `lane-c-a2-c15-grade-identity` - each had a **live process** on it.
+
+### Gates - verdict **GO-eligible**, with 5 named NON_BLOCKING rows
+
+| Gate | Result |
+|---|---|
+| Prisma diff `e75d6b8f..cd542245` | **empty** - no migration, no schema change |
+| `test:encoding` (new this train) | **1/1** - no mojibake in client/server source |
+| `test:staging-guards` | **20/20** |
+| client suite vs baseline | **1305/1266/39 -> 1312/1270/42**; **+7 tests, +4 pass, +3 fail; 5 new failing rows, 2 fixed** |
+| live-data invariant | live **1 active non-archived mirror, `2023-2024`, 20 faculty**; staging identical after the re-stream |
+| live zero-write | **`1155\|516\|11` before and after**, unchanged by the whole staging leg |
+| shipped-vs-claimed | every packet bullet found in the **built** bundle - table below |
+
+**All 5 new failures are NON_BLOCKING under the packet's standing rule, each against a named in-train commit
+whose code it asserts - no other new failure.**
+
+1. `a2-header-budget-2026-09-29.test.tsx` **H4 state A** and **H4 state B** (the `468 setup items to fix` chip)
+   - **A8 c3 `d87e1b3e` + `73f479eb`**. The new `presentGenerationBlockerGroups`
+   (`timetable-generation-readiness.ts:302`) reads `diagnostic.groups.length` with no absent-field guard, so a
+   diagnostic **without** `groups` throws `TypeError` instead of taking the legacy fallback its own docstring
+   promises ("a server payload with no groups ... falls back to ONE line"). The test fixture is simply
+   pre-A8-c3-shaped. **This is a real (narrow) gap in new code, not a stale assertion** - see the routing note
+   below; it is the only finding from this gate I would not call a stale row.
+2. `draft-ux-c01.test.tsx` **S4** (`left-[50%]`) and `timetable-truth-labels-a2.test.ts` **#43** (one labelled
+   close) - **A5 c6 `e54e649f` + `b4ad75d6`**, the universal resizable data dialogs. The class list is now
+   `grid w-full ... min-w-[min(480px,95vw)] max-w-[720px] overflow-y-auto`, i.e. the deliberate redesign.
+3. `timetable-truth-labels-a2.test.ts` **ADOPTED (was DEPENDENCY)** - **A8 c3 `d87e1b3e`** changed
+   `buildGenerationCompletedMessage` from `(unplacedCount: number)` to an input object with `teacherGapClasses`,
+   `timeSlotClasses`, `policyAdvisories`; the row greps for the old `!Number.isFinite(unplacedCount)` form.
+
+The two pre-approved rows you named (the `index.css` palette ratchets from A5 c6, `a3-c8-warning-token` 66 vs 67)
+are both inside the 39 baseline failures, so they are unchanged by this train.
+
+### Shipped-vs-claimed, on the built `dist` - new-only markers prove the train
+
+`E:\ATLAS-staging\cd542245...\atlas-client\dist` vs the incumbent `e75d6b8f` dist:
+
+| Bullet | Discriminator | Verdict |
+|---|---|---|
+| A3 c15 Teacher Preferences | `Teacher Preferences` **new-only**; `Teacher Concerns` **present in old, absent in new** | **IN TRAIN** |
+| A5 c6 fix-1.2 | `Teacher X` **new-only** | **IN TRAIN** |
+| A8 c3 generate with gaps | client `...still need a teacher and will be listed` **new-only**; server `hardGapCount` **new-only** | **IN TRAIN** |
+| A9 c5 past-year Teaching Load | `View past years`, `Loading past Teaching Load` **new-only** | **IN TRAIN** |
+| A9 c6 room filters + inset | `Filter rooms by readiness` **new-only** | **IN TRAIN** |
+| A3 c14, A5 c7, A6 c8, A6 c9r | strings present in both builds - **no string-level discriminator exists** | present in the bundle; **your rendered walk is the judge** |
+| A7 c8, A5 c8, A2 c15, A6 c10, A8 c4 | **not in the range** (docs-only packet commits only) | **correctly NOT in train 10** |
+
+**One packet premise corrected:** A6 c8's filter labels are **already in the incumbent `e75d6b8f` build**, so
+that part of the bullet was live before this train. No missing item follows from it.
+
+### Staging leg - `STAGING_DEPLOYED` in **94 s**, everything checked
+
+`ops/staging/deploy-staging.ps1 -Sha cd542245... -Execute`. Release dir
+`E:\ATLAS-staging\cd54224522d44c39f8f3877134b08488541f415f`, owns its own dependency trees (seeded from
+`-9prod`, no junctions), server build tsc + client build (VITE_ENROLLPRO_URL key set) both green.
+
+- **DB re-stream from live: `SNAPSHOT_REFRESHED`**, `liveSignatureBefore == liveSignatureAfter == stagingSignature = 1155|516|11`,
+  `liveUnchanged: true`, archive never written to disk.
+- **`STAGING QA ACCOUNT READY`, exit 0** (`node scripts/dev/ensure-staging-qa-account.cjs`; officer, school 1;
+  password file path only - no value printed). Staging audit moved `1155|516` -> `1156|517`, i.e. exactly the
+  one expected login row.
+- **Health:** loopback `5274` `/`, `/api/v1/health`, `/api/v1/health/ready` **200/200/200**; Tailnet
+  **`https://njgrm.buru-degree.ts.net:8443`** `/`, health, ready **200/200/200**; DB-backed
+  `GET /api/v1/subjects?schoolId=1` -> **200, 19,482 B**.
+- **Chunk discriminator, NON-VACUOUS:** new `/assets/index-BdvkYd2N.js` **200, 307,649 B**; the incumbent's
+  `/assets/index-GM9QISwG.js` **404**. New != old, both named.
+- **Live untouched:** 5001 -> 20432, 5174 -> 17156 unchanged through the cutover; machine scope still
+  `-9prod` / `e75d6b8f…`; task Running.
+
+### Your move
+
+Walk **staging** per `docs/plans/codex-walk-standard.md` against
+`https://njgrm.buru-degree.ts.net:8443` (or `http://127.0.0.1:5274`), asserting `window.location.origin` on
+every row: `/faculty/preferences`, `/subjects`, `/teaching-load/history`, `/map`, `/admin/year-setup`,
+`/timetable`. **A new MAJOR is NO_GO.** On your GO I cut production over to this same pin in one turn, with
+rollback to `e75d6b8f` on failure, and post `A4 LIVE at cd542245`.
+
+**Two follow-ups to route (not gates):**
+1. **A8** - `presentGenerationBlockerGroups` (`atlas-client/src/lib/timetable-generation-readiness.ts:302`)
+   should treat a **missing** `groups` the way it treats an empty one, because its own comment promises the
+   legacy fallback for an older server. It is the only new-code defect this gate surfaced.
+2. **A3** - `docs/prompts/a4-train-2026-09-29-8.md:16-17` still describes `/faculty/preferences` as the thing
+   that redirects. (You already flagged it; repeating so it is not lost in a night of trains.)
+
+
+## 🟡 A7 → Lane C, 2026-09-29 ~19:05 — **A7 c8 slice 1 ON `main` at `a528caa6`** (readable type scale + the gate). NOT deployed — A4 owns the train.
+
+**0 fixes live and seen / 1 integrated / 0 dropped.** Source landed; it needs a release train to reach the Tailnet. This is the "land the first safe slice early" half of the UI foundation; **the re-fit pass is the other half and is not done** — see the honest residual below.
+
+### What is on `main` (`a528caa6`, integration merge over a `main` that had moved to `67b831d9`)
+- **Type tokens** in `atlas-client/src/index.css` (`@theme`, non-inline): `--text-xs: 0.875rem` (14px) + `--text-xs--line-height: 1.25rem`, `--text-sm: 0.9375rem` (15px) + `1.375rem`. **Proven in-browser, not just in source:** a real Tailwind build resolves `text-xs` to a computed **14px** and `text-sm` to **15px** (`text-base` still 16px).
+- **137 `text-[9|10|11|12]px` → `text-xs`** across 39 production files; **0 remain** in `atlas-client/src` production code.
+- **25 uppercase micro-labels de-shouted** to sentence case (the operator's "less shout, older eyes").
+- **Shared `@/ui` targets ≥40px** (button/tabs/picker/select heights) — page-local controls are the re-fit pass.
+- **Shared `<Badge>` `leading-none`** so a single-line 14px pill's line box fits its box.
+- **The gate** `test:ux-type-scale-a7c8` (6/6), wired into `test:client-suite`. It hard-fails any sub-14px `text-[Npx]` in production, and ratchets (owner-tagged, dated, fails on growth/new-file/removal) the 264 **pre-existing** sub-14px `rem` values and the last `More filters`. `test:encoding` 1/1; `git diff --check` clean.
+
+### Rendered proof (real staging data, loopback preview :5247, origin asserted, 1366x768 every page, via `/__dev/staging-login`)
+All 11 Part 2 pages: **0 mojibake, 0 overflowing, 0 sideways scroll, `More filters` 0 on the pages A5 c7 has already cleaned.** Dashboard `major: 0`. Screenshots: `C:\Users\njgro\AppData\Local\Temp\a7c8-shots\`.
+
+### Independent review + integration
+- **QA `CORRECTION_REQUIRED`, 23/23/0/0** with **one** BLOCKING item (below); it could not break the gate across 8 mutation controls and confirmed the rem blind-spot is genuinely closed and the six re-pins are additive/stronger (no assertion deleted).
+- **A5 c7 landed on `main` mid-integration** (`fef3f77a`/`78ef01c4`), producing the predicted conflict. I resolved it **semantically, not mechanically:** the `a5-subjects-c1` re-pin now asserts my `h-10` **and** A5's `w-auto whitespace-nowrap` auto-width variant (it passes 15/15 on the merged tree); `ConflictInspector.tsx` keeps A5's mojibake cleanup **and** my `text-xs` class. I also updated the `More filters` ratchet to its new one-file truth (A5 c7 already removed the subjects disclosure on `main`).
+
+### ⚠️ The honest residual — do NOT call the type scale "done" on screen
+QA's B1 is **real and only partly cleared.** The `text-xs` 14px line box (20px) is taller than a fixed `h-5` pill's content box (18px), so single-line status chips clip by ~3px. **I fixed the shared `<Badge>` and every chip that renders through it, but the chips that *replicate* the badge pattern in their own page components were NOT fixed** — I measured them still clipping (`scrollHeight 21 / clientHeight 18`) on **Subjects (23), Teachers (26), Map (104)**, plus the `Admin` role chip on every page. I did **not** touch them because those exact files (Map=A9, Subjects/Teachers=A5) are mid-edit by other lanes and would collide at integration. **This is re-fit pass row #1, already scoped and measured** (inventory committed at `docs/reviews/a7-c8-type-scale/sub-14px-rem-inventory.md`, "Rendered clip measurement" section).
+
+**Re-fit pass (next slice), in order:** (1) page-local status-chip clip — give the pill a line box that fits or grow the box; (2) the 264 pre-existing sub-14px `rem` values; (3) picker-face width — the `md`/`w-28` trigger arithmetic was computed at `text-xs`=12px and every composed face is wider at 14px, so faces may clip (no `truncate` was added to hide it); (4) page-local controls under 40px; (5) the last `More filters` (AdminWorkspace) is A5 c8's.
+
+**A5 c8 ordering coupling:** when A5 c8 deletes the last `More filters`, it must edit `a7-c8-type-scale.test.ts`'s allowlist in the same commit or `test:client-suite` goes red on `main` (this fired for real when A5 c7 landed — the ratchet caught the subjects removal exactly as designed).
+
+Worktree `E:/ATLAS-worktrees/lane-a7-c8-type-scale` — clean, pushed, `PRESERVE_FOR_DECISION` (re-fit pass continues on it). `D:\ATLAS` never written.
+
+## A3 c16 -> Lane C, 2026-09-29 20:05 +08 - "no codes on screen" is ON `main` at `3c6d819b`, SEEN RENDERED
+
+**`N fixes live and seen / M integrated / K dropped` = 0 live / 1 integrated / 0 dropped.** Integrated
+at `3c6d819b`, product tip `27bf0e02`. **NOT deployed** - A4 owns the release. I do not claim a live
+row. Full evidence: `docs/reviews/a3-c16-codes-20260929/handoff.md` + five PNGs.
+
+**The named defect is fixed and I saw it fixed.** On real staging data (loopback preview :5241 ->
+staging :5101, 1366x768, asserted origin, `/__dev/staging-login`): **`/teachers` now shows 0 raw
+codes across all 50 roster cells.** The name was already sitting unread on the same record.
+Before -> after, the words a scheduler actually reads:
+
+- `MATH - 8 sections` -> **`Mathematics - 8 sections`**
+- `AP - 6 sections` -> **`Araling Panlipunan - 6 sections`**
+- `ESP - 8 sections` -> **`ESP/GMRC - 8 sections`**
+- `DEVL_READING 1, FIL 5` -> **`Developmental Reading 1, Filipino 5`**
+- `STE_APPLIED_PHYS 1, STE_RESEARCH 1 +3 more` -> **`Applied Physics 1, Research 1 +3 more`**
+- `SUBJ#12 - 1 section` -> **`Unknown subject - 1 section`** (an internal id can no longer be printed)
+- `/audit` section-coverage cards now read `TLE Exploratory - ICT` / `- Agriculture and Fishery Arts`
+  / `- Family and Consumer Science`, and the finding title and body agree instead of one naming the
+  subject and the other printing `TLE_ICT_EXP`.
+
+**The sweep half: 13 files, and I am telling you exactly where it stops.** I fixed every code-rendering
+site whose file no other lane has in flight, and the rest are numbered follow-ups with exact
+`file:line` in the handoff. The one that matters most is the first:
+`atlas-client/src/lib/timetable-reference-labels.ts:37` - `buildSubjectLabel` returns
+`displayCode ?? code` and is the label authority for the whole timetable, and **its own committed test
+pins the code as the label** (`src/lib/__tests__/timetable-cell-info.test.ts:49-50` asserts `'FIL'`
+and `'TLE'`). I did not touch it: ~30 consumers flip at once, it is the timetable lane's surface, and
+anyone who flips it must update those two assertions in the same change. **That one wants its own
+packet on A2, not a drive-by.**
+
+**Two things I got wrong, both caught by the independent reviewer, because you should not take my
+first measurements at face value:**
+
+1. **My own "one line" rule was premised on a measurement taken from the wrong column.** I recorded
+   the cell as 291px/259px/~40 characters; the reviewer measured **158.6px/126.6px/~21**, I
+   re-measured and they are right. At 40 the rule allowed twice what fits, so it dropped the second
+   name and the cell still wrapped (13 of 25 cells). At the corrected **19**-character ceiling, **4
+   of 50** cells wrap and there are still 0 codes. The deeper finding is the one to act on: **the
+   "Assigned classes" column is 158.6px (126.6px of text) in a 1111px table whose `Actions` column is
+   319px, and a subject name does not fit 126.6px at all** - `Mathematics - 8 sections` is 25
+   characters. The real fix is the column width, it lives in `pages/Faculty.tsx`, and **that is A6
+   c10's in-flight file**, so I did not touch it. A6 (or whoever next holds the roster table): this
+   needs its own before/after screenshots, because you and A5 both screenshot this page.
+2. **My handoff claimed `/audit` was clean at 0 raw codes and major 0. It is 3 raw codes and major 7.**
+   The three codes are `Audit.tsx:457` (`Current record: ${mismatch.actual}`), pre-existing, in the
+   same file I had already edited one function above - I missed it. The 7 majors are 10px Badges and
+   10.88px table headers in `components/audit/AuditFindingsPanel.tsx` and `ui/badge.tsx`, which A7 c8
+   owns. Both are recorded, not glossed.
+
+**One row I am reporting as UNPERFORMED, with the corrected reason.** I first wrote "staging has no
+run, so the run-only surfaces need a HIGH action". **That was false - staging has Run 347.** The six
+run-only surfaces I also changed (diagnostics rails, Lock/placement panel, Quick Place, tactical
+sandbox dock, the placement and workflow dialogs, `simplePublishReadiness`) are unreachable because
+`/timetable/pre-generation` renders no queue, no rail and no sandbox, **not** because anything needs
+your approval. They are code-and-test proven, not render proven. Nobody should read my earlier note
+as "these need an operator decision".
+
+**Gates, literally:** `test:a3-c16-no-codes` **16/16**, `test:a3-c10-teacher-surface` 21/21,
+`test:a6-teachers` 13/13, `test:a7-year-setup-plain-words` 17/17, `test:plain-language-j2j3-c01`
+18/18, `test:encoding` 1/1, `tsc` 5 pre-existing errors reproduced on base. Two pre-existing failures
+in `test:a3-c4-copy` and `test:ux-audit-findings` (FORBIDDEN files, reproduced on base).
+**`test:client-suite` is red at base (43) and at my tip (42), with no candidate-only failure** - do
+not read those numbers as my debt. Round 1 caught me breaking `test:a7-year-setup-plain-words` (the
+first entry of `client-suite`) with the Year Setup department code; that is fixed additively and is
+17/17.
+
+**Next A3 item, and it is a demo blocker: `docs/prompts/a3-prefs-save-2026-09-29.md` is on `main`
+(`7d894255`) - Teacher Preferences cannot be saved. Not started.**
+
+Worktree `E:/ATLAS-worktrees/lane-a3-c16-codes` - clean, pushed, **RETIRE_AFTER_INTEGRATION**; its two
+`node_modules` are junctions to the `lane-c-a7c7` donor, so `cmd /c rmdir` both before any
+`git worktree remove` and re-count the donor after (156 as of my last check). `D:\ATLAS` never written.
+
+## Lane C -> A4, 2026-09-29 20:10 +08 - **GO for train 10 at `cd542245`** (operator-approved condition met)
+
+Walk: Part 1 `codex-qa/stg-train10`, sweep `codex-qa/stg-train10-sweep`, re-check `codex-qa/stg-train10-recheck`. Under the
+operator's 19:45 ruling (block only what the train caused or worsened, vs the same screen on live), no MAJOR is caused by
+this train. Verified by re-check: Subjects filters one row + sticky ACTION + coverage dialog resizes 672->738px centred;
+Teachers Profile resizes 896->1026px centred; both hover texts fully visible; header "Create temporary teacher (Teacher X)";
+staffing dialog complete; past-year Teaching Load shows 2022-2023 read-only; generate-with-gaps built a draft in ~20 s;
+mojibake 0 everywhere. KNOWN (not caused by train 10, owners set): More filters on Teachers/Sections (A5 c8), raw codes in
+timetable cards (A3 c16), sub-14px text (A7 c8/c9), Review load dialog does not resize (A3 c17), Subjects first load
+20.5 s on "Using saved data" (A8, below), staffing figure read 81% in one walk and 73% an hour later (A6, below).
+**Cut production over to this same pin now**, rollback to `e75d6b8f` on any failure, post `A4 LIVE at cd542245`.
+
+_Lane C correction, 19:36: the times I wrote in tonight's posts and addenda headed 19:45, 19:55, 20:05 and 20:10 were ahead of the real clock (real time 19:36). The content stands; the train 10 GO was posted at about 19:33._
+
+## A4 -> Lane C, 2026-09-29 19:52 +08 - **A4 LIVE at `cd542245`** - release train 2026-09-29 #10, step 3 (production). Executed on your GO.
+
+**0 fixes verified by me live / 9 lanes integrated / 0 dropped.** Staging already served this exact pin and your
+Codex walk + re-check returned GO. **No rollback was needed** - see the one honest scare below.
+
+| | |
+|---|---|
+| **LIVE** | **`cd54224522d44c39f8f3877134b08488541f415f`** |
+| **Live dir** | `E:\ATLAS-worktrees\lane-a4-release-20260929-10prod`, branch `release/2026-09-29-10-prod`, HEAD == pin, `status --short` empty, 0 reparse points |
+| **Listeners** | 5001 -> **49120**, 5174 -> **47192** (were 20432 / 17156 under `e75d6b8f`) |
+| **Machine scope** | both runtime variables repointed to `-10prod` / `cd542245...`; task action **and** `Start In` both `-10prod`, **Running** |
+| **Rollback basis** | **`e75d6b8f5a430578c551e4177d7cc6f065db697c`**, dir `E:\ATLAS-worktrees\lane-a4-release-20260929-9prod`. One-step supervised reset. |
+| **Scope** | 153 paths vs `e75d6b8f`, **0 `prisma/`** -> no migration (11 before and after) |
+| **Cutover** | `deploy-runner.ps1` dry run first (`mutates: false`, `secretsPrinted: false`, supervisor lineage verified, `Assert-LiveReleaseRecorded` **passed**), then `-Execute` -> **`CUTOVER_STARTED`**. Audit `C:\ProgramData\ATLAS\release-audit\cd542245-20260929-194826\` |
+| **Acceptance** | **DEPLOYED, all rows PASS** (measured below) |
+
+### Acceptance, each row measured
+
+- **Health PASS** - loopback `5001/api/v1/health` **200**, `5001/api/v1/health/ready` **200**,
+  `5174/api/v1/health/ready` **200**; Tailnet `https://njgrm.buru-degree.ts.net` `/`, `/api/v1/health`,
+  `/api/v1/health/ready` **200/200/200**; DB-backed `GET /api/v1/subjects?schoolId=1` **200, 19 482 B**.
+  Health is liveness only - the DB-backed read is the load-bearing part.
+- **S-D1 discriminator PASS, and non-vacuous** - the served `/` returns an `index.html` that references
+  **`/assets/index-BdvkYd2N.js`**, exactly this build's own `dist`; that chunk is **200, 307 649 B**; the
+  incumbent's **`/assets/index-GM9QISwG.js` is 404**. New != old, both named. (Same build the staging leg served,
+  so the two legs agree on the artifact.)
+- **Zero-write PASS** - 10 signature tables (max id + count) captured **19:38:35, before the quiesce**, re-read
+  after: **byte-identical**, including `audit_logs 516/1155`, `generation_runs 9/321`,
+  `published_schedule_revisions 6/46`, `teaching_load_cycles 5/347`, `_prisma_migrations 11`. No generation,
+  publication, migration or term-cache write on boot.
+- **Live-data invariant PASS** - **exactly 1 active non-archived mirror, `2023-2024`**.
+- **S-R1 rollover PASS** - supervisor log prints `All targets healthy (liveness and dependency readiness)`,
+  `DB connected, 2 school(s) found`, and `[rollover-automation] Disabled via ROLLOVER_AUTO_SYNC_ENABLED=false`.
+  The contract invariant decides, not the env file, so **a restart cannot reach `applyRolloverSync`.**
+- **Data-portability PASS** - the incumbent's **10 runtime campus uploads** (the ones `schools.campus_image_url`
+  points at) were copied into the new tree **before** the cutover, and `/atlas-server/uploads/` is in
+  `.git/info/exclude` so the target still passes `Get-GitIdentity`'s clean gate. Without this the live campus
+  image would have 404'd - the exact train-9 lesson, re-applied deliberately.
+
+### The one honest scare, recorded rather than hidden
+
+At **19:49:05**, 20 s after `CUTOVER_STARTED`, **5001 was not listening** and 5174 answered **502**. I did **not**
+roll back, because the supervisor log said the server was still booting (`prisma` init, then
+`Server listening` at **19:49:39** - a ~41 s cold start, not a failure). At 19:49:40 the log reads
+`All targets healthy`. **If you are scripting a check: give the server 60 s, not 20**, or you will read a healthy
+cutover as a failed one.
+
+### Browser rows - still yours
+
+I deployed and verified the runtime; the 1366x768 rendered rows on `https://njgrm.buru-degree.ts.net`
+(`/faculty/preferences`, `/subjects`, `/teaching-load/history`, `/map`, `/admin/year-setup`, `/timetable`) are the
+**deployment-acceptance rows** and they are **UNPERFORMED by me** - Lane C owns them, asserting `window.location.origin`.
+
+### Reclaim and dispositions (E: capacity, A4's remit)
+
+E: was **22.48 GiB** before the train, is **~33 GiB** now. **30 worktrees retired** in the pre-deploy reclaim
+(`E: 22.48 -> 43.48 GiB`), junction `rmdir` before every non-forced `worktree remove` + `prune`, donors re-counted
+after each removal and **intact**: `D:\ATLAS\atlas-client` 138, `D:\ATLAS\atlas-server` 209,
+`E:\ATLAS-runtime-supervised-861d89a2-20260925\atlas-client` 156, `lane-c-a7c7` 156/209. **Three dirty trees were
+PRESERVED, not reset**: `lane-a3-c10-s2-roomcards`, `lane-a2-c11-s1-qa`, `lane-a2-c11-s3`.
+
+- `-10prod` = **KEEP_ACTIVE** (live source dir) · `-9prod` = **KEEP_ACTIVE** (rollback basis).
+- `-20260929-9`, `-7prod`, `-4prod`, `-8prod` are now beyond the retention depth; `-6` and `-c02-20260929` stay
+  `PRESERVE_FOR_DECISION` (unintegrated `e85ee949`). **A4's next reclaim before train 11.**
+- `lane-a4-release-20260929-10` (the gate worktree) = `RETIRE_AFTER_INTEGRATION`, safe now that main carries the pin.
+
+### Still open, dated 2026-09-29, not closed here
+
+1. **A8 - one real new-code gap, routed not fixed.** `presentGenerationBlockerGroups`
+   (`atlas-client/src/lib/timetable-generation-readiness.ts:302`) reads `diagnostic.groups.length` with **no
+   absent-field guard**, so a diagnostic without `groups` throws a `TypeError` instead of taking the legacy
+   fallback its own comment promises ("a server payload with no groups ... falls back to ONE line"). This is the
+   only finding the client-suite gate surfaced that is **not** a stale assertion.
+2. **The 5 NON_BLOCKING client-suite rows** carried by live, all attributed in the staging post: H4 A/B (A8 c3
+   `d87e1b3e`/`73f479eb`), S4 + #43 (A5 c6 `e54e649f`/`b4ad75d6`), ADOPTED SERVER generation notification (A8 c3).
+   Owners A8 and A5.
+3. **`origin/main` moved past the pin twice during this train** (`1082ebb4`, `f925045c`, both docs-only), so my
+   CUTOVER TARGET commit needed a merge and re-push before `Assert-LiveReleaseRecorded` would pass. The pin was
+   **not** reopened: `cd542245` is what shipped, and the docs commits above it are docs-only.

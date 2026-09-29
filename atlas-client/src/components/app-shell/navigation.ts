@@ -50,9 +50,9 @@ export const setupNav: NavItemDef[] = [
 	//
 	// STORY POSITION: first in `setupNav`, before Subjects, because the demo
 	// walks School Year -> Sections -> Subjects -> Teachers -> Teaching Load ->
-	// Teacher Concerns -> make the Timetable -> look up & print schedules.
+	// Teacher Preferences -> make the Timetable -> look up & print schedules.
 	// That is the ORDER OF THE MENU, read top to bottom. The demo script's own
-	// narrative pairs Teacher Concerns with Teaching Load; `teachersAndRoomsNav`
+	// narrative pairs Teacher Preferences with Teaching Load; `teachersAndRoomsNav`
 	// has always carried Teaching Load first, and reordering it is not this
 	// packet's business, so the comment records the menu rather than the story.
 	{ label: 'School Year', to: '/admin/year-setup', icon: CalendarRange, adminOnly: true },
@@ -65,8 +65,12 @@ export const teachersAndRoomsNav: NavItemDef[] = [
 	{ label: 'Teaching Load', to: '/teaching-load', icon: ClipboardList, adminOnly: true, schedulerAccess: true },
 	/*
 	 * A3 c13 — "Room Preferences" and "Faculty Preferences" are GONE as nav
-	 * items. Both routes now redirect here, and the room work is a per-class
-	 * section of the selected teacher's form.
+	 * items. Both retired pages now fold into Teacher Preferences, and the
+	 * room work is a per-class section of the selected teacher's form.
+	 *
+	 * A3 c15 moved the destination onto `/faculty/preferences` and retired
+	 * `/faculty/concerns` as its alias, so this ONE item is the only sidebar
+	 * entry for either page.
 	 *
 	 * A3-C8 originally ADDED the Room Preferences item because the 692-line
 	 * `OfficerRoomPreferences` review queue was fully built and had zero inbound
@@ -83,7 +87,7 @@ export const teachersAndRoomsNav: NavItemDef[] = [
 	 * is the server's answer, shown verbatim, and is the correct division: the
 	 * note moves here rather than being silently lost.
 	 */
-	{ label: 'Teacher Concerns', to: '/faculty/concerns', icon: HeartHandshake, adminOnly: true, schedulerAccess: true },
+	{ label: 'Teacher Preferences', to: '/faculty/preferences', icon: HeartHandshake, adminOnly: true, schedulerAccess: true },
 	{ label: 'Campus & Rooms', to: '/map', icon: MapPinned, adminOnly: true },
 ];
 
@@ -165,7 +169,7 @@ const routeChromeOverrides: Record<string, { group?: string; title: string }> = 
 	'/teaching-load/history': { group: 'Teachers and Rooms', title: 'Past years' },
 	'/faculty': { group: 'Teachers and Rooms', title: 'Faculty' },
 	'/assignments': { group: 'Teachers and Rooms', title: 'Assignments' },
-	'/faculty/concerns': { group: 'Teachers and Rooms', title: 'Teacher Concerns' },
+	'/faculty/concerns': { group: 'Teachers and Rooms', title: 'Teacher Preferences' },
 	'/timetabling/how-it-works': { group: CLASS_SCHEDULE_LABEL, title: 'How Scheduling Works' },
 	// UX-R03a — the nested policy route shares the Class Schedule shell.
 	'/timetable/policies': { group: CLASS_SCHEDULE_LABEL, title: 'Scheduling Policy' },
@@ -194,24 +198,28 @@ const routeChromeOverrides: Record<string, { group?: string; title: string }> = 
 	 */
 	'/room-schedules': { group: 'Review and Publish', title: LOOKUP_PRINT_LABEL },
 	/*
-	 * A3 c13 — the route-chrome entries for `/faculty/room-preferences` and
-	 * `/faculty/preferences` are RETIRED, not deleted. Their old titles
-	 * ("Room Preferences", "Faculty Preferences") named pages that no longer
-	 * exist; these name the page they actually land on.
+	 * A3 c13 — the route-chrome entries for `/faculty/room-preferences` and the
+	 * original `/faculty/preferences` page are RETIRED, not deleted. Their old
+	 * titles ("Room Preferences", "Faculty Preferences") named pages that no
+	 * longer exist; these name the page they actually land on.
 	 *
 	 * A URL that still exists — even one whose component is now a
 	 * `<Navigate replace />` — must never flash the generic "ATLAS" title while
-	 * the router settles, so both folded paths resolve the chrome of the page
-	 * they actually land on: Teacher Concerns. That is one destination under one
+	 * the router settles, so every folded path resolves the chrome of the page
+	 * it actually lands on: Teacher Preferences. That is one destination under one
 	 * name, which is what the removal was for, and it is a behaviour the ux-r01
 	 * shared-chrome row pins for every authenticated route.
 	 *
 	 * A7 C6 landed alongside A3 c13, so its packet note that the Room
 	 * Preferences nav entry "stays until A3 c13 lands" is now moot: A3 c13 has
 	 * landed and owns both the entry and this chrome title.
+	 *
+	 * A3 c15 promoted `/faculty/preferences` from a folded redirect to the real
+	 * page route and added `/faculty/concerns` above as the retired alias, so the
+	 * retired deep link shows truthful chrome for the instant before it settles.
 	 */
-	'/faculty/preferences': { group: 'Teachers and Rooms', title: 'Teacher Concerns' },
-	'/faculty/room-preferences': { group: 'Teachers and Rooms', title: 'Teacher Concerns' },
+	'/faculty/preferences': { group: 'Teachers and Rooms', title: 'Teacher Preferences' },
+	'/faculty/room-preferences': { group: 'Teachers and Rooms', title: 'Teacher Preferences' },
 	'/admin/year-setup': { group: 'School Setup', title: 'School Year Setup' },
 };
 

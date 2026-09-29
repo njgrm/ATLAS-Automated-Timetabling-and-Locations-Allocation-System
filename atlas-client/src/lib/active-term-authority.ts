@@ -60,7 +60,7 @@ export type ResolveActiveTermAuthorityOptions = {
 	 * WHY THIS EXISTS. The fast step may be answered from a cache that is up to
 	 * ten minutes old, and a verified-but-stale term still satisfies the gate —
 	 * so by default a warm cache legitimately short-circuits the second read.
-	 * That is right for a read-only surface. It is WRONG for TeacherConcerns,
+	 * That is right for a read-only surface. It is WRONG for Teacher Preferences,
 	 * whose concern WRITE re-resolves the term live on the server and rejects a
 	 * mismatched `termIndex` with `TERM_SCOPE_MISMATCH`: showing a term the
 	 * server no longer holds would make the read and the write disagree. A

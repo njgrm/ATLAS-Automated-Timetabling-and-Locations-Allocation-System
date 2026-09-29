@@ -40,7 +40,7 @@ const EXPECTED_VISIBLE_NAV: Array<[string, string]> = [
 	['Subjects', '/subjects'],
 	['Teachers', '/teachers'],
 	['Teaching Load', '/teaching-load'],
-	['Teacher Concerns', '/faculty/concerns'],
+	['Teacher Preferences', '/faculty/preferences'],
 	['Room Preferences', '/faculty/room-preferences'],
 	['Campus & Rooms', '/map'],
 	['Class Schedule', '/timetable'],

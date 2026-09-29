@@ -262,7 +262,7 @@ export function SubjectCoverageSheet({
 										 * Item 17.2 sets the chip's own proportions — a roomier
 										 * pill (`px-3 py-1.5 gap-2 rounded-xl`), a legible grade
 										 * badge (`text-xs font-semibold px-2 py-0.5`, up from
-										 * `text-[10px] px-1.5`) and a readable section name
+										 * `text-xs px-1.5`) and a readable section name
 										 * (`text-sm`, up from `text-xs`). The grade was previously
 										 * rendered at 10px inside a chip, which is smaller than
 										 * the helper text around it and is the grade the

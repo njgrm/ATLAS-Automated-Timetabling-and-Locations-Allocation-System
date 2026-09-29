@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { Zap, Settings2, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -10,6 +10,11 @@ import { SmartHelpTrigger } from '@/components/smart/SmartPageShell';
 import { CompactTitleStrip, COMPACT_TITLE_STRIP_CLASS } from '@/components/app-shell/CompactTitleStrip';
 import { TeachingLoadSummaryMenuItem, TeachingLoadSummaryMenuSlot } from '@/components/faculty-assignments/TeachingLoadSummarySurface';
 import { teachingLoadDegradedCopy } from '@/components/faculty-assignments/teachingLoadDegradedCopy';
+import {
+	buildTeachingLoadAlertChip,
+	buildTeachingLoadPrimaryAction,
+	buildTeachingLoadStatusConfig,
+} from '@/components/faculty-assignments/workspaceToolbarHeaderFacts';
 import type { CoverageMode } from '@/types';
 
 type WorkspaceToolbarProps = {
@@ -73,19 +78,55 @@ type WorkspaceToolbarProps = {
 	 */
 	shortageLineSlot?: ReactNode;
 	/**
-	 * FIX 38 / A6 c6 item 2 — the header's `Load summary` control.
+	 * A6 c9 — the page's ONE row-2 claim, and it is a control.
 	 *
-	 * This is a SLOT, not a callback, on purpose. The toolbar owns the control's
-	 * POSITION in the action group and nothing else: the open flag and the dialog
-	 * belong to `TeachingLoadSummarySurface`, and the panel body belongs to the
-	 * page. A callback here would force the page to own all three, which is what
-	 * pushed it over the AGENTS.md §8 line cap and what would let the dialog's
-	 * figures drift from the page's `truthModel`.
+	 * The prop name is deliberately UNCHANGED: it is the one position in row 2 a
+	 * page-supplied claim owns, several committed controls read the branch order
+	 * below through it, and renaming it would rewrite a published contract
+	 * without changing a behaviour. What changed is what the page puts in it —
+	 * `TeachingLoadStaffingFigure`, supplied in EVERY state, whose
+	 * `84% staffed — See who needs a teacher ›` button opens the list of classes
+	 * that still need one and carries the single quiet saved-roster line.
 	 *
-	 * A6 c6 moved that position from row 1 into the `More` menu. The slot contract
-	 * is UNCHANGED — the page still builds `TeachingLoadSummarySurface` and still
-	 * hands it over; only the place it renders changed, and the toolbar says so
-	 * with `TeachingLoadSummaryMenuSlot` rather than by asking the page to know.
+	 * Because the page now always supplies it, the AMBER PILL below is
+	 * unreachable from the real route rather than suppressed by a rule: a host
+	 * that supplies nothing still gets the pill, unchanged, and no committed
+	 * control that does so changes.
+	 *
+	 * WHAT THE SLOT SUPPRESSES, restated from c5: neither this toolbar's status
+	 * sentence nor its `alertChip` clause. `Above weekly max: N` is therefore NOT
+	 * lost — the chip was always a duplicate of the repair queue's per-teacher
+	 * `over-cap` items, and the queue is still on row 2 in `stateLineSlot`. The
+	 * blocker is now stated exactly once, which is AGENTS.md §8's actual rule.
+	 */
+	/**
+	 * A6 c9 (38.1) — OPTIONAL page-owned control for the `Load summary` window.
+	 *
+	 * The menu item needs a host-owned open flag (a dialog rendered inside the
+	 * menu content is unmounted by the click that opens it), and a card's
+	 * `Review load` must open the SAME window already drilled into that teacher
+	 * (38.1), so the page has to be able to open it too.
+	 *
+	 * Omitted, this component keeps its own `useState` flag exactly as c6 shipped
+	 * it and every committed control that renders it without the prop is
+	 * untouched. Supplied, the page owns the flag, the open FACULTY and the reset.
+	 */
+	summaryControl?: {
+		open: boolean;
+		facultyId: number | null;
+		setOpen: (open: boolean, facultyId: number | null) => void;
+	};
+	/**
+	 * FIX 38 / A6 c6 item 2 — the header's `Load summary` control, as a SLOT and
+	 * not a callback.
+	 *
+	 * The toolbar owns the control's POSITION and nothing else: the open flag
+	 * belongs to `TeachingLoadSummarySurface` (or, from c9, to the page's
+	 * `summaryControl`), and the panel body belongs to the page. A callback here
+	 * would force the page to own all three, which is what pushed it over the
+	 * AGENTS.md §8 line cap and what would let the dialog's figures drift from the
+	 * page's `truthModel`. c6 moved the position from row 1 into the `More` menu
+	 * without changing that contract.
 	 */
 	loadSummaryAction?: ReactNode;
 	/**
@@ -390,6 +431,7 @@ export function WorkspaceToolbar({
 	stateLineSlot,
 	shortageLineSlot,
 	loadSummaryAction,
+	summaryControl,
 	historyAction,
 	savedAtLabel = null,
 }: WorkspaceToolbarProps) {
@@ -405,97 +447,27 @@ export function WorkspaceToolbar({
 	 */
 	const completenessPercent = totalPairs > 0 ? Math.round((realAssignedPairs / totalPairs) * 100) : 0;
 
-	const statusConfig = useMemo(() => {
-		if (!isOnline) return { label: 'Offline', color: 'bg-amber-500', description: 'Disconnected from the server. Changes are locked until ATLAS reconnects.' };
-		if (dataSource === 'refreshing') return { label: 'Checking source', color: 'bg-blue-500 animate-pulse', description: dataSourceNotice ?? 'Verifying live data before edits continue.' };
-		if (dataSource === 'live') return { label: 'EnrollPro roster verified', color: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]', description: 'ATLAS Teaching Load draft. Freshly verified. Draft changes can be saved.' };
-		if (isWorkspaceWritable) return { label: 'ATLAS Teaching Load draft', color: 'bg-amber-500', description: dataSourceNotice ?? 'ATLAS is using synced EnrollPro section data for Teaching Load. This is expected.' };
-		if (degradedWriteEnabled) return { label: 'ATLAS Teaching Load draft', color: 'bg-amber-500', description: dataSourceNotice ?? 'ATLAS is using synced EnrollPro section data for Teaching Load. This is expected.' };
-		return { label: 'Read-only', color: 'bg-blue-500', description: dataSourceNotice ?? 'Viewing a saved snapshot. Edits need source verification first.' };
-	}, [isOnline, dataSource, isWorkspaceWritable, degradedWriteEnabled, dataSourceNotice]);
+	/*
+	 * A6 c9 §8 — these three derivations moved verbatim to
+	 * `workspaceToolbarHeaderFacts.ts`, which records why and what was left
+	 * behind. They are pure functions of the props, nothing is decided
+	 * differently, and the toolbar still decides WHEN. Every string, priority
+	 * and disabled rule travelled byte-for-byte.
+	 */
+	const statusConfig = useMemo(
+		() => buildTeachingLoadStatusConfig({ dataSource, isOnline, isWorkspaceWritable, degradedWriteEnabled, dataSourceNotice }),
+		[dataSource, dataSourceNotice, degradedWriteEnabled, isOnline, isWorkspaceWritable],
+	);
 
-	const primaryAction = useMemo(() => {
-		if (dataSource === 'refreshing') {
-			return {
-				label: 'Checking source',
-				shortLabel: 'Checking',
-				isSuggestion: false,
-				onClick: onRetrySource,
-				disabled: true,
-				variant: 'outline' as const,
-				helper: 'ATLAS is checking live assignment data.',
-			};
-		}
-		if (!isOnline || dataSource === 'none') {
-			return {
-				label: isOnline ? 'Retry source' : 'Offline',
-				shortLabel: isOnline ? 'Retry' : 'Offline',
-				isSuggestion: false,
-				onClick: onRetrySource,
-				disabled: !isOnline,
-				variant: 'outline' as const,
-				helper: isOnline ? 'Try loading teaching load data again.' : 'Reconnect before retrying.',
-			};
-		}
-		/*
-		 * A6 C2 (Major 1): the operator's own words are `Suggest assignments`,
-		 * SECONDARY, not red. The old label was `Preview suggested assignments`
-		 * and the old call site forced `border border-primary/20 bg-primary/5
-		 * … text-primary` on top of the `secondary` variant, so it READ as the
-		 * page's primary action in primary colour while doing nothing until a
-		 * second dialog. The label is now the operator's, the primary tint is
-		 * gone, and the button is honestly a secondary one.
-		 */
-		return {
-			label: 'Suggest assignments',
-			shortLabel: 'Suggest',
-			isSuggestion: true,
-			onClick: onAutoFillClick,
-			disabled: autoFillLoading || !autoFillEnabled,
-			variant: 'secondary' as const,
-			helper: autoFillEnabled ? 'Preview ATLAS suggestions before any Teaching Load rows are saved. Nothing is applied until you confirm.' : 'Suggestions need live writable data.',
-		};
-	}, [autoFillEnabled, autoFillLoading, dataSource, isOnline, onAutoFillClick, onRetrySource]);
+	const primaryAction = useMemo(
+		() => buildTeachingLoadPrimaryAction({ dataSource, isOnline, autoFillLoading, autoFillEnabled, onAutoFillClick, onRetrySource }),
+		[autoFillEnabled, autoFillLoading, dataSource, isOnline, onAutoFillClick, onRetrySource],
+	);
 
-	// State-driven alert chip: surfaces only when something needs attention.
-	// Priority: above-weekly-maximum classes (generation blocker) > excess teaching
-	// load (actual teaching above the standard) > temporary teacher placeholders.
-	const alertChip = useMemo(() => {
-		if (overCapCount > 0) {
-			return {
-				key: 'overcap',
-				label: `Above weekly max: ${overCapCount}`,
-				tone: 'danger' as const,
-				tooltip: 'Active teachers above the weekly maximum. Review the filtered teacher list and move classes before generating.',
-				onClick: onShowExcessTeachingLoad,
-				disabled: false,
-				testId: 'teaching-load-alert-over-cap',
-			};
-		}
-		if (policyReady && excessTeachingCount > 0) {
-			return {
-				key: 'excess',
-				label: `Excess teaching load: ${excessTeachingCount}`,
-				tone: 'warning' as const,
-				tooltip: 'Active teachers with actual teaching above the standard. Advisory credit never counts toward this figure.',
-				onClick: onShowExcessTeachingLoad,
-				disabled: false,
-				testId: 'teaching-load-alert-excess',
-			};
-		}
-		if (syntheticPlaceholderPairs > 0) {
-			return {
-				key: 'teacherx',
-				label: `Temporary substitutes: ${syntheticPlaceholderPairs}`,
-				tone: 'warning' as const,
-				tooltip: 'Temporary substitutes are filling load rows. Open the filtered teacher list to replace them before generating.',
-				onClick: onShowTemporarySubstitutes,
-				disabled: false,
-				testId: 'teaching-load-alert-teacher-x',
-			};
-		}
-		return null;
-	}, [overCapCount, excessTeachingCount, policyReady, syntheticPlaceholderPairs, onShowExcessTeachingLoad, onShowTemporarySubstitutes]);
+	const alertChip = useMemo(
+		() => buildTeachingLoadAlertChip({ overCapCount, excessTeachingCount, policyReady, syntheticPlaceholderPairs, onShowExcessTeachingLoad, onShowTemporarySubstitutes }),
+		[excessTeachingCount, onShowExcessTeachingLoad, onShowTemporarySubstitutes, overCapCount, policyReady, syntheticPlaceholderPairs],
+	);
 
 	/*
 	 * A6 C2 (Major 2) — the degraded-data gate for the WHOLE header.
@@ -622,8 +594,28 @@ export function WorkspaceToolbar({
 	 * of the surface rather than its child, and the page's slot still hands over the
 	 * same untouched `TeachingLoadSummarySurface` node.
 	 */
-	const [summaryOpen, setSummaryOpen] = useState(false);
-	const summaryControl = useMemo(() => ({ open: summaryOpen, setOpen: setSummaryOpen }), [summaryOpen]);
+	const [localSummaryOpen, setLocalSummaryOpen] = useState(false);
+	// A6 c9 (38.1): when the page owns the flag, this component reads it. The
+	// local state above is retained so every committed control that renders the
+	// toolbar WITHOUT `summaryControl` behaves exactly as c6 shipped it.
+	const summaryOpen = summaryControl ? summaryControl.open : localSummaryOpen;
+	const setSummaryOpen = useCallback((open: boolean) => {
+		if (summaryControl) summaryControl.setOpen(open, null);
+		else setLocalSummaryOpen(open);
+	}, [summaryControl]);
+	const openSummaryFor = useCallback((facultyId: number | null) => {
+		if (summaryControl) summaryControl.setOpen(true, facultyId);
+		else setLocalSummaryOpen(true);
+	}, [summaryControl]);
+	const summaryControlValue = useMemo(
+		() => ({
+			open: summaryOpen,
+			setOpen: setSummaryOpen,
+			openFor: openSummaryFor,
+			facultyId: summaryControl ? summaryControl.facultyId : null,
+		}),
+		[openSummaryFor, setSummaryOpen, summaryControl, summaryOpen],
+	);
 
 	return (
 		<>
@@ -800,7 +792,7 @@ export function WorkspaceToolbar({
 									 * the end of this component, so closing the menu cannot unmount it.
 									 */}
 									{loadSummaryAction ? (
-										<TeachingLoadSummaryMenuSlot value={summaryControl}>
+										<TeachingLoadSummaryMenuSlot value={summaryControlValue}>
 											<TeachingLoadSummaryMenuItem />
 										</TeachingLoadSummaryMenuSlot>
 									) : null}
@@ -975,7 +967,7 @@ export function WorkspaceToolbar({
 			 * are untouched.
 			 */}
 			{loadSummaryAction ? (
-				<TeachingLoadSummaryMenuSlot value={summaryControl}>
+				<TeachingLoadSummaryMenuSlot value={summaryControlValue}>
 					{loadSummaryAction}
 				</TeachingLoadSummaryMenuSlot>
 			) : null}

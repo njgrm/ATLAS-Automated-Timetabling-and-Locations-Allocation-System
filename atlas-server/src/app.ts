@@ -53,6 +53,8 @@ import notificationRouter from './routes/notification.router.js';
 import notificationInboxRouter from './routes/notification-inbox.router.js';
 import teachingLoadHistoryRouter from './routes/teaching-load-history.router.js';
 import teachingLoadCarryForwardRouter from './routes/teaching-load-carry-forward.router.js';
+import teachingLoadCoverRouter from './routes/teaching-load-cover.router.js';
+import facultySubjectPermissionRouter from './routes/faculty-subject-permission.router.js';
 import exportPresentationRouter from './routes/export-presentation.router.js';
 import { initializeNotificationEventBridges } from './services/notification-events.service.js';
 import { getDependencyReadiness } from './services/health.service.js';
@@ -154,6 +156,8 @@ app.use('/api/v1/notifications', notificationRouter);
 app.use('/api/v1/notification-inbox', notificationInboxRouter);
 app.use('/api/v1/teaching-load', teachingLoadHistoryRouter);
 app.use('/api/v1/teaching-load', teachingLoadCarryForwardRouter);
+app.use('/api/v1/teaching-load', teachingLoadCoverRouter);
+app.use('/api/v1/faculty', facultySubjectPermissionRouter);
 app.use('/api/v1/export-presentation', exportPresentationRouter);
 
 app.use(errorHandler);

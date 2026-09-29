@@ -12,13 +12,30 @@ import { cn } from '@/lib/utils';
  * `className` override that changes a primitive's look, so the string lives HERE,
  * next to the primitive, and every page adopts it by importing it.
  *
- * IT IS TEACHING LOAD'S `CONTROL_CHROME`, VERBATIM and in that order:
+ * IT STARTED AS TEACHING LOAD'S `CONTROL_CHROME`, IN THAT ORDER:
  * `atlas-client/src/components/faculty-assignments/TeachingLoadFilterBar.tsx:65`
  * (`h-9 rounded-xl border border-border/60 bg-background px-2.5 text-xs
  * transition-colors hover:bg-muted/40`). That bar is the reference control the
- * operator named, so the shared constant starts from its exact classes rather
+ * operator named, so the shared constant started from its exact classes rather
  * than from a fresh design. A5 owns the cross-page picker sweep and A6 owns the
  * Teaching Load header; both adopt THIS constant, which is the handoff.
+ *
+ * A7 C8 SLICE 1 (2026-09-29) — THE ONE DEPARTURE FROM "VERBATIM": `h-9` (36px)
+ * is now `h-10` (40px), so this string is no longer byte-identical to
+ * `TeachingLoadFilterBar.tsx:65` and the sentence above has been corrected rather
+ * than left standing. The reason is the packet's floor for a control that acts,
+ * and it applies to the shared picker exactly as it does to the shared button: a
+ * control a scheduler has to hit accurately is unusable to this audience. It is
+ * recorded here rather than made silently, because a constant that claims to be
+ * another file's string verbatim and is not is a lie the next reader will act on.
+ * Any test that pins this exact string is a test pinning the OLD height and is
+ * re-pinned by name, not deleted.
+ *
+ * `text-xs` is unchanged here and is now 14px, not 12px (A7 C8 also raised
+ * `--text-xs` in `index.css`), which widens every composed face this trigger has
+ * to hold. `px-2.5` is deliberately NOT increased: the trigger is a fixed-width
+ * rectangle and the re-fit pass owns the width arithmetic with a rendered row to
+ * measure it against.
  *
  * WHY A STRING AND NOT A COMPONENT: the pickers differ in WIDTH and in whether
  * they are a Radix `Select` or the one searchable combobox, and §8 also requires
@@ -29,7 +46,7 @@ import { cn } from '@/lib/utils';
  * for its own base classes.
  */
 export const SELECT_TRIGGER_PICKER_CLASS =
-	'h-9 rounded-xl border border-border/60 bg-background px-2.5 text-xs transition-colors hover:bg-muted/40';
+	'h-10 rounded-xl border border-border/60 bg-background px-2.5 text-xs transition-colors hover:bg-muted/40';
 
 /**
  * §8 "One look per control", and now also one BEHAVIOUR for the same control — the

@@ -511,7 +511,7 @@ export default function Dashboard() {
 	// never came back. Those rows are neither done nor outstanding — see
 	// `components/dashboard/ReadinessCard.tsx`, which owns the three buckets.
 	//
-	// Teacher Concerns is deliberately NOT here: A3 C13 is rebuilding that page
+	// Teacher Preferences is deliberately NOT here: A3 C13 is rebuilding that page
 	// and no snapshot field reports a truthful concerns state. The menu entry
 	// exists, so the step is reachable.
 	const checklist = [

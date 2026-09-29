@@ -125,7 +125,7 @@ export default function DesktopRoomRequestLayout({
 								<Button variant='ghost' size='icon' className='rounded-lg' onClick={onZoomOut} aria-label='Zoom out campus view'>
 									<Move className='size-4' />
 								</Button>
-								<div className='px-2 text-[10px] font-bold text-muted-foreground'>{Math.round(zoom * 100)}%</div>
+								<div className='px-2 text-xs font-bold text-muted-foreground'>{Math.round(zoom * 100)}%</div>
 								<Button variant='ghost' size='icon' className='rounded-lg' onClick={onZoomIn} aria-label='Zoom in campus view'>
 									<ScanSearch className='size-4' />
 								</Button>
@@ -144,16 +144,16 @@ export default function DesktopRoomRequestLayout({
 				>
 					<div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', minWidth: '960px' }}>
 						<div className='grid grid-cols-[100px_repeat(5,1fr)] gap-3'>
-							<div className='px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground'>Time</div>
+							<div className='px-2 py-2 text-xs font-bold uppercase tracking-wider text-muted-foreground'>Time</div>
 							{days.map((day) => (
-								<div key={day} className='px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-center text-muted-foreground'>
+								<div key={day} className='px-2 py-2 text-xs font-bold uppercase tracking-wider text-center text-muted-foreground'>
 									{day.slice(0, 3)}
 								</div>
 							))}
 							
 							{timeSlots.map((slot, slotIndex) => (
 								<Fragment key={`slot-row-${slot.startTime}-${slot.endTime}-${slotIndex}`}>
-									<div className='flex flex-col justify-center items-center rounded-2xl border border-border bg-muted/40 p-2 text-[10px] font-bold'>
+									<div className='flex flex-col justify-center items-center rounded-2xl border border-border bg-muted/40 p-2 text-xs font-bold'>
 										<span className='text-foreground'>{formatTime(slot.startTime)}</span>
 										<span className='text-muted-foreground opacity-60'>{formatTime(slot.endTime)}</span>
 									</div>
@@ -191,7 +191,7 @@ export default function DesktopRoomRequestLayout({
 											>
 												<div className='space-y-1.5'>
 													{cellEntries.length === 0 && (
-														<p className='text-[10px] font-bold text-emerald-700 opacity-0 group-hover:opacity-100 transition-opacity'>
+														<p className='text-xs font-bold text-emerald-700 opacity-0 group-hover:opacity-100 transition-opacity'>
 															+ Move Here
 														</p>
 													)}
@@ -214,7 +214,7 @@ export default function DesktopRoomRequestLayout({
 																		});
 																	}
 																}}
-																className={`rounded-xl border p-2 text-[10px] transition-all ${
+																className={`rounded-xl border p-2 text-xs transition-all ${
 																	entry.owned 
 																		? isSourceSelected 
 																			? 'border-primary bg-primary text-primary-foreground shadow-md ring-4 ring-primary/10' 
@@ -250,7 +250,7 @@ export default function DesktopRoomRequestLayout({
 					</div>
 					
 					{/* 3-Step Wizard Guidance */}
-					<div className='grid grid-cols-3 gap-2 text-[10px] font-semibold text-center'>
+					<div className='grid grid-cols-3 gap-2 text-xs font-semibold text-center'>
 						<div className={cn(
 							'pb-1.5 border-b-2 transition-all',
 							!selectedSourceEntryId ? 'border-primary text-primary font-bold' : 'border-muted text-muted-foreground'
@@ -275,7 +275,7 @@ export default function DesktopRoomRequestLayout({
 				<div className='flex-1 overflow-auto p-6 space-y-6'>
 					{/* Selection Area */}
 					<div className='space-y-4'>
-						<p className='text-[10px] font-bold text-muted-foreground uppercase tracking-wider'>Selected Class</p>
+						<p className='text-xs font-bold text-muted-foreground uppercase tracking-wider'>Selected Class</p>
 						<div className='grid gap-3'>
 							{entries.length === 0 ? (
 								<div className='rounded-2xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center'>
@@ -302,7 +302,7 @@ export default function DesktopRoomRequestLayout({
 									<div className='flex justify-between items-start gap-2'>
 										<div className='min-w-0'>
 											<p className='text-xs font-bold truncate'>{entry.subjectDisplayLabel ?? entry.subjectCode}</p>
-											<p className='text-[11px] font-medium text-muted-foreground truncate'>{entry.sectionName}</p>
+											<p className='text-xs font-medium text-muted-foreground truncate'>{entry.sectionName}</p>
 										</div>
 										{renderStatusBadge(entry.status, entry.decisionStatus)}
 									</div>
@@ -314,7 +314,7 @@ export default function DesktopRoomRequestLayout({
 					{/* Room Search / Quick Pick */}
 					<div className='space-y-4 pt-4 border-t border-border'>
 						<div className='flex items-center justify-between'>
-							<p className='text-[10px] font-bold text-muted-foreground uppercase tracking-wider'>Available Rooms</p>
+							<p className='text-xs font-bold text-muted-foreground uppercase tracking-wider'>Available Rooms</p>
 							<div className='flex items-center gap-2 rounded-lg border bg-muted/50 px-2 py-1'>
 								<Search className='size-3 text-muted-foreground' />
 								<Input
@@ -340,7 +340,7 @@ export default function DesktopRoomRequestLayout({
 									}`}
 								>
 									<p className='text-xs font-bold'>{room.name}</p>
-									<p className='text-[10px] text-muted-foreground'>{room.buildingName} â€¢ Floor {room.floor}</p>
+									<p className='text-xs text-muted-foreground'>{room.buildingName} • Floor {room.floor}</p>
 								</Button>
 							))}
 						</div>
@@ -349,7 +349,7 @@ export default function DesktopRoomRequestLayout({
 					{/* Rationale Area */}
 					{selectedEntry && (
 						<div className='space-y-4 pt-4 border-t border-border'>
-							<p className='text-[10px] font-bold text-muted-foreground uppercase tracking-wider'>Reason for Change</p>
+							<p className='text-xs font-bold text-muted-foreground uppercase tracking-wider'>Reason for Change</p>
 							<Textarea
 								value={selectedEntry.rationale ?? ''}
 								onChange={(e) => onUpdateSelectedRationale(e.target.value)}
@@ -365,7 +365,7 @@ export default function DesktopRoomRequestLayout({
 					<div className='p-6 border-t border-border bg-muted/20'>
 						<div className='flex items-center justify-between gap-4'>
 							<div className='min-w-0'>
-								<p className='text-[10px] font-bold text-muted-foreground uppercase'>Next Step</p>
+								<p className='text-xs font-bold text-muted-foreground uppercase'>Next Step</p>
 								<p className='text-xs font-bold truncate'>Click target slot on grid</p>
 							</div>
 							<Badge variant='outline' className='bg-background'>Step 2/3</Badge>

@@ -133,17 +133,24 @@ test('D5 a stale availability change renders its chip and the explicit regenerat
 		{ onRegenerate: () => {}, regenerationEnabled: true },
 	);
 	assert.match(markup, /Teacher availability/);
+	// PUBLISHED-TERM-AND-DRIFT-FOLLOWUP-C01 (F2) — the rendered chip's repair
+	// action must carry the exact preferences-workspace href, and that href must
+	// be a mounted route. A mounted-route-only assertion would be satisfied by
+	// the legacy `/faculty` redirect too, so the href itself is asserted. A3 c15
+	// renamed the page to Teacher Preferences at `/faculty/preferences`.
+	//
+	// A3 c15 (evidence correction): these four rows sat BELOW the pre-existing
+	// `timetable-simple-regenerate-impact` assertion, which fails on base and on
+	// this branch (S4-client renamed that control), so an abort there made them
+	// dead code — a test that never runs is not evidence. They now run BEFORE it.
 	assert.match(markup, /data-testid="timetable-simple-regenerate-to-apply"/);
+	assert.match(markup, /data-testid="timetable-simple-repair-availability"/);
+	assert.match(markup, /href="\/faculty\/preferences"/);
+	assert.doesNotMatch(markup, /href="\/faculty"/);
+	assert.doesNotMatch(markup, /href="\/faculty\/concerns"/, 'a repair link must name the page, not its retired alias');
+	assert.ok(mountedRoutes().has('/faculty/preferences'), 'the availability repair href must be a mounted route');
 	assert.match(markup, /data-testid="timetable-simple-regenerate-impact"/);
 	assert.match(markup, /Regenerate to apply/);
-	// PUBLISHED-TERM-AND-DRIFT-FOLLOWUP-C01 (F2) — the rendered chip's repair
-	// action must carry the exact concern-workspace href, and that href must be
-	// a mounted route. A mounted-route-only assertion would be satisfied by
-	// the legacy `/faculty` redirect too, so the href itself is asserted.
-	assert.match(markup, /data-testid="timetable-simple-repair-availability"/);
-	assert.match(markup, /href="\/faculty\/concerns"/);
-	assert.doesNotMatch(markup, /href="\/faculty"/);
-	assert.ok(mountedRoutes().has('/faculty/concerns'), 'the availability repair href must be a mounted route');
 	// `availability` is a mapped domain, so the primary repair affordance IS the
 	// per-domain control (it carries data-primary-repair) and the umbrella Year
 	// Setup fallback must not appear.

@@ -40,7 +40,7 @@ export default function MobileDashboardLayout({
 		<div className='flex flex-col gap-5'>
 			{/* Greeting hero */}
 			<section className='rounded-2xl bg-linear-to-br from-primary to-primary/80 px-5 py-5 text-primary-foreground shadow-md'>
-				<p className='text-[12px] font-medium uppercase tracking-wider text-primary-foreground/80'>Welcome back</p>
+				<p className='text-xs font-medium uppercase tracking-wider text-primary-foreground/80'>Welcome back</p>
 				<h1 className='mt-1 text-2xl font-bold leading-tight'>{firstName}</h1>
 				<p className='mt-1 text-[13px] leading-snug text-primary-foreground/85'>{phaseMessage}</p>
 			</section>
@@ -50,19 +50,19 @@ export default function MobileDashboardLayout({
 			<section className='grid grid-cols-2 gap-3'>
 				<Card className='rounded-2xl border-border/70 shadow-sm'>
 					<CardContent className='flex flex-col justify-between p-4'>
-						<p className='text-[11px] font-medium uppercase tracking-wider text-muted-foreground'>Pending</p>
+						<p className='text-xs font-medium uppercase tracking-wider text-muted-foreground'>Pending</p>
 						<div className='mt-2 flex items-baseline justify-between'>
 							<span className='text-2xl font-bold'>{counts.pending}</span>
-							<span className='text-[11px] text-muted-foreground'>{counts.approved} approved</span>
+							<span className='text-xs text-muted-foreground'>{counts.approved} approved</span>
 						</div>
 					</CardContent>
 				</Card>
 				<Card className='rounded-2xl border-border/70 shadow-sm'>
 					<CardContent className='flex flex-col justify-between p-4'>
-						<p className='text-[11px] font-medium uppercase tracking-wider text-muted-foreground'>Total tracked</p>
+						<p className='text-xs font-medium uppercase tracking-wider text-muted-foreground'>Total tracked</p>
 						<div className='mt-2 flex items-baseline justify-between'>
 							<span className='text-2xl font-bold'>{counts.total}</span>
-							<span className='text-[11px] text-muted-foreground'>classes</span>
+							<span className='text-xs text-muted-foreground'>classes</span>
 						</div>
 					</CardContent>
 				</Card>
@@ -88,7 +88,7 @@ export default function MobileDashboardLayout({
 					{schedulePreview.length === 0 ? (
 						<div className='rounded-2xl border border-dashed border-border bg-muted/30 px-4 py-6 text-center'>
 							<p className='text-[13px] font-semibold text-foreground'>{objectiveState.title}</p>
-							<p className='mt-1 text-[12px] leading-snug text-muted-foreground'>{objectiveState.roomRequestMessage}</p>
+							<p className='mt-1 text-xs leading-snug text-muted-foreground'>{objectiveState.roomRequestMessage}</p>
 						</div>
 					) : (
 						schedulePreview.slice(0, 5).map((entry) => (
@@ -96,8 +96,8 @@ export default function MobileDashboardLayout({
 								<CardContent className='flex items-start justify-between gap-3 p-3.5'>
 									<div className='min-w-0'>
 										<p className='truncate text-[14px] font-semibold leading-tight text-foreground'>{entry.subjectDisplayLabel ?? entry.subjectCode}</p>
-										<p className='mt-0.5 truncate text-[12px] text-muted-foreground'>{entry.sectionName} · {entry.day} {entry.startTime}–{entry.endTime}</p>
-										<p className='mt-0.5 truncate text-[12px] text-muted-foreground'>Room {entry.currentRoomName}</p>
+										<p className='mt-0.5 truncate text-xs text-muted-foreground'>{entry.sectionName} · {entry.day} {entry.startTime}–{entry.endTime}</p>
+										<p className='mt-0.5 truncate text-xs text-muted-foreground'>Room {entry.currentRoomName}</p>
 									</div>
 									<div className='shrink-0'>{renderEntryBadge(entry)}</div>
 								</CardContent>
