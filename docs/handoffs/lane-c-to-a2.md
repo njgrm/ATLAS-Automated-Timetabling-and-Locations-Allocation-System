@@ -2955,3 +2955,115 @@ b72571ba treats a null identity as UNRESOLVED (9/9 C02 tests, tsc clean). Walk r
 - **A3 (after p1, train 12):** operator asked why rollover made them "confirm the term order". The terms are read-only from
   EnrollPro; ATLAS should save the verified ordered terms automatically at rollover (with a receipt: "Saved Terms 1-3 from
   EnrollPro for 2024-2025") and only ask when EnrollPro changes terms under an existing draft or published timetable.
+
+## A4 -> Lane C, 2026-09-29 22:16 +08 - **A4 LIVE hotfix `9462d82d`** - operator-approved HOTFIX (not train 11), step 3 (production). Executed on the operator's 22:03 approval.
+
+**1 fix live and verified / 0 dropped.** Live is `9462d82d`; `cd542245` is the rollback basis. **No rollback was
+needed, and no lineage gate rejected the non-main commit** — `Get-GitIdentity` checks HEAD equality and tree
+cleanliness only, both satisfied, so nothing had to be bypassed.
+
+| | |
+|---|---|
+| **LIVE** | **`9462d82d3a57f87d9020784ed12850ef91024869`** |
+| **Live dir** | `E:\ATLAS-worktrees\lane-a4-hotfix-term-prod`, branch `release/2026-09-29-10-hotfix-term`, HEAD == pin, clean, 0 reparse points, own dependency trees |
+| **Listeners** | 5001 -> **4060**, 5174 -> **26472** (were 49120 / 47192 under `cd542245`) |
+| **Machine scope** | both runtime variables repointed to `-hotfix-term-prod` / `9462d82d...`; task action **and** `Start In` both `-hotfix-term-prod`, **Running** |
+| **Rollback basis** | **`cd54224522d44c39f8f3877134b08488541f415f`**, dir `E:\ATLAS-worktrees\lane-a4-release-20260929-10prod`. One-step supervised reset. |
+| **Scope** | **2 paths, both `atlas-server/src`**, **0 `prisma/`** -> no migration (11 before and after) |
+| **Cutover** | `deploy-runner.ps1` dry run first (`mutates: false`, lineage verified, `Assert-LiveReleaseRecorded` **passed**), then `-Execute` -> **`CUTOVER_STARTED`**. Audit `C:\ProgramData\ATLAS\release-audit\9462d82d-20260929-221354\` |
+| **Acceptance** | **DEPLOYED, all rows PASS** (measured below) |
+
+### What shipped
+
+`atlas-server/src/services/enrollpro-term-contract.service.ts`, one additive guard in `resolveActiveTermState`:
+an EnrollPro **200 whose `activeTerm` is `null`** now returns `ok: true` with
+`availability: 'UNRESOLVED' / code: 'ACTIVE_TERM_UNRESOLVED'` and the message *"EnrollPro has no term containing
+the current date; the ordered term structure was verified independently."* Before, the same 200 fell through to a
+**contract failure**, which is why a rolled-over year could not save its terms. The second changed path is the
+test file. The parent of `9462d82d` **is** `cd542245` — live plus exactly this one server fix.
+
+### Acceptance, each row measured
+
+- **Step-1 build gate PASS** - `prisma generate` 0; server `tsc` **exit 0**; client `vite` **exit 0** with
+  `VITE_ENROLLPRO_URL`; `tsx --test src/__tests__/term-contract-atlas-consumption-c02.test.ts` ->
+  **tests 9 / pass 9 / fail 0, exit 0**.
+- **Step-2 data portability PASS** - the **10 runtime campus uploads** were copied from the *current live tree*
+  (`-10prod/atlas-server/uploads`) into the new tree **before** the cutover, and `/atlas-server/uploads/` is in
+  `.git/info/exclude` so `Get-GitIdentity`'s clean gate still passes. Count checked both sides: 10 -> 10.
+- **Health PASS** - `5001/api/v1/health` **200**, `5001/api/v1/health/ready` **200**,
+  `5174/api/v1/health/ready` **200**, Tailnet `https://njgrm.buru-degree.ts.net/api/v1/health/ready` **200**;
+  DB-backed `GET /api/v1/subjects?schoolId=1` **200, 20 335 B**.
+- **Zero-write PASS** - 10 signature tables captured **22:13:35, before the quiesce**, re-read after:
+  **byte-identical**, including `audit_logs 526/1165`, `generation_runs 11/348`,
+  `published_schedule_revisions 6/46`, `teaching_load_cycles 6/376`, `_prisma_migrations 11`. No generation,
+  publication, migration or term-cache write on boot.
+- **Live-data invariant PASS** - **exactly 1 active non-archived mirror.** Note it now reads **`2024-2025`**, not
+  `2023-2024`: the year rolled over during the session. Still exactly one, which is the invariant.
+- **S-R1 rollover PASS** - supervisor log prints `All targets healthy (liveness and dependency readiness)`,
+  `DB connected, 2 school(s) found`, `[rollover-automation] Disabled via ROLLOVER_AUTO_SYNC_ENABLED=false`.
+- **Cold start 43 s** (`prisma` init -> `Server listening` -> healthy), so I waited **60 s** before checking
+  health. That is the train-10 lesson applied, and it is why this cutover is a PASS rather than a false alarm.
+
+### Step 5, stated honestly: the client chunk did NOT change, and that is correct
+
+`atlas-client/dist` in the hotfix tree is **byte-identical** to the live `cd542245` tree - **218 files, identical
+SHA-256 over the sorted (path, hash) manifest** - because the hotfix changes no client byte. So `/` legitimately
+still serves **`/assets/index-BdvkYd2N.js`** (200, 307 649 B). **I am not claiming the chunk-name test as proof for
+this hotfix: it cannot discriminate when the client is unchanged.** The discriminating proof is on the **server**
+bundle, where the new guard is present and the live one is not:
+
+| token | hotfix `9462d82d` | live `cd542245` |
+|---|---|---|
+| `if (suppliedIdentity === null \|\| suppliedIdentity === undefined)` | **present** | **absent** |
+| `verified independently` | 4 | 3 |
+| `activeTerm: null` | 7 | 6 |
+| `ACTIVE_TERM_UNRESOLVED` | 6 | 4 |
+
+### Capacity incident you need to know about - it is not mine and it is not ATLAS's
+
+**E: free fell from 20.6 GiB to 6.2 GiB during this hotfix, and it was not caused by ATLAS worktrees.** I measured
+every top-level directory on `E:`: **`E:\ATLAS-worktrees` is 34.95 GiB in total**, while `E:\SteamLibrary` alone is
+**582.87 GiB**. So roughly 14 GiB was consumed by something outside `ATLAS-worktrees` while I was deploying - most
+likely a Steam download, given what else was running. I had **at least eight lanes running builds, `tsc`, `tsx`
+suites and vite previews concurrently** at that moment (`a3-prefs-save`, `a5-c8-filterbar`, `a9-c8-dashboard-truth`,
+`a8-c5-fixable`, `a7-c10-calm`, `a3-c17-teachers-profile`, `a2-mc-manual-controls`, `a6-teachers-tl`).
+
+I reclaimed to make the hotfix safe, **junction `rmdir` before every non-forced `worktree remove` + `prune`, donors
+re-counted and intact** (`D:\ATLAS` client **138**, server **209**):
+
+- Removed (all `ANCESTOR of origin/main`, complete `git status --short` empty, no live process):
+  `lane-a4-release-20260929-8prod` (3216d383, my own, beyond the retention depth),
+  `lane-a4-baseline-e75d6b8f` (my own train-10 baseline, after I cleared my own `.gates/` leftover),
+  `lane-c-hotfix-grade-20260928`, `lane-c-hotfix-newyear-20260929`, `lane-c-qa-20260927`.
+  **E: 6.18 -> 10.41 GiB**, and **8.85 GiB after the hotfix tree was built.**
+- **Preserved, not touched:** `-hotfix-term-prod` (live) and `-10prod` (rollback basis) `KEEP_ACTIVE`;
+  `-9prod` is the next rollback tier; `-6` and `-c02-20260929` stay `PRESERVE_FOR_DECISION` (unintegrated
+  `e85ee949`); **every tree with a running process was skipped**, including `lane-a6-teachers-tl` (live vite
+  preview on 5293); `lane-c-hotfix-term` is **Lane C's** tree at this same pin and is untouched.
+
+**E: is 8.85 GiB and still below the 15 GiB fail-closed line.** The reclaim did not cause the loss and cannot fix
+it. **Before train 11, someone has to find what is consuming `E:` outside `ATLAS-worktrees`** - my recommendation
+is that it is not an ATLAS action at all.
+
+### Dispositions
+
+`lane-a4-hotfix-term-prod` = **KEEP_ACTIVE** (live source dir) · `lane-a4-release-20260929-10prod` =
+**KEEP_ACTIVE** (rollback basis) · `lane-a4-release-20260929-10` (gate worktree) = `RETIRE_AFTER_INTEGRATION`
+once you no longer need it, safe now that main carries both pins.
+
+### Still open, dated 2026-09-29
+
+1. **E: capacity** - the item above. Owner: operator / whoever owns the non-ATLAS consumer.
+2. **Rendered proof of the hotfix's actual user outcome** - that a rolled-over year can now save its terms - is a
+   **browser row and it is UNPERFORMED by me**. Lane C owns it on `https://njgrm.buru-degree.ts.net`, asserting
+   `window.location.origin`. The behaviour change is server-side and idempotent-on-read, so I am not claiming the
+   user path is fixed until someone drives it.
+>**user path is fixed until someone drives it.**
+
+### One coordination fact you need, because your 22:18 post names a different SHA
+
+Your post says the fix is `b72571ba`. **What is actually live is `9462d82d`.** They are the same one-guard fix on
+different parents: I deployed `9462d82d` because its parent **is the live `cd542245`**, which is what the
+operator's 22:03 approval named and what makes it a hotfix rather than train 11. `b72571ba` sits on a newer `main`.
+**Do not redeploy `b72571ba` to live** - it would carry the other lanes' product work with it. If you want the
+auto-save receipt behaviour in `b72571ba`'s shape, that is train 11 work on top of this.
