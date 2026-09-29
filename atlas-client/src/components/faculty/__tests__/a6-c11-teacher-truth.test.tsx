@@ -219,7 +219,7 @@ test('A6C11-1 a to-be-hired record is never counted as a teacher with a load', (
 	);
 });
 
-test('A6C11-1-SERVER the server fallback is reported, and invents nothing', () => {
+test('A6C11-1-SERVER the server fallback is reported, and invents nothing', async () => {
 	// A8 owns the server-side count and this module does not pretend to have
 	// fixed it. What it must not do is publish a figure the client cannot stand
 	// behind, or hide which of the two inputs produced the numbers.
@@ -241,10 +241,73 @@ test('A6C11-1-SERVER the server fallback is reported, and invents nothing', () =
 		roster: [],
 		serverStats: { activeCount: 34, assignedCount: 34, overCapCount: 2 },
 	});
-	assert.equal(empty.source, 'server-adjusted', 'the branch is REPORTED, so a control can assert which number is which');
+	assert.equal(empty.source, 'server-uncorrected', 'the branch is REPORTED, so a control can assert which number is which');
 	assert.equal(empty.activeRealCount, 34, 'the server\'s active count passes through unchanged — not guessed at');
 	assert.equal(empty.withLoadCount, 34, 'including its assigned count, which counts placeholders server-side (A8 owns that fix)');
 	assert.equal(empty.toBeHiredActiveCount, 0, 'and no placeholder count is CLAIMED, because none was visible');
+
+	// N2 — THE NAME WAS THE OTHER HALF OF THE CLAIM. The branch used to report
+	// `server-adjusted`, which asserted an adjustment this module argues against
+	// in the note right above its own fallback: the client sees no placeholder
+	// here, so any correction would be `x - 0` — an expression shaped like a
+	// correction that performs none. `server-uncorrected` is the operation. This
+	// row is the control that names it, so a future re-introduction of a silent
+	// adjustment is visible here rather than only in prose.
+	assert.doesNotMatch(
+		await readFileSync(resolve(SRC_ROOT, 'components/faculty/teacherLoadTruth.ts'), 'utf8'),
+		/'server-adjusted'/,
+		'the string literal `\'server-adjusted\'` appears NOWHERE in the module — not even as a dead value, because a reader would meet it and believe an adjustment had happened',
+	);
+
+	// N3 — THE CLAMP. `Math.min(withLoadCount, activeRealCount)` used to sit here
+	// and no control reached it, because the fixture above is `34/34` — the one
+	// server shape in which the clamp cannot fire. So its behaviour was untested
+	// AND wrong: it fired exactly on the server's own defect (a to-be-hired
+	// record counted as an active teacher while its subjects are counted as
+	// assigned, which drives `assignedCount` past `activeCount`) and resolved it
+	// into `active/active` — a calm, fully-staffed tile manufactured by shrinking
+	// a real number. The number now passes through, and the module states that
+	// the two figures disagree instead of reassuring anybody from them.
+	const incoherent = teacherLoadTruth({
+		roster: [],
+		serverStats: { activeCount: 10, assignedCount: 12, overCapCount: 0 },
+	});
+	assert.equal(incoherent.source, 'server-uncorrected', 'the same uncorrected branch');
+	assert.equal(incoherent.activeRealCount, 10, "the server's active count is not moved either");
+	assert.equal(incoherent.withLoadCount, 12, 'and its assigned count is NOT reduced to fit — the clamp is gone');
+	assert.equal(incoherent.withLoadValue, '12/10', 'so the tile shows the impossible ratio the server actually reported, rather than a tidy `10/10`');
+	assert.equal(
+		incoherent.withLoadHelpText,
+		'The server reports 12 with a load and 10 active, which cannot both be true; this count is uncorrected.',
+		'and the help sentence states the contradiction instead of claiming nobody still needs a load',
+	);
+	assert.doesNotMatch(
+		incoherent.withLoadHelpText,
+		/active teachers still need a teaching load/,
+		'`0 of 10 still need a load` is a claim this module cannot make from two figures that contradict each other',
+	);
+	assert.equal(incoherent.everyRealTeacherHasLoad, false, 'and it never reports everyone as staffed off a number it cannot read');
+	assert.equal(
+		withLoadTile(incoherent).tone,
+		'warning',
+		'a tile whose numerator exceeds its own denominator is never calm — removing the clamp must not have restored the false green',
+	);
+
+	// PRESERVATION for the clamp's removal: a COHERENT server figure is passed
+	// through exactly as before, so removing the clamp did not change the
+	// ordinary fallback.
+	const coherent = teacherLoadTruth({
+		roster: [],
+		serverStats: { activeCount: 34, assignedCount: 30, overCapCount: 2 },
+	});
+	assert.equal(coherent.withLoadCount, 30, 'a server figure below its own active count is untouched');
+	assert.equal(coherent.withLoadValue, '30/34', 'and the tile still reads as a fraction of one');
+	assert.equal(
+		coherent.withLoadHelpText,
+		'4 of 34 active teachers still need a teaching load.',
+		'with no to-be-hired clause, because none was visible — §8 less is on screen',
+	);
+	assert.equal(withLoadTile(coherent).tone, 'info', 'and the tone rule is unchanged for a figure the module can read');
 
 	// No server and no roster: zeros, not a division.
 	const nothing = teacherLoadTruth({ roster: [] });
@@ -551,3 +614,118 @@ test('A6C11-4 the alert chip is a FIGURE: no button, no affordance, and a model 
 function onClickIsHonest(model: Record<string, unknown>): boolean {
 	return !('onClick' in model) && !('disabled' in model);
 }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 5. THE CLAUSE'S OWN SUBJECT — the correction, and its mutant
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * The `With load` help sentence AS A SCHEDULER READS IT: rendered through the
+ * real `AdminStatBanner`, with the banner's own help control opened, and the
+ * portalled tooltip text read back off the document.
+ *
+ * Reading the helper's return value would NOT have caught the defect this row
+ * exists for. The arithmetic in `A6C11-1` was right in all three broken shapes
+ * — `toBeHiredActiveCount` was always counted correctly, and it was the WORDS
+ * that named the wrong number and agreed with the wrong subject. So the
+ * assertion is on the rendered string, and the string is read from the element
+ * the trigger's own `aria-describedby` points at, so it cannot pass on a
+ * sentence that is merely present somewhere in the model.
+ */
+async function renderedWithLoadHelpText(roster: ReadonlyArray<any>): Promise<string> {
+	const items = teacherStatItems(teacherLoadTruth({ roster }));
+	const host = render(createElement(AdminStatBanner as any, { items }));
+	const trigger = host.querySelector('[aria-label="With load help"]');
+	assert.ok(trigger, 'the banner renders its own `With load` help control');
+
+	await act(async () => {
+		(trigger as HTMLElement).focus();
+		await new Promise((done) => setTimeout(done, 80));
+	});
+	const describedBy = trigger!.getAttribute('aria-describedby');
+	assert.ok(describedBy, 'the opened control describes itself with the sentence it shows');
+	const content = dom.window.document.getElementById(describedBy!);
+	assert.ok(content, 'and that element is in the document');
+	return (content!.textContent ?? '').trim();
+}
+
+test('A6C11-5 the help sentence names the records it DROPPED, in every shape', async () => {
+	// THE SHAPE THAT WAS ALREADY RIGHT, restated as a rendered preservation
+	// control. `A6C11-1` already asserts it at the model and is left untouched;
+	// this is the same sentence read off the screen, and it is the reference
+	// string every row below is measured against.
+	assert.equal(
+		await renderedWithLoadHelpText(ROSTER),
+		'2 of 20 active teachers still need a teaching load. 14 to-be-hired records are holding classes, and are not counted here as teachers.',
+		'14 dropped, all 14 holding a class — one clause, because the two numbers are the same number',
+	);
+
+	// SHAPE (a): a to-be-hired record holding NO classes. This is ORDINARY — the
+	// page ships a `Temporary teachers` filter and a `No sections assigned` filter
+	// for exactly this record — and it used to render
+	// `1 to-be-hired record is on this roster, and are not counted here.`
+	// (subject/verb disagreement) and, at two or more, to name the holding count
+	// of zero records as the number the tile had dropped.
+	assert.equal(
+		await renderedWithLoadHelpText([REAL(1, 2), TO_BE_HIRED(9, 0)]),
+		'0 of 1 active teachers still need a teaching load. 1 to-be-hired record is on this roster, and is not counted here.',
+		'singular, and the verb agrees with the record it is talking about',
+	);
+	assert.equal(
+		await renderedWithLoadHelpText([REAL(1, 2), REAL(2, 1), TO_BE_HIRED(9, 0), TO_BE_HIRED(10, 0), TO_BE_HIRED(11, 0)]),
+		'0 of 2 active teachers still need a teaching load. 3 to-be-hired records are on this roster, and are not counted here.',
+		'plural, same branch — the zero-holding case is REACHABLE, not the dead `toBeHiredWithLoadCount === 0` ternary it used to be',
+	);
+
+	// The all-holding SINGULAR form, which the 14/14 sentence above cannot reach
+	// and which used to read `1 to-be-hired record is holding classes, and is not
+	// counted here as a teacher.`
+	assert.equal(
+		await renderedWithLoadHelpText([REAL(1, 3), TO_BE_HIRED(9, 2)]),
+		'0 of 1 active teachers still need a teaching load. 1 to-be-hired record is holding a class, and is not counted here as a teacher.',
+		'the noun agrees too: one record holds a class, not classes',
+	);
+
+	// SHAPE (b): the dropped count and the holding count DIFFER, so a clause keyed
+	// to the wrong number cannot accidentally read right. This is the exact 2/1
+	// the QA session ran: the tile dropped TWO records from its denominator and
+	// the sentence named ONE. Both numbers are now stated, each about the thing it
+	// actually counts, and the verbs still belong to the dropped records.
+	const differing = teacherLoadTruth({ roster: [REAL(1, 3), TO_BE_HIRED(9, 2), TO_BE_HIRED(10, 0)] });
+	assert.equal(differing.toBeHiredActiveCount, 2, 'precondition: two to-be-hired records are on this roster');
+	assert.equal(differing.toBeHiredWithLoadCount, 1, 'precondition: and only one of them is holding a class');
+	assert.equal(
+		await renderedWithLoadHelpText([REAL(1, 3), TO_BE_HIRED(9, 2), TO_BE_HIRED(10, 0)]),
+		'0 of 1 active teachers still need a teaching load. 2 to-be-hired records are on this roster, 1 holding a class, and are not counted here.',
+		'it names the 2 records the tile DROPPED, and separately the 1 of them holding a class — not one number wearing the other\'s verb',
+	);
+
+	// The differing shape with a plural holding count, because a helper that only
+	// agrees in the singular case is the same defect one branch down. And the
+	// asymmetry is deliberate: the holding count governs only its own noun, the
+	// dropped count governs every verb.
+	assert.equal(
+		await renderedWithLoadHelpText([REAL(1, 3), TO_BE_HIRED(9, 2), TO_BE_HIRED(10, 1), TO_BE_HIRED(11, 0)]),
+		'0 of 1 active teachers still need a teaching load. 3 to-be-hired records are on this roster, 2 holding classes, and are not counted here.',
+		'3 dropped, 2 holding — the two numbers stay in their own grammatical number',
+	);
+
+	// The tile VALUE is never given a second number: §8 "less is on screen" puts
+	// the detail in the help text, not in the figure a scheduler reads at a
+	// glance. This row is what stops a later "helpful" fix from printing `2 of 3`
+	// into the tile beside `1/1`.
+	assert.equal(
+		teacherStatItems(teacherLoadTruth({ roster: [REAL(1, 3), TO_BE_HIRED(9, 2), TO_BE_HIRED(10, 0)] }))
+			.find((item) => item.label === 'With load')!.value,
+		'1/1',
+		'the tile value stays a fraction of REAL teachers; the to-be-hired detail lives only in the help sentence',
+	);
+
+	// A roster with no to-be-hired records at all carries no clause, so the fix
+	// cannot have added words to a healthy page.
+	assert.equal(
+		await renderedWithLoadHelpText([REAL(1, 2), REAL(2, 0)]),
+		'1 of 2 active teachers still need a teaching load.',
+		'no to-be-hired records, no clause — the sentence is still subtracted, not reworded',
+	);
+});
