@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
+import { compareSections } from '@/lib/sections-sort';
 import {
 	promoteActiveSchoolYearContext,
 	resolveActiveSchoolYearContext,
@@ -645,22 +646,11 @@ export default function Sections() {
 		if (homeRoomFilter === 'missing') list = list.filter((section) => !isHomeRoomResolved(section, homeRoomOptions));
 		if (homeRoomFilter === 'assigned') list = list.filter((section) => isHomeRoomResolved(section, homeRoomOptions));
 
-		const sorted = [...list].sort((a, b) => {
-			let cmp = 0;
-			if (sortField === 'name') cmp = a.name.localeCompare(b.name, undefined, { numeric: true });
-			else if (sortField === 'gradeLevelId') {
-				cmp = a.gradeLevelId - b.gradeLevelId;
-				if (cmp === 0) cmp = a.name.localeCompare(b.name, undefined, { numeric: true });
-			}
-			else if (sortField === 'enrolledCount') cmp = a.enrolledCount - b.enrolledCount;
-			else if (sortField === 'maxCapacity') cmp = a.maxCapacity - b.maxCapacity;
-			else if (sortField === 'fill') {
-				const fA = a.maxCapacity > 0 ? a.enrolledCount / a.maxCapacity : 0;
-				const fB = b.maxCapacity > 0 ? b.enrolledCount / b.maxCapacity : 0;
-				cmp = fA - fB;
-			}
-			return sortDir === 'desc' ? -cmp : cmp;
-		});
+		// A2 c15 (B2): the comparator lives in `@/lib/sections-sort` so the "Grade"
+		// column can order by the resolved grade from the one client authority
+		// rather than by the raw EnrollPro `gradeLevelId`, and so this page stays
+		// under the AGENTS §8 1000-line ceiling.
+		const sorted = [...list].sort((a, b) => compareSections(a, b, sortField, sortDir));
 
 		const tf = sorted.length;
 		const tp = Math.max(1, Math.ceil(tf / pageSize));
