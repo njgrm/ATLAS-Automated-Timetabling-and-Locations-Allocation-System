@@ -160,14 +160,14 @@ export function SectionInspector({
 													{owner.facultyName}
 												</span>
 												{isPending && (
-													<Badge variant="secondary" className="h-4 px-1.5 text-xs font-semibold uppercase bg-sky-100 text-sky-700 animate-pulse">Draft</Badge>
+													<Badge variant="secondary" className="h-4 px-1.5 text-xs font-semibold bg-sky-100 text-sky-700 animate-pulse">Draft</Badge>
 												)}
 											</>
 										) : (
 											<span className="text-xs font-bold text-rose-500 uppercase tracking-widest">No teacher yet</span>
 										)}
 										{subject.specializationLabel ? (
-											<Badge variant="outline" className="h-4 px-1.5 text-xs font-semibold uppercase bg-background">
+											<Badge variant="outline" className="h-4 px-1.5 text-xs font-semibold bg-background">
 												{subject.specializationLabel}
 											</Badge>
 										) : null}

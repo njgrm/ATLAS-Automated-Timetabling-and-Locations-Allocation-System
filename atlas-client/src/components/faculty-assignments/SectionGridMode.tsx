@@ -456,7 +456,7 @@ export function SectionGridMode({
 																<UserCheck className="size-4 text-emerald-600" />
 																<div className="flex flex-col">
 																	<span className="text-xs font-semibold text-emerald-900 uppercase leading-none mb-0.5">{owner.facultyName}</span>
-																	<span className="text-xs font-bold text-emerald-600 uppercase tracking-tighter leading-none">{owner.isPending ? 'Pending Assignment' : 'Current Owner'}</span>
+																	<span className="text-xs font-bold text-emerald-600 leading-none">{owner.isPending ? 'Pending Assignment' : 'Current Owner'}</span>
 																</div>
 																{/* A6 c7 §1.3: ONE `Undo`, INSIDE the confirmation it describes, and
 																    only while the change is still a draft. A saved owner is CHANGED,
@@ -563,14 +563,14 @@ export function SectionGridMode({
 																									{loadPct == null ? `${candidateHours.toFixed(1)}h teaching` : `${loadPct}% Load`}
 																								</span>
 																								<span className="text-muted-foreground/30">•</span>
-																								<span className="text-xs font-bold text-muted-foreground uppercase truncate">
+																								<span className="text-xs font-bold text-muted-foreground truncate">
 																									{f.department || 'No Dept'}
 																								</span>
 																								{/* An unmapped/blank department is shown as unverified, never as
 																								    a hard exclusion. The server authority decides on apply. */}
 																								{authority === 'unknown' && (
 																									<span
-																										className="text-xs font-bold uppercase tracking-tighter text-amber-600"
+																										className="text-xs font-bold text-amber-600"
 																										data-testid="teaching-load-owner-option-unverified"
 																									>
 																										Verify dept

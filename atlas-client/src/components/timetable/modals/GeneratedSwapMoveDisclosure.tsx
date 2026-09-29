@@ -132,7 +132,7 @@ export default function GeneratedSwapMoveDisclosure({
 	if (!moves) {
 		return (
 			<div className={className} data-testid="generated-swap-before-after">
-				<p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">Before → After</p>
+				<p className="text-xs font-bold tracking-wide text-muted-foreground mb-1.5">Before → After</p>
 				<p className="text-xs text-amber-900" data-testid="generated-swap-move-unknown">
 					This option&apos;s exact move is not known yet. Do not save until it is shown here.
 				</p>
@@ -142,7 +142,7 @@ export default function GeneratedSwapMoveDisclosure({
 
 	return (
 		<div className={className} data-testid="generated-swap-before-after">
-			<p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">Before → After</p>
+			<p className="text-xs font-bold tracking-wide text-muted-foreground mb-1.5">Before → After</p>
 			<div className="grid grid-cols-2 gap-2 text-xs">
 				<div className="space-y-0.5">
 					<p className="font-semibold text-blue-800">Class A moves to</p>

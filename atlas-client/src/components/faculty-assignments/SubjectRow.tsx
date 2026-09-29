@@ -597,7 +597,7 @@ export const SubjectRow = memo(({
 												disabled={disabled}
 												onClick={() => handleToggleGrade(gradeLevel, gradeSections)}
 												aria-label={`${selectedInGrade > 0 ? 'Unassign' : 'Assign'} ${gradeLabel(gradeLevel)} (${gradeSections.length} sections)`}
-												className="h-9 px-3 text-xs font-bold uppercase text-primary hover:bg-primary/5 border border-primary/20"
+												className="h-9 px-3 text-xs font-bold text-primary hover:bg-primary/5 border border-primary/20"
 											>
 												{selectedInGrade > 0 ? 'Unassign Grade' : 'Assign Grade'}
 											</Button>

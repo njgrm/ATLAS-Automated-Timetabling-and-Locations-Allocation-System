@@ -742,7 +742,7 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 									<div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 p-2">
 										<div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">A</div>
 										<div className="min-w-0">
-											<p className="text-xs font-bold uppercase tracking-wide text-blue-700">Class A</p>
+											<p className="text-xs font-bold tracking-wide text-blue-700">Class A</p>
 											<p className="text-sm font-semibold truncate">{subjectLabel(regularSwapPending.entryA.subjectId)}</p>
 											<p className="text-xs text-muted-foreground truncate">{sectionLabel(regularSwapPending.entryA.sectionId)}</p>
 											<p className="text-xs font-medium text-blue-800">{regularSwapPending.entryA.day} {formatTime(regularSwapPending.entryA.startTime)}–{formatTime(regularSwapPending.entryA.endTime)}</p>
@@ -751,7 +751,7 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 									<div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2">
 										<div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-amber-600 text-xs font-bold text-white">B</div>
 										<div className="min-w-0">
-											<p className="text-xs font-bold uppercase tracking-wide text-amber-700">Class B</p>
+											<p className="text-xs font-bold tracking-wide text-amber-700">Class B</p>
 											<p className="text-sm font-semibold truncate">{subjectLabel(regularSwapPending.entryB.subjectId)}</p>
 											<p className="text-xs text-muted-foreground truncate">{sectionLabel(regularSwapPending.entryB.sectionId)}</p>
 											<p className="text-xs font-medium text-amber-800">{regularSwapPending.entryB.day} {formatTime(regularSwapPending.entryB.startTime)}–{formatTime(regularSwapPending.entryB.endTime)}</p>

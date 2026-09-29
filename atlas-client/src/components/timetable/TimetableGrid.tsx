@@ -487,7 +487,7 @@ const GridCell = memo(function GridCell({
 								<span className="min-w-0 flex-1 truncate">{entrySubjectLabel}</span>
 								{entryTermLabel ? (
 									<span
-										className="shrink-0 rounded bg-muted px-1 py-0.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+										className="shrink-0 rounded bg-muted px-1 py-0.5 text-xs font-semibold tracking-wide text-muted-foreground"
 										data-testid="timetable-entry-term-label"
 										data-term-index={entry.termIndex ?? ''}
 									>
@@ -504,7 +504,7 @@ const GridCell = memo(function GridCell({
 									/>
 								) : null}
 								{entry.entryKind === 'COHORT' && entry.cohortCode && (
-									<span className="rounded bg-sky-100 px-1 py-0.5 text-xs font-bold uppercase tracking-wide text-sky-700 shrink-0">
+									<span className="rounded bg-sky-100 px-1 py-0.5 text-xs font-bold tracking-wide text-sky-700 shrink-0">
 										{entry.cohortCode}
 									</span>
 								)}

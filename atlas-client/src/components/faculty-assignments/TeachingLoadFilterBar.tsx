@@ -483,7 +483,7 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 
 			{hasActiveFilters && (
 				<div className="flex flex-wrap items-center gap-1.5" data-testid="teaching-load-active-filters">
-					<span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Active filters:</span>
+					<span className="text-xs font-bold tracking-wide text-muted-foreground">Active filters:</span>
 					{searchQuery.trim() && (
 						<Badge variant="secondary" className="gap-1 text-xs font-bold">
 							Search: {searchQuery.trim()}
@@ -504,7 +504,7 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 							{loadFilter === 'excess' ? 'Excess teaching load' : loadFilter === 'at-standard' ? 'At standard' : BELOW_STANDARD_LABEL}
 						</Badge>
 					)}
-					<Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs font-bold uppercase" onClick={onClearTeachingLoadFilters}>
+					<Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs font-bold" onClick={onClearTeachingLoadFilters}>
 						<RotateCcw className="size-3.5" />
 						Clear all
 					</Button>

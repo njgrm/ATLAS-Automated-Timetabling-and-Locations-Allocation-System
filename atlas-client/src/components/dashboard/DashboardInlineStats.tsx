@@ -84,7 +84,7 @@ export function DashboardInlineStats(props: DashboardInlineStatsProps) {
 					>
 						<div className="flex items-center gap-2">
 							<Icon className="size-3.5 text-muted-foreground/70" />
-							<span className="text-xs uppercase tracking-wider font-bold text-muted-foreground">
+							<span className="text-xs tracking-wider font-bold text-muted-foreground">
 								{it.label}
 							</span>
 						</div>
