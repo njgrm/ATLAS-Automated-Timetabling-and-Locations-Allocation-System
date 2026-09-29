@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
-import { resolveActiveTermAuthority } from '@/lib/active-term-authority';
+import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { UNVERIFIED_TERM_BODY } from '@/lib/room-schedule-term-copy';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import { pivotDraftToView } from '@/lib/schedule-pivot';
@@ -227,15 +227,24 @@ export default function RoomSchedules() {
 		(async () => {
 			try {
 				setLookupError(false);
-				// A2-C14 — the shared resolver. This page already asked for
-				// verification, but WITHOUT `forceRefresh` the school-keyed
-				// cache could hand it an unverified entry written moments
-				// earlier by TeacherConcerns, so the requested verification was
-				// never dispatched. `isVerifiedOrderedActiveTerm` below stays
-				// exactly as it is — the gate is unchanged, only who asks is.
-				const resolution = await resolveActiveTermAuthority(scopedSchoolId, () => false);
-				if (resolution == null) throw new Error('Active school year is no longer current.');
-				const yearContext = resolution.context;
+				// A2-C14 — this page asks for upstream verification exactly ONCE per
+				// read, and it needs no fast unverified read first: it cannot use an
+				// unverified term at all, so the extra round trip bought nothing and
+				// broke A5-C5's "the year context is read exactly once on mount"
+				// control. `forceRefresh` is what makes this a real dispatch — without
+				// it the school-keyed cache short-circuit returned the UNVERIFIED
+				// entry written moments earlier by TeacherConcerns, so the requested
+				// verification was never issued at all (root cause:
+				// docs/reviews/a2-c14-root-cause/root-cause.md §Term 3).
+				// `isVerifiedOrderedActiveTerm` below stays exactly as it is — the gate
+				// is unchanged, only who asks is.
+				const yearContext = await resolveActiveSchoolYearContext({
+					schoolId: scopedSchoolId,
+					allowStaleOnError: true,
+					allowEnrollProFallback: false,
+					forceRefresh: true,
+					verifyUpstream: true,
+				});
 				const activeSchoolYearId = yearContext.activeSchoolYearId;
 
 				const [buildingsRes, subjectsRes, facultyRes] = await Promise.all([
