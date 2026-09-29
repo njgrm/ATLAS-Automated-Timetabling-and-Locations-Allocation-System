@@ -101,6 +101,7 @@
     "test:a3-subjects": "tsx --test src/components/subjects/__tests__/subjects-ux-a3.test.tsx",
     "test:a3-c4-subjects-copy": "tsx --test src/components/subjects/__tests__/a3-c4-subjects-copy.test.tsx",
     "test:a3-c5-subjects-stats": "tsx --test src/components/subjects/__tests__/a3-c5-subjects-stats.test.tsx",
+    "test:a5-rotation-subject-counts": "tsx --test src/lib/__tests__/rotation-subject-count.test.ts src/components/faculty-assignments/__tests__/a5-rotation-subject-counts.test.tsx",
     "test:a3-c5-subjects-error-copy": "tsx --test src/components/subjects/__tests__/a3-c5-subjects-error-copy.test.tsx",
     "test:a3-c6-duplicate-copy": "tsx --test src/components/subjects/__tests__/a3-c6-duplicate-copy.test.tsx",
     "test:a3-c6-concerns": "node --experimental-test-module-mocks --import tsx --test src/components/faculty-shared/__tests__/a3-c6-concerns-truthfulness.test.tsx",

@@ -52,6 +52,7 @@
     "test:hybrid-scheduler": "tsx src/__tests__/hybrid-scheduler.test.ts",
     "test:scheduler-collaboration": "tsx --test src/__tests__/manual-edit-concurrency-c01.test.ts src/__tests__/publication-approval-c01.test.ts src/__tests__/scheduler-c01-actor-school-http.test.ts src/__tests__/scheduler-c01-qa-corrections.test.ts src/__tests__/scheduler-capabilities-c01.test.ts src/__tests__/scheduler-route-authority-c01.test.ts src/__tests__/scheduler-ancillary-authority-c01.test.ts src/__tests__/timetable-collaboration-ticket-c01.test.ts src/__tests__/timetable-collaboration-websocket-c01.test.ts",
     "test:teaching-personnel-a9": "tsx --test src/__tests__/teaching-personnel-filter-a9.test.ts",
+    "test:rotation-subject-counts": "tsx --test src/__tests__/rotation-subject-counts.test.ts",
     "test:disposable-db-guard": "tsx --test src/__tests__/disposable-db-write-guard.test.ts",
     "test:export-center": "tsx --test src/__tests__/export-learner-count.test.ts src/__tests__/schedule-workbook-docx.test.ts src/__tests__/scheduler-print-xlsx-c01.test.ts",
     "test:timetable-sync-setup": "tsx src/__tests__/timetable-sync-setup.test.ts",

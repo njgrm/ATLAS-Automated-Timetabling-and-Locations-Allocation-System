@@ -26,6 +26,7 @@ import { Popover, PopoverContent, PopoverTrigger, PopoverClose } from '@/ui/popo
 import { cn } from '@/lib/utils';
 import { getAssignmentOwnershipKey, ownershipDepartmentEligibility, selectEligibleOwnerCandidates, teachingUtilizationPercentFor, resolveTeachingActualHours, type FacultyOwnershipState } from '@/lib/faculty-assignment-helpers';
 import { PLACEHOLDER_TRUTH_LABEL } from '@/components/faculty-assignments/teachingLoadOutage';
+import { countSubjectGroups } from '@/lib/rotation-subject-count';
 import type { Subject, ExternalSection, FacultySummary, FacultyAssignmentDraft } from '@/types';
 
 export type SectionGridModeProps = {
@@ -109,7 +110,15 @@ export function SectionGridMode({
 			section: ExternalSection; 
 			subjects: Subject[]; 
 			unassignedCount: number; 
-			totalCount: number;
+			/*
+			 * A5 (2026-09-30) — the DISPLAY count. A term-rotating family is one
+			 * taught subject, so the section header and the staffed fraction read
+			 * `subjectCount`, not the raw catalogue row total. `unassignedGroupCount`
+			 * is the family-level twin of `unassignedCount`: a family with any
+			 * unstaffed member is one unstaffed group.
+			 */
+			subjectCount: number;
+			unassignedGroupCount: number;
 			isCompleted: boolean;
 		}> = [];
 
@@ -120,13 +129,21 @@ export function SectionGridMode({
 
 			if (sectionSubjects.length === 0) continue;
 
-			let unassigned = 0;
-			for (const sub of sectionSubjects) {
+			// ONE ownership predicate, used by both the per-subject count the filters
+			// already read and the family-level display count below.
+			const isUnassigned = (sub: Subject): boolean => {
 				const key = getAssignmentOwnershipKey(sub.id, section.id);
 				const owner = effectiveOwnershipMap[key];
-				const isStaffed = owner && activeFacultyIds.has(owner.facultyId);
-				if (!isStaffed) unassigned++;
+				return !(owner && activeFacultyIds.has(owner.facultyId));
+			};
+
+			let unassigned = 0;
+			for (const sub of sectionSubjects) {
+				if (isUnassigned(sub)) unassigned++;
 			}
+
+			const subjectCount = countSubjectGroups(sectionSubjects);
+			const unassignedGroupCount = countSubjectGroups(sectionSubjects, isUnassigned);
 
 			const matchesSearch = !searchQuery || (section.name.toLowerCase().includes(searchQuery.toLowerCase()) || section.programCode?.toLowerCase().includes(searchQuery.toLowerCase()));
 			
@@ -140,7 +157,8 @@ export function SectionGridMode({
 					section,
 					subjects: sectionSubjects,
 					unassignedCount: unassigned,
-					totalCount: sectionSubjects.length,
+					subjectCount,
+					unassignedGroupCount,
 					isCompleted: unassigned === 0
 				});
 			}
@@ -401,7 +419,7 @@ export function SectionGridMode({
 										)}
 									</div>
 									<p className="text-xs font-bold text-muted-foreground uppercase tracking-widest truncate">
-										Grade {row.section.displayOrder} • {row.totalCount} Subjects
+										Grade {row.section.displayOrder} • {row.subjectCount} Subjects
 									</p>
 								</div>
 
@@ -411,7 +429,7 @@ export function SectionGridMode({
 											"text-xs font-semibold tabular-nums",
 											row.isCompleted ? "text-emerald-600" : "text-amber-600"
 										)}>
-											{row.totalCount - row.unassignedCount} / {row.totalCount}
+											{row.subjectCount - row.unassignedGroupCount} / {row.subjectCount}
 										</p>
 										<p className="text-xs font-bold text-muted-foreground uppercase tracking-tighter">Staffed</p>
 									</div>

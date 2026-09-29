@@ -32,6 +32,7 @@ import { formatFacultyDisplayName } from '@/components/faculty/teacherNameDispla
 import { formatFacultyInitials } from '@/components/faculty/teacherNameDisplay';
 import { AdviserSectionLine } from '@/components/faculty-shared/AdviserSectionLine';
 import { countDistinctSections, countDistinctSubjects } from '@/lib/teaching-load-counts';
+import { countSubjectGroups } from '@/lib/rotation-subject-count';
 import {
 	buildTeacherWorkloadAuditSnapshot,
 	clearTeacherWorkloadAudit,
@@ -644,7 +645,7 @@ export function TeacherGridMode({
 																	data-testid="teaching-load-show-other-subjects"
 																	onClick={() => setOtherSubjectsFor(member.id)}
 																>
-																	Show other subjects ({outsideDepartmentSubjects.length})
+																	Show other subjects ({countSubjectGroups(outsideDepartmentSubjects)})
 																	<ChevronDown className="size-4" aria-hidden="true" />
 																</Button>
 															)}

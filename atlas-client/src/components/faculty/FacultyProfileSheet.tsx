@@ -41,6 +41,7 @@ import {
 	isPlaceholderSentinelName,
 } from '@/components/faculty/teacherNameDisplay';
 import { resolveSectionGradeNumber } from '@/lib/schedule-review-helpers';
+import { countSubjectGroups } from '@/lib/rotation-subject-count';
 import { deriveLoadStatus, STANDARD_WEEKLY_TEACHING_HOURS } from '@/lib/faculty-assignment-helpers';
 import { departmentLabel } from '@/lib/deped-glossary';
 
@@ -173,7 +174,16 @@ export function FacultyProfileSheet({
 
 	if (!faculty) return null;
 
-	const subjectCount = faculty.subjectCount ?? 0;
+	/*
+	 * A5 (2026-09-30) — the "Subjects" stat is rotation-aware.
+	 *
+	 * The server scalar `faculty.subjectCount` counts catalogue ROWS, so a teacher
+	 * holding the Science rotation (SCI_BIO/SCI_CHEM/SCI_ES) read as three
+	 * subjects. The assignment rows carry the subject's `rotationFamily`/
+	 * `termGroupId`, so the SAME count rule the Subjects page uses collapses the
+	 * family to one. The label and markup are unchanged; only the number moves.
+	 */
+	const subjectCount = countSubjectGroups((faculty.assignments ?? []).map((assignment) => assignment.subject));
 	const sectionCount = faculty.sectionCount ?? 0;
 
 	/**

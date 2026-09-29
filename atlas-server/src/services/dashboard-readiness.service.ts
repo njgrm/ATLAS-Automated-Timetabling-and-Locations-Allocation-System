@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { resolveRuntimeContext, type RuntimeContextResult } from './runtime-context.service.js';
 import { buildDerivedDemand, type DerivedDemandBlocker, type DerivedDemandResult } from './derived-demand.service.js';
+import { countRotationSubjectGroups } from './subject-rotation-count.service.js';
 import { buildViolationReport } from './generation.service.js';
 
 export type DashboardReadinessSourceState =
@@ -681,17 +682,33 @@ export async function getDashboardReadinessSummary(input: DashboardSummaryInput)
 			};
 		}),
 		safe(async () => {
-			const [subjectCount, unassignedSubjectCount] = await Promise.all([
-				prisma.subject.count({ where: { schoolId: input.schoolId, isActive: true } }),
-				prisma.subject.count({
-					where: {
-						schoolId: input.schoolId,
-						isActive: true,
-						facultySubjects: { none: {} },
-					},
-				}),
-			]);
-			return { subjectCount, unassignedSubjectCount };
+			/*
+			 * A5 (2026-09-30) — rotation-aware counts.
+			 *
+			 * A term-rotating family is stored as one catalogue row per term slot,
+			 * so `prisma.subject.count` read a Science + TLE school year as six
+			 * subjects where the scheduler knows two. This fetches the active
+			 * subjects' rotation fields and counts GROUPS: a family once, a
+			 * standalone subject individually. `unassignedSubjectCount` keeps the
+			 * family-level gap signal — a group with ANY member lacking a
+			 * `facultySubjects` row is one unassigned group, so a partly-staffed
+			 * family still reads `> 0`. Field names and shape are unchanged.
+			 */
+			const activeSubjects = await prisma.subject.findMany({
+				where: { schoolId: input.schoolId, isActive: true },
+				select: {
+					rotationFamily: true,
+					termGroupId: true,
+					facultySubjects: { select: { id: true }, take: 1 },
+				},
+			});
+			return countRotationSubjectGroups(
+				activeSubjects.map((subject) => ({
+					rotationFamily: subject.rotationFamily,
+					termGroupId: subject.termGroupId,
+					hasFacultySubject: subject.facultySubjects.length > 0,
+				})),
+			);
 		}),
 		safe(async () => {
 			const [facultyCount, latestFaculty] = await Promise.all([
