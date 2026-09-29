@@ -21,6 +21,7 @@ import { UNVERIFIED_TERM_BODY } from '@/lib/room-schedule-term-copy';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import { pivotDraftToView } from '@/lib/schedule-pivot';
 import { buildScheduleSourceSentence, formatScheduleMadeOn } from '@/lib/schedule-source-sentence';
+import { resolveScheduleEmptyState, type ScheduleEmptyReason } from '@/lib/schedule-empty-state';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import {
@@ -76,17 +77,23 @@ type FetchState =
 	| { status: 'idle' }
 	| { status: 'loading' }
 	| { status: 'ok'; data: RoomScheduleView }
-	| { status: 'empty'; message: string }
+	/**
+	 * A5 C5 CORRECTION ROUND 1 (F1) — `reason` is REQUIRED, not optional. Four producers refuse
+	 * here and only ONE of them is "no timetable exists"; a single shared heading made three of
+	 * them lie on screen. Making the reason part of the variant means a fifth producer cannot be
+	 * added without declaring which of the four it is.
+	 */
+	| { status: 'empty'; reason: ScheduleEmptyReason; message: string }
 	| { status: 'error'; message: string };
 
 /**
- * A5 C5 (2026-09-29) — the page.
+ * A5 C5 (2026-09-29) ??? the page.
  *
  * The operator reported Room Schedules as confusing, and the cause was not the grid: the page
  * asked a scheduler to speak a database's language before it would show them a week. A
  * `Generation run ID` number box with a `Use a whole number above 0.` error, a Latest/Run toggle
  * inside a `Tools` popover, a `How to browse schedules` panel, a *second* term picker used only by
- * a download, and a stat banner ending `Run #412 · COMPLETED` were all on the way to one week.
+ * a download, and a stat banner ending `Run #412 ?? COMPLETED` were all on the way to one week.
  *
  * THE CONTRACT, in the operator's three questions. Rooms is the default mode, so "what is in Room
  * 101 on Tuesday" is ONE click; "where is this teacher" and "what is this section's week" are TWO
@@ -97,14 +104,14 @@ type FetchState =
  * carried in `pinnedRunId` only where a request genuinely needs it, and a *dated* disclosure
  * ("Show an older timetable") keeps history reachable without a key on screen.
  *
- * SUBTRACT FIRST (`AGENTS.md` §8). Deleted, not reworded: the `How to browse` panel, the whole
+ * SUBTRACT FIRST (`AGENTS.md` ??8). Deleted, not reworded: the `How to browse` panel, the whole
  * `Tools` popover, the run-id input and its error, the separate download-term picker, the
  * full-width `Export CSV` button, the `Occupancy`/`Refresh` buttons in the filter row, the
- * `Schedules` eyebrow, the `Showing {term}` chip (it restated the term picker — two controls for
+ * `Schedules` eyebrow, the `Showing {term}` chip (it restated the term picker ??? two controls for
  * one fact) and the `12 rooms available.` sentence under the picker. `Refresh`, `Export this view
  * as CSV`, the official Word/Excel download and the room occupancy sheet moved behind `More`.
  *
- * §8 "One look per control": both pickers wear `pickerTriggerClass` from `@/ui/picker-trigger`,
+ * ??8 "One look per control": both pickers wear `pickerTriggerClass` from `@/ui/picker-trigger`,
  * the A5 c4 shared chrome, replacing this page's own
  * `triggerClassName="h-10 text-sm w-full rounded-xl bg-white shadow-sm"`.
  */
@@ -132,7 +139,7 @@ export default function RoomSchedules() {
 	const [downloadSchedulesOpen, setDownloadSchedulesOpen] = useState(false);
 
 	/**
-	 * A5 C5 — the ONLY place a run id exists in this page, and it is never rendered. `null` means
+	 * A5 C5 ??? the ONLY place a run id exists in this page, and it is never rendered. `null` means
 	 * "the latest usable timetable", the default; a number means a scheduler chose a *date* from
 	 * the disclosure below. It travels into the fetch and the print/download request, the one
 	 * request that genuinely needs it.
@@ -141,7 +148,7 @@ export default function RoomSchedules() {
 	/** Completed timetables, newest first, labelled by DATE for the older-timetable disclosure. */
 	const [pastRuns, setPastRuns] = useState<{ id: number; madeOn: string | null }[]>([]);
 
-	// ROOM-SCHEDULES-TERM-C01 — the ONE selected term for every on-screen view. A weekly grid built
+	// ROOM-SCHEDULES-TERM-C01 ??? the ONE selected term for every on-screen view. A weekly grid built
 	// from three merged terms shows the same class three times in one slot, and the grid then
 	// counts that as a room conflict: the page reported 10 conflicts for a room that had none. Term
 	// scope is an invariant of the view, not a display filter. `orderedTerms` and the active index
@@ -215,7 +222,7 @@ export default function RoomSchedules() {
 				setSchoolYearId(activeSchoolYearId);
 				setSchoolYearLabel(yearContext.activeSchoolYearLabel ?? null);
 
-				// ROOM-SCHEDULES-TERM-C01 — capture the term authority that was already being
+				// ROOM-SCHEDULES-TERM-C01 ??? capture the term authority that was already being
 				// fetched and discarded, through the SAME predicate the main workspace uses, so
 				// this surface cannot develop a second opinion about "the active term".
 				const activeTerm = yearContext.activeTerm ?? null;
@@ -235,7 +242,7 @@ export default function RoomSchedules() {
 				}
 
 				if (activeSchoolYearId) {
-					// A5 C5 — the DATED history behind "Show an older timetable". Best-effort: the
+					// A5 C5 ??? the DATED history behind "Show an older timetable". Best-effort: the
 					// default (latest) needs no history, so a failure here must not affect the
 					// page. Only COMPLETED runs are offered; an unfinished run is not a timetable.
 					atlasApi.get<{ runs: GenerationRun[] }>(
@@ -305,16 +312,16 @@ export default function RoomSchedules() {
 	const fetchSchedule = useCallback(async () => {
 		if (!selectedEntityId || !schoolYearId) return;
 		if (actorSchoolId == null) {
-			setState({ status: 'empty', message: 'Your school scope could not be verified. Sign in again, then retry.' });
+			setState({ status: 'empty', reason: 'scope-unverified', message: 'Your school scope could not be verified. Sign in again, then retry.' });
 			return;
 		}
 		const scopedSchoolId = actorSchoolId;
 
-		// ROOM-SCHEDULES-TERM-C01 — fail closed BEFORE any request. An unverified term is
+		// ROOM-SCHEDULES-TERM-C01 ??? fail closed BEFORE any request. An unverified term is
 		// unresolved authority: this surface must neither read an all-term draft nor silently
 		// adopt Term 1. The message is an operator action, and it never claims the schedule is empty.
 		if (viewTerm == null) {
-			setState({ status: 'empty', message: UNVERIFIED_TERM_BODY });
+			setState({ status: 'empty', reason: 'term-unverified', message: UNVERIFIED_TERM_BODY });
 			return;
 		}
 		const selectedTermForView = viewTerm;
@@ -327,7 +334,7 @@ export default function RoomSchedules() {
 			const params = new URLSearchParams(pinnedRunId == null
 				? { source: 'latest' }
 				: { source: 'run', runId: String(pinnedRunId) });
-				// ROOM-SCHEDULES-TERM-C01 — send the ONE selected term. The server
+				// ROOM-SCHEDULES-TERM-C01 ??? send the ONE selected term. The server
 				// endpoint already accepts an explicit termIndex and fails closed
 				// with 501 TERM_FILTER_NOT_READY rather than merging; it was only
 				// ever omitted here, which is what produced the invented conflicts.
@@ -368,6 +375,7 @@ export default function RoomSchedules() {
 					// identity cannot be placed in one term, and merging is what this exists to stop.
 					setState({
 						status: 'empty',
+						reason: 'draft-untermable',
 						message: 'Some sessions in this draft have no verified term, so they cannot be shown for one term. Regenerate the draft, then retry.',
 					});
 					return;
@@ -379,7 +387,7 @@ export default function RoomSchedules() {
 			const code = resp?.data?.code;
 			const msg = resp?.data?.message ?? 'Failed to load schedule.';
 			if (code === 'NO_RUNS') {
-				setState({ status: 'empty', message: msg });
+				setState({ status: 'empty', reason: 'no-runs', message: msg });
 			} else {
 				setState({ status: 'error', message: msg });
 			}
@@ -468,7 +476,7 @@ export default function RoomSchedules() {
 	}, [state, viewMode, selectedName, subjectMap, facultyMap, sectionMap, roomMap]);
 
 	/**
-	 * A5 C5 — the ONE quiet line naming the timetable on screen. It reads the date the loaded view
+	 * A5 C5 ??? the ONE quiet line naming the timetable on screen. It reads the date the loaded view
 	 * itself carries (`source.generatedAt`, set by both the server's room read and
 	 * `pivotDraftToView`), so it always describes what is rendered rather than what was intended.
 	 * There is deliberately no run id in this string, and no code path that could add one.
@@ -482,6 +490,17 @@ export default function RoomSchedules() {
 			isOlder: pinnedRunId != null,
 		});
 	}, [state, viewTerm, orderedTerms, pinnedRunId]);
+
+	/**
+	 * A5 C5 CORRECTION ROUND 1 (F1) — the ONE place the empty state's wording is decided. Both the
+	 * title and the next step come from the refusal's reason, so a heading and an action can never
+	 * describe different problems. `null` while the page is not refusing, which is the only state
+	 * in which the block below is not rendered.
+	 */
+	const emptyState = useMemo(
+		() => (state.status === 'empty' ? resolveScheduleEmptyState(state.reason, state.message) : null),
+		[state],
+	);
 
 	const conflictHandler = useCallback((day: string, dayLabel: string, startTime: string, endTime: string, entries: Parameters<NonNullable<Parameters<typeof ScheduleTimetableGrid>[0]['onConflictClick']>>[4]) => {
 		if (state.status !== 'ok') return;
@@ -502,7 +521,7 @@ export default function RoomSchedules() {
 	return (
 		<TooltipProvider delayDuration={200}>
 		<div className="flex h-[calc(100svh-3.5rem)] flex-col bg-primary/5">
-			{/* §8 HEADER BUDGET — row 1: title, ONE status chip, the primary action, `More`.
+			{/* ??8 HEADER BUDGET ??? row 1: title, ONE status chip, the primary action, `More`.
 			    Row 2: the three questions, the one name picker, the term control when the year
 			    warrants one, and the quiet line naming the timetable. Nothing else. */}
 			<div className="shrink-0 px-3 pt-2 lg:px-5">
@@ -691,18 +710,52 @@ export default function RoomSchedules() {
 					</div>
 				)}
 
-				{state.status === 'empty' && (
+				{/* The guard is `emptyState`, not `state.status === 'empty'`. Both are equivalent
+				    (the memo is non-null exactly when the state is empty), but only this one lets
+				    TypeScript narrow the resolved state inside the branch — narrowing on the fetch
+				    state cannot prove a DERIVED value non-null. */}
+				{emptyState && (
 					<div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-border bg-white p-8 text-center text-muted-foreground shadow-soft">
 						<div className="max-w-md">
 							<CalendarX className="mx-auto mb-3 size-10 text-muted-foreground/60" />
-							{/* A5 C5 — the empty state says what happened and gives ONE next step with a
-							    link. The old third paragraph said "generate a timetable first" with no
-							    way to act on it, and added a second, contradictory run-id hint. */}
-							<p className="text-base font-bold text-foreground">No timetable to show yet</p>
-							<p className="mt-2 text-sm leading-relaxed text-muted-foreground">{state.message}</p>
-							<Button variant="outline" size="sm" className="mt-4" asChild data-testid="schedules-empty-timetable-link">
-								<Link to="/timetable">Build one on the Timetable page</Link>
-							</Button>
+							{/* A5 C5 CORRECTION ROUND 1 (F1). The title AND the next step both come
+							    from ONE resolver keyed by the refusal's reason, because they are one
+							    claim about one condition. The first candidate hardcoded "No timetable
+							    to show yet" + "Build one on the Timetable page" for all four refusals,
+							    so the unverified-term case contradicted its own body ("NOT a missing
+							    timetable") and the untermable-draft case told a scheduler to build a
+							    timetable that exists, when the answer is to regenerate the draft. Three
+							    of the four refusals are UNCHANGED: each still refuses before any
+							    request, exactly as QA confirmed. Only the wording was wrong. */}
+							<p
+								className="text-base font-bold text-foreground"
+								data-testid="schedules-empty-title"
+							>
+								{emptyState.title}
+							</p>
+							<p className="mt-2 text-sm leading-relaxed text-muted-foreground">{emptyState.body}</p>
+							{emptyState.nextStep.kind === 'retry' ? (
+								<Button
+									variant="outline"
+									size="sm"
+									className="mt-4"
+									onClick={() => { void fetchSchedule(); }}
+									data-testid={emptyState.testId}
+								>
+									<RefreshCw className="mr-1.5 size-3.5" />
+									{emptyState.nextStep.label}
+								</Button>
+							) : (
+								<Button
+									variant="outline"
+									size="sm"
+									className="mt-4"
+									asChild
+									data-testid={emptyState.testId}
+								>
+									<Link to={emptyState.nextStep.to}>{emptyState.nextStep.label}</Link>
+								</Button>
+							)}
 						</div>
 					</div>
 				)}

@@ -20,6 +20,37 @@ control, conditional on the year actually having differing terms. Conflict inspe
 unified Word/Excel official-program dialog. CSV export of the current view. The room occupancy
 sheet. Refresh.
 
+## On the size of the change — the honest version (corrected twice, 2026-09-29)
+
+**Two corrections, both to figures I or my review stated wrongly.**
+
+I first wrote "the page ends SHORTER … 814 lines" and reported `814 → 781`. Fresh QA measured `base
+758, candidate 773`. Those are not two readings of one thing: **base 758 is the non-blank line
+count, and candidate 773 is the all-lines count.** Recording the method, because a "line count"
+that means two different things is how a number stops meaning anything:
+
+| reading | base `6d81026b` | cand 1 `78541ef4` | cand 2 (this correction) |
+|---|---|---|---|
+| physical lines (blanks counted) — `Get-Content -Raw \| Measure-Object -Line` | **814** | **773** | **826** |
+| non-blank lines — `… \| Where-Object { $_.Trim().Length -gt 0 }` | 758 | 716 | 768 |
+
+What that means, without spin:
+
+- **Round 1 did shorten the page** by the physical measure, 814 → 773. My "781" was simply a
+  miscount; the direction I claimed was right and the number was wrong.
+- **This correction puts it back up to 826**, and I am not going to trim comments to hide that.
+  F1 is real new logic: a required `reason` on the `empty` state, a resolver call, and two render
+  branches instead of one. It also does the job the line count was never the right measure for.
+- **The rendered page is much shorter, and that is the requirement.** Fourteen on-screen elements
+  were deleted against four added: the help panel, the whole `Tools` popover, the run-id input and
+  its error, the separate download-term picker, the full-width `Export CSV` button, the
+  `Occupancy`/`Refresh` buttons in the filter row, the `Schedules` eyebrow, the `Showing {term}`
+  chip and the `12 rooms available.` sentence under the picker.
+- The three new source files total **334** physical lines, most of them the reasons each deletion
+  was safe. Net logic shrank; net lines did not, and §8's 1000-line cap — the enforceable rule —
+  is satisfied with room to spare.
+
+
 ## What goes
 
 | Deleted | Why |
@@ -67,7 +98,9 @@ Picker is `SearchableSelect` with `triggerClassName={pickerTriggerClass('fill')}
 shared chrome (`@/ui/picker-trigger`), replacing the page's own `h-10 text-sm w-full rounded-xl
 bg-white shadow-sm` override. Term picker likewise. No `<select>`, no raw `<button>`, no `<details>`,
 no `title=`. `More` is `@/ui/dropdown-menu`; the term explainer is `@/ui/tooltip`. No sentence
-under a button. One status per fact. The page must end SHORTER than 814 lines.
+under a button. One status per fact. And — as corrected above, because I got this wrong first —
+the target is a page with far less ON SCREEN, not a smaller file: the count that must fall is how
+many things a scheduler reads or aims at, and §8's 1000-line cap is what actually bounds the file.
 
 ## Click counts from landing
 

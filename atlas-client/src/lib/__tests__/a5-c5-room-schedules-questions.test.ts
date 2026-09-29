@@ -27,6 +27,9 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { buildScheduleSourceSentence, formatScheduleMadeOn } from '../schedule-source-sentence';
+import { resolveScheduleEmptyState, type ScheduleEmptyReason } from '../schedule-empty-state';
+import { UNVERIFIED_TERM_BODY, UNVERIFIED_TERM_TITLE } from '../room-schedule-term-copy';
+import type { OrderedAcademicTerm } from '../academic-term';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLIENT_ROOT = resolve(HERE, '..', '..', '..');
@@ -55,6 +58,13 @@ const sheetCode = code(sheet);
 
 const NOW = new Date('2026-09-29T12:00:00Z');
 
+/**
+ * The four producers of an `empty` refusal, in the page's own order. Declared once, at the top,
+ * because two independent test sections iterate it: the coarse guarantees the first candidate made
+ * about the empty state, and the per-reason rows that replaced them.
+ */
+const REASONS: ScheduleEmptyReason[] = ['scope-unverified', 'term-unverified', 'draft-untermable', 'no-runs'];
+
 // ─── 1. The quiet line, in words ───
 
 test('a dated timetable is named by its date, never by its id', () => {
@@ -78,9 +88,17 @@ test('an unrecorded or unparseable date is a null, never an invented one', () =>
 });
 
 test('the sentence is complete in all three conditions', () => {
-	const terms = [
-		{ order: 1, displayLabel: 'First Term' },
-		{ order: 2, displayLabel: 'Second Term' },
+	// A5 C5 CORRECTION ROUND 1 (F2): this fixture was `{ order, displayLabel }` and TypeScript
+	// rejected it in TWO places (TS2322, "Property 'identity' is missing") — `OrderedAcademicTerm`
+	// requires `identity`, which is what the fail-closed label fallback keys on. My first
+	// candidate reported "5 tsc errors, all dated base reds" when the real counts were base 5,
+	// candidate 7: a NEW committed test file must never break typecheck. The fixture is now TYPED
+	// as `OrderedAcademicTerm[]` rather than left structurally identical by hand, so the next
+	// person to add a term field gets a compile error at the fixture rather than a silent shape
+	// that happens to work.
+	const terms: OrderedAcademicTerm[] = [
+		{ identity: 'T1', order: 1, displayLabel: 'First Term' },
+		{ identity: 'T2', order: 2, displayLabel: 'Second Term' },
 	];
 	assert.equal(
 		buildScheduleSourceSentence({ madeAt: '2026-09-29T03:04:00.000Z', termIndex: 1, orderedTerms: terms, now: NOW }),
@@ -187,10 +205,32 @@ test('one primary action, and the rarely-wanted ones live behind More', () => {
 	assert.doesNotMatch(pageCode, /selectorStatus|rooms available\./, 'and the helper sentence under the picker is gone');
 });
 
-test('the empty state says what happened and offers one next step with a link', () => {
-	assert.match(pageCode, /No timetable to show yet/);
-	assert.match(pageCode, /to="\/timetable"/, 'the one next step is a link the scheduler can follow');
-	assert.doesNotMatch(pageCode, /Check the Run ID or switch back to Latest/, 'the old contradictory run-id hint is gone');
+test('SUPERSEDED (F1) -> the empty state says what happened and offers ONE next step per reason', () => {
+	// This row is KEPT, not deleted (`AGENTS.md` §11: corrections are additive; never remove a
+	// control to close a finding). Its INTENT is unchanged and still asserted — an empty state
+	// that says what happened and gives exactly one next step — but its AUTHORITY moved: in the
+	// first candidate the heading and the link were hardcoded in the page's JSX, which is what
+	// made three of the four refusals lie. They now come from `resolveScheduleEmptyState`, and the
+	// six rows below assert the same intent per reason with the precision a single shared heading
+	// could not carry. The assertions here are the coarse guarantees that still hold.
+	const states = REASONS.map((r) => resolveScheduleEmptyState(r, 'message'));
+	for (const s of states) {
+		assert.ok(s.title.length > 0, 'every refusal names what is wrong');
+		assert.ok(s.body.length > 0, 'every refusal explains it');
+		assert.ok(
+			s.nextStep.kind === 'retry' || s.nextStep.to.length > 0,
+			'every refusal offers exactly one actionable next step',
+		);
+	}
+	// The page must render the RESOLVED pair, not a hardcoded one, and must still reach /timetable
+	// for the two reasons whose answer really is to build or regenerate.
+	assert.match(pageCode, /resolveScheduleEmptyState\(state\.reason, state\.message\)/);
+	assert.match(pageCode, /to=\{emptyState\.nextStep\.to\}/, 'the link target is the resolved one');
+	assert.equal(
+		states.filter((s) => s.nextStep.kind === 'link' && s.nextStep.to === '/timetable').length,
+		2,
+		'exactly the build and regenerate reasons route to the Timetable page',
+	);
 });
 
 test('the page obeys §8: shared picker chrome, no raw scroll container, no raw neutrals', () => {
@@ -206,6 +246,77 @@ test('the page obeys §8: shared picker chrome, no raw scroll container, no raw 
 	);
 	assert.doesNotMatch(pageCode, /<select[\s>]/, 'no native select');
 	assert.doesNotMatch(pageCode, /<details[\s>]|title="/, 'no raw details or title attribute');
+});
+
+// ─── 4. A5 C5 CORRECTION ROUND 1 (F1) — the empty state names WHICH of four things is wrong ───
+
+test('F1: the four refusals get four different titles, and three of four are NOT "no timetable yet"', () => {
+	const titles = REASONS.map((r) => resolveScheduleEmptyState(r, 'body').title);
+	assert.equal(new Set(titles).size, 4, `each refusal needs its own heading; got ${JSON.stringify(titles)}`);
+
+	// The control the finding is about. On `6d81026b`… no: on my FIRST candidate, three of the
+	// four rendered `No timetable to show yet`, which contradicted the unverified-term body
+	// ("NOT a missing timetable") outright.
+	const lying = REASONS.filter((r) => /no timetable/i.test(resolveScheduleEmptyState(r, 'body').title));
+	assert.deepEqual(lying, ['no-runs'], `only the genuinely-empty reason may claim there is no timetable; got ${JSON.stringify(lying)}`);
+});
+
+test('F1: the unverified-term refusal reuses the REVIEWED copy, and does not offer to build a timetable', () => {
+	const s = resolveScheduleEmptyState('term-unverified', 'ignored');
+	assert.equal(s.title, UNVERIFIED_TERM_TITLE, 'the repo already has a reviewed title for this; it must not be restated');
+	assert.equal(s.body, UNVERIFIED_TERM_BODY, 'and the reviewed body, not a new sentence');
+	assert.equal(s.nextStep.kind, 'retry', 'the condition is a verification state, not something to go and build');
+	// Serialised rather than read off the narrowed variant: the point of the row is that NO branch
+	// of this state ever offers to build a timetable, including one added later.
+	assert.doesNotMatch(
+		JSON.stringify(s),
+		/Build one/,
+		'a term-contract problem must never tell a scheduler to build a timetable that already exists',
+	);
+});
+
+test('F1: an untermable draft says REGENERATE, because the draft exists', () => {
+	const s = resolveScheduleEmptyState('draft-untermable', 'Some sessions in this draft have no verified term.');
+	assert.match(s.title, /cannot be scoped to one term/);
+	assert.deepEqual(s.nextStep, { kind: 'link', to: '/timetable', label: 'Regenerate the draft on the Timetable page' });
+	assert.doesNotMatch(s.nextStep.label, /^Build one/, 'the draft EXISTS; "build one" is the category error QA reported');
+});
+
+test('F1: the remaining two refusals name their own cause and their own action', () => {
+	const scope = resolveScheduleEmptyState('scope-unverified', 'Your school scope could not be verified.');
+	assert.match(scope.title, /School could not be confirmed/);
+	assert.deepEqual(scope.nextStep, { kind: 'link', to: '/login', label: 'Sign in again' }, 'no request was made, so the scope is what to restore');
+
+	const none = resolveScheduleEmptyState('no-runs', 'No generation runs exist for this year.');
+	assert.equal(none.title, 'No timetable has been made yet');
+	assert.deepEqual(none.nextStep, { kind: 'link', to: '/timetable', label: 'Build one on the Timetable page' });
+});
+
+test('F1 CONTROL: a single shared heading — the first candidate\'s defect — is not expressible', () => {
+	// The failing-first proof. If the resolver ever collapses back to one heading for every
+	// reason, this row fails: three of the four titles must differ from `no-runs` and none of the
+	// three may repeat it.
+	const { title: noneTitle } = resolveScheduleEmptyState('no-runs', 'x');
+	const others = REASONS.filter((r) => r !== 'no-runs').map((r) => resolveScheduleEmptyState(r, 'x').title);
+	assert.equal(others.filter((t) => t === noneTitle).length, 0, `three refusals wrongly share the empty heading ${JSON.stringify(others)}`);
+	assert.equal(new Set(others).size, 3);
+});
+
+test('F1: every reason carries its own acceptance hook, and the page tags all four producers', () => {
+	const ids = REASONS.map((r) => resolveScheduleEmptyState(r, 'x').testId);
+	assert.equal(new Set(ids).size, 4, 'a browser acceptance row needs an unambiguous target per reason');
+	for (const reason of REASONS) {
+		assert.match(
+			pageCode,
+			new RegExp(`reason: '${reason}'`),
+			`the page must declare reason '${reason}' at its producer, or the resolver never sees it`,
+		);
+	}
+	// And the reason is REQUIRED in the state, so a future producer cannot omit it.
+	assert.match(pageCode, /\{ status: 'empty'; reason: ScheduleEmptyReason; message: string \}/);
+	// The old hardcoded pair must be gone from the JSX; both now come from the resolver.
+	assert.doesNotMatch(pageCode, />No timetable to show yet</, 'the shared heading is the defect itself');
+	assert.doesNotMatch(pageCode, />Build one on the Timetable page</, 'the action must come from the reason, not the JSX');
 });
 
 // ─── 3. Negative control: the suite must be able to fail ───

@@ -87,8 +87,14 @@ export function ScheduleSourceBand({
 				</Tooltip>
 			)}
 			{sentence && (
+				/* A5 C5 CORRECTION ROUND 1 (N4): `whitespace-nowrap` is GONE from this sentence.
+				 * It sat inside a `flex-wrap` row at the tail of the header, so a long sentence
+				 * could not shorten itself — it could only push the row onto a THIRD line, which is
+				 * precisely the "crammed to hit a row count" failure `AGENTS.md` §8 names. Letting
+				 * the text wrap keeps the band inside the two-row budget. A judgement call, not a
+				 * measured one: the rendered header height is UNJUDGED and is Lane C's browser row. */
 				<span
-					className="whitespace-nowrap text-xs text-muted-foreground"
+					className="min-w-0 text-xs text-muted-foreground"
 					data-testid="schedules-source-line"
 				>
 					{sentence}
