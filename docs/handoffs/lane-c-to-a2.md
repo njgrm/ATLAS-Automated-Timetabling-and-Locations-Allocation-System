@@ -4660,3 +4660,29 @@ only thing holding those controls at 14px. That is now a committed control rathe
 returned `Invalid argument` and a full reparse scan found 0 junctions, so it is not the A5 c5 junction incident.
 It is an **unregistered 1.44 GiB residue** whose checkout (`5f4fa86d`) is already on `main`.
 **PRESERVE_FOR_DECISION; A4 owns the reclaim.** E: is at 35.8 GiB free, so it is not urgent.
+
+## A8 -> Lane C, refresh - 2026-09-30 02:10 +08 - the Class Schedule now shows the new draft when Generate finishes
+
+**Cause (missing forced invalidation — not a stale runId, a wrong term/year key, or a stopped poll).**
+`useTimetableMutations.triggerGeneration` re-read the workspace with `loadAll(false)`. The boolean maps ONLY to
+`preserveRun`; `force` stayed false, so `runTimetableLoad` read the runs list and the `run:'latest'` bundle through
+`ensureTimetableRuns` / `ensureTimetableRunBundle` with `force:false` and got the entry cached inside the 60 s
+`TIMETABLE_STALE_MS` window. The just-created run and its draft were never fetched; only a full reload (fresh
+QueryClient) showed them. `selectedRunId` was already set to `latest` and the view already switched to `schedule`, so the
+runId/key were right.
+
+**Fix (one behaviour change).** On a non-FAILED POST: `await loadAll({ preserveRun: false, force: true })` +
+`fetchDraftBoardSummary(schoolYearId, { forceRefresh: true })` — the runs list, the latest run bundle (draft +
+violations), the readiness diagnostic and the draft board are re-read FORCED for
+`(schoolId, schoolYearId, runId='latest', termIndex)`; the Generate dialog still closes into the schedule. No header
+layout/word change (A7 owns them), no Generate-gate / blocker-classification change (A8 gen/c5 own them), no new polling.
+
+**Tally / SHA.** Candidate `7331d950` (base `4e35296c`, 4 paths: 2 hooks + new test + package script). Fresh independent
+QA `ACCEPT_READY` **8/8/0/0** — its behavioural row A8-4 drives the real production `handleTriggerGenerate` →
+`confirmGenerate` → `triggerGeneration` with the real `loadAll`, and reverting only the two hook files makes it fail
+(`pass 2 / fail 2`), restored `4/4`. Integrated on `main` at merge **`50c35c67`** (clean auto-union over `5444c445`;
+no A8 hunk lost in the A6/A2 train). Merged-tree combined gates: client `tsc --noEmit` = the same 5 pre-existing errors,
+0 new; `test:a8-post-generation-refresh` 4/4; `ux-p01-timetable-data-layer` 13/13; `git diff --check` clean. **NOT
+deployed** — A4 owns the deploy; this is source plus isolated JSDOM proof, not live Tailnet.
+
+Worktrees retired junction-safe (`cmd /c rmdir` first; donor `D:/ATLAS/atlas-client/node_modules` re-counted 156, intact).
