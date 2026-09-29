@@ -42,13 +42,44 @@
  * NOT A DATABASE REWRITE (acceptance criterion 3). Nothing in ATLAS mutates a
  * persisted person name. There is no `toUpperCase()` on any write path in this
  * stream; if such a change is ever wanted it needs separate approval.
+ *
+ * PLACEHOLDER IDENTITY (A3 c17 row 4, display only). A to-be-hired record is
+ * stored with a SENTINEL last name, not a person's name: Lane C read
+ * `— TO BE HIRED, MAPEH` and `1 — TO BE HIRED, TEACHER` on staging. The stored
+ * value is left exactly as it is; only the DISPLAY name changes, to
+ * "To be hired: MAPEH" / "To be hired: Teacher 1", so a scheduler reads a
+ * status and a subject instead of punctuation and a shouted sentinel.
+ *
+ * The strip is deliberately narrow and mechanical, because the stored string is
+ * data the app does not own: a leading numeric token (`1 `) and a leading
+ * em-dash/hyphen run are removed from the LAST name only, and what remains is
+ * the label. Nothing is re-cased, re-ordered, or invented here beyond that
+ * prefix removal — so a record that does NOT carry the sentinel is untouched by
+ * this branch and still renders through `formatFacultyStoredName`.
+ *
+ * The sentinel is matched on the STORED last name, not on a flag alone, so a
+ * record flagged `isPlaceholder` but already carrying a real person's name
+ * keeps its real name on screen instead of being relabelled "To be hired".
  */
 import type { FacultySummary } from '@/types';
 
 type NameLike = {
 	firstName?: string | null;
 	lastName?: string | null;
+	/**
+	 * A3 c17 row 4. Optional so every existing call site — roster, profile,
+	 * Teaching Load, Timetable — keeps compiling unchanged and picks the
+	 * placeholder display up for free from the summary it already passes.
+	 */
+	isPlaceholder?: boolean;
 };
+
+/**
+ * The stored sentinel, matched loosely enough to survive the casing and
+ * punctuation variants observed on the real records
+ * (`— TO BE HIRED`, `1 — TO BE HIRED`, `TO BE HIRED`).
+ */
+const PLACEHOLDER_SENTINEL = /to\s+be\s+hired/i;
 
 /** Collapse runs of whitespace and trim. Never changes letter casing. */
 function tidy(value: string | null | undefined): string {
@@ -89,14 +120,67 @@ export function teacherNameSortKey(faculty: NameLike | null | undefined): string
 }
 
 /**
+ * The label a placeholder record shows after its sentinel is recognised:
+ * the stored name with the leading numeric token and the leading dash run
+ * removed, `Last, First` order preserved, and NO re-casing.
+ *
+ * `— TO BE HIRED, MAPEH`  -> `MAPEH`
+ * `1 — TO BE HIRED, TEACHER` -> `TEACHER`
+ *
+ * Returns `''` when nothing usable is left, so the caller can decide what an
+ * empty placeholder says rather than printing a bare colon.
+ */
+function placeholderLabel(faculty: NameLike): string {
+	const strip = (value: string | null | undefined) =>
+		tidy(value)
+			// A leading numeric token is a running counter on the record ("1 "),
+			// not part of the name.
+			.replace(/^\d+\s*[-–—]?\s*/, '')
+			// A leading dash run is punctuation left over from a seeded record.
+			.replace(/^[-–—]+\s*/, '')
+			.replace(/^[-–—]+\s*/, '');
+	const last = strip(faculty?.lastName);
+	const first = strip(faculty?.firstName);
+	if (last && first) return `${last}, ${first}`;
+	return last || first;
+}
+
+/** The plain-words display name for a to-be-hired record. */
+const PLACEHOLDER_DISPLAY_PREFIX = 'To be hired';
+
+/**
  * Canonical Teachers/Teaching Load/Teacher-detail DISPLAY name: `LAST, FIRST`
  * in UPPERCASE (Fix 22).
  *
  * Falls back to whichever part exists, so a partially-entered placeholder
  * teacher still renders something rather than a stray comma.
+ *
+ * A3 c17 row 4: a record whose STORED last name carries the to-be-hired
+ * sentinel renders `To be hired: <label>` instead of the sentinel itself. The
+ * decision is made on the stored string rather than on `isPlaceholder` alone,
+ * so a real person's name on a flagged record is never overwritten — this
+ * function cannot lose a name, only replace punctuation and a shouted sentinel.
  */
 export function formatFacultyDisplayName(faculty: NameLike | null | undefined): string {
+	if (!faculty) return 'UNNAMED TEACHER';
+	if (faculty.isPlaceholder && PLACEHOLDER_SENTINEL.test(tidy(faculty.lastName))) {
+		const label = placeholderLabel(faculty);
+		return label
+			? `${PLACEHOLDER_DISPLAY_PREFIX}: ${label.toUpperCase()}`
+			: PLACEHOLDER_DISPLAY_PREFIX;
+	}
 	return formatFacultyStoredName(faculty).toUpperCase();
+}
+
+/**
+ * True when this record's STORED last name carries the to-be-hired sentinel.
+ *
+ * Exported so a surface that needs a different WORD for the same fact (the
+ * profile dialog's `To be hired` badge, say) agrees with the formatter instead
+ * of re-implementing the match.
+ */
+export function isPlaceholderSentinelName(faculty: NameLike | null | undefined): boolean {
+	return Boolean(faculty?.isPlaceholder) && PLACEHOLDER_SENTINEL.test(tidy(faculty?.lastName));
 }
 
 /** Convenience overload for the common `FacultySummary` call site. */
@@ -111,8 +195,17 @@ export function formatFacultySummaryName(faculty: FacultySummary | null | undefi
  * Reads the stored fields and uppercases the two first characters. Never
  * mutates the input, and never returns a stray comma or digit when a name part
  * is missing.
+ *
+ * A3 c17 row 4: for a SENTINEL placeholder the initials come from the STRIPPED
+ * token (`MAPEH` -> `M`), not from `TO BE HIRED` -> `TB`. A circular avatar
+ * that renders six words overflows itself, and `TB` reads as a person's initials
+ * when it is a status. Two characters, always.
  */
 export function formatFacultyInitials(faculty: NameLike | null | undefined): string {
+	if (faculty && PLACEHOLDER_SENTINEL.test(tidy(faculty.lastName))) {
+		const stripped = placeholderLabel(faculty).replace(/[^A-Za-z0-9]/g, '').charAt(0);
+		return (stripped || 'T').toUpperCase();
+	}
 	const first = tidy(faculty?.firstName).charAt(0);
 	const last = tidy(faculty?.lastName).charAt(0);
 	return `${first}${last}`.toUpperCase();
