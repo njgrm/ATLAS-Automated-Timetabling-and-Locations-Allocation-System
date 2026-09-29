@@ -337,7 +337,7 @@ const GridCell = memo(function GridCell({
 					data-testid="timetable-move-target-cue"
 				>
 					<Plus className="size-2.5 shrink-0" aria-hidden="true" />
-					<span className="min-w-0 truncate">Move here</span>
+					<span className="min-w-0 break-words">Move here</span>
 				</div>
 			)}
 			{ceremonyOverlayWithClass && (
@@ -346,7 +346,7 @@ const GridCell = memo(function GridCell({
 					data-testid="timetable-ceremony-overlay-label"
 				>
 					<Flag className="size-2.5 shrink-0" aria-hidden="true" />
-					<span className="min-w-0 truncate">{eventName ?? 'Special Event'}</span>
+					<span className="min-w-0 break-words">{eventName ?? 'Special Event'}</span>
 				</div>
 			)}
 			{blockedWindowWithClass && (
@@ -365,7 +365,7 @@ const GridCell = memo(function GridCell({
 					data-overlap-window={eventName ?? 'Special Event'}
 				>
 					<AlertCircle className="size-2.5 shrink-0" aria-hidden="true" />
-					<span className="min-w-0 truncate">
+					<span className="min-w-0 break-words">
 						{visibleEntries.length === 1
 							? `1 class overlaps ${eventName ?? 'this blocked time'}`
 							: `${visibleEntries.length} classes overlap ${eventName ?? 'this blocked time'}`}

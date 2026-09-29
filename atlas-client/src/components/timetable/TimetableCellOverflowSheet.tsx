@@ -96,7 +96,7 @@ export function TimetableCellOverflowSheet({
 								>
 									<div className="min-w-0">
 										<div className="flex flex-wrap items-center gap-1.5">
-											<p className="min-w-0 truncate text-sm font-semibold text-foreground">
+											<p className="min-w-0 break-words text-sm font-semibold text-foreground">
 												{subjectLabel(entry.subjectId)}
 											</p>
 											<Badge variant={status === 'Blocked' ? 'destructive' : status === 'Warning' ? 'outline' : 'secondary'} className="h-5 px-1.5 text-xs">
@@ -108,7 +108,7 @@ export function TimetableCellOverflowSheet({
 												</Badge>
 											) : null}
 										</div>
-										<p className="mt-1 truncate text-xs text-muted-foreground">
+										<p className="mt-1 break-words text-xs text-muted-foreground">
 											{sectionLabel(entry.sectionId)} · {teacher} · {roomLabelShort(entry.roomId)}
 										</p>
 									</div>

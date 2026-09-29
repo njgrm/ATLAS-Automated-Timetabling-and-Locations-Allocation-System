@@ -329,14 +329,19 @@ test('ROW 1 STRUCTURAL (JSDOM HAS NO LAYOUT ENGINE — the 1366x768 pixel count 
 	assert.equal(statusTokens.has('lg:flex-nowrap'), true,
 		`the status region declares "no wrap from lg up" (tokens: ${[...statusTokens].join(' ')})`);
 
-	// (d) THE ELASTIC CHILDREN TRUNCATE. Each of these is what absorbs the pressure
-	// the no-wrap rule pushes onto it.
+	// (d) THE ELASTIC CHILDREN. Each of these is what absorbs the pressure the
+	// no-wrap rule pushes onto it.
 	const notice = view.el('timetable-simple-input-drift')!;
 	assert.ok(notice, 'the change notice is on screen in this fixture (otherwise (d) would be vacuous)');
 	assert.equal(tokensOf(notice).has('lg:flex-nowrap'), true,
 		'the change notice does not wrap its own children at `lg`, so it cannot grow the row');
-	assert.equal(tokensOf(view.el('timetable-simple-drift-message')!).has('lg:truncate'), true,
-		'and its SENTENCE truncates — the widest child absorbs the pressure with an ellipsis');
+	// A7 c13 SUPERSEDED the C12 ellipsis on this span: the operator saw
+	// `Teaching Load and Te…` on the Class Schedule and ruled that a sentence the
+	// scheduler must read WRAPS. Every other elastic child below keeps its
+	// truncation; this one now takes a second line inside its own box (its
+	// `shrink-0` siblings are what hold the row to ≤2 rendered lines).
+	assert.equal(tokensOf(view.el('timetable-simple-drift-message')!).has('lg:truncate'), false,
+		'and its SENTENCE wraps instead of truncating — no text on the Class Schedule is cut with an ellipsis');
 	assert.equal(tokensOf(view.el('timetable-simple-readiness-chip')!).has('sm:shrink-0'), false,
 		'the readiness chip is no longer `sm:shrink-0` (which made its own `truncate` unreachable)');
 	assert.equal(tokensOf(view.el('timetable-simple-readiness-chip')!).has('sm:shrink'), true,
