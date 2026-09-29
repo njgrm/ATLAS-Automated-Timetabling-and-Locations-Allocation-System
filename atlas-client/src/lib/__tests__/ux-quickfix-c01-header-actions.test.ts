@@ -287,7 +287,20 @@ test('UX-QUICKFIX-C01 (d2) an unverified schedule check opens the Generate dialo
 		'an enabled Generate wears no disabled-control sentence beside it');
 	// The ONE state that may still refuse a dispatch, asserted here so this row
 	// does not become "the button is never disabled" with nothing left to check.
-	const running = renderHeader({ draft: null, generating: true, curriculumReadiness: { state: 'ready', message: 'Setup ready' } });
+	// A `ready` readiness always carries its diagnostic - that is the union's own
+	// shape, and `summarizeGenerationReadiness` reads the decision out of it - so
+	// the fixture supplies a real one rather than a bare `{ state: 'ready' }`.
+	const running = renderHeader({
+		draft: null,
+		generating: true,
+		curriculumReadiness: {
+			state: 'ready',
+			message: 'Setup ready',
+			diagnostic: {
+				generateAllowed: true, zeroWrite: true, blockerCount: 0, gapCount: 0, gapClassCount: 0,
+			},
+		},
+	});
 	assert.match(tagFor(running, 'timetable-simple-generate-action'), /disabled=""/,
 		'a run already in progress is the one state that still refuses, or the rule above is vacuous');
 });
