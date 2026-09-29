@@ -321,24 +321,29 @@ test('A7C9-3: every `py-*` on a `<Badge>` leaves room for the line box it is ask
 			const line = source.slice(0, m.index).split('\n').length;
 
 			const tokens = tag.match(/[\w[\]#./:%-]+/g) ?? [];
-			// `min-h-*` is a floor, not a fixed box: the element grows, so there is
-			// nothing to add up. That is a correct way to use a `py-*`, not an oversight.
+			// A `min-h-*` is a FLOOR, not a fixed box: the element grows, so there is
+			// nothing to add up. Same for a height that is not a length. A fixed box and
+			// a vertical padding are only in conflict when both are known, and the height
+			// is usually the PRIMITIVE's — a consumer that restates only `py-1.5` is the
+			// exact shape of the Dashboard defect, and a sweep that only looked at
+			// consumers restating a height would have reported the page as clean.
 			if (tokens.some((t) => t.startsWith('min-h-'))) continue;
-			const h = tokens.find((t) => /^h-\d/.test(t));
-			if (!h) continue; // no fixed height at all: the box is content-sized.
+			if (tokens.some((t) => /^h-(auto|full|fit|screen|min|max)$/.test(t))) continue;
+			const fixedH = tokens.find((t) => /^h-\d/.test(t));
+			const heightPx = fixedH ? spacingPx(fixedH.split('-')[1]) : PRIMITIVE_HEIGHT_PX;
 
 			const py = tokens.find((t) => /^py-/.test(t))!;
 			const border = tokens.find((t) => /^border-[2-9]$/.test(t)) ?? 'border';
 			const borderPx = border === 'border' ? PRIMITIVE_BORDER_PX : Number(border.split('-')[1]);
 			// The face is the consumer's if it states one, else the primitive's `text-xs`.
 			const face = fontPx(tokens) ?? PRIMITIVE_FONT_PX;
-			const content = spacingPx(h.split('-')[1]) - borderPx * 2 - spacingPx(py.split('-')[1]) * 2;
+			const content = heightPx - borderPx * 2 - spacingPx(py.split('-')[1]) * 2;
 
 			if (content < face) {
 				offenders.push(
-					`${rel(abs)}:${line}  ${h} (${spacingPx(h.split('-')[1])}px) - ${borderPx * 2} ` +
-						`border - ${py} (${spacingPx(py.split('-')[1]) * 2}) = ${content}px content ` +
-						`box, for a ${face}px face -> ${face - content}px cut`,
+					`${rel(abs)}:${line}  ${fixedH ?? 'h-5 (the primitive)'} (${heightPx}px) - ` +
+						`${borderPx * 2} border - ${py} (${spacingPx(py.split('-')[1]) * 2}) = ` +
+						`${content}px content box, for a ${face}px face -> ${face - content}px cut`,
 				);
 			}
 		}
