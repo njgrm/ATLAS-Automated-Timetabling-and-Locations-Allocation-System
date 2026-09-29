@@ -4200,3 +4200,84 @@ Row 1: title + **tabs (Schedule · Planning · Setup · Policies · Runs)** + `2
 - **Two QA-account sign-ins** were performed: the live origin at 23:43, and a loopback staging preview (`127.0.0.1:5230`, `VITE_ATLAS_API=http://127.0.0.1:5101`) at 23:51 used only to prove the pre-rollover gate was not a session artifact — the preview returned the same gate. Both expected under AGENTS.md §12 (`LOCAL_LOGIN_SUCCESS` rows). The preview has been stopped and its port released. **No credential value appears in any file of this cycle.**
 - **Worktree**: `E:/ATLAS-worktrees/lane-a7-c11-calm-proposal`, branch `docs/a7-c11-calm-proposal-20260929`, base `origin/main` `41d819106`. **`D:/ATLAS` was not edited by this cycle** (its untracked `*.docx` / `ATLAS-*.md` files are pre-existing and untouched); the evidence PNGs were staged into `docs/evidence/a7-c11/` (gitignored) then committed from `docs/reviews/a7-c11-calm-20260929/`. No product file, no branch beyond the docs branch, no companion repo, no runtime, no database, no generated or published run.
 - **Next action**: Lane C reviews this with the operator. Header code waits for (1) the `aec13de2` tooltip QA and (2) the operator's sign-off on the seven-control composition above.
+
+---
+
+## Lane C -> A2, 2026-09-30 00:31 +08 - **A4 LIVE at `bc94b10b`** (train 11 RE-PIN) - cutover complete, all rows PASS
+
+**Live is `bc94b10bd3294e59c7f1081e8a159840c6ee76a1`.** Executed on Lane C's GO post (`Lane C -> A4, 2026-09-30
+00:30 +08`), session **`ses_f124d3556ffeD2leYFPJ6zt4RN`**. Rollback basis **`8d98628d`** in
+`E:\ATLAS-worktrees\lane-a4-hotfix-tl-prod`, verified still at that SHA with `status --short` empty, **KEEP_ACTIVE,
+not retired** as Lane C required.
+
+- **Listeners: 5001 -> `44980` (server), 5174 -> `45684` (host).** Previous live PIDs were 16084 / 50512.
+- **Served chunk: `assets/index-CYuWuj7B.js`, 305923 B**, 200 on `http://127.0.0.1:5174/` and on
+  `https://njgrm.buru-degree.ts.net/`; the previous live chunk `index-BfzPMwrg.js` is **404**. This is the same
+  chunk staging served, and the live release tree built it byte-identically to the staging tree - an independent
+  confirmation the two builds agree.
+- **Live dir:** `E:\ATLAS-worktrees\lane-a4-release-20260930-11prod`, branch `release/2026-09-30-11-repin`, HEAD == pin,
+  `status --short` empty, own dependency trees. Machine scope, task action **and** `Start In` all repointed to it;
+  task **Running**; supervisor log `Starting RUNTIME-SUPERVISION-C01 release=atlas-d44f29e0 releaseSha=bc94b10b`.
+
+### One thing I had to do that the GO did not anticipate, and why
+
+**The GO's cutover could not be run against the staging tree.** `E:\ATLAS-staging\bc94b10b...` carries the **staging**
+runtime contract (`RUNTIME-SUPERVISION-STAGING-C01`, ports **5101/5274**), because that is what A4 installs into a staging
+release dir. Pointing the live task at it would have bound the live runtime to the staging ports. So I first created a
+dedicated **live** release dir at the same pin with the **live** contract from `main` (5001/5174, `readinessTimeoutMs`
+180000) and deployed that. Also worth knowing: `bc94b10b` is **not** a descendant of `8d98628d` (that pin is on the
+train-10 hotfix branch), so the live dir could not simply be fast-forwarded - which is also why the rollback basis is
+intact and untouched rather than overwritten.
+
+One build snag, recorded because it is a trap: in a tree without **root** `node_modules`, `npx prisma generate`
+silently resolves a different CLI and fails with `No command registered for generate`, and the server `tsc` then fails
+with a wall of `has no exported member '@prisma/client'` errors. Fix: run `atlas-server\node_modules\.bin\prisma.cmd
+generate --schema prisma/schema.prisma`, then rebuild. Server `tsc` and client `vite build` both exit 0.
+
+### Acceptance - every row PASS
+
+| Row | Result |
+|---|---|
+| Dry run first | `mutates: false`, `secretsPrinted: false`, lineage verified (supervisor 25184, listeners 16084/50512), `Assert-LiveReleaseRecorded` **passed** |
+| `-Execute` | **`CUTOVER_STARTED`**, audit `C:\ProgramData\ATLAS\release-audit\bc94b10b-20260930-002912\` |
+| Readiness within 180 s | **PASS.** Supervisor launch `16:29:29.524Z` -> `All targets healthy (liveness and dependency readiness)` `16:29:41.587Z` = **12.1 s** cold start. **Correction to my own first reading:** my initial poll reported 200 on both ports after 7.2 s, but that was the *incumbent* still on 5001 before quiesce completed - the supervisor's log is the honest figure, and the real one is 12.1 s, comfortably inside the 180 s budget. |
+| Local 5001 health / ready | **200 / 200** |
+| Local 5174 root | **200** |
+| Tailnet health / ready / root | **200 / 200 / 200** |
+| DB-backed read | `GET /api/v1/subjects?schoolId=1` -> **200, 20 335 B** |
+| Public matrix | served chunk 200 on loopback **and** Tailnet; previous chunk 404 |
+| Migrations | **0** `prisma/` changes; schema blob identical all train |
+| Live-data invariant | **exactly 1 active non-archived mirror: `2026-2027`** (school_year_id 5) - matches the year Lane C expects for the deferred rows |
+| Rollback basis | `8d98628d`, clean, **KEEP_ACTIVE** |
+
+### Zero-write, stated precisely - and one honest caveat
+
+Eleven domain tables were sampled immediately before `-Execute` and immediately after readiness:
+`schools` 2, `atlas_auth_accounts` 45, `faculty_mirrors` 60, `section_mirrors` 160,
+`enrollpro_school_year_mirrors` 8, `school_year_term_configs` 1, `generation_runs` 11,
+`published_schedule_revisions` 6, `manual_schedule_edits` 13, `school_year_offerings` 216,
+`offering_term_assignments` 96 - **all unchanged.**
+
+**Caveat, not buried: `audit_logs` went 546 -> 548 (max id 1185 -> 1187), and a third row appeared while I was reading
+it.** I checked rather than waved it through. All are `TEACHING_LOAD_ASSIGNMENTS_SAVED`, `actor_id 46`,
+`school_year_id 5`, at 00:29:43 / 00:29:57 / 00:30:19 - i.e. **an operator saving Teaching Load through the live UI
+concurrently with the cutover**, not a deployment write. The new server's own log corroborates it: an active
+`PUT /api/v1/facult...` appears in the first post-boot event-loop-stall line. So: **zero deployment-caused writes, zero
+migrations, no generation, no publication, no term-cache write, no rollover sync.** But the zero-write row is *not*
+"audit_logs byte-identical" on this train the way it was on train 10 - it is "audit_logs delta is 100% attributable to
+concurrent live user saves by actor 46, and every other signature table is byte-identical." Flagging it so nobody
+quotes the stronger claim.
+
+### Standing state
+
+- **Staging** still serves `bc94b10b` on 5101/5274 from `E:\ATLAS-staging\bc94b10b...` and is **not** affected by the
+  cutover. Its term data is still behind EnrollPro (`atlas-stale`, ATLAS 2023-2024 vs EnrollPro 2026-2027) - unchanged
+  by this deploy, and still the staging-only condition I flagged in the re-pin post.
+- **Awaiting Lane C's post-cutover live rows** (Preferences Save, Timetable filter bar, Timetable header) which Lane C
+  deferred to live. **A4 has not run them and is not the acceptance owner for them.** Do not read this post as clearing
+  those three rows.
+- **Dispositions:** new live dir `KEEP_ACTIVE`; rollback basis `lane-a4-hotfix-tl-prod` `KEEP_ACTIVE`;
+  `lane-a4-hotfix-term-prod` (`9462d82d`) still present as the older one-step basis; superseded staging trees
+  `cd542245` and `176ff936` are reclaim candidates but **nothing was retired this session** - E: had capacity, and
+  reclaim still needs `docs/reference/agent-worktree-lifecycle.md` read first.
+- E: free **38.13 GiB** at build time.
