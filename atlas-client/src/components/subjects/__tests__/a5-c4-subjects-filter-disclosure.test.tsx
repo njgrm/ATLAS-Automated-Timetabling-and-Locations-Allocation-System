@@ -797,13 +797,19 @@ test('A5-C7-2i F2: all five pickers are the SHARED `@/ui` trigger, and no call s
 		 * make this unassertable from the button's own list. That is also the honest
 		 * place to check: the span is what actually wraps.
 		 */
+		/* The TRIGGER's own width is bounded (`w-auto min-w-32 max-w-[22rem]`) rather
+		 * than neutral (`min-w-0`), because A5 c8 gave `auto` a floor so a short
+		 * filter cannot read narrower than the search box beside it. The shrink floor
+		 * the face needs lives on the LABEL SPAN, which is the flex child that has to
+		 * give way — asserting `min-w-0` on the button would be asserting a class
+		 * tailwind-merge deliberately discarded. */
 		assert.ok(
-			/(^|\s)min-w-0(\s|$)/.test(cls),
-			`${label} cannot shrink inside its own box, so a long face runs past the border: "${cls}"`,
+			/(^|\s)min-w-32(\s|$)/.test(cls) && /(^|\s)max-w-\[22rem\](\s|$)/.test(cls),
+			`${label} is not bounded on both sides, so its face is either narrower than the search box or wider than the row: "${cls}"`,
 		);
 		assert.ok(
-			/(^|\s)whitespace-normal(\s|$)/.test(faceClass),
-			`${label} face does not wrap inside its own box; a long value will be cut or will spill. Face span: "${faceClass}"`,
+			/(^|\s)whitespace-normal(\s|$)/.test(faceClass) && /(^|\s)min-w-0(\s|$)/.test(faceClass),
+			`${label} face cannot shrink and wrap inside its own box, so a long value will be cut or will spill. Face span: "${faceClass}"`,
 		);
 	}
 
