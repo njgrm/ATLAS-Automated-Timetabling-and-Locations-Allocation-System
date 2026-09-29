@@ -487,6 +487,21 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **— CUTOVER TARGET, recorded 2026-09-29 22:0x +08 by Lane A4 ahead of the **operator-approved HOTFIX** (not train
+  11). Required by `deploy-runner.ps1` `Assert-LiveReleaseRecorded`, which fails closed without it. Target release
+  `9462d82d` (full `9462d82d3a57f87d9020784ed12850ef91024869`), rollback basis `cd542245` (the incumbent, currently
+  live).** Branch `hotfix/rollover-term-20260929`, and the parent of `9462d82d` **is** `cd542245` — the hotfix is
+  live + exactly one server fix: an EnrollPro **200 with `activeTerm: null`** is now `UNRESOLVED /
+  ACTIVE_TERM_UNRESOLVED` instead of a contract failure, so a rolled-over year can save its terms.
+  Target tree `E:\ATLAS-worktrees\lane-a4-hotfix-term-prod`, branch `release/2026-09-29-10-hotfix-term`,
+  HEAD == pin, `status --short` empty, own dependency trees (seeded from `-10prod` + `prisma generate`; server
+  `tsc` 0, client `vite` 0 with `VITE_ENROLLPRO_URL`), the incumbent's **10 runtime campus uploads** copied in,
+  and `tsx --test src/__tests__/term-contract-atlas-consumption-c02.test.ts` = **9 pass / 0 fail, exit 0**.
+  **2 paths, both `atlas-server/src`, 0 `prisma/`.** The client `dist` is **byte-identical** to live (218 files,
+  identical SHA-256), so the served entry chunk is legitimately still `index-BdvkYd2N.js`; the discriminator for
+  this hotfix is the **server** bundle, where `if (suppliedIdentity === null || suppliedIdentity === undefined)`
+  is present and is **absent** from the live bundle.
+
 - **— LIVE: `cd54224522d44c39f8f3877134b08488541f415f` @ DEPLOYED TO PRODUCTION 2026-09-29 19:48 +08 by Lane A4
   (train 10) on the operator's GO after Lane C's staging walk. Rollback basis `e75d6b8f` (the incumbent).**
 
