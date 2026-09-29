@@ -26,6 +26,40 @@ rules are what make that safe:
    `docs/handoffs/planner-session-handoff.md`, Lane B in its own handoff file, Lane C in its
    section below until a stream needs a handoff.
 
+## Lane A4 — release lane, 2026-09-29 (train 9 **LIVE at `e75d6b8f`**; all post-cutover follow-ups done)
+
+- **TRAIN 9 IS LIVE at `e75d6b8f`** (full table in the `## Live release` block). Live dir
+  `E:\ATLAS-worktrees\lane-a4-release-20260929-9prod`, listeners 5001 -> **20432** / 5174 -> **17156**, machine scope
+  `…-9prod` / `e75d6b8f…`, task Running. `CUTOVER_STARTED`, audit
+  `C:\ProgramData\ATLAS\release-audit\e75d6b8f-20260929-152501\`. **Rollback basis `3216d383`** (`…-8prod`).
+- **Acceptance: all rows PASS.** Tailnet root/health 200 · loopback + Tailnet health/ready 200 with a **DB-backed**
+  `GET /api/v1/subjects?schoolId=1` 200 (19 509 B) · **zero write** `1139|500|11` before and after (baseline captured
+  **before** the quiesce) · **live-data invariant 1 active mirror, `2023-2024`** (`1|1|2023-2024|5`) · discriminator
+  **non-vacuous** (`/assets/index-GM9QISwG.js` 200, old `/assets/index-DzhMkC-M.js` 404) · rollback basis verified.
+- **Gate lineage:** pre-action review `CORRECTION_REQUIRED` 22/28 (1 BLOCKING, packet wording) applied docs-only; gates
+  re-run on the re-pinned train — Prisma 0 (11->11), client suite 1305/1266/39 with 4 new rows all NON_BLOCKING and
+  attributed, `test:staging-guards` 20/20; Codex staging walk 5/8, no real blocker.
+- **Data-portability fix made before the cutover:** campus-map uploads are written to the release tree at runtime and
+  served from disk; the incumbent held a runtime upload referenced by `schools.campus_image_url` that the new tree
+  lacked, so a plain cutover would have 404'd the live campus image. It was copied into the new tree and
+  `/atlas-server/uploads/` added to `.git/info/exclude` so the target still passes `Get-GitIdentity`'s clean gate. It
+  serves on live (200).
+- **Post-cutover follow-ups, all done (2026-09-29):** staging QA password **rotated** (backup in
+  `backups\atlas-staging-qa.env.bak-20260929-rotation`; SHA-256 prefix moved `A495B2B8…` -> `A1F1DAD5…`; value never
+  printed) and `/__dev/staging-login` **confirmed working** on a :5200 preview (middleware-served 200, token
+  authenticated `/auth/me` 200) · the dirty `E:\ATLAS-staging\3216d383…` dir **resolved**: its only change was the
+  *generated* staging `runtime-contract.json` (installed by `deploy-staging.ps1`; the file itself says never to copy it
+  into the live dir), diff preserved at `docs/handoffs/staging-3216d383-runtime-contract-diff.md`, then removed with a
+  non-forced `git worktree remove` + `prune`. **E: 24.35 -> 25.90 GiB**; surviving staging tree re-counts 155.
+- **Owed, not done here (A4 edits no product/ops code):** `atlas-staging-qa.env` keeps an inherited
+  `Authenticated Users: Modify` ACE and `ensure-staging-qa-account.cjs` writes it with a bare `writeFileSync`. The
+  password is rotated, but the file's containment is not hardened. Route to the `scripts/dev/` owner.
+- **Worktrees:** `…-9prod` = `KEEP_ACTIVE` (live runtime source dir) · `…-8prod` = `KEEP_ACTIVE` (rollback basis) ·
+  `…-7prod`, `…-4prod` beyond the retention depth · `…-6` and `-c02-20260929` = `PRESERVE_FOR_DECISION` (unintegrated).
+- **Next action (single):** Lane C runs the production browser rows on `https://njgrm.buru-degree.ts.net`
+  (`/timetable`, `/teaching-load`, `/map` for the carried campus image) and posts the result in
+  `docs/handoffs/lane-c-to-a2.md`.
+
 ## Lane A4 — release lane, 2026-09-29 12:45 +08 (staging QA access READY; train 8 remains the live release)
 
 - **STAGING QA ACCESS READY (as of 2026-09-29 12:45 +08).** `STAGING QA ACCOUNT READY` (exit 0) plus the loopback
