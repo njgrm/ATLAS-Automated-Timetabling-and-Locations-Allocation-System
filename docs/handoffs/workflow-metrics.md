@@ -122,3 +122,10 @@ the built staging server :5274.
 Incident: the shared D:/ATLAS/atlas-client/node_modules was emptied at ~00:34 by a worktree cleanup that recursed through a
 node_modules junction; client tests in every junctioned worktree broke silently for ~30 min. Always `cmd /c rmdir
 <junction>` (no /s) first, then `git worktree remove --force`; check the donor still has `vite/client.d.ts` after.
+
+### After-demo backlog from the 30 Sep 01:45-02:08 Codex click sweep (not in train 12)
+- Year Setup: "Open teaching load" for 2031-2032 lands on `?schoolYearId=4&view=history` showing 2025-2026 (wrong year id); "See what would be copied" disables itself and opens nothing.
+- Sections and Subjects summary chips: the (i) help icons do nothing on click (hover-only tooltips); make them click-to-open for touch and mouse users.
+- Room Schedules: "Room occupancy sheet" adds two unexplained buttons `11x6` / `13x6` that do nothing visible (page is WIP; redesign later).
+- Teacher Preferences: "Load the teacher roster first." shown on entry.
+- Sweep coverage gaps: Teachers (0 clicks, browser session collision) and Teaching Load (3 clicks) need a re-run after train 12.
