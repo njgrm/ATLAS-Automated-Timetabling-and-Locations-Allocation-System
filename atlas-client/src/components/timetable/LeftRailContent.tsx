@@ -140,7 +140,7 @@ function LeftRailContentImpl({ context }: LeftRailContentProps) {
 	});
 
 	const pinSubjectOptions = Array.from(new Map([
-		...(draftBoard?.queue ?? []).map((item): [number, string] => [item.subjectId, item.subjectCode]),
+		...(draftBoard?.queue ?? []).map((item): [number, string] => [item.subjectId, subjectLabel(item.subjectId)]),
 		...(draftBoard?.placements ?? []).filter((placement) => placement.status === 'DRAFT').map((placement): [number, string] => [placement.subjectId, subjectLabel(placement.subjectId)]),
 	]).entries());
 
@@ -325,7 +325,7 @@ function LeftRailContentImpl({ context }: LeftRailContentProps) {
 																	) : item.facultyOptions[0] ? (
 																		<span className="shrink-0 text-xs text-primary/80 font-medium">{formatFacultyInitials(item.facultyOptions[0])}</span>
 																	) : null}
-																	<span className="truncate text-xs text-muted-foreground">{item.subjectCode}</span>
+																	<span className="truncate text-xs text-muted-foreground">{subjectLabel(item.subjectId)}</span>
 																</div>
 															</div>
 														</Button>
@@ -553,7 +553,11 @@ function LeftRailContentImpl({ context }: LeftRailContentProps) {
 										<div className="flex items-start justify-between gap-2">
 											<div className="min-w-0">
 												<p className="font-semibold truncate text-xs">{request.facultyName}</p>
-												<p className="text-xs text-muted-foreground truncate">{request.subjectCode} · {request.sectionName}</p>
+												{/* A3 c16: was `request.subjectCode`, so the room-request card led
+												 * with an internal token. The persisted display label leads; the
+												 * name is the fallback for a payload without it; the code is the
+												 * last resort, which is when it is all there is. */}
+												<p className="text-xs text-muted-foreground truncate">{request.subjectDisplayLabel || request.subjectName || request.subjectCode} · {request.sectionName}</p>
 												<p className="text-xs text-muted-foreground truncate">{request.day} {request.startTime}-{request.endTime} · {request.requestedRoomName}</p>
 											</div>
 											<div className="flex flex-col items-end gap-1">

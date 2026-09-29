@@ -73,7 +73,7 @@ function TimetableDragOverlay({
 	const label = source.type === 'entry'
 		? subjectLabel(source.entry.subjectId)
 		: source.type === 'draftQueue'
-			? `${source.item.subjectCode} · ${source.item.sectionName}`
+			? `${subjectLabel(source.item.subjectId)} · ${source.item.sectionName}`
 			: source.type === 'draftPlacement'
 				? `Draft · ${subjectLabel(source.placement?.subjectId ?? source.entry?.subjectId)}`
 				: `${subjectLabel(source.item.subjectId)} · ${sectionLabel(source.item.sectionId)}`;

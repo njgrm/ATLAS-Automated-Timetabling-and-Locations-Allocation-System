@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 
 import { StackedWorkloadBar } from '@/components/faculty-assignments/StackedWorkloadBar';
 import { MAX_WEEKLY_TEACHING_HOURS } from '@/lib/faculty-assignment-helpers';
+import { departmentLabel } from '@/lib/deped-glossary';
 import type { FacultyMirror, ScheduledEntry, TeachingLoadRepairPreviewResult } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -685,10 +686,15 @@ export function TeacherCandidateCard({ candidate, showWorkloadDetails, onApply }
 						{candidate.isCurrent ? <Badge variant="outline" className="h-5 px-1.5 text-xs">Current</Badge> : null}
 						{candidate.isSelected ? <Badge className="h-5 px-1.5 text-xs">Previewed</Badge> : null}
 					</div>
-					<p className="text-xs text-muted-foreground">
-						{candidate.faculty.department ?? 'Unassigned'}
-						{candidate.faculty.specialization ? ` - ${candidate.faculty.specialization}` : ''}
-					</p>
+				{/* A3 c16: `faculty.department` is a bare subject/department CODE
+				    (`FIL`, `MATH`, `TLE`) on this payload, so the candidate card led
+				    with a token that means nothing to a scheduler. The committed
+				    DepEd glossary resolves it and falls back to the raw value for an
+				    * unknown code, so nothing is hidden. */}
+				<p className="text-xs text-muted-foreground">
+					{candidate.faculty.department ? departmentLabel(candidate.faculty.department) : 'Unassigned'}
+					{candidate.faculty.specialization ? ` - ${candidate.faculty.specialization}` : ''}
+				</p>
 				</div>
 				<Button
 					type="button"

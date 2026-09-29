@@ -4241,6 +4241,31 @@ Both blobs byte-identical at base and HEAD; **owned by the A2/header lane**, not
 staging/live after a verified active term exists. Worktree `E:/ATLAS-worktrees/lane-a3-c13-concerns` =
 `RETIRE_AFTER_INTEGRATION`.
 
+## Lane A3 - 2026-09-29 c16: "no codes on screen" (on `main`; NOT deployed)
+
+**Integrated at `3c6d819b`; product tip `27bf0e02`.** Lane C packet `docs/prompts/truth-fixes-2026-09-29.md`,
+section A3 c16. Handoff + evidence: `docs/reviews/a3-c16-codes-20260929/handoff.md`. **NOT deployed** —
+A4 owns the release, and nothing here is a live-row claim.
+
+- **Seen rendered on real staging data** (loopback preview :5241 -> staging :5101, 1366x768, asserted origin,
+  `/__dev/staging-login`): `/teachers` **0 raw codes across 50 roster cells**; `/audit` section-coverage
+  cards now name their subjects and title/body agree; `/timetable` 0 raw tokens. `ux-audit` major on
+  `/teachers` is **7, unchanged from Lane C's own baseline** for that page (all pre-existing).
+- **Gates:** `test:a3-c16-no-codes` **16/16**, `test:a3-c10-teacher-surface` 21/21, `test:a6-teachers` 13/13,
+  `test:a7-year-setup-plain-words` 17/17, `test:plain-language-j2j3-c01` 18/18, `test:encoding` 1/1.
+  `test:a3-c4-copy` 18/14/**1**/3 and `test:ux-audit-findings` 22/21/**1** at my tip: both pre-existing,
+  reproduced on base by QA. **`test:client-suite` is red at base (43) and at the candidate (42), with
+  no candidate-only failure** — do not read those numbers as this lane's debt.
+- **Two independent QA rounds, both `CORRECTION_REQUIRED`; B1 and B2 closed; no third round** (two-round
+  rule). Round 2's open items are corrected in `27bf0e02` and the residue is numbered in the handoff.
+- **Next action for A3: `docs/prompts/a3-prefs-save-2026-09-29.md` is on `main` (`7d894255`) and is a
+  DEMO BLOCKER** — Teacher Preferences cannot be saved. Not started.
+- **Blocking nothing, but the roster's real defect is a column width, not a code:** the "Assigned classes"
+  column is **158.6px** (126.6px of text) in a 1111px table whose `Actions` column is 319px, and a
+  subject name does not fit 126.6px (`Mathematics - 8 sections` = 25 chars). The column definitions are
+  in `pages/Faculty.tsx`, **A6 c10's in-flight file**, so A3 did not touch them. Owner: A6 or whoever
+  next holds the roster table; it needs its own before/after screenshots.
+
 ## Lane A3 - current lane (written only by Planner A3)
 
 ### Live release `d11304e8` is DEPLOYED; browser acceptance is INCOMPLETE and BLOCKED
