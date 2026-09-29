@@ -408,45 +408,54 @@ test('A6-23.1-1 the profile card is a RESIZABLE centred dialog with the requeste
 	assert.match(header!.getAttribute('class') ?? '', /\bpx-6\b/, 'the header must pad horizontally inside the card');
 });
 
-test('A6-23.1-2 subject CODES are legible: 12px, medium weight, not washed out', () => {
+test('A6-23.1-2 the subject identity is legible: a name at 14px, no washed-out code line', () => {
 	const dialog = renderProfile();
-	// The codes the operator named must actually render — an assertion about the
-	// styling of an element that was never mounted proves nothing.
-	const codes = Array.from(dialog.querySelectorAll('code'))
-		.map((c) => (c.textContent ?? '').trim())
-		.filter((t) => t.length > 0);
+
+	// A3 C17 ROW 1 REMOVED THE SUBJECT CODE LINE, and the row that asserted it is
+	// kept rather than deleted, because its INTENT is still exactly right and is
+	// now met by a different element. What the operator objected to was a dim
+	// 10.4px `FIL`/`DEVL_READING` competing with the subject name beside it; the
+	// requester then asked for "one card per subject (name, not code)". Restyling
+	// a code line to 14px would have satisfied neither — it would have kept two
+	// labels for one subject and made the loser louder.
+	//
+	// So the legibility contract moves onto the element that now carries the
+	// identity. `Filipino` must be present, at 14px, at full strength, and no
+	// sub-14px arbitrary size may have been introduced in its place — which is
+	// the same defect this row was written to catch, on the surviving element.
 	assert.ok(
-		codes.includes('FIL') && codes.includes('DEVL_READING'),
-		`both named subject codes must render; saw ${JSON.stringify(codes)}`,
+		!Array.from(dialog.querySelectorAll('code')).some((c) => (c.textContent ?? '').trim() === 'FIL'),
+		'the subject code line is gone: the card is headed by the NAME, per A3 c17 row 1',
 	);
 
-	for (const text of ['FIL', 'DEVL_READING']) {
-		const code = Array.from(dialog.querySelectorAll('code')).find((c) => (c.textContent ?? '').trim() === text)!;
-		const cls = code.getAttribute('class') ?? '';
-		// 12-14px: the requested legible range. `text-xs` is 12px.
-		assert.match(cls, /\btext-xs\b/, `"${text}" must be text-xs, not a micro size`);
-		assert.doesNotMatch(cls, /text-\[0\.6\d+rem\]/, `"${text}" must not be a sub-12px arbitrary size`);
-		assert.match(cls, /\bfont-medium\b/, `"${text}" must be font-medium`);
-		assert.match(cls, /\buppercase\b/, `"${text}" keeps its monospaced code presentation`);
-		// The washed-out look came from the OPACITY, not the token. No `opacity-*`
-		// class may remain on the code, or the contrast win is undone.
-		assert.doesNotMatch(cls, /\bopacity-/, `"${text}" must not carry an opacity class — that is what washed it out`);
-		// Raw neutrals are banned by the committed palette ratchet, so the colour
-		// must come from the semantic token.
-		assert.doesNotMatch(cls, /text-slate-|bg-slate-|border-slate-/, `"${text}" must use a semantic token, not a raw neutral`);
-		assert.match(cls, /\btext-muted-foreground\b/, `"${text}" uses the muted-foreground token`);
-	}
-
-	// The SUBJECT TITLE must read darker than the code, or "darker still" is not
-	// delivered. `text-foreground` is the stronger token than
-	// `text-muted-foreground`; the title is the bold, foreground-coloured line.
 	const title = Array.from(dialog.querySelectorAll('p'))
 		.find((p) => (p.textContent ?? '').trim() === 'Filipino');
-	assert.ok(title, 'the subject title must render beside its code');
+	assert.ok(title, 'the subject NAME must render as the card heading');
 	const titleCls = title!.getAttribute('class') ?? '';
+	// 14px or larger. `text-sm` is 15px; `text-xs` is 14px. Either satisfies the
+	// operator's floor; nothing below it does.
+	assert.match(titleCls, /\btext-(xs|sm|base|lg|xl)\b/, `the subject name must be 14px or larger: "${titleCls}"`);
+	assert.doesNotMatch(
+		titleCls,
+		/text-\[\s*\d/,
+		'the subject name must not carry an arbitrary sub-14px size; that is the defect this row exists for',
+	);
+	// The subject title must read darker than any secondary text, or
+	// "darker still" is not delivered. `text-foreground` is the stronger token.
 	assert.match(titleCls, /\bfont-bold\b/, 'the subject title must be bold');
-	assert.doesNotMatch(titleCls, /\btext-muted-foreground\b/, 'the subject title must not be the muted token — it reads darker than the code');
+	assert.doesNotMatch(titleCls, /\btext-muted-foreground\b/, 'the subject title must not be the muted token — it reads darker than secondary text');
 	assert.doesNotMatch(titleCls, /\bopacity-/, 'the subject title must not be faded');
+	// The washed-out look came from the OPACITY, not the token, so no
+	// `opacity-*` may appear anywhere on the card's identity block. The DIALOG
+	// is queried from the document, not from `renderProfile`'s return: that
+	// helper returns the dialog CONTENT, and `querySelector` does not match an
+	// element against itself.
+	const card = dialog.querySelector('[data-testid="faculty-profile-dialog"]') ?? dialog;
+	assert.doesNotMatch(
+		card.innerHTML,
+		/text-\[0\.\d+rem\]/,
+		'the profile card must not declare an arbitrary rem font size',
+	);
 });
 
 test('A6-23.1-3 the profile dialog is still an accessible modal', () => {

@@ -221,7 +221,7 @@ export function FacultyProfileSheet({
 						{formatFacultyInitials(faculty)}
 						</div>
 						<div className="min-w-0">
-							<div className="flex items-center gap-2">
+							<div className="flex flex-wrap items-center gap-2">
 								{/* Fix 22 (c10 re-issue): canonical `Last, First`, UPPERCASE for
 							    display. The stored name is unchanged. */}
 								<DialogTitle className="text-xl font-bold truncate">
@@ -230,39 +230,63 @@ export function FacultyProfileSheet({
 								{faculty.isClassAdviser && (
 									<Star className="size-4 fill-amber-400 text-amber-500 shrink-0" />
 								)}
-							</div>
-							<DialogDescription className="flex flex-wrap items-center gap-2 mt-1">
 								{/*
 								 * A3 c17 row 3 — the identity line says one true thing
 								 * about this record and nothing else.
 								 *
-								 * A to-be-hired record has no employee number to show:
-								 * it is not an employee, so `#ID-PENDING` was inventing an
-								 * identity AND saying "Active teacher" in the same breath.
-								 * It now reads `To be hired` in the roster's own Temporary
-								 * *look* — the violet outline pair, copied verbatim from
+								 * A to-be-hired record has no employee number to show: it is
+								 * not an employee, so `#ID-PENDING` was inventing an identity
+								 * AND saying "Active teacher" in the same breath. It now
+								 * reads `To be hired` in the roster's own Temporary *look* —
+								 * the violet outline pair, copied verbatim from
 								 * `FacultyRow.tsx:205` so there is one "not a real person
 								 * yet" appearance in the app (AGENTS.md §8). Only the SIZE
 								 * differs, because this dialog is held to the 14px floor and
-								 * `text-[0.65rem]` is 10.4px; a4-row-6 below raises the rest.
+								 * `text-[0.65rem]` is 10.4px; row 6 below raises the rest.
 								 *
 								 * A REAL teacher with no `employeeId` shows NOTHING in this
 								 * slot — not an empty `<code>`, not a dash, not the pending
 								 * sentinel. A missing field is not a fact worth a chip.
+								 *
+								 * IT SITS BESIDE THE NAME, not inside `DialogDescription`.
+								 * That is a validity fix as much as a layout one:
+								 * `DialogDescription` renders a `<p>`, `Badge` renders a
+								 * `<div>`, and a `<div>` inside a `<p>` is invalid HTML that
+								 * React reports as a hydration error and that a browser is
+								 * entitled to re-parent. It also matches the roster, where the
+								 * Temporary chip sits beside the name rather than under it.
 								 */}
 								{isPlaceholder ? (
 									<Badge
 										variant="outline"
-										className="h-auto px-1.5 py-0.5 text-sm font-bold border-violet-200 bg-violet-50 text-violet-700"
+										className="h-auto shrink-0 px-1.5 py-0.5 text-sm font-bold border-violet-200 bg-violet-50 text-violet-700"
 									>
 										To be hired
 									</Badge>
 								) : faculty.employeeId ? (
-									<code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded uppercase tracking-tighter opacity-80">
+									<code className="shrink-0 text-xs font-mono bg-muted px-1.5 py-0.5 rounded uppercase tracking-tighter opacity-80">
 										#{faculty.employeeId}
 									</code>
 								) : null}
-								{faculty.isActiveForScheduling ? (
+							</div>
+							<DialogDescription className="flex flex-wrap items-center gap-2 mt-1">
+								{/*
+								 * A to-be-hired record is NOT an "Active teacher" and must not
+								 * be described as one. `isActiveForScheduling` is true for
+								 * placeholders — the slot is schedulable, the person does not
+								 * exist yet — so the old branch printed "Active teacher" under
+								 * a name that says "to be hired", and the dialog contradicted
+								 * itself in two lines.
+								 *
+								 * The status line is therefore about a real person's
+								 * scheduling eligibility, and a placeholder says nothing
+								 * here: the `To be hired` chip beside the name already IS its
+								 * status, and a second chip saying the same thing is exactly
+								 * the "two chips that say the same thing" AGENTS.md §8
+								 * forbids. "Excluded from scheduling" and `sourceFreshness`
+								 * are untouched for real teachers.
+								 */}
+								{!isPlaceholder && (faculty.isActiveForScheduling ? (
 									<span className="flex items-center gap-1 text-sm font-semibold text-emerald-700">
 										<CheckCircle2 className="size-3" /> Active teacher
 									</span>
@@ -270,7 +294,7 @@ export function FacultyProfileSheet({
 									<span className="flex items-center gap-1 text-sm font-semibold text-muted-foreground">
 										<AlertTriangle className="size-3" /> Excluded from scheduling
 									</span>
-								)}
+								))}
 								<span className="text-sm font-semibold text-muted-foreground">{sourceFreshness}</span>
 							</DialogDescription>
 							{faculty.isClassAdviser && (

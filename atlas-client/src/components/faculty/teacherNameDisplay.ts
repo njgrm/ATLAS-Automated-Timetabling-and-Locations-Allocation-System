@@ -120,29 +120,38 @@ export function teacherNameSortKey(faculty: NameLike | null | undefined): string
 }
 
 /**
- * The label a placeholder record shows after its sentinel is recognised:
- * the stored name with the leading numeric token and the leading dash run
- * removed, `Last, First` order preserved, and NO re-casing.
+ * The label a placeholder record shows: the STORED name with the sentinel
+ * phrase, the leading numeric token and the leading dash run removed, and the
+ * counter re-expressed as a plain trailing number.
  *
- * `— TO BE HIRED, MAPEH`  -> `MAPEH`
- * `1 — TO BE HIRED, TEACHER` -> `TEACHER`
+ *   `— TO BE HIRED, MAPEH`       -> label `MAPEH`,      counter none
+ *   `1 — TO BE HIRED, TEACHER`   -> label `TEACHER`,    counter `1`
  *
- * Returns `''` when nothing usable is left, so the caller can decide what an
- * empty placeholder says rather than printing a bare colon.
+ * The counter is kept rather than discarded because two to-be-hired records
+ * that both read "To be hired: MAPEH" are indistinguishable on a roster of
+ * eight; the stored number is the only thing that tells them apart. It is moved
+ * to the end and rendered as a bare number, so it reads as an identifier
+ * instead of as leading punctuation.
+ *
+ * The label is returned in its STORED casing, never re-cased. `MAPEH` is a
+ * programme token and uppercasing or sentence-casing it would be a guess about
+ * what it is; this module's contract is that it never re-cases data.
  */
-function placeholderLabel(faculty: NameLike): string {
-	const strip = (value: string | null | undefined) =>
-		tidy(value)
-			// A leading numeric token is a running counter on the record ("1 "),
-			// not part of the name.
-			.replace(/^\d+\s*[-–—]?\s*/, '')
-			// A leading dash run is punctuation left over from a seeded record.
-			.replace(/^[-–—]+\s*/, '')
-			.replace(/^[-–—]+\s*/, '');
-	const last = strip(faculty?.lastName);
-	const first = strip(faculty?.firstName);
-	if (last && first) return `${last}, ${first}`;
-	return last || first;
+function placeholderLabel(faculty: NameLike): { label: string; counter: string } {
+	const last = tidy(faculty?.lastName);
+	const first = tidy(faculty?.firstName);
+	// A leading numeric token is a running counter on the record, not a name.
+	const counter = /^(\d+)\s*[-–—]?\s*/.exec(last)?.[1] ?? '';
+	// Strip the sentinel phrase and every dash run from the LAST name; the
+	// first name is the label and is left exactly as stored.
+	const bareLast = last
+		.replace(/^(\d+)\s*[-–—]?\s*/, '')
+		.replace(PLACEHOLDER_SENTINEL, '')
+		.replace(/^[\s,;–—-]+|[\s,;–—-]+$/g, '')
+		.trim();
+	const bareFirst = first.replace(/^[\s,;–—-]+|[\s,;–—-]+$/g, '').trim();
+	const label = bareFirst || bareLast;
+	return { label, counter };
 }
 
 /** The plain-words display name for a to-be-hired record. */
@@ -164,10 +173,9 @@ const PLACEHOLDER_DISPLAY_PREFIX = 'To be hired';
 export function formatFacultyDisplayName(faculty: NameLike | null | undefined): string {
 	if (!faculty) return 'UNNAMED TEACHER';
 	if (faculty.isPlaceholder && PLACEHOLDER_SENTINEL.test(tidy(faculty.lastName))) {
-		const label = placeholderLabel(faculty);
-		return label
-			? `${PLACEHOLDER_DISPLAY_PREFIX}: ${label.toUpperCase()}`
-			: PLACEHOLDER_DISPLAY_PREFIX;
+		const { label, counter } = placeholderLabel(faculty);
+		if (!label) return PLACEHOLDER_DISPLAY_PREFIX;
+		return `${PLACEHOLDER_DISPLAY_PREFIX}: ${label.toUpperCase()}${counter ? ` ${counter}` : ''}`;
 	}
 	return formatFacultyStoredName(faculty).toUpperCase();
 }
@@ -203,7 +211,7 @@ export function formatFacultySummaryName(faculty: FacultySummary | null | undefi
  */
 export function formatFacultyInitials(faculty: NameLike | null | undefined): string {
 	if (faculty && PLACEHOLDER_SENTINEL.test(tidy(faculty.lastName))) {
-		const stripped = placeholderLabel(faculty).replace(/[^A-Za-z0-9]/g, '').charAt(0);
+		const stripped = placeholderLabel(faculty).label.replace(/[^A-Za-z0-9]/g, '').charAt(0);
 		return (stripped || 'T').toUpperCase();
 	}
 	const first = tidy(faculty?.firstName).charAt(0);
