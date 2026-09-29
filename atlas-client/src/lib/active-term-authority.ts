@@ -30,6 +30,25 @@
  * (`@/lib/academic-term`) remains the single fail-closed gate, and a missing
  * term identity still never becomes Term 1 (AGENTS.md §7). This fixes *who
  * asks*, not the answer's admissibility.
+ *
+ * THE PREDICATE'S SENSE (A3 p1 — a real outage, 2026-09-29)
+ * ========================================================
+ * The second parameter is the caller's LIVENESS, and it is a NAMED OPTION:
+ * `{ isStillCurrent }`, where `true` means "this read is still good".
+ *
+ * A caller once passed its `isCurrent` closure straight into a bare positional
+ * `isObsolete` parameter, whose `true` means the OPPOSITE. Every healthy
+ * resolution was therefore discarded, the resolver returned `null`, and Teacher
+ * Preferences sat with `schoolYearId = null` forever: Save and "Anything else"
+ * disabled, the availability read never fired, and no reason on screen. The
+ * staging term data was healthy the whole time; the predicate was the fault.
+ *
+ * A still-current closure is the common shape in this codebase (`cancelled` plus
+ * a session-epoch check), so a bare function parameter made the inversion one
+ * keystroke away at every call site and no type could catch it: `() => true` is
+ * a valid function either way. A named option removes the trap at the type
+ * level — the sense is written down where the call happens, and the conversion
+ * to "stale" happens once, inside the contract.
  */
 
 import { isVerifiedOrderedActiveTerm } from './academic-term';
@@ -71,6 +90,19 @@ export type ResolveActiveTermAuthorityOptions = {
 };
 
 /**
+ * THE CALLER'S LIVENESS, as a named option rather than a bare positional
+ * predicate.
+ *
+ * `isStillCurrent()` returning `true` means "this read is still good, keep it".
+ * That is the sense every caller in this codebase already thinks in, so it is
+ * the sense the contract accepts; the flip to "stale, discard" happens once,
+ * inside the resolver, and cannot be got wrong at a call site (A3 p1).
+ */
+export type ActiveTermReadLiveness = {
+	readonly isStillCurrent: () => boolean;
+};
+
+/**
  * Resolve the active ordered term for an actor school, asking for upstream
  * verification exactly once when the fast read does not already carry it.
  *
@@ -84,14 +116,22 @@ export type ResolveActiveTermAuthorityOptions = {
  *   requests carry different request profiles, so they never dedupe into one.
  * - A failed verification keeps the fast-read state and still returns, so the
  *   caller can fall back to an explicit scope instead of dead-ending.
- * - Returns `null` when the actor school moved on while a read was in flight
- *   (late-response discard).
+ * - Returns `null` ONLY when `isStillCurrent()` reports this read is obsolete
+ *   (the actor school moved on, or the caller unmounted). That is the single
+ *   reason for `null`, which is why a caller may safely leave its own state
+ *   alone: a newer run or an unmount owns that state now. A `null` is never a
+ *   dead end.
+ *
+ * @param liveness `{ isStillCurrent }` — `true` KEEPS this read, `false` discards
+ *   it and returns `null`.
  */
 export async function resolveActiveTermAuthority(
 	actorSchoolId: number,
-	isObsolete: () => boolean,
+	liveness: ActiveTermReadLiveness,
 	options: ResolveActiveTermAuthorityOptions = {},
 ): Promise<ActiveTermAuthorityResolution | null> {
+	// The ONLY place the sense is translated. Inside the contract, once.
+	const isStaleRead = () => !liveness.isStillCurrent();
 	const requireFreshVerifiedRead = options.requireFreshVerifiedRead === true;
 	const context = await resolveActiveSchoolYearContext({
 		schoolId: actorSchoolId,
@@ -103,7 +143,8 @@ export async function resolveActiveTermAuthority(
 		allowEnrollProFallback: false,
 	});
 	// Discard a late response whose actor school changed while it was in flight.
-	if (isObsolete()) return null;
+	// `isStaleRead() === true` means DISCARD.
+	if (isStaleRead()) return null;
 
 	let current = context;
 	let authorityReady = isVerifiedOrderedActiveTerm(current.activeTerm);
@@ -124,7 +165,7 @@ export async function resolveActiveTermAuthority(
 				allowStaleOnError: true,
 				allowEnrollProFallback: false,
 			});
-			if (isObsolete()) return null;
+			if (isStaleRead()) return null;
 			current = verified;
 			authorityReady = isVerifiedOrderedActiveTerm(current.activeTerm);
 		} catch {
