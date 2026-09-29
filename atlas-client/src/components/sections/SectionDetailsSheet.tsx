@@ -24,6 +24,11 @@ import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { getDepartmentColor } from '@/lib/department-colors';
 import { departmentLabel } from '@/lib/deped-glossary';
+import {
+	groupUnassignedByTerm,
+	resolveRotationTermLabel,
+	subjectIdentityLabel,
+} from '@/lib/section-unassigned-grouping';
 import type { SectionDetail } from './SectionRow';
 import type { RoomOption } from './SectionRoomPicker';
 import { cn } from '@/lib/utils';
@@ -95,24 +100,6 @@ const GRADE_BADGE_COLORS: Record<string, string> = {
 	'9': 'bg-red-100/80 text-red-700 border-red-200',
 	'10': 'bg-blue-100/80 text-blue-700 border-blue-200',
 };
-
-function resolveRotationTermLabel(input: { rotationTermLabel?: string | null; rotationTermRank?: number | null }): string | null {
-	const explicitLabel = (input.rotationTermLabel ?? '').trim();
-	if (explicitLabel.length > 0) {
-		const rankMatch = explicitLabel.match(/(\d+)/);
-		if (rankMatch) {
-			const parsed = Number(rankMatch[1]);
-			if (Number.isInteger(parsed) && parsed > 0) {
-				return `Term ${parsed}`;
-			}
-		}
-		return explicitLabel;
-	}
-	if (typeof input.rotationTermRank === 'number' && Number.isInteger(input.rotationTermRank) && input.rotationTermRank > 0) {
-		return `Term ${input.rotationTermRank}`;
-	}
-	return null;
-}
 
 export function SectionDetailsSheet({
 	sectionId,
@@ -290,39 +277,54 @@ export function SectionDetailsSheet({
 								)}
 							</div>
 
-							{/* Unassigned Expected Classes */}
+							{/* Unassigned Expected Classes — A9 c5 (2026-09-30): grouped BY TERM, with a
+							 * term heading and the classes beneath it (operator section.docx item 2:
+							 * "Maybe do it per term instead of per subject"). The duplicated name/code
+							 * pair collapses to one line (`subjectIdentityLabel`); the rotation family
+							 * is kept as the cue; `min …/week` stays right-aligned. The grouping and
+							 * the identity are pure functions in `@/lib/section-unassigned-grouping`,
+							 * so the wording/structure is testable rather than greppable. */}
 							{data.unassignedExpectedClasses && data.unassignedExpectedClasses.length > 0 && (
 								<div className="space-y-4 pt-4 border-t border-dashed">
 									<h4 className="text-[0.7rem] font-bold text-amber-700 uppercase tracking-widest flex items-center gap-2">
 										<AlertTriangle className="size-3 text-amber-600" />
 										Unassigned Classes
 									</h4>
-									<div className="space-y-2">
-										{data.unassignedExpectedClasses.map((cls, idx) => (
-											<div key={idx} className="flex items-center justify-between p-3 rounded-lg border border-amber-100 bg-amber-50/30">
-												<div className="flex items-center gap-3">
-													<div className="flex size-7 items-center justify-center rounded bg-amber-100/50">
-														<BookOpen className="size-3.5 text-amber-700" />
-													</div>
-													<div>
-														<p className="text-xs font-bold text-amber-900">{cls.subjectName}</p>
-														<div className="flex flex-wrap items-center gap-1 mt-0.5">
-															<p className="text-[0.6875rem] text-amber-700/70 font-mono">{cls.subjectCode}</p>
-															{cls.rotationFamily && (
-																<Badge variant="outline" className="text-[0.6875rem] leading-tight font-bold uppercase bg-violet-50 text-violet-700 border-violet-200">
-																	{cls.rotationFamily}
-																</Badge>
-															)}
-															{resolveRotationTermLabel(cls) && (
-																<Badge variant="outline" className="text-[0.6875rem] leading-tight font-bold uppercase bg-violet-100 text-violet-900 border-violet-300">
-																	{resolveRotationTermLabel(cls)}
-																</Badge>
-															)}
-														</div>
-													</div>
-												</div>
-												<div className="text-right">
-													<p className="text-xs font-bold tabular-nums">{cls.minMinutesPerWeek} min</p>
+									<div className="space-y-4">
+										{groupUnassignedByTerm(data.unassignedExpectedClasses).map((group) => (
+											<div key={group.key} className="space-y-2">
+												<h5 className="text-[0.6875rem] font-bold uppercase tracking-wider text-amber-700/80">
+													{group.heading}
+												</h5>
+												<div className="space-y-2">
+													{group.rows.map((cls, idx) => {
+														const identity = subjectIdentityLabel(cls.subjectName, cls.subjectCode);
+														return (
+															<div key={`${group.key}-${cls.subjectId}-${idx}`} className="flex items-center justify-between gap-3 p-3 rounded-lg border border-amber-100 bg-amber-50/30">
+																<div className="flex min-w-0 items-center gap-3">
+																	<div className="flex size-7 shrink-0 items-center justify-center rounded bg-amber-100/50">
+																		<BookOpen className="size-3.5 text-amber-700" />
+																	</div>
+																	<div className="min-w-0">
+																		<p className="flex flex-wrap items-baseline gap-x-1.5 text-xs font-bold text-amber-900">
+																			<span className="truncate">{identity.primary}</span>
+																			{identity.secondary && (
+																				<span className="text-[0.6875rem] text-amber-700/70 font-mono">{identity.secondary}</span>
+																			)}
+																		</p>
+																		{cls.rotationFamily && (
+																			<Badge variant="outline" className="mt-0.5 text-[0.6875rem] leading-tight font-bold uppercase bg-violet-50 text-violet-700 border-violet-200">
+																				{cls.rotationFamily}
+																			</Badge>
+																		)}
+																	</div>
+																</div>
+																<div className="shrink-0 text-right">
+																	<p className="text-xs font-bold tabular-nums">{cls.minMinutesPerWeek} min</p>
+																</div>
+															</div>
+														);
+													})}
 												</div>
 											</div>
 										))}
