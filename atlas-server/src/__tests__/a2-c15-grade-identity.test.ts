@@ -209,7 +209,7 @@ test('C15-L3-1. the validator section scope is the REAL grade when displayOrder 
 		},
 	));
 
-	assert.equal(ctx.sectionScope.get(9501)?.gradeLevel, 7, 'the validator section scope must be the real grade 7, never the EnrollPro id 1');
+	assert.equal(ctx.sectionScope!.get(9501)?.gradeLevel, 7, 'the validator section scope must be the real grade 7, never the EnrollPro id 1');
 });
 
 test('C15-L3-2. C15-NEG — an id-only section is not scoped to grade 1 and adopts no id-keyed window', () => {
@@ -225,9 +225,9 @@ test('C15-L3-2. C15-NEG — an id-only section is not scoped to grade 1 and adop
 		},
 	));
 
-	assert.equal(ctx.sectionScope.get(9501)?.gradeLevel, 0, 'a section naming no real grade must not be scoped to the EnrollPro id 1');
+	assert.equal(ctx.sectionScope!.get(9501)?.gradeLevel, 0, 'a section naming no real grade must not be scoped to the EnrollPro id 1');
 	assert.equal(
-		ctx.breakWindows.some((window) => window.startTime === '04:00' && window.endTime === '04:10'),
+		(ctx.breakWindows ?? []).some((window) => window.startTime === '04:00' && window.endTime === '04:10'),
 		false,
 		'a break window keyed on the EnrollPro id 1 must not be adopted for a section with no real grade',
 	);
