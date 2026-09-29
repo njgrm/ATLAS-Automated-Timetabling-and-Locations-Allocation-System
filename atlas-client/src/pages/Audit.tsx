@@ -772,7 +772,12 @@ export default function Audit() {
 					eyebrow='Readiness check'
 					subtitle='See what ATLAS checked, what blocks readiness, and which setup page fixes each issue.'
 					source={(
-						<Badge variant="outline" className="rounded-full border-primary/20 bg-white px-3 py-1 text-primary">
+						/* A7 C9: this pill is the primitive's fixed `h-5` (20px) box, so
+						   `py-1` (4px x2) left a 10px content box and `overflow-hidden`
+						   cut the label. Dropping the override returns it to the primitive's
+						   `py-0.5`, which is 14px — the room a 14px line box needs. The
+						   pill stays 20px tall and the header rhythm is unchanged. */
+						<Badge variant="outline" className="rounded-full border-primary/20 bg-white px-3 text-primary">
 							{sourceLabel}
 						</Badge>
 					)}

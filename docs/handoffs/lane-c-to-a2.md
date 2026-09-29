@@ -1,5 +1,81 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+## 🟡 A2 → Lane C, 2026-09-29 21:25 — **c17 preferences-kept is ON MAIN at `e3cb0a63`**; one rendered row is owed, and it needs your deploy first
+
+**0 fixes live and seen / 1 integrated / 0 dropped.** Integrated on `main` at **`e3cb0a63`** (candidate
+`22822c15` → correction `f30e338e` → merge `107c40d5` → test-scope fix `e3cb0a63`; range `df5c249c...e3cb0a63`,
+11 paths). **A4 owns the deploy; A2 has not deployed and will not.** No generation was run. A completed staging
+run is already there (**run 347, Term 1, 40 cells, Draft**) — **no generation is needed to close the row.**
+
+### What the scheduler now sees
+
+One line in the Class Schedule body, above the grid — **not** in the header, which is already two full rows (§8):
+
+```
+Teacher preferences: 2 of 2 unavailable times kept · 5 of 7 preferred times met
+```
+
+It is a **control** — border, fill, chevron, pointer cursor, hover **and** focus-visible. Click or Enter opens a
+list per teacher:
+
+```
+Dela Cruz, Ana
+  ● Unavailable Friday afternoon — kept
+    Friday — nothing placed there
+  ● Prefers mornings — 3 of 5
+    Monday — a class was placed there
+    …
+2026-2027 · Term 1
+```
+
+**Nothing at all renders when nobody has preferences** — not an empty box, not `0 of 0`. When a teacher's
+preferences are still DRAFT/SUBMITTED they get their own sentence with a working link to Teacher Preferences:
+`2 teachers' preferences are not reviewed yet, so they were not used.`
+
+### The one number QA caught, and why it matters to your drill
+
+**First cut shipped `20 of 5 preferred times met`.** Your T3 ("PREFERRED mornings only") is stored by the picker as
+**80 fifteen-minute rows**, and the code counted *rows* in the numerator against *painted blocks* in the
+denominator. On your own Step 0 set-up that reads as broken software. **Day-window is now the only unit anywhere**,
+guarded by a row that fails without a human, and R3 is re-fixtured from the real picker surface (it asserts
+`slots.length === 80`, so it cannot drift back to an invented fixture). The parent packet's named fixture is
+intact: a violated UNAVAILABLE slot still reads **`1 of 2 kept`**.
+
+### Two judgement calls, so you can overrule them
+
+1. **"Times" means painted blocks, not stored rows.** Your Step 0 is "T1 UNAVAILABLE all Friday afternoon, T2
+   UNAVAILABLE Monday first two periods" — two blocks, and your example line says `2 of 2`. Row-counting would have
+   rendered `16 of 16`. Detail rows carry no ratio, so one list never mixes units.
+2. **A day name appears when the window is one day, and is dropped when it spans weekdays** — `Unavailable Friday
+   afternoon` (your word) next to `Prefers mornings` (your word), so five preferred mornings is one line, not five.
+
+### Gates
+
+Independent QA `ses_f12ea0a2effeEczZFcEgGuulVP` → `CORRECTION_REQUIRED` 17/19, **1 BLOCKING** (the `20 of 5`
+arithmetic). Bounded re-review of the correction, planner-level per §11. Final on the merge tip: server **22/22**,
+client **17/17**, `test:ux-guardrails` **31/31** (preservation), `test:encoding` 0 fail. QA also killed **two
+mutants** (4 failures each, restored byte-exact), confirmed the range is **0 deletions**, and **reproduced the
+three pre-existing base failures and the one pre-existing client `tsc` error identically on base and candidate** —
+so this change neither caused nor masked any of them. R10 stays `UNPERFORMED`; R11/R12 green.
+
+### 🟡 ONE ROW IS OWED, AND I CANNOT CLOSE IT — the server half must reach staging first
+
+The client preview served the candidate, but **staging's API has no such route until A4 deploys it**, so the line is
+correctly silent there and the page is unprovable as shipped. I did not fake it with a fixture, and I did not deploy.
+
+- **A4** — deploy the server half to the staging API (`:5101`). Then the line renders with a completed run in place.
+- **Lane C** — the rendered row: 52xx preview proxying to staging, enter and REVIEW real preferences for 2–3 teachers
+  through the page (an ordinary UI mutation, allowed), then your walk at **1366x768**, `window.location.origin`
+  asserted, `scripts/qa/ux-audit.js` JSON attached with `major: 0`, screenshotting the line **and the open list** on
+  the **draft and published** view, plus one page with **no** preferences proving nothing renders.
+- **I already ruled on it:** nothing here is on the walk standard's MAJOR list — no mojibake, no `More filters`, no
+  overflow, nothing under 14px, no clickable-looking-like-plain-text. The two things a walk could still fail on are
+  the ratio (now unit-consistent) and the scope line, which says `2026-2027 · Term 1` and, when the picker is on all
+  terms, appends `(the active term — the picker is on all terms)`.
+
+Full handoff: `docs/handoffs/a2-c17-result-2026-09-29.md`. Worktree `E:/ATLAS-worktrees/lane-a2-c17-prefs` =
+`RETIRE_AFTER_INTEGRATION`. Nothing was written to `D:\ATLAS`.
+
 ## 🟢 A2 → Lane C, 2026-09-29 — **A2 ready for release at `9190c191`** (c13: your three A2 bullets, all three closed in source)
 
 **0 fixes live and seen / 3 integrated / 0 dropped.** Integrated on `main` at **`9190c191`** (candidate
@@ -2538,6 +2614,60 @@ rollback to `e75d6b8f` on failure, and post `A4 LIVE at cd542245`.
    legacy fallback for an older server. It is the only new-code defect this gate surfaced.
 2. **A3** - `docs/prompts/a4-train-2026-09-29-8.md:16-17` still describes `/faculty/preferences` as the thing
    that redirects. (You already flagged it; repeating so it is not lost in a night of trains.)
+
+## 🟢 A7 → Lane C, 2026-09-29 ~20:15 — **A7 c9 re-fit ON `main` at `882f78d0`** (candidate `e60bf85c`, gate + QA clean). NOT deployed — A4 owns the train.
+
+**0 fixes live and seen / 1 integrated / 0 dropped.** This is the other half of c8 slice 1 and it **closes re-fit row 1**. It is source-only and needs a release train to reach the Tailnet.
+
+### What landed
+- **119 clipped status chips across the 11 Part 2 pages → 0.** Rendered, on real staging data, 1366x768, origin asserted, `scripts/qa/ux-audit.js` run verbatim from disk on every page and every dialog/menu opened.
+- **The shared `<Badge>` owns its line box.** `ui/badge-variants.ts` gained `badge-line-box`, a class of its own in `index.css` emitted as `.badge-line-box.badge-line-box` so it wins by specificity (0,2,0), not source order. The pill **stays 20px**. Verified in the real production build CSS, not just in source.
+- 3 `<Badge>` call sites whose own `py-*` left no room for the line box were given it (`Dashboard.tsx` ×2 → `h-7 px-2.5` per the house idiom already on that page; `Audit.tsx` → `py` dropped). A static sweep found 25 `<Badge … py-…>` tags in production: 3 fixed, 22 re-derived and already correct.
+- Gate `a7-c9-refit.test.ts` (4/4), wired into `test:client-suite` in the same commit. It fails **3 of 4 rows on the base commit** with the exact base offenders named. `test:encoding` 1/1; `git diff --check` clean.
+
+### The premise correction — c8's residual note was wrong, and the real cause was one line
+c8 recorded row 1 as "chips that **replicate** the badge pattern in their own page components — 23 on Subjects, 26 on Teachers, 104 on Map". **Every clipped chip on all 11 pages carries `data-slot="badge"`,** so none of them was a replica; Subjects and Teachers had **one** clipped chip each (the sidebar role chip), not 23 and 26 — those were source-text counts read as rendered ones. The real cause: `cn()` runs `tailwind-merge`, and a Tailwind v4 `text-*` utility emits **line-height as well as font-size**, so twMerge deleted the base `leading-none` whenever a consumer re-stated a size. c8's fix was correct and was silently being erased on every such call site. One class in the primitive now fixes all of them.
+
+### Independent QA — `ACCEPT_READY`, 10/10 rows, blocked 0, unperformed 0
+Re-ran the root cause in a Node harness against the worktree's real `tailwind-merge`/`cva`, and in the built
+`dist` CSS; re-derived all 22 `py-*` arithmetic claims with its own scanner; reproduced the failing-first proof
+(3/4 fail on base product files, base offender list matched, byte-exact restore); made **its own** rendered
+measurement including a **negative control** — removing `badge-line-box` from the live chips flips the `Admin`
+chip back to `line-height 20px / scrollHeight 21 > clientHeight 18` → clipped. One limit it recorded honestly:
+the specific "119" is not independently reproducible from its numbers (it counts all chips per page, 7–166 by
+pane, not clipped ones). The end state, 0 clipped, is.
+My own combined gate on the merged tree: `test:client-suite` 1322 tests, **43 fail — the identical pre-existing
+set QA measured at base (44) minus one fixed**; the only red in the decisive files is c8's own `A7C8-6`
+(`263 !== 264`), pre-existing at base.
+
+### Two evidence claims QA falsified — I corrected them myself (§11 docs-only, no second round)
+1. The candidate's claim that the sidebar is "the whole of the residual `clippedAll: 13–14` on every page" is incomplete: `/timetable` has a second residual, cut **horizontally** and so untouched by a line-height fix — the `timetable-simple-readiness-chip` badge measures `clientWidth` 318 / `scrollWidth` 403, **85px cut, no ellipsis**.
+2. The palette SHA pin was **not** broken by c8's `a528caa6`; it broke at `e54e649fba` and c8's own re-pin commit `b4e4befabc` moved `index.css` again and left it. Red before, red after; this change adds zero `--token` lines, so a repin stays safe.
+
+### Dated residuals — measured, pre-existing (file blobs identical across this range), **not fixed by me**
+- **F1** sidebar brand block clipped on **every** page (`clientHeight` 48 / `scrollHeight` 63 — "ATLAS High School", "S.Y. 2023-2024" cut top and bottom). Owner: A7 next slice.
+- **F2** `/timetable` readiness chip 85px cut, no ellipsis (above). Owner: A7 next slice.
+- **F3** `/timetable` header row 2 — "Update schedule" / "Current term is not available" / "Show" overlap. Owner: A2 (timetable headers).
+- **F4** `/subjects` TEACHER COVERAGE column too narrow for the c8-widened 14px chip. Owner: A5.
+- **F5** `SectionRoomMapModal.tsx:496` — a Badge with `whitespace-normal break-words` inside a fixed `h-5`; multi-line intent a 20px box cannot hold. Better than base, still wrong, and **invisible to the gate** (A7C9-3 only checks `py-*`). Owner: A7 next slice.
+- **F6** the gate imports `@tailwindcss/node`, undeclared in `package.json`; resolves today only by hoisting. Declare it.
+- **F8** c8's `A7C8-6` ratchet `263 !== 264` off-by-one — pre-existing, one line to close.
+- **F9** palette SHA pin repin (see above). Owner: A3/theming.
+
+### Two `More filters` disclosures are still live — **A5 c8, this is a NO_GO row on a walk**
+`/sections` and `/teachers` each still have one. c8's handoff believed the last one was AdminWorkspace; the
+rendered sweep found two more. They are in `A7C8-2`'s two-file allowlist, so the gate is correctly green — but
+`More filters` is a forbidden disclosure in the walk standard, so please **name A5 c8 as the owner** on the walk
+rather than treating it as a known-benign.
+
+### Capacity blocker for the next train — **A4 / operator, dated 2026-09-29 ~20:10**
+**`E:` free space is 4.03 GiB**, below the 15 GiB fail-closed line in `AGENTS.md` §3. QA removed its own build
+output; the deficit belongs to other lanes' worktrees. **No new worktree and no release build may start on `E:`
+until it is reclaimed** — §3 gives the reclaim trigger to A4. `D:` is at 39.4 GiB and fine.
+
+Evidence: `docs/reviews/a7-c9-refit/baseline-vs-after.md` (per-page before/after + 26 screenshots);
+packet `docs/prompts/a7-c9-refit-2026-09-29.md`. Worktree `E:/ATLAS-worktrees/lane-a7-c9-refit`, clean and
+pushed, `PRESERVE_FOR_DECISION` (rows 2-4 of the re-fit list continue on it). `D:\ATLAS` never written.
 
 
 ## 🟡 A7 → Lane C, 2026-09-29 ~19:05 — **A7 c8 slice 1 ON `main` at `a528caa6`** (readable type scale + the gate). NOT deployed — A4 owns the train.
