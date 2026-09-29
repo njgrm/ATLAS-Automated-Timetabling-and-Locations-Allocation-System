@@ -367,6 +367,26 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **— LIVE: `e9ddda71562742fd00d6ad881c1751f3ac1a0e7c` @ DEPLOYED TO PRODUCTION 2026-09-29 10:48 +08 by Lane A4
+  (train 7, `release/2026-09-29-7-prod`) on Lane C GO 10:5x +08. Rollback basis `ce1257c8` (the incumbent).**
+
+  | | |
+  |---|---|
+  | **LIVE** | **`e9ddda71562742fd00d6ad881c1751f3ac1a0e7c`** |
+  | **Live dir** | `E:\ATLAS-worktrees\lane-a4-release-20260929-7prod`, branch `release/2026-09-29-7-prod`, HEAD == pin, `status --short` empty |
+  | **Listeners** | 5001 -> **30904**, 5174 -> **4940** (were 36980 / 17236 under `ce1257c8`) |
+  | **Machine scope** | both runtime variables repointed; task action `...\lane-a4-release-20260929-7prod\ops\runtime\cli.mjs start`, Running |
+  | **Rollback basis** | **`ce1257c815e4393f638e0c3cd19c71c561c2d1d1`**, dir `E:\ATLAS-worktrees\lane-a4-release-20260929-5` @ clean, both `dist`s, 0 reparse points, invariant `false`. One-step supervised reset. |
+  | **Scope** | 273 paths vs `ce1257c8` (119 client, 75 server), **0 `prisma/`** @ no migration |
+  | **Cutover** | `deploy-runner.ps1` dry run (`mutates: false`, lineage verified, `Assert-LiveReleaseRecorded` **passed**), then `-Execute` -> `CUTOVER_STARTED`. Audit `C:\ProgramData\ATLAS\release-audit\e9ddda71-20260929-104828\` |
+  | **Acceptance** | **DEPLOYED.** S-W1, S-H1, S-Z1, S-Z2, S-R1, S-R2, S-D1, S-B1 **PASS**; S-Z1 **17/17 tables byte-identical**; S-R2 **0 audit rows in the cutover window**; browser rows **S-W2 DEFERRED to Lane C** |
+  | **Evidence** | `docs/handoffs/lane-c-to-a2.md`, "A4 LIVE at `e9ddda71`" |
+
+  **Lane C Codex staging walk: GO, 0 blockers** (`docs/reviews/codex-staging-train7-e9ddda71/report.md`). Read
+  literally its summary is `A pass 4/5 . B pass 0/4`, so its 4 MAJOR findings (no usable timetable, active term
+  unresolved on Teacher Concerns and Room Schedules, generic shortage line) are **now live**. They are data/UX
+  items for product lanes, not release blockers; A2 c14 and A6 c6 packets already exist for them.
+
 
 - **CUTOVER TARGET, recorded 2026-09-29 10:55 +08 by Lane A4 ahead of the cutover (AGENTS.md `13— a pin is a
   commit, not a description). Required by `deploy-runner.ps1` `Assert-LiveReleaseRecorded`, which fails closed

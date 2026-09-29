@@ -1586,3 +1586,68 @@ Worktrees: `lane-a4-release-20260929-7` = `KEEP_ACTIVE` (staging deploy source).
 
 **Next action (single):** Lane C runs the Codex walk on staging at `e9ddda71` and resumes A4 with **GO** for
 the production cutover of the same pin.
+## A4 -> Lane C, 2026-09-29 10:55 +08 - **A4 LIVE at `e9ddda71`** - release train 2026-09-29 #7, step 3 (production). Executed on your GO.
+
+**0 fixes verified by me live / 13 lanes integrated / 0 dropped.** Staging leg already served this exact pin and
+your Codex walk returned **GO, 0 blockers**. Live is `e9ddda71`; `ce1257c8` is the rollback basis.
+
+| | |
+|---|---|
+| **LIVE** | **`e9ddda71562742fd00d6ad881c1751f3ac1a0e7c`** |
+| **Live dir** | `E:\ATLAS-worktrees\lane-a4-release-20260929-7prod`, branch `release/2026-09-29-7-prod`, HEAD == pin, `status --short` empty |
+| **Listeners** | 5001 -> **30904**, 5174 -> **4940** (were 36980 / 17236 under `ce1257c8`) |
+| **Machine scope** | both runtime variables repointed to the pin; task action `...\lane-a4-release-20260929-7prod\ops\runtime\cli.mjs start`, Running |
+| **Rollback basis** | **`ce1257c815e4393f638e0c3cd19c71c561c2d1d1`**, dir `E:\ATLAS-worktrees\lane-a4-release-20260929-5` - HEAD verified, clean, both `dist`s, 0 reparse points, contract invariant `false`. One-step supervised reset. |
+| **Scope** | 273 paths vs `ce1257c8` (119 client, 75 server), **0 `prisma/`** -> no migration, no schema change |
+| **Cutover** | `deploy-runner.ps1` dry run first (`mutates: false`, `secretsPrinted: false`, supervisor lineage verified, `Assert-LiveReleaseRecorded` **passed**), then `-Execute` -> `CUTOVER_STARTED`. Audit `C:\ProgramData\ATLAS\release-audit\e9ddda71-20260929-104828\`, evidence `E:\ATLAS-staging\audit\train7-20260929\` |
+| **Acceptance** | **DEPLOYED.** S-W1, S-H1, S-Z1, S-Z2, S-R1, S-R2, S-D1, S-B1 **PASS**; browser rows **S-W2 DEFERRED to Lane C** |
+
+### Acceptance, each row measured
+
+- **S-W1 PASS** - `GET /` 200 `text/html`, `GET /__host/live` 200 `application/json`, and the served entry chunk is
+  `index-Dy1q6261.js`, **equal to this build own `dist/index.html`** (a 200 alone would not prove a warm index).
+- **S-H1 PASS** - `/api/v1/health` 200, `/api/v1/health/ready` 200 with `"database":"ok"`, plus the DB-backed read
+  `GET /api/v1/subjects?schoolId=1` 200 (19 509 B). Health is liveness only; the read is the load-bearing part.
+- **S-Z1 PASS - 17/17 tables byte-identical**, each `count(*)` + `max(id)` + per-row content `md5`, captured
+  **BEFORE** the supervisor was quiesced (train 1 lesson). No table moved, including `audit_logs`.
+- **S-Z2 PASS** - `git diff --name-only ce1257c8 e9ddda71 -- prisma/` is **0 paths**; on-disk migration dirs **11 -> 11**.
+- **S-R1 PASS** - `cli.mjs status` from the live dir with machine-scope values injected explicitly reports
+  `ROLLOVER_AUTO_SYNC_ENABLED: "false"`, and the supervisor log prints `[rollover-automation] Disabled via
+  ROLLOVER_AUTO_SYNC_ENABLED=false`. The contract invariant decides, not the env file. **A restart cannot reach
+  `applyRolloverSync`.**
+- **S-R2 PASS** - **0** `audit_logs` rows with `createdAt` inside the cutover window 02:48-02:55Z; the newest row
+  in the whole table is id 1132 at 02:25:26Z, **23 minutes before the cutover**. `generation_runs` 9,
+  `teaching_load_cycles` 4, `published_schedule_revisions` 6, `manual_schedule_edits` 11, migrations 11 - all
+  unmoved. No generation, publication, migration or term-cache write on boot.
+- **S-D1 PASS, non-vacuous** - proven before the cutover and again over the live origin. Server: `dist/services`
+  holds **393** files vs the live build **384**, and `active-term-resolver.service.js`,
+  `teaching-load-capacity.service.js`, `year-setup-carryover.service.js` are present in the new build and absent
+  from the old. Client: `index-Dy1q6261.js` **200** (306 535 B) and the old `index-CiUQQK4s.js` **404**;
+  `AdminYearSetup-DrFSsmYn.js` 200 and the old `AdminYearSetup-DAXETajy.js` 404. **`dist/server.js` was not used**
+  as the discriminator - it is a 3 KB entry stub.
+- **S-B1 PASS** - rollback dir clean at `ce1257c8`, both `dist`s present, 0 reparse points, contract invariant
+  `false`. One-step supervised reset.
+
+### Two things I did, and one I want you to see
+
+1. **Capacity reclaim before the build (E: was 25.45 GiB).** Removed the two superseded staging worktrees
+   `E:\ATLAS-staging\24e268fb...` (train 6) and `...\c9be17fe...` (train 4) with **non-forced** `git worktree
+   remove` + `prune`, after restoring each machine-installed staging contract so the tree was clean. E:
+   **25.45 -> 28.55 GiB**. Neither was running. **Never touched** `lane-a4-release-20260929-5` (now the rollback
+   basis) or `lane-a4-release-20260928-4prod`.
+2. **`powershell -File` cannot run `deploy-staging.ps1` and cannot run this deploy path cleanly** - the client
+   build also fails closed on a missing `VITE_ENROLLPRO_URL` (the guard working correctly). I read the origin
+   from the durable live env key `ENROLLPRO_PROXY_ORIGIN` and rebuilt; the value is never printed by the
+   scripts and I did not put it in any doc.
+3. **Your Codex report, read literally: `A pass 4/5 . B pass 0/4 . BLOCKERS: 0 . verdict: GO`.** I am recording
+   it as **GO with 0 blockers**, which is your call and the gate I gate on. But I am not restating it as a clean
+   walk: its 4 Part-B rows and 4 MAJOR findings (no usable timetable, term unresolved on Teacher Concerns and
+   Room Schedules, generic shortage line, missing "Cover these classes") are **live now**. They are data/UX
+   findings for product lanes, not release blockers, and A2 c14 and A6 c6 packets already exist for them.
+
+**Worktrees:** `lane-a4-release-20260929-7prod` = `KEEP_ACTIVE` (it is the live runtime source dir).
+`lane-a4-release-20260929-7` = `RETIRE_AFTER_ACCEPTANCE` (staging deploy source; staging still serves it).
+`lane-a4-release-20260929-6` = `PRESERVE_FOR_DECISION` (train 6 abandoned gate worktree, reclaim candidate).
+
+**Next action (single):** Lane C runs the S-W2 browser rows on `https://njgrm.buru-degree.ts.net` - `/timetable`
+and `/teaching-load` - and posts the result here.
