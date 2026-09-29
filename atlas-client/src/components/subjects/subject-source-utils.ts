@@ -43,12 +43,31 @@ export function resolveSubjectSourceCopy(sourceState: AdminSourceState) {
  * An unrecognised code falls back to a calm generic reading rather than
  * surfacing the raw sentence, because the raw sentence is the defect.
  */
-type TermAuthorityCopy = { description: string; nextAction: string };
+type TermAuthorityCopy = {
+	description: string;
+	nextAction: string;
+	/**
+	 * A5 C4: the BANNER HEADLINE, when this code needs one that the `state` alone
+	 * cannot supply. Omitted for every code that reads correctly under the
+	 * state-derived headline, and the banner falls back to exactly today's
+	 * sentence when it is absent — so a mapped code never silently over-rules the
+	 * state it arrived in.
+	 *
+	 * `TERM_CACHE_INVALID` is the one code that needs it, and the reason is
+	 * specific: it arrives as `VERIFIED_CACHED`, which otherwise inherits the
+	 * stale-SOURCE headline "Using saved EnrollPro year and terms". That names the
+	 * source, not the thing the scheduler must do — the TERM information is what
+	 * has to be updated before they can schedule. A headline derived from `state`
+	 * cannot express that; one derived from the CODE can.
+	 */
+	headline?: string;
+};
 
 const TERM_AUTHORITY_COPY: Readonly<Record<string, TermAuthorityCopy>> = {
 	TERM_CACHE_INVALID: {
 		description: 'ATLAS could not confirm the saved school year and terms, so it is not using them.',
 		nextAction: 'Refresh the term data from EnrollPro, then try again before scheduling into a term.',
+		headline: 'Term information needs updating before scheduling.',
 	},
 	TERM_CACHE_SCHOOL_MISMATCH: {
 		description: 'The saved school year and terms belong to a different school, so ATLAS is not using them.',
@@ -105,18 +124,30 @@ const TERM_AUTHORITY_FALLBACK: TermAuthorityCopy = {
  * `SubjectTermContractPopover` in the table footer. It still resolves to an
  * empty description, so the resolver stays the single place that decides which
  * states need exception copy.
+ *
+ * A5 C4: `headline` is the CODE-AWARE banner headline, and it is `''` unless the
+ * mapped code declares one. The banner keeps its own state-derived sentence as
+ * the fallback, so this resolver returns a headline only where the `state`
+ * genuinely cannot say the right thing — it does not become a second source of
+ * truth for every state. `description` and `nextAction` are UNCHANGED by this
+ * addition; `A3-C4-3a`/`3b`/`3b2` pin them and they remain the accepted copy.
  */
 export function resolveTermAuthorityCopy(
 	termAuthority: TermAuthority | null,
-): { description: string; nextAction: string; code: string | null } {
-	if (!termAuthority) return { description: '', nextAction: '', code: null };
+): { description: string; nextAction: string; code: string | null; headline: string } {
+	if (!termAuthority) return { description: '', nextAction: '', code: null, headline: '' };
 	if (termAuthority.state === 'VERIFIED_LIVE') {
-		return { description: '', nextAction: '', code: termAuthority.code ?? null };
+		return { description: '', nextAction: '', code: termAuthority.code ?? null, headline: '' };
 	}
 	const code = (termAuthority.code ?? '').trim();
 	const mapped = code ? TERM_AUTHORITY_COPY[code] : undefined;
 	const base = mapped ?? TERM_AUTHORITY_FALLBACK;
-	return { description: base.description, nextAction: base.nextAction, code: code || null };
+	return {
+		description: base.description,
+		nextAction: base.nextAction,
+		code: code || null,
+		headline: base.headline ?? '',
+	};
 }
 
 /**

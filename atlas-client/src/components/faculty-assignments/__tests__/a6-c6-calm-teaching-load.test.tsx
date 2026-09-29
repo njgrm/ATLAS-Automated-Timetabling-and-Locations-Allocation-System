@@ -36,6 +36,7 @@ import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { TEMPORARY_ROLE_BUCKET_KEY, TEMPORARY_ROLE_BUCKET_LABEL } from '@/hooks/useTeachingLoadUI';
+import { PICKER_TRIGGER_FACE_BUDGET_CHARS, pickerTriggerFaceFits } from '@/ui/picker-trigger';
 
 /** A repository source file, read by path from the client root. */
 const readSource = (relative: string): string =>
@@ -445,6 +446,70 @@ test("A6C6-1 the two inclusion switches carry Lane C's exact plain sentences, an
 });
 
 /* ═══════════════ A6C6-2 — ITEM 1's second half: the editor heading ═══════ */
+
+test('A6C6-1c MUTANT ROW: this page and /subjects share ONE mechanism for a content-sized trigger', () => {
+	/*
+	 * THE OVERLAP THIS ROW SETTLES, recorded because the merge is where it happened.
+	 *
+	 * A6 c6 added `PICKER_ROW_CONTROL_CLASS` to `@/ui/picker-trigger` for this
+	 * page's `More filters` trigger. Separately, A5 C4 added an `auto` width
+	 * variant to the same file for `/subjects`' `More filters` disclosure — the
+	 * same problem, the same week, the same file, two mechanisms. A text merge of
+	 * the two lanes was clean, which is exactly why nobody would have noticed:
+	 * only a row that says "there must be ONE mechanism" makes the difference
+	 * visible.
+	 *
+	 * The settlement took A5's shape, because a content-sized trigger is a WIDTH
+	 * and `pickerTriggerClass('auto')` already composes everything the other token
+	 * carried.
+	 */
+	const pt = readSource('src/ui/picker-trigger.ts');
+	const fb = readSource('src/components/faculty-assignments/TeachingLoadFilterBar.tsx');
+
+	// A5's variant survives, intact, with its own rationale.
+	assert.match(
+		stripComments(pt),
+		/auto:\s*'w-auto whitespace-nowrap'/,
+		'`/subjects`\'s `auto` width variant must survive this lane - it is the adopted mechanism, not something this slice competes with',
+	);
+
+	// The competing token is gone from the primitive AND from every call site.
+	assert.ok(
+		!stripComments(pt).includes('PICKER_ROW_CONTROL_CLASS'),
+		'the duplicate row-control token must not come back to `@/ui`',
+	);
+	assert.ok(
+		!stripComments(fb).includes('PICKER_ROW_CONTROL_CLASS'),
+		'nor to this page: the trigger takes the shared `auto` variant',
+	);
+	assert.match(
+		stripComments(fb),
+		/pickerTriggerClass\('auto'\)/,
+		'and the trigger must actually use it - a retired token with no replacement is a regression',
+	);
+
+	// `pickerTriggerFaceFits` must not report a FALSE FAILURE for a width that
+	// cannot clip. This is the line A5's `auto` introduced: when the variant
+	// landed, the function returned `false` for any width with no budget, so a
+	// caller shortening a label for an `auto` trigger was told its face does not
+	// fit when it physically cannot not. A guard that cries wolf on the safest
+	// width is how a guard gets deleted.
+	assert.equal(pickerTriggerFaceFits('auto', 'More filters', 'More filters (2 on)'), true, 'a content-sized trigger cannot clip its face');
+	assert.equal(pickerTriggerFaceFits('fill', 'Grade', 'Science'), true, 'and neither can one that claims a slot');
+	assert.equal(pickerTriggerFaceFits('md', 'Grade', 'All'), true, 'a face inside the budget still fits');
+	assert.equal(pickerTriggerFaceFits('md', 'Grade', 'Science'), false, 'and one past the budget still does not - the guard still bites');
+	assert.equal(pickerTriggerFaceFits('xl', 'Department', 'Mathematics'), true, 'the `xl` budget a data-driven name needs is present and used');
+
+	// The budget table is still DERIVED from the width tokens, and still has no
+	// entry for the two unbounded widths.
+	for (const unbounded of ['fill', 'auto']) {
+		assert.equal(
+			(unbounded in PICKER_TRIGGER_FACE_BUDGET_CHARS),
+			false,
+			`${unbounded} claims a width it does not have, so it must have no character budget`,
+		);
+	}
+});
 
 test('A6C6-1b MUTANT ROW: the temporary-role group heading is a plain label, not a code', () => {
 	/*

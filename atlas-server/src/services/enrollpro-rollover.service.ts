@@ -8,6 +8,7 @@ import { publishNotificationEvent } from './notification-events.service.js';
 import { ensureCanonicalClassProgramSlots } from './class-program-slot.service.js';
 import { ensureTeachingLoadCycle, serializeTeachingLoadCycle, type TeachingLoadCycleSource } from './teaching-load-cycle.service.js';
 import { syncActiveTermContractAuthority, resolveTermAuthorityStatus, fetchEnrollProTermContract, type TermContractSyncResult, type TermAuthorityStatus } from './enrollpro-term-contract.service.js';
+import { applyYearSetupCarryover, resolveYearSetupCarryOptions, type YearSetupCarryOptions, type YearSetupCarryoverResult } from './year-setup-carryover.service.js';
 
 type DriftStatus = 'aligned' | 'atlas-stale' | 'enrollpro-unreachable' | 'mapping-conflict';
 type RolloverAction = 'NONE' | 'RUN_ROLLOVER_SYNC' | 'REVIEW_MAPPING_CONFLICT' | 'RETRY_ENROLLPRO' | 'RESET_DUMMY_YEAR' | 'RUN_ARCHIVE_AND_SYNC';
@@ -206,6 +207,17 @@ export type RolloverApplyResult = RolloverStatusResult & {
 		sections: Awaited<ReturnType<typeof syncSectionsFromExternal>> | null;
 		policyReady: boolean;
 		canonicalTemplatesSeeded: number;
+		/**
+		 * A7-C4: what the new school year kept, and why. Present on the APPLY
+		 * RESPONSE only (packet R8) — `getRolloverStatus` is read by six surfaces
+		 * including four other lanes' pages, so no count is added to a read path
+		 * and no new request is introduced anywhere.
+		 */
+		yearSetupCarry: (YearSetupCarryoverResult & {
+			/** The switches as the SERVER resolved them, never as requested. */
+			keepSchedulingRules: boolean;
+			keepGradeTimeWindows: boolean;
+		}) | null;
 	};
 	/**
 	 * TERM-CONSUME-C02: only present when the caller explicitly opts into the
@@ -1483,6 +1495,19 @@ export type ArchiveAndSyncInput = {
 	reason?: string;
 	initiatedBy?: 'user' | 'system';
 	acknowledgeReconfiguredSectionIds?: number[];
+	/**
+	 * A7-C5 — forwarded VERBATIM into `applyRolloverSync`, which hands it to
+	 * `resolveYearSetupCarryOptions`. This path has always carried over: before
+	 * this field existed the call simply arrived with nothing, and the fail-safe
+	 * read that as KEEP. So the value was already governing a decision while the
+	 * client had no way to express it.
+	 *
+	 * Nothing here may validate, coerce or default a value. The two switches are
+	 * interpreted in exactly one function, and "anything not literally `false`
+	 * keeps" is a property of the server, not of a checkbox — a stale client, a
+	 * direct API caller and a missing field must all still keep.
+	 */
+	yearSetupCarry?: Partial<YearSetupCarryOptions>;
 	/** Test seam: replaces the standard apply (same signature). */
 	applyRolloverSyncImpl?: typeof applyRolloverSync;
 	/** Test seam: replaces the direct notification publish. */
@@ -1552,6 +1577,8 @@ export async function archiveAndSyncActiveYear(input: ArchiveAndSyncInput): Prom
 		actorId: input.actorId,
 		initiatedBy: input.initiatedBy,
 		acknowledgeReconfiguredSectionIds: input.acknowledgeReconfiguredSectionIds,
+		// A7-C5: verbatim, so the one fail-safe interpreter decides.
+		yearSetupCarry: input.yearSetupCarry,
 	});
 
 	await prisma.auditLog.create({
@@ -1683,7 +1710,20 @@ export async function previewArchiveAndSync(
 export async function applyRolloverSync(
 	schoolId: number,
 	authToken?: string,
-	options?: { facultyMode?: FacultySyncMode; actorId?: number; acknowledgeReconfiguredSectionIds?: number[]; initiatedBy?: 'user' | 'system'; syncTermContract?: boolean },
+	/**
+	 * A7-C4: `yearSetupCarry` is PER-APPLY REQUEST VALUES, not persisted settings
+	 * (packet R1). There is deliberately no per-school settings table and no JSON
+	 * column on `School`: adding one is a migration, and this packet does not need
+	 * one. Stated plainly, so nobody is surprised: the choice is NOT remembered
+	 * across rollovers, so a later rollover starts from keep again — which is the
+	 * operator's stated default anyway. Persistence is a follow-up row.
+	 *
+	 * The DEFAULT is resolved in `resolveYearSetupCarryOptions`, NOT here, so a
+	 * caller that passes nothing (this function's own `resetDummyYearAndApplyRollover`
+	 * path, `archiveAndSyncActiveYear`, `applyTestYearRecovery`, the automation
+	 * path) cannot turn the default off by omission.
+	 */
+	options?: { facultyMode?: FacultySyncMode; actorId?: number; acknowledgeReconfiguredSectionIds?: number[]; initiatedBy?: 'user' | 'system'; syncTermContract?: boolean; yearSetupCarry?: Partial<YearSetupCarryOptions> },
 ): Promise<RolloverApplyResult> {
 	const startedAt = Date.now();
 	const preview = await previewRolloverSync(schoolId, authToken);
@@ -1727,6 +1767,8 @@ export async function applyRolloverSync(
 	let sectionSync: Awaited<ReturnType<typeof syncSectionsFromExternal>> | null = null;
 	let canonicalTemplatesSeeded = 0;
 	let failedPhase: string | null = null;
+	let yearSetupCarry: YearSetupCarryoverResult | null = null;
+	let yearSetupCarryOptions: YearSetupCarryOptions | null = null;
 	try {
 		facultySync = await syncFacultyFromExternal(schoolId, activeYear.id, authToken, {
 			mode: options?.facultyMode ?? 'reconcile',
@@ -1738,6 +1780,24 @@ export async function applyRolloverSync(
 		sectionSync = await syncSectionsFromExternal(schoolId, activeYear.id, authToken);
 		const completedFacultySync = facultySync;
 		const completedSectionSync = sectionSync;
+		// A7-C4 R2 — THE ORDERING IS THE WHOLE POINT. This MUST stay immediately
+		// before `failedPhase = 'policy'` / `getOrCreatePolicy(...)`:
+		// `getOrCreatePolicy` CREATES a defaults row for the new year, so a carry
+		// that ran afterwards would find a non-empty target, copy nothing under the
+		// fill-empty-only rule, and the new school year would silently get
+		// factory-default scheduling rules — exactly what the operator is
+		// complaining about. Running it here means `getOrCreatePolicy` finds an
+		// existing row and takes its existing normalise-only path, unchanged. Do not
+		// move `getOrCreatePolicy` into the carry transaction and do not reorder the
+		// phases.
+		failedPhase = 'year-setup-carryover';
+		yearSetupCarryOptions = resolveYearSetupCarryOptions(options?.yearSetupCarry);
+		yearSetupCarry = await applyYearSetupCarryover({
+			schoolId,
+			toYearId: activeYear.id,
+			actorId: options?.actorId ?? 0,
+			options: yearSetupCarryOptions,
+		});
 		failedPhase = 'policy';
 		await getOrCreatePolicy(schoolId, activeYear.id);
 		failedPhase = 'canonical-templates';
@@ -1828,6 +1888,21 @@ export async function applyRolloverSync(
 					facultyDeactivatedCount: completedFacultySync.deactivatedCount,
 					acknowledgedReconfiguredSectionIds: Array.from(acknowledgedIds),
 					reconfiguredSectionCount: preview.reconfiguredSections.length,
+					// A7-C4: what the new school year actually kept, and the two
+					// switches as they were RESOLVED — not as they were requested — so
+					// the audit records the guarantee that was applied, not the value a
+					// client hoped for.
+					yearSetupCarry: yearSetupCarry == null ? null : {
+						sourceYearId: yearSetupCarry.plan.sourceYearId,
+						sourceYearLabel: yearSetupCarry.plan.sourceYearLabel,
+						applied: yearSetupCarry.applied,
+						keepSchedulingRules: yearSetupCarryOptions?.keepSchedulingRules ?? true,
+						keepGradeTimeWindows: yearSetupCarryOptions?.keepGradeTimeWindows ?? true,
+						schedulingPolicyInserted: yearSetupCarry.plan.schedulingPolicy.toInsert,
+						gradeShiftWindowsInserted: yearSetupCarry.plan.gradeShiftWindows.toInsert,
+						policySpecialEventsInserted: yearSetupCarry.plan.policySpecialEvents.toInsert,
+						auditLogId: yearSetupCarry.auditLogId,
+					},
 					sourceGeneratedAt: completedSectionSync.fetchedAt.toISOString(),
 					completedAt: new Date(completedAt).toISOString(),
 					durationMs: completedAt - startedAt,
@@ -1931,6 +2006,17 @@ export async function applyRolloverSync(
 			sections: sectionSync,
 			policyReady: true,
 			canonicalTemplatesSeeded,
+			// A7-C4: on the APPLY RESPONSE only (R8). `getRolloverStatus` is read
+			// by six surfaces including four other lanes' pages, so no count is
+			// added to any read path; the page already renders this response. The two
+			// switches ride along as the server RESOLVED them, so the confirmation
+			// describes the guarantee that was applied rather than the value a client
+			// asked for.
+			yearSetupCarry: yearSetupCarry == null ? null : {
+				...yearSetupCarry,
+				keepSchedulingRules: yearSetupCarryOptions?.keepSchedulingRules ?? true,
+				keepGradeTimeWindows: yearSetupCarryOptions?.keepGradeTimeWindows ?? true,
+			},
 		},
 		termContract,
 	};

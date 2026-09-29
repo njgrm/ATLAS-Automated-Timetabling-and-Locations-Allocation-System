@@ -654,10 +654,47 @@ test('A3-C4-3a: the server-authored TERM_CACHE_INVALID sentence never reaches th
 		'the server-authored sentence is still shown verbatim',
 	);
 	// ...and the raw code + raw sentence are still reachable for diagnosis.
+	//
+	// A5 C4, RE-POINTED — NOT DELETED (AGENTS.md §16). The original assertion was
+	// a single `assert.match(document.body.textContent, /TERM_CACHE_INVALID/)`.
+	// It passed on base ONLY because the code was the affordance's visible label,
+	// which is exactly the defect the Codex walk reported ("put the code behind
+	// Help" — §11 rule 3: a code belongs behind `Help`, never in a visible
+	// label). So a whole-document TEXT search is no longer the right probe: the
+	// code correctly no longer appears as text at all until the popover is open.
+	//
+	// The property this row protects is UNCHANGED and is now asserted more
+	// precisely than before, in three places the code must be reachable from:
+	//   1. the trigger's accessible name (a screen reader reaches it with no click),
+	//   2. inside the popover once opened (a mouse user reaches it in one click),
+	//   3. and it must NOT be readable as visible text on the banner either way.
+	const detailTrigger = document.body.querySelector('[data-testid="subject-term-authority-detail"]');
+	assert.ok(detailTrigger, 'the labelled diagnostic affordance is gone');
 	assert.match(
-		document.body.textContent ?? '',
+		detailTrigger.getAttribute('aria-label') ?? '',
 		/TERM_CACHE_INVALID/,
-		'the diagnostic code is no longer reachable anywhere',
+		'the raw code is no longer in the affordance\'s accessible name, so a screen-reader user cannot reach it',
+	);
+	await act(async () => {
+		detailTrigger.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }));
+		detailTrigger.dispatchEvent(new dom.window.MouseEvent('pointerup', { bubbles: true, cancelable: true, button: 0 }));
+		detailTrigger.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+	});
+	await act(async () => { await Promise.resolve(); });
+	const openedDiagnostic = document.body.querySelector('[data-radix-popper-content-wrapper]');
+	assert.ok(openedDiagnostic, 'the diagnostic popover did not open on a real pointer sequence');
+	assert.match(
+		(openedDiagnostic.textContent ?? '').replace(/\s+/g, ' '),
+		/TERM_CACHE_INVALID/,
+		'the diagnostic code is no longer reachable anywhere; the change DELETED evidence rather than demoting it',
+	);
+	// Superseded, recorded verbatim: the whole-document text search is gone
+	// because it is now satisfied only by a defect.
+	//   assert.match(document.body.textContent ?? '', /TERM_CACHE_INVALID/, ...)
+	assert.doesNotMatch(
+		banner.textContent ?? '',
+		/TERM_CACHE_INVALID/,
+		'the raw code is visible text on the banner again, which is the defect A5 C4 removed',
 	);
 	await unmount();
 });
@@ -827,8 +864,41 @@ test('A3-C4-4a: a term-authority state with no message still shows calm copy and
 		detail,
 		'a blocked state with no message offers no labelled affordance for the raw detail (AGENTS.md §8: not a title attribute)',
 	);
+	// A5 C4, RE-POINTED — NOT DELETED (AGENTS.md §16). This row previously read:
+	//     const detailText = detail.textContent ?? '';
+	//     assert.match(detailText, /ENROLLPRO_UNREACHABLE/,
+	//       'the raw code is not carried in the detail affordance');
+	// That assertion is SUPERSEDED because it required the raw code to be the
+	// affordance's VISIBLE LABEL, which is precisely the defect the Codex walk
+	// found: "Show TERM_CACHE_INVALID as *Term information needs updating before
+	// scheduling*, and put the code behind Help" (§11 rule 3 — a code belongs
+	// behind `Help`, never in a visible label). The property this row exists to
+	// protect — the code is NOT DESTROYED, it is demoted — is now asserted
+	// STRICTLY STRONGER below: the code must be ABSENT from the trigger's text
+	// AND PRESENT inside the opened popover. A row that only checked presence
+	// would have passed an implementation that deleted the diagnostic entirely.
 	const detailText = detail.textContent ?? '';
-	assert.match(detailText, /ENROLLPRO_UNREACHABLE/, 'the raw code is not carried in the detail affordance');
+	assert.doesNotMatch(
+		detailText,
+		/ENROLLPRO_UNREACHABLE/,
+		`the raw code is the affordance's visible label again, which is the defect A5 C4 removed: "${detailText}"`,
+	);
+	await act(async () => {
+		detail.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }));
+		detail.dispatchEvent(new dom.window.MouseEvent('pointerup', { bubbles: true, cancelable: true, button: 0 }));
+		detail.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+	});
+	await act(async () => { await Promise.resolve(); });
+	const openedDetail = document.body.querySelector('[data-radix-popper-content-wrapper]');
+	assert.ok(
+		openedDetail,
+		'the detail popover did not open on a real pointer sequence, so the demoted code was never exercised',
+	);
+	assert.match(
+		(openedDetail.textContent ?? '').replace(/\s+/g, ' '),
+		/ENROLLPRO_UNREACHABLE/,
+		'the raw code is no longer reachable anywhere; the change DELETED evidence rather than demoting it',
+	);
 	assert.equal(
 		document.body.querySelector('[title]'), null,
 		'a bare title attribute was used for the detail — AGENTS.md §8 forbids it',

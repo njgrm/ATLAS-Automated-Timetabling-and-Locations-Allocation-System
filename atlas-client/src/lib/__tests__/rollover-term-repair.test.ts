@@ -59,12 +59,35 @@ test('year-drift term state never claims a term repair', () => {
 	assert.equal(view.needsRepair, false);
 });
 
+/**
+ * A7-C4 SUPERSESSION (2026-09-29). The four assertions below used to read the
+ * apply control's testid out of `RolloverGuidanceCard.tsx` and failed after the
+ * C4 §8 extraction moved the three confirmation dialogs into
+ * `RolloverConfirmationDialogs.tsx`. The assertion encoded an invariant —
+ * "the preview dialog owns the apply control" — not a filename, and that
+ * invariant still holds at the new location. Per AGENTS §16 the control is
+ * NOT deleted and the row is NOT weakened: the original check is kept, retargeted
+ * at the component that now owns the dialog, and it is joined by a second
+ * assertion that the card still renders that component. The row therefore still
+ * goes red if the control disappears from EITHER file, or if the extraction ever
+ * orphans the dialog. `a7-year-setup-carry-switches-c4` proves the same thing
+ * end-to-end against a real rendered DOM, which is stronger than either string.
+ */
+function readRuntimeComponent(file: string): string {
+	return readFileSync(new URL(`../../components/runtime/${file}`, import.meta.url), 'utf8');
+}
+
 test('the card wires the narrow preview/apply contract and not the broad rollover apply for this state', () => {
-	const source = readFileSync(new URL('../../components/runtime/RolloverGuidanceCard.tsx', import.meta.url), 'utf8');
+	const source = readRuntimeComponent('RolloverGuidanceCard.tsx');
+	const dialogs = readRuntimeComponent('RolloverConfirmationDialogs.tsx');
 	assert.ok(source.includes('previewTermCacheSync(requestSchoolId)'), 'term repair opens the zero-write term preview for the resolved actor school');
 	assert.ok(source.includes('applyTermCacheSync(schoolId'), 'term repair persists through the narrow term-cache apply');
 	assert.ok(source.includes('data-testid="rollover-term-repair-action"'), 'one repair action is exposed');
-	assert.ok(source.includes('data-testid="rollover-term-repair-apply"'), 'the preview dialog owns the apply control');
+	assert.ok(dialogs.includes('data-testid="rollover-term-repair-apply"'), 'the preview dialog owns the apply control');
+	assert.ok(
+		source.includes('RolloverConfirmationDialogs') && /<RolloverConfirmationDialogs[\s>]/.test(source),
+		'the card still renders the component that owns the term-repair apply control, so the extraction did not orphan it',
+	);
 	assert.ok(source.includes('describeTermAuthority(status?.termAuthority)'), 'the card renders the separate term-authority state');
 	// RR-TERM-CACHE-C01R: no school-1 default may remain in the card or its
 	// term-authority wrappers.

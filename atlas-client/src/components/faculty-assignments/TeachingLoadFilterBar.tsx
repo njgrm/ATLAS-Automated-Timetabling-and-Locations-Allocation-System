@@ -62,7 +62,7 @@ import { FilterPicker } from '@/ui/filter-picker';
 import { Switch } from '@/ui/switch';
 import { Label } from '@/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
-import { PICKER_ROW_CONTROL_CLASS } from '@/ui/picker-trigger';
+import { pickerTriggerClass } from '@/ui/picker-trigger';
 import {
 	type TeachingLoadStatusFilter,
 	type TeachingLoadLoadFilter,
@@ -365,13 +365,23 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 				    */}
 				<Popover>
 					<PopoverTrigger asChild>
+						{/*
+						 * `pickerTriggerClass('auto')` — the SAME `auto` width variant
+						 * `/subjects` uses for its `More filters` disclosure (A5 C4). This
+						 * trigger is content-sized for the same reason that one is: its
+						 * label states the on-count and changes with it. Taking the shared
+						 * variant is what keeps this row and `/subjects` reading as one
+						 * instrument, and it is why this page never re-declares the height,
+						 * the padding or the type treatment. The `gap-1.5` is the button's own
+						 * icon gap and is not part of the shared look.
+						 */}
 						<Button
 							type="button"
 							variant="outline"
 							size="sm"
 							data-testid="teaching-load-more-filters"
 							aria-label={inclusionCount > 0 ? `More filters, ${inclusionCount} on` : 'More filters'}
-							className={`${PICKER_ROW_CONTROL_CLASS} gap-1.5`}
+							className={`${pickerTriggerClass('auto')} gap-1.5`}
 						>
 							<ListFilter className="size-3.5" aria-hidden="true" />
 							More filters{inclusionCount > 0 ? ` (${inclusionCount} on)` : ''}

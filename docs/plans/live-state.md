@@ -1839,6 +1839,48 @@ or process borrower, and is `RETIRE_AFTER_INTEGRATION` (E: 47.55 GiB before reti
 
 ## Lane C — current lane (written only by Planner C)
 
+### A8 server stalls + SSE stream leak — 2026-09-29 ~10:0x +08 — **ready for release at `6a496cbd` on `main`**
+
+Packet `docs/prompts/a8-server-stalls-2026-09-29.md`. Items 2 and 4 closed; **items 1, 3 and 5 are NOT
+discharged** (see below). 7 paths, 769+/28−, **0 `prisma/`**, no migration, no auth change. A4 owns the deploy.
+
+- **The 2.4 s freeze is NOT ATLAS application work, and this is measured, not argued.** Live and staging stall in
+  lockstep: over the 98-min overlap **523 of 596** staging stalls have a live stall within ±1 s, **median offset
+  0.000 s**, rates 5.99 vs 6.07/min. A bare Node probe running concurrently on the same host saw **0 blocks
+  >200 ms in 75 s** while the server logged **10 stalls** in that window. A full ATLAS server on loopback against
+  the same staging data: **0 stalls in 8 min at 0 streams, 0 in 3 min at 26 verified streams**.
+  **Eliminations:** across 2,266 stall lines heap never exceeded **53 MB of 4,288 MB (≤1.2%)** → GC excluded;
+  `corr(streams, blocked_ms) = −0.037` on live and median blocked time *falls* as the leak grows → **the leak does
+  not cause the stalls**. Independent QA searched for an in-repo cause and found none.
+  **What proves it:** the two supervisor logs (read-only), plus the loopback numbers above.
+- **The stream leak WAS ours and is fixed.** All four SSE routes discarded `sseWrite`'s return value, which is
+  `false` exactly when the peer is gone — so a half-open socket kept its timer, subscriber and slot forever. Now
+  the failed write is authoritative. Measured: 26 verified streams → **0** established 12 s after client abort
+  (before and after); 26 concurrent attempts by one principal → **20 × 200** `text/event-stream` + **6 × 429**
+  `TOO_MANY_STREAMS`. Four heavy routes warm p95/20: `runtime/context` **15 ms**, `scheduling-authority` **141 ms**,
+  `readiness/diagnostic` **387 ms**, `sections/summary` **347 ms** — all under the packet's 1 s target.
+- **QA: round 1 `CORRECTION_REQUIRED` 11 rows / 7 pass / 4 fail, 2 BLOCKING — both mine and both real.** (1) My cap
+  was a **school-wide** bucket on `preference` + `published-schedule`: those handlers verify the token into a
+  local and never set `req.user`, so every user collapsed to `anon:<school>:<year>` — QA proved `[200×20, 429×5]`
+  with 25 distinct users vs `[200×25]` on the control. (2) My admitted slot leaked on the **error path**, locking a
+  principal out until restart while `openCount` reported 0. (3) My per-tick-work row was a **tautology** —
+  `activeHeartbeatCount` was `byId.size` and deleting `clearInterval` survived 4/4. All three fixed.
+  **Round 2: `ACCEPT_READY` 11/11, blocked 0, unperformed 0**, 18 of 20 of QA's own mutations caught + byte-restored.
+  Preserved: 10/10, 6/6, 2/2, 11/11, 8/8. `tsc` 0 errors, build exit 0.
+- **⚠ THIS WILL NOT STOP THE DEMO FREEZE (as of 2026-09-29 ~10:0x).** 32 streams and a 30 s stall at 08:32 was
+  observed live and is unexplained by ATLAS code. **What proves it:** the lockstep and elimination numbers above.
+  **A4 must not let this candidate be described as a freeze fix.**
+- **Open, dated 2026-09-29:** (a) packet items 1/3/5 undischarged — the freeze needs a **host/volume-level** answer,
+  and `E:` is at ~29.8 GiB with 80 registered worktrees, so the §3 reclaim is A4's and is still owed before a
+  release build; (b) the 20-stream cap is per `(user, school, schoolYearId)`, **not per account** — QA measured one
+  account at 40. Do not lower it: a browser `EventSource` treats 429 as fatal and will not retry. (c) The
+  non-privileged faculty 403 branch was **not executed** (no seeded disposable DB) — byte-identical to base, so
+  source evidence only.
+- **Not claimed:** nothing on the live Tailnet, nothing on staging, no deploy, no login, no generation, no
+  publication, no migration, no live-data write, no runtime/task/env change. Worktree
+  `E:/ATLAS-worktrees/lane-a8-server-stalls` = **PRESERVE_FOR_DECISION** until A4 ships `6a496cbd`.
+- **Next action (single, A4's):** put `6a496cbd` in the next train. It closes the leak, not the freeze.
+
 **Pruned by Planner A2 on 2026-09-26, on operator instruction** (Lane C is held by the opencode
 primary-planner session, so A2 may maintain it). **352 lines → this length.** Everything cut was narrative
 or superseded history and stays in Git — `git show a94e2aa5:docs/plans/live-state.md` — and in the lane
@@ -3172,6 +3214,21 @@ Do not write in Lane B/C worktrees.
 
 ## Lane A2 - current lane (written only by Planner A2)
 
+### 2026-09-29, packet a2-header-budget-2026-09-29 - **INTEGRATED at `dca34646` on `main`. 0 fixes live and seen / 1 integrated, not on production / 0 dropped. The memory blocker is FIXED and it was not a leak. A4 owns the deploy (AGENTS.md 14); A2 has not deployed.**
+
+Newest block; the NOT-READY block below is superseded by this one and kept as dated history.
+
+- **THE BLOCKER IS CLOSED, AND IT WAS NOT A LEAK.** `draft-ux-c01.test.tsx` died before reporting a row (`tests 1`, ~7s, `exitCode 4294967295`, 3/3 reproductions; the default heap HIDES it, `--max-old-space-size=512` shows it in ~6s). Bisected one row at a time — 34 rows, each its own process — and exactly ONE row OOMs: `A2-C12-ITEM4`, the row **this slice added**. Cause: `assert.equal(controlRow.querySelector(...), null, msg)`. When that assertion FAILS, `node:assert` builds the message with `util.inspect(actual, {depth: 1000})` on a **jsdom Element**, whose property graph (parentNode → ownerDocument → the whole document) expands combinatorially, and the failure MESSAGE exhausts the heap. The render is not involved: that row's render alone completes in 877ms at 112MB. The one-line fix asserts `querySelector(...) === null` against `true`; the identical failure then reports in ~1.2s. **H10 is the behavioural guard** (re-runs the real file and the real row in a child at a 256MB heap and fails on heap exhaustion), H11 the instant companion; both fail on the reverted form, measured. Commit `008edb8a`. **No production file changed in that commit.**
+- **The 11 + 3 superseded rows were all one cause, and it was arithmetic, not 14 defects.** AGENTS.md §8 puts the 5 sub-nav tabs INSIDE the `<header>` (base: 0 there), so the header's visible-control count went 8 → 12 while the ACTION count went 8 → **7** (`Discard draft` moved under `More`). Re-derived independently by the QA reviewer from the real DOM on both trees. Every superseded row was marked **in place with its original assertion retained verbatim and a replacement beside it** (AGENTS.md §16); no assertion and no `test(` row was deleted. `SELECT_TRIGGER_PICKER_CLASS` in `ui/select.tsx` is byte-equal to Teaching Load's `CONTROL_CHROME` and is A5's and A6's adoption point.
+- **Two more rounds the gates forced, and both found real things.** (1) QA `CORRECTION_REQUIRED` 7/8: `SimplePublishedState` still carried `truncate` in the **published** state while the handoff claimed otherwise — now fixed, with a published-state fixture and H3 extended to it, and the handoff row restated with its date. (2) The AGENTS.md §11 design judgement gate returned **`REJECT_UX` 6/7** on "one status per fact": the operator's own disease had survived in three new forms — the status band printed the run's audience twice adjacent, the published state named its follow-up count twice in one row, and a dead `Edit draft` sat alone on row 2. All four fixes are in (`1f0dc937`), each with a discriminating mutant, and the 1366x768 re-render shows them gone.
+- **Rendered evidence, real Chromium, `docs/reviews/a2-header-budget/`** (10 PNGs + README). Header box **100px → 86px**, exactly two rows (44 + 42) at 1366x768, **no growth at 1920x1080**, and `documentElement.scrollHeight == innerHeight` on every render, so no page scroll. The three offenders the operator named are visibly gone. **Honest labelling: these are ISOLATED loopback component renders, not the authenticated `/timetable` route, and never ATLAS acceptance (AGENTS.md §12).** Lane C's staging walk remains the acceptance.
+- **Gates on the MERGED tree, against `origin/main` `d90e1dec` on the identical 126-file client suite** (main fixed `test:client-suite`'s duplicated `tsx --test` prefix, so the list is 126 not 124): merged **1227 tests / 1189 pass / 38 fail**, origin/main **1220 / 1181 / 39**. **0 new failures, 1 fixed** (the 1000-line cap row, which this slice's header extraction satisfies). `test:ux-a2-header-budget` **28/28**. `tsc` **the same 5 pre-existing errors**, none in a file this range touched. 38 pre-existing failing rows remain and are not mine.
+- **The integration had 2 conflicts, both mechanical, both unions.** `ui/searchable-select.tsx`: **A5 C3 landed on `main` first** and is kept in full (`triggerLabelPrefix` / `triggerLabelValue`, the `min-w-[160px]` removal, disabled options, the `showSearch` gate); this slice's entire contribution to the file is the one `truncate` class, gone, and A5's own contract passes **13/13** on the merged tree. `docs/handoffs/lane-a-to-c.md`: both sides prepended to a newest-first channel file and **no content was contested** — main had 6 posts this branch lacked, this branch 2 that main lacked; merged by union, 46 posts, 0 conflict markers.
+- **P (section-switch speed) stays PARKED** per Lane C's 00:05 ruling. The 9 in-place context overwrites in `useScheduleReviewWorkspaceState.ts:2191-2214` are **still there, unfixed and unclaimed**; the fix is to fold each override into the object literal.
+- **Worktrees:** `lane-a2-header-budget` (`work/a2-header-budget` @ `1f0dc937`) = `RETIRE_AFTER_INTEGRATION`; `lane-a2-header-budget-integ` (`integration/a2-header-budget-20260929` @ `dca34646`) = `KEEP_ACTIVE`; `lane-a2-header-budget-base` and `lane-a2-origmain-baseline` (both detached, created for base comparison) = `RETIRE_AFTER_INTEGRATION`, junction-safe removal owed to A4 under AGENTS.md §14. `E:` free 19.02 GiB, **below the AGENTS.md §3 25 GiB warn line** — a reclaim is A4's, not mine.
+- **Follow-up rows, dated 2026-09-29, carried not dropped:** (a) the disabled `Generate` in the no-schedule state samples as a pale green that reads as a misprinted button rather than as unavailable — a styling decision, not this slice's; (b) the narrow `assert.equal(<node>, null)` shape that OOMs occurs 60+ times elsewhere in the client, all pre-existing and none reported as OOMing, spanning other lanes' files; (c) `RunStateBadge.tsx:186` still carries `truncate` and is now the **Expert** surface only; (d) the earlier `published-1366x768-AFTER.png` render is superseded by the `c2-*` pair without being deleted.
+- **Next action (single):** **request A4 train `dca34646`** — MEDIUM, source-only, client-only; A2 does not deploy. Lane C's staging walk at 1366x768 is the acceptance, and the render rows there are the authenticated-route versions of the isolated renders committed here.
+
 ### 2026-09-29, packet a2-header-budget-2026-09-29 - **NOT READY, NOT INTEGRATED. BLOCKED on a memory defect this change caused. `work/a2-header-budget` at `d6f5d7d5` (over `ee8516bc`, base `ce1257c8`).**
 
 **0 fixes live and seen / 0 integrated / 0 dropped.** Not on `main`, not deployed, not a release candidate. Handoff:
@@ -4374,7 +4431,79 @@ decidable from source. Worktrees `lane-a3-c10-{s1-sections,s3-tldensity,s4-teach
 
 ## Lane A5 — current lane (written only by Planner A5)
 
-- **Stream: `A5-C3-20260929` is COMPLETE and on `origin/main`.** `/subjects` table + the
+- **`A5-C4-20260929` is INTEGRATED and PUSHED at `464332d6` (`main`). NOT deployed — A4 owns the
+  release (§14).** Packet `docs/prompts/a5-2026-09-29-c4.md`; candidate `5c9a18c4` (product
+  `7b58c636` + corrections); merged on `integration/a5-c4-20260929` over the product `main`
+  advance, **zero conflicts, product tree byte-identical to the reviewed candidate**. **0 fixes
+  live and seen / 5 integrated / 0 dropped.**
+- **What it fixes** — the five Codex design findings Lane C routed at 06:58 (train 6 held at
+  staging; evidence `docs/reviews/codex-staging-train6-24e268fb/`). **None of them is a speed
+  finding**; the 8-12 s page loads are A8's, and no timeout, retry or poll was added here.
+  1. **`TERM_CACHE_INVALID` read in plain words.** The raw code was the *visible label* of the
+     diagnostic popover; it now reads **`Help`**, the code moves behind it (never deleted — the
+     anti-deletion row opens the real popover and finds the code **and** the raw server
+     sentence), and the banner headline now resolves from the **CODE** rather than from `state`
+     alone: *Term information needs updating before scheduling.* An unmapped code keeps today's
+     headline. `description`/`nextAction` copy is byte-identical.
+  2. **Filters: Grade and Program stay visible; Status, Room, Term behind ONE `More filters`.**
+     Labelled `More filters (n)` counting **set** filters, so a hidden active filter is never
+     invisible. **7 visible controls → 5** (§11 subtract-first). The disclosure is the shared
+     `@/ui` picker trigger; an `auto` width variant was **added to `picker-trigger.ts`** so every
+     page gets it, per §8.
+  3. **No empty table under "Checking source."** The 8-row skeleton grid is **replaced** by one
+     centred `AdminStatePanel` until the first catalog response resolves, so the chip and the
+     body can no longer disagree. No timer, no poll, no invented retry.
+  4. **Shell: a route change shows the new page's loading state at once.** Root cause read, not
+     guessed: `<AnimatePresence mode="wait">` meant the **old** page stayed mounted and visible
+     under the **new** URL until its exit completed — on an animation frame, so a stalled main
+     thread (A8's finding) could hold it indefinitely. The gate is removed, the 150 ms fade and
+     the remount key stay, `resolveOutletKey` is untouched, the outlet is extracted to
+     `components/app-shell/RouteOutlet.tsx` as the testable seam, and the fallback names the page
+     from `resolveRouteChrome` — no second title source.
+  5. **`pages/Audit.tsx` 1003 → 891 lines** (over §8's 1000 cap, caused by my own `ac8adf09`);
+     `AuditFindingsPanel.tsx` is 193. The repo-wide B5 cap guard is no longer red on it.
+- **Review: two rounds, the throughput cap honoured.** Round 1 `REJECT_UX` 24/18/**3**/**1**/**2**:
+  the design-gate axis-4 miss (the disclosure hand-restated the shared trigger's chrome and
+  omitted `tracking-normal`), a `ux-r03d` pin this range broke and did not report, and a
+  file-count correction that **masked** the real 108-vs-95 ratchet failure. Round 2
+  `ACCEPT_READY` **41/41/0/0**, all three reproduced closed with 12 and 5 mutation controls. **The
+  one-look fix is real:** the disclosure and the two pickers now render an identical `@/ui` token
+  set, the only difference being the declared `w-auto` vs `w-32`.
+- **Two of my own errors, on the record (§16 holds planner records to the same rule).** (1) The
+  F3 correction raised one side of a pin's arithmetic and left the other, so the suite kept the
+  *same* failure count (9/7/2) while the failing **rows** changed — §11's "count the rows, check
+  they are the same rows", made by me. (2) Round-2 QA **N1** found one assertion the executor
+  added was vacuous: a case-sensitive `epoch` that can never match this codebase's real
+  `routeEpoch`. **Planner-fixed directly** (`5c9a18c4`, one-line `/i`) and verified by running it.
+- **⚠ THREE ROWS ARE UNPERFORMED — a browser decides them, and they are A4's/Lane C's, not
+  mine.** Design-gate axis 2 (truncation, cramping) **CANNOT DECIDE** in jsdom. 1) The new filter
+  row and both new panels at **1366×768 and 390px**. 2) `More filters (n)` under load.
+  3) The item-4 outcome a user sees: the old page gone the instant the URL changes.
+  **A4: carry these as browser rows in the release packet, not source rows** — nothing I ran
+  proves the deployed chunk.
+- **`npm run build` is BLOCKED, not failed** — the repo's own fail-closed `VITE_ENROLLPRO_URL`
+  guard. **A4 must satisfy it at release; no lane invented a value.**
+- **Still over the §8 cap, and NOT mine:** `components/runtime/RolloverGuidanceCard.tsx` at
+  **1008** physical lines (last product change `3ce60260`, `work/a7-school-year-setup-c2`).
+  **A7 owns the split**; the B5 guard stays red on it until then, and it is also why
+  `a3-palette-token-sweep` still reports that file holding `text-slate-500`.
+- **Dated base reds, 2026-09-29, byte-identical and deliberately not re-pinned:**
+  `a3-palette-slate400-s-f` 9/8/1 (ratchet **108 vs pinned 95** — 13 files of *other* lanes'
+  drift; QA upheld **not** re-pinning it inside an A5 commit, and that call was right),
+  `a3-palette-token-sweep` 9/7/2, `a3-c4-copy` 18/14/1, `a3-palette-ratchet-s-e` 5/3/2,
+  `a3-c9-operator-tokens` 21/20/1, `a3-title-strip-c3` 15/13/2. `timetable-relaxed-main` 83/79/4
+  and `client-suite` 1220/1181/39 are **A2/A7 timetable debt**; QA enumerated every raising file
+  and **none** is in A5's 26 paths. `tsc` **5** errors (3 `playwright` not installed).
+- **Worktree disposition, 2026-09-29:** `lane-a5-c4-20260929` **RETIRED** in this closure
+  (junction removed with `cmd /c rmdir` first, non-forced `git worktree remove`, then `prune`).
+  `lane-a5-c3-20260929` stays `KEEP_ACTIVE` — it was the `node_modules` junction donor for c4 and
+  its two release conditions are still unjudged. E: measured **21.6 GiB** free at worktree
+  creation (below the §3 25 GiB warn line) and **29.7 GiB** after A4's reclaim; no branch deleted.
+- **Next action (single):** A4 pins `464332d6` for the next train and carries the **three browser
+  rows** above; Lane C judges them on staging `:5274` afterwards. A5 opens nothing new until a
+  `REJECT_UX` comes back, and will not open a second slice of C4.
+
+- **Stream (prior, complete):** `A5-C3-20260929` is COMPLETE and on `origin/main`. `/subjects` table + the
   one-look-per-control picker sweep. **Slice A `419277e4`, slice B `358812cf`, both pushed to
   `main`; final tip `7b4fc857`. NOT deployed — A4 owns the release. A5 c2 `bf1a7913` is
   untouched and still rides train 6.**
@@ -4778,6 +4907,72 @@ Rule from now: live browser QA never saves Subjects/setup/policy; mutation rows 
   Zero residue: clean status, no stash created.
 - **Next action (single):** A4 includes `d4120d50` in the next train; Lane C's existing rendered rows for
   `/admin/year-setup` now cover the link as well.
+
+### A7 c4 — year setup carries forward BY DEFAULT: INTEGRATED and PUSHED at `363fc53b` (2026-09-29)
+
+- **0 fixes live and seen / 3 integrated, not on production / 0 dropped** (c1–c4). **NOT deployed — A4 owns every
+  deploy.** Source `3bdc9569` + correction `e2ae857b` + follow-up `2af66151`, merge `363fc53b` on `origin/main`
+  `82cdbb47` (27 commits from A2/A3/A5/A6/A8 landed underneath; **13 of my 14 paths were disjoint**, the one
+  overlap was a `atlas-client/package.json` script union, 104 test scripts, no product or test resolution).
+- **The operator's words, which drove every decision:** *"setting that up is a real hassle. It shouldn't reset …
+  policies and grade shifts shouldn't [reset] unless stated otherwise."* Until now one button handed them an EMPTY
+  year — every grade's start/finish time and every flag ceremony re-entered, one year at a time.
+- **The default lives on the SERVER, not on a checkbox, and that is the whole point of the change.**
+  `resolveYearSetupCarryOptions` treats anything that is not literally `false` as KEEP, so a stale client, a direct
+  API caller, `resetDummyYearAndApplyRollover`, `applyTestYearRecovery`, `archiveAndSyncActiveYear` and the automation
+  path all keep. They cannot turn it off by omission. **The carry runs immediately BEFORE `getOrCreatePolicy`**,
+  which CREATES a defaults row for the new year — a carry after it would find a non-empty target, copy nothing, and
+  reset the year silently, which is the exact defect being fixed.
+- **Two plain switches above the ONE primary action, in the operator's own words** (`Keep last year's scheduling
+  rules` / `Keep last year's grade time windows and flag ceremonies`, byte-identical to the packet). The plain card's
+  `rollover-automation-line` is removed **from that mount only** — the switches make the pre-press state visible, so
+  it said the same thing twice. The other five `RolloverGuidanceCard` mounts are unchanged.
+- **Two reviews, and the first one earned its keep.** Round 1 returned **`CORRECTION_REQUIRED` 35/36** with one
+  **BLOCKING**: the server **did not compile** — a TS2345 in my own new test file meant `npm run build` exited 2, so
+  the candidate could not have been built, let alone deployed, while the suite was 13/13 green. Also closed: the
+  extraction had silently changed two **Cancel** buttons on the five mounts other lanes own, and had dropped this
+  file's UTF-8 BOM. Round 2 (bounded, §11) returned **`ACCEPT_READY` 15/15, 0 blocked, 0 unperformed**.
+- **Merged-tree gates:** server `tsc` **0** and `npm run build` **0** · `test:a7-year-setup-carryover` **13/13**
+  (disposable `atlas_restore_drill_*`, residue 0) · `test:a7-year-setup-carry-switches` **11/11** ·
+  `test:a7-year-setup-plain-words` 17/17 · `test:archive-school-year-a7c2` 13/13 · `test:past-year-id-space-c2` 5/5 ·
+  `test:ux-guardrails` 31/31 · `test:client-quality` 34/34 · `test:dup-read-callers` 75/75 · client `tsc` at exactly
+  the **1 pre-existing A2** `TS2367` (`timetable-truth-labels-a2.test.ts:523`, blob identical at `d0cda4ee`, needs
+  its own owner) · all 13 disjoint paths byte-identical to the reviewed candidate.
+- **⚠ The 1366×768 rendered row is UNPERFORMED, not passed.** `NEEDS_SESSION(opencode/playwright-profile)`: the
+  loopback preview redirected `/admin/year-setup` to `/login` with empty localStorage, empty sessionStorage and no
+  cookies, and the page is admin-gated. jsdom does no layout. **Lane C owns that row after A4 deploys**, on
+  `https://njgrm.buru-degree.ts.net`, asserting the origin. It is a deployment-acceptance clause under §11/§12, not
+  a source row, and I am not calling it closed.
+- **Two rows I am routing, not deciding.** The switches are **per-apply, not persisted** (no per-school settings
+  table; a later rollover starts from keep again, which is the operator's stated default) — persistence is a
+  follow-up. And the switches render only above the rollover-sync primary: on the archive-shaped start and the
+  ordered-terms save the default still keeps, so the failure direction is never a silent reset, but an operator who
+  wants an empty year there is not served.
+- **`E:` is still below the §3 warn line (≈22 GiB) — A4's retention reclaim is owed before the train that carries
+  `363fc53b`.** I started no build and installed nothing further. `RolloverGuidanceCard.tsx` is **935** physical
+  lines (was 1008, over the cap before this packet) after extracting the three confirmation dialogs.
+- **Lane C: once this is live, stop running `copy-year-setup-shift-windows-events.mjs` after every rollover.** Its
+  CLI is unchanged and it stays the manual fallback until then.
+- **Worktree:** `E:/ATLAS-worktrees/lane-a7-school-year-setup` = `RETIRE_AFTER_INTEGRATION`, left for A4. Branches
+  `work/a7-year-carryover-c4` and `integration/a7-c4-20260929` resolve; no branch deleted. Zero residue: clean
+  status, no stash created, no drill database left behind (the 4 stashes in the list predate this cycle and belong to
+  other lanes).
+- **Next action (single):** A4 includes `363fc53b` in the next train and runs the `/admin/year-setup` browser smoke;
+  Lane C takes the 1366×768 rendered row and the older-scheduler walk on that train.
+
+### A7 c5 — the sign-in check ends; carry-over reachable on the archive-shaped start: INTEGRATED and PUSHED (2026-09-29)
+
+- **0 fixes live and seen / 4 integrated, not on production / 0 dropped** (c1, c2, c4, c5). **NOT deployed — A4 owns every deploy.** Source `c6d0b169` + bounded correction `4039d74c` over base `967d521a`; packet `docs/prompts/a7-c5-session-deadline-and-archive-carry-2026-09-29.md`. **This closes the c4 follow-up row** (switches reachable on the archive-shaped start) and **Lane C's 06:58 A7 bullet**.
+- **Item 1, the defect.** `verifySessionToken()` had no time bound and TWO call sites turned that into a permanent `verifying` state: `AppShell.verifyActorSession()` (every route) and `AdminYearSetup`'s own content gate (`Checking your access...`, no content). Census: `App.tsx` has exactly one admin route, and `AdminYearSetup` was the only page calling `verifySessionToken()` as a guard — so there was one page-local gate and one shell-wide gate, and both are now backed by ONE resolver (`lib/session-verification.ts`, `SESSION_VERIFICATION_TIMEOUT_MS = 8000`). **A deadline is a third outcome, not a sign-out**: it clears no storage, logs nobody out, redirects nowhere. A real rejection keeps the existing clear-and-redirect authority.
+- **Item 2 was a UI exclusion, not a missing feature — worth remembering.** The archive-shaped start ALWAYS carried over on the server (`archiveAndSyncActiveYear` → `applyRolloverSync` → `resolveYearSetupCarryOptions`), so c4's `&& !copy.primaryStartsArchivedYear` hid the only control governing a real decision: the operator kept last year's setup with no way to see it and no way to turn it off. Server-side the fix is transport only — the route forwards the two raw body values, the service forwards them verbatim, and `resolveYearSetupCarryOptions` remains the sole interpreter (anything not literally `false` keeps). The ordered-terms primary still shows no switches, because that request genuinely carries nothing.
+- **One recovery surface, not two.** The band is mounted once in `AppShell`, copying the `rollover-awareness-notice` class-for-class; `AdminYearSetup` renders nothing of its own on a deadline so the sentence and the buttons exist once in the tree. The sidebar reads `Sign-in not confirmed`. The two old strings are gone, and a bounded `Signing in…` replaced one of them so a slow server cannot read as a signed-out user (the existing `timetable-lifecycle-controls-c03` row was retargeted additively, intent kept — QA confirmed it is a preservation, not an assertion deletion).
+- **Fresh independent QA: `CORRECTION_REQUIRED` 9/10, 0 blocked, 0 unperformed, design gate `PASS` on both screens** (`ux-communication-rubric` at 1366x768, judged by a reviewer who did not build it). Its one BLOCKING was in my evidence, not the behaviour: client typecheck 5 errors at base → 6 at the candidate (`TS7022` in my own new test file), which falsified the executor's "client tsc clean". **Closed in `4039d74c`** as a §11 test-only correction; typecheck is back to the base's 5 pre-existing errors. QA also refused the executor's blast-radius inference and measured `test:client-suite` on both trees: **10 failures base-only, 0 candidate-only**.
+- **Failing-first, restated honestly** (QA's correction, recorded so it is not misquoted later): as committed the new test cannot run on base at all (module-level read of the two new modules); with base sources and only those modules stubbed it is `12 · pass 3 · fail 9` and the defect reproduces verbatim. The executor's `12 · pass 2 · fail 10` was **not an obtainable number**.
+- **Rendered evidence is now DONE for this item** (the c4 row `NEEDS_SESSION` is superseded): four 1366×768 frames in `docs/reviews/a7-c5-session-deadline/` from loopback previews started only with `scripts/dev/start-preview.ps1`, proxied to staging, with the API **held and never answered** (the real stall condition). Both previews are stopped; 5296/5297 verified clear.
+- **Merged-tree gates** (A5's 18 commits underneath; 14 product/test paths byte-identical to the reviewed candidate; the single `AppShell.tsx` overlap is A5 c4's `RouteOutlet` extraction, clean mechanical union): `test:a7-c5-session-deadline` 12/12 · `test:a7-year-setup-carry-switches` 11/11 · `test:a7-year-setup-plain-words` 17/17 · `test:ux-guardrails` 31/31 · `test:dup-read-callers` 75/75 · `test:a7-year-setup-carryover` **15/15 on a disposable DB, residue 0** · client typecheck 5 pre-existing · server `tsc`/`build` exit 0.
+- **Still owed, not closed:** the live Tailnet rows for both screens at `https://njgrm.buru-degree.ts.net` with the origin asserted (§12) — a deployment-acceptance clause, A4 deploys first. QA's recorded, unspent reservation: the sentence does not name School Year Setup, so that screen's first seconds are band-only; a one-string follow-up if Lane C's older-scheduler walk wants it.
+- **Worktrees:** `lane-a7-c5-exec` = `RETIRE_AFTER_INTEGRATION` (its `atlas-client/node_modules` is a REAL directory, not a junction — remove it with `cmd /c rmdir` only if it is one; nothing under `D:\ATLAS` was written) · `lane-a7-c5-planner` and `lane-a7-c5-integ` = retire after the push. `E:` measured 31.8 GiB free at cycle start (above the §3 warn line).
+- **Next action (single):** A4 includes `4039d74c` in the next train and runs the `/admin/year-setup` smoke at 1366×768; Lane C takes the live rows and the older-scheduler walk.
 
 ## 2026-09-29 00:18 — year 2022-2023 per-year setup copied (operator approved)
 Script `atlas-server/src/scripts/copy-year-setup-shift-windows-events.mjs --school 1 --from 10 --to 1 --apply`: +20

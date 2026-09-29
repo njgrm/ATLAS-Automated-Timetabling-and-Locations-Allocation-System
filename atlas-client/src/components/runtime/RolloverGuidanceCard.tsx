@@ -34,13 +34,10 @@ import {
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
-import { Checkbox } from '@/ui/checkbox';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
-import { Input } from '@/ui/input';
-import { Label } from '@/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { PlainYearSetupCard } from './RolloverPlainYearSetupCard';
+import { RolloverConfirmationDialogs } from './RolloverConfirmationDialogs';
 import { plainYearSetupCopy } from './rollover-plain-copy';
 
 /**
@@ -203,6 +200,22 @@ export function RolloverGuidanceCard({
 	const [archiving, setArchiving] = useState(false);
 	const [termRepair, setTermRepair] = useState<TermRepairScopeState>(initialTermRepairScopeState);
 	const [termPreviewLoading, setTermPreviewLoading] = useState(false);
+	/**
+	 * A7-C4 — the two year-setup carry switches, BOTH ON BY DEFAULT.
+	 *
+	 * "Both defaulted as don't reset" (the operator's own words). The default lives
+	 * here for the VISIBLE state and on the server for the GUARANTEE: this value is
+	 * only ever a request value, and `resolveYearSetupCarryOptions` treats anything
+	 * that is not literally `false` as keep. So a stale client, a direct API caller
+	 * and a request with the field missing all still keep — the checkbox is the
+	 * operator's affordance, never the authority.
+	 *
+	 * These live here, not in the plain card, because the CARD owns the request.
+	 * The five non-plain mounts never read them, so Dashboard, Sections, Faculty,
+	 * TeachingLoad and the two timetable banners are untouched.
+	 */
+	const [keepSchedulingRules, setKeepSchedulingRules] = useState(true);
+	const [keepGradeTimeWindows, setKeepGradeTimeWindows] = useState(true);
 	const showTermRepair = termRepair.dialogOpen;
 	const termPreview = termRepair.preview;
 	const termApplying = termRepair.applying;
@@ -366,6 +379,10 @@ export function RolloverGuidanceCard({
 		try {
 			const result = await applyRolloverSync(schoolId, {
 				acknowledgeReconfiguredSectionIds: acknowledgedIds,
+				// A7-C4: both values ALWAYS travel, so the request states the choice
+				// explicitly rather than leaving it to a server-side guess. The server
+				// still decides the default if this never arrives.
+				yearSetupCarry: { keepSchedulingRules, keepGradeTimeWindows },
 			});
 			setStatus(result);
 			setPendingReconfiguredIds(null);
@@ -459,7 +476,16 @@ export function RolloverGuidanceCard({
 		setArchiving(true);
 		setError(null);
 		try {
-			const result = await applyArchiveAndSync(schoolId);
+			// A7-C5: the archive-shaped start now sends the two carry switches too.
+			// It always DID carry over on the server (`archiveAndSyncActiveYear`
+			// -> `applyRolloverSync` -> the fail-safe KEEP default); A7-C4 only hid
+			// the switches here, which left the operator keeping last year's setup
+			// with no way to turn it off and no way to see that it was happening.
+			// Both off is the only way to get an empty new year, and it was
+			// unreachable.
+			const result = await applyArchiveAndSync(schoolId, {
+				yearSetupCarry: { keepSchedulingRules, keepGradeTimeWindows },
+			});
 			setArchivePreview(null);
 			await loadStatus(true);
 			toast.success(plainLanguageNextStep
@@ -529,158 +555,68 @@ export function RolloverGuidanceCard({
 		}
 	};
 
-	// RR-TERM-CACHE-C01 / C01R: the shared term-repair dialog. It is the ONLY
-	// persistence surface for the narrow catch-up and is opened only after the
-	// zero-write preview resolves. It never calls the broad rollover apply.
-	const termRepairDialog = (
-		<Dialog open={showTermRepair} onOpenChange={(open) => {
-			setTermRepair((current) => open
-				? { ...current, dialogOpen: true }
-				: resetTermRepairForScope(current, schoolId));
-		}}>
-			<DialogContent className="w-[calc(100%-2rem)] sm:max-w-md" hideClose={termApplying} data-testid="rollover-term-repair-dialog">
-				<DialogHeader>
-					<DialogTitle>Save school year terms</DialogTitle>
-					<DialogDescription>
-						{termPreview?.message ?? 'Loading the ordered terms from EnrollPro...'}
-					</DialogDescription>
-				</DialogHeader>
-				{termPreviewLoading ? (
-					<p className="flex items-center gap-2 text-sm text-slate-600"><Loader2 className="h-4 w-4 animate-spin" /> Loading ordered terms...</p>
-				) : null}
-				{termPreview ? (
-					<>
-						<ul className="space-y-1 rounded-md border border-slate-200 bg-slate-50 p-2 text-sm text-slate-700" data-testid="rollover-term-repair-terms">
-							{termPreview.terms.map((term) => (
-								<li key={term.identity} className="flex items-center justify-between gap-2">
-									<span className="font-medium">{term.order}. {term.displayLabel}</span>
-									<span className="text-xs text-muted-foreground">{term.identity}</span>
-								</li>
-							))}
-						</ul>
-						<div className="space-y-2">
-							{/* A7-C2 R5 (2026-09-29). The SENTENCE is now plain and the
-							    code sits in a readable box. The required PHRASE and the
-							    COMPARISON are deliberately untouched: this is the human
-							    interlock on a live-data write (AGENTS.md §13) and the server
-							    compares the typed value to `termPreview.confirmationText`.
-							    Whether to keep the interlock at all is the operator's call and
-							    is handed back to Lane C as an open row, not decided here. */}
-							<p className="text-sm text-slate-700" data-testid="rollover-term-repair-instruction">
-								Copy the code below, paste it in the box, then press Save terms.
-							</p>
-							<div className="rounded-md border border-slate-300 bg-slate-50 p-2">
-								<p className="text-xs font-medium uppercase tracking-wide text-slate-500">Code to type</p>
-								<code
-									className="mt-0.5 block select-all break-all font-mono text-sm font-semibold tracking-wide text-slate-800"
-									data-testid="rollover-term-repair-code"
-								>
-									{termPreview.confirmationText}
-								</code>
-							</div>
-							<Label htmlFor="term-repair-confirmation" className="sr-only">
-								Code to type
-							</Label>
-							<Input
-								id="term-repair-confirmation"
-								value={termConfirmText}
-								onChange={(event) => setTermRepair((current) => ({ ...current, confirmationText: event.target.value }))}
-								placeholder={termPreview.confirmationText}
-								disabled={termApplying}
-								autoComplete="off"
-							/>
-							<p className="text-xs text-muted-foreground" data-testid="rollover-term-repair-effect">
-								Saving stores only this school year's ordered terms. Nothing else in ATLAS or EnrollPro changes, and no data is deleted.
-							</p>
-						</div>
-					</>
-				) : null}
-				<DialogFooter>
-					<Button type="button" variant="outline" size="sm" onClick={() => setTermRepair((current) => resetTermRepairForScope(current, schoolId))} disabled={termApplying}>Cancel</Button>
-					<Button
-						type="button"
-						size="sm"
-						onClick={() => void handleTermApply()}
-						disabled={!isTermRepairPreviewApplicable(termRepair, schoolId, termConfirmText) || termPreviewLoading}
-						data-testid="rollover-term-repair-apply"
-					>
-						{termApplying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-						Save terms
-					</Button>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
-	);
-
-	// A7-C1: hoisted so the plain Year Setup branch can render the same two
-	// dialogs instead of a second, drifting copy. Identical behaviour: the same
-	// open state, the same reset-on-close, the same typed confirmation gate, the
-	// same `data-testid`s. Only the PROSE differs, and only in plain mode.
-	const recoveryConfirmDialog = (
-		<Dialog open={showRecoveryConfirm} onOpenChange={(open) => {
-			setShowRecoveryConfirm(open);
-			if (!open) {
-				setRecoveryConfirmText('');
-				setRecoveryAckPublished(false);
-			}
-		}}>
-			<DialogContent className="w-[calc(100%-2rem)] sm:max-w-md" hideClose={recovering}>
-				<DialogHeader>
-					<DialogTitle>{plainLanguageNextStep ? 'Clear leftover test data and start the new year' : 'Clear test data and sync EnrollPro'}</DialogTitle>
-					<DialogDescription>
-						{plainLanguageNextStep
-							? 'This will delete ATLAS data for this school year and start the new school year from EnrollPro. This action cannot be undone.'
-							: `This will delete ATLAS-owned data for school year #${recoveryClassification?.enrollProActiveYear?.id} and re-sync from EnrollPro. This action cannot be undone.`}
-					</DialogDescription>
-				</DialogHeader>
-				{recoveryClassification?.publishedResetBlocked ? (
-					<div className="flex items-start gap-2 text-sm text-warning">
-						<Checkbox id="recovery-ack-published" checked={recoveryAckPublished} onCheckedChange={(checked) => setRecoveryAckPublished(checked === true)} disabled={recovering} />
-						<Label htmlFor="recovery-ack-published" className="leading-5">I acknowledge that published schedule artifacts exist for this school year and will be cleared.</Label>
-					</div>
-				) : null}
-				<div className="space-y-2">
-					<Label htmlFor="recovery-confirmation">Type <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">{recoveryClassification?.confirmationText}</code> to confirm</Label>
-					<Input id="recovery-confirmation" value={recoveryConfirmText} onChange={(event) => setRecoveryConfirmText(event.target.value)} placeholder={recoveryClassification?.confirmationText ?? ''} disabled={recovering} autoComplete="off" />
-				</div>
-				<DialogFooter>
-					<Button type="button" variant="outline" size="sm" onClick={() => setShowRecoveryConfirm(false)} disabled={recovering}>Cancel</Button>
-					<Button type="button" size="sm" onClick={() => void handleRecoveryApply()} disabled={recovering || recoveryConfirmText !== recoveryClassification?.confirmationText || (Boolean(recoveryClassification?.publishedResetBlocked) && !recoveryAckPublished)} data-testid="recovery-confirm-apply">
-						{recovering ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-						{plainLanguageNextStep ? 'Yes, erase and start the new year' : 'Clear and sync'}
-					</Button>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
-	);
-
-	const markTestDataConfirmDialog = (
-		<Dialog open={showMarkTestDataConfirm} onOpenChange={(open) => {
-			setShowMarkTestDataConfirm(open);
-			if (!open) setMarkTestDataAcknowledged(false);
-		}}>
-			<DialogContent className="w-[calc(100%-2rem)] sm:max-w-md" hideClose={markingTestData}>
-				<DialogHeader>
-					<DialogTitle>Mark school year as test data</DialogTitle>
-					<DialogDescription>
-						{plainLanguageNextStep
-							? 'Mark this school year as test data only when its ATLAS data is disposable test data. This enables a separate cleanup review; it does not clear anything now.'
-							: `Mark school year #${recoveryClassification?.enrollProActiveYear?.id} only when its ATLAS data is disposable test data. This enables a separate cleanup review; it does not clear anything now.`}
-					</DialogDescription>
-				</DialogHeader>
-				<div className="flex items-start gap-2 text-sm text-warning">
-					<Checkbox id="mark-test-data-confirmation" checked={markTestDataAcknowledged} onCheckedChange={(checked) => setMarkTestDataAcknowledged(checked === true)} disabled={markingTestData} />
-					<Label htmlFor="mark-test-data-confirmation" className="leading-5">I confirm that this school year contains only disposable test data.</Label>
-				</div>
-				<DialogFooter>
-					<Button type="button" variant="outline" size="sm" onClick={() => setShowMarkTestDataConfirm(false)} disabled={markingTestData}>Cancel</Button>
-					<Button type="button" size="sm" onClick={() => void handleMarkTestData()} disabled={markingTestData || !markTestDataAcknowledged} data-testid="rollover-mark-test-data-confirm">
-						{markingTestData ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-						Mark test data
-					</Button>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
+	// RR-TERM-CACHE-C01 / C01R: the shared term-repair dialog, the recovery
+	// confirmation and the mark-as-test-data confirmation now live in ONE sibling
+	// component (`RolloverConfirmationDialogs.tsx`). They were EXTRACTED, not
+	// rewritten, because this file stood at 1008 physical lines — over the
+	// AGENTS.md §8 limit of 1000 — before this packet added anything to it. The
+	// values, handlers and `data-testid`s are the same, and each dialog is still
+	// rendered in the same places below.
+	//
+	// A7-C4 CORRECTION (independent review, N3): the first extraction changed the
+	// two Cancel buttons' behaviour, because they had been pointed at the
+	// open-change handler (which also clears the typed text and the
+	// acknowledgement) instead of the state setter. `onRecoveryCancel` and
+	// `onMarkTestDataCancel` below restore the base semantics exactly, so the five
+	// mounts other lanes own are unchanged. See the sibling's header.
+	const confirmationDialogs = (
+		<RolloverConfirmationDialogs
+			plainLanguageNextStep={plainLanguageNextStep}
+			schoolId={schoolId}
+			termRepair={termRepair}
+			termPreview={termPreview}
+			termPreviewLoading={termPreviewLoading}
+			termApplying={termApplying}
+			onTermRepairOpenChange={(open) => {
+				setTermRepair((current) => open
+					? { ...current, dialogOpen: true }
+					: resetTermRepairForScope(current, schoolId));
+			}}
+			onTermConfirmationTextChange={(value) => setTermRepair((current) => ({ ...current, confirmationText: value }))}
+			onTermApply={() => void handleTermApply()}
+			showRecoveryConfirm={showRecoveryConfirm}
+			recoveryConfirmText={recoveryConfirmText}
+			recoveryAckPublished={recoveryAckPublished}
+			recovering={recovering}
+			recoveryClassification={recoveryClassification}
+			onRecoveryOpenChange={(open) => {
+				setShowRecoveryConfirm(open);
+				if (!open) {
+					setRecoveryConfirmText('');
+					setRecoveryAckPublished(false);
+				}
+			}}
+			onRecoveryConfirmTextChange={setRecoveryConfirmText}
+			onRecoveryAckPublishedChange={setRecoveryAckPublished}
+			onRecoveryApply={() => void handleRecoveryApply()}
+			// A7-C4 CORRECTION (independent review, N3): Cancel closes ONLY, exactly
+			// as it did before the dialogs were extracted. The two callbacks below are
+			// byte-identical to the base tree's `onClick` handlers, so the five
+			// non-plain mounts other lanes own are unchanged. They deliberately do
+			// NOT reuse `onRecoveryOpenChange`, which is the escape/X/overlay close
+			// path and also clears the typed text and the acknowledgement.
+			onRecoveryCancel={() => setShowRecoveryConfirm(false)}
+			showMarkTestDataConfirm={showMarkTestDataConfirm}
+			markTestDataAcknowledged={markTestDataAcknowledged}
+			markingTestData={markingTestData}
+			onMarkTestDataOpenChange={(open) => {
+				setShowMarkTestDataConfirm(open);
+				if (!open) setMarkTestDataAcknowledged(false);
+			}}
+			onMarkTestDataAcknowledgedChange={setMarkTestDataAcknowledged}
+			onMarkTestData={() => void handleMarkTestData()}
+			onMarkTestDataCancel={() => setShowMarkTestDataConfirm(false)}
+		/>
 	);
 
 	if (!loading && !status && !error) return null;
@@ -743,9 +679,9 @@ export function RolloverGuidanceCard({
 					</TooltipProvider>
 				) : null}
 			</div>
-			{termRepairDialog}
-			</>
-		);
+			{confirmationDialogs}
+		</>
+	);
 	}
 
 	// Dismissed non-blocking banner -> render nothing. Blocking drift states
@@ -799,10 +735,12 @@ export function RolloverGuidanceCard({
 					onSaveTerms={() => void handleTermRepair()}
 					onOpenRecoveryConfirm={() => setShowRecoveryConfirm(true)}
 					onOpenMarkTestDataConfirm={() => setShowMarkTestDataConfirm(true)}
+					keepSchedulingRules={keepSchedulingRules}
+					keepGradeTimeWindows={keepGradeTimeWindows}
+					onKeepSchedulingRulesChange={setKeepSchedulingRules}
+					onKeepGradeTimeWindowsChange={setKeepGradeTimeWindows}
 				/>
-				{termRepairDialog}
-				{recoveryConfirmDialog}
-				{markTestDataConfirmDialog}
+				{confirmationDialogs}
 			</>
 		);
 	}
@@ -1000,9 +938,7 @@ export function RolloverGuidanceCard({
 				</div>
 			</CardContent>
 		</Card>
-		{termRepairDialog}
-		{recoveryConfirmDialog}
-		{markTestDataConfirmDialog}
+		{confirmationDialogs}
 		</>
 	);
 }

@@ -21,11 +21,16 @@ import { Archive, AlertTriangle, CheckCircle2, Loader2, RefreshCw } from 'lucide
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
+import { Label } from '@/ui/label';
+import { Switch } from '@/ui/switch';
 import { cn } from '@/lib/utils';
 import type { ArchiveAndSyncPreviewResult, RecoveryClassifierResult, RolloverStatus } from '@/lib/settings';
 import {
+	PLAIN_KEEP_GRADE_WINDOWS_LABEL,	PLAIN_KEEP_GRADE_WINDOWS_LINE,
+	PLAIN_KEEP_SCHEDULING_RULES_LABEL,
+	PLAIN_KEEP_SCHEDULING_RULES_LINE,
+	PLAIN_KEEP_SWITCH_OFF_LINE,
 	PLAIN_SECONDARY_LABEL,
-	plainAutomationLine,
 	plainClearableCopy,
 	plainKeptForReferenceCopy,
 	plainKeptYearLine,
@@ -70,7 +75,58 @@ export type PlainYearSetupCardProps = {
 	onSaveTerms: () => void;
 	onOpenRecoveryConfirm: () => void;
 	onOpenMarkTestDataConfirm: () => void;
+	// ── A7-C4: the two year-setup carry switches. State is HELD BY THE CARD
+	// (`RolloverGuidanceCard`), which owns the request; this file only renders
+	// them and reports a change. Both arrive already ON.
+	keepSchedulingRules: boolean;
+	keepGradeTimeWindows: boolean;
+	onKeepSchedulingRulesChange: (next: boolean) => void;
+	onKeepGradeTimeWindowsChange: (next: boolean) => void;
 };
+
+/**
+ * A7-C4 — ONE switch row: a `@/ui/switch` with the operator's own label beside
+ * it and the ONE short line that says what it keeps, swapped for the off-state
+ * sentence when the switch is off. No chip, no header row, no second status for
+ * the same fact, no ellipsis (packet R2).
+ */
+function CarrySwitchRow(props: {
+	id: string;
+	testId: string;
+	label: string;
+	line: string;
+	checked: boolean;
+	disabled: boolean;
+	onCheckedChange: (next: boolean) => void;
+}) {
+	const { id, testId, label, line, checked, disabled, onCheckedChange } = props;
+	return (
+		<div className="flex items-start gap-3" data-testid={testId}>
+			<div className="min-w-0 flex-1">
+				<Label htmlFor={id} className="cursor-pointer text-sm font-medium leading-5">
+					{label}
+				</Label>
+				<p className="text-xs text-muted-foreground" data-testid={`${testId}-line`}>
+					{checked ? line : PLAIN_KEEP_SWITCH_OFF_LINE}
+				</p>
+			</div>
+			<Switch
+				id={id}
+				checked={checked}
+				disabled={disabled}
+				onCheckedChange={onCheckedChange}
+				// `h-8` is the smallest size the project's own mouse-first guard
+				// accepts (`a7-year-setup-plain-words` row 3 requires `min-h-11`,
+				// `h-10` or `h-8` on every interactive control in this card). A 44px
+				// pill would be a visually wrong control for a switch, so the larger
+				// hit area is carried by the row instead: the `Label htmlFor` above
+				// makes the whole label line a second target for the same control.
+				className="mt-0.5 h-8 w-11"
+				aria-label={label}
+			/>
+		</div>
+	);
+}
 
 export function PlainYearSetupCard(props: PlainYearSetupCardProps) {
 	const {
@@ -78,12 +134,26 @@ export function PlainYearSetupCard(props: PlainYearSetupCardProps) {
 		recoveryClassification, canOfferTestDataMarking, error,
 		previewing, applying, archiving, termPreviewLoading, termApplying,
 		onPreview, onStartYear, onSaveTerms, onOpenRecoveryConfirm, onOpenMarkTestDataConfirm,
+		keepSchedulingRules, keepGradeTimeWindows,
+		onKeepSchedulingRulesChange, onKeepGradeTimeWindowsChange,
 	} = props;
 
 	const driftStatus = status?.drift.status ?? 'enrollpro-unreachable';
-	const automation = status?.automation;
 	const busy = previewing || applying || archiving || termApplying;
 	const counts = status?.counts ?? null;
+
+	// A7-C5: the switches appear above BOTH primaries whose request carries
+	// `yearSetupCarry` — the rollover-sync start and the archive-shaped start.
+	// The archive path really did carry over on the server all along
+	// (`archiveAndSyncActiveYear` -> `applyRolloverSync` ->
+	// `resolveYearSetupCarryOptions`), so excluding it here hid a control that
+	// was already governing a real decision: ATLAS was keeping last year's setup
+	// with no way to turn it off and no way to see it.
+	// The ordered-terms save is still excluded, and still correctly: that request
+	// genuinely carries nothing, and a switch above an action that ignores it
+	// silently does nothing.
+	const showCarrySwitches = copy.primaryLabel != null
+		&& !copy.primarySavesTerms;
 
 	const canClearTestData = recoveryClassification?.classification === 'TEST_DATA_RECOVERY_AVAILABLE';
 
@@ -192,20 +262,50 @@ export function PlainYearSetupCard(props: PlainYearSetupCardProps) {
 					</div>
 				) : null}
 
-				{automation ? (
-					<p className="text-xs text-muted-foreground" data-testid="rollover-automation-line">
-						{plainAutomationLine({
-							enabled: automation.enabled,
-							healthy: automation.enabled && automation.lastResult === 'success' && (automation.consecutiveFailures ?? 0) === 0,
-							backoff: automation.enabled && (automation.consecutiveFailures ?? 0) > 0,
-							lastAttemptAt: automation.lastAttemptAt,
-							nextAttemptAt: automation.nextAttemptAt,
-							consecutiveFailures: automation.consecutiveFailures ?? 0,
-						})}
-					</p>
-				) : null}
+				{/*
+				 * A7-C4 SUBTRACTION. The `rollover-automation-line` paragraph used to
+				 * live here ("Nothing changes in ATLAS until you press the button"). The
+				 * two switches now make the pre-press state VISIBLE, so the reassurance
+				 * line says the same thing a second time in a different place — and the
+				 * design gate (AGENTS.md §11) does not allow a region to gain words
+				 * without giving as much back. It is removed from THIS mount only; the
+				 * other five `RolloverGuidanceCard` mounts still render their own
+				 * automation line, untouched.
+				 */}
 
 				{error ? <p className="text-xs font-medium text-destructive">{error}</p> : null}
+
+				{/* A7-C5 — the two switches, immediately above the ONE primary action:
+				    that is the moment the choice is made, so it belongs there, not on a
+				    settings page.
+
+				    THEY APPEAR ONLY ABOVE AN ACTION WHOSE REQUEST CARRIES THEM. The
+				    plain card has three primaries and two of them post
+				    `yearSetupCarry` (the rollover-sync start and the archive-shaped
+				    start); the ordered-terms save does not, so no switch is rendered
+				    above it. */}
+				{showCarrySwitches ? (
+					<div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3" data-testid="year-setup-keep-switches">
+						<CarrySwitchRow
+							id="year-setup-keep-scheduling-rules"
+							testId="year-setup-keep-scheduling-rules-row"
+							label={PLAIN_KEEP_SCHEDULING_RULES_LABEL}
+							line={PLAIN_KEEP_SCHEDULING_RULES_LINE}
+							checked={keepSchedulingRules}
+							disabled={busy}
+							onCheckedChange={onKeepSchedulingRulesChange}
+						/>
+						<CarrySwitchRow
+							id="year-setup-keep-grade-windows"
+							testId="year-setup-keep-grade-windows-row"
+							label={PLAIN_KEEP_GRADE_WINDOWS_LABEL}
+							line={PLAIN_KEEP_GRADE_WINDOWS_LINE}
+							checked={keepGradeTimeWindows}
+							disabled={busy}
+							onCheckedChange={onKeepGradeTimeWindowsChange}
+						/>
+					</div>
+				) : null}
 
 				{/* ONE primary and ONE plain secondary. The secondary is the card's
 				    existing preview handler, unchanged, and is calm by construction

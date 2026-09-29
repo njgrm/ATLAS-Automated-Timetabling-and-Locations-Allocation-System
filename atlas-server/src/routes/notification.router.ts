@@ -12,7 +12,7 @@ import {
 	subscribeNotificationEvents,
 	type NotificationEvent,
 } from '../services/notification-events.service.js';
-import { attachSseErrorGuard, registerSseCleanup, sseWrite } from '../lib/sse.js';
+import { attachSseErrorGuard, ssePrincipalKey, sseStreams, sseWrite } from '../lib/sse.js';
 
 const router = Router();
 
@@ -69,13 +69,43 @@ function requestedLastEventId(req: Request): number {
 	return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
-function registerStreamLifecycle(req: Request, res: Response, unsubscribe: () => void): void {
-	const heartbeat = setInterval(() => {
-		sseWrite(res, `event: heartbeat\ndata: ${JSON.stringify({ ts: new Date().toISOString() })}\n\n`);
-	}, 15000);
-	registerSseCleanup(req, res, () => {
-		clearInterval(heartbeat);
-		unsubscribe();
+/**
+ * A8 — take a stream slot BEFORE any SSE byte is written.
+ *
+ * `prepareSse` calls `flushHeaders()`, after which the status line is already on
+ * the wire and a later `res.status(429)` cannot reach the client. A first cut of
+ * this change admitted after `prepareSse` and therefore answered a capped client
+ * with a lying `200 text/event-stream` while the registry held only 20 of the 26
+ * sockets — caught by the loopback measurement, not by the unit rows. Admission
+ * must therefore be the first thing that happens.
+ */
+function admitStream(
+	res: Response,
+	scope: { schoolId: number; schoolYearId: number | null; userId: number | null },
+): { principalKey: string; streamId: number } | null {
+	const principalKey = ssePrincipalKey(scope);
+	const streamId = sseStreams.admit(principalKey, res);
+	if (streamId === null) {
+		res.status(429).json({ code: 'TOO_MANY_STREAMS', message: 'Too many live event streams for this account. Close an open tab and try again.' });
+		return null;
+	}
+	return { principalKey, streamId };
+}
+
+/** Attach the managed lifecycle to a stream that has already been admitted. */
+function registerStreamLifecycle(
+	req: Request,
+	res: Response,
+	admitted: { principalKey: string; streamId: number },
+	unsubscribe: () => void,
+): void {
+	sseStreams.manage({
+		req,
+		res,
+		principalKey: admitted.principalKey,
+		streamId: admitted.streamId,
+		unsubscribe,
+		heartbeatPayload: () => `event: heartbeat\ndata: ${JSON.stringify({ ts: new Date().toISOString() })}\n\n`,
 	});
 }
 
@@ -109,13 +139,15 @@ router.get('/:schoolId/events', async (req: Request, res: Response, next: NextFu
 		}
 
 		req.user = sseUser;
+		const admitted = admitStream(res, { schoolId: scopedSchoolId, schoolYearId: null, userId: sseUser.userId });
+		if (!admitted) return;
 		prepareSse(res);
 		const send = notificationSender(res);
 		const lastId = requestedLastEventId(req);
 		if (lastId > 0) {
 			for (const event of getSchoolNotificationEventsSince(lastId, scopedSchoolId)) send(event);
 		}
-		registerStreamLifecycle(req, res, subscribeSchoolNotificationEvents({ schoolId: scopedSchoolId, send }));
+		registerStreamLifecycle(req, res, admitted, subscribeSchoolNotificationEvents({ schoolId: scopedSchoolId, send }));
 	} catch (error) {
 		next(error);
 	}
@@ -163,6 +195,8 @@ router.get('/:schoolId/:schoolYearId/events', async (req: Request, res: Response
 			facultyScope = identity.faculty.id;
 		}
 
+		const admitted = admitStream(res, { schoolId, schoolYearId, userId: req.user.userId });
+		if (!admitted) return;
 		prepareSse(res);
 		const send = notificationSender(res);
 		const lastId = requestedLastEventId(req);
@@ -172,7 +206,7 @@ router.get('/:schoolId/:schoolYearId/events', async (req: Request, res: Response
 		}
 
 		const unsubscribe = subscribeNotificationEvents({ schoolId, schoolYearId, facultyId: facultyScope, send });
-		registerStreamLifecycle(req, res, unsubscribe);
+		registerStreamLifecycle(req, res, admitted, unsubscribe);
 	} catch (error) {
 		next(error);
 	}

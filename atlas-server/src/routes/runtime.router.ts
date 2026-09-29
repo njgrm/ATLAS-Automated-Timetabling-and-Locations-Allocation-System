@@ -381,6 +381,17 @@ router.post('/rollover-sync/apply', authenticateWithSystemToken, async (req: Req
 			acknowledgeReconfiguredSectionIds: Array.isArray(req.body?.acknowledgeReconfiguredSectionIds)
 				? req.body.acknowledgeReconfiguredSectionIds
 				: undefined,
+			// A7-C4 R1: the two raw body values are passed straight through,
+			// UNVALIDATED, so the server-side default decides. A stale client, a
+			// direct API caller, a request with the object missing, and a request
+			// carrying `"false"`/`0`/`null` all resolve to KEEP inside
+			// `resolveYearSetupCarryOptions`. Nothing here may coerce, default or
+			// validate a value into a default-off: the guarantee "it must never reset
+			// silently" is a property of the server, not of a checkbox.
+			yearSetupCarry: {
+				keepSchedulingRules: req.body?.yearSetupCarry?.keepSchedulingRules,
+				keepGradeTimeWindows: req.body?.yearSetupCarry?.keepGradeTimeWindows,
+			},
 		}));
 		const schoolYearId = requireReturnedActiveYear(result, res);
 		if (schoolYearId == null) return;
@@ -489,6 +500,17 @@ router.post('/rollover-archive/apply', authenticateWithSystemToken, async (req: 
 			acknowledgeReconfiguredSectionIds: Array.isArray(req.body?.acknowledgeReconfiguredSectionIds)
 				? req.body.acknowledgeReconfiguredSectionIds
 				: undefined,
+			// A7-C5 R1: the two raw body values, passed straight through and
+			// UNVALIDATED, exactly as `/rollover-sync/apply` does above, so the
+			// server-side default decides. A stale client, a direct API caller, a
+			// request with the object missing, and a request carrying
+			// `"false"`/`0`/`null` all resolve to KEEP inside
+			// `resolveYearSetupCarryOptions`. Nothing here may coerce, default or
+			// validate a value into a default-off.
+			yearSetupCarry: {
+				keepSchedulingRules: req.body?.yearSetupCarry?.keepSchedulingRules,
+				keepGradeTimeWindows: req.body?.yearSetupCarry?.keepGradeTimeWindows,
+			},
 		}));
 		res.json(result);
 	} catch (err) {

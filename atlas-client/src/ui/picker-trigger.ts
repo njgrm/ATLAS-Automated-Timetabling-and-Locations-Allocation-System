@@ -59,6 +59,24 @@ export const PICKER_CONTROL_HEIGHT_CLASS = 'h-9';
  *   row that needs this width takes it on all of its pickers.
  * - `fill` — for a control that must occupy a layout slot (a grid cell, a flex child) rather
  *   than claim a fixed width of its own.
+ * - `auto` — A5 C4 CORRECTION ROUND 1 (F2, 2026-09-29). For a trigger whose LABEL IS
+ *   DYNAMIC, so a fixed rectangle would either clip it or leave a gap beside it. The one
+ *   such control today is `/subjects`' `More filters` disclosure, which reads `More
+ *   filters` or `More filters (2)` depending on how many filters are set — a label whose
+ *   width is not known until runtime.
+ *
+ *   WHY A VARIANT AND NOT A CALL-SITE `w-auto`. `AGENTS.md` §8: *"if it truly needs a new
+ *   variant, add the variant to `@/ui` so every page gets it"*, and `pickerTriggerClass`'s
+ *   own contract here says *"Call sites pass a `width`; they never pass a class string."* The
+ *   F2 finding was precisely a call site hand-restating `h-9`, `shrink-0`, `px-3`, `text-xs`,
+ *   `font-normal` and `normal-case` — and omitting `tracking-normal` and `min-w-0`, which is
+ *   how the one control with a DYNAMIC label came to letter-space differently from the
+ *   fixed-label pickers beside it. A variant declared here carries the whole shared look by
+ *   construction, so that class of drift is not expressible.
+ *
+ *   `whitespace-nowrap` belongs in the variant rather than at the call site for the same
+ *   reason: it is part of "a trigger with a content-sized label must not wrap mid-label", and
+ *   a page that could add or omit it would be able to break the label in two directions.
  */
 export const PICKER_TRIGGER_WIDTH_CLASS = {
 	sm: 'w-28',
@@ -66,6 +84,7 @@ export const PICKER_TRIGGER_WIDTH_CLASS = {
 	lg: 'w-44',
 	xl: 'w-52',
 	fill: 'w-full',
+	auto: 'w-auto whitespace-nowrap',
 } as const;
 
 export type PickerTriggerWidth = keyof typeof PICKER_TRIGGER_WIDTH_CLASS;
@@ -93,7 +112,15 @@ const PICKER_TRIGGER_PAD_X_PX = 12;
 const PICKER_TRIGGER_CHEVRON_PX = 20;
 
 /** `w-*` -> px, on Tailwind's 0.25rem-per-unit scale. The only width table in `@/ui`. */
-const PICKER_TRIGGER_WIDTH_PX: Record<Exclude<PickerTriggerWidth, 'fill'>, number> = { sm: 112, md: 128, lg: 176, xl: 208 };
+const PICKER_TRIGGER_WIDTH_PX: Record<Exclude<PickerTriggerWidth, 'fill' | 'auto'>, number> = { sm: 112, md: 128, lg: 176, xl: 208 };
+
+/**
+ * A width that is NOT a fixed rectangle, and therefore has no px and no character
+ * budget. `fill` claims a slot; `auto` (A5 C4's disclosure trigger) claims its own
+ * content. Neither can clip its face, which is the property this file's budget
+ * exists to promise.
+ */
+type UnbudgetedPickerTriggerWidth = 'fill' | 'auto';
 
 /**
  * floor((widthPx - 2 * PICKER_TRIGGER_PAD_X_PX - PICKER_TRIGGER_CHEVRON_PX) / PICKER_TRIGGER_TEXT_ADVANCE_PX)
@@ -115,7 +142,7 @@ const PICKER_TRIGGER_WIDTH_PX: Record<Exclude<PickerTriggerWidth, 'fill'>, numbe
  * clips. The planner ruled on 2026-09-29 that the derived value governs; the
  * other entries match the packet exactly.
  */
-function deriveFaceBudget(width: Exclude<PickerTriggerWidth, 'fill'>): number {
+function deriveFaceBudget(width: Exclude<PickerTriggerWidth, UnbudgetedPickerTriggerWidth>): number {
 	return Math.floor((PICKER_TRIGGER_WIDTH_PX[width] - 2 * PICKER_TRIGGER_PAD_X_PX - PICKER_TRIGGER_CHEVRON_PX) / PICKER_TRIGGER_TEXT_ADVANCE_PX);
 }
 
@@ -141,10 +168,21 @@ export const PICKER_TRIGGER_FACE_BUDGET_CHARS = {
  * when it shortens a label, and answering it with a number keeps the decision out
  * of prose. It is deliberately the same string the primitive composes, so a caller
  * cannot pass the value and measure a different face.
+ *
+ * A WIDTH THAT IS NOT A FIXED RECTANGLE ALWAYS FITS, and that is the load-bearing
+ * line. `fill` takes a slot's width and `auto` (A5 C4) takes its own content, so
+ * neither has a face to clip — and returning `false` for them, as this function
+ * did when A5's `auto` landed, reports a FALSE FAILURE: a caller shortening a
+ * label for an `auto` trigger would be told its face does not fit when it
+ * physically cannot not. A guard that cries wolf on the width that is safest is
+ * how a guard gets deleted, so `true` here is the correct answer and the one that
+ * keeps every `auto` call site from inventing a second mechanism to route around
+ * it. The unbounded widths are enumerated by type, not by a truthiness test, so a
+ * future `max-*` variant is forced to declare itself here.
  */
 export function pickerTriggerFaceFits(width: PickerTriggerWidth, name: string, value: string): boolean {
-	const budget = PICKER_TRIGGER_FACE_BUDGET_CHARS[width as keyof typeof PICKER_TRIGGER_FACE_BUDGET_CHARS];
-	if (budget === undefined) return false;
+	if (width === 'fill' || width === 'auto') return true;
+	const budget = PICKER_TRIGGER_FACE_BUDGET_CHARS[width];
 	return `${name}: ${value}`.length <= budget;
 }
 
@@ -178,37 +216,33 @@ export const PICKER_TRIGGER_TYPE_CLASS = 'font-normal normal-case tracking-norma
 export const SEARCHABLE_OPTION_THRESHOLD = 8;
 
 /**
- * A6 c6 item 3 — the ONE height/padding/type treatment every control in a picker
- * row shares, for a page that needs a NON-picker control that must still look
- * like part of the row.
+ * A6 c6 item 3 — SETTLED AGAINST ITSELF, 2026-09-29, and the settlement is A5's.
  *
- * WHY IT EXISTS AND WHY IT IS NOT A NEW VARIANT. `/teaching-load`'s `More
- * filters` trigger is a `Popover` trigger, not a `FilterPicker`: it has no
- * `<name>: <value>` face to compose, so `PICKER_TRIGGER_WIDTH_CLASS` and the
- * character budget below do not apply to it. What DOES apply is that it must
- * stand in the same row as four pickers and be indistinguishable from them. Before
- * this token the page reached for `PICKER_CONTROL_HEIGHT_CLASS` and spelled the
- * rest out, which is two things at once wrong: a page re-declaring a shared
- * variant, and `A5-C3-P3-3` — the repo-wide guard that exists for exactly this —
- * correctly rejecting it. A variant belongs in `@/ui` so every page gets it
- * (`AGENTS.md` §8), so it lives here.
+ * This file previously exported `PICKER_ROW_CONTROL_CLASS`, a height/padding/type
+ * token added by A6 c6 for `/teaching-load`'s `More filters` trigger — a `@/ui`
+ * `Button`, not a `SearchableSelect`, so it composes no `<name>: <value>` face and
+ * `pickerTriggerClass` had no width for it. The reasoning was sound: a page must
+ * not re-declare the shared look.
  *
- * WHAT IT DELIBERATELY DOES NOT INCLUDE: a width, or `min-w-0`. A disclosure
- * trigger is sized by its own words — `More filters (2 on)` — and giving it a
- * picker's fixed width would clip it. The height, the padding and the type
- * treatment are the three dimensions a row may not vary, and those are the three
- * this token carries.
+ * Then A5 C4 (`133ce9fe`) landed the SAME fix in THIS SAME FILE for the SAME
+ * problem — `/subjects`' `More filters` disclosure, also a dynamic label — as a
+ * WIDTH variant, `auto: 'w-auto whitespace-nowrap'`, for the same stated reason
+ * ("if it truly needs a new variant, add the variant to `@/ui` so every page gets
+ * it"). Two lanes, one file, one week, one problem, two mechanisms.
  *
- * IT IS DECLARED BELOW `PICKER_TRIGGER_TYPE_CLASS` ON PURPOSE: it composes that
- * constant, and a module-level `const` composed from a later `const` throws a
- * temporal-dead-zone `ReferenceError` at import time. Every consumer of
- * `@/ui/picker-trigger` failed to load when it was declared above.
+ * A5's is the better shape and it is adopted: a `More filters` trigger is
+ * content-sized by definition, so "content-sized" is a WIDTH, and `pickerTriggerClass('auto')`
+ * already composes the height, `min-w-0`, `shrink-0 px-3 text-xs` and the type
+ * treatment — everything `PICKER_ROW_CONTROL_CLASS` carried, plus the `whitespace-nowrap`
+ * that stops the label wrapping mid-word. One mechanism in `@/ui` beats two that a
+ * future reader has to reconcile, and `AGENTS.md` §8 is a statement about there
+ * being ONE look per control, not about there being one way to ask for it.
+ *
+ * `PICKER_ROW_CONTROL_CLASS` is therefore RETIRED, not renamed: it is the one
+ * thing A5's `auto` already does, and leaving it exported would invite the next
+ * lane to pick whichever of the two it found first. `A6C6-1c` is the row that
+ * holds the line.
  */
-export const PICKER_ROW_CONTROL_CLASS = [
-	PICKER_CONTROL_HEIGHT_CLASS,
-	'shrink-0 px-3 text-xs',
-	PICKER_TRIGGER_TYPE_CLASS,
-].join(' ');
 
 /** The composed trigger class. Call sites pass a `width`; they never pass a class string. */
 export function pickerTriggerClass(width: PickerTriggerWidth = 'md'): string {

@@ -328,12 +328,40 @@ export interface TermCacheApplyResult {
 	terms: TermCacheTerm[];
 }
 
+/**
+ * A7-C4: what the new school year kept, as the server resolved it. It travels on
+ * the APPLY RESPONSE only (packet R8) — no read path carries it, and no new
+ * request is introduced to obtain it.
+ */
+export interface YearSetupCarryPlan {
+	sourceYearId: number | null;
+	sourceYearLabel: string | null;
+	schedulingPolicy: { source: number; targetExisting: number; toInsert: 0 | 1 };
+	gradeShiftWindows: { source: number; targetExisting: number; toInsert: number };
+	policySpecialEvents: { source: number; targetExisting: number; toInsert: number };
+}
+
+export interface YearSetupCarryResult {
+	plan: YearSetupCarryPlan;
+	applied: boolean;
+	auditLogId: number | null;
+	/**
+	 * The two switches AS THE SERVER RESOLVED THEM, not as they were requested.
+	 * `R1` is "anything that is not literally `false` is keep", so this is the only
+	 * value the confirmation is allowed to describe as what happened.
+	 */
+	keepSchedulingRules: boolean;
+	keepGradeTimeWindows: boolean;
+}
+
 export interface RolloverApplyResult extends RolloverStatus {
 	applied: boolean;
 	sync: {
 		faculty: unknown;
 		sections: unknown;
 		policyReady: boolean;
+		canonicalTemplatesSeeded?: number;
+		yearSetupCarry?: YearSetupCarryResult | null;
 	};
 }
 
@@ -671,11 +699,26 @@ export async function previewRolloverSync(schoolId: number): Promise<RolloverSta
 	return data;
 }
 
-export async function applyRolloverSync(schoolId: number, options?: { acknowledgeReconfiguredSectionIds?: number[] }): Promise<RolloverApplyResult> {
+/**
+ * A7-C4: the two carry switches are PER-APPLY REQUEST VALUES (packet R1) — there
+ * is no per-school settings table, so a later rollover starts from the keep
+ * default again. Both values are always posted, so the request states the choice
+ * rather than leaving it to a guess. The SERVER owns the default: it treats
+ * anything that is not literally `false` as keep, so a client that omits this
+ * object, sends `null`, or sends the string `"false"` still keeps. Nothing here
+ * may default a missing value to `false`.
+ */
+export async function applyRolloverSync(schoolId: number, options?: { acknowledgeReconfiguredSectionIds?: number[]; yearSetupCarry?: { keepSchedulingRules?: boolean; keepGradeTimeWindows?: boolean } }): Promise<RolloverApplyResult> {
 	const scopedSchoolId = requirePositiveSchoolId(schoolId, 'apply the rollover sync');
 	const { data } = await atlasApi.post<RolloverApplyResult>('/runtime/rollover-sync/apply', {
 		schoolId: scopedSchoolId,
 		acknowledgeReconfiguredSectionIds: options?.acknowledgeReconfiguredSectionIds,
+		yearSetupCarry: options?.yearSetupCarry
+			? {
+				keepSchedulingRules: options.yearSetupCarry.keepSchedulingRules,
+				keepGradeTimeWindows: options.yearSetupCarry.keepGradeTimeWindows,
+			}
+			: undefined,
 	});
 	return data;
 }
@@ -801,15 +844,31 @@ export async function previewArchiveAndSync(schoolId: number): Promise<ArchiveAn
 	return data;
 }
 
+/**
+ * A7-C5: `options.yearSetupCarry` is sent the same way `applyRolloverSync`
+ * sends it — as the two raw values, never defaulted here. The server's
+ * `resolveYearSetupCarryOptions` is the only interpreter, so an older client, a
+ * direct API caller and a request with the object missing all still KEEP.
+ */
 export async function applyArchiveAndSync(
 	schoolId: number,
-	options?: { reason?: string; acknowledgeReconfiguredSectionIds?: number[] },
+	options?: {
+		reason?: string;
+		acknowledgeReconfiguredSectionIds?: number[];
+		yearSetupCarry?: { keepSchedulingRules?: boolean; keepGradeTimeWindows?: boolean };
+	},
 ): Promise<ArchiveAndSyncApplyResult> {
 	const scopedSchoolId = requirePositiveSchoolId(schoolId, 'apply the archive-and-sync');
 	const { data } = await atlasApi.post<ArchiveAndSyncApplyResult>('/runtime/rollover-archive/apply', {
 		schoolId: scopedSchoolId,
 		reason: options?.reason,
 		acknowledgeReconfiguredSectionIds: options?.acknowledgeReconfiguredSectionIds,
+		yearSetupCarry: options?.yearSetupCarry
+			? {
+				keepSchedulingRules: options.yearSetupCarry.keepSchedulingRules,
+				keepGradeTimeWindows: options.yearSetupCarry.keepGradeTimeWindows,
+			}
+			: undefined,
 	});
 	return data;
 }

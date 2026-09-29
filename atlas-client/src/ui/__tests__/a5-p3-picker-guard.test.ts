@@ -78,6 +78,32 @@ function code(relative: string): string {
 
 const files = SWEPT_FILES.map((f) => ({ f, src: code(f) }));
 
+/**
+ * The tokens a SWEPT PAGE may not contain, because the variant is owned by
+ * `@/ui/picker-trigger.ts`.
+ *
+ * Declared at module scope so `A5-C3-P3-3` enforces this list and `A5-C3-P3-3b`
+ * re-proves it, from the SAME declaration. A guard and its positive control that
+ * each hold their own copy of the rule drift apart on the first correction, and
+ * the copy is the one nobody re-reads.
+ *
+ * A6 c6 (2026-09-29) — `pickerTriggerClass` is matched at its DECLARATION form.
+ * It used to be matched as a bare call, so a page that USED the factory was
+ * indistinguishable from one that re-declared it: A5 C4 added the `auto` width
+ * variant for `/subjects`' `More filters`, A6 c6 adopted that same variant for
+ * `/teaching-load`'s, and the guard went red on the correct change. The rule —
+ * a page must not re-declare the shared variant — is unchanged. The MATCH is now
+ * what the rule actually says. `A5-C3-P3-3b` is the positive control that proves
+ * the narrowed match still bites on all five tokens.
+ */
+const REDEFINITION = [
+	'PICKER_CONTROL_HEIGHT_CLASS',
+	'PICKER_TRIGGER_WIDTH_CLASS',
+	'SEARCHABLE_OPTION_THRESHOLD',
+	'function pickerTriggerClass(',
+	'const pickerTriggerClass',
+] as const;
+
 test('A5-C3-P3-1: every swept filter is built from the one shared picker, never from @/ui/select', () => {
 	const offenders = files
 		.filter(({ src }) => /from ['"]@\/ui\/select['"]/.test(src) || /<SelectTrigger[\s>]/.test(src))
@@ -171,13 +197,21 @@ test('A5-C3-P3-2b: the two Teaching Load SWITCH labels are a known, recorded exc
 test('A5-C3-P3-3: a swept file does not redefine the shared picker variant', () => {
 	/* The variant is owned by `@/ui/picker-trigger.ts`. A page that re-declares the height, a
 	 * width or the chrome string is the defect that produced `CONTROL_CHROME` in the first
-	 * place. `@/ui` itself is the owner and is not in the allowlist. */
-	const REDEFINITION = [
-		'PICKER_CONTROL_HEIGHT_CLASS',
-		'PICKER_TRIGGER_WIDTH_CLASS',
-		'SEARCHABLE_OPTION_THRESHOLD',
-		'pickerTriggerClass(',
-	] as const;
+	 * place. `@/ui` itself is the owner and is not in the allowlist.
+	 *
+	 * A6 c6 CORRECTION (2026-09-29) — `pickerTriggerClass(` is matched as a CALL here,
+	 * so a page that USED the factory was indistinguishable from a page that re-declared
+	 * it. A5 C4 added the `auto` width variant for `/subjects`' `More filters`, and A6 c6
+	 * adopted that same `auto` variant for `/teaching-load`'s `More filters` — the
+	 * factory call is the whole point of the variant, and the guard went red on the
+	 * correct change. The token is now matched at its DECLARATION form, which is what
+	 * the rule actually bans, and the positive control below re-proves the guard still
+	 * bites. This narrows the MATCH, not the RULE: a re-declaration is still red, and
+	 * `PICKER_CONTROL_HEIGHT_CLASS` / `PICKER_TRIGGER_WIDTH_CLASS` / `SEARCHABLE_OPTION_THRESHOLD`
+	 * are still matched as names because naming them at all is the defect.
+	 *
+	 * The token list is `REDEFINITION`, declared at module scope above so the
+	 * positive control below reads the very list this row enforces. */
 	const offenders: string[] = [];
 	for (const { f, src } of files) {
 		for (const token of REDEFINITION) {
@@ -185,6 +219,37 @@ test('A5-C3-P3-3: a swept file does not redefine the shared picker variant', () 
 		}
 	}
 	assert.deepEqual(offenders, [], 'a swept file redefines the shared picker variant instead of using it');
+});
+
+test('A5-C3-P3-3b POSITIVE CONTROL: the re-declaration match still bites after the A6 c6 narrowing', () => {
+	/* The A6 c6 correction narrowed the MATCH on `pickerTriggerClass` from a call to a
+	 * declaration. A narrowed guard is a guard that might have been narrowed into
+	 * uselessness, so this row re-proves the rule it kept: every one of the five
+	 * tokens, written the way a page would actually write it, is still an offender.
+	 * Without this row, "the guard is narrower now" and "the guard is toothless now"
+	 * look identical from the outside, and only the second one is a real defect. */
+	const offendersFor = (src: string): string[] => REDEFINITION.filter((token) => src.includes(token));
+
+	for (const declaration of [
+		"const PICKER_CONTROL_HEIGHT_CLASS = 'h-9';",
+		"const PICKER_TRIGGER_WIDTH_CLASS = { md: 'w-32' };",
+		'const SEARCHABLE_OPTION_THRESHOLD = 8;',
+		'export function pickerTriggerClass(width) { return width; }',
+		'const pickerTriggerClass = () => "";',
+	]) {
+		assert.ok(
+			offendersFor(declaration).length > 0,
+			`a page that writes ${JSON.stringify(declaration)} must still be caught as a re-declaration`,
+		);
+	}
+
+	// And the thing the narrowing was FOR: calling the shared factory is USING the
+	// variant. This is `/teaching-load`'s `More filters` trigger, verbatim.
+	assert.deepEqual(
+		offendersFor("className={`${pickerTriggerClass('auto')} gap-1.5`}"),
+		[],
+		'CALLING the shared factory is using the variant, and must not be reported as re-declaring it',
+	);
 });
 
 test('A5-C3-P3-1c: a swept file builds no trigger BY HAND — second positive control, and it closes two proved holes', () => {

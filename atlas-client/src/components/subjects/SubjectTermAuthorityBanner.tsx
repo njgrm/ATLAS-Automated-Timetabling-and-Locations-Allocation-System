@@ -51,12 +51,24 @@ export function SubjectTermAuthorityBanner({ termAuthority }: Props) {
 	// raw code plus the raw message in a labelled diagnostic affordance. An
 	// empty message also falls back to calm copy rather than rendering an empty
 	// element inside a coloured exception banner.
-	const { description, nextAction, code } = resolveTermAuthorityCopy(termAuthority);
+	//
+	// A5 C4: `headline` comes back from the SAME resolver and is resolved from
+	// the CODE, not from `state` alone. It is empty for every code that reads
+	// correctly under the state-derived sentence below, so this is not a second
+	// source of truth for every state — it is the one case the state cannot say.
+	const { description, nextAction, code, headline } = resolveTermAuthorityCopy(termAuthority);
 	const rawMessage = (termAuthority.message ?? '').trim();
 	const hasDetail = Boolean(code) || rawMessage.length > 0;
 
 	// VERIFIED_CACHED and BLOCKED keep the full, uncompacted block. A stale or
 	// blocked source of term authority is an exception the operator must see.
+	//
+	// A5 C4: the state-derived sentence is the FALLBACK and stays exactly as it
+	// was; `headline` wins only where the code supplies one.
+	const stateHeadline =
+		termAuthority.state === 'VERIFIED_CACHED'
+			? 'Using saved EnrollPro year and terms'
+			: 'EnrollPro year or term authority blocked';
 	return (
 		<div
 			role={termAuthority.state === 'BLOCKED' ? 'alert' : 'status'}
@@ -71,9 +83,7 @@ export function SubjectTermAuthorityBanner({ termAuthority }: Props) {
 		>
 			<div className="flex flex-wrap items-center gap-2">
 				<AlertTriangle className="size-4" />
-				<span className="font-bold">
-					{termAuthority.state === 'VERIFIED_CACHED' ? 'Using saved EnrollPro year and terms' : 'EnrollPro year or term authority blocked'}
-				</span>
+				<span className="font-bold">{headline || stateHeadline}</span>
 				<Badge variant="outline" className="bg-background/70 font-semibold uppercase tracking-wide">Read-only source</Badge>
 				{contract ? <Badge variant="outline">{contract.format}</Badge> : null}
 			</div>
@@ -84,7 +94,15 @@ export function SubjectTermAuthorityBanner({ termAuthority }: Props) {
 				requires (and forbids the `title` attribute). This is also the
 				pass-through for runtime-sourced text: whatever the runtime supplies is
 				preserved verbatim here for support, while the primary read above stays
-				calm and actionable. */}
+				calm and actionable.
+
+				A5 C4: the TRIGGER's visible label is the plain word `Help`. It used to
+				render the raw `code` in `font-mono`, so the operator's eye landed on
+				`TERM_CACHE_INVALID` where a verb belonged — a code belonging behind
+				`Help`/`Details`, never in the visible label (§11 rule 3). The `code`
+				and `rawMessage` below are UNCHANGED and still render inside the
+				popover, and the `aria-label` still carries the code, so nothing is
+				deleted here — the evidence moved, it was not destroyed. */}
 			{hasDetail ? (
 				<Popover>
 					<PopoverTrigger asChild>
@@ -97,7 +115,7 @@ export function SubjectTermAuthorityBanner({ termAuthority }: Props) {
 							className="mt-1 h-6 gap-1 px-1.5 text-xs font-semibold text-primary hover:underline"
 						>
 							<Info className="size-3" />
-							<span className="font-mono text-[0.65rem]">{code ?? 'Details'}</span>
+							<span>Help</span>
 						</Button>
 					</PopoverTrigger>
 					<PopoverContent align="start" className="w-80 space-y-2 p-3 text-xs leading-relaxed">

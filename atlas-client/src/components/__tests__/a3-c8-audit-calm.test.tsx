@@ -67,7 +67,18 @@ import test from 'node:test';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLIENT_ROOT = resolve(HERE, '../../..');
 const AUDIT_PATH = 'src/pages/Audit.tsx';
+/**
+ * A5 C4 ITEM 5, ADDED: the findings panel was extracted out of `Audit.tsx` because
+ * the page measured 1003 physical lines, over the AGENTS.md §8 cap. Two of the pins
+ * below count things that now live in TWO files, so both are read here and the counts
+ * are stated per file with the TOTAL preserved. Nothing is dropped: 8 raw neutrals
+ * become 4 + 4, and 2 `SeverityBadge` render sites become 1 + 1.
+ */
+const AUDIT_PANEL_PATH = 'src/components/audit/AuditFindingsPanel.tsx';
 const auditSource = readFileSync(resolve(CLIENT_ROOT, AUDIT_PATH), 'utf8');
+const auditPanelSource = readFileSync(resolve(CLIENT_ROOT, AUDIT_PANEL_PATH), 'utf8');
+/** Every source this route owns, for the pins that count across the split. */
+const auditSurfaceSource = `${auditSource}\n${auditPanelSource}`;
 
 /** The real production values, not a copy of them. */
 const { SEVERITY_TREATMENT, SeverityBadge, resolveFocusGroupId } = await import('@/pages/Audit');
@@ -162,14 +173,34 @@ test('row 1b: the raw-neutral residue is EXACTLY the 8 occurrences two other lan
 	// carry are `EXPECTED_TOTAL = 95` (s-e:178) and `EXPECTED_IN_SCOPE_RESIDUAL = 68`
 	// (s-e:181, s-f:172); note that 68 there is a raw-neutral count and is unrelated to the
 	// 68 files in the a3-c8-warning-token corpus pin, which is a different measurement.
-	const rawNeutrals = [...auditSource.match(/\btext-(?:slate|zinc|gray|neutral|stone)-\d{2,3}\b/g) ?? []];
+	// ── THE CARVE-OUT IN ROW 1 — RESTATED, because the extraction moved HALF of it ──
+	//
+	// A5 C4 ITEM 5. The two external gates that pin this route's raw-neutral TEXT
+	// count (`palette-token-sweep-a3-s-e` and `palette-slate400-step2-a3-s-f`) now
+	// name TWO files: `src/pages/Audit.tsx` and `src/components/audit/
+	// AuditFindingsPanel.tsx`. The TOTAL is unchanged at 8 — this is a split, and a
+	// split moves code rather than deleting it — but the page alone now holds 4, so
+	// "the count in Audit.tsx" is no longer the count of the route.
+	//
+	// This row is therefore stated per file, with the total asserted as well. That is
+	// STRICTER than the single-file count it replaces: a lane that moved a neutral out
+	// of the page and failed to move it into the panel is now red, where before the
+	// page-local number alone could be satisfied.
+	const rawNeutralsIn = (source: string) => [...source.match(/\btext-(?:slate|zinc|gray|neutral|stone)-\d{2,3}\b/g) ?? []];
+	const pageNeutrals = rawNeutralsIn(auditSource);
+	const panelNeutrals = rawNeutralsIn(auditPanelSource);
+	const rawNeutrals = [...pageNeutrals, ...panelNeutrals];
 	assert.equal(
 		rawNeutrals.length,
 		8,
-		`Audit.tsx holds ${rawNeutrals.length} raw neutral text classes; the sweep and slate400 controls ` +
-			'both assert exactly 8, so any other number turns one of them red. If a later lane lowers the pin, ' +
-			'update this row in the same commit.',
+		`the /audit route holds ${rawNeutrals.length} raw neutral text classes across ` +
+			`${AUDIT_PATH} (${pageNeutrals.length}) and ${AUDIT_PANEL_PATH} (${panelNeutrals.length}); ` +
+			'the sweep and slate400 controls assert a combined 8, so any other number turns one of them red. ' +
+			'If a later lane lowers the pin, update this row in the same commit.',
 	);
+	// The per-file split, stated so neither file can quietly drift from the total.
+	assert.equal(pageNeutrals.length, 4, `${AUDIT_PATH} no longer holds its half of the residue (${pageNeutrals.length})`);
+	assert.equal(panelNeutrals.length, 4, `${AUDIT_PANEL_PATH} no longer holds the moved half (${panelNeutrals.length})`);
 
 	// Pinned by SHADE as well as by count, so the residue cannot be swapped for a different
 	// raw neutral that happens to keep the total at 8.
@@ -188,6 +219,15 @@ test('row 1b: the raw-neutral residue is EXACTLY the 8 occurrences two other lan
 		5,
 		'the five body-text sites are the residual shades the ratchet defers to a rendered screen.',
 	);
+	// A5 C4, ADDED: the chromatic half is asserted on BOTH files, so the extraction
+	// cannot have carried a raw chromatic class across unnoticed.
+	for (const [label, source] of [[AUDIT_PATH, auditSource], [AUDIT_PANEL_PATH, auditPanelSource]] as const) {
+		assert.deepEqual(
+			[...new Set(source.match(CHROMATIC_RE) ?? [])].sort(),
+			[],
+			`${label} renders raw chromatic ramp classes after the split`,
+		);
+	}
 });
 
 // ── Row 2 ─────────────────────────────────────────────────────────────────────
@@ -262,16 +302,33 @@ test('row 3: every severity has a non-colour cue, rendered, at BOTH badge sites'
 
 	// (c) BOTH render sites go through the shared badge, so no site can regress to
 	//     colour-only. Priority cards + the findings accordion = 2.
-	const badgeSites = auditSource.match(/<SeverityBadge\b/g) ?? [];
+	//
+	// A5 C4 ITEM 5, RE-POINTED — NOT DELETED. One of the two sites moved into
+	// `AuditFindingsPanel.tsx` with the findings accordion, so the page alone now
+	// holds 1. The COUNT is preserved by reading the route's whole surface, and the
+	// per-file split is asserted too: a lane that added a third severity surface in
+	// either file is still red, and so is one that moved a site without rendering it.
+	const badgeSites = auditSurfaceSource.match(/<SeverityBadge\b/g) ?? [];
 	assert.equal(
 		badgeSites.length,
 		2,
-		`expected SeverityBadge at exactly 2 render sites, found ${badgeSites.length}. ` +
+		`expected SeverityBadge at exactly 2 render sites across the /audit route, found ${badgeSites.length}. ` +
 			'A new severity surface must render the same badge, or it will be colour-only.',
 	);
-	// And the old colour-only inline form is gone from both sites.
+	assert.equal(
+		(auditSource.match(/<SeverityBadge\b/g) ?? []).length,
+		1,
+		`${AUDIT_PATH} no longer renders its own severity badge`,
+	);
+	assert.equal(
+		(auditPanelSource.match(/<SeverityBadge\b/g) ?? []).length,
+		1,
+		`${AUDIT_PANEL_PATH} no longer renders the findings severity badge`,
+	);
+	// And the old colour-only inline form is gone from the whole route, not just the
+	// page — the extracted file could easily have reintroduced it.
 	assert.doesNotMatch(
-		auditSource,
+		auditSurfaceSource,
 		/severityClassName|severityLabel/,
 		'the old colour-only badge helpers are still referenced.',
 	);
@@ -368,7 +425,12 @@ const RAW_ENUM_TOKENS = ['BLOCKED', 'STALE', 'FRESH', 'UNKNOWN'] as const;
 const REPAIR_TARGETS = ['teaching-load', 'map', 'teachers', 'subjects', 'sections'] as const;
 
 test('row 5: no internal identifier and no raw enum reaches the user', () => {
-	const visible = visibleTextNodes(auditSource);
+	// A5 C4 ITEM 5: read the ROUTE's whole surface. The findings panel that moved out
+	// of the page renders user-facing copy ("What is blocked", the empty states, the
+	// group descriptions), and a row that only scanned the page would stop covering
+	// exactly the strings the extraction moved — which is the way a pin silently
+	// weakens. Every assertion below is unchanged; the surface it reads is the union.
+	const visible = visibleTextNodes(auditSurfaceSource);
 	const blob = visible.join('  |  ');
 
 	// (a) Literal JSX copy.
@@ -435,19 +497,34 @@ test('row 5: no internal identifier and no raw enum reaches the user', () => {
 
 	// (d) `repairTarget` is BEHAVIOUR: the repair-link contract reads it, so it must not move.
 	//     It is also not user-facing, so it must not be interpolated into a text node.
+	//
+	//     A5 C4 ITEM 5: asserted across the whole route. Three of the four repair links
+	//     live in the extracted findings panel, so a page-only scan would have found
+	//     one and reported the contract broken.
 	assert.ok(
-		auditSource.includes('repairTarget'),
+		auditSurfaceSource.includes('repairTarget'),
 		'repairTarget is gone; it is read by the repair-link contract and is not this lane\'s to remove.',
 	);
 	assert.doesNotMatch(
-		auditSource,
+		auditSurfaceSource,
 		/>[^<>{}]*\{[^<>{}]*repairTarget[^<>{}]*\}[^<>{}]*</,
 		'a repairTarget value is interpolated into a JSX text node, so a routing key is now user-visible.',
 	);
-	const attributeUses = auditSource.match(/data-repair-target=/g) ?? [];
+	const attributeUses = auditSurfaceSource.match(/data-repair-target=/g) ?? [];
 	assert.ok(
 		attributeUses.length >= 4,
 		`expected the repair links to still carry data-repair-target attributes, found ${attributeUses.length}.`,
+	);
+	// AND the split is stated, so neither file can drift from the contract alone.
+	assert.equal(
+		(auditSource.match(/data-repair-target=/g) ?? []).length,
+		1,
+		`${AUDIT_PATH} no longer carries its own repair link`,
+	);
+	assert.equal(
+		(auditPanelSource.match(/data-repair-target=/g) ?? []).length,
+		3,
+		`${AUDIT_PANEL_PATH} does not carry the three repair links it moved with`,
 	);
 });
 
