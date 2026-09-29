@@ -339,6 +339,8 @@ test('row 2: every technical surface is still in the DOM, inside the fold - noth
 		'rollover-banner-preview',        // the standalone read-only preview
 		'rollover-banner-status',         // the technical drift badge
 		'year-truth-resolved',            // the term-authority line
+		'year-setup-year-9',              // the school-year list (2023-2024)
+		'year-setup-year-8',              // the kept past year (2022-2023)
 	]) {
 		const el = byTestId(host, id);
 		assert.ok(el, `the "${id}" surface stopped rendering; the fold must hide, never delete`);
@@ -352,6 +354,8 @@ test('row 2: every technical surface is still in the DOM, inside the fold - noth
 	const visible = visibleText(host);
 	assert.equal(visible.includes('In ATLAS right now'), false, 'the counts line is still in the default view');
 	assert.equal(/20 sections and 20 teachers/.test(visible), false, 'the brought-in counts are still in the default view');
+	assert.equal(visible.includes('Every school year in ATLAS'), false, 'the school-year list is still in the default view');
+	assert.equal(visible.includes('Keep as history'), false, 'the per-year write action is still in the default view');
 });
 
 // ── Row 3: the default view is calm and carries no raw code ────────────────

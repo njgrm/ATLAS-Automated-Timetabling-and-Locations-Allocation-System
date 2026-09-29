@@ -4,6 +4,12 @@
 #   powershell -File scripts/dev/start-preview.ps1 -ClientDir <worktree>\atlas-client -Port 5399
 param([Parameter(Mandatory)][string]$ClientDir, [Parameter(Mandatory)][int]$Port)
 $out = Join-Path $env:TEMP "atlas-preview-$Port.log"
+# The `/api/v1` SUFFIX IS REQUIRED, and losing it is silent: `atlas-client/src/lib/api.ts`
+# builds its base URL as `import.meta.env.VITE_ATLAS_API ?? '/api/v1'`, so this variable is an
+# API BASE, not an origin. With a bare origin the client asks `http://127.0.0.1:5101/auth/login`
+# and staging answers 404, so the preview loads and then cannot sign in (A3-C14, 2026-09-29).
+# The vite PROXY is unaffected either way, because `toProxyOrigin` in vite.config.ts keeps only
+# the parsed origin.
 $cl = "cmd /c `"cd /d $ClientDir && set VITE_ATLAS_API=http://127.0.0.1:5101/api/v1&& node node_modules/vite/bin/vite.js --port $Port --strictPort --host 127.0.0.1 > $out 2>&1`""
 $r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $cl }
 $deadline = (Get-Date).AddSeconds(60)
