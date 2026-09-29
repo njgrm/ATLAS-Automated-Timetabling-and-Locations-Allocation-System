@@ -300,8 +300,8 @@ test('F4/R1: table base, time, subject, and teacher/room render absolute ≥14px
 	const targets: ReadonlyArray<readonly [string, RegExp]> = [
 		['grid table base', /<table[^>]*class="[^"]*"[^>]*>/],
 		['time label', /<td class="px-2 py-1\.5[^"]*">/],
-		['entry subject line', /<div class="[^"]*font-semibold[^"]*truncate[^"]*">/],
-		['teacher/room line', /<p class="[^"]*truncate[^"]*"[^>]*data-testid="timetable-cell-detail"/],
+		['entry subject line', /<div class="[^"]*font-semibold[^"]*break-words[^"]*">/],
+		['teacher/room line', /<p class="[^"]*break-words[^"]*"[^>]*data-testid="timetable-cell-detail"/],
 	];
 	for (const [viewport, rootPx] of VIEWPORT_ROOTS) {
 		for (const [label, pattern] of targets) {
