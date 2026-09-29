@@ -1886,3 +1886,19 @@ walk to a login screen.
 - Consequences for every lane: the demo year is 2023-2024. It has no Teaching Load and no timetable yet; the term is
   resolved. Re-check your browser rows against 2023-2024 on staging. A2 c14: the "468 setup items" must be measured on
   2023-2024 now. A7 c7: a real transition just happened — use it to prove the banner reads correctly.
+
+## 2026-09-29 — A8 C3 (d87e1b3e): the readiness panel is now GROUPED; A2 reconciliation note
+Candidate d87e1b3e on work/a8-c3-generate-gaps (base 1fb076a). Handoff: docs/reviews/a8-c3-generate-with-gaps/handoff.md.
+**A2 — you own the client readiness panel; these are the client files I touched, please reconcile:**
+- tlas-client/src/lib/timetable-generation-readiness.ts — parses the server's new groups / gaps / lockerCount /
+  gapCount / gapClassCount; new presentGenerationBlockerGroups; deriveGenerationReadinessState now gates on the
+  server's BLOCKING count; summarizeGenerationReadiness also returns a summary for a locked state.
+- tlas-client/src/lib/timetable-capabilities.ts — the Generate gate is now generateAllowed && zeroWrite only.
+  lockerCount is carried for reporting and **no longer independently blocks** (620 of 651 live rows were one fact at two grains).
+- tlas-client/src/components/timetable/simple/SimpleGenerationBlockerGroups.tsx **(new)** — one line per root cause + ONE
+  "Check again" + the full row list behind the shared @/ui Accordion.
+- tlas-client/src/components/timetable/simple/SimpleGenerationBlockerSheet.tsx — grouped view is the default; the row
+  list is preserved verbatim behind the disclosure; the per-row "Recheck generation readiness" is removed.
+- tlas-client/src/components/timetable/TimetableSimpleHeader.tsx and TimetableSetupPane.tsx — read diagnostic.blockerCount
+  (blocking) instead of diagnostic.blockers.length (rows). setupItemsToFixLabel itself is UNCHANGED; it just now receives the blocking count.
+No header control was added, no chip was added, and no existing entry point moved.
