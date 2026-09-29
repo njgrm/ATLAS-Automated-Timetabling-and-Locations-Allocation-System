@@ -19,7 +19,7 @@
  * prerequisites (an explicit teacher and an explicit room) are unmet — so no
  * control ever appears that cannot act.
  */
-import { ArrowRightLeft, BookOpen, DoorOpen, GraduationCap, Lock, Move, UserRoundX } from 'lucide-react';
+import { ArrowRightLeft, BookOpen, DoorOpen, GraduationCap, Lock, MinusCircle, Move, UserRoundX } from 'lucide-react';
 
 import type { SelectedClassLock } from '@/hooks/useTimetableLocks';
 import {
@@ -38,6 +38,7 @@ export function ScheduleReviewWorkspaceSelectedActions({
 	onChangeOwner,
 	onTeacherLeaving,
 	onExpertDetails,
+	onRemoveFromDraft,
 }: {
 	onDismissSelection: () => void;
 	onChooseNewTime: () => void;
@@ -49,6 +50,12 @@ export function ScheduleReviewWorkspaceSelectedActions({
 	onChangeOwner: () => void;
 	onTeacherLeaving: () => void;
 	onExpertDetails: () => void;
+	/**
+	 * A2 move-swap item 3 — present ONLY when a DRAFT class is selected and the
+	 * run is not published; absent otherwise, so the row is never offered where
+	 * there is nothing to remove.
+	 */
+	onRemoveFromDraft?: () => void;
 }) {
 	return (
 		<DropdownMenuContent align="end" className="w-64">
@@ -67,6 +74,12 @@ export function ScheduleReviewWorkspaceSelectedActions({
 				<ArrowRightLeft className="mr-2 size-3.5" aria-hidden="true" />
 				Swap with another class
 			</DropdownMenuItem>
+			{onRemoveFromDraft ? (
+				<DropdownMenuItem onSelect={(event) => { event.preventDefault(); onRemoveFromDraft(); }} data-testid="timetable-simple-selected-remove-from-draft-action">
+					<MinusCircle className="mr-2 size-3.5" aria-hidden="true" />
+					Remove from draft
+				</DropdownMenuItem>
+			) : null}
 			<DropdownMenuItem
 				disabled={lock.blockReason !== null}
 				onSelect={(event) => { event.preventDefault(); void lock.toggle(); }}

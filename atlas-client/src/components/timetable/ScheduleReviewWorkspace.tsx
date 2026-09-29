@@ -23,6 +23,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { ScheduledEntry } from '@/types';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { describeMoveTargets, toMoveOccupants, type MoveSlot } from '@/components/timetable/timetableMoveTargets';
+import { resolveDraftPlacementFromEntry } from '@/lib/timetable-swap-routing';
 import { setTimetableEntryReadOnly } from '@/components/timetable/TimetableDraggableEntry';
 import { TimetableUndoRedoControl } from '@/components/timetable/TimetableUndoRedoControl';
 import { dispatchUndoByLedger, UNDO_CONFLICT_MESSAGE } from '@/components/timetable/timetableUndoRedoState';
@@ -540,6 +541,13 @@ export default function ScheduleReviewWorkspace() {
 		navigate(`/teaching-load?${params.toString()}`);
 	};
 
+	/* A2 move-swap item 3 — the draft placement behind the selected class, or
+	 * null. Only a DRAFT placement on an unpublished run can be removed, so the
+	 * menu row is offered exactly where it can act. */
+	const selectedDraftPlacementId = !isDraftPublished && state.selectedEntry
+		? resolveDraftPlacementFromEntry(state.selectedEntry, state.centerWorkspaceContext.draftBoard?.placements ?? [])?.id ?? null
+		: null;
+
 	const selectedPrimaryAction = activeSimpleTask === 'swap-sessions'
 		? {
 			label: 'Swap with another class',
@@ -713,6 +721,7 @@ export default function ScheduleReviewWorkspace() {
 						setLayoutMode('advanced');
 						window.requestAnimationFrame(() => state.rightPanelContext?.rightPanelRef?.current?.expand());
 					}}
+					onRemoveFromDraft={selectedDraftPlacementId != null ? () => { void state.removeDraftPlacement?.(selectedDraftPlacementId); } : undefined}
 				/>
 			) : null}
 			<DndContext sensors={state.sensors} collisionDetection={pointerWithin} onDragStart={state.handleGlobalDragStart} onDragMove={state.handleGlobalDragMove} onDragOver={state.handleGlobalDragOver} onDragEnd={state.handleGlobalDragEnd} onDragCancel={state.handleGlobalDragCancel}>

@@ -44,6 +44,7 @@ export function ScheduleReviewWorkspaceSelectionStrip({
 	onChangeOwner,
 	onTeacherLeaving,
 	onExpertDetails,
+	onRemoveFromDraft,
 }: {
 	selectedEntry: ScheduledEntry;
 	subjectLabel: (id: number) => string;
@@ -61,6 +62,8 @@ export function ScheduleReviewWorkspaceSelectionStrip({
 	onChangeOwner: () => void;
 	onTeacherLeaving: () => void;
 	onExpertDetails: () => void;
+	/** A2 move-swap item 3 — present only for a selected DRAFT class. */
+	onRemoveFromDraft?: () => void;
 }) {
 	const SelectedPrimaryIcon = primaryAction.icon;
 	return (
@@ -110,6 +113,7 @@ export function ScheduleReviewWorkspaceSelectionStrip({
 						onChangeOwner={onChangeOwner}
 						onTeacherLeaving={onTeacherLeaving}
 						onExpertDetails={onExpertDetails}
+						onRemoveFromDraft={onRemoveFromDraft}
 					/>
 				</DropdownMenu>
 			</div>

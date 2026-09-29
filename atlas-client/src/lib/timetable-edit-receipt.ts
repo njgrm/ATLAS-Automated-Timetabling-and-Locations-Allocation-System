@@ -79,6 +79,11 @@ const ACTION_WORDS: Record<string, string> = {
 	CHANGE_ROOM: 'Moved to a different room',
 	CHANGE_FACULTY: 'Gave this class to a different teacher',
 	SWAP_ENTRIES: 'Swapped',
+	/* A2 move-swap item 3 — "Remove from draft" authors a DRAFT-ledger REMOVE
+	 * action, not a `ManualEditRecord` edit type. It speaks through this SAME
+	 * module rather than a second vocabulary; `from` is the slot it left and
+	 * `trailing` names where it went. */
+	REMOVE_DRAFT_PLACEMENT: 'Removed',
 	REVERT: 'Undid a change',
 };
 

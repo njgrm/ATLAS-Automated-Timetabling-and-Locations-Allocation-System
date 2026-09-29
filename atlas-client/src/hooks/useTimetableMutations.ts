@@ -441,7 +441,8 @@ export type TimetableMutationState = {
 	commitRegularSwapNow: (entryA: ScheduledEntry, entryB: ScheduledEntry) => Promise<RegularSwapCommitOutcome>;
 	regularSwapStrategy: 'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE' | null;
 	setRegularSwapStrategy: React.Dispatch<React.SetStateAction<'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE' | null>>;
-	unassignDraftPlacement: (placementId: number) => Promise<void>;
+	/** A2 move-swap item 3 — returns the board mutation identity so the caller registers Undo. */
+	unassignDraftPlacement: (placementId: number) => Promise<DraftBoardMutationResult | null>;
 	getDraggedDraftPlacementId: (source: any) => number | null;
 	commitPreGenPending: () => Promise<DraftPlacementCommitResult | null>;
 	/** Swap preview results loaded when swap confirm dialog opens (Fix C) */
@@ -2300,8 +2301,8 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		}
 	}, [apiBase, runVersion, schoolYearId, schoolId, runIdNumeric, setRegularSwapPending, setRegularSwapPreview, setRegularSwapStrategy, setDraft, setViolationReport, fetchEditHistory, setSelectedEntry, setInlineActionStatus, composeSwapReceipt]);
 
-	const unassignDraftPlacement = useCallback(async (placementId: number) => {
-		if (!schoolYearId) return;
+	const unassignDraftPlacement = useCallback(async (placementId: number): Promise<DraftBoardMutationResult | null> => {
+		if (!schoolYearId) return null;
 		setDeletingPlacementId(placementId);
 		try {
 			const { data } = await atlasApi.delete<DraftBoardMutationResult>(`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts/${placementId}`);
@@ -2310,14 +2311,18 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			setSelectedEntry(null);
 			setPreGenKbSource(null);
 			setKbSelectedSource(null);
-			toast.success('Placement removed and returned to queue.');
+			/* A2 move-swap item 3 — the toast that said "Placement removed and
+			 * returned to queue." is REMOVED: the caller writes the ONE receipt
+			 * sentence instead, so the same fact is not spoken twice. */
+			return data;
 		} catch (err) {
 			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
 			toast.error(message ?? 'Failed to remove placement.');
+			return null;
 		} finally {
 			setDeletingPlacementId(null);
 		}
-	}, [schoolYearId, setDeletingPlacementId, setDraftBoard, setDraftBoardSummary, setSelectedEntry, setPreGenKbSource, setKbSelectedSource]);
+	}, [schoolYearId, schoolId, setDeletingPlacementId, setDraftBoard, setDraftBoardSummary, setSelectedEntry, setPreGenKbSource, setKbSelectedSource]);
 
 	const getDraggedDraftPlacementId = useCallback((source: any): number | null => {
 		if (!source) return null;
