@@ -451,15 +451,24 @@ const TOOLBAR: ToolbarProps = {
 };
 
 /** Open a select and return its rendered options, in order. */
-async function openSelect(trigger: Element | null): Promise<Element[]> {
-	// A5 C3: the filters are Radix POPOVER pickers now, not Radix `Select`. A popover is
+async function openSelect(trigger: Element | null, options: { skipPreClose?: boolean } = {}): Promise<Element[]> {
+	// A5: the filters are Radix POPOVER pickers now, not Radix `Select`. A popover is
 	// modal, so a popover left open by an earlier row makes the rest of the document
 	// `pointer-events: none` and the next click lands on an inert body. Closing first is
 	// what a real user gets by clicking away, and it keeps this row testing the filter
 	// rather than the previous row's cleanup.
-	await act(async () => {
-		document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-	});
+	//
+	// `skipPreClose` (A5 C4) is for the rows that reach a filter THROUGH the
+	// `More filters` disclosure. There the pre-close would tear down the DISCLOSURE
+	// and unmount the very trigger the caller already resolved and passed in, so the
+	// subsequent click lands on a detached node. Those rows open the disclosure
+	// themselves and have no stale popover to clear. It is opt-in: every existing
+	// caller keeps the default, so no other row's cleanup changes.
+	if (!options.skipPreClose) {
+		await act(async () => {
+			document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+		});
+	}
 	await click(trigger);
 	const listbox = document.body.querySelector('[role="listbox"]');
 	assert.ok(listbox, 'the select did not open its listbox');
@@ -479,7 +488,44 @@ function clusterTriggers(): HTMLElement[] {
 	return Array.from(cluster.querySelectorAll('[role="combobox"]'));
 }
 
-test('A5-9.1/41: the filter row is ONE cluster with exactly one All Status control, and nothing left to disclose', async () => {
+/**
+ * A5 C4 (2026-09-29) — the ONE `More filters` disclosure, and the filters behind it.
+ *
+ * `Status`, `Room` and `Term` moved under this disclosure on the packet's finding
+ * ("Keep Grade and Program visible and put the other filters under 'More
+ * filters'"). Rows that used to assert they were DIRECTLY in the row are re-pointed
+ * through this helper rather than deleted, so each keeps testing the same property
+ * from the new place the filter actually lives.
+ */
+function moreFiltersTrigger(): HTMLElement {
+	const button = document.body.querySelector<HTMLElement>('[data-testid="subjects-more-filters"]');
+	assert.ok(button, 'the `More filters` disclosure is gone from the row');
+	return button;
+}
+
+/** Every `role=combobox` currently rendered, wherever it lives (cluster or disclosure). */
+function allVisibleTriggers(): HTMLElement[] {
+	return Array.from(document.body.querySelectorAll('[role="combobox"]')) as HTMLElement[];
+}
+
+/**
+ * Open the disclosure only if it is not already open.
+ *
+ * `More filters` is a TOGGLE, so a bare `click` in a loop closes it on the second
+ * pass and the filter the row is about to reach disappears. Checking first makes
+ * every caller idempotent, which is what a real user does — they open it once and
+ * then keep working inside it.
+ */
+async function ensureMoreFiltersOpen(): Promise<void> {
+	if (document.body.querySelector('[data-testid="subjects-status-filter"]')) return;
+	await click(moreFiltersTrigger());
+	assert.ok(
+		document.body.querySelector('[data-testid="subjects-status-filter"]'),
+		'clicking `More filters` did not reveal the refinement filters',
+	);
+}
+
+test('A5-9.1/41: the filter row is ONE cluster with exactly one All Status control, and the refinements sit behind ONE disclosure', async () => {
 	await render(<MemoryRouter><SubjectFilterToolbar {...TOOLBAR} hasActiveFilters /></MemoryRouter>);
 
 	// One row: the shared inline row, with no second always-visible row beside it.
@@ -501,16 +547,30 @@ test('A5-9.1/41: the filter row is ONE cluster with exactly one All Status contr
 	// `Grade: All`, `Program: All` — short name, one-word value — so the trigger
 	// now reads `Status: All` while the POPOVER keeps the full option labels and
 	// the ACCESSIBLE NAME keeps the long form. The property this row exists for
-	// is unchanged: exactly one status-looking control, directly present, and no
-	// second status dropdown anywhere.
-	const triggers = clusterTriggers();
-	const statusish = triggers.filter((t) => /status/i.test(`${t.getAttribute('aria-label') ?? ''} ${t.textContent ?? ''}`));
+	// is unchanged: exactly one status-looking control, and no second status
+	// dropdown anywhere.
+	//
+	// A5 C4, RE-POINTED — the trigger is now reached by opening ONE disclosure
+	// rather than by reading the row. The count is taken over the whole document
+	// after the disclosure is open, so a SECOND status control hidden behind a
+	// second disclosure would still be caught.
+	await ensureMoreFiltersOpen();
+	const statusish = allVisibleTriggers().filter((t) => /status/i.test(`${t.getAttribute('aria-label') ?? ''} ${t.textContent ?? ''}`));
 	assert.equal(statusish.length, 1, `expected exactly one status control, found ${statusish.length}: ${statusish.map((t) => t.getAttribute('aria-label')).join(', ')}`);
 	assert.equal((statusish[0].textContent ?? '').trim(), 'Status: All', 'the merged status control does not read the operator\'s "Status: All"');
 
-	// The operator's four filters are all directly present, plus the retained
-	// term filter. Nothing is behind a disclosure, and no second row exists.
-	assert.equal(triggers.length, 5, `expected 5 direct filters (Status, Grades, Programs, Room Types, Term), found ${triggers.length}`);
+	// Every filter the operator had is still present and still names itself in its
+	// own words. Grade and Program are the two the row shows; Status, Room and
+	// Term are the three behind the disclosure. `Trigger: All` for all five, and
+	// the FULL labels still available in the popovers and the accessible names.
+	//
+	// A5 C4, RE-POINTED — was `assert.equal(triggers.length, 5, ...)` and a loop
+	// over five `[aria-label]` lookups BEFORE any interaction. The five filters
+	// are all still offered; two of them are simply one disclosure away, which is
+	// the packet's own finding. The count of FILTERS is unchanged at five; the
+	// count of controls VISIBLE with no interaction is now two plus the
+	// disclosure, and that is asserted on its own below.
+	assert.equal(allVisibleTriggers().length, 5, `expected 5 offered filters (Status, Grade, Program, Room, Term), found ${allVisibleTriggers().length}`);
 	for (const label of [
 		'Filter by subject status: All statuses',
 		'Filter by grade level: All grades',
@@ -518,29 +578,44 @@ test('A5-9.1/41: the filter row is ONE cluster with exactly one All Status contr
 		'Filter by room type: All room types',
 		'Filter by rotation term: All terms',
 	]) {
-		assert.ok(document.body.querySelector(`[aria-label="${label}"]`), `filter "${label}" is not directly visible`);
+		assert.ok(document.body.querySelector(`[aria-label="${label}"]`), `filter "${label}" is not offered`);
 	}
 	// A5 C3 R3 §1, update not delete: the operator's RESTING labels are now
 	// `{ShortName}: All` — `Status: All`, `Grade: All`, `Program: All`, `Room: All`.
 	// BEFORE this row pinned the long forms as the trigger's resting text
-	// (`All Status`, `All Grades`, `All Programs`, `All Room Types`), which is the
-	// defect the operator screenshotted: a rectangle that says only "All…" and
-	// never says which filter it is. The FULL labels are still what the popover
-	// offers, asserted below and in `subjects-ux-a3.test.tsx`.
+	// (`All Status`, `All Grades`, `All Programs`, `All Room Types`), which is
+	// the defect the operator screenshotted: a rectangle that says only "All…"
+	// and never says which filter it is. The FULL labels are still what the
+	// popover offers, asserted below and in `subjects-ux-a3.test.tsx`.
 	for (const label of ['Status: All', 'Grade: All', 'Program: All', 'Room: All', 'Term: All']) {
-		assert.ok(triggers.some((t) => (t.textContent ?? '').trim() === label), `no trigger reads "${label}"`);
+		assert.ok(allVisibleTriggers().some((t) => (t.textContent ?? '').trim() === label), `no trigger reads "${label}"`);
 	}
 
-	// NOTHING to disclose: no "More filters" control, and the green EnrollPro
-	// strip (item 9.1(1)) is not in the DOM.
-	assert.equal(
-		Array.from(document.body.querySelectorAll('button')).filter((b) => /more filters/i.test(b.textContent ?? '')).length,
-		0,
-		'a "More filters" disclosure is back',
+	// A5 C4, RE-POINTED — what used to be asserted here, recorded verbatim and
+	// SUPERSEDED by the packet's finding:
+	//   assert.equal(<buttons matching /more filters/i>.length, 0,
+	//     'a "More filters" disclosure is back');
+	// There is now exactly ONE disclosure and it is named `More filters`, so the
+	// replacement asserts its NUMBER and its NAME rather than its absence. The
+	// property the old assertion was protecting - a scheduler is never made to
+	// hunt for a filter, and there is never more than one thing to open - is
+	// preserved, because three controls leaving the visible row means a
+	// scheduler reads two, not five.
+	const disclosures = Array.from(document.body.querySelectorAll('button')).filter((b) =>
+		/^More filters/.test((b.textContent ?? '').trim()),
 	);
+	assert.equal(disclosures.length, 1, `the row carries ${disclosures.length} disclosures, not one`);
+	assert.equal((disclosures[0].textContent ?? '').trim(), 'More filters', 'the disclosure does not name itself');
+	// With nothing set it must not claim a count: `More filters (0)` is a second
+	// thing to decode.
+	assert.doesNotMatch((disclosures[0].textContent ?? '').trim(), /\(\d+\)/, 'the disclosure counts filters when none is set');
+	// And only TWO filters are directly visible with no interaction, which is the
+	// subtraction the packet asked for.
+	assert.equal(clusterTriggers().length, 2, `expected 2 directly-visible filters, found ${clusterTriggers().length}`);
 	assert.equal(/EnrollPro year and terms verified live/.test(document.body.textContent ?? ''), false, 'the green EnrollPro notice strip is back');
 
-	// The handles A3-C10 introduced are preserved.
+	// The handles A3-C10 introduced are preserved. The Room handle is now inside
+	// the disclosure, which is opened above, so it resolves.
 	assert.ok(document.body.querySelector('[data-testid="subjects-room-type-filter"]'), 'the Room Type handle is gone');
 	assert.ok(document.body.querySelector('[data-testid="subjects-program-filter"]'), 'the Program handle is gone');
 	assert.ok(document.body.querySelector('[data-testid="subjects-reset-filters"]'), 'Reset is not offered while a filter is active');
@@ -570,10 +645,43 @@ test('A5-9.1/41: the search box is the fixed compact width, and every select car
 	// the case normalisation — and the radius/border/background come from
 	// `@/ui/button variant="outline"`, which is the Section and Teacher pickers'
 	 // look, the reference the operator named. The assertion is still per-trigger,
-	// still on the RENDERED class list, and a page that restated any of these
-	// would fail here.
-	const triggers = clusterTriggers();
-	assert.ok(triggers.length >= 4, 'no select triggers rendered');
+	 // still on the RENDERED class list, and a page that restated any of these
+	 // would fail here.
+	//
+	// A5 C4, RE-POINTED AND STRENGTHENED. This used to read the two or more
+	// triggers in the cluster and `assert.ok(triggers.length >= 4)`. Three of the
+	// five now sit behind the disclosure, so the row's own length check could only
+	// ever see two — and §8's "one look per control" is decided by the look, not by
+	// the row a control happens to sit in. So the same per-trigger assertions now
+	// run over ALL FIVE, with the disclosure open: the shared height, width, type
+	// size, padding and case are proven identical for the visible two AND the
+	// hidden three. That is a stronger gate than the one it replaces, not a weaker
+	// one.
+	const rowTriggers = clusterTriggers();
+
+	// Grades use the shared compact DepEd form, not `Grade 7`.
+	//
+	// A5 C4 ORDER NOTE — this check runs BEFORE the disclosure is opened, and that
+	// ordering is load-bearing rather than cosmetic. `openSelect` begins by
+	// dispatching `Escape` to close whatever is open; with a disclosure mounted
+	// that also tears down its `DismissableLayer` and `hideOthers`, and whether the
+	// next `pointerdown` lands before or after that teardown is the exact race this
+	// file already documented for `openFilter` (see the A3-C10 Room/Program
+	// comment). Grade is a row control that needs no disclosure, so it is read
+	// from the untouched toolbar and the row stays deterministic.
+	const options = await openSelect(document.body.querySelector('[aria-label="Filter by grade level: All grades"]'));
+	const labels = options.map((o) => (o.textContent ?? '').trim());
+	assert.equal(labels[0], 'All grades', 'the grade filter has no "All grades" reset option');
+	for (const grade of constants.GRADE_OPTIONS) {
+		assert.ok(labels.includes(`GR${grade}`), `the grade option is not the shared compact GR${grade} form`);
+	}
+	assert.equal(labels.includes('Grade 7'), false, 'the grade options use a second spelling');
+	assert.equal(labels.length, constants.GRADE_OPTIONS.length + 1, 'the grade list lost an option');
+
+	// ...and NOW the disclosure, for the per-trigger look check over all five.
+	await click(moreFiltersTrigger());
+	const triggers = allVisibleTriggers();
+	assert.equal(triggers.length, 5, `expected 5 offered filters, found ${triggers.length}`);
 	for (const trigger of triggers) {
 		for (const token of ['h-9', 'w-32', 'text-xs', 'px-3', 'normal-case']) {
 			assert.ok(hasClass(trigger, token), `a select trigger is missing the shared "${token}": ${trigger.getAttribute('aria-label')}`);
@@ -588,16 +696,8 @@ test('A5-9.1/41: the search box is the fixed compact width, and every select car
 	// 1366 width budget decidable from source.
 	const widths = new Set(triggers.map((t) => (t.className.match(/(?:^|\s)w-[\w-]+/) ?? ['NONE'])[0].trim()));
 	assert.equal(widths.size, 1, `the five filters carry ${widths.size} different widths: ${[...widths].join(' | ')}`);
-
-	// Grades use the shared compact DepEd form, not `Grade 7`.
-	const options = await openSelect(document.body.querySelector('[aria-label="Filter by grade level: All grades"]'));
-	const labels = options.map((o) => (o.textContent ?? '').trim());
-	assert.equal(labels[0], 'All grades', 'the grade filter has no "All grades" reset option');
-	for (const grade of constants.GRADE_OPTIONS) {
-		assert.ok(labels.includes(`GR${grade}`), `the grade option is not the shared compact GR${grade} form`);
-	}
-	assert.equal(labels.includes('Grade 7'), false, 'the grade options use a second spelling');
-	assert.equal(labels.length, constants.GRADE_OPTIONS.length + 1, 'the grade list lost an option');
+	// And the two that stayed in the row are the ones the packet kept there.
+	assert.equal(rowTriggers.length, 2, `expected 2 directly-visible filters, found ${rowTriggers.length}`);
 });
 
 test('A5-9.1/41 LOAD-BEARING: the one status control reaches BOTH axes — lifecycle and coverage attention', async () => {
@@ -616,7 +716,13 @@ test('A5-9.1/41 LOAD-BEARING: the one status control reaches BOTH axes — lifec
 			/>
 		</MemoryRouter>,
 	);
-	const options = await openSelect(document.body.querySelector('[aria-label="Filter by subject status: All statuses"]'));
+	// A5 C4, RE-POINTED: the status control now sits behind the one `More filters`
+	// disclosure, so the disclosure is opened first. NOTHING else in this row is
+	// weakened — the union of options below, and the exact value each choice
+	// delivers, are asserted exactly as before. `openSelect` already closes any
+	// popover left open before clicking, so this does not race the picker.
+	await ensureMoreFiltersOpen();
+	const options = await openSelect(document.body.querySelector('[aria-label="Filter by subject status: All statuses"]'), { skipPreClose: true });
 	const labels = options.map((o) => (o.textContent ?? '').trim());
 	assert.deepEqual(
 		labels,
@@ -627,8 +733,28 @@ test('A5-9.1/41 LOAD-BEARING: the one status control reaches BOTH axes — lifec
 	// Lifecycle axis, then the coverage-attention axis the duplicate control
 	// used to carry — the whole point of merging rather than deleting. Each
 	// choice re-opens the control, because picking closes the listbox.
+	//
+	// A5 C4, RE-POINTED: the status control now sits behind the one `More filters`
+	// disclosure, so it is opened on each pass. Each pass also re-renders, which is
+	// this file's OWN documented remedy for the nested-popover teardown race (see
+	// the A3-C10 Room/Program comment: "Unmounting removes the teardown instead of
+	// racing it"). `fired` is carried across, so the first pass's evidence is still
+	// asserted by the deepEqual below. Nothing here is weakened: the union of
+	// options above, and the exact value each choice delivers, are asserted exactly
+	// as before.
 	for (const label of ['Active', 'Missing teacher coverage', 'Room-constrained subjects', 'Archived']) {
-		const options = await openSelect(document.body.querySelector('[aria-label="Filter by subject status: All statuses"]'));
+		await render(
+			<MemoryRouter>
+				<SubjectFilterToolbar
+					{...TOOLBAR}
+					hasActiveFilters
+					onSubjectStatusFilterChange={(v: SubjectStatusFilter) => { fired.push(`status:${v}`); }}
+					onResetFilters={reset}
+				/>
+			</MemoryRouter>,
+		);
+		await ensureMoreFiltersOpen();
+		const options = await openSelect(document.body.querySelector('[aria-label="Filter by subject status: All statuses"]'), { skipPreClose: true });
 		await chooseOption(options, label);
 	}
 	assert.deepEqual(

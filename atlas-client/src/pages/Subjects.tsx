@@ -22,18 +22,15 @@ import { SubjectTermAuthorityBanner } from '@/components/subjects/SubjectTermAut
 import { useSubjectStats, useCoverageDetail, isRoomConstrainedSubject } from '@/components/subjects/useSubjectStats';
 import { subjectToFormValues } from '@/components/subjects/subject-form-utils';
 import { SubjectFilterToolbar, type SubjectStatusFilter } from '@/components/subjects/SubjectFilterToolbar';
-import { SubjectTermContractPopover } from '@/components/subjects/SubjectTermContractPopover';
+import { SubjectCatalogBody } from '@/components/subjects/SubjectCatalogBody';
 import {
 	TERM_FILTER_ALL,
 	buildTermFilterOptions,
 	matchesTermFilter,
 } from '@/components/subjects/subject-term-filter';
-import { SubjectTablePagination } from '@/components/subjects/SubjectTablePagination';
-import { SortableHeader } from '@/components/subjects/SortableHeader';
 import type { SortField, SortDir } from '@/components/subjects/SortableHeader';
 import { resolveSubjectSourceCopy, resolveSubjectMutationErrorCopy } from '@/components/subjects/subject-source-utils';
 import { SubjectMutationDetailPopover } from '@/components/subjects/SubjectMutationDetailPopover';
-import { SubjectMobileList } from '@/components/subjects/SubjectMobileList';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import { Button } from '@/ui/button';
@@ -667,84 +664,27 @@ stats={subjectStats}
 				</div>
 			</AdminTableShell>
 		) : (
-		<AdminTableShell
-				footer={!loading && subjects.length > 0 ? (
-					<SubjectTablePagination
-						leading={<SubjectTermContractPopover termAuthority={termAuthority} />}
-						page={page}
-						pageSize={pageSize}
-						totalFiltered={totalFiltered}
-						totalPages={totalPages}
-						onPageChange={setPage}
-						onPageSizeChange={setPageSize}
-					/>
-				) : undefined}
-			>
-						<SubjectMobileList
-							loading={loading}
-							paged={paged}
-							subjects={subjects}
-							coverageBySubjectId={coverageBySubjectId}
-							onReviewCoverage={(s) => { setCoverageSubject(s); }}
-							onEdit={openSubjectEditor}
-							onArchive={(s) => { setArchiveTarget(s); }}
-							onReactivate={handleReactivateSubject}
-							onDelete={(s) => { setDeleteTarget(s); }}
-						/>
-					<table className="hidden w-full text-sm md:table">
-							<thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-md">
-								<tr className="border-b">
-									{/* Phase 2.4: SortableHeader helper mirrors Phase 1.5. aria-sort
-										exposes the sort state, the button carries an accessible
-										name + visible Tooltip. The helper closes over the
-										component's sortField/sortDir/toggleSort. */}
-									<SortableHeader field="name" label="Subject" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} align="left" />
-									<SortableHeader field="gradeLevels" label="Grade level / program" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} align="left" />
-									<SortableHeader field="minMinutesPerWeek" label="Weekly need" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} align="left" />
-								<SortableHeader field="preferredRoomType" label="Room need" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} align="left" />
-								{/* SCA-01.2: Teacher coverage is a plain column, not a
-									sort. Sorting by isSeedable presented bootstrap
-									seed state as operator priority. */}
-								<th className="px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-xs">Teacher coverage</th>
-									<th className="sticky right-0 z-20 border-l border-border/40 bg-muted/90 px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-xs backdrop-blur-md">Action</th>
-								</tr>
-							</thead>
-							<tbody className="divide-y divide-border/40">
-								{loading ? (
-									Array.from({ length: 8 }).map((_, i) => (
-										<tr key={i}>
-											<td className="px-4 py-4"><Skeleton className="h-5 w-48" /></td>
-											<td className="px-4 py-4"><Skeleton className="h-5 w-24" /></td>
-											<td className="px-4 py-4"><Skeleton className="h-5 w-16" /></td>
-											<td className="px-4 py-4"><Skeleton className="h-5 w-24" /></td>
-											<td className="px-4 py-4"><Skeleton className="h-5 w-20" /></td>
-											<td className="px-4 py-4"><Skeleton className="h-8 w-28 ml-auto" /></td>
-										</tr>
-									))
-								) : paged.length === 0 ? (
-									<tr>
-										<td colSpan={6} className="px-4 py-20 text-center">
-											<AdminStatePanel icon={<BookOpen className="size-8" />} title = {subjects.length === 0 ? 'No subjects found.' : 'No matches found.'} description={subjects.length === 0 ? 'The catalog is empty for this school. Add the first subject to start the list.' : 'Clear a filter or search another subject name or code.'} />
-										</td>
-									</tr>
-								) : (
-									paged.map((s) => (
-<SubjectRow
-											key={s.id}
-											subject={s}
-											timeMode="hours"
-											coverageRow={coverageBySubjectId?.get(s.id) ?? undefined}
-											onEdit={openSubjectEditor}
-											onDelete={(target) => setDeleteTarget(target)}
-											onArchive={(target) => setArchiveTarget(target)}
-											onShowCoverage={openSubjectCoverage}
-										onReactivate={handleReactivateSubject}
-										/>
-									))
-								)}
-							</tbody>
-						</table>
-		</AdminTableShell>
+		<SubjectCatalogBody
+				loading={loading}
+				paged={paged}
+				subjects={subjects}
+				coverageBySubjectId={coverageBySubjectId}
+				termAuthority={termAuthority}
+				sortField={sortField}
+				sortDir={sortDir}
+				onToggleSort={toggleSort}
+				page={page}
+				pageSize={pageSize}
+				totalFiltered={totalFiltered}
+				totalPages={totalPages}
+				onPageChange={setPage}
+				onPageSizeChange={setPageSize}
+				onReviewCoverage={openSubjectCoverage}
+				onEdit={openSubjectEditor}
+				onArchive={(target) => { setArchiveTarget(target); }}
+				onDelete={(target) => { setDeleteTarget(target); }}
+				onReactivate={handleReactivateSubject}
+			/>
 		)}
 
 		{/* A3-17: the coverage review surface is the extracted, centered Dialog
