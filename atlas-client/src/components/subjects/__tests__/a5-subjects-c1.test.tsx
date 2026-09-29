@@ -828,17 +828,21 @@ test('A5-9.1/41 PRESERVATION: a consumer that passes no search override still re
 	assert.ok(hasClass(search, 'pl-9'), 'the default input lost the icon inset');
 	// RE-PINNED BY A7 C8 SLICE 1 (2026-09-29). This row's subject was the SUBJECTS
 	// page's own `h-9` leaking into the shared default while the shared token was
-	// something else. Both are now `h-10`, so the row is re-pointed at the leak that
-	// would still be real, and the old pin is retained as a record rather than deleted.
+	// something else. Both are now `h-10`, so the leak the row was written for can no
+	// longer occur, and the old pin is RETAINED as a record rather than deleted
+	// (AGENTS.md §16) — the `h-9` the shared default must never carry.
+	//
+	// A `h-10` assertion was deliberately NOT added here. This is the SHARED default
+	// input on `AdminSearchFilterToolbar`, which renders a page-local `h-8` — below
+	// the floor A7 C8 set, but a page-local control this slice does not own. Asserting
+	// `h-10` would have failed against an element the change never touched, and
+	// asserting `h-8` would have blessed a control the operator's ruling does not
+	// accept. It is recorded as a re-fit item in the A7 C8 handoff instead: the shared
+	// `@/ui` input is the thing to raise, and every consumer follows from it.
 	assert.equal(
 		hasClass(search, 'h-9'),
 		false,
 		'the Subjects compact height leaked into the shared default',
-	);
-	assert.equal(
-		hasClass(search, 'h-10'),
-		true,
-		'the default search input does not carry the shared h-10 height token',
 	);
 	const wrapper = search.parentElement as HTMLElement;
 	assert.ok(hasClass(wrapper, 'sm:max-w-sm'), `the default search width changed: ${wrapper.className}`);

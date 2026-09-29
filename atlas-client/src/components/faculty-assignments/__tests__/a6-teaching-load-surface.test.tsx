@@ -1092,10 +1092,19 @@ test('A6-39-1 SUPERSEDED IN PART by A6-39-1b then MOSTLY RESTORED by A6 c8 item 
 	assert.doesNotMatch(containerClass, /\bflex-1\b/, 'the search box must not be elastic');
 	assert.doesNotMatch(containerClass, /\bw-full\b/, 'the search box must not be full-width');
 	const searchClass = search.getAttribute('class') ?? '';
-	// RE-PINNED BY A7 C8 SLICE 1 (2026-09-29): the shared height token is `h-10` now,
-	// so the search input shares `h-10` — which is this row's actual claim, that the box
-	// and the picks are ONE height. See the note at the chrome list above.
-	assert.match(searchClass, /\bh-10\b/, 'the search input is the shared h-10 height');
+	// NOT RE-PINNED, AND THAT IS THE POINT. A7 C8 slice 1 raised the SHARED `@/ui`
+	// picker height token from `h-9` to `h-10` (36px -> 40px) and re-pinned every row
+	// that asserted the token. This row is not one of them: it pins a PAGE-LOCAL
+	// search input, which this slice deliberately does not touch — its own packet
+	// scopes the control-height work to `atlas-client/src/ui/` and hands page-local
+	// controls to the re-fit pass to be listed, not edited. Re-pinning it to `h-10`
+	// here would have made a test agree with a change that was never made to the
+	// element it is measuring, which is how a green suite stops meaning anything.
+	//
+	// The value stays `h-9` and the control is recorded below as a re-fit item: a 36px
+	// search box is under the floor the operator asked to be locked in, and the fix
+	// belongs with the row that decides what that row gives up.
+	assert.match(searchClass, /\bh-9\b/, 'the search input is h-9 (page-local; see the A7 C8 re-fit note beside this row)');
 	assert.match(searchClass, /\btext-xs\b/, 'the search input is text-xs');
 
 	// "`More filters` and the second row are both GONE."
