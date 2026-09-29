@@ -110,3 +110,10 @@ What went wrong tonight and the standing change for each (all in force now):
    enabled, setup/terms/Teaching Load verified, no false blocker.
 8. **Model split.** A7 (Class Schedule) and hard diagnosis (A8 unblock) run on DeepSeek V4.1 Flash; bounded
    server/deploy work stays on space-bunny; Codex walks are the QA signal of record; planner self-QA is advisory.
+
+### Rule 9 (30 Sep 00:25) - re-check the live year before relaying any planner finding
+Incident: Lane C relayed A8's "live is on 2025-2026, EnrollPro drifted to 2026-2027" to the operator; A8's restore
+predated the operator's 00:05 rollover, and live was already aligned on 2026-2027. Before relaying a finding that names
+a year, term or live state, run `ctx.cjs` (verifyUpstream) and state the time of the planner's data next to it.
+Staging sign-in note: `/__dev/staging-login` exists only on a `vite` dev preview (e.g. :5277 over the :5101 API), not on
+the built staging server :5274.
