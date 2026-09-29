@@ -25,3 +25,15 @@ active year." — EnrollPro did NOT roll over.
 3. Stale/invalid persisted notices are dropped on load (e.g. the named active year is archived, or it disagrees with
    the verified context). Operators with the bad notice already saved must stop seeing it after the fix ships.
 4. Regression test for each path found.
+
+## Addendum 13:35 — School Year Setup, same family (operator asked to check it)
+`/api/v1/runtime/rollover-status?schoolId=1` on staging (same build, DB copied from live):
+- `atlasSchoolYearId: 1` while the mirror row for 2022-2023 is **id 564** and row id 1 is 2029-2030 — the same id-space
+  mix-up; name every field that means "EnrollPro year id" vs "ATLAS mirror row id" and fix the misnamed ones.
+- `schoolYears` lists **2031-2032, 2030-2031** as "past, not yet kept" and 2029-2030 archived. These are leftover
+  rollover-drill years (created 09-10 / 09-17), not real history, and future-dated labels shown as "past" confuse a
+  scheduler. Show them as test years (there is `/runtime/rollover-recovery/mark-test-data`; a live write needs Lane C's
+  go with a backup) or hide years whose label is later than the active year; your call, state it.
+- Verify the Year Setup page shows 2022-2023 as the one active year with no false change message.
+- The operator plans an EnrollPro rollover soon. After your fix, a real change must produce a correct banner
+  (new year active, old year archived), exactly once.
