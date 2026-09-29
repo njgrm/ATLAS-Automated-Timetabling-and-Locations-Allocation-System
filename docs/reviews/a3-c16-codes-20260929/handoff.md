@@ -18,6 +18,22 @@ audit's class 6) and fix what you find."*
   Disposition: **RETIRE_AFTER_INTEGRATION**, and the two junctions must be `cmd /c rmdir`'d
   before any `git worktree remove`.
 
+## 0. Review rounds, and what each one changed
+
+- **Round 1** (`CORRECTION_REQUIRED`, 8/10, independent): **B1** `CarryForwardReviewPanel.tsx` broke a
+  committed gate — `test:a7-year-setup-plain-words`, the first entry of `test:client-suite`, went
+  17/17 -> 16/17 — and neither script had been run. **B2** the sweep's largest surface was left
+  unfixed for a correct reason and recorded nowhere. Both closed in `780e95fa` + `d61b15fb`; the
+  reviewer confirmed B1's edit is strictly additive and that keeping `Mathematics` on the Year Setup
+  line is the right product call, with only a mechanical `package.json` overlap against A7 c8.
+- **Round 2** (`CORRECTION_REQUIRED`, 18/24, independent): B1 and B2 confirmed **CLOSED**, no new
+  regression, and three new findings that falsify *this file's own evidence* — the pixel figure
+  (NEW-1), the `/audit` 0/0 claim (NEW-2, NEW-3) and the "staging has no run" reason (NEW-4). Those
+  are corrected in the commit that also fixes the constant. **No third review round**: per the
+  two-round rule the candidate ships with the residue recorded as the numbered follow-ups in §6.
+  The reviewer independently agreed none of the open findings is a data-loss, auth or live-write
+  defect and that the code should ship.
+
 ## 1. The named defect, before and after, on real staging data
 
 Loopback preview on port 5241 proxying the **staging** API `:5101`, viewport **1366x768**,
@@ -55,16 +71,30 @@ and is never printed. Pattern copied from the already-committed
 muted detail when it differs from the label (`''` when it does not), so "the code appears once" is
 true by construction rather than by reviewer attention.
 
-**The one-line rule (`2bd2219f`, widened in `780e95fa`).** The 1366x768 render showed the name swap
-improving 8 of 9 rows and making one worse: a teacher on two long special-program subjects read
-`Special Program in the Arts: Specialization 2, Special Program in Sports: Specialization 2 +1
-more` across three lines, in a row visibly taller than its neighbours, with two near-identical
-40-character titles. That is the "too literal" outcome. `pickInlineSubjects` now keeps the first
-name and reports the rest through the `+N more` the cell already had, so the row is one line again.
-No clamp, no ellipsis, no added word — a subtraction. The full per-subject breakdown with every
-count stays one click away in `AssignmentBreakdownPopover`, which is the page's own affordance.
-The ceiling is **40 characters of the whole composed line** (separator, both counts and the
-overflow included), derived from the measured 259px inner text column of the cell in 12px text.
+**The one-line rule (`2bd2219f`, widened in `780e95fa`, ceiling corrected in `f1c2a4d5`).** The
+1366x768 render showed the name swap improving most rows and making one worse: a teacher on two long
+special-program subjects read `Special Program in the Arts: Specialization 2, Special Program in
+Sports: Specialization 2 +1 more` across three lines, with two near-identical 40-character titles.
+That is the "too literal" outcome. `pickInlineSubjects` now keeps the first name and reports the
+rest through the `+N more` the cell already had. No clamp, no ellipsis, no added word — a
+subtraction. The full per-subject breakdown with every count stays one click away in
+`AssignmentBreakdownPopover`, which is the page's own affordance.
+
+The ceiling is **19 characters of the whole composed line** (separator, both counts and the
+overflow included), and it is **measured**: at 1366x768 the roster table is 1111px, the "Assigned
+classes" column is **158.6px**, which with 16px padding each side leaves a **126.6px** text column,
+and the cell's 12px Inter Variable measures **6.5px per character**.
+
+**The honest consequence, which QA round 2 caught me getting wrong:** the first two revisions of
+this comment claimed 291px / 259px / ~40 characters, taken from a `<td>` measured on the wrong
+column, and the independent reviewer measured 158.6 / 126.6 / ~21. At 40 characters the rule
+permitted roughly twice what fits, so it suppressed the second name and the cell **still** wrapped —
+13 of 25 measured cells. At the corrected 19 the measured cells with a multi-line subject line fall
+to **4 of 50**. And the residual is not a bug in the rule: **a subject name often does not fit this
+column on one line at all** — `Mathematics · 8 sections` is 25 characters. The root cause is the
+column width, which lives in `pages/Faculty.tsx`; that file is **A6 c10's in flight**, so it is
+recorded as follow-up item 11 rather than changed here. What this rule can honestly do is stop the
+cell carrying a second name; it cannot make the column wider.
 
 **The sweep (13 files, `9d4fe01d`)** — subject code -> name wherever a name was already on the
 record or already resolvable, plus the two raw department codes that had a committed resolver:
@@ -127,9 +157,9 @@ summary is: **do not read "42 failures" as this lane's debt.**
 
 | Page | raw code tokens | `ux-audit` major | notes |
 |---|---|---|---|
-| `/teachers` | **0** of 40 roster cells | **7** | identical to Lane C's own live baseline for this page in `codex-live-truth-e75d6b8f.md`; every contributor is pre-existing (`More filters`, which is **A6 c8's** row; sub-12px stat labels; Radix `aria-hidden` tooltip copies at 1px). Nothing introduced here, and one 9.6px offender removed. |
-| `/audit` | **0** | **0** | the section-coverage cards read `TLE Exploratory - ICT`, `TLE Exploratory - Agriculture and Fishery Arts`, `TLE Exploratory - Family and Consumer Science`; title and body agree |
-| `/timetable` | **0** | **0** | **unperformed row, stated not hidden:** staging has no run for 2023-2024, so the run-only surfaces this range also changed — the diagnostics rails, the Lock/placement panel, Quick Place, the tactical sandbox dock, the placement and workflow dialogs — are **code-and-test proven, not render proven**. Reaching them needs a generated run, which is a HIGH action and was not performed. |
+| `/teachers` | **0** of 50 roster cells | **7** | identical to Lane C's own live baseline for this page in `codex-live-truth-e75d6b8f.md`; every contributor is pre-existing (`More filters`, which is **A6 c8's** row; sub-12px stat labels; Radix `aria-hidden` tooltip copies at 1px). Nothing introduced here, and one 9.6px offender removed. 4 of 50 cells have a multi-line subject line — see the column-width follow-up. |
+| `/audit` | **3** (`TLE_ICT_EXP`, `TLE_AFA_EXP`, `TLE_FCS_EXP`) | **7** | **not 0/0, and corrected here after QA round 2 caught the false claim.** All three codes come from `atlas-client/src/pages/Audit.tsx:457` (`Current record: ${mismatch.actual}` where `actual` is `specialization \|\| department`, `Audit.tsx:344`) — pre-existing, in the same file this range already edited, and follow-up item 12. The 7 majors are sub-12px `Badge`s and table headers in `components/audit/AuditFindingsPanel.tsx` and `ui/badge.tsx`, files this range does not touch. What the range *did* fix here is the section-coverage finding, whose cards now read `TLE Exploratory - ICT` / `- Agriculture and Fishery Arts` / `- Family and Consumer Science`, with title and body agreeing. |
+| `/timetable` | **0** | **0** | **UNPERFORMED row, and QA round 2 corrected the reason.** An earlier draft of this file said "staging has no run for 2023-2024, so reaching these surfaces needs a HIGH action". **That was false**: staging has **Run 347** (`6 Must fix, 696 advisories`, `State: Draft ... (Run 347)`). The six run-only surfaces this range also changed — the diagnostics rails, the Lock/placement panel, Quick Place, the tactical sandbox dock, the placement and workflow dialogs, `simplePublishReadiness` — were still **not reachable** in the reviewer's pass (`/timetable/pre-generation` renders no queue, no rail and no sandbox, and throws pre-existing duplicate-key console errors and an EnrollPro 502). So the row stays UNPERFORMED for a different and less alarming reason: those surfaces need a working pre-generation queue on staging, **not** an operator approval. **They are code-and-test proven, not render proven.** |
 
 **The popover was not opened in the browser.** Its trigger is a `<button>` nested inside the cell's
 own `<button>`, so a real click does not open it (QA's pre-existing finding N4; byte-identical
@@ -172,9 +202,26 @@ flight, and the remainder are **not** silently dropped:
 9. **`More filters` on `/teachers`** (one `ux-audit` major contributor) — **A6 c8's row**, named in
    `fix-1.2`/A6 packets, not this lane's.
 10. **Pre-existing, not attributable to this range:** the roster cell nests a `<button>` inside a
-    `<button>` (React hydration warning, and the reason the popover cannot be opened in a browser);
-    12px text in the cell and in the nav chrome is below the operator's 14px floor but predates this
-    change, and the type scale was A7 c8's file to change.
+    `<button>` (React hydration warning, and the reason the popover cannot be opened in a browser —
+    a programmatic click sets `aria-expanded="true"` but no popper mounts); 12px text in the cell and
+    in the nav chrome is below the operator's 14px floor but predates this change, and the type
+    scale was A7 c8's file to change.
+11. **The root cause of the residual wrapping on `/teachers`, and worth more than this whole cycle.**
+    The "Assigned classes" column is **158.6px** (126.6px of text) inside a 1111px table whose
+    `Actions` column is **319px** for two buttons and whose `Teacher` column is 383px. Subject names
+    do not fit 126.6px — `Mathematics · 8 sections` is 25 characters at 6.5px each. Giving this
+    column the width it needs is the real fix. The column definitions are in
+    `atlas-client/src/pages/Faculty.tsx` (the `teacherColumns` memo, `Faculty.tsx:534`), which is
+    **A6 c10's in-flight file**, so this lane did not change it. **Owner: A6, or whoever next holds
+    the roster table.** It needs its own before/after screenshots because A5 and A6 both screenshot
+    this page.
+12. `atlas-client/src/pages/Audit.tsx:457` — the coverage-mismatch line still prints the raw
+    specialization/department: `Required: ICT. Current record: TLE_ICT_EXP`. `required` already
+    resolves to plain words while `actual` stays raw, in the same file this range edited. The
+    `sectionCoverageGapSubjectLabel` fix landed one function above it and this line was missed.
+13. `atlas-client/src/components/audit/AuditFindingsPanel.tsx` + `atlas-client/src/ui/badge.tsx` —
+    the 7 `/audit` `ux-audit` majors are five 10px `Badge`s and two 10.88px table headers. Type
+    scale is A7 c8's file, and the panel is not this lane's.
 
 ## 7. Risks
 

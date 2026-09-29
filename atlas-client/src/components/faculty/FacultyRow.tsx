@@ -288,23 +288,31 @@ export function facultySubjectCodeDetail(
 /**
  * A3 c16 (D3) - the width the "Assigned classes" cell can hold on ONE line.
  *
- * Showing names instead of codes made this cell better (`AP` -> `Araling Panlipunan`)
- * and worse in one case: a teacher on two long special-program subjects read
+ * Showing names instead of codes made this cell better (`AP` -> `Araling Panlipunan`) and
+ * worse in one case: a teacher on two long special-program subjects read
  * `Special Program in the Arts: Specialization 2, Special Program in Sports: Specialization 2
- * +1 more` across three lines, in a row visibly taller than its neighbours, with two
- * near-identical 40-character titles. That is the "too literal" outcome - the packet said
- * show names, so names were shown even where two of them do not fit.
+ * +1 more` across three lines, with two near-identical 40-character titles. That is the "too
+ * literal" outcome - the packet said show names, so names were shown even where two of them
+ * do not fit.
  *
- * Measured in the browser on real staging data at 1366x768, over all 40 roster rows: the
- * `<td>` is 291px including padding, so its inner text column is 259px. In the cell's 12px
- * text that holds about 40 characters, and 40 is used rather than a rounder number so the
- * rule stays conservative.
+ * MEASURED, not assumed. At 1366x768 on real staging data, over the roster table: the table
+ * is 1111px and the "Assigned classes" column is **158.6px**, which with its 16px padding
+ * each side leaves a **126.6px** text column. The cell's text is 12px Inter Variable, measured
+ * by canvas `measureText` at **6.5px per character**, so one line holds about **19
+ * characters**. (An earlier revision of this comment claimed 291px/259px/~40 characters and
+ * was wrong by roughly 1.8x; the independent QA pass measured the same 158.6/126.6 this
+ * comment now records. Do not re-derive this from a `<td>` you measured on a different
+ * column.)
  *
- * The "Assigned classes" popover beside the cell is the full breakdown with every subject
- * and its count, so dropping the second name loses nothing. This is a subtraction, and it
- * never adds a word, a clamp or an ellipsis.
+ * The honest consequence, stated rather than papered over: at 19 characters a subject NAME
+ * often does not fit on one line by itself - `Mathematics · 8 sections` is 25 characters.
+ * The column is too narrow for names, and the real fix is a column width, which lives in
+ * `pages/Faculty.tsx` and is therefore not this lane's to change (recorded as follow-up
+ * item 11 in `docs/reviews/a3-c16-codes-20260929/handoff.md`). What this rule can honestly
+ * do is stop the cell carrying a SECOND name, which halves the wrapping; it cannot make the
+ * column wider.
  */
-const INLINE_SUBJECT_LINE_BUDGET = 40;
+const INLINE_SUBJECT_LINE_BUDGET = 19;
 
 /** The exact text the two-subject branch renders, so the budget measures the LINE and not just the names. */
 function inlineSubjectLine(entries: { displayName: string; sectionCount: number }[], remaining: number): string {

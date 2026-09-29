@@ -413,16 +413,18 @@ test('A3-c16-8 two SHORT subject names both stay inline on one line', () => {
 		// renders, and it is the only branch carrying the addressing test id.
 		onClick: () => {},
 		faculty: facultyWith([
-			{ id: 1, subjectId: 5, subject: { id: 5, code: 'DEVL_READING', name: 'Developmental Reading' }, sections: [section(11, 'Rizal 7', 7, 7)] },
+			// "ESP 1, Filipino 1" is 18 characters, inside the measured 19-character
+			// line of the 126.6px cell, so BOTH belong inline.
+			{ id: 1, subjectId: 5, subject: { id: 5, code: 'ESP', name: 'ESP' }, sections: [section(11, 'Rizal 7', 7, 7)] },
 			{ id: 2, subjectId: 6, subject: { id: 6, code: 'FIL', name: 'Filipino' }, sections: [section(12, 'Mabini 7', 7, 8), section(13, 'Mabini 8', 7, 8), section(14, 'Mabini 9', 7, 9), section(15, 'Mabini 10', 7, 10), section(16, 'Mabini 7-B', 7, 7)] },
 		]),
 	}));
 
 	const cell = host.querySelector('[data-testid="teacher-row-assigned-classes-summary-trigger"]');
 	const text = textOf(cell!);
-	// This is the improvement: the row used to read `DEVL_READING 1, FIL 5`.
-	assert.match(text, /Developmental Reading 1, Filipino 5/, `both short names belong inline; saw ${JSON.stringify(text)}`);
-	assert.doesNotMatch(text, /DEVL_READING|FIL/, 'no code may appear in the inline cell');
+	// This is the improvement: the row used to read `ESP 1, FIL 5`.
+	assert.match(text, /ESP 1, Filipino 5/, `both short names belong inline; saw ${JSON.stringify(text)}`);
+	assert.doesNotMatch(text, /ESP_|FIL/, 'no code may appear in the inline cell');
 });
 
 test('A3-c16-9 two LONG subject names subtract the second name instead of wrapping', () => {
@@ -459,30 +461,42 @@ test('A3-c16-9 two LONG subject names subtract the second name instead of wrappi
  * the pixels.
  */
 const summary = (name: string, sectionCount: number) => ({ displayName: name, sectionCount }) as any;
-
 test('A3-c16-10 the budget counts the WHOLE composed line, not just the two names', () => {
-	// 21 + 41 characters of name, plus ", ", both counts and the overflow: 71.
-	// The name-only version of this rule (budget 38, names only) would have read
-	// 62 and still dropped the second name, but a pair that fits the NAMES budget
-	// while overflowing the LINE is exactly the case it got wrong.
-	const two = pickInlineSubjects([
-		summary('Developmental Reading 1', 1),
-		summary('Filipino', 1),
-	]);
-	// 22 + 1 + 2 + 8 + 1 = the composed line is 34 characters, so BOTH stay inline.
-	assert.equal(two.shown.length, 2, `a 34-character line fits; got ${JSON.stringify(two)}`);
-	assert.equal(two.remaining, 0);
-	// One character more, PLUS a third subject so the overflow suffix is actually
-	// emitted: the composed line becomes 44 characters, which the 259px cell cannot
-	// hold - even though the two NAMES alone (30) would have passed a name-only
-	// budget. That is the case the first version of the rule got wrong.
-	const justOver = pickInlineSubjects([
-		summary('Developmental Reading 12', 1),
-		summary('Filipino', 1),
+	// The first version of this rule summed only the two NAMES, which ignored the
+	// `", "`, the two section counts and the ` +N more` overflow that the same line
+	// also emits. These rows measure the composed LINE against the measured
+	// 19-character cell, and they are the direct control the earlier revision had
+	// none of. The 19-character ceiling is the 126.6px inner text column at the
+	// cell's 12px Inter Variable; JSDOM performs no layout, so what is proven here
+	// is the rule and the ceiling, not the pixels.
+	//
+	// "ESP 1, Filipino 1" is 18 characters: inside the line, so both stay inline.
+	const fits = pickInlineSubjects([
 		summary('ESP', 1),
+		summary('Filipino', 1),
 	]);
-	assert.equal(justOver.shown.length, 1, `a 44-character line must drop to one name; got ${JSON.stringify(justOver)}`);
-	assert.equal(justOver.remaining, 2, 'both hidden subjects must be reported; nothing is lost');
+	assert.equal(fits.shown.length, 2, `an 18-character line fits the cell; got ${JSON.stringify(fits)}`);
+	assert.equal(fits.remaining, 0);
+
+	// "ESP 1, Filipino 12" is 20 characters: over the line, even though the two
+	// NAMES alone (17) would have passed a name-only budget. That is the exact case
+	// the name-only version got wrong, and the overflow suffix is what pushes it over.
+	const over = pickInlineSubjects([
+		summary('ESP', 1),
+		summary('Filipino 12', 1),
+	]);
+	assert.equal(over.shown.length, 1, `a 20-character line must drop to one name; got ${JSON.stringify(over)}`);
+	assert.equal(over.remaining, 1, 'the dropped second subject is reported through the overflow');
+
+	// ...and the overflow suffix is counted too: the same pair plus a third subject
+	// becomes "ESP 1, Filipino 1 +1 more", 27 characters, which must also drop to one.
+	const withOverflow = pickInlineSubjects([
+		summary('ESP', 1),
+		summary('Filipino', 1),
+		summary('Math', 1),
+	]);
+	assert.equal(withOverflow.shown.length, 1, `the overflow suffix must count against the line; got ${JSON.stringify(withOverflow)}`);
+	assert.equal(withOverflow.remaining, 2, 'both hidden subjects must be reported; nothing is lost');
 });
 
 test('A3-c16-11 the rule can never emit an empty cell, a +0 more, or lose a count', () => {
