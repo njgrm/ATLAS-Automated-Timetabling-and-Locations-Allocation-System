@@ -185,14 +185,21 @@ worked around. What that costs, measured rather than assumed:
 - **Sidebar chrome, pre-existing, on every page including pages with no badges:** the brand block
   (`ATLAS High School / SCHEDULING PORTAL / S.Y. 2023-2024 • ACTIVE`) is clipped at the top of the
   viewport (`clientHeight` 48 / `scrollHeight` 63) and each nav link carries 3px of hidden line box
-  (`32/35`). That is the whole of the residual `clippedAll: 13–14` on every page. It is not a
-  `data-slot="badge"` element, it is identical on `/room-schedules` (2 badges) and `/` (3 badges), and
+  (`32/35`). On every page except `/timetable` that is the whole of the residual `clippedAll: 13–14`.
+  `/timetable` has one more, cut **horizontally** and therefore untouched by this line-height fix: the
+  `timetable-simple-readiness-chip` badge (`SimpleSetupSharedControls.tsx`) measures `clientWidth` 318 /
+  `scrollWidth` 403 — 85px cut with `text-overflow: clip`, no ellipsis. It is pre-existing (that file's blob
+  is identical across this range) and is a dated follow-up row. It is not a
+  `data-slot="badge"` regression, it is identical on `/room-schedules` (2 badges) and `/` (3 badges), and
   nothing in this diff touches the sidebar. **Owner's call, not this lane's.**
 - **`palette-slate400-step2-a3-s-f.test.ts` is RED on the base commit, before this change.**
   It pins the LF-normalised SHA-256 of `atlas-client/src/index.css`; the pin
   `27d6cde6b5307facf1fcc7cea51af798f340214c3890e1bfbc5254a033313940` already did not match the file at
   `3b010e74` (measured `b6670d1c4c396d207b1f824444f481b88708fd21dc9db9468d4c083d0e63fd6d`), and
-  `npm run test:a3-palette-slate400-s-f` fails there with *"src/index.css changed again since A3-C9
-  correction 3"*. c8's `a528caa6` moved `index.css` and did not repin. It is not in `test:client-suite`,
-  so it does not affect the row above, and **it still needs a repin by its owner** — a file outside this
+   `npm run test:a3-palette-slate400-s-f` fails there with *"src/index.css changed again since A3-C9
+   correction 3"*. The pin was first broken by `e54e649fba` (`fix(ui): universal resizable data dialogs`),
+   not by c8's `a528caa6`; c8's own re-pin commit `b4e4befabc` moved `index.css` again and left it stale.
+   This change moves `index.css` once more but adds **zero** `--token` lines, so the pin is unchanged in
+   kind (red before, red after) and a repin stays safe. It is not in `test:client-suite`,
+   so it does not affect the row above, and **it still needs a repin by its owner** — a file outside this
   lane's write scope. Editing `index.css` again does not create that debt; it was already there.
