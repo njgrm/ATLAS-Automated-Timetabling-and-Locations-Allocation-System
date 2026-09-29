@@ -3841,6 +3841,44 @@ Assessment of the previously-uncommitted tree (the handoff's two named checks, b
   **nothing** — the honest answer — even if it somehow reached the message.
 - New client suite `timetable-undo-single-surface-a2` is reachable from **both** `test:a2-undo-single-surface-a2`
   and the `test:client-suite` aggregate (AGENTS.md S11) and passes **6/6**. No Lane A3-owned path is touched.
+## Lane A3 - 2026-09-29 c13: Teacher Concerns is ONE page (integrated on `main`; NOT live)
+
+**0 fixes live and seen / 1 integrated on `main` / 0 dropped.** Packet
+`docs/prompts/a3-teacher-concerns-one-page-2026-09-29.md`. Base `6d81026b`; candidate `bf13c50d` + bounded
+correction `99e658ba`; merge on `integration/a3-c13-20260929`; 9 client paths, **+1432/−1925**, zero
+`atlas-server/`, zero `prisma/`, no migration, no new server write route (so MEDIUM, not HIGH).
+`/faculty/room-preferences` and `/faculty/preferences` are now `<Navigate replace>` to
+`/faculty/concerns`; the sidebar shows only "Teacher Concerns".
+
+**Verified, 2026-09-29:**
+- `test:a3-c8-room-preach` 10/10 · `test:a3-c6-concerns` 16/16 · `test:a3-c6-route-hygiene` 11/11 ·
+  `test:scheduler-concern` 26/26 on the **merged** tree; client typecheck 1 error, in
+  `src/lib/__tests__/timetable-truth-labels-a2.test.ts` (untouched, **pre-existing**), 0 in any changed path.
+- Two rounds, two verdicts: QA r1 `CORRECTION_REQUIRED` (7 pass/3 blocked/1 unperformed; B1 a red
+  committed gate, B2 an unpredicted second red gate) -> executor correction `99e658ba` -> QA r2
+  **`ACCEPT_READY` 6/7, blocked 0, unperformed 1**. B1 closed as an **additive** supersession (R1-R5 kept
+  and now required to have *stopped holding*); B2 closed as **behaviour** (both folded URLs keep a
+  specific `Teacher Concerns` chrome title; the `ux-r01` test untouched).
+- Rendered at 1366x768 by the planner against **staging only** (`127.0.0.1:5101`; every `:5001`
+  request counted and aborted - **live never contacted**), signed in as the QA officer.
+  `docs/reviews/a3-c13-20260929/*.png`. **Isolated loopback evidence, not Tailnet acceptance.**
+
+**BLOCKED for Lane C's rows 1 and 3 (data precondition, not a defect, dated 2026-09-29 10:4x +08):**
+staging renders `Active ordered term unresolved - ... Writes stay disabled rather than defaulting to Term 1`
+and pressing **Re-check the active term** issues **0 writes** and does not resolve it; staging also returns
+`404 NO_RUNS` for `GET /api/v1/generation/1/1/runs/latest`, so the Rooms section has no draft to read
+even with a term. Refusing to default to Term 1 is the correct §7 behaviour. **Clearing this needs the
+term-cache catch-up apply, which is a HIGH action and is not this lane's to run.**
+**Row 2 is PROVEN:** both folded URLs land on `/faculty/concerns` with `h1` `Teacher Concerns`, 0 writes.
+
+**Not mine, still red (dated 2026-09-29):** `test:timetable-ux-rehaul` 33/35 - `timetable-ux-rehaul-c01.test.ts:514`
+and `:253` assert `<SimpleDriftBanner` against `TimetableSimpleHeader.tsx`, which contains 0 occurrences.
+Both blobs byte-identical at base and HEAD; **owned by the A2/header lane**, not by A3 c13.
+
+**Next action (not mine):** A4 puts this merge in the next train; Lane C takes the three browser rows on
+staging/live after a verified active term exists. Worktree `E:/ATLAS-worktrees/lane-a3-c13-concerns` =
+`RETIRE_AFTER_INTEGRATION`.
+
 ## Lane A3 - current lane (written only by Planner A3)
 
 ### Live release `d11304e8` is DEPLOYED; browser acceptance is INCOMPLETE and BLOCKED

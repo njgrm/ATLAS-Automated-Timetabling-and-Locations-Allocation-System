@@ -73,7 +73,12 @@ After every output that changes code or files, suggest a conventional commit mes
   `atlas_restore_drill_*`), and must fail closed when the connected database name is not disposable. Incident: a bare
   `enrollpro-rollover-automation.test.ts` run wrote 5 `schools` rows into LIVE (live-state.md 02:25).
 - **Loopback previews never talk to live (2026-09-29).** A candidate `vite preview`/`dev` for rendered proof must proxy
-  to the STAGING API: start it with `VITE_ATLAS_API=http://127.0.0.1:5101`. The default target `127.0.0.1:5001` is the
+  to the STAGING API: start it with `VITE_ATLAS_API=http://127.0.0.1:5101/api/v1` — **the `/api/v1` suffix is part of the
+  value**, because `src/lib/api.ts` uses `VITE_ATLAS_API` verbatim as the axios `baseURL`; without it every request goes
+  to `5101/auth/login` instead of `5101/api/v1/auth/login` and staging answers `500` (observed 2026-09-29, A3 c13). The
+  loopback origin is not in staging's CORS allowlist either, so an authenticated loopback render also needs a browser-side
+  bridge that drops `Origin` on the way out and adds `Access-Control-Allow-Origin` on the way back; a harness that edits
+  staging's CORS env is a HIGH action and is not one. The default target `127.0.0.1:5001` is the
   LIVE server: the candidate UI then reads and could write production data, and login fails on `http://127.0.0.1`
   because live issues Secure cookies (operator saw "Failed to load subjects" / "No saved data" after logging in on :5292).
 

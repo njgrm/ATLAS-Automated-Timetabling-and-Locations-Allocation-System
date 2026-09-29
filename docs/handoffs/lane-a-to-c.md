@@ -1,5 +1,75 @@
 # A2 -> Lane C: what I need tested, and what I need answered
 
+## A3 -> Lane C + A4, 2026-09-29 ~10:5x +08 - **A3 ready for release at `MERGE_SHA`** - Teacher Concerns is the ONE page a scheduler fills while talking to a teacher
+
+**0 fixes live and seen / 1 integrated on `main` / 0 dropped.** **A4 owns the deploy; A3 has not deployed and will not (§14).**
+Packet `docs/prompts/a3-teacher-concerns-one-page-2026-09-29.md`, your 09:55 direction: *"Room preferences should not be
+a different page, it should be folded into teacher concerns so there is only one page the scheduler will fill out when
+speaking to a teacher."* Client-only, 9 paths, **+1432/-1925**. The three pages went **1858 -> 674 lines**.
+
+| Your words | What a scheduler now sees |
+|---|---|
+| *"only one page the scheduler will fill out when speaking to a teacher"* | `/faculty/concerns` is the whole job: pick the teacher, their availability grid (unchanged), **their rooms**, anything else, **one Save** at the end that names what it saved. `/faculty/room-preferences` and `/faculty/preferences` are now redirects; the sidebar shows **only** `Teacher Concerns`. The old reviewer's Approve/Return card, the `Term 2 - v4` badge, the eyebrow and the room free-text box are **gone**. |
+| *"never dense, never intimidating, never leave guesswork or tedium"* | Two calm rows at 1366x768: title + one status chip + `More`; then the teacher picker. One primary action. No `draft` / `submitted` / run-id anywhere on screen. **The packet's "applied after the timetable is built" promise is not in the page, because it is not true of this codebase** - see below. |
+
+### Two things I checked before letting the page promise anything
+
+- **Availability binds to generation only at status `REVIEWED`** (`faculty-availability.service.ts:346`), and the review
+  PATCH takes `timetable:edit` and takes the reviewer from the session. The old Submit-then-Approve pair was always the
+  same person pressing two buttons, so the ceremony had no second reader. The one Save now carries save -> submit ->
+  review, and the reviewer card is deleted.
+- **`FacultyRoomPreference` is not a generator constraint.** It is a *gate* (`generation.service.ts:1183` blocks
+  generation on SUBMITTED+PENDING) plus an apply that moves one entry in the current draft under a version CAS. So the
+  page says the move happens **now** and never says it is applied when the timetable is built. `FacultyPreference`'s
+  wellbeing fields feed nothing in the generation path, so **no wellbeing checkboxes were added** - your packet said
+  "if they do not, do not add them", and that is the branch we took. **No new server route was needed; every call is an
+  existing room-preference route**, which is why this is MEDIUM and not HIGH.
+
+### The review, honestly
+
+Fresh QA round 1: **`CORRECTION_REQUIRED`**, 7 pass / 3 blocked / 1 unperformed, **two BLOCKING findings** - one I had
+predicted (`test:a3-c8-room-preach` red at 1/7 because it demanded a nav item for the page this packet removes) and **one
+neither of us had predicted**: deleting the two `routeChromeOverrides` entries made `ux-r01-shared-chrome` red too, which
+sits in `test:timetable-ux-rehaul` and `test:client-suite`. Round 2: **`ACCEPT_READY`, 6/7, blocked 0, unperformed 1**.
+B1 was closed as an **additive** supersession - R1-R5 are kept and now *required to have stopped holding*, so re-adding the
+nav item turns them red again. B2 was closed as **behaviour**: both folded URLs keep a specific `Teacher Concerns` chrome
+title, so a redirect never flashes `ATLAS`.
+
+### What only a browser can decide - three rows, and **two of them are blocked on data, not on code**
+
+Rendered at **1366x768** by me against **staging only** (every `:5001` request counted and aborted; **live was never
+contacted**), signed in as the QA officer. `docs/reviews/a3-c13-20260929/`. **This is isolated loopback evidence, not
+Tailnet acceptance.**
+
+1. `BLOCKED(TERM_UNRESOLVED)` - staging renders *"Active ordered term unresolved ... Writes stay disabled rather than
+   defaulting to Term 1."* I pressed **Re-check the active term**: **0 writes**, still unresolved. Refusing to default to
+   Term 1 is correct (§7), so this is a staging data precondition, not a defect. Staging also returns `404 NO_RUNS` for
+   the latest run, so the Rooms section has no draft to read even with a term. **Clearing it is the term-cache catch-up
+   apply - a HIGH action I did not run.**
+2. **`PROVEN`** - `/faculty/room-preferences` and `/faculty/preferences` both land on `/faculty/concerns`, `h1` reads
+   `Teacher Concerns`, and the navigation issued **0** write requests.
+3. `BLOCKED(TERM_UNRESOLVED)` - the "Moves 7-A to Room 101 ... Nothing clashes." preview line and the
+   `Move 7-A to Room 101` button could not be exercised for the same reason. QA confirmed the fail-closed render shows
+   **no state drift** and that the page never claims a future application it cannot perform.
+
+**Two rows for you tomorrow, once a term is verified:** fill one teacher top to bottom including a room, Save, reload,
+and confirm the room row and availability persist (the confirmation sentence is transient by design - do not fail the row
+on it); and the preview line before apply.
+
+**Not mine, still red, dated 2026-09-29:** `test:timetable-ux-rehaul` 33/35 - both failures assert `<SimpleDriftBanner`
+in `TimetableSimpleHeader.tsx`, which has 0 occurrences; both files are byte-identical at base and at this merge. A2's
+header lane owns it. **I did not touch another lane's test to make my own merge look green.**
+
+**Two of my own errors, on the record.** (1) The loopback preview I first started used `VITE_ATLAS_API=http://127.0.0.1:5101`,
+which is the value `AGENTS.md` §5 prescribes, and every call went to `5101/auth/login` and got `500`. The value needs its
+`/api/v1` suffix; §5 is corrected in this commit. (2) The worktree I provisioned pointed the client's `node_modules` at a
+shared donor that is missing `@radix-ui`, `@dnd-kit` and `tsx`, so vite could not boot at all and the first round had no
+preview. The planner replaced it with a real `npm ci`; the first baseline typecheck was 1 error, not the 162 the broken
+donor produced.
+
+**Next action (single, and it is not mine):** A4 puts this merge in the next train; Lane C takes rows 1 and 3 once a
+verified active term exists. Worktree `E:/ATLAS-worktrees/lane-a3-c13-concerns` = `RETIRE_AFTER_INTEGRATION`.
+
 ## A8 -> Lane C + A4, 2026-09-29 ~10:0x +08 - **A8 ready for release at `6a496cbd`** - the stream leak is fixed and proved, and the 2.4 s freeze is **not** ATLAS's code
 
 **0 fixes live and seen / 1 integrated on `main`, not on production / 0 dropped.** **A4 owns the deploy; A8 has not
