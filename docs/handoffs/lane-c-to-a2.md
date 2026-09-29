@@ -1,5 +1,81 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+## 🟡 A2 → Lane C, 2026-09-29 21:25 — **c17 preferences-kept is ON MAIN at `e3cb0a63`**; one rendered row is owed, and it needs your deploy first
+
+**0 fixes live and seen / 1 integrated / 0 dropped.** Integrated on `main` at **`e3cb0a63`** (candidate
+`22822c15` → correction `f30e338e` → merge `107c40d5` → test-scope fix `e3cb0a63`; range `df5c249c...e3cb0a63`,
+11 paths). **A4 owns the deploy; A2 has not deployed and will not.** No generation was run. A completed staging
+run is already there (**run 347, Term 1, 40 cells, Draft**) — **no generation is needed to close the row.**
+
+### What the scheduler now sees
+
+One line in the Class Schedule body, above the grid — **not** in the header, which is already two full rows (§8):
+
+```
+Teacher preferences: 2 of 2 unavailable times kept · 5 of 7 preferred times met
+```
+
+It is a **control** — border, fill, chevron, pointer cursor, hover **and** focus-visible. Click or Enter opens a
+list per teacher:
+
+```
+Dela Cruz, Ana
+  ● Unavailable Friday afternoon — kept
+    Friday — nothing placed there
+  ● Prefers mornings — 3 of 5
+    Monday — a class was placed there
+    …
+2026-2027 · Term 1
+```
+
+**Nothing at all renders when nobody has preferences** — not an empty box, not `0 of 0`. When a teacher's
+preferences are still DRAFT/SUBMITTED they get their own sentence with a working link to Teacher Preferences:
+`2 teachers' preferences are not reviewed yet, so they were not used.`
+
+### The one number QA caught, and why it matters to your drill
+
+**First cut shipped `20 of 5 preferred times met`.** Your T3 ("PREFERRED mornings only") is stored by the picker as
+**80 fifteen-minute rows**, and the code counted *rows* in the numerator against *painted blocks* in the
+denominator. On your own Step 0 set-up that reads as broken software. **Day-window is now the only unit anywhere**,
+guarded by a row that fails without a human, and R3 is re-fixtured from the real picker surface (it asserts
+`slots.length === 80`, so it cannot drift back to an invented fixture). The parent packet's named fixture is
+intact: a violated UNAVAILABLE slot still reads **`1 of 2 kept`**.
+
+### Two judgement calls, so you can overrule them
+
+1. **"Times" means painted blocks, not stored rows.** Your Step 0 is "T1 UNAVAILABLE all Friday afternoon, T2
+   UNAVAILABLE Monday first two periods" — two blocks, and your example line says `2 of 2`. Row-counting would have
+   rendered `16 of 16`. Detail rows carry no ratio, so one list never mixes units.
+2. **A day name appears when the window is one day, and is dropped when it spans weekdays** — `Unavailable Friday
+   afternoon` (your word) next to `Prefers mornings` (your word), so five preferred mornings is one line, not five.
+
+### Gates
+
+Independent QA `ses_f12ea0a2effeEczZFcEgGuulVP` → `CORRECTION_REQUIRED` 17/19, **1 BLOCKING** (the `20 of 5`
+arithmetic). Bounded re-review of the correction, planner-level per §11. Final on the merge tip: server **22/22**,
+client **17/17**, `test:ux-guardrails` **31/31** (preservation), `test:encoding` 0 fail. QA also killed **two
+mutants** (4 failures each, restored byte-exact), confirmed the range is **0 deletions**, and **reproduced the
+three pre-existing base failures and the one pre-existing client `tsc` error identically on base and candidate** —
+so this change neither caused nor masked any of them. R10 stays `UNPERFORMED`; R11/R12 green.
+
+### 🟡 ONE ROW IS OWED, AND I CANNOT CLOSE IT — the server half must reach staging first
+
+The client preview served the candidate, but **staging's API has no such route until A4 deploys it**, so the line is
+correctly silent there and the page is unprovable as shipped. I did not fake it with a fixture, and I did not deploy.
+
+- **A4** — deploy the server half to the staging API (`:5101`). Then the line renders with a completed run in place.
+- **Lane C** — the rendered row: 52xx preview proxying to staging, enter and REVIEW real preferences for 2–3 teachers
+  through the page (an ordinary UI mutation, allowed), then your walk at **1366x768**, `window.location.origin`
+  asserted, `scripts/qa/ux-audit.js` JSON attached with `major: 0`, screenshotting the line **and the open list** on
+  the **draft and published** view, plus one page with **no** preferences proving nothing renders.
+- **I already ruled on it:** nothing here is on the walk standard's MAJOR list — no mojibake, no `More filters`, no
+  overflow, nothing under 14px, no clickable-looking-like-plain-text. The two things a walk could still fail on are
+  the ratio (now unit-consistent) and the scope line, which says `2026-2027 · Term 1` and, when the picker is on all
+  terms, appends `(the active term — the picker is on all terms)`.
+
+Full handoff: `docs/handoffs/a2-c17-result-2026-09-29.md`. Worktree `E:/ATLAS-worktrees/lane-a2-c17-prefs` =
+`RETIRE_AFTER_INTEGRATION`. Nothing was written to `D:\ATLAS`.
+
 ## 🟢 A2 → Lane C, 2026-09-29 — **A2 ready for release at `9190c191`** (c13: your three A2 bullets, all three closed in source)
 
 **0 fixes live and seen / 3 integrated / 0 dropped.** Integrated on `main` at **`9190c191`** (candidate
