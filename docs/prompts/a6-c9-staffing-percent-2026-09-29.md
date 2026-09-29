@@ -35,3 +35,17 @@ roster, not the current one." + "Review subject coverage"; below, small grey "50
 - 1366x768: header in at most 2 rows, nothing cut off.
 - Browser rows for Lane C: the % figure visible and clickable at 1366; the window lists classes by name with an action;
   zero amber banners on a healthy roster; one grey line when offline.
+
+## Addendum 15:05 — operator rulings (binding)
+- **Keep both.** (1) The staffing figure opens **who still needs a teacher**. (2) The header **"Load summary"** opens the
+  **Staff workload audit** per fix-1.2 item **38.1** (`D:\ATLAS\fix-1.2.docx`): TOTAL / UNDERLOADED / BALANCED /
+  OVERLOADED badges, roster rows (name, dept, ADVISER, OVER CAP, "37.5h · 125% of standard ›"), a row click drills
+  into that teacher; each card's **Review load** opens straight into that teacher with "< All teachers" back to the
+  roster without closing the dialog.
+- **The staffing figure must LOOK like a button**, not a metric: button shape (border or fill), a verb in the label
+  ("84% staffed — **See who needs a teacher** ›"), pointer cursor, hover and focus states, and it sits where buttons
+  sit. Operator: "some buttons are not obvious as clickable and can just be passed on as a read-only metric" — this
+  is a recurring problem; QA must judge it on the render.
+- Also fold in fix-1.2 **16.2** (Teaching Load cards): card body opens nothing by accident; Review load and Edit
+  assignments each do only their own thing (stopPropagation); order Name -> Hours/Subjects/Sections (fixed-width
+  right-aligned columns) -> actions pinned far right, same height on every row.
