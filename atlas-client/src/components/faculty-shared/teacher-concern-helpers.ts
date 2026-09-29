@@ -369,9 +369,14 @@ export type ConcernSaveAvailabilityInput = {
 	 * The card owns that string; this row owns the consequence. Passing it here
 	 * at all is the trap, so the field is gone rather than merely unused.
 	 *
-	 * The absence is itself covered, not merely asserted: re-adding the field and
-	 * re-concatenating it turns A3P1-B3 red with "B2 - the Save row must not
-	 * leak the raw enum" and A3P1-B4 red with the fixed-sentence check.
+	 * The absence is what keeps B1 and B2 fixed, and its guard is the TYPE, not
+	 * a test row. A3P1-B3/B4 call `resolveConcernSaveAvailability` with
+	 * page-shaped inputs and never supply this value, so they cannot observe its
+	 * absence: QA applied the re-adding mutation and both files still passed
+	 * 24/24. What actually holds is that re-passing the field from the page is a
+	 * COMPILE error (TS2353, unknown property on `ConcernSaveAvailabilityInput`),
+	 * and `a5-c2a-term-truth` C4 pins the absence in source text so a future
+	 * lane cannot add the field and wire it in without a red row.
 	 */
 };
 

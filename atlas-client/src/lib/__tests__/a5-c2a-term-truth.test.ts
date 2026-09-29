@@ -185,9 +185,37 @@ test('A5-C2A C4b: both blocked surfaces read the shared helpers, not a local cop
 		 * Nothing above is removed. This arm is added back beside the new ones,
 		 * scoped to the page that still calls the shared wording directly.
 		 */
-		assert.match(yearSetup, /describeSavedTermSource/,
-			'AdminYearSetup must use the shared saved-data wording, not a local copy');
-		// ── SUPERSEDED IN PLACE, 2026-09-29, A2-C14 ──
+	assert.match(yearSetup, /describeSavedTermSource/,
+		'AdminYearSetup must use the shared saved-data wording, not a local copy');
+	/*
+	 * A3 p1 round 2, N-A — the missing guard for B1/B2.
+	 *
+	 * The Save-row sentence once concatenated the page's `unresolvedTermReason`,
+	 * which printed one sentence twice on screen and leaked a raw EnrollPro code.
+	 * Removing the field from `ConcernSaveAvailabilityInput` is what actually
+	 * holds that fix: re-passing it from the page is a compile error (TS2353).
+	 * The candidate's own B3/B4 rows cannot see the absence — they call the
+	 * helper with page-shaped inputs and never supply the value — and QA
+	 * reproduced that by re-adding the field and re-concatenating it with
+	 * 24/24 still passing. So the absence needs a source-text pin in a gate that
+	 * runs. Additive: nothing above is removed or weakened.
+	 *
+	 * The pin is scoped to the Save-row FUNCTION BODY, because the same module
+	 * legitimately still owns the card-side `unresolvedTermReason` field and
+	 * legitimately documents why it was removed.
+	 */
+	const saveRowHelper = concernsHelpers.slice(
+		concernsHelpers.indexOf('export function resolveConcernSaveAvailability'),
+		concernsHelpers.indexOf('\nexport ', concernsHelpers.indexOf('export function resolveConcernSaveAvailability') + 1),
+	);
+	assert.ok(saveRowHelper.length > 0, 'the Save-row reason helper must be present to pin');
+	assert.match(saveRowHelper, /TERM_CONSEQUENCE_REASON/,
+		'the unresolved-term Save-row sentence must come from the fixed, code-free constant');
+	assert.doesNotMatch(saveRowHelper, /describeUnresolvedTermReason/,
+		'the Save row must never derive its sentence from the EnrollPro reason helper — its code branch leaks a raw enum');
+	assert.doesNotMatch(saveRowHelper, /unresolvedTermReason/,
+		'the Save row must never accept the term card\'s reason string — that is what printed it twice on one screen');
+	// ── SUPERSEDED IN PLACE, 2026-09-29, A2-C14 ──
 		// The ORIGINAL row asserted, verbatim and no longer run as pass/fail:
 		//   assert.match(text, /resolveActiveSchoolYearContext/, `${name} must use the canonical resolver`);
 		//
