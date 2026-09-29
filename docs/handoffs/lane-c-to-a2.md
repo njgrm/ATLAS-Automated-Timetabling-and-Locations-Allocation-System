@@ -2117,3 +2117,45 @@ main also moved merged as a **true union**, so main's A9/A6 test additions are i
 `lane-a2-c13/atlas-client/node_modules` (156 entries)**. It needs `cmd /c rmdir` on the junction **before**
 `git worktree remove`, then `prune`, then a re-count of the donor. **A6 c9 and A3 c15 still junction through
 `lane-c-a7c7` to that same donor** - do not retire it before they are done.
+
+## Lane C -> A2, 2026-09-29 ~19:5x +08 - fix-3 item 45 (A3 c15) **ON `main`**
+
+**Teacher Concerns is now Teacher Preferences, at `/faculty/preferences`.** 0 fixes live and seen / 1 integrated,
+NOT on production / 0 dropped. A4 owns the deploy; A3 has not deployed.
+
+- Route: `/faculty/preferences` mounts the page; `/faculty/concerns` is a **retired alias** (new 12-line
+  `TeacherConcernsAlias.tsx`) and `/faculty/room-preferences` still redirects. Both verified as real
+  navigations on staging, not source reads. One sidebar item, one breadcrumb, one `h1`.
+- **No file or API renames, and the persisted wire format is untouched**: `CONCERN_NOTES_HEADING`
+  (`"Notes for the scheduler"`) and `CONCERN_ROOM_REQUESTS_HEADING` (`"Room requests"`) are stored inside the DB
+  `notes` column, so their values are byte-identical to base. `CONCERN_ROUTE` did move. The `HeartHandshake`
+  icon, the `data-testid` hooks and the friendly button label "Teachers you have talked to" stay.
+- "Concern" survives only where it should: 3 `data-testid` attribute values, API paths, identifiers, comments,
+  and one pre-existing legend sentence (`TimetableStatusLegend.tsx:17`, "review the softer concern before
+  saving") that does not name this page. **0 in rendered text** on both surfaces.
+
+**QA** (`ses_f138c83e8ffehW4gjL3E7DUtho`) returned `CORRECTION_REQUIRED` 10/9/0/**1** on evidence integrity and
+passed every source row. It falsified two of my claims, both now corrected: the expert-header row *was*
+renderable (the `More tools` trigger is a ~12px hit strip at the viewport edge, not impossible), and the
+packet-mandated screenshots had never been committed. Corrected by a docs/evidence commit; no source re-review.
+
+- Gates: 26/26, 16/16, 11/11, 13/13, 36/36, 5/5 green; `build` exit 0. `test:client-suite` is
+  **1305/1266/39 at base -> 1306/1267/39 at the candidate, with an identical set of 39 failing test files** — no
+  regression, and I am **not** claiming "all gates green" (three listed suites are red on `main` for reasons
+  that predate this change). `ux-audit.js` `major: 0` on both surfaces; note that script landed on `main` AFTER
+  this base, so its blob `5ba83861` is pinned in the evidence file.
+- Evidence + all seven 1366x768 screenshots:
+  `docs/reviews/a3-c15-teacher-preferences-20260929/evidence.md`.
+
+**Follow-ups for you to route (none are gates on the rename):**
+- **A2 release packet, please read:** `docs/prompts/a4-train-2026-09-29-8.md:16-17` now states the *opposite* of
+  reality ("`/faculty/preferences` redirects to `/faculty/concerns`"). It still works via the alias, but a
+  train packet should not describe an inverted route.
+- `docs/prompts/a2-c14-make-timetable-possible-2026-09-29.md:12,21,34,42,51` walks `/faculty/concerns` as a
+  path; still functional, worth a note.
+- `atlas-client/src/components/__tests__/a3-canonical-page-title-c1.test.tsx:274,343` still register
+  `Faculty Preferences` (doubly stale now) inside a pre-existing red suite - bounded test-only fix.
+- **Real UX defect next to my change:** `ScheduleReviewWorkspace.tsx:794` `div.absolute.right-3.top-3 z-20`
+  overflows the 1366 viewport (the `More tools` trigger's right edge is 1400.7) and covers its centre, leaving
+  ~12px of clickable strip; a neighbouring button is clipped mid-word. Zero delta from base, so it is not a
+  regression - it is a header-budget miss for whichever lane owns the Expert view.

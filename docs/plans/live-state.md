@@ -3541,6 +3541,22 @@ Do not write in Lane B/C worktrees.
 
 ## Lane A3 - current lane (written only by Planner A3)
 
+### 2026-09-29 ~19:5x +08, packet a3-c15-teacher-preferences (fix-3 item 45) - **ON `main` after the integration merge over `316f967e`. 0 fixes live and seen / 1 integrated, NOT on production / 0 dropped. A4 owns the deploy.**
+
+"Teacher Concerns" is now **Teacher Preferences** at `/faculty/preferences`; `/faculty/concerns` is a retired
+alias and `/faculty/room-preferences` still redirects (both verified as real navigations on staging). No file,
+API or exported-identifier renames; the persisted `CONCERN_NOTES_HEADING` / `CONCERN_ROOM_REQUESTS_HEADING`
+values in the DB `notes` column are byte-identical. QA `ses_f138c83e8ffehW4gjL3E7DUtho` passed all source rows
+and returned `CORRECTION_REQUIRED` 10/9/0/1 on evidence only (my screenshots were never committed; one
+disclosure was wrong) - closed by a docs/evidence commit, no source re-review. Gates 26/26, 16/16, 11/11, 13/13,
+36/36, 5/5, `build` exit 0; `test:client-suite` 1305/1266/39 at base vs 1306/1267/39 at the candidate with an
+identical set of 39 failing files (no regression; **not** an "all gates green" claim). Evidence + 7 screenshots
+at `docs/reviews/a3-c15-teacher-preferences-20260929/evidence.md`. Follow-ups routed to Lane C: the A4 train-8
+packet now describes the inverted route, and the pre-existing Expert-header overflow at
+`ScheduleReviewWorkspace.tsx:794` (12px hit strip, clipped neighbour) needs an owning lane. **Next action:
+none outstanding in A3 c15; worktrees `lane-a3-c15-20260929` and `lane-a3-c15-base-20260929` retired after the
+push (junction-safe), and `lane-c-a7c7` must NOT be retired - it still donates `node_modules` to live lanes.**
+
 ### 2026-09-29 ~17:25, packet a3-c14-year-setup-calm - **ON `main` at `b1249a7c` (candidate `5b65d78e`). 0 fixes live and seen / 1 integrated, NOT on production / 0 dropped. A4 owns the deploy; A3 has not deployed. Lane C's UX walk on this screen still blocks its release.**
 
 Packet `docs/prompts/a3-c14-year-setup-calm-2026-09-29.md`. Operator: "School Year Setup is still too technical

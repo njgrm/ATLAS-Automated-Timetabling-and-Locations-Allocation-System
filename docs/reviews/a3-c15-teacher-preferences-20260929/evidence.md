@@ -106,7 +106,33 @@ href rows were moved **above** it, with a comment saying why. After the move the
 surviving failure is the pre-existing `data-testid="timetable-simple-regenerate-impact"` row, byte-identical to
 base. No assertion was deleted.
 
-## 7. Follow-up rows (not gates on this rename)
+## 7. Merged tree (what `main` carries) — re-proven after the integration merge
+
+`origin/main` advanced from the base `8a550b26` to `316f967e` (A2 c14, A3 c14, A5 c6/c7, A6 c8/c9r, A8 c3, A9 c5/c6
+and their evidence) and also edits `atlas-client/src/components/app-shell/navigation.ts`, so the merge was
+enumerated rather than assumed: 135 incoming files, of which the non-docs share belongs to those lanes'
+candidates, and exactly 31 files come from this branch. The merge auto-resolved; 0 unmerged paths; the merged
+`navigation.ts` still carries exactly ONE nav item (`navigation.ts:90` `Teacher Preferences` →
+`/faculty/preferences`) and the three chrome entries at 172/221/222.
+
+Combined gates on the merged tree:
+
+| Command | Tally |
+|---|---|
+| `npm run test:scheduler-concern` | 26 / 26 / 0 |
+| `npm run test:a3-c6-concerns` | 16 / 16 / 0 |
+| `npm run test:a3-c6-route-hygiene` | 11 / 11 / 0 |
+| `npm run test:a3-c8-room-preach` | 13 / 13 / 0 |
+| `npm run test:timetable-ux-rehaul` | 36 / 36 / 0 |
+| `npm run test:scheduler-collaboration` | 5 / 5 / 0 |
+| `npm run build` (with `VITE_ENROLLPRO_URL`) | exit 0, `✓ built in 4.29s` |
+
+Re-rendered on the merged tree at 1366x768 against STAGING (`a3c15-07-merged-tree.png`): `/faculty/concerns`
+lands on `/faculty/preferences`, `h1` **Teacher Preferences**, sidebar **Teacher Preferences**, 0 "concern" in
+rendered text. The earlier base-vs-candidate `test:client-suite` comparison in §5 is a statement about the
+candidate at `cd7a73b4`; the merged tree was not re-run through that suite and is not claimed to be.
+
+## 8. Follow-up rows (not gates on this rename)
 
 - **F6** `atlas-client/src/components/__tests__/a3-canonical-page-title-c1.test.tsx:274,343` still register
   `['/faculty/preferences', OfficerPreferences, 'Faculty Preferences']` — doubly stale now. File is in a
