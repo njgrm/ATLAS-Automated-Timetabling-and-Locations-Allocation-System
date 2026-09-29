@@ -434,8 +434,20 @@ test('repo-wide remaining raw amber/yellow count is pinned (files and lines; der
 	// rather than to a second implementation's opinion. Recorded because a pin that silently
 	// reconciles two disagreeing counts is the failure §11 warns about. The FILE count is NOT
 	// subject to that gap: 69 -> 68 was measured both ways and agrees.
-	const PINNED_REMAINING_FILES = 68;
-	const PINNED_REMAINING_LINES = 226;
+	// INTEGRATION NOTE (A9-C3 integration boundary, merged onto 4f60b5a3). The A9-C3
+	// candidate alone re-pinned this gate to 68 files / 226 lines (69 -> 68, 230 -> 226),
+	// measured on its own branch. Merging the current main tip — which carries the
+	// A2-C13, A3-C13, A6-C6 and A8 raw-warning cleanups — moved the corpus further in the
+	// SAME direction, so the pins move DOWN again to the merged measurement: 66 files,
+	// 223 lines. Every change is amber/yellow LEAVING, never entering; the ratchet exists
+	// to catch NEW raw amber/yellow, and a decrease is the direction it exists to push, so
+	// the literal is re-pinned to lock the improvement in rather than to hide a regression
+	// (AGENTS.md §11). The grade-badge exemptions and the re-anchored fabrication control
+	// above are untouched by this merge. This note is a planner correction at the
+	// integration boundary, measured with THIS file's own detector over the merged corpus —
+	// not carried from any handoff.
+	const PINNED_REMAINING_FILES = 66;
+	const PINNED_REMAINING_LINES = 223;
 
 	const files = remainingFiles();
 	const lines = files.reduce(
