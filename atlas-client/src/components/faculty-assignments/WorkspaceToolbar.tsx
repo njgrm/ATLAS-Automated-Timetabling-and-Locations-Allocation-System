@@ -879,7 +879,32 @@ export function WorkspaceToolbar({
 			 * what the repair queue's one-chip change did — not to re-tighten the
 			 * remaining two. */}
 			<div className={cn(COMPACT_TITLE_STRIP_CLASS.bandRow, 'gap-x-3 gap-y-1 border-t border-border/40')} data-testid="teaching-load-readiness-strip">
-				{degradedLead ? (
+				{/*
+				 * A6 c7 CORRECTION ROUND 1 — ONE CLAIM PER FACT. The shortage line
+				 * takes the slot; the pill returns only when there is nothing to
+				 * claim. This order used to be `degradedLead ? pill :
+				 * hasShortageLine ? line : sentence`, and the pill winning it is the
+				 * SAME conflation as c5's `isLive` one level up: a source-freshness
+				 * surface took the slot and the shortage claim vanished, which is
+				 * what Lane C saw on staging. c7 first widened it to "both, as
+				 * siblings"; that is one fact printed twice. The pill says the roster
+				 * is the last saved one, and the line's own `· <date> roster`
+				 * clause says exactly that — so the pair is the §8 "two chips that
+				 * say the same thing" defect, before width is even considered, and
+				 * row 2 is `flex-wrap`, so it would also have wrapped. SUBTRACT THE
+				 * DUPLICATE, do not shorten a figure, a subject name or the date.
+				 * Nothing is silenced: c6 §1.5.3 made the header's PRIMARY action
+				 * the retry, so the pill was never the retry; it returns unchanged,
+				 * with c6's copy and its technical Tooltip, in the no-shortage
+				 * state. `A6C7-9` discriminates this order; `A6C7-3` measures the
+				 * filled-amber ratchet, which is now ZERO in this state. */}
+				{hasShortageLine ? (
+					/* A6 c5: the page's shortage line IS the status claim, so neither
+					 * the `% staffed` sentence nor the alert clause is printed beside
+					 * it. See the `hasShortageLine` memo for why the over-cap figure
+					 * is still stated exactly once, on the repair queue. */
+					shortageLineSlot
+				) : degradedLead ? (
 					/*
 					 * A6 c6 item 5: the pill carries the plain lead and the Tooltip
 					 * carries the detail. The `data-degraded` attribute keeps its
@@ -887,26 +912,20 @@ export function WorkspaceToolbar({
 					 * this surface for the cause, and none of them needed to change.
 					 */
 					<Tooltip>
-						<TooltipTrigger asChild>
-							<span
-								data-testid="teaching-load-degraded-notice"
-								data-degraded={degradedTail ?? undefined}
-								className="flex min-h-7 min-w-0 cursor-help items-start gap-1.5 rounded-full border border-warning-border bg-warning-muted px-2.5 py-0.5 text-xs font-semibold text-warning-foreground"
-							>
-								<AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-								<span>{degradedLead}</span>
-							</span>
-						</TooltipTrigger>
-						<TooltipContent side="bottom" className="max-w-80 text-xs font-semibold">
-							{degradedDetail}
-						</TooltipContent>
+					<TooltipTrigger asChild>
+						<span
+							data-testid="teaching-load-degraded-notice"
+							data-degraded={degradedTail ?? undefined}
+							className="flex min-h-7 min-w-0 cursor-help items-start gap-1.5 rounded-full border border-warning-border bg-warning-muted px-2.5 py-0.5 text-xs font-semibold text-warning-foreground"
+						>
+							<AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+							<span>{degradedLead}</span>
+						</span>
+					</TooltipTrigger>
+					<TooltipContent side="bottom" className="max-w-80 text-xs font-semibold">
+						{degradedDetail}
+					</TooltipContent>
 					</Tooltip>
-				) : hasShortageLine ? (
-					/* A6 c5: the page's shortage line IS the status claim, so neither
-					 * the `% staffed` sentence nor the alert clause is printed beside
-					 * it. See the `hasShortageLine` memo for why the over-cap figure
-					 * is still stated exactly once, on the repair queue. */
-					shortageLineSlot
 				) : (
 					<span
 						data-testid="teaching-load-status-sentence"
