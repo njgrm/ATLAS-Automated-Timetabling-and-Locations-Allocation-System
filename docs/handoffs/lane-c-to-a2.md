@@ -1,5 +1,44 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+## 🔴 A7 → Lane C, 2026-09-30 00:5x — **c12a tooltip QA: the slice is source-clean, but it is NOT merge-ready — one content conflict on `TeachingLoadFilterBar.tsx`**
+
+**Verdict `CORRECTION_REQUIRED` · merge-ready: NO.** Fresh independent QA `ses_f11f1396affe79ehJVdSTWfUAp` (read-only, candidate worktree, range `fae01b9d..aec13de2`): **12 mandatory rows — 11 pass, 1 FAIL, 0 blocked, 0 unperformed.** `ACCEPT_READY` is invalid because the merge row fails. Nothing was merged, pushed as a candidate, deployed or run live.
+
+**Candidate:** branch `work/a7-c10-calm`, tip `aec13de2` (commits `c317d063`, `04637259`, `aec13de2`), base `fae01b9d`; 47 paths, all `atlas-client/**` (no server, no prisma).
+
+### ⚠️ The one blocking finding — it does not merge cleanly
+
+`git -C D:/ATLAS merge-tree --write-tree origin/main aec13de2` → **exit 1, exactly one conflict path**:
+
+`atlas-client/src/components/faculty-assignments/TeachingLoadFilterBar.tsx` — stage1 `439e1d0d`, stage2 `8571d65a` (`origin/main`), stage3 `31dab508` (candidate). The other **46 of 47 paths auto-merge**.
+
+It is a semantic conflict, not a union: **`origin/main` carries A5 c8, which deleted the whole inclusion-switches block** and moved the row to `@/ui/filter-bar`. The candidate's only edit to this file is **two lines** — `text-xs` removed from two `<TooltipContent>` tags *inside that deleted block* — so the candidate's edit is entirely subsumed by `origin/main`'s rewrite. **Resolution is an owning-lane decision (A7), not a QA-authored patch; I did not take it and did not merge.** Re-verified after `origin/main` moved mid-review `a93e4785 → 90feccc0` (A8 generation-readiness, docs): conflict unchanged, still exactly one path.
+
+**Operator-decision guard:** `docs/plans/operator-decisions.md` row 3 ("**Tooltips are white** with dark text and a soft shadow, app-wide", 29 Sep, A7 c10) is **present on `origin/main` but ABSENT at the candidate base `fae01b9d`**. Resolving the conflict in `origin/main`'s favour does **not** revert row 3 — the palette/type/width change lives in `ui/tooltip.tsx`, a path that auto-merges. Any integration must keep row 3 and its guard test.
+
+### Rows (independent QA, literal results)
+
+| Row | Result | Evidence |
+|---|---|---|
+| R1 white app-wide | **PASS** | `ui/tooltip.tsx:100` = `bg-popover text-popover-foreground border border-border shadow-md`; zero dark tokens in the file |
+| R2 15px type | **PASS** | primitive carries exactly one size token, `text-sm`; `index.css @theme` `--text-sm: 0.9375rem` = **15px**, `--text-xs: 0.875rem` = 14px → nothing under 14px |
+| R3 ~22rem cap | **PASS** | `max-w-[22rem]` present; `max-w-xs md:max-w-sm` gone from the class list |
+| R4 no clipped text | **PASS** | source + jsdom-rendered: `Portal`, `sideOffset={8}`, `z-50`, `rounded-md`, `pointer-events-none`, `animate-in`, `w-max`, `whitespace-normal break-words leading-normal` |
+| R5 call-site claim | **PASS (row run) — the claim is FALSE** | counting `<TooltipContent>` open tags in production files (excl `__tests__`, `*.d.ts`): candidate **130 sites / 61 carry `className`**; `origin/main` 128 / 67; base `fae01b9d` 130 / 68. "**64 of 274**" reproduces under no method tried (274 ≈ lines containing the string, 278 prod). The commit body's own figure **is** accurate: `text-xs` call-site tags **60 → 0**, `className` 68 → 61 = the 7 emptied attributes the sweep dropped |
+| R6 no re-darken/re-shrink | **PASS** | over all 130 candidate tags: 0 dark tokens, 0 sub-14px size tokens, 0 empty `className=""` |
+| R7 client typecheck | **PASS** | exit 2, **5 errors, all pre-existing** (3× `TS2307` missing `playwright` + 2) — reproduced identically on an extracted `fae01b9d` tree |
+| R8 client build | **PASS** | exit 0, `built in 28.17s`, full `dist/assets/**` (fails closed without `VITE_ENROLLPRO_URL`, as designed) |
+| R9 tests the branch touches | **PASS** | `test:ux-tooltip-a7c10` **4/4** · `test:a5-c6-shared-ui` **12/12** · `test:a5-subjects-c1` **15/15** |
+| R10 failing-first control | **PASS** | restoring the `fae01b9d` primitive (`8c8c05b7`) → exit 1, **A7C10-1 + A7C10-2 FAIL**; reverting one call site (`SubjectRow.tsx`) → **A7C10-3 FAIL** with the named offender; both restored byte-exact (`hash-object` == `rev-parse`) |
+| R11 test wiring (§11) | **PASS** | all three changed test files reachable from committed `package.json` scripts |
+| R12 merge cleanliness | **FAIL** | `merge-tree --write-tree origin/main aec13de2` → exit 1, one conflict path (above) |
+
+### Not done / disposition
+
+**0 rendered on live; 0 merged; 1 QA loop spent.** No merge, no integration push, no deploy, no generation, no publication, no live-data write, no sign-in. Candidate worktree `E:/ATLAS-worktrees/lane-a7-c10-calm` = `KEEP_ACTIVE` (clean at `aec13de2`); this handoff worktree = `RETIRE_AFTER_INTEGRATION`. E: **38.21 GiB free** at close. `D:/ATLAS` written only by `git fetch`.
+
+**Next action (A7, owning lane):** re-author the two-line `TeachingLoadFilterBar.tsx` edit on top of the A5 c8 filter-bar state (or drop it as subsumed), land a new tip, and take a fresh QA range. Everything else in the slice is source-clean and passed.
+
 ## 🟡 A2 → Lane C, 2026-09-29 23:5x — **truth-fixes A2 c15 section: 4 of 5 bullets were already on `main`; the 5th is now closed, and it was never on a screen**
 
 **0 fixes live and seen / 1 integrated / 0 dropped.** Integrated on `main` in the merge commit that carries this
