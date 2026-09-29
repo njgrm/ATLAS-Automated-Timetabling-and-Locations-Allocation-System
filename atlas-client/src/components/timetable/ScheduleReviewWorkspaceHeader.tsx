@@ -327,8 +327,16 @@ function ScheduleReviewWorkspaceHeaderImpl({ context, onEditDraft, onDiscardDraf
 	const generationRepairHref = generationGate.repair.kind === 'navigate' ? generationGate.repair.href : null;
 	const generationRepairLabel = generationGate.repair.label ?? 'Fix setup';
 	const handleGenerationTrigger = () => {
+		/*
+		 * A8-C5 S2.3 — the click hands over ITS OWN stoppers. This header is the
+		 * only reader of the complete capability input on this surface (it holds the
+		 * rollover status that `driftBlocked` comes from), so passing
+		 * `capabilities.generationStoppers` is what lets the dialog name a drifted
+		 * school year. The workspace falls back to deriving the causes it owns when a
+		 * caller passes nothing, so the dialog is never empty either way.
+		 */
 		if (generationGate.enabled) {
-			handleTriggerGenerate();
+			handleTriggerGenerate(capabilities.generationStoppers);
 			return;
 		}
 		if (generationGate.repair.kind === 'retry') {

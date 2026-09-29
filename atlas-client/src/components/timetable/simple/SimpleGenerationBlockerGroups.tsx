@@ -31,8 +31,16 @@ import type { TimetableGenerationBlockerGroupPresentation } from '@/lib/timetabl
 
 export type SimpleGenerationBlockerGroupsProps = {
 	groups: TimetableGenerationBlockerGroupPresentation[];
-	/** The one in-place recheck for the WHOLE panel. Never a no-op. */
-	onCheckAgain: () => void;
+	/**
+	 * The one in-place recheck for the WHOLE panel. Never a no-op.
+	 *
+	 * A8-C5 S2.3 (executor, 2026-09-29): it is NULLABLE. The Generate dialog owns
+	 * the ONE "Check again" for its whole body, so it renders the same panel with
+	 * `null` here and does not get a second recheck beside its own. A re-running
+	 * the readiness check is one action with one control, whatever surface asks
+	 * for it; the sheet passes its handler and is unchanged.
+	 */
+	onCheckAgain?: (() => void) | null;
 	/** The complete row list, kept behind the disclosure. */
 	detail: React.ReactNode;
 	/** The disclosure's honest count sentence ("620 setup items"). */
@@ -81,6 +89,34 @@ export function SimpleGenerationBlockerGroups({
 						 * cannot be reached.
 						 */}
 						<div className="mt-2 flex justify-start">
+							{/*
+							 * TYPE SIZE, AND WHY THE LOCAL `text-xs` IS LOAD-BEARING.
+							 *
+							 * The shared `@/ui` Button's `sm` size carries
+							 * `text-[0.8rem]` (`atlas-client/src/ui/button-variants.ts:88`),
+							 * which is 12.8px — UNDER the 14px floor `scripts/qa/ux-audit.js`
+							 * enforces (`MIN_TEXT_PX = 14`) and under the floor
+							 * `atlas-client/src/index.css:35-52` set for this audience. The
+							 * local `text-xs` below is what holds this control at 14px: `cn`
+							 * is tailwind-merge, so the last font-size utility in the list
+							 * wins, and `text-xs` is emitted after the variant's
+							 * `text-[0.8rem]`.
+							 *
+							 * A8-C5 item 3 was raised on the premise that `text-xs` "renders at
+							 * 12px" and that "the previous executor was wrong to leave it". That
+							 * premise is FALSE for this theme: `--text-xs: 0.875rem` is 14px, and
+							 * `a7-c8-type-scale.test.ts` A7C8-4 proves it with a real Tailwind
+							 * COMPILE ("text-xs computes to 14px and text-sm to 15px"). So the
+							 * class is correct as written and is left alone; changing it to
+							 * `text-sm` would make this panel the only 15px control on the page.
+							 *
+							 * What is NOT left to chance is the floor itself: the committed
+							 * control `a8-c5-generate-stoppers-dialog.test.tsx` resolves the
+							 * rendered class list of these controls and fails if the effective
+							 * font-size utility drops below 14px — including the regression a
+							 * future edit makes by deleting this `text-xs` and silently landing
+							 * back on the primitive's 12.8px.
+							 */}
 							<Button asChild variant="outline" size="sm" className="h-9 gap-1.5 text-xs">
 								<Link to={group.action.href} data-testid="timetable-generation-blocker-group-action">
 									<ExternalLink className="size-3.5" aria-hidden="true" />
@@ -91,19 +127,21 @@ export function SimpleGenerationBlockerGroups({
 					</li>
 				))}
 			</ul>
-			<div className="flex justify-start border-t border-border pt-2">
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					className="h-9 gap-1.5 text-xs"
-					data-testid="timetable-generation-blocker-check-again"
-					onClick={onCheckAgain}
-				>
-					<RotateCw className="size-3.5" aria-hidden="true" />
-					Check again
-				</Button>
-			</div>
+			{onCheckAgain ? (
+				<div className="flex justify-start border-t border-border pt-2">
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						className="h-9 gap-1.5 text-xs"
+						data-testid="timetable-generation-blocker-check-again"
+						onClick={onCheckAgain}
+					>
+						<RotateCw className="size-3.5" aria-hidden="true" />
+						Check again
+					</Button>
+				</div>
+			) : null}
 			<Accordion type="single" collapsible className="border-t border-border pt-2">
 				<AccordionItem value="detail">
 					{/*

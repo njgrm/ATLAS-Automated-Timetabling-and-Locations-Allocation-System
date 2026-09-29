@@ -2,6 +2,7 @@ import { lazy, memo, Suspense, useCallback, useEffect, useState, Profiler } from
 import { onProfilerRender } from './ScheduleReviewWorkspace';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { buildUnassignedKey } from '@/lib/timetable-utils';
+import type { TimetableGenerationStopper } from '@/lib/timetable-capabilities';
 
 import { CenterWorkspacePaneSurface, type CenterWorkspacePaneSurfaceProps } from '@/components/timetable/CenterWorkspacePaneSurface';
 import { ResizablePanel } from '@/ui/resizable';
@@ -29,7 +30,13 @@ export type CenterWorkspaceProps = CenterWorkspacePaneSurfaceProps & {
 	/** Generation in flight; read by the tactical sandbox dock's own consumers. */
 	generating: boolean;
 	/** The canonical generate dispatch the setup sub-page starts a revision from. */
-	handleTriggerGenerate: () => void;
+	/**
+	 * A8-C5 S2.3 — takes the click site's OWN `generationStoppers` so the Generate
+	 * dialog can name the same causes the clicked control was derived from. It is
+	 * OPTIONAL: a caller with no stoppers to pass still triggers generation, and the
+	 * workspace then derives the causes it owns.
+	 */
+	handleTriggerGenerate: (stoppers?: TimetableGenerationStopper[]) => void;
 	previewTeachingLoadRepair: (changes: TeachingLoadRepairChange[], placementProposal?: ManualEditProposal) => Promise<TeachingLoadRepairPreviewResult | null>;
 	commitTeachingLoadRepair: (changes: TeachingLoadRepairChange[], allowSoftOverride?: boolean, placementProposal?: ManualEditProposal) => Promise<CommitResult | null>;
 	handleStartNewPreGenerationDraft: () => Promise<void>;

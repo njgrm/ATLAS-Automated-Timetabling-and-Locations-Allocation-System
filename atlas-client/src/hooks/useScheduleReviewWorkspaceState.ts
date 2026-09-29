@@ -47,6 +47,11 @@ import type {
 	ViolationReport,
 } from '@/types';
 import {
+	deriveTimetableGenerationStoppers,
+	type TimetableGenerationStopper,
+} from '@/lib/timetable-capabilities';
+import { summarizeGenerationReadiness } from '@/lib/timetable-generation-readiness';
+import {
 	buildCenterWorkspaceContext,
 	buildDialogContext,
 	buildHeaderContext,
@@ -257,6 +262,13 @@ export function useScheduleReviewWorkspaceState() {
 	/* -- Generate / Publish workflow state -- */
 	const [generating, setGenerating] = useState(false);
 	const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
+	/**
+	 * A8-C5 S2.3 — the causes the Generate dialog explains, captured at the moment
+	 * the operator clicked Generate by `handleTriggerGenerate`. It is dialog state,
+	 * not a derivation of render state, because the click site is the only reader
+	 * of the complete capability input (see `handleTriggerGenerate`).
+	 */
+	const [generationStoppers, setGenerationStoppers] = useState<TimetableGenerationStopper[]>([]);
 	const [enforceShiftWindows, setEnforceShiftWindows] = useState(true);
 	const [showPublishDialog, setShowPublishDialog] = useState(false);
 	const [publishAcknowledged, setPublishAcknowledged] = useState(false);
@@ -1064,13 +1076,40 @@ export function useScheduleReviewWorkspaceState() {
 		setPendingFacultyIssuePivot(null);
 	}, [pendingFacultyIssuePivot, setViewMode, setEntityFilter, setSelectedViolation, setSelectedEntry, setKbSelectedSource, setPreGenKbSource]);
 
-	const handleTriggerGenerate = useCallback(() => {
+	/*
+	 * A8-C5 S2.3 — CLICKING GENERATE ALWAYS REACHES THE DIALOG.
+	 *
+	 * This used to be a dead end: `if (curriculumReadiness.state !== 'ready') {
+	 * toast.error(...); return; }` — so the moment S2.3 made the Generate control
+	 * enabled in every state, every blocked year produced a TOAST and no dialog. The
+	 * operator was told the button was clickable, clicked it, and was told nothing,
+	 * with no way forward. The dialog is now the explanation, so this opens the
+	 * dialog and lets it say why.
+	 *
+	 * `stoppers` is passed IN by the click site, because the headers are the only
+	 * readers of the complete capability input (school-year drift lives in the
+	 * rollover status each header already fetches). The fallback below is for a
+	 * caller that has not wired it: it derives the same array from the readiness this
+	 * hook owns, so the dialog is never empty and never invents a cause. The
+	 * fallback cannot see drift; the wired path can.
+	 */
+	const handleTriggerGenerate = useCallback((stoppers?: TimetableGenerationStopper[]) => {
+		setGenerationStoppers(Array.isArray(stoppers) && stoppers.length > 0
+			? stoppers
+			: deriveTimetableGenerationStoppers({
+				scopeResolved: typeof schoolId === 'number' && Number.isInteger(schoolId) && schoolId > 0
+					&& Number.isInteger(schoolYearId) && (schoolYearId ?? 0) > 0,
+				curriculumState: curriculumReadiness.state,
+				generating,
+				generationDiagnostic: summarizeGenerationReadiness(curriculumReadiness),
+				readinessRepair: curriculumReadiness.state === 'blocked' ? curriculumReadiness.repair : null,
+			}));
 		if (curriculumReadiness.state !== 'ready') {
-			toast.error(curriculumReadiness.message);
+			setShowGenerateConfirm(true);
 			return;
 		}
 		handleTriggerGenerateUnsafe();
-	}, [curriculumReadiness, handleTriggerGenerateUnsafe]);
+	}, [curriculumReadiness, handleTriggerGenerateUnsafe, schoolId, schoolYearId, generating]);
 
 	// Wrap commitPreGenPending to capture operation ID/version for contextual Undo
 	const wrappedCommitPreGenPending = useCallback(async () => {
@@ -2196,7 +2235,7 @@ export function useScheduleReviewWorkspaceState() {
 		headerContext.termFilter = effectiveTermFilter;
 		headerContext.hasPublishedReturnState = publishedReturnState.snapshot != null;
 		headerContext.curriculumReadiness = curriculumReadiness;
-		const dialogContext = buildDialogContext({ showUnassignConfirm, setShowUnassignConfirm, setPendingUnassignId, pendingUnassignId, unassignDraftPlacement, showGenerateConfirm, setShowGenerateConfirm, enforceShiftWindows, setEnforceShiftWindows, draftBoardSummary, followUps, confirmGenerate, activeSchoolYearLabel: schoolYearContext?.activeSchoolYearLabel ?? null, schoolYearSource: schoolYearContext?.source ?? null, showResetDraftDialog, setShowResetDraftDialog, openPreGenerationWorkspace, showLeavePreGenDialog, setShowLeavePreGenDialog, pendingCenterSwitch, setPendingCenterSwitch, requestPreview, requestPreviewLoading, setRequestPreview, setSelectedRequestId, setRequestAppeals, setAppealReason, requestPreviewHardConflicts, requestPreviewSoftWarnings, requestAppeals, appealsLoading, isPrivilegedUser, updateAppealStatus, appealReason, appealSubmitting, submitAppeal, requestReviewerNotes, setRequestReviewerNotes, requestReviewSaving, reviewRoomRequest, generating, generationElapsed, showPublishDialog, setShowPublishDialog, publishAcknowledged, setPublishAcknowledged, softCount, publishUnassignedCount: summary?.unassignedCount ?? 0, policy, handlePublishConfirm, captureReviewFocusReturn, restoreReviewFocus, showPreGenConfirm, setShowPreGenConfirm, setPreGenConfirmCtx, setConfirmPreview, setConfirmRawPreview, setConfirmPreviewError, setConfirmAllowSoftOverride, setConfirmAllowDailyOverride, preGenConfirmCtx, confirmFacultyId, setConfirmFacultyId, confirmPreview, confirmRoomId, setConfirmRoomId, facultyMap, roomMap, confirmPreviewLoading, confirmPreviewError, confirmDisplacedPlacement, toast, openSwapPrompt, confirmAllowDailyOverride, confirmSaving, commitConfirmPlacement: wrappedCommitConfirmPlacement, showSwapConfirm, setShowSwapConfirm, setSwapAction, swapAction, formatFacultyInitials, roomLabelShort, subjectLabel, sectionLabel, swapSaving, executeSwapAction, swapPreview, regularSwapPreview, regularSwapPending, setRegularSwapPending, resetSwapClassTimesState, regularSwapSaving, regularSwapStrategy, setRegularSwapStrategy, executeRegularSwap, showSoftConfirm, setShowSoftConfirm, softConfirmWarnings, commitLoading, formatConstraintMessage, setPendingCommitProposal, setPreviewResult, setSoftConfirmWarnings, setDragItem, pendingCommitProposal, commitEdit, showAssignmentPicker, setShowAssignmentPicker, setAssignPickerTarget, assignPickerTarget, assignPickerFacultyId, setAssignPickerFacultyId, assignPickerRoomId, setAssignPickerRoomId, assignPickerPreview, assignPickerPreviewLoading, assignPickerPreviewError, assignPickerSaving, confirmAssignmentPicker, showEditHistory, setShowEditHistory, editHistory, editHistoryReadState,
+		const dialogContext = buildDialogContext({ showUnassignConfirm, setShowUnassignConfirm, setPendingUnassignId, pendingUnassignId, unassignDraftPlacement, showGenerateConfirm, setShowGenerateConfirm, generationStoppers, generationReadinessDiagnostic: curriculumReadiness.state === 'blocked' || curriculumReadiness.state === 'ready' ? curriculumReadiness.diagnostic : null, onCheckScheduleAgain: () => { void handleRefresh(); }, enforceShiftWindows, setEnforceShiftWindows, draftBoardSummary, followUps, confirmGenerate, activeSchoolYearLabel: schoolYearContext?.activeSchoolYearLabel ?? null, schoolYearSource: schoolYearContext?.source ?? null, showResetDraftDialog, setShowResetDraftDialog, openPreGenerationWorkspace, showLeavePreGenDialog, setShowLeavePreGenDialog, pendingCenterSwitch, setPendingCenterSwitch, requestPreview, requestPreviewLoading, setRequestPreview, setSelectedRequestId, setRequestAppeals, setAppealReason, requestPreviewHardConflicts, requestPreviewSoftWarnings, requestAppeals, appealsLoading, isPrivilegedUser, updateAppealStatus, appealReason, appealSubmitting, submitAppeal, requestReviewerNotes, setRequestReviewerNotes, requestReviewSaving, reviewRoomRequest, generating, generationElapsed, showPublishDialog, setShowPublishDialog, publishAcknowledged, setPublishAcknowledged, softCount, publishUnassignedCount: summary?.unassignedCount ?? 0, publishPlaceholderOwnedCount: draft?.summary?.placeholderOwnedClasses ?? null, policy, handlePublishConfirm, captureReviewFocusReturn, restoreReviewFocus, showPreGenConfirm, setShowPreGenConfirm, setPreGenConfirmCtx, setConfirmPreview, setConfirmRawPreview, setConfirmPreviewError, setConfirmAllowSoftOverride, setConfirmAllowDailyOverride, preGenConfirmCtx, confirmFacultyId, setConfirmFacultyId, confirmPreview, confirmRoomId, setConfirmRoomId, facultyMap, roomMap, confirmPreviewLoading, confirmPreviewError, confirmDisplacedPlacement, toast, openSwapPrompt, confirmAllowDailyOverride, confirmSaving, commitConfirmPlacement: wrappedCommitConfirmPlacement, showSwapConfirm, setShowSwapConfirm, setSwapAction, swapAction, formatFacultyInitials, roomLabelShort, subjectLabel, sectionLabel, swapSaving, executeSwapAction, swapPreview, regularSwapPreview, regularSwapPending, setRegularSwapPending, resetSwapClassTimesState, regularSwapSaving, regularSwapStrategy, setRegularSwapStrategy, executeRegularSwap, showSoftConfirm, setShowSoftConfirm, softConfirmWarnings, commitLoading, formatConstraintMessage, setPendingCommitProposal, setPreviewResult, setSoftConfirmWarnings, setDragItem, pendingCommitProposal, commitEdit, showAssignmentPicker, setShowAssignmentPicker, setAssignPickerTarget, assignPickerTarget, assignPickerFacultyId, setAssignPickerFacultyId, assignPickerRoomId, setAssignPickerRoomId, assignPickerPreview, assignPickerPreviewLoading, assignPickerPreviewError, assignPickerSaving, confirmAssignmentPicker, showEditHistory, setShowEditHistory, editHistory, editHistoryReadState,
 		/* C11 S2 (T2) — the class name behind a recorded entry id, so a corrective
 		 * auto-fix row can name the class that moved instead of the dialog handle
 		 * "Class A". Derived from the run on screen and the same `sectionLabel` the

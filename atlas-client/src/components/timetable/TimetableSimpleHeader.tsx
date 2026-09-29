@@ -313,7 +313,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		capabilities,
 		isPublished: isRunPublished,
 		generationEnabled: generationReady,
-		onRegenerate: context.handleTriggerGenerate,
+		onRegenerate: () => context.handleTriggerGenerate(capabilities.generationStoppers),
 	});
 	const showDriftState = changeNotice.show;
 	const setupRepair = generationGate.repair.kind !== 'none' ? generationGate.repair : setupState.repair;
@@ -477,7 +477,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	// activated programmatically.
 	const handleGenerateClick = () => {
 		if (!shouldDispatchSimpleGenerate(canPlanOrGenerate)) return;
-		context.handleTriggerGenerate();
+		// A8-C5 S2.3 — the click hands over ITS OWN stoppers, so the Generate dialog
+		// can name the same causes this header derives, drift included.
+		context.handleTriggerGenerate(capabilities.generationStoppers);
 	};
 
 	const handlePublishActionClick = () => {
@@ -491,9 +493,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 			case 'fix-setup': navigate(YEAR_SETUP_HREF); break;
 			case 'start-draft': void startTask('plan-draft'); break;
 			case 'generate':
-				if (generationReady) context.handleTriggerGenerate();
+				if (generationReady) context.handleTriggerGenerate(capabilities.generationStoppers);
 				break;
-			case 'retry-generate': context.handleTriggerGenerate(); break;
+			case 'retry-generate': context.handleTriggerGenerate(capabilities.generationStoppers); break;
 			case 'retry-readiness': context.handleRefresh(); break;
 			case 'fix-blockers': setReadinessSheetOpen(true); break;
 			case 'review-warnings': void startTask('review-issues'); break;

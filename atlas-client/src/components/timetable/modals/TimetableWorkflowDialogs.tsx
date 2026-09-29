@@ -1,4 +1,5 @@
-import { CheckCircle2, CircleAlert, Clock, Loader2, Send } from 'lucide-react';
+import { CheckCircle2, CircleAlert, Clock, Loader2, RotateCw, Send } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 import type { ScheduleReviewDialogsContext } from '@/components/timetable/timetableContexts.types';
 import {
@@ -10,6 +11,10 @@ import {
 	publishPlacementBlockedSentence,
 } from '@/lib/timetable-plain-language';
 import type { GenerateDialogTermSource } from '@/lib/timetable-plain-language';
+import { BLOCKER_CODE_COPY, blockerSentence } from '@/lib/timetable-blocker-code-copy';
+import { presentGenerationBlockerGroups, presentGenerationBlockers } from '@/lib/timetable-generation-readiness';
+import type { TimetableGenerationReadinessDiagnostic } from '@/lib/timetable-generation-readiness';
+import type { TimetableGenerationStopper } from '@/lib/timetable-capabilities';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Checkbox } from '@/ui/checkbox';
@@ -18,6 +23,9 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { Skeleton } from '@/ui/skeleton';
 import { Textarea } from '@/ui/textarea';
 import { PublicationApprovalInbox } from '@/components/timetable/PublicationApprovalInbox';
+import { PlainCauseLines, type PlainCauseLine } from '@/components/timetable/simple/PlainCauseLines';
+import { SimpleGenerationBlockerGroups } from '@/components/timetable/simple/SimpleGenerationBlockerGroups';
+import { GenerationBlockerDetail, generationBlockerPanelCopy } from '@/components/timetable/simple/SimpleGenerationBlockerSheet';
 
 /**
  * A2-UX-WIRE-C2 (items 1-4) — the generate dialog CONSUMES the copy module's
@@ -49,6 +57,7 @@ export function TimetableWorkflowDialogs({ context, isPublished = false }: { con
 		requestReviewSaving, reviewRoomRequest, generating, generationElapsed,
 		showPublishDialog, setShowPublishDialog, publishAcknowledged, setPublishAcknowledged, softCount, publishUnassignedCount, handlePublishConfirm, canRequestPublication,
 		canApprovePublication, approvalSchoolId, approvalSchoolYearId, approvalActorId,
+		generationStoppers, generationReadinessDiagnostic, onCheckScheduleAgain, publishPlaceholderOwnedCount,
 	} = context;
 	const closeRequest = () => {
 		setRequestPreview(null);
@@ -90,6 +99,9 @@ export function TimetableWorkflowDialogs({ context, isPublished = false }: { con
 			setEnforceShiftWindows={setEnforceShiftWindows}
 			followUpCount={followUps.size}
 			onConfirm={confirmGenerate}
+			stoppers={generationStoppers}
+			readinessDiagnostic={generationReadinessDiagnostic}
+			onCheckScheduleAgain={onCheckScheduleAgain ?? null}
 		/>
 
 		<Dialog open={showResetDraftDialog} onOpenChange={setShowResetDraftDialog}>
@@ -151,6 +163,37 @@ export function TimetableWorkflowDialogs({ context, isPublished = false }: { con
 					</DialogDescription>
 				</DialogHeader>
 				{softCount > 0 && <label className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"><Checkbox checked={publishAcknowledged} onCheckedChange={(value) => setPublishAcknowledged(value === true)} /><span>I reviewed the remaining warnings.</span></label>}
+				{/*
+				 * A8-C5 S2.4 — PUBLICATION NAMES THE CLASSES IN THE SAME WORDS.
+				 *
+				 * The packet's rule 4: when the run has placeholder-owned or open classes,
+				 * the refusal names them the same way — "12 classes have no real teacher —
+				 * Cover them ›". Before this, the publish refusal named ONE population
+				 * (the unplaced sessions, in `publishPlacementBlockedSentence`) and said
+				 * nothing at all about the THIRD state S1.2 introduced: a class whose
+				 * canonical Teaching Load owner is a to-be-hired record. That class
+				 * blocks neither generation nor publication, so it never appears in any
+				 * count on this dialog — and a scheduler reading a refusal had no way to
+				 * learn that 12 of their classes are waiting on a hire rather than on a
+				 * mistake.
+				 *
+				 * THE WORDING IS NOT RE-TYPED HERE. `blockerSentence` is the S2.1 shared
+				 * table's own builder, and the route and button label are its row, so
+				 * publication and the generation panel say the identical sentence for the
+				 * identical state. `SimplePublishReadiness`'s vocabulary ("Missing faculty
+				 * coverage", "a placeholder") is deliberately NOT used: it is a second
+				 * naming system for the same fact, which is what S2.1 removed.
+				 *
+				 * It is a NAMED line, not a new refusal: `publishPlaceholderOwnedCount`
+				 * does not disable the Publish button, because a to-be-hired owner does not
+				 * block publication.
+				 */}
+				<PlainCauseLines
+					causes={composePublishRefusalCauses(publishUnassignedCount ?? 0, publishPlaceholderOwnedCount ?? null)}
+					heading="These classes are named here so nothing is a surprise at publish time."
+					onCheckAgain={null}
+					testId="timetable-publish-class-refusal"
+				/>
 				<DialogFooter>
 					<Button variant="outline" onClick={() => setShowPublishDialog(false)}>Cancel</Button>
 					<Button disabled={(publishUnassignedCount ?? 0) > 0 || (softCount > 0 && !publishAcknowledged)} onClick={handlePublishConfirm}><Send className="size-4" />{canRequestPublication ? 'Request approval' : 'Publish'}</Button>
@@ -159,6 +202,80 @@ export function TimetableWorkflowDialogs({ context, isPublished = false }: { con
 		</Dialog>
 		<PublicationApprovalInbox schoolId={approvalSchoolId} schoolYearId={approvalSchoolYearId} actorId={approvalActorId} visible={canApprovePublication === true} />
 	</>;
+}
+
+/**
+ * A8-C5 S2.4 — the publish refusal's named lines, composed from the ONE table.
+ *
+ * `openClassCount` is the run's own unresolved/unplaced requirement (the
+ * population the dialog's description already names in prose) and
+ * `placeholderOwnedCount` is S1.2's third state. Both sentences come from
+ * `blockerSentence`, so publication and the generation panel read identically
+ * for the identical state, and both buttons are the table's own label and route
+ * — never a locally invented destination.
+ *
+ * An UNMEASURED placeholder count is `null` and produces NO line at all: an
+ * invented number is the "651 setup items" defect this lane exists to remove.
+ */
+export function composePublishRefusalCauses(
+	openClassCount: number,
+	placeholderOwnedCount: number | null,
+): PlainCauseLine[] {
+	const causes: PlainCauseLine[] = [];
+	if (openClassCount > 0) {
+		const action = BLOCKER_CODE_COPY.TL_DEMAND_UNCOVERED;
+		causes.push({
+			key: 'open-class',
+			line: blockerSentence('TL_DEMAND_UNCOVERED', openClassCount),
+			count: openClassCount,
+			href: action.route,
+			actionLabel: action.buttonLabel,
+		});
+	}
+	if (placeholderOwnedCount !== null && placeholderOwnedCount > 0) {
+		const action = BLOCKER_CODE_COPY.SYNTHETIC_PLACEHOLDER_OWNED;
+		causes.push({
+			key: 'placeholder-owned',
+			line: blockerSentence('SYNTHETIC_PLACEHOLDER_OWNED', placeholderOwnedCount),
+			count: placeholderOwnedCount,
+			href: action.route,
+			actionLabel: action.buttonLabel,
+		});
+	}
+	return causes;
+}
+
+/**
+ * A8-C5 S2.3 — the capability stoppers as cause lines.
+ *
+ * SUBTRACTION, and the reason for the one filter below. `setup-blocked` and
+ * `readiness-unverified` both RESTATE the diagnostic's blocker count, and the
+ * blocker panel rendered in the same dialog already says that number in its own
+ * lead sentence. Printing it in a second shape two lines apart is the "two chips
+ * that say the same thing" defect the operator named on 2026-09-29, so when the
+ * panel is on screen those two are dropped.
+ *
+ * No CAUSE is lost by that: each of them summarises the panel's own per-cause
+ * lines, which are on screen instead. The four stoppers the panel cannot express
+ * — an unresolved school scope, a check still running, a check that could not
+ * run, and school-year drift — always render, because a diagnostic is not even
+ * present for the first three and a drifted year produces no blocker rows.
+ */
+const STOPPERS_THE_PANEL_ALREADY_SAYS = new Set(['setup-blocked', 'readiness-unverified']);
+
+export function composeStopperCauseLines(
+	stoppers: TimetableGenerationStopper[],
+	panelSaysTheDiagnostic: boolean,
+): PlainCauseLine[] {
+	return stoppers
+		.filter((stopper) => !(panelSaysTheDiagnostic && STOPPERS_THE_PANEL_ALREADY_SAYS.has(stopper.key)))
+		.map((stopper) => ({
+			key: stopper.key,
+			line: stopper.line,
+			count: stopper.count,
+			href: stopper.href,
+			actionLabel: stopper.actionLabel,
+		}));
 }
 
 type GenerateConfirmProps = {
@@ -192,6 +309,28 @@ type GenerateConfirmProps = {
 	setEnforceShiftWindows: (value: boolean) => void;
 	followUpCount: number;
 	onConfirm: (enforceShiftWindowsOverride: boolean) => void;
+	/**
+	 * A8-C5 S2.3 — what genuinely prevents a timetable, one named entry per cause,
+	 * as `deriveTimetableCapabilities` computed it. Empty in a year that is ready,
+	 * which is when the whole section below is absent and this is an ordinary
+	 * generate dialog.
+	 */
+	stoppers?: TimetableGenerationStopper[];
+	/**
+	 * A8-C5 S2.3 — the canonical diagnostic, when one was read. It is what turns a
+	 * stopper line into the per-cause list: one line per root cause, counted in
+	 * classes, each with the S2.1 table's own fix button. `null` when no diagnostic
+	 * exists (an unresolved scope, a check that could not run), and then the
+	 * stoppers carry the whole explanation.
+	 */
+	readinessDiagnostic?: TimetableGenerationReadinessDiagnostic | null;
+	/**
+	 * A8-C5 S2.3 — the ONE "Check again" for this dialog's whole body. Null (the
+	 * default for a caller that has not wired one) hides the control rather than
+	 * rendering a button that would do nothing, because §8 allows no control that
+	 * cannot be reached.
+	 */
+	onCheckScheduleAgain?: (() => void) | null;
 };
 
 /**
@@ -222,8 +361,33 @@ export function GenerateConfirmDialog({
 	setEnforceShiftWindows,
 	followUpCount,
 	onConfirm,
+	stoppers = [],
+	readinessDiagnostic = null,
+	onCheckScheduleAgain = null,
 }: GenerateConfirmProps) {
 	const copy = buildGenerateDialogCopy({ schoolYearLabel, termSource, lockedClassCount, classesToSchedule });
+	/*
+	 * A8-C5 S2.3 — the dialog is the ANSWER, so it must be able to say why.
+	 *
+	 * Before this the whole "explain it in the dialog" half of the contract was
+	 * missing: the gate said "enabled", and clicking it produced a toast from
+	 * `useScheduleReviewWorkspaceState` and no dialog at all. A scheduler who was
+	 * told a button was clickable, clicked it, and was told nothing.
+	 *
+	 * TWO LISTS, NOT ONE, because there are two kinds of fact and they do not
+	 * overlap. The BLOCKER PANEL carries the causes the server measured — one line
+	 * per root cause, count in classes, the S2.1 table's route and label on each
+	 * button, and the complete row list still behind its disclosure. The STOPPERS
+	 * carry everything the panel cannot: a school scope that never loaded, a check
+	 * still running, a check that could not run, and a school year that is out of
+	 * sync. Each list is built by the ONE composer, so the panel and the dialog can
+	 * never describe the same cause two ways.
+	 */
+	const groupList = readinessDiagnostic ? presentGenerationBlockerGroups({ diagnostic: readinessDiagnostic }) : [];
+	const rowList = readinessDiagnostic ? presentGenerationBlockers({ diagnostic: readinessDiagnostic }) : [];
+	const panelSaysTheDiagnostic = groupList.length > 0;
+	const stopperCauses = composeStopperCauseLines(stoppers, panelSaysTheDiagnostic);
+	const explainsWhy = stopperCauses.length > 0 || panelSaysTheDiagnostic;
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			{/* `hideClose`: the DialogContent `X` and `Cancel` were two controls for
@@ -246,6 +410,50 @@ export function GenerateConfirmDialog({
 						{followUpCount} flagged item{followUpCount === 1 ? '' : 's'} will remain available for review.
 					</p>
 				)}
+				{explainsWhy ? (
+					<div className="space-y-3" data-testid="timetable-generate-stoppers">
+						<PlainCauseLines
+							causes={stopperCauses}
+							heading="ATLAS has not made a timetable yet. Here is every reason, and where each one is fixed."
+							onCheckAgain={null}
+							testId="timetable-generate-stopper"
+						/>
+						{panelSaysTheDiagnostic ? (
+							/*
+							 * `onCheckAgain={null}`: the ONE "Check again" for this whole
+							 * dialog is the control below, so the same action never appears
+							 * twice in one dialog. The panel's own lines, buttons and disclosed
+							 * complete row list are the accepted A8 C3 / A9 surface, reused
+							 * unchanged rather than re-rendered here.
+							 */
+							<SimpleGenerationBlockerGroups
+								groups={groupList}
+								onCheckAgain={null}
+								detail={<GenerationBlockerDetail diagnostic={readinessDiagnostic} rows={rowList} />}
+								detailSummary={generationBlockerPanelCopy({
+									rowCount: rowList.length,
+									blockingCount: readinessDiagnostic?.blockerCount ?? rowList.length,
+									gapClassCount: readinessDiagnostic?.gapClassCount ?? 0,
+								}).detailSummary}
+							/>
+						) : null}
+						{onCheckScheduleAgain ? (
+							<div className="flex justify-start border-t border-border pt-2">
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									className="h-9 gap-1.5 text-xs"
+									data-testid="timetable-generate-check-again"
+									onClick={onCheckScheduleAgain}
+								>
+									<RotateCw className="size-3.5" aria-hidden="true" />
+									Check again
+								</Button>
+							</div>
+						) : null}
+					</div>
+				) : null}
 				<DialogFooter>
 					<Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
 					<Button onClick={() => onConfirm(enforceShiftWindows)} data-testid="timetable-generate-confirm-submit">

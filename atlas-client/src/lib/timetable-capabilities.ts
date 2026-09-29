@@ -192,8 +192,27 @@ function denied(reason: string, repair: TimetableRepair = NONE, shortReason: str
  * blocked setup, then a check that could not run, then an unverified decision,
  * then drift. The first entry is the one the header repairs, so it is the one
  * that has to be the one an operator can act on.
+ *
+ * A8-C5 S2.3 (executor, 2026-09-29) — the parameter is a `Pick` of the fields
+ * this function READS, not the whole `TimetableCapabilityInput`. A caller that
+ * only wants the causes (the Generate dialog's fallback derivation, which owns
+ * the readiness but not the run state) must not have to invent a
+ * `hasGeneratedRun` to get an honest list, and a field added to the full input
+ * for the GATES must not become a required field of the stoppers. The `Pick` is
+ * the check: anything this function stops reading is a compile error here.
  */
-export function deriveTimetableGenerationStoppers(input: TimetableCapabilityInput): TimetableGenerationStopper[] {
+export type TimetableGenerationStopperInput = Pick<
+	TimetableCapabilityInput,
+	| 'scopeResolved'
+	| 'curriculumState'
+	| 'generating'
+	| 'generationDiagnostic'
+	| 'readinessRepair'
+	| 'driftBlocked'
+	| 'driftMessage'
+>;
+
+export function deriveTimetableGenerationStoppers(input: TimetableGenerationStopperInput): TimetableGenerationStopper[] {
 	const stoppers: TimetableGenerationStopper[] = [];
 
 	if (!input.scopeResolved) {
