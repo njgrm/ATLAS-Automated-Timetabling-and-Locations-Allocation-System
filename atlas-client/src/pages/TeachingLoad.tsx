@@ -774,7 +774,7 @@ export default function TeachingLoad() {
 					historyAction={(
 						<Link to="/teaching-load/history" data-testid="teaching-load-history-link">
 							<History className="size-3.5" aria-hidden="true" />
-							Archived load
+							Past years
 						</Link>
 					)}
 					// A6 C2 (Major 2): the only timestamp the client holds for this
@@ -799,14 +799,6 @@ export default function TeachingLoad() {
 								<div className="min-w-0">
 									<RolloverGuidanceCard compact schoolId={data.schoolId} />
 								</div>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button asChild type="button" variant="outline" size="sm" className="min-h-11 gap-1.5">
-											<Link to="/teaching-load/history" data-testid="teaching-load-past-years"><History className="size-3.5" aria-hidden="true" />Past years</Link>
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent>Read-only Teaching Load for every past school year.</TooltipContent>
-								</Tooltip>
 							</div>
 						)}
 

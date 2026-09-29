@@ -248,6 +248,8 @@ export function TeacherGridMode({
 	 * controls.
 	 */
 	const [editorId, setEditorId] = useState<number | null>(null);
+	// Hotfix 29 Sep: subjects outside the teacher's area open per teacher (was a page-wide switch that changed nothing visible).
+	const [otherSubjectsFor, setOtherSubjectsFor] = useState<number | null>(null);
 
 	/** Inspect: select, then open the read-only profile. Never edits. */
 	const handleTeacherClick = (id: number) => {
@@ -639,7 +641,19 @@ export function TeacherGridMode({
 																</div>
 															)}
 
-															{showOutsideDept && outsideDepartmentSubjects.length > 0 && (
+															{!(showOutsideDept || otherSubjectsFor === member.id) && outsideDepartmentSubjects.length > 0 && (
+																<Button
+																	type="button"
+																	variant="outline"
+																	className="min-h-10 gap-1.5 text-sm"
+																	data-testid="teaching-load-show-other-subjects"
+																	onClick={() => setOtherSubjectsFor(member.id)}
+																>
+																	Show other subjects ({outsideDepartmentSubjects.length})
+																	<ChevronDown className="size-4" aria-hidden="true" />
+																</Button>
+															)}
+															{(showOutsideDept || otherSubjectsFor === member.id) && outsideDepartmentSubjects.length > 0 && (
 																<div className="space-y-3">
 																	<div className="flex items-center gap-3">
 																		<span className="text-xs font-semibold text-muted-foreground/50">Outside their subject area</span>
