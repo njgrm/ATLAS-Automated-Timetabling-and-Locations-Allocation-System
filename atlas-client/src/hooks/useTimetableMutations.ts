@@ -1974,20 +1974,14 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			await fetchEditHistory();
 			setRegularSwapPending(null);
 			setSelectedEntry(null);
-		/* A2 mc S5 — the SWAP path speaks the same receipt as move and place.
+		/* A2 mc S5 — the SWAP path speaks the same receipt as move and place, derived
+		 * from the committed `CommitResult.violationDelta`. The strategy clause is
+		 * ADDITIVE: it says whether ATLAS also relocated a third session, which is a
+		 * fact about the strategy and not about the exchange.
 		 *
-		 * Before this slice it named neither class and neither slot, so after a
-		 * swap the operator was told only that sessions had switched. It is derived
-		 * from the committed `CommitResult.violationDelta` (what the server measured
-		 * after the write), never from the optimistic request, and it is ADDITIVE:
-		 * the strategy clause below still says whether ATLAS also relocated a third
-		 * session, because that is a fact about the strategy and not about the
-		 * exchange.
-		 *
-		 * THE CLASS NAME, HONESTLY. This hook has no subject/subject label
-		 * resolver in scope (its sibling `useScheduleReviewWorkspaceState` does),
-		 * so the receipt names the section from the `sectionMap` it DOES hold and
-		 * never prints a bare id. A class it cannot name is not invented. */
+		 * THE CLASS NAME, HONESTLY: this hook has no subject/section label resolver
+		 * in scope, so the receipt names the section from the `sectionMap` it DOES
+		 * hold and never prints a bare id. A class it cannot name is not invented. */
 		const swappedSection = entryA.sectionId != null ? sectionMap.get(entryA.sectionId) : undefined;
 		const swapReceipt = buildEditReceipt({
 			editType: 'SWAP_ENTRIES',

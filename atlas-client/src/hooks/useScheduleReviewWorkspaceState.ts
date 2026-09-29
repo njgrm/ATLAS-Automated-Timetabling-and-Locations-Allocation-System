@@ -1563,12 +1563,9 @@ export function useScheduleReviewWorkspaceState() {
 				endTime: preview.endTime,
 				roomLabel: preview.roomLabel ?? 'Room saved',
 			});
-		/* A2 mc S5 — the PLACE path now speaks the SAME receipt as move and swap.
-		 * It previously built its own sentence with raw `preview.day`/`startTime`
-		 * (`Placed TLE in MONDAY 07:00-08:00`) and, on a soft run, a count rather
-		 * than a sentence. `preview.subjectLabel` and `preview.sectionLabel` are the
-		 * values the chooser already showed the operator, so the receipt names the
-		 * class it was about. */
+		/* A2 mc S5 — the PLACE path speaks the SAME receipt as move and swap. It
+		 * previously built its own sentence from raw `preview.day`/`startTime` and,
+		 * on a soft run, printed a count rather than a sentence. */
 		const placeReceipt = buildEditReceipt({
 			editType: pending.proposal.editType,
 			classLabel: receiptClassLabel({
@@ -1924,15 +1921,10 @@ export function useScheduleReviewWorkspaceState() {
 					? `${roomMap.get(proposal.targetRoomId)!.name} - ${roomMap.get(proposal.targetRoomId)!.buildingShortCode || roomMap.get(proposal.targetRoomId)!.buildingName}`
 					: '',
 			});
-		/* A2 mc S5 — ONE receipt for the committed move. Before this it read
-		 * `Moved to MONDAY 07:00–08:00. Undo below.` on a clean move and
-		 * `Move applied with N soft warning(s).` on a soft one: neither named the
-		 * class, neither said where it came FROM, and the second was a count rather
-		 * than a sentence.
-		 *
-		 * It is derived from the COMMITTED record (`commitResult.violationDelta` is
-		 * what the server measured after the write), never from the optimistic
-		 * proposal, so the sentence cannot describe a change that did not land. */
+		/* A2 mc S5 — the ONE receipt derivation (`lib/timetable-edit-receipt.ts`),
+		 * derived from the COMMITTED delta, never the optimistic proposal. Replaces
+		 * `Moved to MONDAY 07:00–08:00. Undo below.` / `Move applied with N soft
+		 * warning(s).`, which named neither the class nor where it came from. */
 		const moveReceipt = buildEditReceipt({
 			editType: proposal.editType,
 			classLabel: receiptClassLabel({

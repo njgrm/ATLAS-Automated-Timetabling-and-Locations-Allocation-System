@@ -396,12 +396,10 @@ const MANUAL_INVARIANT_CODE: Record<CandidateInvariantReason, Violation['code']>
 };
 
 /**
- * A2 mc, S4b — the shared-invariant reason in the operator's words.
- *
- * `Manual candidate <entryId> rejected by shared invariant: <REASON>.` used to be
- * the literal `humanDetail`, so the enum below reached the screen. This map is
- * the human wording for the SAME reasons; the machine value stays in
- * `meta.candidateInvariant`, where a program reads it and a person does not.
+ * A2 mc, S4b — the shared-invariant reason in the operator's words. `Manual
+ * candidate <entryId> rejected by shared invariant: <REASON>.` used to be the
+ * literal `humanDetail`, so this enum reached the screen. The machine value stays
+ * in `meta.candidateInvariant`, where a program reads it and a person does not.
  */
 const MANUAL_INVARIANT_REASON_WORDS: Record<CandidateInvariantReason, string> = {
 	INVALID_IDENTIFIER: 'this class is not a class ATLAS can place',
@@ -469,20 +467,13 @@ export function validateManualCandidateInvariants(
 		...scope,
 		code: MANUAL_INVARIANT_CODE[reason],
 		severity: 'HARD' as const,
-		/* A2 mc, S4b — COMPOSED FOR THE OPERATOR.
-		 *
-		 * This used to read `Manual candidate ${entry.entryId} rejected by shared
-		 * invariant: ${reason}.` and reached the operator verbatim as `humanDetail`,
-		 * because `buildHumanConflicts` falls back to `v.message` for any code without
-		 * a `case` — so the raw entry id, the phrase `rejected by shared invariant`
-		 * and the raw reason code all reached the screen.
-		 *
-		 * The message now states the FACT in plain words and carries no entry id and
-		 * no engine token. The machine-readable facts are unchanged and still
-		 * recorded where a program reads them: `entities.entryIds` keeps the id,
-		 * and `meta.candidateInvariant` keeps the reason. The invariant reason is
-		 * humanised through the same title map so a reason that IS a code still
-		 * cannot print as one. */
+		/* A2 mc, S4b — COMPOSED FOR THE OPERATOR. This used to read
+		 * `Manual candidate ${entry.entryId} rejected by shared invariant: ${reason}.`
+		 * and reached the operator verbatim as `humanDetail`, because
+		 * `buildHumanConflicts` falls back to `v.message` for any code without a
+		 * `case`. The machine-readable facts are unchanged and still recorded where
+		 * a program reads them: `entities.entryIds` keeps the id and
+		 * `meta.candidateInvariant` keeps the reason. */
 		message: `ATLAS refused this change because the candidate breaks a rule every class must follow${MANUAL_INVARIANT_REASON_WORDS[reason] ? `: ${MANUAL_INVARIANT_REASON_WORDS[reason]}` : '.'}`,
 		entities: {
 			facultyId: entry.facultyId ?? undefined,
@@ -912,7 +903,7 @@ export function mergePreservedSummaryFields(existingSummary: unknown, newSummary
 // ─── Human-readable conflict builder ───
 
 /**
- * A2 mc, S4b — EVERY code this path can emit has a plain title.
+ * A2 mc, S4b — every code this path can emit has a plain title.
  *
  * THE DEFECT. `const title = VIOLATION_TITLES[v.code] ?? v.code;` rendered the raw
  * enum whenever the map missed: `SECTION_TIME_CONFLICT`, `ROOM_CAPACITY_EXCEEDED`,
@@ -921,9 +912,7 @@ export function mergePreservedSummaryFields(existingSummary: unknown, newSummary
  *
  * THE WORDING IS NOT INVENTED HERE. Every HARD entry is the wording already
  * APPROVED on the client in `simple/SimpleTaskDrawerHelpers.tsx`
- * (`HARD_VIOLATION_GROUP_MAP`), and the SOFT entries are the plain rewording of the
- * engine nouns this map used to carry (`Faculty Time Conflict`). One idea, one
- * name, so the preview and Publish Readiness cannot drift.
+ * (`HARD_VIOLATION_GROUP_MAP`), so the preview and Publish Readiness cannot drift.
  */
 const VIOLATION_TITLES: Record<string, string> = {
 	// HARD — publication-blocking.
