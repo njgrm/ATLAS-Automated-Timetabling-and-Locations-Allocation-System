@@ -5984,8 +5984,9 @@ guessed); evidence `docs/reviews/a9-c8-20260929/` (8 PNGs + before/after words);
   0 · Unavailable 25`) still sit above a listed problem group — pre-existing, `roomReadinessCounts` untouched here.
   F-E the app shell clips its first two sidebar lines at 1364 px on every page. The `/dashboard/readiness-summary`
   *latency* itself is a separate performance item, not fixed by this cycle.
-- **Worktree** `E:/ATLAS-worktrees/lane-a9-c8-dashboard-truth` = `RETIRE_AFTER_INTEGRATION` (pushed, clean,
-  `node_modules` a real directory, not a junction; preview `:5240` PID 41532 is mine to kill on request).
+- **Worktree** `E:/ATLAS-worktrees/lane-a9-c8-dashboard-truth` = **RETIRED 2026-09-29 21:1x +08** in the closure
+  that pushed `640958ab`: pushed, clean, `node_modules` a real directory (not a junction), non-forced removal, and
+  preview `:5240` was already gone with port 5240 free (no listener of mine left running).
 - **Next action (single):** A4 ships train 11 with `4ad0bb77` and runs the two post-deploy browser rows — the
   settled Dashboard reading `78 of 78` beside `/map`'s identical figure, and the readiness hint reading
   `1 building has no rooms` from the new server build.
