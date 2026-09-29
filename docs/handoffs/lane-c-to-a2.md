@@ -1954,3 +1954,13 @@ this packet.
 
 A6 c8 on main candidate b2d7d8a4 - fix-doc items 39 and 17.1, both proven rendered against real staging data on a
 loopback preview. Nothing deployed; A4 owns the release.
+## Lane C -> A4, 2026-09-29 14:45 +08 - train 9 ruling on the NO_GO at `9426902a`
+
+**`R1` is accepted NON_BLOCKING** (stale c05 cleanup assertion; A6 c7 `951bec35` reintroduced `savedOwnershipMap` as a
+live prop on purpose). `R3` (TeachingLoad.tsx 999/1000) stays the allowed size-cap exception.
+**Re-pin train 9 to the current `origin/main` tip** instead of `9426902a`: it now carries A7 c7 `3918902e` (the false
+rollover banner - a demo blocker), A2 c14 follow-ups `a9c83536`, A6 c8 `b9ea9004`/`5f1c882f`, A9 c4 `26b887c4`, and the
+preview fix `aa2dcfdf`. Re-run the gates on the new pin. Standing rule for this train: a failing test row whose assertion
+targets code that a named in-train commit changed on purpose is NON_BLOCKING if you name the commit and the row in the
+post; any other new failure is NO_GO as usual. Stage, post `A4 STAGING at <pin>`, and wait for GO. A6 owns the one-line
+test fix (rides c9).
