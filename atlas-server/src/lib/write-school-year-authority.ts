@@ -56,8 +56,12 @@ function invalid(schoolYearId: unknown): WriteSchoolYearRefusal {
 /**
  * Resolve the school year a WRITE path must use.
  *
- * @param suppliedSchoolYearId raw `req.body.schoolYearId`; `undefined` means
- *   "caller did not supply one, resolve the EnrollPro active year".
+ * @param suppliedSchoolYearId raw `req.body.schoolYearId`; `undefined` is the
+ *   ONLY value that means "caller did not supply one, resolve the EnrollPro
+ *   active year". An explicit `null` is a caller error and is refused with the
+ *   same `400 INVALID_BODY` as any other unusable value, which is exactly what
+ *   the pre-existing `section.router.ts` guard did — treating `null` as absent
+ *   would be a LOOSER gate than the one this packet replaces.
  * @param authToken upstream auth token forwarded to the EnrollPro integration
  *   endpoint.
  */
@@ -65,7 +69,7 @@ export async function resolveWriteSchoolYearId(
 	suppliedSchoolYearId: unknown,
 	authToken?: string,
 ): Promise<WriteSchoolYearResolution> {
-	if (suppliedSchoolYearId !== undefined && suppliedSchoolYearId !== null) {
+	if (suppliedSchoolYearId !== undefined) {
 		const schoolYearId = Number(suppliedSchoolYearId);
 		if (!Number.isInteger(schoolYearId) || schoolYearId <= 0) return invalid(suppliedSchoolYearId);
 		return { ok: true, schoolYearId, yearLabel: null };

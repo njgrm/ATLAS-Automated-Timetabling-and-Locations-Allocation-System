@@ -1052,7 +1052,12 @@ function formatDepartmentLabel(value: string | null | undefined): string {
 	return labels[normalized] ?? (value?.trim().toUpperCase() || 'GENERAL');
 }
 
-function buildStaffingReport(
+/**
+ * A8-C5 S1.3 — exported so the hire estimate is directly testable against the
+ * REAL function rather than a re-implementation of its arithmetic. The test that
+ * pins it is `a8-c5-hire-estimate-policy.test.ts`.
+ */
+export function buildStaffingReport(
 	unresolvedPairs: UnresolvedPair[],
 	faculty: FacultyRow[],
 	capacityUsed: Map<number, number>,

@@ -567,7 +567,13 @@ function collectDetectedScopes(sectionsByGrade: ConstructorInput['sectionsByGrad
 	return [...scopes.values()];
 }
 
-function summarizeTeachingLoadCoverage(
+/**
+ * A8-C5 S1.2 — the coverage summary, exported so the third ownership state is
+ * directly testable without a database. The arithmetic is unchanged from the
+ * pre-A8-C5 form except that a pair owned by a to-be-hired record is counted in
+ * `placeholderPairs` instead of `ownedPairs`, and is named in `placeholderOwned`.
+ */
+export function summarizeTeachingLoadCoverage(
 	derived: DerivedDemandSuccess,
 	ownershipBySubjectSection: Map<string, any[]>,
 	facultyById: Map<number, { isActiveForScheduling: boolean; isStale: boolean; isPlaceholder?: boolean }>,
