@@ -31,7 +31,7 @@
  */
 
 import { intervalsOverlap } from './timetable-candidate-domain.js';
-import { prisma } from '../lib/prisma.js';
+import { getDataContext } from '../lib/data-context.js';
 import { loadVerifiedOrderedTermContract } from './academic-term.service.js';
 
 // ─── Shape ───
@@ -308,9 +308,16 @@ export function computePreferenceAdherence(input: PreferenceAdherenceInput): Pre
 	 * that teacher's preferences "were not used" would be a claim about nothing.
 	 * `REJECTED` is treated the same way: it is not in use, which is the sentence
 	 * the notice already makes.
+	 *
+	 * A faculty who ALSO has a REVIEWED row is never "not reviewed" — the schema
+	 * allows one row per (school, year, faculty, term), so this only arises from
+	 * malformed input, and counting them anyway would print "1 teacher's
+	 * preferences are not reviewed yet" beside their own, reviewed, counted groups.
 	 */
+	const reviewedFacultyIds = new Set(reviewedRows.map((row) => row.facultyId));
 	for (const row of input.availability) {
 		if (!inScope(row) || row.status === 'REVIEWED') continue;
+		if (reviewedFacultyIds.has(row.facultyId)) continue;
 		if (!row.slots.some((slot) => slot.state === 'UNAVAILABLE' || slot.state === 'PREFERRED')) continue;
 		notReviewedFacultyIds.add(row.facultyId);
 	}
@@ -348,7 +355,15 @@ export async function loadPreferenceAdherenceReport(input: {
 	schoolYearId: number;
 	termIndex: number;
 }): Promise<PreferenceAdherenceReport> {
-	const run = await prisma.generationRun.findFirst({
+	/**
+	 * `getDataContext`, not the `prisma` singleton directly, for the reason
+	 * `lib/data-context.ts` documents: the route's zero-write row must observe the
+	 * EXACT production data-access path, so the test injects an instrumented client
+	 * here rather than asserting against a second, unrelated client.
+	 */
+	const db = getDataContext();
+
+	const run = await db.generationRun.findFirst({
 		where: { id: input.runId, schoolId: input.schoolId, schoolYearId: input.schoolYearId },
 		select: { id: true, draftEntries: true },
 	});
@@ -371,7 +386,7 @@ export async function loadPreferenceAdherenceReport(input: {
 		});
 	}
 
-	const availability = await prisma.facultyAvailability.findMany({
+	const availability = await db.facultyAvailability.findMany({
 		where: { schoolId: input.schoolId, schoolYearId: input.schoolYearId },
 		select: {
 			schoolId: true,
@@ -389,7 +404,7 @@ export async function loadPreferenceAdherenceReport(input: {
 	for (const row of availability) facultyIds.add(row.facultyId);
 	for (const entry of placedEntries) if (typeof entry?.facultyId === 'number') facultyIds.add(entry.facultyId);
 
-	const facultyRows = await prisma.facultyMirror.findMany({
+	const facultyRows = await db.facultyMirror.findMany({
 		where: { id: { in: [...facultyIds] } },
 		select: { id: true, firstName: true, lastName: true },
 	});
