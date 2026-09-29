@@ -313,7 +313,7 @@ export default function MyDashboard() {
 
 			<div className='flex-1 min-h-0 overflow-auto px-4 py-5 sm:px-6 sm:py-6 pb-20 lg:pb-8'>
 				{schoolYearNotice && (
-					<p className='mx-auto mb-4 max-w-7xl text-[11px] text-muted-foreground'>{schoolYearNotice}</p>
+					<p className='mx-auto mb-4 max-w-7xl text-xs text-muted-foreground'>{schoolYearNotice}</p>
 				)}
 				<div className='max-w-7xl mx-auto'>
 					{isMobile ? (

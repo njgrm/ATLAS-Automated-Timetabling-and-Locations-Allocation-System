@@ -45,3 +45,9 @@ pages touched, commit and push wip every 30 min, one line per fix in the handoff
 Year Setup and Teaching Load history list 2029-2030, 2030-2031, 2031-2032 as "past" years. They are rollover drill years
 on live data, dated in the future relative to 2023-2024. For the demo they will confuse. Options: leave them; mark them as
 test data (hidden from lists); or rename. Lane C will not change live data without the operator.
+
+## Addendum 20:10 (train 10 re-check)
+- **A6:** Teaching Load header read "81% staffed" in one staging walk and "73% staffed. 72 classes need one." an hour
+  later on the same build and data. Find why (placeholder counting? load order?) and make it one definition, stable.
+- **A8:** /subjects first load took 20.5 s and fell back to "Using saved data" (EnrollPro slow or a timeout). A scheduler
+  waiting 20 s thinks it is broken: show the saved catalog immediately and refresh in the background, with a receipt.

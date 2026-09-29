@@ -63,7 +63,7 @@ export default function TeachingIdentityPanel({ assignments, maxSections = 6, co
 			<Card className='rounded-2xl border-amber-200 bg-amber-50'>
 				<CardContent className={compact ? 'p-3' : 'p-4'}>
 					<p className='text-[13px] font-semibold text-amber-900'>No teaching load found</p>
-					<p className='mt-1 text-[12px] leading-snug text-amber-800/85'>Your account is signed in, but no classes are linked for this school year.</p>
+					<p className='mt-1 text-xs leading-snug text-amber-800/85'>Your account is signed in, but no classes are linked for this school year.</p>
 				</CardContent>
 			</Card>
 		);
@@ -79,7 +79,7 @@ export default function TeachingIdentityPanel({ assignments, maxSections = 6, co
 				<div className='flex items-center justify-between gap-3'>
 					<div>
 						<p className='text-[13px] font-semibold text-foreground'>Your teaching load</p>
-						<p className='mt-0.5 text-[12px] text-muted-foreground'>{assignments.length} class{assignments.length === 1 ? '' : 'es'} linked to your account.</p>
+						<p className='mt-0.5 text-xs text-muted-foreground'>{assignments.length} class{assignments.length === 1 ? '' : 'es'} linked to your account.</p>
 					</div>
 					{hasRotation && <Badge variant='warning' className='shrink-0'>Rotates by term</Badge>}
 				</div>
@@ -89,16 +89,16 @@ export default function TeachingIdentityPanel({ assignments, maxSections = 6, co
 							<div className='flex items-start justify-between gap-2'>
 								<div className='min-w-0'>
 									<p className='truncate text-[13px] font-semibold text-foreground'>{group.sectionName}</p>
-									<p className='text-[11px] text-muted-foreground'>Grade {group.gradeLevel}</p>
+									<p className='text-xs text-muted-foreground'>Grade {group.gradeLevel}</p>
 								</div>
-								{group.assignments.some(isRotational) && <Badge variant='outline' className='shrink-0 text-[10px]'>Term load</Badge>}
+								{group.assignments.some(isRotational) && <Badge variant='outline' className='shrink-0 text-xs'>Term load</Badge>}
 							</div>
 							<div className='mt-2 flex flex-wrap gap-1.5'>
 								{group.assignments.map((assignment) => (
 									<Badge
 										key={`${assignment.sectionId}:${assignment.subjectId}:${assignment.rotationTermGroupId ?? assignment.rotationTermRank ?? 'all'}`}
 										variant={isRotational(assignment) ? 'secondary' : 'outline'}
-										className='max-w-full truncate text-[10px] font-medium'
+										className='max-w-full truncate text-xs font-medium'
 									>
 										{assignment.subjectDisplayLabel} · {buildTermLabel(assignment)}
 									</Badge>
@@ -107,7 +107,7 @@ export default function TeachingIdentityPanel({ assignments, maxSections = 6, co
 						</div>
 					))}
 				</div>
-				{hiddenCount > 0 && <p className='text-[11px] text-muted-foreground'>Showing {visibleGroups.length} sections. {hiddenCount} more linked.</p>}
+				{hiddenCount > 0 && <p className='text-xs text-muted-foreground'>Showing {visibleGroups.length} sections. {hiddenCount} more linked.</p>}
 			</CardContent>
 		</Card>
 	);

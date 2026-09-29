@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from '@/ui/dialog';
 import { ScrollArea } from '@/ui/scroll-area';
+import { programShortLabel } from '@/lib/deped-glossary';
 
 export interface UnassignedInsertionWorkflowProps {
   open: boolean;
@@ -254,7 +255,12 @@ export function UnassignedInsertionWorkflow(props: UnassignedInsertionWorkflowPr
                   {previewLine.subjectName} · {previewLine.sectionName} · {previewLine.termIdentity}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
-                  Teacher {previewLine.ownerFacultyName ?? '—'} · {previewLine.subjectCode} · Grade {previewLine.gradeLevel} {previewLine.programType}
+                  {/* A3 c16: the sub-line repeated the raw code while the title
+                      directly above it already reads the name, and the program
+                      scope printed the raw enum (`REGULAR` / `SPTVE`). The name
+                      and the plain program label lead; the code is the documented
+                      fallback when a row carries no name. */}
+                  Teacher {previewLine.ownerFacultyName ?? '—'} · {previewLine.subjectName?.trim() || previewLine.subjectCode} · Grade {previewLine.gradeLevel} {programShortLabel(previewLine.programType)}
                 </p>
               </div>
               <Badge variant={preview.state === 'INDIVIDUALLY_PREVIEWABLE' ? 'default' : 'secondary'} className="h-7 shrink-0 px-2 text-xs" data-testid="insertion-preview-state">

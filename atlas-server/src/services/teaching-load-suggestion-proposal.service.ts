@@ -192,6 +192,41 @@ function distributionStale(message: string): ServiceError {
 	});
 }
 
+/**
+ * A8 c4 correction (F2) — the INSERT-side receiver guard, the mirror of the
+ * MOVE-side guard below.
+ *
+ * A move re-validates its receiver inside this transaction. An INSERT had no
+ * equivalent, so a `REAL_TEACHER` row reached by the `ANYONE` tier — a teacher the
+ * canonical persisted-only resolver scores `tier: null` — could be written as a
+ * `SubjectSectionOwnership` row, i.e. a class silently owned by somebody who does
+ * not hold the subject.
+ *
+ * `allowUnqualifiedRealFaculty` now defaults to `false`, so the default path
+ * cannot produce one. This guard is the second, load-bearing half: even a caller
+ * that opts in gets a typed refusal and ZERO writes rather than a persisted
+ * unqualified owner. Every pair it rejects is named, bounded, in the same shape
+ * as the ownership-drift details so the client renders one thing.
+ */
+function unqualifiedInsertReceiverError(
+	rows: Array<{ subjectId: number; sectionId: number; facultyId: number }>,
+): ServiceError {
+	const changedPairs = rows.slice(0, OWNERSHIP_CONFLICT_PAIR_LIMIT).map((row) => ({
+		subjectId: row.subjectId,
+		sectionId: row.sectionId,
+		facultyId: row.facultyId,
+	}));
+	return err(409, 'TEACHING_LOAD_INSERT_RECEIVER_UNQUALIFIED', 'A teacher this suggestion would newly assign is not qualified for the subject. Preview a fresh Teaching Load suggestion.', {
+		actionHint: 'Preview a fresh Teaching Load suggestion, review it, then apply it.',
+		details: {
+			reason: 'RECEIVER_NOT_QUALIFIED',
+			changedPairCount: rows.length,
+			changedPairs,
+			remainingChangedPairCount: Math.max(0, rows.length - changedPairs.length),
+		},
+	});
+}
+
 function assertPolicyRevisionMatches(plan: TeachingLoadDistributionPlan, policy: EffectiveWorkloadPolicy | null): EffectiveWorkloadPolicy {
 	if (policy == null) {
 		throw distributionStale('The applicable workload policy is no longer configured. Preview a fresh proposal.');
@@ -482,11 +517,31 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 					isStale: false,
 					isPlaceholder: false,
 				},
-				select: { id: true },
+				// A8 c4 F2: the insert-side receiver guard below re-evaluates each
+				// receiver through the transaction client, so it needs the same
+				// persisted-qualification fields the move-side guard reads.
+				select: {
+					id: true,
+					firstName: true,
+					lastName: true,
+					department: true,
+					specialization: true,
+					canTeachOutsideDepartment: true,
+				},
 			}) : Promise.resolve([]),
 			subjectIds.length > 0 ? tx.subject.findMany({
 				where: { id: { in: subjectIds }, schoolId: existing.schoolId, isActive: true },
-				select: { id: true },
+				// A8 c4 F2: the receiver guard resolves the qualification tier from
+				// these persisted subject fields, never from a local rule.
+				select: {
+					id: true,
+					code: true,
+					name: true,
+					ownerDepartment: true,
+					requiredFeatures: true,
+					allowedSpecializations: true,
+					programScopes: true,
+				},
 			}) : Promise.resolve([]),
 			sectionIds.length > 0 ? tx.sectionMirror.findMany({
 				where: {
@@ -496,7 +551,8 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 					isActiveForScheduling: true,
 					isStale: false,
 				},
-				select: { externalId: true, displayOrder: true },
+				// `programType` is the qualification resolver's section input.
+				select: { externalId: true, displayOrder: true, programType: true },
 			}) : Promise.resolve([]),
 			candidateRows.length > 0 ? tx.subjectSectionOwnership.findMany({
 				where: {
@@ -619,6 +675,56 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 			const group = grouped.get(key) ?? { facultyId, subjectId: row.subjectId, sectionIds: [] };
 			group.sectionIds.push(row.sectionId);
 			grouped.set(key, group);
+		}
+
+		// A8 c4 correction (F2) — INSERT-side receiver guard, mirroring the
+		// MOVE-side guard below. It runs over exactly the pairs `grouped` would
+		// write, and it runs BEFORE the first write, so a refusal costs zero
+		// ownership / FacultySubject / permission / audit rows rather than relying
+		// on the transaction to roll them back.
+		//
+		// A pair already owned by the same teacher is an idempotent replay and is
+		// excluded above, exactly as the move guard skips `ownership.facultyId ===
+		// move.toFacultyId`.
+		const insertReceiverById = new Map(facultyRows.map((row: any) => [row.id as number, row]));
+		const insertSubjectById = new Map(subjectRows.map((row: any) => [row.id as number, row]));
+		const insertSectionProgramTypeById = new Map<number, string>(
+			sectionRows.map((row: any) => [row.externalId as number, (row.programType as string) ?? 'REGULAR']),
+		);
+		const unqualifiedInserts: Array<{ subjectId: number; sectionId: number; facultyId: number }> = [];
+		// One evaluation per DISTINCT (receiver, subject, program type) triple. The
+		// authority read inside `evaluateTeachingLoadReceiverQualification` is five
+		// persisted reads, and a proposal's sections normally share a program type,
+		// so this keeps a large reviewed plan from re-reading the policy per pair
+		// while evaluating exactly the same inputs.
+		const qualificationMemo = new Map<string, { tier: number | null }>();
+		for (const group of grouped.values()) {
+			const receiver = insertReceiverById.get(group.facultyId);
+			const insertSubject = insertSubjectById.get(group.subjectId);
+			if (!receiver || !insertSubject) {
+				throw distributionStale('A teacher or subject referenced by the reviewed suggestion no longer exists. Preview a fresh suggestion.');
+			}
+			for (const sectionId of new Set(group.sectionIds)) {
+				const programType = insertSectionProgramTypeById.get(sectionId) ?? 'REGULAR';
+				const memoKey = `${group.facultyId}:${group.subjectId}:${programType}`;
+				let qualification = qualificationMemo.get(memoKey);
+				if (!qualification) {
+					qualification = await evaluateTeachingLoadReceiverQualification(
+						tx,
+						existing.schoolId,
+						receiver,
+						insertSubject,
+						programType,
+					);
+					qualificationMemo.set(memoKey, qualification);
+				}
+				if (qualification.tier == null) {
+					unqualifiedInserts.push({ subjectId: group.subjectId, sectionId, facultyId: group.facultyId });
+				}
+			}
+		}
+		if (unqualifiedInserts.length > 0) {
+			throw unqualifiedInsertReceiverError(unqualifiedInserts);
 		}
 
 		let created = 0;

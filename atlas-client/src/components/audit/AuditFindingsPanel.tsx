@@ -103,7 +103,7 @@ export function AuditFindingsPanel({ findingGroups, searchQuery, defaultGroupId,
 						<TabsTrigger key={group.id} value={group.id} className="h-auto gap-2 rounded-xl px-3 py-2 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
 							<GroupIcon className="size-4" />
 							<span>{group.label}</span>
-							<Badge variant="secondary" className="h-5 rounded-full px-1.5 text-[10px]">{group.findings.length}</Badge>
+							<Badge variant="secondary" className="h-5 rounded-full px-1.5 text-xs">{group.findings.length}</Badge>
 						</TabsTrigger>
 					);
 				})}

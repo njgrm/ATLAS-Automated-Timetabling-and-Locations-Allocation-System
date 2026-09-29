@@ -202,7 +202,7 @@ function MappingMultiSelect({
 							)}
 							{groups.map((group) => (
 								<div key={group.label} className='space-y-1'>
-									<p className='px-1 text-[10px] uppercase tracking-wider text-muted-foreground'>
+									<p className='px-1 text-xs uppercase tracking-wider text-muted-foreground'>
 										{group.label}
 									</p>
 									<div className='space-y-1'>
@@ -239,7 +239,7 @@ function MappingMultiSelect({
 			{selectedCodes.length > 0 ? (
 				<div className='flex flex-wrap gap-1'>
 				{selectedCodes.map((code, index) => (
-					<Badge key={code} variant='secondary' className='h-6 gap-1 text-[10px]'>
+					<Badge key={code} variant='secondary' className='h-6 gap-1 text-xs'>
 						<span className='max-w-40 truncate'>
 							{selectedLabels[index]} ({code})
 						</span>
@@ -256,7 +256,7 @@ function MappingMultiSelect({
 				))}
 			</div>
 		) : (
-			<p className='text-[11px] text-muted-foreground'>{NONE_LABEL}</p>
+			<p className='text-xs text-muted-foreground'>{NONE_LABEL}</p>
 		)}
 	</div>
 	);
@@ -548,7 +548,7 @@ export default function SpecializationMapping() {
 									style={{ width: `${mappedPercent}%` }}
 								/>
 							</div>
-							<span className='text-[11px] text-muted-foreground'>
+							<span className='text-xs text-muted-foreground'>
 								{mappedCount}/{totalSpecializations} mapped ({mappedPercent}%)
 							</span>
 						</div>
@@ -664,7 +664,7 @@ export default function SpecializationMapping() {
 													<div className='flex items-start justify-between gap-2'>
 														<div className='space-y-1 min-w-0'>
 															<p className='text-sm font-semibold leading-tight truncate'>{item.specialization}</p>
-															<Badge className={`h-5 text-[10px] font-semibold border ${statusTone}`}>
+															<Badge className={`h-5 text-xs font-semibold border ${statusTone}`}>
 																{selected.length === 0 ? 'Needs mapping' : 'Mapped'}
 															</Badge>
 														</div>
@@ -682,7 +682,7 @@ export default function SpecializationMapping() {
 														)}
 													</div>
 													<div className='space-y-1'>
-													<Label className='text-[11px] font-semibold'>Subject</Label>
+													<Label className='text-xs font-semibold'>Subject</Label>
 														<MappingMultiSelect
 															specializationName={item.specialization}
 															selectedCodes={selected}
@@ -691,7 +691,7 @@ export default function SpecializationMapping() {
 														/>
 													</div>
 													{item.mappedSubjects.length > 0 && (
-														<div className='text-[11px] text-muted-foreground'>
+														<div className='text-xs text-muted-foreground'>
 															Current: {item.mappedSubjects.map((entry) => `${entry.name} (${entry.code})`).join(', ')}
 														</div>
 													)}
@@ -771,7 +771,7 @@ export default function SpecializationMapping() {
 												{selected.map((code) => {
 													const subj = subjects.find((s) => s.code === code);
 													return (
-														<Badge key={code} variant='secondary' className='h-5 gap-1 text-[10px]'>
+														<Badge key={code} variant='secondary' className='h-5 gap-1 text-xs'>
 															{subj?.name ?? code}
 															<Button
 																type='button'
@@ -794,7 +794,7 @@ export default function SpecializationMapping() {
 										)}
 									</td>
 									<td className='px-3 py-2'>
-										<Badge className={`h-5 text-[10px] font-semibold border ${statusTone}`}>
+										<Badge className={`h-5 text-xs font-semibold border ${statusTone}`}>
 											{selected.length === 0 ? 'Unmapped' : 'Mapped'}
 										</Badge>
 									</td>
@@ -878,7 +878,7 @@ export default function SpecializationMapping() {
 								{bulkMapCodes.map((code) => {
 									const subj = subjects.find((s) => s.code === code);
 									return (
-										<Badge key={code} variant='secondary' className='h-5 text-[10px] gap-1'>
+										<Badge key={code} variant='secondary' className='h-5 text-xs gap-1'>
 											{subj?.name ?? code}
 											<Button
 												type='button'

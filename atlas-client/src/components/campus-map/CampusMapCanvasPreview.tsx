@@ -165,7 +165,7 @@ export function CampusMapCanvasPreview({
 							</TooltipTrigger>
 							<TooltipContent>Reset view</TooltipContent>
 						</Tooltip>
-						<div className="flex h-8 items-center gap-1 border-l border-slate-200 pl-2 pr-1 text-[11px] font-semibold text-muted-foreground">
+						<div className="flex h-8 items-center gap-1 border-l border-slate-200 pl-2 pr-1 text-xs font-semibold text-muted-foreground">
 							<Move className="size-3.5" />
 							{Math.round(zoom * 100)}%
 						</div>

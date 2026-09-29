@@ -24,8 +24,8 @@ export function GradeLevelBadge({ grade, size = 'xs', className, prefix = 'GR' }
 	if (grade == null || !Number.isFinite(grade)) return null;
 	const style = GRADE_STYLES[grade] ?? 'bg-muted text-muted-foreground border-border';
 	const sizing = size === 'sm'
-		? 'px-1.5 py-0.5 text-[10px]'
-		: 'px-1 py-0 text-[9px]';
+		? 'px-1.5 py-0.5 text-xs'
+		: 'px-1 py-0 text-xs';
 	return (
 		<span
 			className={cn(
