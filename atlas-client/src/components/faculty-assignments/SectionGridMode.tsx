@@ -56,6 +56,14 @@ export type SectionGridModeProps = {
 	completedSectionIds?: Set<number>;
 	/** Explicit effective teaching standard (hours). Null when UNCONFIGURED. */
 	teachingStandardHours: number | null;
+	/**
+	 * A6-TL-DEEPLINK (E4/E5) — a landing target on a SUBJECT narrows/lands the
+	 * coverage view on that subject's sections. `missingCoverageOnly` keeps only
+	 * the sections where this subject is still uncovered. Both default off, so
+	 * every committed control that mounts this grid is untouched.
+	 */
+	focusSubjectId?: number | null;
+	missingCoverageOnly?: boolean;
 };
 
 
@@ -81,6 +89,8 @@ export function SectionGridMode({
 	writeBlockedReason,
 	completedSectionIds = new Set(),
 	teachingStandardHours,
+	focusSubjectId = null,
+	missingCoverageOnly = false,
 }: SectionGridModeProps) {
 	const [searchQuery, setSearchQuery] = useState('');
 
@@ -135,6 +145,16 @@ export function SectionGridMode({
 			else if (sectionModeFilter === 'unassigned') shouldInclude = unassigned > 0;
 			else if (sectionModeFilter === 'constrained') shouldInclude = section.isSpecialProgram === true;
 
+			// A6-TL-DEEPLINK (E5): narrow to the sections where the focused subject
+			// is still uncovered. A section that does not carry the subject, or that
+			// already has a live owner for it, is not one the operator can repair.
+			if (shouldInclude && missingCoverageOnly && focusSubjectId != null) {
+				const carriesSubject = sectionSubjects.some((subject) => subject.id === focusSubjectId);
+				const focusOwner = effectiveOwnershipMap[getAssignmentOwnershipKey(focusSubjectId, section.id)];
+				const focusStaffed = focusOwner != null && activeFacultyIds.has(focusOwner.facultyId);
+				if (!carriesSubject || focusStaffed) shouldInclude = false;
+			}
+
 			if (shouldInclude && matchesSearch) {
 				rows.push({
 					section,
@@ -150,7 +170,7 @@ export function SectionGridMode({
 			if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;
 			return a.section.displayOrder - b.section.displayOrder || a.section.name.localeCompare(b.section.name);
 		});
-	}, [subjects, sectionsBySubject, effectiveOwnershipMap, activeFacultyIds, searchQuery, sectionModeFilter]);
+	}, [subjects, sectionsBySubject, effectiveOwnershipMap, activeFacultyIds, searchQuery, sectionModeFilter, focusSubjectId, missingCoverageOnly]);
 
 	const handleRowClick = (id: number) => {
 		onSelectSection?.(selectedSectionId === id ? null : id);
@@ -357,6 +377,7 @@ export function SectionGridMode({
 							key={row.section.id}
 							data-section-id={row.section.id}
 							data-testid="teaching-load-section-row"
+							data-subject-ids={row.subjects.map((subject) => subject.id).join(',')}
 							className={cn(
 								"rounded-xl border transition-all duration-200 overflow-hidden",
 								isExpanded ? "bg-background border-primary/30 shadow-md ring-1 ring-primary/5" : "bg-background border-border/40 hover:border-primary/20 hover:shadow-sm",
@@ -366,6 +387,7 @@ export function SectionGridMode({
 						<div
 							role="button"
 							tabIndex={0}
+							id={`teaching-load-section-row-${row.section.id}`}
 							aria-expanded={isExpanded}
 							className="flex items-center gap-4 p-3 cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
 							onClick={() => handleRowClick(row.section.id)}

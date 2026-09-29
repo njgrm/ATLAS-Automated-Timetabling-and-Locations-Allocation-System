@@ -111,6 +111,12 @@ type TeacherGridModeProps = {
 	 */
 	onReviewLoad: (facultyId: number) => void;
 	/**
+	 * A6-TL-DEEPLINK (R-d) — the teacher whose assign editor a landing target
+	 * opened. `null` (or absent) does nothing, so every committed control that
+	 * mounts this grid without the prop is untouched.
+	 */
+	landingOpenEditorFacultyId?: number | null;
+	/**
 	 * FIX 40 — the page's Undo / Redo / Discard / Save group, rendered inside the
 	 * single filter row instead of a bottom sticky footer.
 	 */
@@ -172,6 +178,7 @@ export function TeacherGridMode({
 	workspaceStateNextAction,
 	writeBlockedReason,
 	onReviewLoad,
+	landingOpenEditorFacultyId = null,
 	draftControls,
 }: TeacherGridModeProps) {
 	const [collapsedDepts, setCollapsedDepts] = useState<Record<string, boolean>>({});
@@ -249,6 +256,17 @@ export function TeacherGridMode({
 	const [editorId, setEditorId] = useState<number | null>(null);
 	// Hotfix 29 Sep: subjects outside the teacher's area open per teacher (was a page-wide switch that changed nothing visible).
 	const [otherSubjectsFor, setOtherSubjectsFor] = useState<number | null>(null);
+
+	/*
+	 * A6-TL-DEEPLINK (R-d) — a landing target for an Assign entry opens THAT
+	 * teacher's editor once it arrives. Keyed on the prop identity, so the
+	 * operator closing the editor is never overridden by a later render, and a
+	 * `null` prop is a no-op.
+	 */
+	useEffect(() => {
+		if (landingOpenEditorFacultyId == null) return;
+		setEditorId((current) => (current === landingOpenEditorFacultyId ? current : landingOpenEditorFacultyId));
+	}, [landingOpenEditorFacultyId]);
 
 	/** Inspect: select, then open the read-only profile. Never edits. */
 	const handleTeacherClick = (id: number) => {
@@ -407,6 +425,8 @@ export function TeacherGridMode({
 											<div
 												role="button"
 												tabIndex={0}
+												id={`teaching-load-teacher-row-${member.id}`}
+												data-faculty-id={member.id}
 												aria-label={`Workload profile for ${member.lastName}, ${member.firstName}`}
 												onKeyDown={(event) => {
 													if (event.key === 'Enter' || event.key === ' ') {
