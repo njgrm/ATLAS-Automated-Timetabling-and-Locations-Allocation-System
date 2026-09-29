@@ -4,7 +4,16 @@
 #   powershell -File scripts/dev/start-preview.ps1 -ClientDir <worktree>\atlas-client -Port 5399
 param([Parameter(Mandatory)][string]$ClientDir, [Parameter(Mandatory)][int]$Port)
 $out = Join-Path $env:TEMP "atlas-preview-$Port.log"
-$cl = "cmd /c `"cd /d $ClientDir && set VITE_ATLAS_API=http://127.0.0.1:5101&& node node_modules/vite/bin/vite.js --port $Port --strictPort --host 127.0.0.1 > $out 2>&1`""
+# A6 c8 (2026-09-29): `VITE_ATLAS_API` is the axios BASE URL (`atlas-client/src/lib/api.ts`:
+# `runtimeEnv?.VITE_ATLAS_API ?? '/api/v1'`), not just a proxy target, so it must carry the
+# `/api/v1` prefix. Without it every request went to `<staging>/auth/login` and came back 404,
+# which read as "login is broken" rather than "the base is wrong".
+#
+# The ORIGIN here is still what keeps a loopback preview off live: `vite.config.ts`
+# `toProxyOrigin()` takes `.origin` for the `/api` proxy target, so the proxy also points at
+# staging and never at the live 5001. Never drop the port or point this at 5001 (AGENTS.md section 5).
+$apiBase = "http://127.0.0.1:5101/api/v1"
+$cl = "cmd /c `"cd /d $ClientDir && set VITE_ATLAS_API=$apiBase&& node node_modules/vite/bin/vite.js --port $Port --strictPort --host 127.0.0.1 > $out 2>&1`""
 $r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $cl }
 $deadline = (Get-Date).AddSeconds(60)
 while ((Get-Date) -lt $deadline) {

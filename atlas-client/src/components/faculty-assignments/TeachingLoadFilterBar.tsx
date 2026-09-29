@@ -7,27 +7,52 @@
  * Status, Department, and Load to one always-visible row and leaves only Sort
  * and the two optional inclusion switches behind the disclosure.
  *
- * FIX 39 (operator, 2026-09-28) — the `More filters` DISCLOSURE IS GONE ENTIRELY,
- * superseded again by A6 c6 item 3 in a narrower, better form. Fix 39's row was
- * one continuous `flex flex-wrap items-center gap-2` carrying all seven controls,
- * with NO disclosure. A6 c6 changes WHAT is on that row, not the row itself: it
- * is still one continuous wrapping flex row with no second row, and it now
- * carries search, Status, Department, Load, Sort and a `More filters` trigger
- * whose popover holds the two optional inclusion switches.
+ * FIX 39, BACK IN ITS ORIGINAL FORM (operator, 2026-09-29). A6 c6 had put the two
+ * optional inclusion switches behind a `More filters` POPOVER on this same row,
+ * reasoning that they cost ~555px and are reached rarely. The operator read the
+ * disclosure as "a filter an operator uses daily is two clicks away" and asked
+ * for it to be removed from the DOM ENTIRELY, with both switches as direct
+ * toggles on the one continuous row. So the popover is GONE: there is no
+ * `More filters` trigger and no `-panel` element, in any state, and the two
+ * switches are back on the row themselves. Fix 39's original row is what this
+ * file ships: ONE `flex flex-wrap items-center gap-2` carrying search, Status,
+ * Department, Load, Sort and both switches, with NO disclosure and no second row.
  *
- * WHY THAT IS A SUBTRACTION AND NOT A REVERSAL, because it reads like one. The
- * two switches cost ~555px of the ~1326px content width at 1366 and sit on a row
- * a scheduler reads at a glance, to reach two special cases. The `More filters`
- * trigger costs 123px and states on its own face how many switches are on, so
- * nothing is hidden and nothing is narrowed silently: net −432px and one fewer
- * control. Fix 39's complaint — "a filter an operator uses daily was two clicks
- * away" — is about the four PICKS, and all four are still on the row.
+ * WHY THE ROW FITS AT 1366 — MEASURED, NOT ASSUMED. The comment this replaces
+ * put the budget at ~1326px of content width. IT IS 1078px: the page's left rail
+ * is 272px at the 1366px supported desktop viewport, so 1078px is the whole
+ * budget for this row, and the old `xl` arithmetic overflowed it by itself:
  *
- * A6 c6 item 1 also reworded the two switch labels into plain sentences
- * (`Cross-Dept` -> `Show teachers outside their subject area`,
- * `Unmapped Specialization` -> `Show teachers with no matched subject`) and
- * removed their `uppercase tracking-tight`. The `id` attributes are UNCHANGED:
- * they are stable DOM hooks that committed rows address, not visible text.
+ *   4 pickers at `xl` (w-52 = 208px)  = 832
+ *   + the 240px search                 = 1072
+ *   + 5 gaps (gap-2 = 8px)             = 1112   >   1078   OVERFLOWS
+ *
+ * `lg` (w-44 = 176px) does not rescue it: 4 × 176 + 240 + 6 × 8 = 992 leaves
+ * 86px, and two bare Radix switch tracks are already 72px before a single word.
+ * The ONLY width that fits is content-sized, so all four pickers take the shared
+ * `auto` variant. Its measured default faces are `Status: All` ~110,
+ * `Department: All` ~128, `Load: All` ~98 and `Sort: Load, low` ~134 — about 470
+ * total, which with the 240px search and six gaps (48px) is 758 and leaves ~320px
+ * for the two toggles at their default state.
+ *
+ * `auto` is the SHARED variant, not a new one (`AGENTS.md` §8 "One look per
+ * control"): `@/ui/picker-trigger` already declares it for a trigger whose label
+ * is DYNAMIC, which is exactly the case a server-supplied department name is. All
+ * four pickers take the SAME variant, so the row does not mix a control's looks,
+ * and no page restates a width. It also retires a silent-truncation risk the
+ * fixed rectangle carried: `Department`'s value is a DATA-DRIVEN label, so a long
+ * department name used to be clipped with no cue at all.
+ *
+ * THE TWO SWITCH LABELS, AND WHY THE FACE IS SHORTER THAN THE SENTENCE. A6 c6
+ * replaced the shouted `CROSS-DEPT` / `UNMAPPED SPECIALIZATION` with two plain
+ * SENTENCES, and the sentences are the right words — but a 38- and a
+ * 35-character sentence cannot sit beside four pickers on a 1078px row. So the
+ * full sentence is the switch's `aria-label` AND its `@/ui` Tooltip, and the
+ * visible face is the shortest plain words that still say what the control does:
+ * `Cross-subject` and `No subject match`. Sentence case, no `uppercase`, no
+ * `tracking-tight`. The `id` attributes are UNCHANGED (`show-outside-dept`,
+ * `show-unmapped-specialization`): they are stable DOM hooks that committed rows
+ * address, not visible text.
  *
  * WHY THE SEARCH BOX LOST ITS `flex-1`.
  * It was `flex-1 min-w-44 max-w-xs` — elastic, so its width changed with the
@@ -54,15 +79,14 @@
  * `__tests__/a3-c10-tl-header-density.test.ts`.
  */
 import { useMemo, type ReactNode } from 'react';
-import { AlertTriangle, LayoutGrid, ListFilter, RotateCcw, Search, Star } from 'lucide-react';
+import { AlertTriangle, LayoutGrid, RotateCcw, Search, Star } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
 import { Input } from '@/ui/input';
 import { FilterPicker } from '@/ui/filter-picker';
 import { Switch } from '@/ui/switch';
 import { Label } from '@/ui/label';
-import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
-import { pickerTriggerClass } from '@/ui/picker-trigger';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import {
 	type TeachingLoadStatusFilter,
 	type TeachingLoadLoadFilter,
@@ -85,18 +109,20 @@ import { AT_STANDARD_LABEL, BELOW_STANDARD_LABEL, EXCESS_LOAD_LABEL } from '@/li
  *
  * A6 c6 item 1 CHANGED THE LABELS, NOT THE CHROME. They used to be `Cross-Dept` and
  * `Unmapped Specialization`, printed in `uppercase tracking-tight` — internal vocabulary
- * shouted at an older scheduler. They now read `Show teachers outside their subject area`
- * and `Show teachers with no matched subject`, in sentence case. That is a WORDING change
- * and nothing else: the same `SWITCH_CHROME` box, the same `h-9`, the same ids, the same
+ * shouted at an older scheduler. A6 c6 replaced them with two plain SENTENCES; fix 39
+ * (restored, 2026-09-29) keeps the sentences as the `aria-label` and the Tooltip and
+ * shortens only the FACE to `Cross-subject` / `No subject match`, because a 1078px row
+ * cannot hold a 38-character label beside four pickers. That is a WORDING change and
+ * nothing else: the same `SWITCH_CHROME` box, the same `h-9`, the same ids, the same
  * `label for=` wiring. `a6-tl-header-budget` `A6c4-G2-6` capped caps on a switch label at
- * two; this slice reaches zero, which still satisfies `<= 2`, and that row is deliberately
- * left untouched rather than relaxed.
+ * two; this file reaches zero, which still satisfies `<= 2`, and that row is
+ * deliberately left untouched rather than relaxed.
  *
- * A6 c6 item 3 REPLACED THE LABEL LENGTH PROBLEM WITH A DECLARED BUDGET. The old comment
- * here argued that the full `Unmapped Specialization` wording "closes the row without
- * wrapping". That argument is retired: the fix is a published per-width character budget in
- * `@/ui/picker-trigger` plus short labels on the four picks, and the two switches left the
- * always-on row altogether — which is what bought the 555px that made the budget affordable.
+ * A6 c6 item 3 PUBLISHED A PER-WIDTH CHARACTER BUDGET in `@/ui/picker-trigger`, and it
+ * still stands — `pickerTriggerFaceFits` is the predicate a page answers its row
+ * arithmetic with. What fix 39 changed is WHICH variant the four picks take: `auto`,
+ * which is content-sized and therefore cannot clip. The budget is therefore no longer
+ * what keeps this row whole; the arithmetic in the file header is.
  */
 const SWITCH_CHROME = 'flex h-9 shrink-0 items-center gap-2 rounded-xl border border-border/60 bg-background px-2.5 transition-colors hover:bg-muted/40';
 
@@ -173,12 +199,16 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 	);
 
 	/*
-	 * A6 c6 item 3 — how many of the two inclusion switches are ON. The `More
-	 * filters` trigger says so on its own face, because a disclosure that hides
-	 * state without stating it is the same defect as a hidden control: the
-	 * scheduler cannot tell whether anything is currently narrowed.
+	 * A6 c6 item 3, REVERSED by fix 39 (2026-09-29). This used to count how many of
+	 * the two inclusion switches were ON so the deleted `More filters` trigger could
+	 * say so on its own face. With the disclosure gone there is no trigger to state
+	 * a count, and the count itself is dropped rather than re-homed onto a switch
+	 * face: a switch's own track already states on/off, which is the honest place
+	 * for that fact, and a number on a control's face is a number an older scheduler
+	 * does not read off a filter row. The live `sr-only` `filterAnnouncement`
+	 * channel is untouched — it announces filter RESETS and CLEARS (see
+	 * `hooks/useTeachingLoadUI.ts`), which is a different job and is still correct.
 	 */
-	const inclusionCount = (showOutsideDept ? 1 : 0) + (showUnmappedSpecialization ? 1 : 0);
 
 	/*
 	 * A6 c6 item 3 (planner ruling) — THE COUNT COMES OFF EVERY TRIGGER FACE.
@@ -247,19 +277,22 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 				    adjacent lines. Flagged for the
 				    reviewer's judgement as layout-note D1. */}
 
-				{/* A6 c6 item 3 (planner ruling): every pick takes the SAME `xl` width
-				    variant, whose DECLARED character budget is 24. One size for the
-				    whole row, because `AGENTS.md` §8 "One look per control" is about a
-				    row not mixing a control's looks — a row that needs this width takes
-				    it on all four. The short labels below are what make the faces fit;
-				    the popover keeps every FULL option label and every count, and the
-				    accessible name keeps the page's own full form. That is
-				    `FilterPicker`'s existing `shortLabels` contract, used rather than a
-				    mechanism invented here. */}
+				{/* FIX 39 (2026-09-29), update not delete: every pick takes the SAME
+				    shared `auto` width variant. `xl` (`w-52`, 208px) was the previous
+				    answer and it is the reason the row did not fit: 4 × 208 + a 240px
+				    search + five 8px gaps is 1112px against a 1078px budget. `auto` is
+				    content-sized, so it cannot clip AND it cannot leave a gap, which is
+				    what a fixed rectangle does beside a data-driven department name.
+				    A6 c6's ruling below is unchanged and still load-bearing: the COUNT
+				    comes off every trigger face and the popover keeps every full
+				    option label with its count. §8 "One look per control" is about a
+				    row not mixing a control's looks, so all four take the same
+				    variant — and `auto` is a variant `@/ui` already declares, not one
+				    this page adds. */}
 				<FilterPicker
 					name="Status"
 					ariaLabel="Filter by status"
-					width="xl"
+					width="auto"
 					shortLabels={{
 						'teaching-assigned': 'Teaching',
 						'no-teaching': 'No load',
@@ -278,7 +311,7 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 				<FilterPicker
 					name="Department"
 					ariaLabel="Filter by department"
-					width="xl"
+					width="auto"
 					shortLabels={departmentShortLabels}
 					value={departmentFilter}
 					onValueChange={onDepartmentFilterChange}
@@ -295,20 +328,17 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 				<FilterPicker
 					name="Load"
 					ariaLabel="Filter by load"
-					width="xl"
+					width="auto"
 					/*
 					 * A6 c6 item 3 — the three band short labels are DERIVED from the
-					 * canonical constants, never retyped.
-					 *
-					 * Two reasons, and the second is the load-bearing one. First,
-					 * `EXCESS_LOAD_LABEL` ("Excess teaching load") is 20 characters and
-					 * the trigger's `xl` face budget is 24, so `Load: Excess teaching
-					 * load` clips at 25; its first word is the whole of what a trigger
-					 * face needs, and the popover keeps the full label. Second — and
-					 * this is the rule `a3-c4-draft-truth` polices — a second spelling
-					 * of a policy band in this file would be a second authority for it,
-					 * so a reword of the canonical constant propagates here for free
-					 * instead of leaving the trigger and the popover disagreeing.
+					 * canonical constants, never retyped. That ruling is unchanged
+					 * under the `auto` variant: the trigger face is content-sized, so
+					 * the short label is no longer load-BEARING for the width, but it
+					 * is still the honest thing to put on a row an older scheduler
+					 * reads at a glance, and a reword of the canonical constant must
+					 * still propagate here rather than leaving the trigger and the
+					 * popover disagreeing — that rule (`a3-c4-draft-truth` polices it)
+					 * is what these derived labels exist for.
 					 */
 					shortLabels={{
 						excess: EXCESS_LOAD_LABEL.split(' ')[0],
@@ -327,16 +357,16 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 
 				{/* 5 — sort order. The most-recently-hidden control, promoted in fix 39.
 
-				    A6 c6 item 3: `Sort: Lowest load` was 17 characters against a 12-char
-				    `md` face, which is the clipped control Lane C photographed. The
-				    short labels keep the DIRECTION on the trigger (`Load, high` /
-				    `Load, low`) while the popover keeps the unambiguous full labels
-				    (`Highest load` / `Lowest load`), so nothing that used to be readable
-				    anywhere is lost. */}
+				    A6 c6 item 3's short labels are kept: the trigger keeps the
+				    DIRECTION (`Load, high` / `Load, low`) and the popover keeps the
+				    unambiguous full labels (`Highest load` / `Lowest load`), so nothing
+				    that used to be readable anywhere is lost. Under `auto` they are
+				    no longer what stops a clip, but the full option labels remain the
+				    authoritative reading. */}
 				<FilterPicker
 					name="Sort"
 					ariaLabel="Sort teachers"
-					width="xl"
+					width="auto"
 					shortLabels={{ 'load-desc': 'Load, high', 'load-asc': 'Load, low' }}
 					value={sortOrder}
 					onValueChange={onSortOrderChange}
@@ -347,78 +377,79 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 				/>
 
 				{/*
-				    A6 c6 item 1 + 3 — THE TWO INCLUSION SWITCHES MOVE OFF THE ROW.
+				    FIX 39, RESTORED (operator, 2026-09-29) — THE TWO INCLUSION
+				    SWITCHES ARE DIRECT TOGGLES ON THIS ROW AGAIN.
 
-				    THE SUBTRACTION, with the arithmetic: the two always-on switches cost
-				    ~555px of the ~1326px content width at 1366 and cost a scheduler two
-				    controls they reach rarely, in exchange for two that narrow the roster
-				    to a special case. They now sit in one quiet popover on the SAME row,
-				    behind a 123px trigger — net −432px and one fewer control, with no
-				    second row and no new band.
+				    There is no `More filters` trigger and no `-panel`: the operator read
+				    the disclosure as "a filter an operator uses daily was two clicks
+				    away" and asked for it to leave the DOM entirely. The row still fits
+				    because the four pickers moved to the shared content-sized `auto`
+				    variant — see the arithmetic in this file's header — so the two
+				    switches cost the same ~320px the measurement reserved for them.
 
 				    THE IDS ARE UNCHANGED (`show-outside-dept`,
 				    `show-unmapped-specialization`). They are stable DOM hooks that
-				    several committed rows address by id, so only the VISIBLE WORDS moved
-				    from `Cross-Dept` / `Unmapped Specialization` to two plain sentences
-				    that say what the switch DOES. The trigger states how many are on, so
-				    a narrowed roster is never narrowed silently.
+				    several committed rows address by id, so only the VISIBLE WORDS
+				    changed. The face is the shortest plain words that still say what the
+				    control does (`Cross-subject`, `No subject match`); the full
+				    sentence is the switch's `aria-label` AND its `@/ui` Tooltip,
+				    because a 38-character sentence cannot sit beside four pickers on a
+				    1078px row and a `title` attribute is banned by `AGENTS.md` §8.
+
+				    THE TOOLTIP WRAPS THE `SWITCH_CHROME` BOX; it does not replace it.
+				    The box keeps its own height, border, radius and hover so the row
+				    still reads as one instrument, and the switch keeps its own
+				    `aria-checked`, which is where on/off is honestly stated now that
+				    the deleted trigger no longer carried a count.
+
+				    THE WRAPPER HOLDS THE TOGGLES AND THE DRAFT GROUP, and carries the
+				    `ml-auto`, so the two toggles sit immediately left of the draft
+				    group and `Save changes` stays hard right whether or not a draft
+				    exists. FIX 40's row-1 placement of the draft controls is
+				    unchanged.
 				    */}
-				<Popover>
-					<PopoverTrigger asChild>
-						{/*
-						 * `pickerTriggerClass('auto')` — the SAME `auto` width variant
-						 * `/subjects` uses for its `More filters` disclosure (A5 C4). This
-						 * trigger is content-sized for the same reason that one is: its
-						 * label states the on-count and changes with it. Taking the shared
-						 * variant is what keeps this row and `/subjects` reading as one
-						 * instrument, and it is why this page never re-declares the height,
-						 * the padding or the type treatment. The `gap-1.5` is the button's own
-						 * icon gap and is not part of the shared look.
-						 */}
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							data-testid="teaching-load-more-filters"
-							aria-label={inclusionCount > 0 ? `More filters, ${inclusionCount} on` : 'More filters'}
-							className={`${pickerTriggerClass('auto')} gap-1.5`}
-						>
-							<ListFilter className="size-3.5" aria-hidden="true" />
-							More filters{inclusionCount > 0 ? ` (${inclusionCount} on)` : ''}
-						</Button>
-					</PopoverTrigger>
-					<PopoverContent align="start" className="w-80 p-3" data-testid="teaching-load-more-filters-panel">
-						<div className="flex flex-col gap-2">
-							<div className={SWITCH_CHROME}>
-								<Switch
-									id="show-outside-dept"
-									checked={showOutsideDept}
-									onCheckedChange={onToggleOutsideDept}
-								/>
-								<Label htmlFor="show-outside-dept" className={SWITCH_LABEL_CLASS}>
-									Show teachers outside their subject area
-								</Label>
-							</div>
+				<div className="ml-auto flex shrink-0 items-center gap-2" data-testid="teaching-load-row-actions">
+					<TooltipProvider delayDuration={200}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<div className={SWITCH_CHROME}>
+									<Switch
+										id="show-outside-dept"
+										checked={showOutsideDept}
+										onCheckedChange={onToggleOutsideDept}
+										aria-label="Show teachers who teach a subject outside their subject area"
+									/>
+									<Label htmlFor="show-outside-dept" className={SWITCH_LABEL_CLASS}>
+										Cross-subject
+									</Label>
+								</div>
+							</TooltipTrigger>
+							<TooltipContent side="top" className="max-w-64 text-xs leading-relaxed">
+								Show teachers who teach a subject outside their subject area
+							</TooltipContent>
+						</Tooltip>
 
-							<div className={SWITCH_CHROME}>
-								<Switch
-									id="show-unmapped-specialization"
-									checked={showUnmappedSpecialization}
-									onCheckedChange={onShowUnmappedSpecializationChange}
-								/>
-								<Label htmlFor="show-unmapped-specialization" className={SWITCH_LABEL_CLASS}>
-									Show teachers with no matched subject
-								</Label>
-							</div>
-						</div>
-					</PopoverContent>
-				</Popover>
-
-				{/* FIX 40: the draft group. `ml-auto` pushes it right, so the filters
-				    stay left-aligned and the actions sit at the end of the same line. */}
-				{draftControls ? (
-					<div className="ml-auto flex shrink-0 items-center gap-2">{draftControls}</div>
-				) : null}
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<div className={SWITCH_CHROME}>
+									<Switch
+										id="show-unmapped-specialization"
+										checked={showUnmappedSpecialization}
+										onCheckedChange={onShowUnmappedSpecializationChange}
+										aria-label="Show only teachers whose subject is not in the catalog"
+									/>
+									<Label htmlFor="show-unmapped-specialization" className={SWITCH_LABEL_CLASS}>
+										No subject match
+									</Label>
+								</div>
+							</TooltipTrigger>
+							<TooltipContent side="top" className="max-w-64 text-xs leading-relaxed">
+								Show only teachers whose subject is not in the catalog
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+					{draftControls}
+				</div>
 			</div>
 
 			{hasActiveFilters && (
@@ -470,9 +501,9 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 		{/*
 		 * FIX 39 removed the `showFilters && …` secondary block that lived
 		 * here. Its two children — the `Sort teachers` picker and the two
-		 * inclusion switches — are on the primary row above (the switches
-		 * inside that row's `More filters` popover since A6 c6), and its
-		 * `rounded-xl border border-border/50 bg-background/80 p-2 shadow-sm`
+		 * inclusion switches — are on the primary row above (the switches as
+		 * direct toggles again, since fix 39 was restored on 2026-09-29), and
+		 * its `rounded-xl border border-border/50 bg-background/80 p-2 shadow-sm`
 		 * card is gone with it. The active-filter badge row, the `sr-only`
 		 * announcement, and the `!policyReady` notice above are UNCHANGED:
 		 * they are a summary of what is applied, not a second place to

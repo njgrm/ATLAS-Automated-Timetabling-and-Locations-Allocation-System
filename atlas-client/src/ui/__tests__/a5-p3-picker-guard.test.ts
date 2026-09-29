@@ -210,6 +210,12 @@ test('A5-C3-P3-3: a swept file does not redefine the shared picker variant', () 
 	 * `PICKER_CONTROL_HEIGHT_CLASS` / `PICKER_TRIGGER_WIDTH_CLASS` / `SEARCHABLE_OPTION_THRESHOLD`
 	 * are still matched as names because naming them at all is the defect.
 	 *
+	 * A6 c8 (2026-09-29) — `/teaching-load`'s `More filters` trigger is GONE (fix-doc
+	 * item 39: the operator asked for the disclosure to be removed from the DOM
+	 * entirely). Nothing about this rule or its match changes; only the worked example
+	 * in `A5-C3-P3-3b` moved to `/subjects`' disclosure, which is where the variant
+	 * came from.
+	 *
 	 * The token list is `REDEFINITION`, declared at module scope above so the
 	 * positive control below reads the very list this row enforces. */
 	const offenders: string[] = [];
@@ -244,11 +250,26 @@ test('A5-C3-P3-3b POSITIVE CONTROL: the re-declaration match still bites after t
 	}
 
 	// And the thing the narrowing was FOR: calling the shared factory is USING the
-	// variant. This is `/teaching-load`'s `More filters` trigger, verbatim.
+	// variant.
+	//
+	// A6 c8 (2026-09-29), RE-POINTED — the example was `/teaching-load`'s
+	// `More filters` trigger, which called the factory as
+	// `className={`${pickerTriggerClass('auto')} gap-1.5`}`. The operator asked for
+	// that disclosure to leave the DOM entirely (fix-doc item 39), so the example is
+	// now `/subjects`' `More filters` disclosure, which is A5 C4's ORIGINAL case for
+	// `auto` and still calls the factory the same way. The retired spelling is kept
+	// below as history (`AGENTS.md` §16: additive corrections), and it is ALSO still
+	// checked, because a guard's positive control has to prove the rule at the shape a
+	// page would write — the two shapes differ only in the page-local `gap-1.5`.
 	assert.deepEqual(
 		offendersFor("className={`${pickerTriggerClass('auto')} gap-1.5`}"),
 		[],
 		'CALLING the shared factory is using the variant, and must not be reported as re-declaring it',
+	);
+	assert.deepEqual(
+		offendersFor('className={pickerTriggerClass(\'auto\')}'),
+		[],
+		'and the rule is about the CALL, not about the `gap-1.5` a page adds beside it',
 	);
 });
 

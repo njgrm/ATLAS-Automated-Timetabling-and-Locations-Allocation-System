@@ -36,7 +36,7 @@ import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { TEMPORARY_ROLE_BUCKET_KEY, TEMPORARY_ROLE_BUCKET_LABEL } from '@/hooks/useTeachingLoadUI';
-import { PICKER_TRIGGER_FACE_BUDGET_CHARS, pickerTriggerFaceFits } from '@/ui/picker-trigger';
+import { PICKER_TRIGGER_FACE_BUDGET_CHARS, PICKER_TRIGGER_WIDTH_CLASS, pickerTriggerFaceFits } from '@/ui/picker-trigger';
 
 /** A repository source file, read by path from the client root. */
 const readSource = (relative: string): string =>
@@ -383,20 +383,34 @@ const actionsOf = (host: HTMLElement) => row1Of(host).lastElementChild!;
 
 /* ═══════════════ A6C6-1 — ITEM 1: two plain sentences, no shouted code ═══════ */
 
-test("A6C6-1 the two inclusion switches carry Lane C's exact plain sentences, and no visible code shouts", () => {
+test("A6C6-1 SUPERSEDED IN PART by A6 c8 item 39 (2026-09-29). RETAINED, NOT DELETED, and still EXECUTING. REPLACED IN PART BY `A6C6-8b`: the two inclusion switches carry short plain labels on the ONE row, the full sentence is the accessible name, and no visible code shouts", () => {
 	// Lane C, verbatim: the filter row carried `Cross-Dept` and `Unmapped
 	// Specialization` — internal vocabulary, not what the control DOES. These two
 	// labels are the only user-facing text those controls have.
+	//
+	// ── SUPERSEDED IN PART, 2026-09-29 (A6 c8 item 39). RETAINED, NOT DELETED. ──
+	// A6 c8 item 39 removed the `More filters` popover, so the two labels are read
+	// from the ONE ROW again rather than from an opened panel, and the SENTENCES are
+	// now the switches' `aria-label`s while the visible face carries the shortest
+	// plain phrase. What this row's CONTRACT is unchanged and still asserted: the
+	// shouted base wording is gone from the whole rendered surface, each switch keeps
+	// a real `<label for>` wired to its unchanged id, neither label shouts in caps,
+	// and the shared switch-label weight and nowrap are kept. The exact label strings
+	// are `A6C6-8b`'s, and they are asserted there beside the disclosure removal.
 	const host = render(createElement(TeachingLoadFilterBar as any, filterBarProps()));
-	// A6 c6 item 3 moved the two switches off the always-on row into `More
-	// filters`, so the labels are read from the REAL surface a scheduler reaches
-	// them on: the opened popover, which portals onto `document.body`.
-	press(host.querySelector('[data-testid="teaching-load-more-filters"]') as HTMLButtonElement);
-	const panel = dom.window.document;
+	// A6 c6 item 3 moved the two switches off the always-on row into `More filters`,
+	// so the labels were read from the opened popover, which portals onto
+	// `document.body`. A6 c8 item 39 put them back on the row, so the ORIGINAL
+	// read — the mount itself — is live again and nothing has to be pressed.
+	//
+	//   press(host.querySelector('[data-testid="teaching-load-more-filters"]') as HTMLButtonElement);
+	const panel = host;
 
 	const EXPECTED: Array<[string, string]> = [
-		['show-outside-dept', 'Show teachers outside their subject area'],
-		['show-unmapped-specialization', 'Show teachers with no matched subject'],
+		// A6 c8 item 39, superseding A6 c6's `Show teachers outside their subject
+		// area` / `Show teachers with no matched subject` as the VISIBLE face.
+		['show-outside-dept', 'Cross-subject'],
+		['show-unmapped-specialization', 'No subject match'],
 	];
 	for (const [id, sentence] of EXPECTED) {
 		const label = panel.querySelector(`label[for="${id}"]`) as HTMLLabelElement;
@@ -404,7 +418,7 @@ test("A6C6-1 the two inclusion switches carry Lane C's exact plain sentences, an
 		assert.equal(
 			textOf(label),
 			sentence,
-			`${id}: the visible label must be Lane C's exact sentence, byte-for-byte`,
+			`${id}: the visible label must be the short plain phrase the 1078px row can carry`,
 		);
 		// Sentence case, so the control stops shouting. `a6-tl-header-budget`
 		// A6c4-G2-6 capped caps on a switch label at two; ZERO still passes, and
@@ -415,7 +429,7 @@ test("A6C6-1 the two inclusion switches carry Lane C's exact plain sentences, an
 		assert.match(cls, /whitespace-nowrap/, `${id}: it keeps nowrap so the control does not reflow`);
 		// The `id`s are stable DOM hooks other committed rows address, so the
 		// label -> id WIRING is still asserted even though the words changed.
-		assert.ok(panel.querySelector(`#${id}`), `${id}: the switch id must survive the reword`);
+		assert.ok(panel.querySelector(`[id="${id}"]`), `${id}: the switch id must survive the reword`);
 	}
 
 	// The old words must be gone from the whole RENDERED surface, not from one node.
@@ -462,9 +476,24 @@ test('A6C6-1c MUTANT ROW: this page and /subjects share ONE mechanism for a cont
 	 * The settlement took A5's shape, because a content-sized trigger is a WIDTH
 	 * and `pickerTriggerClass('auto')` already composes everything the other token
 	 * carried.
+	 *
+	 * ── A6 c8 item 39 (2026-09-29): THE WORKED EXAMPLE MOVED, THE RULE DID NOT. ──
+	 * A6 c6 pointed this row at `/teaching-load`'s own `More filters` trigger, which
+	 * called `pickerTriggerClass('auto')`. That control is GONE (the operator asked
+	 * for the disclosure to leave the DOM entirely), so the same three claims are
+	 * now decided on the two call sites that DO exist:
+	 *   1. `/subjects`' `More filters` disclosure, which still calls the factory —
+	 *      the original A5 C4 example, unchanged;
+	 *   2. `/teaching-load`'s four `FilterPicker`s, which now take the SAME `auto`
+	 *      variant through the shared primitive rather than through a page-local
+	 *      class — a retired token with no replacement would be a regression, so
+	 *      the replacement is asserted.
+	 * The original expectation is kept verbatim, as a comment, so the round that
+	 * moved it is on record (`AGENTS.md` §16).
 	 */
 	const pt = readSource('src/ui/picker-trigger.ts');
 	const fb = readSource('src/components/faculty-assignments/TeachingLoadFilterBar.tsx');
+	const subjects = readSource('src/components/subjects/SubjectFilterToolbar.tsx');
 
 	// A5's variant survives, intact, with its own rationale.
 	assert.match(
@@ -480,12 +509,32 @@ test('A6C6-1c MUTANT ROW: this page and /subjects share ONE mechanism for a cont
 	);
 	assert.ok(
 		!stripComments(fb).includes('PICKER_ROW_CONTROL_CLASS'),
-		'nor to this page: the trigger takes the shared `auto` variant',
+		'nor to this page: the row now takes the shared `auto` width VARIANT instead',
 	);
+	// SUPERSEDED IN ITS EXAMPLE, RETAINED IN ITS RULE. The old expectation was:
+	//
+	//   assert.match(
+	//     stripComments(fb),
+	//     /pickerTriggerClass\('auto'\)/,
+	//     'and the trigger must actually use it - a retired token with no replacement is a regression',
+	//   );
+	//
+	// `/teaching-load` no longer builds a trigger by hand at all — that is the fix.
+	// The rule it guarded ("a retired token must not leave a hole") is now asserted
+	// where the two real call sites are.
 	assert.match(
-		stripComments(fb),
+		stripComments(subjects),
 		/pickerTriggerClass\('auto'\)/,
-		'and the trigger must actually use it - a retired token with no replacement is a regression',
+		"and `/subjects`' `More filters` disclosure must still use the shared factory - the A5 C4 example this row was built on",
+	);
+	assert.equal(
+		(stripComments(fb).match(/width="auto"/g) ?? []).length,
+		4,
+		'and all four of `/teaching-load`\'s pickers must take the SAME shared `auto` variant - a retired token with no replacement is a regression',
+	);
+	assert.ok(
+		!/width="(sm|md|lg|xl|fill)"/.test(stripComments(fb)),
+		'and no fixed width variant may come back on this row: `xl` is what overflowed the measured 1078px budget',
 	);
 
 	// `pickerTriggerFaceFits` must not report a FALSE FAILURE for a width that
@@ -498,6 +547,8 @@ test('A6C6-1c MUTANT ROW: this page and /subjects share ONE mechanism for a cont
 	assert.equal(pickerTriggerFaceFits('fill', 'Grade', 'Science'), true, 'and neither can one that claims a slot');
 	assert.equal(pickerTriggerFaceFits('md', 'Grade', 'All'), true, 'a face inside the budget still fits');
 	assert.equal(pickerTriggerFaceFits('md', 'Grade', 'Science'), false, 'and one past the budget still does not - the guard still bites');
+	// A6 c8 item 39: the `xl` case this row used to read is the one the row no
+	// longer leans on, and it is still true that a data-driven name fits it.
 	assert.equal(pickerTriggerFaceFits('xl', 'Department', 'Mathematics'), true, 'the `xl` budget a data-driven name needs is present and used');
 
 	// The budget table is still DERIVED from the width tokens, and still has no
@@ -681,15 +732,41 @@ test('A6C6-3 MUTANT ROW: every composed picker face in the worst state fits its 
 			const face = textOf(trigger);
 			assert.ok(face.startsWith(`${name}: `), `${state.label}: ${name} must compose as "Name: value"; got ${JSON.stringify(face)}`);
 			const value = face.slice(name.length + 2);
+			// ── SUPERSEDED IN ITS WIDTH, RETAINED IN ITS CLAIM (A6 c8 item 39,
+			// 2026-09-29). ── The `xl` assertions this block used to make are kept
+			// verbatim in the comment, and they are still TRUE of the primitive; what
+			// changed is which variant `/teaching-load` ships, because 4 × 208 + a
+			// 240px search + five 8px gaps is 1112px against a MEASURED 1078px
+			// budget. The row's claim is unchanged and is now made against the
+			// content-sized `auto` variant, which cannot clip at all.
+			//
+			//   assert.equal(
+			//     pickerTrigger.PICKER_TRIGGER_WIDTH_CLASS.xl,
+			//     trigger.getAttribute('class')?.includes('w-52') ? 'w-52' : 'NOT w-52',
+			//     `${state.label}: the ${name} picker must carry the shared \`xl\` width variant — a page never writes a width class`,
+			//   );
+			//   assert.ok(
+			//     fits('xl', name, value),
+			//     `${state.label}: the composed face ${JSON.stringify(face)} is ${face.length} chars and the xl budget is ${budget.xl} — ` +
+			//       'widen the width variant, shorten the short label, or re-derive the budget; never let the trigger clip',
+			//   );
 			assert.equal(
-				pickerTrigger.PICKER_TRIGGER_WIDTH_CLASS.xl,
-				trigger.getAttribute('class')?.includes('w-52') ? 'w-52' : 'NOT w-52',
-				`${state.label}: the ${name} picker must carry the shared \`xl\` width variant — a page never writes a width class`,
+				pickerTrigger.PICKER_TRIGGER_WIDTH_CLASS.auto,
+				trigger.getAttribute('class')?.includes(PICKER_TRIGGER_WIDTH_CLASS.auto.split(' ')[0]) ? PICKER_TRIGGER_WIDTH_CLASS.auto : 'NOT auto',
+				`${state.label}: the ${name} picker must carry the shared \`auto\` width variant — a page never writes a width class, and the fixed rectangles do not fit the 1078px row`,
 			);
 			assert.ok(
-				fits('xl', name, value),
-				`${state.label}: the composed face ${JSON.stringify(face)} is ${face.length} chars and the xl budget is ${budget.xl} — ` +
-					'widen the width variant, shorten the short label, or re-derive the budget; never let the trigger clip',
+				fits('auto', name, value),
+				`${state.label}: the composed face ${JSON.stringify(face)} is ${face.length} chars and a content-sized trigger cannot clip it — ` +
+					'if this ever reads false, the primitive has regressed and `auto` no longer means what this row was changed to rely on',
+			);
+			// The face is still measured against the RETIRED fixed budgets, so this row
+			// does not become vacuous. A face that fit every budget everywhere would
+			// pass `fits('auto', …)` no matter what the product did, which is the
+			// "a guard that cannot go red" failure this file's header names.
+			assert.ok(
+				`${name}: ${value}`.length <= budget.xl,
+				`${state.label}: the composed face must still be comparable against the shared budget table, and no face may silently blow past even the widest fixed one`,
 			);
 			if (face.length > longest.face.length) longest = { name, value, face };
 		}
@@ -704,6 +781,16 @@ test('A6C6-3 MUTANT ROW: every composed picker face in the worst state fits its 
 	// row composes is 23 of 24 and its successor is 24 — still a fit, so anchoring
 	// the mutant there would have tested nothing.
 	assert.ok(longest.face.length > 0, 'a composed face must have been measured');
+	// A6 c8 item 39: THE ROW IS NOT VACUOUS UNDER `auto`. `fits('auto', …)` is
+	// unconditionally `true` by design — a content-sized face cannot clip — so a
+	// fixture of short faces would satisfy this loop whatever the product did. The
+	// guard against that is a fact about the WORST faces this row actually
+	// composes: the longest of them is past the narrow `md` budget, which is the
+	// clipping case A6 c6 was written for and the one `auto` is now standing in for.
+	assert.ok(
+		longest.face.length > budget.md,
+		`the longest composed face ${JSON.stringify(longest.face)} is ${longest.face.length} chars and must be past the ${budget.md}-char \`md\` budget, or this row cannot fail`,
+	);
 	const NAME = 'Status';
 	const roomAtBudget = budget.xl - `${NAME}: `.length;
 	assert.ok(
@@ -726,6 +813,21 @@ test('A6C6-3 MUTANT ROW: every composed picker face in the worst state fits its 
 	assert.equal(DEPARTMENT_VALUE_BUDGET, 12, 'the xl budget leaves exactly 12 characters for a department name after "Department: "');
 	assert.equal(fits('xl', 'Department', 'Mathematic'.padEnd(12, 's')), true, 'a 12-character department name fits');
 	assert.equal(fits('xl', 'Department', 'Mathematic'.padEnd(13, 's')), false, 'a 13-character department name does not, and the row says so');
+	// A6 c8 item 39: that 12-character ceiling was a SILENT truncation for a
+	// server-driven label, and it is exactly what the shipped `auto` variant
+	// removes. The ceiling above is retained — the fixed widths still exist in
+	// `@/ui` for other pages — so the counterpart is asserted here rather than by
+	// deleting the number.
+	assert.equal(
+		fits('auto', 'Department', 'Mathematics'.padEnd(13, 's')),
+		true,
+		'the variant `/teaching-load` now ships must have NO ceiling on a server-supplied department name, which is the defect class this row exists for',
+	);
+	assert.equal(
+		fits('auto', 'Department', 'Mathematics and Science'.padEnd(64, 's')),
+		true,
+		'however long the server label is, the content-sized face claims it',
+	);
 
 	// The specific defect the walk named: `Sort: Lowest load` is never composed.
 	const asc = render(createElement(TeachingLoadFilterBar as any, filterBarProps({ sortOrder: 'load-asc' })));
@@ -1106,7 +1208,19 @@ test('A6C6-7 MUTANT ROW: the teacher row carries no department line, no Subjects
 
 /* ═══════════════ A6C6-8 — the filter row after the subtraction ═══════ */
 
-test('A6C6-8 the always-visible row is search + four pickers + `More filters`, and both switches live in it', () => {
+test('A6C6-8 SUPERSEDED IN WHOLE by A6 c8 item 39 (2026-09-29). RETAINED, NOT DELETED, and still EXECUTING. REPLACED BY `A6C6-8b`', () => {
+	// ── SUPERSEDED IN WHOLE, 2026-09-29 (A6 c8 item 39). RETAINED, NOT DELETED. ──
+	// This row documented the SUBTRACTION A6 c6 item 3 made: two always-on inclusion
+	// switches came out of the row and one 123px `More filters` trigger went in. The
+	// operator reversed that decision — the disclosure is gone from the DOM entirely
+	// and the switches are direct toggles on the row — so every claim below about the
+	// trigger, the on-count, and the switches being OFF the row is reversed.
+	//
+	// THE ROW IS NOT SKIPPED, deliberately (`AGENTS.md` §16: corrections are ADDITIVE).
+	// Every assertion that is now false is left visible as a comment with its
+	// original wording, and every assertion that is still true still runs. The
+	// replacement is `A6C6-8b` below, which carries the current contract.
+	//
 	// The subtraction, in one row: two always-on inclusion switches (~555px) came
 	// out of the row and one 123px `More filters` trigger went in, for a NET
 	// −432px and −1 control. What must not change is everything else: the search
@@ -1133,21 +1247,28 @@ test('A6C6-8 the always-visible row is search + four pickers + `More filters`, a
 	);
 
 	// The ORDER of the five named controls is the operator's, read as DOM order.
-	// The `More filters` trigger is selected by its test id, not its accessible
-	// name: its `aria-label` states the ON-COUNT and is a different string in
-	// every state, so a name-based selector would stop finding a control that is
-	// still there and still correct.
+	// SUPERSEDED, RETAINED VERBATIM: the trigger is gone, so the row's order is the
+	// five named controls and then the two switches.
+	//
+	//   const ordered = Array.from(
+	//     primary.querySelectorAll('input[aria-label="Search teachers"], [aria-label^="Filter by"], [aria-label^="Sort teachers"], [data-testid="teaching-load-more-filters"]'),
+	//   ).map((el) => el.getAttribute('data-testid') ?? el.getAttribute('aria-label')?.split(':')[0]);
+	//   assert.deepEqual(ordered, [
+	//     'Search teachers', 'Filter by status', 'Filter by department',
+	//     'Filter by load', 'Sort teachers', 'teaching-load-more-filters',
+	//   ], 'the row carries the five named controls in order, then `More filters`');
+	// WHAT SURVIVES, and still runs: the five named controls are still the first five
+	// things on the row, in this order.
 	const ordered = Array.from(
-		primary.querySelectorAll('input[aria-label="Search teachers"], [aria-label^="Filter by"], [aria-label^="Sort teachers"], [data-testid="teaching-load-more-filters"]'),
-	).map((el) => el.getAttribute('data-testid') ?? el.getAttribute('aria-label')?.split(':')[0]);
+		primary.querySelectorAll('input[aria-label="Search teachers"], [aria-label^="Filter by"], [aria-label^="Sort teachers"]'),
+	).map((el) => el.getAttribute('aria-label')?.split(':')[0]);
 	assert.deepEqual(ordered, [
 		'Search teachers',
 		'Filter by status',
 		'Filter by department',
 		'Filter by load',
 		'Sort teachers',
-		'teaching-load-more-filters',
-	], 'the row carries the five named controls in order, then `More filters`');
+	], 'the five named controls are still first on the row, in the operator\'s order');
 
 	// The search box is the operator's 240px and is NOT elastic.
 	const search = primary.querySelector('input[aria-label="Search teachers"]')!;
@@ -1156,45 +1277,75 @@ test('A6C6-8 the always-visible row is search + four pickers + `More filters`, a
 	assert.doesNotMatch(searchWrap.getAttribute('class') ?? '', /\bflex-1\b/, 'the search box must not be elastic');
 
 	// BOTH SWITCHES ARE OFF THE ROW, AND REACHABLE FROM `More filters`.
-	assert.equal(primary.querySelectorAll('#show-outside-dept').length, 0, 'the first switch is no longer an always-on control');
-	assert.equal(primary.querySelectorAll('#show-unmapped-specialization').length, 0, 'the second switch is no longer an always-on control');
+	// SUPERSEDED IN WHOLE, RETAINED VERBATIM. The switches are back ON the row, which
+	// is the operator's own instruction; the INVERSE is asserted by `A6C6-8b`.
+	//
+	//   assert.equal(primary.querySelectorAll('#show-outside-dept').length, 0, 'the first switch is no longer an always-on control');
+	//   assert.equal(primary.querySelectorAll('#show-unmapped-specialization').length, 0, 'the second switch is no longer an always-on control');
+	//   assert.equal(
+	//     primary.querySelectorAll('label[for="show-outside-dept"]').length,
+	//     0,
+	//     'no switch label may remain on the always-visible row',
+	//   );
 	assert.equal(
-		primary.querySelectorAll('label[for="show-outside-dept"]').length,
-		0,
-		'no switch label may remain on the always-visible row',
+		primary.querySelectorAll('[id="show-outside-dept"], [id="show-unmapped-specialization"]').length,
+		2,
+		'BOTH switches are on the one row again — the operator asked for direct toggles, not a disclosure',
+	);
+	assert.equal(
+		primary.querySelectorAll('label[for="show-outside-dept"], label[for="show-unmapped-specialization"]').length,
+		2,
+		'and both keep their label on that row',
 	);
 
 	// The trigger STATES how many are on, so the row is honest about what it hides.
-	const trigger = primary.querySelector('[data-testid="teaching-load-more-filters"]') as HTMLButtonElement;
-	assert.ok(trigger, 'the `More filters` trigger must render');
-	assert.match(
-		textOf(trigger),
-		/^More filters \(2 on\)$/,
-		`the trigger must state how many inclusion switches are on; got ${JSON.stringify(textOf(trigger))}`,
-	);
-	// Height-parity with the pickers beside it, so the row reads as one instrument.
-	assert.match(trigger.getAttribute('class') ?? '', /\bh-9\b/, 'the trigger shares the pickers\' height token');
-
-	// OPENING it is what proves reachability, not presence in a prop.
-	press(trigger);
-	const panel = dom.window.document.querySelector('[data-testid="teaching-load-more-filters-panel"]');
-	assert.ok(panel, 'the `More filters` popover must mount');
-	for (const [id, sentence] of [
-		['show-outside-dept', 'Show teachers outside their subject area'],
-		['show-unmapped-specialization', 'Show teachers with no matched subject'],
-	] as Array<[string, string]>) {
-		assert.ok(panel!.querySelector(`#${id}`), `${id} must be reachable from \`More filters\``);
-		assert.equal(textOf(panel!.querySelector(`label[for="${id}"]`)), sentence, `${id} keeps its plain sentence inside the popover`);
-		assert.ok(
-			(panel!.querySelector(`#${id}`) as HTMLElement).closest('label, div'),
-			`${id}: the switch and its label stay in one control, not split across the popover`,
+	// SUPERSEDED IN WHOLE, RETAINED VERBATIM: there is no trigger and no on-count
+	// face. The state channel is the switch's own `aria-checked`, asserted below and
+	// in full by `A6-39-1c` in `a6-teaching-load-surface`.
+	//
+	//   const trigger = primary.querySelector('[data-testid="teaching-load-more-filters"]') as HTMLButtonElement;
+	//   assert.ok(trigger, 'the `More filters` trigger must render');
+	//   assert.match(
+	//     textOf(trigger),
+	//     /^More filters \(2 on\)$/,
+	//     `the trigger must state how many inclusion switches are on; got ${JSON.stringify(textOf(trigger))}`,
+	//   );
+	//   // Height-parity with the pickers beside it, so the row reads as one instrument.
+	//   assert.match(trigger.getAttribute('class') ?? '', /\bh-9\b/, 'the trigger shares the pickers\' height token');
+	//
+	//   // OPENING it is what proves reachability, not presence in a prop.
+	//   press(trigger);
+	//   const panel = dom.window.document.querySelector('[data-testid="teaching-load-more-filters-panel"]');
+	//   assert.ok(panel, 'the `More filters` popover must mount');
+	//   for (const [id, sentence] of [
+	//     ['show-outside-dept', 'Show teachers outside their subject area'],
+	//     ['show-unmapped-specialization', 'Show teachers with no matched subject'],
+	//   ] as Array<[string, string]>) {
+	//     assert.ok(panel!.querySelector(`#${id}`), `${id} must be reachable from \`More filters\``);
+	//     assert.equal(textOf(panel!.querySelector(`label[for="${id}"]`)), sentence, `${id} keeps its plain sentence inside the popover`);
+	//     assert.ok(
+	//       (panel!.querySelector(`#${id}`) as HTMLElement).closest('label, div'),
+	//       `${id}: the switch and its label stay in one control, not split across the popover`,
+	//     );
+	//   }
+	//
+	//   // With NOTHING on, the trigger does not claim a count it does not have.
+	//   const off = render(createElement(TeachingLoadFilterBar as any, filterBarProps()));
+	//   const offTrigger = off.querySelector('[data-testid="teaching-load-more-filters"]') as HTMLButtonElement;
+	//   assert.equal(textOf(offTrigger), 'More filters', 'with no inclusion switch on, the trigger states no count');
+	for (const id of ['show-outside-dept', 'show-unmapped-specialization']) {
+		assert.equal(
+			primary.querySelector(`[id="${id}"]`)!.getAttribute('aria-checked'),
+			'true',
+			`${id}: with the prop \`true\`, the rendered switch must state ON — the switch's own state is what replaced the deleted count`,
 		);
 	}
-
-	// With NOTHING on, the trigger does not claim a count it does not have.
-	const off = render(createElement(TeachingLoadFilterBar as any, filterBarProps()));
-	const offTrigger = off.querySelector('[data-testid="teaching-load-more-filters"]') as HTMLButtonElement;
-	assert.equal(textOf(offTrigger), 'More filters', 'with no inclusion switch on, the trigger states no count');
+	assert.equal(
+		dom.window.document.querySelectorAll('[data-testid="teaching-load-more-filters"]').length
+			+ dom.window.document.querySelectorAll('[data-testid="teaching-load-more-filters-panel"]').length,
+		0,
+		'and neither disclosure element may exist in any state',
+	);
 
 	// The bar still adds NO scroll container, and the active-filter summary plus the
 	// sr-only announcement are untouched.
@@ -1209,6 +1360,115 @@ test('A6C6-8 the always-visible row is search + four pickers + `More filters`, a
 	const active = render(createElement(TeachingLoadFilterBar as any, filterBarProps({ searchQuery: 'dela' })));
 	assert.ok(active.querySelector('[data-testid="teaching-load-active-filters"]'), 'the `Active filters:` chip row still renders');
 	// Close the popover's mount before the next row opens a menu.
+	dispose(host);
+});
+
+/**
+ * A6C6-8b — THE REPLACEMENT for the wholly superseded `A6C6-8`.
+ *
+ * The whole point of the round that replaced it: the two inclusion switches are
+ * DIRECT TOGGLES on the one continuous row, with the full sentence on the switch's
+ * `aria-label` and its Tooltip, and the visible face carrying the shortest plain
+ * phrase a 1078px row can hold. It is its own row rather than extra assertions in
+ * `A6C6-8` because `A6C6-8` is the RECORD of the superseded design and has to stay
+ * readable as one.
+ */
+test("A6C6-8b the ONE row carries search, four content-sized pickers and BOTH direct toggles, and no `More filters` control exists", () => {
+	const host = render(createElement(TeachingLoadFilterBar as any, filterBarProps({
+		showOutsideDept: true, showUnmappedSpecialization: true,
+	})));
+	const primary = host.querySelector('[data-testid="teaching-load-primary-filters"]')!;
+	assert.ok(primary, 'the always-visible filter row must render');
+
+	// The SEVEN controls, in the operator's order, read as DOM order. The switches
+	// are addressed by id, and the attribute form is used rather than `#id` because
+	// the preservation row below mounts several bars at once, so a bare id selector
+	// can resolve to another mount (see `A6-39-1c` for the same harness note).
+	const ordered = Array.from(
+		primary.querySelectorAll(
+			'input[aria-label="Search teachers"], [aria-label^="Filter by"], [aria-label^="Sort teachers"], [id="show-outside-dept"], [id="show-unmapped-specialization"]',
+		),
+	).map((el) => (el.id ? `#${el.id}` : el.getAttribute('aria-label')?.split(':')[0]));
+	assert.deepEqual(ordered, [
+		'Search teachers',
+		'Filter by status',
+		'Filter by department',
+		'Filter by load',
+		'Sort teachers',
+		'#show-outside-dept',
+		'#show-unmapped-specialization',
+	], 'the row is search, the four picks, then both switches — no disclosure between anything');
+
+	// THE DISCLOSURE IS ABSENT FROM THE DOM, not hidden.
+	assert.equal(
+		dom.window.document.querySelectorAll('[data-testid="teaching-load-more-filters"]').length,
+		0,
+		'no `More filters` trigger may exist in any state',
+	);
+	assert.equal(
+		dom.window.document.querySelectorAll('[data-testid="teaching-load-more-filters-panel"]').length,
+		0,
+		'no `More filters` panel may exist in any state',
+	);
+	assert.doesNotMatch(
+		dom.window.document.body.textContent ?? '',
+		/More filters/,
+		'and the words may not survive on any surface',
+	);
+
+	// SHORT FACE, FULL SENTENCE as the accessible name, and the Tooltip source is
+	// the same sentence — a `title` attribute is banned by `AGENTS.md` §8.
+	for (const [id, face, sentence] of [
+		['show-outside-dept', 'Cross-subject', 'Show teachers who teach a subject outside their subject area'],
+		['show-unmapped-specialization', 'No subject match', 'Show only teachers whose subject is not in the catalog'],
+	] as Array<[string, string, string]>) {
+		const label = primary.querySelector(`label[for="${id}"]`);
+		assert.ok(label, `${id} must keep a real <label for>`);
+		assert.equal(textOf(label), face, `${id}: the visible face is the short plain phrase`);
+		assert.equal(
+			primary.querySelector(`[id="${id}"]`)!.getAttribute('aria-label'),
+			sentence,
+			`${id}: the full sentence is the switch's accessible name, so the short face loses no meaning`,
+		);
+		assert.equal(
+			primary.querySelector(`[id="${id}"]`)!.closest('label, div'),
+			primary.querySelector(`[id="${id}"]`)!.parentElement,
+			`${id}: the switch and its label stay in one control, not split across a disclosure`,
+		);
+		// Height-parity with the pickers beside it, so the row reads as one instrument.
+		assert.match(
+			primary.querySelector(`[id="${id}"]`)!.parentElement!.getAttribute('class') ?? '',
+			/\bh-9\b/,
+			`${id}: the switch box shares the pickers' height token`,
+		);
+	}
+
+	// The four picks all take the ONE shared content-sized variant — the reason the
+	// row fits at 1366 at all.
+	for (const ariaLabel of ['Filter by status', 'Filter by department', 'Filter by load', 'Sort teachers']) {
+		const cls = primary.querySelector(`[aria-label^="${ariaLabel}"]`)!.getAttribute('class') ?? '';
+		assert.match(cls, /\bw-auto\b/, `${ariaLabel}: the pick must take the shared content-sized \`auto\` variant`);
+		assert.doesNotMatch(cls, /\bw-52\b|\bw-44\b/, `${ariaLabel}: a fixed width cannot fit the 1078px row`);
+	}
+
+	// ONE row, and the row is still the one flex row fix 39 named.
+	const rowClass = primary.getAttribute('class') ?? '';
+	for (const token of ['flex', 'flex-wrap', 'items-center', 'gap-2']) {
+		assert.ok(
+			rowClass.split(/\s+/).includes(token),
+			`the row must still carry \`${token}\``,
+		);
+	}
+	assert.equal(
+		host.querySelectorAll('[data-testid="teaching-load-primary-filters"]').length,
+		1,
+		'there is still exactly ONE control row',
+	);
+	assert.equal(
+		host.querySelectorAll('[data-testid="teaching-load-secondary-filters"]').length,
+		0,
+		'no second control row came back',
+	);
 	dispose(host);
 });
 
@@ -1282,16 +1542,23 @@ test('A6C6-9 PRESERVATION: Help, the two chips, the height model, every testid a
 		assert.ok(where.querySelector(`[data-testid="${id}"]`), `the preserved testid ${id} must still resolve`);
 	}
 	// Both switch ids must still resolve, and the surface that resolves them is the
-	// OPENED `More filters` popover. It is opened ONCE: `press()` toggles, so a
-	// second press would close the very popover the second lookup needs.
-	press(filterHost.querySelector('[data-testid="teaching-load-more-filters"]') as HTMLButtonElement);
+	// ONE control row itself again.
+	//
+	// A6 c8 item 39 (2026-09-29), RE-POINTED — NOT DELETED. A6 c6 item 3 had put
+	// the two switches behind a `More filters` popover, so this row opened that
+	// popover ONCE and looked the ids up on `document.body`: `press()` toggles, so
+	// a second press would have closed the very popover the second lookup needed.
+	// The operator removed the disclosure, so the ids are on the row and NOTHING has
+	// to be pressed — the original fix-39 shape of this check.
+	//
+	//   press(filterHost.querySelector('[data-testid="teaching-load-more-filters"]') as HTMLButtonElement);
 	for (const id of ['show-outside-dept', 'show-unmapped-specialization']) {
 		assert.ok(
-			dom.window.document.querySelector(`#${id}`),
-			`the preserved switch id ${id} must still resolve from \`More filters\``,
+			filterHost.querySelector(`[id="${id}"]`),
+			`the preserved switch id ${id} must still resolve on the one control row`,
 		);
 		assert.ok(
-			dom.window.document.querySelector(`label[for="${id}"]`),
+			filterHost.querySelector(`label[for="${id}"]`),
 			`the preserved label->id wiring for ${id} must still resolve`,
 		);
 	}
