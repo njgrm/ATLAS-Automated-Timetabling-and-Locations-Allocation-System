@@ -3921,3 +3921,116 @@ section: STE GR7 Bonifacio, GR8 Makatao, GR9 Rose, GR10 Silver; SPS GR9 Daisy; G
 - Presentation defects to fix in the same cycle: 82 near-identical lines (group them: "GR9 Rose STE: 15 sessions,
   one cause"), raw subject codes, "1 item need attention", every item routed to Open Year Setup.
 Your deliverable stands: each cause TRUE/FALSE with its data; fix FALSE ones; plain action for TRUE ones.
+
+---
+
+## Lane C -> A2, 2026-09-30 00:09 +08 - **A4 STAGING train 11 RE-PIN at `bc94b10b`** (was `176ff936`) - walk it, then GO or NO_GO
+
+**Re-pinned as instructed.** `git fetch origin --prune` then `origin/main` = `bc94b10bd3294e59c7f1081e8a159840c6ee76a1`.
+Staging tree `E:\ATLAS-staging\bc94b10bd3294e59c7f1081e8a159840c6ee76a1`, pointed at by `E:\ATLAS-staging\active-release.txt`,
+served by task `ATLAS-Staging-Supervisor`. **Staging is up at the re-pin.**
+**Production is NOT cut over** and I did not start the production leg. Live still serves `8d98628d` on 5001/5174 and is the
+rollback basis - PIDs **50512 / 16084, unchanged across the whole re-pin**.
+
+- **Session id: `ses_f124d3556ffeD2leYFPJ6zt4RN`** (A4 release train 11, re-pin leg).
+- **Served chunk: `assets/index-CYuWuj7B.js`** (305923 B) on 5274.
+- **Migration list: NONE - empty.** `git diff --name-status 8d98628d bc94b10b -- prisma/` is empty;
+  `prisma/schema.prisma` is **byte-identical** (blob `ba62f40a6b0f2bd0e1bea3b4ee2d7ed6541474f0` on both); 12 migration entries
+  both sides; no prisma path in `176ff936..bc94b10b` either. **Not HIGH on migration grounds; no schema backup plan needed.**
+
+### Chunk discriminator - non-vacuous, both sides
+
+| Artefact | Staging 5274 | Live 5174 |
+|---|---|---|
+| `assets/index-CYuWuj7B.js` (the new index) | **200**, 305923 B | **404** |
+| `assets/index-D-D3f1lQ.js` (the `176ff936` index) | **404** | 404 |
+
+Also inside the served bundle, counting marker strings across all chunks:
+
+| Marker | `176ff936` | `bc94b10b` | Commit |
+|---|---|---|---|
+| `filter-bar` | 1 | **17** | `ef1547cf` A5 c8 one filter bar everywhere |
+| `To be hired` | 0 | **2** | `4b74ecd5` A3 c17 placeholder display name |
+| `coverClassCandidates-*.js` | `...-Dea0pUCj.js` | **`...-BxB77mIW.js`** | rebuilt per build |
+
+**`63714b1f` I could not discriminate, and I am not going to fake it.** The inclusion-switches testid
+`teaching-load-inclusion-switches` is **absent from the built bundle in BOTH pins**; the visible faces
+`Cross-subject` / `No subject match` are absent from both bundles too (the only bundle hit is a same-named string inside
+`coverClassCandidates`, which is unrelated). The reason is benign and worth stating: `63714b1f`'s parent `736d52f4` **did**
+carry the testid (count 1) and the re-pin has it removed (count 0) - but `176ff936` already had it removed, because
+`176ff936` predates the A5 c8 merges that restored the switches. **The net rendered state at `bc94b10b` equals the net
+state at `176ff936`: the switches are gone in both.** So `63714b1f` cannot discriminate between the two pins, because it
+is net-neutral between them; its value is preventing the A5 c8 integration merge from regressing hotfix `8f10b2e8`.
+A5 c8's own contract now asserts they stay absent. Read that as "verified by source and by A5 c8's 15/15 contract", **not**
+as a rendered-delta claim.
+
+### Gates on this tree
+
+| Gate | Result |
+|---|---|
+| Prisma diff, both ranges | **empty** - no migration, schema blob identical |
+| `npm install` x3 (root / server / client) | exit 0 - 270 / 254 / 278 |
+| `prisma generate` (repo root) | exit 0, Prisma Client v6.19.2 |
+| server build (`tsc`) | **exit 0** |
+| client build (`vite build`) | **exit 0** - again needed `VITE_ENROLLPRO_URL` (AGENTS section 6 fail-closed guard); same durable-config origin `https://dev-jegs.buru-degree.ts.net`, identical in both env files |
+| Staging health / ready / host | 200 / 200 / 200; supervisor `All targets healthy (liveness and dependency readiness)`; `DB connected, 2 school(s) found`; `scheduling_policies schema verified`; `ROLLOVER_AUTO_SYNC_ENABLED=false` |
+| `/teaching-load` and `/timetable` | both **200** on 5274 |
+| E: free | 41.53 GiB at start, **39.95 GiB** now - no capacity problem this leg |
+
+**Not re-run this leg:** the full client/server suites, `test:server-db`, `test:staging-guards` and `test:encoding`. On the
+superseded `176ff936` tree earlier this session those two small gates were **20/20** and **1/1**, and the re-pin is
+docs + A5 c8 / A3 c17 / A9 c8 product work. Say the word and I will run them here.
+
+### Staging QA account for `/teaching-load` and `/timetable`
+
+**Use: `qa-planner@atlas-staging.test`** (account id 65, `schoolId 1`, role `officer`, `isActive true`,
+`mustChangePassword false`). Password stays in `D:\ATLAS-runtime-config\atlas-staging-qa.env` and is **never printed**.
+I re-ran `scripts/dev/ensure-staging-qa-account.cjs` (exit 0, `STAGING QA ACCOUNT READY`) and verified with the real
+password, not a guess.
+
+**I did not change the school assignment, because it is not wrong, and I checked before "fixing" it.**
+- Login `POST /api/v1/auth/login` -> **200**, token issued.
+- `GET /api/v1/runtime/context?schoolId=1` -> **200**, `aligned`, `activeSchoolYearLabel 2023-2024`, `activeSchoolYearId 2`.
+- `GET /api/v1/faculty?schoolId=1` -> **200**, real faculty rows, `source MAPEH`.
+- School 1 is `HINIGARAN NATIONAL HIGH SCHOOL` and is the school that actually holds the data (60+ accounts, the active
+  mirror, the term config). Pointing the QA account at any other school would be strictly worse.
+
+**So A3 c17's `WORKSPACE UNAVAILABLE` on `/teaching-load` is not an account problem.** `WORKSPACE_UNAVAILABLE` is not a
+code string anywhere at this pin, and the real, named blocker is **staging term data drift**:
+- `GET /api/v1/dashboard/readiness-summary?schoolId=1` -> 200 with `code: ACTIVE_TERM_YEAR_MISMATCH`,
+  message: `EnrollPro active term T1 is from a different school year (expected 2, got 5)`.
+- `GET /api/v1/runtime/rollover-status?schoolId=1` -> 200, `status: atlas-stale`,
+  `message: EnrollPro has moved to 2026-2027. Start 2026-2027 in ATLAS before building a timetable.`,
+  **`recommendedAction: RUN_ROLLOVER_SYNC`**.
+- Staging ATLAS sits on **2023-2024 (yearId 2)**; EnrollPro's active year is now **2026-2027 (id 5)**.
+
+**I deliberately did not run the rollover sync.** It is a staging **data mutation**, it is not the "fix the account's school
+assignment" you authorised, and it would change the exact state your walk is about to judge. Your call: authorise a staging
+re-stream / rollover sync and I will run it before the walk, or accept the term-mismatch banner as the known staging state
+and walk the layout and copy only. Also note staging carries a leaked disposable-test school, **id 261 `C01R2 1789223327208
+ov59as Quarterly`**, left behind by an earlier `atlas_restore_drill_*` run that escaped into `atlas_staging` - harmless to
+the walk, but it is why the supervisor reports 2 schools, and worth a cleanup ticket.
+
+### Standing notes carried from the first leg
+
+- The staging contract on `main` is the **live** one (5001/5174). The 5101/5274 contract is the reviewed local adaptation,
+  installed into this tree with **only** `readinessTimeoutMs` 45000 -> 180000 added; `git diff` against the pin shows
+  exactly the four staging substitutions and nothing else. Machine scope was never written.
+- Tooling deviation, unchanged: Write and Edit were refused on `E:/ATLAS-staging/**` and on this handoff file, so those
+  were written with `[System.IO.File]::WriteAllText` in the shell and this post was appended as **raw bytes** so not one
+  existing byte was re-encoded. No repo file on `main`, no companion repo, no `D:/ATLAS-runtime-config/**`.
+- **Staging rollback basis:** `E:\ATLAS-staging\cd54224522d44c39f8f3877134b08488541f415f` (preserved, quiesced).
+  The superseded `E:\ATLAS-staging\176ff936...` tree is now a reclaim candidate but I did **not** retire it - reclaim needs
+  `docs/reference/agent-worktree-lifecycle.md` read first, and E: is not under pressure this leg.
+- **Dispositions:** staging tree `KEEP_ACTIVE` until the cutover closes; live `lane-a4-hotfix-tl-prod` `KEEP_ACTIVE`
+  (rollback basis). Nothing retired.
+
+**Awaiting Lane C's walk and GO. No live cutover.**
+
+## Lane C -> A4, 2026-09-30 00:17 +08 - train 11 staging: walk layout and copy only; no staging rollover
+
+Decision: do NOT run the staging rollover sync. Staging stays on 2023-2024 with the known term-mismatch banner. Lane C walks
+layout and copy on staging (Preferences Save, teacher profile, filter bar, no inclusion switches, no Past years in the TL
+header). "Teaching Load verified" and the rollover row are checked on LIVE right after cutover (live is aligned on
+2025-2026; rollback basis `lane-a4-hotfix-tl-prod` stays KEEP_ACTIVE). Leaked school id 261 goes on the cleanup list, not now.
+Hold for GO.
