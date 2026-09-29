@@ -104,6 +104,22 @@ const REDEFINITION = [
 	'const pickerTriggerClass',
 ] as const;
 
+/**
+ * A5 c8 (2026-09-29, integration) — DOES THIS SOURCE RE-DECLARE THE SHARED TOKEN, OR USE IT?
+ *
+ * A USE is an import plus a reference; a RE-DECLARATION is a statement that binds the name. The
+ * list above is deliberately mixed — three bare names and two already-shaped declaration
+ * fragments — so each entry is either matched as written (it already names its keyword) or
+ * wrapped in a declaration prefix (it is a bare name, and must only be flagged where a
+ * declaration binds it).
+ */
+function declaresSharedToken(src: string, token: string): boolean {
+	if (/^(?:export\s+)?(?:const|let|var|function)\b/.test(token)) {
+		return src.includes(token);
+	}
+	return new RegExp('(?:export\\s+)?(?:const|let|var|function)\\s+' + token + '\\b').test(src);
+}
+
 test('A5-C3-P3-1: every swept filter is built from the one shared picker, never from @/ui/select', () => {
 	const offenders = files
 		.filter(({ src }) => /from ['"]@\/ui\/select['"]/.test(src) || /<SelectTrigger[\s>]/.test(src))
@@ -217,11 +233,27 @@ test('A5-C3-P3-3: a swept file does not redefine the shared picker variant', () 
 	 * came from.
 	 *
 	 * The token list is `REDEFINITION`, declared at module scope above so the
-	 * positive control below reads the very list this row enforces. */
+	 * positive control below reads the very list this row enforces.
+	 *
+	 * A5 c8 (2026-09-29, integration) — THE MATCH IS NARROWED AGAIN, TO A
+	 * DECLARATION. The rule's own words above ("naming them at all is the
+	 * defect") became false on `main`: composing `PICKER_CONTROL_HEIGHT_CLASS`
+	 * in a page is the CORRECT pattern, because it is what stops a page-local
+	 * height from drifting away from the shared one. A7 c8 moved that token
+	 * `h-9` -> `h-10` while `/teaching-load`'s switch group still carried a
+	 * page-local `h-9`, and the two individually-correct changes rendered a
+	 * filter row whose switches were 4px shorter than its pickers. Fixing it
+	 * meant the page naming the token, and this guard went red on the fix.
+	 *
+	 * So the match is the DECLARATION form — `const NAME =` / `export const
+	 * NAME =` — which is what the rule actually bans. A page that re-declares
+	 * the token is still red; a page that IMPORTS and composes it is the
+	 * behaviour this rule wants. The positive control below still declares the
+	 * token the old way, so it still proves the guard bites. */
 	const offenders: string[] = [];
 	for (const { f, src } of files) {
 		for (const token of REDEFINITION) {
-			if (src.includes(token)) offenders.push(`${f}: redefines ${token}`);
+			if (declaresSharedToken(src, token)) offenders.push(`${f}: redefines ${token}`);
 		}
 	}
 	assert.deepEqual(offenders, [], 'a swept file redefines the shared picker variant instead of using it');
@@ -234,7 +266,7 @@ test('A5-C3-P3-3b POSITIVE CONTROL: the re-declaration match still bites after t
 	 * tokens, written the way a page would actually write it, is still an offender.
 	 * Without this row, "the guard is narrower now" and "the guard is toothless now"
 	 * look identical from the outside, and only the second one is a real defect. */
-	const offendersFor = (src: string): string[] => REDEFINITION.filter((token) => src.includes(token));
+	const offendersFor = (src: string): string[] => REDEFINITION.filter((token) => declaresSharedToken(src, token));
 
 	for (const declaration of [
 		"const PICKER_CONTROL_HEIGHT_CLASS = 'h-9';",
@@ -246,6 +278,20 @@ test('A5-C3-P3-3b POSITIVE CONTROL: the re-declaration match still bites after t
 		assert.ok(
 			offendersFor(declaration).length > 0,
 			`a page that writes ${JSON.stringify(declaration)} must still be caught as a re-declaration`,
+		);
+	}
+
+	// And the two forms that are USE, not re-declaration, which is the other half of
+	// the narrowing: importing the token and composing it, and calling the factory.
+	// Without these the narrowed guard would also be a guard that bans the fix.
+	for (const use of [
+		"import { PICKER_CONTROL_HEIGHT_CLASS } from '@/ui/picker-trigger';\nconst ROW = `flex ${PICKER_CONTROL_HEIGHT_CLASS} items-center`;",
+		"import { PICKER_CONTROL_MIN_HEIGHT_CLASS } from '@/ui/picker-trigger';\nconst T = `h-auto ${PICKER_CONTROL_MIN_HEIGHT_CLASS}`;",
+	]) {
+		assert.deepEqual(
+			offendersFor(use),
+			[],
+			`composing the shared token is the pattern this rule wants, not a re-declaration: ${JSON.stringify(use)}`,
 		);
 	}
 

@@ -1606,8 +1606,8 @@ test("A6C6-8b the ONE row carries search, four content-sized pickers and BOTH di
 		assert.ok(box, `${id}: both switches must share ONE bordered group on the one row`);
 		assert.match(
 			box!.getAttribute('class') ?? '',
-			/\bh-9\b/,
-			`${id}: that shared group must still carry the pickers' height token, or a 20px control sits in a 36px row`,
+			new RegExp(`(^|\\s)${PICKER_CONTROL_HEIGHT_CLASS}(\\s|$)`),
+			`${id}: that shared group must carry the pickers' shared height token, or a short control sits in a taller row`,
 		);
 	}
 

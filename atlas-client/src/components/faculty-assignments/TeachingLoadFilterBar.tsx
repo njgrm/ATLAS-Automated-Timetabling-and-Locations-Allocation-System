@@ -90,6 +90,7 @@ import { useMemo, type ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { FilterBar } from '@/ui/filter-bar';
 import { FilterPicker } from '@/ui/filter-picker';
+import { PICKER_CONTROL_HEIGHT_CLASS } from '@/ui/picker-trigger';
 import { Switch } from '@/ui/switch';
 import { Label } from '@/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
@@ -113,6 +114,13 @@ import { AT_STANDARD_LABEL, BELOW_STANDARD_LABEL, EXCESS_LOAD_LABEL } from '@/li
  * primitive; they keep the same height, radius, border and hover so the row still reads as one
  * instrument, and they are named for what they actually are.
  *
+ * A5 c8 (integration, 2026-09-29) — THE SWITCHES' HEIGHT IS THE SHARED TOKEN, NOT `h-9`. The
+ * group carried a page-local `h-9`, so when A7 c8 moved the shared control height to 40px on
+ * `main` these two switches rendered 4px shorter than every filter beside them. That is the
+ * one-look-per-control defect (`AGENTS.md` §8) produced by a page-local height on a shared row,
+ * and it is the same class as the `min-h-9`/`h-10` split the filter-bar gate now pins: compose
+ * the token, so the next move of that token moves this group with it.
+ *
  * A6 c6 item 1 CHANGED THE LABELS, NOT THE CHROME. They used to be `Cross-Dept` and
  * `Unmapped Specialization`, printed in `uppercase tracking-tight` — internal vocabulary
  * shouted at an older scheduler. A6 c6 replaced them with two plain SENTENCES; fix 39
@@ -130,7 +138,7 @@ import { AT_STANDARD_LABEL, BELOW_STANDARD_LABEL, EXCESS_LOAD_LABEL } from '@/li
  * which is content-sized and therefore cannot clip. The budget is therefore no longer
  * what keeps this row whole; the arithmetic in the file header is.
  */
-const SWITCH_CHROME = 'flex h-9 shrink-0 items-center gap-2 rounded-xl border border-border/60 bg-background px-2.5 transition-colors hover:bg-muted/40';
+const SWITCH_CHROME = `flex ${PICKER_CONTROL_HEIGHT_CLASS} shrink-0 items-center gap-2 rounded-xl border border-border/60 bg-background px-2.5 transition-colors hover:bg-muted/40`;
 
 /*
  * A6 c10 — `Cross-subject` READ AS A PERMISSION, and it is not one.
