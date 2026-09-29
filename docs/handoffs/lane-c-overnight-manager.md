@@ -209,3 +209,21 @@ medium) then GO. After live: Sync now (reconcile) with operator → ids 3/20/33 
 **Rollovers PAUSED** until 2022-2023 generates. After each rollover: run the year-setup copy script (prev→new year).
 **Tooling:** monitor.sh (in-session heartbeat, 90-min idle), await.sh waiters, memguard pid 6256, Playwright MCP now
 `--headless` (global opencode.jsonc; backup in scratchpad) — stops the about:blank Chromium pop-ups.
+
+## Session checkpoint — 2026-09-29 14:30 +08 (Lane C, before compaction)
+- **Live:** `3216d383` (train 8), synced to **S.Y. 2023-2024** (EnrollPro rolled over ~13:15; live sync + 2023-2024
+  Teaching Load saved by Codex ~13:50; backup `D:\ATLAS-runtime-config\backups\pre-live-sync-20260929\`).
+  Incident + procedure: `docs/plans/rollover-runbook.md`. Demo-day steps: `docs/plans/demo-day-runbook.md`.
+- **In flight:** A4 train 9 (packet `a4-train-2026-09-29-9.md`; pin = main tip at start); A8 c3 generate-with-gaps +
+  grouped blockers (demo blocker, 17:00); A6 c9 staffing button + 38.1 + 16.2 (17:30); A3 c14 Year Setup calm (17:30);
+  A5 c6 fix-1.2 24.2/35.1/23.2/17.2 + a5-c2a DB guard FIRST (18:00); A9 c5 past-year TL (17:30); A9 c6 fix-1.2 7.2/10.2/36.2
+  (18:00); A2 c14 term fix (check state).
+- **Ready for the next train (after 9):** A7 c7 `3918902e` (false banner), A6 c8 (More filters, coverage window),
+  A9 c4 (map panel, helper line), A2 c14 term commits on main.
+- **Owed by Lane C:** Codex walk of train 9 on staging -> GO -> A4 resume (`launch.ps1 -Session`); after train 9 is
+  live, Codex covers the 50 unstaffed classes on live with "to be hired" placeholders (operator approved); demo year
+  fixed at ~18:00 (operator may roll EnrollPro again — follow the rollover runbook each time); evening train 10;
+  full demo rehearsal walk.
+- **Workflow state:** reaper (20-min shell kill + BelowNormal priority for planner/test/browser processes) and monitor
+  running from the scratchpad; staging QA login via `/__dev/staging-login` (password rotated 15:15); rule "clickable
+  must look clickable" in the planner agent.
