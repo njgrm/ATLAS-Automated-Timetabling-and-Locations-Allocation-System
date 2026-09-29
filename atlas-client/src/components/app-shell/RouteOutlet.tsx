@@ -29,7 +29,7 @@
  *
  * WHAT THIS FILE IS, AND WHY THE EXTRACTION IS THE POINT OF THE ITEM.
  *
- * `AppShell` is a 595-line authenticated shell: sidebar, auth bridge, school-year
+ * `AppShell` is a 607-line authenticated shell: sidebar, auth bridge, school-year
  * switcher, rollover notice, mobile drawer, breadcrumb chrome, accessibility menu.
  * None of that is in scope, and a test that mounts it to observe a Suspense boundary
  * has to stand up all of it. So the outlet and its fallback are extracted here — the
@@ -57,6 +57,26 @@ import { TimetableSkeleton } from '@/components/timetable/TimetableSkeleton';
 import { BookOpen } from 'lucide-react';
 
 /**
+ * A5 C4 CORRECTION ROUND 1, NON-BLOCKING: the unrouted-route fallback.
+ *
+ * `resolveRouteChrome` returns `title: 'ATLAS'` for a path it does not name
+ * (`navigation.ts:167`), and that value is the PRODUCT name, not a page name. Used
+ * verbatim in this panel it reads `Loading ATLAS…` - which tells a scheduler nothing
+ * about which page is arriving and names the product as though it were a destination.
+ *
+ * `navigation.ts` is deliberately NOT touched: it is shared chrome outside this
+ * range's fence, and the header and breadcrumbs legitimately want the product name for
+ * an unrouted path. The substitution is made HERE, in the one sentence that only this
+ * range introduced, and it is a fallback ONLY - a real page title is never rewritten.
+ */
+const UNROUTED_PAGE_TITLE = 'ATLAS';
+
+/** The page name to name in the loading sentence, in plain words. */
+export function routeLoadingPageName(pageName: string): string {
+	return pageName === UNROUTED_PAGE_TITLE ? 'this page' : pageName;
+}
+
+/**
  * The page's OWN loading state, named by the page being opened.
  *
  * The page name comes from the caller, which reads it out of `resolveRouteChrome` —
@@ -72,7 +92,7 @@ export function RouteLoadingPanel({ pageName, timetable }: { pageName: string; t
 	if (timetable) return <TimetableSkeleton />;
 	return (
 		<div className="p-6" data-testid="route-loading-panel">
-			<AdminStatePanel icon={<BookOpen className="size-8" />} title={`Loading ${pageName}…`} />
+			<AdminStatePanel icon={<BookOpen className="size-8" />} title={`Loading ${routeLoadingPageName(pageName)}…`} />
 		</div>
 	);
 }

@@ -589,7 +589,7 @@ export function AppShell() {
 				    the remount key; the page name comes from `routeChrome.title`, i.e.
 				    from `resolveRouteChrome` — the same source the header and breadcrumbs
 				    read, so there is no second title source to drift. Nothing else in this
-				    595-line file is touched: the sidebar, auth bridge, `routeEpoch`, the
+				    607-line file is touched: the sidebar, auth bridge, `routeEpoch`, the
 				    school-year switcher and every gate here are out of scope. */}
 				<RouteOutlet
 					outlet={outlet}

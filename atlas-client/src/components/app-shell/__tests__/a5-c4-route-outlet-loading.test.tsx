@@ -8,7 +8,7 @@
  * Codex run 2 scored it MAJOR, under route changes.
  *
  * WHY THIS IS TESTED AGAINST THE EXTRACTED `RouteOutlet` AND NOT `AppShell`.
- * `AppShell` is a 595-line authenticated shell — sidebar, auth bridge, school-year
+ * `AppShell` is a 607-line authenticated shell — sidebar, auth bridge, school-year
  * switcher, rollover notice, mobile drawer, breadcrumb chrome. None of it is in
  * scope, and standing all of it up to observe a Suspense boundary would test the
  * shell's plumbing rather than the behaviour in the finding. The outlet, its remount
@@ -232,6 +232,37 @@ test('A5-C4-4c CONTROL: when the module DOES resolve, its content renders and th
 		true,
 		'the loading panel is still on screen after the route resolved',
 	);
+	await unmount();
+});
+
+test('A5-C4-4e: an unrouted page does not read "Loading ATLAS…" — the product name is not a page name', async () => {
+	// NON-BLOCKING correction, added because a future session would otherwise read
+	// "Loading ATLAS…" in the source and treat it as the product naming a page.
+	// `resolveRouteChrome` returns `title: 'ATLAS'` for a path it does not name
+	// (`navigation.ts:167`); that is the PRODUCT name, and using it in this sentence
+	// tells a scheduler nothing about which page is arriving.
+	//
+	// The fallback is asserted as a pure function AND as the rendered sentence, so it
+	// is not a source string check: a real page title must come through untouched, and
+	// only the product-name fallback is rewritten.
+	const { routeLoadingPageName } = await import('../RouteOutlet');
+	assert.equal(routeLoadingPageName('ATLAS'), 'this page', 'the unrouted fallback still names the product');
+	assert.equal(routeLoadingPageName('Subjects'), 'Subjects', 'a real page title was rewritten');
+	assert.equal(routeLoadingPageName('Timetable'), 'Timetable');
+
+	const host = await mount();
+	// The panel is the SUSPENSE FALLBACK, so the route's module has to still be
+	// pending for it to be on screen at all. With a resolved outlet there is nothing
+	// to fall back from, and this row would pass vacuously on an empty read.
+	await act(async () => {
+		root!.render(
+			<RouteOutlet {...outletProps({ outlet: <NeverResolving />, pageName: 'ATLAS' })} />,
+		);
+	});
+	await act(async () => { await Promise.resolve(); });
+	const text = (host.querySelector('[data-testid="route-loading-panel"]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+	assert.match(text, /Loading this page…/, `the unrouted panel does not read as plain words: "${text}"`);
+	assert.doesNotMatch(text, /ATLAS/, `the product name is still used as a page name: "${text}"`);
 	await unmount();
 });
 
