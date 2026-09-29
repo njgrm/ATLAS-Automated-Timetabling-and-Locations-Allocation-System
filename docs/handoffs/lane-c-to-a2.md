@@ -4686,3 +4686,52 @@ no A8 hunk lost in the A6/A2 train). Merged-tree combined gates: client `tsc --n
 deployed** — A4 owns the deploy; this is source plus isolated JSDOM proof, not live Tailnet.
 
 Worktrees retired junction-safe (`cmd /c rmdir` first; donor `D:/ATLAS/atlas-client/node_modules` re-counted 156, intact).
+
+---
+
+## A7 -> Lane C, c12b candidate, 2026-09-30 03:57 +08 - calm Class Schedule header, one vocabulary, row 13 (INDEPENDENT QA ACCEPT_READY 10/10/0/0)
+
+**Candidate `f6dcf3384e748559493986c32c7d806562f1e2e8` on `work/a7-c12-calm-header` (pushed).** Base
+`a93e4785b`; 51 paths, client-only. The tip is the R1 correction (`f6dcf338`, parent `899cbd2e`). **Not integrated
+to `main`** - Lane C reviews the composition with the operator first. `main` has since moved to `69b404ff` (A8),
+so an integration would need a fresh merge base.
+
+**Delivered (decision 2 / decision 8).**
+- **Header budget: exactly 7 interactive controls above the grid** - status chip, `Generate a draft`, `More`,
+  `Term`, `Show`, `Schedule for` (6, inside the header) + the year band's single `Year Setup` link (1). Tabs stay
+  (Schedule / Draft / Setup / Policies / Runs); the `Planning` tab is now **`Draft`**; `Expert view` and the whole
+  `Expert tools` More group are deleted. `View past years` moves into More as `Past years` (shown only when a
+  rollover notice exists), and the band is now **one `role="status"` sentence with one link and no dismiss
+  button** - dismissal is preserved by clearing the notice when the link is activated, with the 14-day TTL as
+  backstop (this trade-off is recorded in the packet, not hidden).
+- **Vocabulary: all 27 rows** of the Step-0 table. `N classes need a time slot` (decision 8) is now universal -
+  including the generation toast and notification, the publish-checklist sentence and the tutorial.
+  `Generate a timetable`, `Unassigned sessions`, `No generated schedule yet`, `Build a new draft`,
+  `Reset the draft schedule?` and `Generated schedule -` are gone from user-visible source (`git grep` over
+  non-test `atlas-client/src`).
+- **Row 13:** the Setup card and the header status chip now read ONE authority (`activeSchoolYearLabel` from the
+  per-school cached active-year context). The AppShell `Active year:` badge was a second subscriber with a
+  different refresh policy; it is extracted to `ActiveYearBadge.tsx` behind a shared `resolveActiveYearLabel`.
+
+**Evidence.** Failing-first at the base checkpoint `8ef63a68` (parent `cd06734c`): budget 4/1/3 and copy 12/2/10,
+all `AssertionError`, no module-not-found. Candidate `npm run test:a7-c12-calm-header` **28/28**; an injected
+eighth control fails the budget two ways (exact-inventory `deepEqual` plus `header 7 + banner 1 = 8`). Fresh QA
+round 2 (`ses_f1178908effeFz6db8BiTRiMSu`) **ACCEPT_READY, mandatory 10 / passed 10 / blocked 0 /
+unperformed 0**: it independently reproduced the budget mutant, the B1 authority mutant (a second source in
+`ActiveYearBadge` fails the copy row), the gate-is-label-only diff, and proved every still-red preservation suite
+identical at base `cd06734c`. Typecheck = the same 5 pre-existing errors at base and candidate; `vite build`
+exit 0.
+
+**Residuals (all NON_BLOCKING).** (a) badge and chip are two subscribers of one authority, so a refresh window
+can briefly show a stale label - a shared store is outside this cycle; (b) the 1366x768 pixel/browser row for this
+screen is Lane C's, and is not claimed here; (c) pre-existing red suites (`Faculty.tsx` 1029-line cap, three
+`playwright`-import files, `a2-ux-menu2-c2`'s CRLF-fragile `codeOnly` assertion) reproduce at base; (d)
+`Unassigned sessions` on `Dashboard.tsx:668` / `HowItWorks.tsx:72` and `No <year> timetable yet` on the
+campus-map and dashboard cards belong to other pages and are left as follow-ups.
+
+**Disposition.** Candidate worktree `E:/ATLAS-worktrees/lane-a7-c12-calm-header` KEEP_ACTIVE (owner A7); the
+handoff worktree is retired. No deployment, no live mutation, no generation, no publication. This candidate
+touches **no tooltip** (c12a `aec13de2`) and **no generation gate** (A8 c5).
+
+**Next action.** Lane C: judge the composition and the seven-control count at 1366x768 (staging or live) and rule
+REJECT_UX or accept; then A4 pins it into a train.
