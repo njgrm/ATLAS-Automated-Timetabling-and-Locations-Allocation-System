@@ -368,6 +368,25 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 ## Live release
 
+- **CUTOVER TARGET, recorded 2026-09-29 10:55 +08 by Lane A4 ahead of the cutover (AGENTS.md `13— a pin is a
+  commit, not a description). Required by `deploy-runner.ps1` `Assert-LiveReleaseRecorded`, which fails closed
+  without it.**
+  **Target release `e9ddda71` (full `e9ddda71562742fd00d6ad881c1751f3ac1a0e7c`), rollback basis `ce1257c8`
+  (full `ce1257c815e4393f638e0c3cd19c71c561c2d1d1`, the incumbent).** Target dir
+  `E:\ATLAS-worktrees\lane-a4-release-20260929-7prod`, branch `release/2026-09-29-7-prod`, HEAD == pin,
+  `git status --short` empty, 0 reparse points, own dependency trees (robocopy seed, 33 s). Built: server
+  `tsc` exit 0, client `vite` exit 0, `atlas-server/dist/server.js` and `atlas-client/dist/index.html` present.
+  **Scope: 273 paths vs `ce1257c8` (119 client, 75 server), 0 `prisma/`** — measured empty, so no migration and
+  no schema change. Direction FORWARD (`git merge-base --is-ancestor ce1257c8 e9ddda71` exits 0). Rollback is a one-step
+  supervised reset to `lane-a4-release-20260929-5`, verified present, clean, both `dist`s built.
+  **Discriminator proven non-vacuous BEFORE cutover:** `atlas-server/dist/services` holds **393** files vs the live
+  build's **384**, and `active-term-resolver.service.js`, `teaching-load-capacity.service.js` and
+  `year-setup-carryover.service.js` are present in the new build and **absent** from the live one; client entry chunk
+  `index-Dy1q6261.js` (new) vs `index-CiUQQK4s.js` (live). `dist/server.js` is deliberately not used as the
+  discriminator. Staging leg already served this exact pin and Lane C's Codex walk returned **GO, 0 blockers**
+  (`docs/reviews/codex-staging-train7-e9ddda71/report.md`; note its own summary reads `B pass 0/4` with 4 MAJOR data/UX
+  findings routed to product lanes — recorded, not restated as clean).
+
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
 - **▶ LIVE: `ce1257c815e4393f638e0c3cd19c71c561c2d1d1` — DEPLOYED TO PRODUCTION 2026-09-29 00:37 +08 by
