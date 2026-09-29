@@ -58,9 +58,9 @@ function isCurrentEpoch(token: string | null, epoch: number): boolean {
 }
 
 /**
- * A3 c13 — Teacher Concerns is the ONE page a scheduler fills while talking to
- * one teacher. Room Preferences and Faculty Preferences folded into it; those
- * two routes now redirect here.
+ * A3 c15 — Teacher Preferences is the ONE page a scheduler fills while talking
+ * to one teacher, served at `/faculty/preferences`. Room Preferences and Faculty
+ * Preferences folded into it, and `/faculty/concerns` is now its retired alias.
  *
  * The two-row header (AGENTS §8) is: row 1 = title, ONE status chip, `More`;
  * row 2 = the teacher picker. The single primary action — Save — lives at the
@@ -419,7 +419,7 @@ export default function TeacherConcerns() {
 			bumpRefresh();
 		} catch (error) {
 			setSaveFailure(concernApiErrorMessage(error));
-			setConcernError(getActionableApiError(error, 'This teacher’s concerns were not saved.'));
+			setConcernError(getActionableApiError(error, 'This teacher’s preferences were not saved.'));
 		} finally {
 			setSaving(false);
 		}
@@ -493,7 +493,7 @@ export default function TeacherConcerns() {
 				<div className='mx-auto w-full max-w-6xl space-y-4'>
 					<div className='space-y-3'>
 						<PageHeader
-							title='Teacher Concerns'
+							title='Teacher Preferences'
 							source={
 								<Badge variant={concernSaveStateTone(statusInput)} data-testid='concern-save-state'>
 									{concernSaveStateLabel(statusInput)}
@@ -555,7 +555,7 @@ export default function TeacherConcerns() {
 								<div>
 									<p className='text-sm font-semibold text-foreground'>No actor school scope</p>
 									<p className='mt-1 text-xs leading-relaxed text-muted-foreground'>
-										The signed-in session has no resolved school, so no teacher concern can be loaded or written.
+										The signed-in session has no resolved school, so no teacher preferences can be loaded or saved.
 									</p>
 								</div>
 							</CardContent>
@@ -581,7 +581,7 @@ export default function TeacherConcerns() {
 								<div className='min-w-0 space-y-2'>
 									<p className='text-sm font-semibold text-warning-foreground'>Active ordered term unresolved</p>
 									<p className='text-xs leading-relaxed text-warning-foreground/90'>
-										{unresolvedTermReason ?? 'Availability is term-scoped, so ATLAS will not record a concern until an ordered term is verified.'}
+										{unresolvedTermReason ?? 'Availability is term-scoped, so ATLAS will not save this teacher’s preferences until an ordered term is verified.'}
 										Writes stay disabled rather than defaulting to Term 1.
 									</p>
 									<Button type='button' variant='outline' size='sm' onClick={bumpRefresh}>

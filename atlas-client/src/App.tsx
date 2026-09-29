@@ -18,9 +18,9 @@ const Faculty = lazy(() => import('./pages/Faculty'));
 const TeachingLoad = lazy(() => import('./pages/TeachingLoad'));
 const TeachingLoadHistory = lazy(() => import('./components/faculty-assignments/TeachingLoadHistoryView'));
 const Sections = lazy(() => import('./pages/Sections'));
-const OfficerPreferences = lazy(() => import('./pages/OfficerPreferences'));
 const OfficerRoomPreferences = lazy(() => import('./pages/OfficerRoomPreferences'));
 const TeacherConcerns = lazy(() => import('./pages/TeacherConcerns'));
+const TeacherConcernsAlias = lazy(() => import('./pages/TeacherConcernsAlias'));
 const RoomSchedules = lazy(() => import('./pages/RoomSchedules'));
 const ScheduleReview = lazy(() => import('./pages/ScheduleReview'));
 const HowItWorks = lazy(() => import('./pages/HowItWorks'));
@@ -270,12 +270,16 @@ export const appRoutes: RouteObject[] = [
 				element: <Sections />,
 			},
 			{
+				// A3 c15 — Teacher Preferences is the ONE page; this path is its
+				// real route, not a redirect. The retired name lives on the alias
+				// below, so the sidebar, breadcrumb, title and every inbound link
+				// all name one destination.
 				path: 'faculty/preferences',
-				element: <OfficerPreferences />,
+				element: <TeacherConcerns />,
 			},
 			{
 				path: 'faculty/concerns',
-				element: <TeacherConcerns />,
+				element: <TeacherConcernsAlias />,
 			},
 			{
 				path: 'timetable',

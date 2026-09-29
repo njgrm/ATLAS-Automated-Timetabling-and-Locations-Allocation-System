@@ -112,7 +112,7 @@ export default function ActionQueue({ counts, hasDraftPreferences, hasDraftRoomR
 		actions.push({
 			id: 'draft-prefs',
 			title: 'Support preferences not submitted',
-			description: 'Support notes are saved but not yet reviewed. The scheduler records and reviews concerns for you.',
+			description: 'Support notes are saved but not yet reviewed. The scheduler records and reviews preferences for you.',
 			icon: FileEdit,
 			tone: 'warning',
 		});
