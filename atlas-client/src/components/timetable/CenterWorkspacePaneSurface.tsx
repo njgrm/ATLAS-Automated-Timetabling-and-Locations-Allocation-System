@@ -45,6 +45,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
 import { GridScrollMemory } from '@/components/timetable/GridScrollMemory';
 import { MapRouteTransitionFrame, resolveCenterPane } from '@/components/timetable/MapRouteTransitionIntent';
 import { CenterWorkspaceManualEditEmpty } from '@/components/timetable/CenterWorkspaceManualEditEmpty';
+import { PreferenceAdherenceLine } from '@/components/timetable/PreferenceAdherenceLine';
 import { TimetableGrid } from '@/components/timetable/TimetableGrid';
 import { ROOM_TYPE_LABELS } from '@/lib/subject-constants';
 import type { RoomType, ScheduledEntry, Violation } from '@/types';
@@ -681,6 +682,34 @@ export function CenterWorkspacePaneSurface(props: CenterWorkspacePaneSurfaceProp
 					<GridScrollMemory scrollTopRef={gridScrollTopRef} className="flex-1 min-h-0">
 						{(paneView === 'pre-generation' ? draftBoard != null : draft != null) ? (
 							<div className="p-4">
+								{/* A2 C17 — "were teacher preferences kept?", on the run summary
+								    strip above the grid. This is the workspace BODY, not the
+								    header: the packet's named anchor (`runStateSentence` /
+								    `runUnplacedSentence`) actually renders in the two headers, and
+								    §8 caps a header at two calm rows that row 1 already is. This
+								    position is also the only one that is automatically right for
+								    BOTH required views — the draft view and the published view of a
+								    run are this same grid arm, because publication is a state of the
+								    run rather than a different pane.
+
+								    It renders NOTHING when there is nothing to say (the
+								    component's own `hasAny` gate), so a year where no teacher has
+								    reviewed preferences gains no pixels here at all. That is the
+								    subtraction the packet asks for: the region had no chrome of
+								    its own to remove, so the line pays for itself by being absent
+								    in the common case rather than by displacing something.
+
+								    `termFilter` is `'all' | number`; availability is term-scoped, so
+								    `'all'` resolves explicitly to the active term rather than
+								    silently to Term 1. */}
+								{paneView !== 'pre-generation' ? (
+									<PreferenceAdherenceLine
+										runId={draft?.runId ?? null}
+										schoolId={defaultSchoolId ?? null}
+										schoolYearId={schoolYearId}
+										termIndex={typeof termFilter === 'number' ? termFilter : 'active'}
+									/>
+								) : null}
 								{paneView === 'pre-generation' ? (
 									<div className="mb-3 flex min-w-0 items-center gap-2">
 										{entityFilter && entityFilter !== 'all' ? (
