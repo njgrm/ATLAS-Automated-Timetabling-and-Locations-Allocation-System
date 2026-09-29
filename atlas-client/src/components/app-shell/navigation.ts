@@ -3,7 +3,6 @@ import {
 	CalendarClock,
 	CalendarDays,
 	ClipboardList,
-	DoorOpen,
 	GraduationCap,
 	HeartHandshake,
 	LayoutDashboard,
@@ -34,27 +33,27 @@ export const setupNav: NavItemDef[] = [
 export const teachersAndRoomsNav: NavItemDef[] = [
 	{ label: 'Teachers', to: '/teachers', icon: Users, adminOnly: true },
 	{ label: 'Teaching Load', to: '/teaching-load', icon: ClipboardList, adminOnly: true, schedulerAccess: true },
+	/*
+	 * A3 c13 — "Room Preferences" and "Faculty Preferences" are GONE as nav
+	 * items. Both routes now redirect here, and the room work is a per-class
+	 * section of the selected teacher's form.
+	 *
+	 * A3-C8 originally ADDED the Room Preferences item because the 692-line
+	 * `OfficerRoomPreferences` review queue was fully built and had zero inbound
+	 * links. That was a real reachability defect and the fix was right for the
+	 * surface that existed. The queue is now retired: keeping the item would
+	 * advertise a second destination that immediately redirects, which is the
+	 * duplicate-link defect the same lane removed elsewhere.
+	 *
+	 * The A3-C8 authority note still stands where it matters: the room APPLY is
+	 * guarded server-side by `PRIVILEGED_ROLES = {admin, officer, SYSTEM_ADMIN}`
+	 * (`routes/room-preference.router.ts` review PATCH). This page item carries
+	 * `schedulerAccess: true`, so a scheduler holding only `timetable:read` can
+	 * RECORD a room need but will be refused with 403 on the apply. That refusal
+	 * is the server's answer, shown verbatim, and is the correct division: the
+	 * note moves here rather than being silently lost.
+	 */
 	{ label: 'Teacher Concerns', to: '/faculty/concerns', icon: HeartHandshake, adminOnly: true, schedulerAccess: true },
-	// A3-C8 REACHABILITY — `/faculty/room-preferences` is a real, fully built
-	// review queue (620-line `OfficerRoomPreferences`, live summary read, preview
-	// and review actions) that the shell already titled correctly via the
-	// `routeChromeOverrides` entry for that path, yet had ZERO inbound links, so
-	// no operator could reach it.
-	//
-	// `schedulerAccess` is DELIBERATELY ABSENT and load-bearing. The server
-	// (`routes/room-preference.router.ts`) guards both the review PATCH and the
-	// appeal-status PATCH with `PRIVILEGED_ROLES = {admin, officer,
-	// SYSTEM_ADMIN}` and answers 403 FORBIDDEN — "Only admin, officer, or
-	// SYSTEM_ADMIN can review room preferences." This item is `adminOnly` and
-	// carries no `schedulerAccess`, so `canSeeNavItem` resolves visibility to
-	// exactly that same three-role set: nav visibility and server authority
-	// agree. Adding `schedulerAccess: true` would advertise an approve/reject
-	// queue to a scheduler holding only `timetable:read` — a NEW false errand,
-	// which is the exact defect class this lane exists to remove. The omission
-	// is pinned by test row 3 in
-	// `__tests__/a3-c8-room-preferences-reachability.test.tsx`; do not "fix"
-	// this by adding the flag.
-	{ label: 'Room Preferences', to: '/faculty/room-preferences', icon: DoorOpen, adminOnly: true },
 	{ label: 'Campus & Rooms', to: '/map', icon: MapPinned, adminOnly: true },
 ];
 
@@ -119,7 +118,6 @@ const routeChromeOverrides: Record<string, { group?: string; title: string }> = 
 	'/teaching-load/history': { group: 'Teachers and Rooms', title: 'Archived Teaching Load' },
 	'/faculty': { group: 'Teachers and Rooms', title: 'Faculty' },
 	'/assignments': { group: 'Teachers and Rooms', title: 'Assignments' },
-	'/faculty/preferences': { group: 'Teachers and Rooms', title: 'Faculty Preferences' },
 	'/faculty/concerns': { group: 'Teachers and Rooms', title: 'Teacher Concerns' },
 	'/timetabling/how-it-works': { group: 'Class Schedule', title: 'How Scheduling Works' },
 	// UX-R03a — the nested policy route shares the Class Schedule shell.
@@ -135,7 +133,16 @@ const routeChromeOverrides: Record<string, { group?: string; title: string }> = 
 	// UX-R03e (setup) — the composed setup route shares the Class Schedule shell.
 	'/timetable/setup': { group: 'Class Schedule', title: 'Setup' },
 	'/room-schedules': { group: 'Review and Publish', title: 'Room Schedules' },
-	'/faculty/room-preferences': { group: 'Teachers and Rooms', title: 'Room Preferences' },
+	/*
+	 * A3 c13 — the two retired route-chrome entries for
+	 * `/faculty/room-preferences` (title "Room Preferences") and
+	 * `/faculty/preferences` (title "Faculty Preferences") are REMOVED, not
+	 * re-pointed. Both pages now render `<Navigate to="/faculty/concerns"
+	 * replace />`, so the browser lands on the concerns route and resolves its
+	 * chrome from the entry above. Keeping a title for a path that is never
+	 * rendered is a second name for one destination — the duplicate-link defect
+	 * A3-C6 removed elsewhere.
+	 */
 	'/admin/year-setup': { group: 'School Setup', title: 'School Year Setup' },
 };
 

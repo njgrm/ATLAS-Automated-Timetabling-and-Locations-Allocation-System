@@ -167,3 +167,131 @@ export function availabilityStatusTone(status: FacultyAvailabilityRecord['status
 			return 'outline';
 	}
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * ROOMS + the single Save — A3 c13.
+ *
+ * These are PURE so the wording is decidable without a browser: the two lines
+ * a scheduler actually reads on this page (what the move will do, and what was
+ * just saved) are both generated here, and neither may leak a status enum, a
+ * room id, a run id or a raw code into the sentence.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+const DAY_WORDS: Record<string, string> = {
+	MONDAY: 'Monday',
+	TUESDAY: 'Tuesday',
+	WEDNESDAY: 'Wednesday',
+	THURSDAY: 'Thursday',
+	FRIDAY: 'Friday',
+	SATURDAY: 'Saturday',
+	SUNDAY: 'Sunday',
+};
+
+/** "Mon 08:00-09:00" in plain words. Never a raw enum. */
+export function describeClassPeriod(day: string | null | undefined, startTime: string, endTime: string): string {
+	const dayWord = day ? DAY_WORDS[String(day).toUpperCase()] ?? String(day) : '';
+	return dayWord ? `${dayWord} ${startTime}-${endTime}` : `${startTime}-${endTime}`;
+}
+
+export type RoomPreviewLine = {
+	/** `ok` reads as a fact; `blocked` as something the scheduler must change. */
+	tone: 'ok' | 'blocked';
+	text: string;
+};
+
+/**
+ * THE PREVIEW LINE — the zero-write `preview` response in one sentence a mouse-
+ * first scheduler can act on.
+ *
+ * Every fact here comes from the response: the class, both room NAMES (never
+ * ids), and the server's own first conflict message when there is one. A
+ * response that is neither allowed nor self-explanatory degrades to a truthful
+ * "could not be checked" rather than to an invented reassurance.
+ */
+export function describeRoomPreview(input: {
+	sectionName: string;
+	currentRoomName: string;
+	requestedRoomName: string | null;
+	period: string;
+	preview: {
+		allowed?: boolean;
+		hardViolations?: { message?: string }[];
+		softViolations?: { message?: string }[];
+	} | null | undefined;
+}): RoomPreviewLine {
+	const { sectionName, currentRoomName, requestedRoomName, period, preview } = input;
+	const move = `Moves ${sectionName} to ${requestedRoomName ?? 'the chosen room'} on ${period}, from ${currentRoomName}.`;
+
+	if (!preview) {
+		return {
+			tone: 'blocked',
+			text: requestedRoomName
+				? `Save first, then ATLAS will show what moving ${sectionName} to ${requestedRoomName} would do.`
+				: 'Pick a room to see what the move would do.',
+		};
+	}
+
+	const hard = preview.hardViolations?.[0]?.message?.trim();
+	if (hard) return { tone: 'blocked', text: `Cannot move ${sectionName} to ${requestedRoomName ?? 'that room'}: ${hard}` };
+
+	const soft = preview.softViolations?.[0]?.message?.trim();
+	if (soft) return { tone: 'blocked', text: `${move} ATLAS flagged: ${soft}` };
+
+	if (preview.allowed === false) {
+		return { tone: 'blocked', text: `Cannot move ${sectionName} to ${requestedRoomName ?? 'that room'} on ${period}.` };
+	}
+
+	return { tone: 'ok', text: `${move} Nothing clashes.` };
+}
+
+export type ConcernSaveCounts = {
+	teacherName: string;
+	/** Availability windows the scheduler actually marked. */
+	availabilityWindows: number;
+	/** Classes with a room need waiting to be moved. */
+	roomNeeds: number;
+	/** Whether the Anything-else box has text. */
+	hasNote: boolean;
+	/** Set when the server saved but could not make the record bind. */
+	bindFailure: string | null;
+};
+
+/**
+ * THE CONFIRMATION — one plain sentence naming what was saved, the way the
+ * brief asks ("Saved John's availability, 2 room needs and 3 notes"). Only the
+ * parts that were really written are named; a count is never invented.
+ */
+export function describeSavedConcern(counts: ConcernSaveCounts): string {
+	const { teacherName, availabilityWindows, roomNeeds, hasNote, bindFailure } = counts;
+	const parts: string[] = [];
+	if (availabilityWindows > 0) parts.push(`${availabilityWindows === 1 ? 'their availability' : `their availability (${availabilityWindows} windows)`}`);
+	if (roomNeeds > 0) parts.push(`${roomNeeds === 1 ? '1 room need' : `${roomNeeds} room needs`}`);
+	if (hasNote) parts.push('your note');
+
+	const what = parts.length > 0 ? parts.join(', ') : 'nothing yet';
+	const head = `Saved ${teacherName}: ${what}.`;
+	if (!bindFailure) return head;
+	// The save succeeded and the refusal is real information, so both are said.
+	return `${head} ATLAS could not yet make it count for building the timetable: ${bindFailure}`;
+}
+
+/**
+ * The ONE status chip in the header. It reports the save state of the selected
+ * teacher in words — never `DRAFT`, `SUBMITTED`, `REVIEWED`, a version or a run
+ * id, which is the vocabulary this page was built to remove.
+ */
+export function concernSaveStateLabel(input: {
+	selected: boolean;
+	saved: boolean;
+	bindFailure: boolean;
+}): string {
+	if (!input.selected) return 'No teacher chosen';
+	if (input.bindFailure) return 'Saved, not yet counted';
+	return input.saved ? 'Saved' : 'Nothing saved yet';
+}
+
+export function concernSaveStateTone(input: { selected: boolean; saved: boolean; bindFailure: boolean }): 'outline' | 'success' | 'warning' {
+	if (!input.selected) return 'outline';
+	if (input.bindFailure) return 'warning';
+	return input.saved ? 'success' : 'outline';
+}
