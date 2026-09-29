@@ -299,6 +299,21 @@ function resolveActiveTermState(
 			return fail('ACTIVE_TERM_YEAR_MISMATCH', `EnrollPro active-term year ${String(payload.schoolYearId ?? 'missing')} does not match school year ${structure.schoolYear.id}.`);
 		}
 		const suppliedIdentity = payload.activeTerm ?? payload.termIdentity;
+		// A 200 that names no term (activeTerm null) is not a contradiction: EnrollPro has no
+		// term containing today, the same meaning as its 409 ACTIVE_TERM_UNRESOLVED.
+		if (suppliedIdentity === null || suppliedIdentity === undefined) {
+			return {
+				ok: true,
+				activeTerm: null,
+				state: {
+					availability: 'UNRESOLVED',
+					code: 'ACTIVE_TERM_UNRESOLVED',
+					message: 'EnrollPro has no term containing the current date; the ordered term structure was verified independently.',
+					reachable: true,
+					identity: null,
+				},
+			};
+		}
 		const activeIdentityKey = canonicalComparisonKey(suppliedIdentity);
 		const structureKeys = structure.terms.map((term) => canonicalComparisonKey(term.identity));
 		const activeTermIndex = activeIdentityKey ? structureKeys.indexOf(activeIdentityKey) : -1;

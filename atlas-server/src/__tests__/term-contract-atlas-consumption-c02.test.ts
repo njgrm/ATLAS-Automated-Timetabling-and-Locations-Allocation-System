@@ -121,6 +121,16 @@ test('C02: active-term HTTP 500 preserves the structure and reports availability
 	assert.equal(result.contract.activeTermState.reachable, true);
 });
 
+test('C02: active-term 200 with activeTerm null (live EnrollPro after rollover) keeps the structure as unresolved', async () => {
+	const result = await fetchWith(trimesterSchoolYear(), { body: { data: { activeTerm: null, activeTermLabel: null, termFormat: 'TRIMESTER', schoolYearId: SCHOOL_YEAR_ID } } });
+	assert.equal(result.ok, true);
+	if (!result.ok) return;
+	assert.equal(result.contract.terms.length, 3);
+	assert.equal(result.contract.activeTerm, null);
+	assert.equal(result.contract.activeTermState.availability, 'UNRESOLVED');
+	assert.equal(result.contract.activeTermState.code, 'ACTIVE_TERM_UNRESOLVED');
+});
+
 test('C02: an active-term identity outside the ordered structure fails typed', async () => {
 	const result = await fetchWith(trimesterSchoolYear(), { body: { data: { schoolId: SCHOOL_ID, schoolYearId: SCHOOL_YEAR_ID, activeTerm: 'T9' } } });
 	assert.equal(result.ok, false);
