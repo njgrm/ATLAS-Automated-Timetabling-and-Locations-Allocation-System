@@ -395,6 +395,25 @@ const MANUAL_INVARIANT_CODE: Record<CandidateInvariantReason, Violation['code']>
 	ROOM_TIME_CONFLICT: 'ROOM_TIME_CONFLICT',
 };
 
+/**
+ * A2 mc, S4b — the shared-invariant reason in the operator's words. `Manual
+ * candidate <entryId> rejected by shared invariant: <REASON>.` used to be the
+ * literal `humanDetail`, so this enum reached the screen. The machine value stays
+ * in `meta.candidateInvariant`, where a program reads it and a person does not.
+ */
+const MANUAL_INVARIANT_REASON_WORDS: Record<CandidateInvariantReason, string> = {
+	INVALID_IDENTIFIER: 'this class is not a class ATLAS can place',
+	INVALID_INTERVAL: 'the times chosen do not make a usable period',
+	HG_FORBIDDEN: 'this grouping is not allowed in this schedule',
+	NON_TEACHING_ROOM: 'that room is not a teaching room',
+	ROOM_SCOPE_MISMATCH: 'that room does not belong to this section',
+	ROOM_TYPE_MISMATCH: 'that room is the wrong kind of room for this subject',
+	ROOM_CAPACITY_EXCEEDED: 'that room is too small for this class',
+	FACULTY_TIME_CONFLICT: 'that teacher already teaches a class at this time',
+	SECTION_TIME_CONFLICT: 'this class already has a class at this time',
+	ROOM_TIME_CONFLICT: 'that room is already used at this time',
+};
+
 export function validateManualCandidateInvariants(
 	entry: ScheduledEntry,
 	entries: ScheduledEntry[],
@@ -448,7 +467,14 @@ export function validateManualCandidateInvariants(
 		...scope,
 		code: MANUAL_INVARIANT_CODE[reason],
 		severity: 'HARD' as const,
-		message: `Manual candidate ${entry.entryId} rejected by shared invariant: ${reason}.`,
+		/* A2 mc, S4b — COMPOSED FOR THE OPERATOR. This used to read
+		 * `Manual candidate ${entry.entryId} rejected by shared invariant: ${reason}.`
+		 * and reached the operator verbatim as `humanDetail`, because
+		 * `buildHumanConflicts` falls back to `v.message` for any code without a
+		 * `case`. The machine-readable facts are unchanged and still recorded where
+		 * a program reads them: `entities.entryIds` keeps the id and
+		 * `meta.candidateInvariant` keeps the reason. */
+		message: `ATLAS refused this change because the candidate breaks a rule every class must follow${MANUAL_INVARIANT_REASON_WORDS[reason] ? `: ${MANUAL_INVARIANT_REASON_WORDS[reason]}` : '.'}`,
 		entities: {
 			facultyId: entry.facultyId ?? undefined,
 			roomId: entry.roomId,
@@ -876,25 +902,63 @@ export function mergePreservedSummaryFields(existingSummary: unknown, newSummary
 
 // ─── Human-readable conflict builder ───
 
+/**
+ * A2 mc, S4b — every code this path can emit has a plain title.
+ *
+ * THE DEFECT. `const title = VIOLATION_TITLES[v.code] ?? v.code;` rendered the raw
+ * enum whenever the map missed: `SECTION_TIME_CONFLICT`, `ROOM_CAPACITY_EXCEEDED`,
+ * `UNASSIGNED_SECTION` and `INCOMPLETE_MODULAR_GROUP` had no entry, and those are
+ * exactly the codes a manual move produces most often.
+ *
+ * THE WORDING IS NOT INVENTED HERE. Every HARD entry is the wording already
+ * APPROVED on the client in `simple/SimpleTaskDrawerHelpers.tsx`
+ * (`HARD_VIOLATION_GROUP_MAP`), so the preview and Publish Readiness cannot drift.
+ */
 const VIOLATION_TITLES: Record<string, string> = {
-	FACULTY_TIME_CONFLICT: 'Faculty Time Conflict',
-	ROOM_TIME_CONFLICT: 'Room Time Conflict',
-	FACULTY_OVERLOAD: 'Faculty Overload',
-	ROOM_TYPE_MISMATCH: 'Room Type Mismatch',
-	ROOM_FEATURE_MISMATCH: 'Room Feature Mismatch',
-	FACULTY_SUBJECT_NOT_QUALIFIED: 'Faculty Not Qualified',
-	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: 'Consecutive Teaching Limit',
-	FACULTY_BREAK_REQUIREMENT_VIOLATED: 'Break Requirement Violated',
-	FACULTY_DAILY_STANDARD_EXCEEDED: 'Daily Load Warning',
-	FACULTY_DAILY_MAX_EXCEEDED: 'Daily Max Exceeded',
-	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: 'Excessive Building Transitions',
-	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: 'Insufficient Transition Buffer',
-	FACULTY_EXCESSIVE_IDLE_GAP: 'Excessive Idle Gap',
-	FACULTY_EARLY_START_PREFERENCE: 'Early Start Preference',
-	FACULTY_LATE_END_PREFERENCE: 'Late End Preference',
-	FACULTY_INSUFFICIENT_DAILY_VACANT: 'Insufficient Daily Vacant Time',
-	SECTION_OVERCOMPRESSED: 'Section Overcompressed',
+	// HARD — publication-blocking.
+	FACULTY_TIME_CONFLICT: 'Teacher double-booked',
+	ROOM_TIME_CONFLICT: 'Room double-booked',
+	SECTION_TIME_CONFLICT: 'Section double-booked',
+	FACULTY_OVERLOAD: 'Teacher overloaded',
+	FACULTY_SUBJECT_NOT_QUALIFIED: 'Teacher not qualified for subject',
+	LACKING_FACULTY: 'Missing teacher for this class',
+	INCOMPLETE_MODULAR_GROUP: 'Incomplete modular group',
+	ROOM_TYPE_MISMATCH: 'Room type mismatch',
+	ROOM_FEATURE_MISMATCH: 'Room missing a required feature',
+	FACULTY_DAILY_MAX_EXCEEDED: 'Daily maximum exceeded',
+	ROOM_CAPACITY_EXCEEDED: 'Room is too small for this class',
+	UNASSIGNED_SECTION: 'This class was not placed',
+
+	// SOFT — reviewable, not blocking.
+	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: 'Too many periods in a row',
+	FACULTY_BREAK_REQUIREMENT_VIOLATED: 'Break requirement not met',
+	FACULTY_DAILY_STANDARD_EXCEEDED: 'More teaching minutes than the daily target',
+	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: 'Too many building changes in a day',
+	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: 'Not enough time to move between buildings',
+	FACULTY_EXCESSIVE_IDLE_GAP: 'A long gap between this teacher’s classes',
+	FACULTY_EARLY_START_PREFERENCE: 'Early start preference',
+	FACULTY_LATE_END_PREFERENCE: 'Late finish preference',
+	FACULTY_INSUFFICIENT_DAILY_VACANT: 'Not enough free time in the day',
+	FACULTY_LUNCH_WINDOW_VIOLATION: 'No free lunch window for this teacher',
+	SPECIALIZED_ROOM_UNAVAILABLE: 'Specialized room unavailable',
+	SECTION_OVERCOMPRESSED: 'Class is packed too tightly',
 };
+
+/**
+ * A2 mc, S4b — the fallback for a code nobody mapped is a PLAIN SENTENCE.
+ *
+ * This used to be `v.code`, so an unmapped code reached the operator as
+ * `SOME_RULE_CODE`. It now degrades to one shared sentence and the raw enum is
+ * unreachable from any rendered human conflict.
+ */
+const UNNAMED_RULE_TITLE = 'A scheduling rule needs attention';
+
+/** A code nobody mapped degrades to one plain sentence; the raw enum never renders. */
+function plainViolationTitle(code: string): string {
+	const mapped = VIOLATION_TITLES[code];
+	if (mapped) return mapped;
+	return UNNAMED_RULE_TITLE;
+}
 
 const DAY_LABELS: Record<string, string> = {
 	MONDAY: 'Mon', TUESDAY: 'Tue', WEDNESDAY: 'Wed', THURSDAY: 'Thu', FRIDAY: 'Fri',
@@ -916,7 +980,7 @@ export function buildHumanConflicts(
 	const entryMap = new Map(entries.map((e) => [e.entryId, e]));
 
 	return violations.map((v) => {
-		const title = VIOLATION_TITLES[v.code] ?? v.code;
+		const title = plainViolationTitle(v.code);
 		let detail = v.message; // fallback
 		let delta: string | undefined;
 
@@ -1105,7 +1169,7 @@ export function buildPolicyImpacts(violations: Violation[], refData: Awaited<Ret
 			continue; // Only include policy threshold violations
 		}
 
-		impacts.push({ code: v.code, label: VIOLATION_TITLES[v.code] ?? v.code, summary, severity: v.severity });
+			impacts.push({ code: v.code, label: plainViolationTitle(v.code), summary, severity: v.severity });
 	}
 
 	return impacts;
@@ -2321,14 +2385,59 @@ function findAutoFixTarget(
 	const excludeOwn = (slot: { day: string; startTime: string; endTime: string }, moved: ScheduledEntry) =>
 		!(slot.day === moved.day && slot.startTime === moved.startTime && slot.endTime === moved.endTime);
 
+	/**
+	 * A2 mc R2 (B4a) — IS THE SLOT ACTUALLY FREE FOR THE ENTRY BEING MOVED?
+	 *
+	 * THE MEASURED DEFECT. `poolFor` is documented as "every slot the run uses in
+	 * this term inside the shift bounds", which on the operator's run means every
+	 * period of every day — mostly slots that are OCCUPIED. Each occupied slot was
+	 * then run through `applySwapWithTarget` + a WHOLE-RUN `validateHardConstraints`
+	 * + `buildSwapPreviewFromValidation`, and `buildSwapPreviewFromValidation` calls
+	 * `buildHumanConflicts` over every violation the run holds (525 of them on this
+	 * run). So one swap preview cost N x (whole-run validation + 525 human-conflict
+	 * sentences) with N around forty, twice over — once for the blocking pool and
+	 * once for the source pool — and the client has no timeout, so the dialog sat
+	 * on "Checking options..." indefinitely. That is the demo blocker.
+	 *
+	 * NO CANDIDATE IS FILTERED OUT. An earlier revision of this fix added a
+	 * `slotIsFreeFor` predicate here, on the argument that an occupied slot could
+	 * never win. That argument was WRONG, and QA measured the consequence: `poolFor`
+	 * builds its slots FROM the run's own entries, so every slot it emits is by
+	 * construction occupied. `slotIsFreeFor` therefore rejected every candidate in
+	 * every run -- 34 -> 0 blocking candidates on a realistic 105-entry run -- which
+	 * silently disabled the whole auto-fix and broke the D1-ALT/D2 assertions in
+	 * `timetable-swap-custody-a2.test.ts`, whose fixture exists precisely so the
+	 * fix cannot be satisfied by disabling the feature. The two classes that share
+	 * no section, room or faculty are NOT a conflict, so a legal occupied target
+	 * exists. The predicate is removed; the remaining optimisation (rank without a
+	 * preview, one preview for the winner) is the part QA proved equivalent.
+	 */
 	// `AUTO_FIX_MOVE_BLOCKING` relocates the BLOCKING entry (B) to a target;
 	// `AUTO_FIX_MOVE_SOURCE` relocates the SELECTED entry (A) instead. Each pool is
 	// bounded by the scope of the session it is about to move.
-	const blockingCandidates = poolFor(entryB).filter((slot) => excludeOwn(slot, entryB));
-	const sourceCandidates = poolFor(entryA).filter((slot) => excludeOwn(slot, entryA));
+	const blockingCandidates = poolFor(entryB)
+		.filter((slot) => excludeOwn(slot, entryB));
+	const sourceCandidates = poolFor(entryA)
+		.filter((slot) => excludeOwn(slot, entryA));
 
-	let bestBlocking: { target: { day: string; startTime: string; endTime: string }; preview: PreviewResult; softCount: number } | null = null;
-	let bestSource: { target: { day: string; startTime: string; endTime: string }; preview: PreviewResult; softCount: number } | null = null;
+	/**
+	 * The comparison a candidate must win, computed WITHOUT building its preview.
+	 *
+	 * `buildSwapPreviewFromValidation` derives `hardViolations` and `softViolations`
+	 * straight off `nextValidation` and then calls `buildHumanConflicts` over both —
+	 * the expensive half. The loop below used only the two counts, so it now reads
+	 * them off the validation and builds the winner's preview ONCE, after the loop.
+	 * `buildHumanConflicts` is a pure function of the same three arguments, so the
+	 * preview the operator finally sees is byte-identical to the one the per-candidate
+	 * call would have produced.
+	 */
+	const rank = (validation: ValidationResult): { hard: number; soft: number } => ({
+		hard: validation.violations.filter((v) => v.severity === 'HARD').length,
+		soft: validation.violations.filter((v) => v.severity === 'SOFT').length,
+	});
+
+	let bestBlocking: { target: { day: string; startTime: string; endTime: string }; entries: ScheduledEntry[]; validation: ValidationResult; softCount: number } | null = null;
+	let bestSource: { target: { day: string; startTime: string; endTime: string }; entries: ScheduledEntry[]; validation: ValidationResult; softCount: number } | null = null;
 
 	for (const target of blockingCandidates) {
 		if ((timeToMinutes(target.endTime) - timeToMinutes(target.startTime)) !== entryB.durationMinutes) continue;
@@ -2336,36 +2445,43 @@ function findAutoFixTarget(
 			entryATarget: { day: entryB.day, startTime: entryB.startTime, endTime: entryB.endTime },
 			entryBTarget: target,
 		});
-		const blockingValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, runId, blockingEntries, refData));
-		const blockingPreview = buildSwapPreviewFromValidation(currentValidation, blockingValidation, blockingEntries, refData, entryA, entryB, target);
-		if (blockingPreview.hardViolations.length === 0) {
-			const softCount = blockingPreview.softViolations.length;
-			if (!bestBlocking || softCount < bestBlocking.softCount) {
-				bestBlocking = { target, preview: blockingPreview, softCount };
-			}
-		}
+		const validation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, runId, blockingEntries, refData));
+		const { hard, soft } = rank(validation);
+		if (hard !== 0) continue;
+		if (bestBlocking && soft >= bestBlocking.softCount) continue;
+		bestBlocking = { target, entries: blockingEntries, validation, softCount: soft };
+		// Nothing can beat zero warnings, so the search is finished for this side.
+		if (bestBlocking.softCount === 0) break;
 	}
 
 	for (const target of sourceCandidates) {
 		if ((timeToMinutes(target.endTime) - timeToMinutes(target.startTime)) !== entryA.durationMinutes) continue;
 		const sourceEntries = applyMoveOnly(entries, entryA, target);
-		const sourceValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, runId, sourceEntries, refData));
-		const sourcePreview = buildSwapPreviewFromValidation(currentValidation, sourceValidation, sourceEntries, refData, entryA, entryB, {
-			day: entryB.day,
-			startTime: entryB.startTime,
-			endTime: entryB.endTime,
-		});
-		if (sourcePreview.hardViolations.length === 0) {
-			const softCount = sourcePreview.softViolations.length;
-			if (!bestSource || softCount < bestSource.softCount) {
-				bestSource = { target, preview: sourcePreview, softCount };
-			}
-		}
+		const validation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, runId, sourceEntries, refData));
+		const { hard, soft } = rank(validation);
+		if (hard !== 0) continue;
+		if (bestSource && soft >= bestSource.softCount) continue;
+		bestSource = { target, entries: sourceEntries, validation, softCount: soft };
+		if (bestSource.softCount === 0) break;
 	}
 
 	return {
-		blocking: bestBlocking ? { target: bestBlocking.target, preview: bestBlocking.preview } : null,
-		source: bestSource ? { target: bestSource.target, preview: bestSource.preview } : null,
+		blocking: bestBlocking
+			? {
+				target: bestBlocking.target,
+				preview: buildSwapPreviewFromValidation(currentValidation, bestBlocking.validation, bestBlocking.entries, refData, entryA, entryB, bestBlocking.target),
+			}
+			: null,
+		source: bestSource
+			? {
+				target: bestSource.target,
+				preview: buildSwapPreviewFromValidation(currentValidation, bestSource.validation, bestSource.entries, refData, entryA, entryB, {
+					day: entryB.day,
+					startTime: entryB.startTime,
+					endTime: entryB.endTime,
+				}),
+			}
+			: null,
 	};
 }
 

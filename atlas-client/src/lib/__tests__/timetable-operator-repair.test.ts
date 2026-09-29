@@ -12,17 +12,29 @@ function source(path: string): string {
 
 test('R3 Simple selected-class menu exposes Change room', () => {
 	const workspace = source('src/components/timetable/ScheduleReviewWorkspace.tsx');
+	// REPOINTED (A2 mc R2, 2026-09-30), not weakened. The selected-class
+	// `DropdownMenuContent` moved to `ScheduleReviewWorkspaceSelectedActions.tsx` so the
+	// workspace could stay under AGENTS.md section 8's 1000-line cap while the class-lock
+	// row was added. The handler is still declared and passed by the workspace; the
+	// `DropdownMenuItem` markup and its label now live in the extracted file. Every
+	// assertion below is still the original one.
+	const selectedActions = source('src/components/timetable/ScheduleReviewWorkspaceSelectedActions.tsx');
 	assert.match(workspace, /openSelectedChangeRoom/);
 	assert.match(workspace, /enterManualEditView\('CHANGE_ROOM'\)/);
-	assert.match(workspace, /timetable-simple-selected-change-room-action/);
-	assert.match(workspace, /Change room/);
+	assert.match(selectedActions, /timetable-simple-selected-change-room-action/);
+	assert.match(selectedActions, /Change room/);
 });
 
 test('R3 bulk teacher leaving is not labelled as a one-class teacher change', () => {
 	const workspace = source('src/components/timetable/ScheduleReviewWorkspace.tsx');
+	// REPOINTED (A2 mc R2, 2026-09-30) with the menu extraction above: the owner-departure
+	// label is markup, so it is asserted where the markup now is. The two negative
+	// assertions still guard the workspace itself.
+	const selectedActions = source('src/components/timetable/ScheduleReviewWorkspaceSelectedActions.tsx');
 	assert.doesNotMatch(workspace, />\s*Change teacher\s*</);
 	assert.doesNotMatch(workspace, /Reassign teacher/);
-	assert.match(workspace, /Teacher leaving \(all classes\)/);
+	assert.doesNotMatch(selectedActions, />\s*Change teacher\s*</);
+	assert.match(selectedActions, /Teacher leaving \(all classes\)/);
 });
 
 test('R3 owner repair deep-links to Teaching Load with exact context', () => {
