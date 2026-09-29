@@ -50,7 +50,7 @@ export function TeachingLoadCandidateDiagnostics({ rejections }: TeachingLoadCan
 									{group.label}
 								</span>
 							</TooltipTrigger>
-							<TooltipContent side="top" className="max-w-72 text-xs leading-relaxed">{group.detail}</TooltipContent>
+							<TooltipContent side="top" className="max-w-72 leading-relaxed">{group.detail}</TooltipContent>
 						</Tooltip>
 						{group.facultyNames.length > 0 && (
 							<TooltipProvider>

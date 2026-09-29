@@ -40,7 +40,7 @@ export function TeachingLoadAlertChipNotice({ chip }: { chip: TeachingLoadAlertC
 					· {chip.label}
 				</span>
 			</TooltipTrigger>
-			<TooltipContent side="bottom" className="max-w-80 text-xs font-semibold">
+			<TooltipContent side="bottom" className="max-w-80 font-semibold">
 				{chip.tooltip}
 			</TooltipContent>
 		</Tooltip>

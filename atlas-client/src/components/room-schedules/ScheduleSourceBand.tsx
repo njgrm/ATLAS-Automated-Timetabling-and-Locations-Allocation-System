@@ -122,7 +122,7 @@ export function ScheduleSourceBand({
 							</Select>
 						</div>
 					</TooltipTrigger>
-					<TooltipContent side="bottom" className="max-w-xs text-xs">
+					<TooltipContent side="bottom" className="max-w-xs">
 						One term at a time. A week built from all three terms would show the same class
 						three times in one slot and report conflicts that do not exist.
 					</TooltipContent>

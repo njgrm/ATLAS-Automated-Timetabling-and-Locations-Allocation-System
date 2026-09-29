@@ -128,7 +128,7 @@ export function AdminStatBanner({ items }: { items: AdminStatItem[] }) {
 										<Info className="size-3.5 opacity-70" />
 									</Button>
 								</TooltipTrigger>
-								<TooltipContent side="bottom" className="max-w-64 text-xs leading-relaxed">
+								<TooltipContent side="bottom" className="max-w-64 leading-relaxed">
 									{item.helpText}
 								</TooltipContent>
 							</Tooltip>

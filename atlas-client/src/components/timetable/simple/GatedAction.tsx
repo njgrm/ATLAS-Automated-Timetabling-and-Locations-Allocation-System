@@ -41,7 +41,7 @@ export function GatedAction({ disabled, reason, children }: { disabled: boolean;
 						{children}
 					</span>
 				</TooltipTrigger>
-				<TooltipContent side="bottom" className="max-w-xs text-xs leading-relaxed">
+				<TooltipContent side="bottom" className="max-w-xs leading-relaxed">
 					{reason}
 				</TooltipContent>
 			</Tooltip>

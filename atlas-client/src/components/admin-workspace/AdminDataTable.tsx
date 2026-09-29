@@ -325,7 +325,7 @@ export function AdminDataTable<TData, TSort extends string = string>({
 																		</span>
 																	</Button>
 																</TooltipTrigger>
-																<TooltipContent side="top" className="text-xs">
+																<TooltipContent side="top">
 																	{sortAriaLabel(column as AdminDataTableColumn<unknown, TSort>, sort)}
 																</TooltipContent>
 															</Tooltip>

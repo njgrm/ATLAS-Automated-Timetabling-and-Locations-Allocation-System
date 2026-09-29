@@ -125,7 +125,7 @@ export function CompactTitleStrip({
 							</TooltipTrigger>
 							<TooltipContent
 								side="bottom"
-								className="max-w-72 p-3 text-xs font-medium leading-relaxed"
+								className="max-w-72 p-3 font-medium leading-relaxed"
 								data-testid="compact-title-strip-status-tooltip"
 							>
 								<p className="font-semibold text-foreground">{statusDescription}</p>

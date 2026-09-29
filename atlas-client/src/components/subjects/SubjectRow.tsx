@@ -377,7 +377,7 @@ export function SubjectRow({
 								)}
 							</button>
 						</TooltipTrigger>
-						<TooltipContent side="top" className="max-w-64 text-xs leading-relaxed">
+						<TooltipContent side="top" className="max-w-64 leading-relaxed">
 							{coverageHelp}
 						</TooltipContent>
 					</Tooltip>

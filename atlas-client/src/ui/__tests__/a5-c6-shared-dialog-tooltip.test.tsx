@@ -27,6 +27,13 @@
  * A5-35.1-C3  the `/teachers` quick-filter helpers are the real sentences that
  *             were being clipped, and each is longer than the narrow cap, so
  *             wrapping is the only way to read them.
+ * A7C10-C1     the shared tooltip is a WHITE bubble: white surface token, dark
+ *             text token, a border and a shadow for the edge, 15px type, and no
+ *             dark surface by any spelling (operator, 2026-09-29: "Why on earth
+ *             are the tooltips black? Why is it not just white with a shadowed
+ *             background?").
+ * A7C10-C2     the width cap is the operator's ~22rem, and the previous 24rem
+ *             desktop cap is rejected as too wide.
  * A5-23.2-C1  `clampDialogResizeWidthPx` — the pure width decision, at 1366
  *             and on a phone.
  * A5-23.2-C2  MUTANT: a mutated clamp (no 95vw ceiling) is caught, so C1 is
@@ -156,7 +163,12 @@ const tooltipSource = SRC('ui/tooltip.tsx');
 
 test('A5-35.1-C1 the shared tooltip carries the WRAP contract, and no longer forces nowrap', () => {
 	// The wrap contract the operator asked for, verbatim.
-	for (const token of ['w-max', 'max-w-xs', 'md:max-w-sm', 'whitespace-normal', 'break-words', 'leading-normal']) {
+	// SUPERSEDED 2026-09-29 (A7 c10): the cap token moved from
+	// `max-w-xs md:max-w-sm` (20rem / 24rem) to `max-w-[22rem]`, the operator's
+	// "about 22rem". The old tokens are NOT re-added below; A7C10-C2 is the
+	// replacement assertion, and A5-35.1-C2 below now proves the previous
+	// desktop value (24rem) is rejected as too wide.
+	for (const token of ['w-max', 'max-w-[22rem]', 'whitespace-normal', 'break-words', 'leading-normal']) {
 		assert.ok(
 			tooltipSource.includes(token),
 			`src/ui/tooltip.tsx is missing the wrap token "${token}"`,
@@ -182,18 +194,87 @@ test('A5-35.1-C1 the shared tooltip carries the WRAP contract, and no longer for
 });
 
 // ===========================================================================
+// A7 C10 (operator, 2026-09-29) — "Why on earth are the tooltips black? Why is
+// it not just white with a shadowed background?" The primitive is WHITE now.
+// ===========================================================================
+
+test('A7C10-C1 the shared tooltip renders a WHITE bubble with a dark text, an edge, and 15px type', () => {
+	const classList = /className=\{cn\(\s*'([^']*)'/.exec(tooltipSource)?.[1] ?? '';
+	assert.ok(classList.length > 0, 'could not read the shared TooltipContent class list');
+
+	// The surface and its text, on the app's own tokens (index.css: `--popover:
+	// 0 0% 100%`, `--popover-foreground: 222 47% 11%`).
+	assert.match(classList, /\bbg-popover\b/, 'the tooltip surface is not the white app token');
+	assert.match(classList, /\btext-popover-foreground\b/, 'the tooltip text is not the app dark-foreground token');
+
+	// THE EDGE IS WHAT MAKES WHITE SAFE. The 2026-09-28 "blank white pill" report
+	// was an edge problem, not a lightness problem, and the fix for an edge is a
+	// border and a shadow — see the file's own history paragraph.
+	assert.match(classList, /\bborder\b/, 'the white bubble has no border, so it is invisible on a white surface again');
+	assert.match(classList, /\bborder-border\b/, 'the tooltip border is not the app border token');
+	assert.match(classList, /\bshadow-md\b/, 'the white bubble has no shadow to lift it off the surface');
+
+	// The size. `text-sm` is `0.9375rem` (15px) in this design system; the
+	// operator's floor is "nothing under 14px".
+	assert.match(classList, /\btext-sm\b/, 'the tooltip is not on the app 15px step');
+	assert.equal(
+		/(?:^|\s)text-xs(?:\s|$)/.test(classList),
+		false,
+		'the primitive still sets its own text-xs; size belongs on the one primitive',
+	);
+
+	// NO dark surface may come back on the primitive, by any spelling.
+	for (const forbidden of ['bg-slate-900', 'bg-slate-8', 'bg-slate-950', 'text-white', 'text-slate-100', 'dark:bg', 'dark:text', 'shadow-none']) {
+		assert.equal(
+			classList.includes(forbidden),
+			false,
+			`the shared tooltip re-introduces "${forbidden}", so the bubble goes black or loses its edge again`,
+		);
+	}
+
+	// The file's doc comment must not still claim the dark palette is standard.
+	assert.equal(
+		/application standard dark tooltip style/.test(tooltipSource),
+		false,
+		'the doc comment still claims the dark palette is the application standard; the operator has ruled white correct',
+	);
+});
+
+test('A7C10-C2 the width cap is the operator\'s ~22rem, and the previous 24rem desktop cap is rejected', () => {
+	const classList = /className=\{cn\(\s*'([^']*)'/.exec(tooltipSource)?.[1] ?? '';
+	assert.ok(classList.includes('max-w-[22rem]'), 'the tooltip width cap is not 22rem');
+	for (const tooWide of ['md:max-w-sm', 'md:max-w-md', 'max-w-lg', 'max-w-xl']) {
+		assert.equal(
+			classList.includes(tooWide),
+			false,
+			`the tooltip cap still carries "${tooWide}", which is wider than the ~22rem the operator asked for`,
+		);
+	}
+});
+
+// ===========================================================================
 // A5-35.1 — MUTANT CONTROL. Without this row, C1 asserts nothing.
 // ===========================================================================
 
 test('A5-35.1-C2 MUTANT: a whitespace-nowrap tooltip is REJECTED by C1\'s predicate, so C1 is not vacuous', () => {
 	// Two mutants, both real historical class lists for this primitive.
+	//
+	// SUPERSEDED 2026-09-29 (A7 c10). These two lists used to be the REQUIRED
+	// set, which meant the dark palette was asserted as load-bearing by two
+	// mutant controls. The operator ruled white correct, so the required set is
+	// now the white contract below. The two historical strings are KEPT, and
+	// their role is INVERTED: they are now the mutants that must be REJECTED.
+	// Nothing here was deleted to make a test pass — the old lists are still in
+	// this file, asserted from the other direction.
 	const MUTANTS = [
-		// The pre-item-35.1 list: correct style, but forced onto one line.
+		// The pre-item-35.1 dark list: correct geometry, forced onto one line.
 		'z-50 rounded-md bg-slate-900 px-2.5 py-1 text-xs font-medium text-white shadow-md whitespace-nowrap pointer-events-none animate-in',
-		// The pre-item-34 list: the white pill on a white card.
+		// The pre-item-34 list: the white pill on a white card, with no edge.
 		'z-[9999] overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md animate-in',
 	];
-	const REQUIRED = ['z-50', 'bg-slate-900', 'text-white', 'font-medium', 'text-xs', 'px-2.5', 'py-1', 'rounded-md', 'shadow-md', 'pointer-events-none', 'w-max', 'max-w-xs', 'whitespace-normal', 'break-words', 'leading-normal'];
+	// The A7 c10 contract: white surface, dark text, a visible edge, 15px type,
+	// and the operator's ~22rem cap.
+	const REQUIRED = ['z-50', 'bg-popover', 'text-popover-foreground', 'border', 'border-border', 'font-medium', 'text-sm', 'px-2.5', 'py-1', 'rounded-md', 'shadow-md', 'pointer-events-none', 'w-max', 'max-w-[22rem]', 'whitespace-normal', 'break-words', 'leading-normal'];
 	const missing = (className: string) => {
 		const tokens = className.split(/\s+/).filter(Boolean);
 		return REQUIRED.filter((token) => !tokens.includes(token));
@@ -203,10 +284,26 @@ test('A5-35.1-C2 MUTANT: a whitespace-nowrap tooltip is REJECTED by C1\'s predic
 		nowrapMutant.includes('whitespace-normal'),
 		'MUTANT CONTROL DID NOT FIRE: re-adding whitespace-nowrap still passes, so the wrap contract is decoration',
 	);
-	assert.ok(
-		missing(MUTANTS[1]!).length > 0,
-		'MUTANT CONTROL DID NOT FIRE: the white-pill list passes, so the style check is not load-bearing',
-	);
+	// INVERTED ROW: the list that was "the standard" until 2026-09-29 is now a
+	// REJECTED mutant. This is the control that proves the white contract
+	// discriminates and is not a rename of the dark one.
+	for (const token of ['bg-popover', 'text-popover-foreground', 'border-border', 'text-sm', 'max-w-[22rem]']) {
+		assert.ok(
+			missing(MUTANTS[0]!).includes(token),
+			`MUTANT CONTROL DID NOT FIRE: the superseded dark list still passes for "${token}", so the white contract is not load-bearing`,
+		);
+	}
+	// And the pre-item-34 white pill is still rejected — and it is rejected for
+	// the reason that matters now: no border TOKEN, not "it is too light". Note
+	// it did carry a bare `border` and a `shadow-md`; what it lacked is
+	// `border-border`, the hairline that is actually visible on this palette.
+	assert.ok(missing(MUTANTS[1]!).length > 0, 'the white-pill list passes, so the style check is not load-bearing');
+	for (const token of ['border-border', 'z-50', 'w-max', 'max-w-[22rem]', 'whitespace-normal', 'break-words', 'leading-normal']) {
+		assert.ok(
+			missing(MUTANTS[1]!).includes(token),
+			`MUTANT CONTROL DID NOT FIRE: the white-pill list must be rejected for "${token}", not merely for cosmetics`,
+		);
+	}
 
 	// And the LIVE class list passes the same predicate — same predicate,
 	// opposite outcome. A predicate that rejects everything is not a control.

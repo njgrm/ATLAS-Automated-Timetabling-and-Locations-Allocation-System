@@ -190,7 +190,7 @@ export function SimpleWarningsControl({
 		<TooltipProvider delayDuration={200}>
 			<Tooltip>
 				<TooltipTrigger asChild>{button}</TooltipTrigger>
-				<TooltipContent side="bottom" className="max-w-xs text-xs leading-relaxed">
+				<TooltipContent side="bottom" className="max-w-xs leading-relaxed">
 					<span className="block font-semibold">Technical detail</span>
 					<span className="mt-1 block">{diagnostic}</span>
 				</TooltipContent>

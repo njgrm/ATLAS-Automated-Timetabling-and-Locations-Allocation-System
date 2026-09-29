@@ -777,7 +777,7 @@ export function WorkspaceToolbar({
 							<span className="sm:hidden">{primaryAction.shortLabel}</span>
 						</Button>
 					</TooltipTrigger>
-					<TooltipContent side="bottom" className="max-w-62.5 text-xs font-semibold">
+					<TooltipContent side="bottom" className="max-w-62.5 font-semibold">
 						{primaryAction.helper}
 					</TooltipContent>
 				</Tooltip>
@@ -836,7 +836,7 @@ export function WorkspaceToolbar({
 								</DropdownMenuContent>
 							</DropdownMenu>
 						</TooltipTrigger>
-						<TooltipContent side="bottom" className="text-xs font-bold">More teaching-load tools</TooltipContent>
+						<TooltipContent side="bottom" className="font-bold">More teaching-load tools</TooltipContent>
 					</Tooltip>
 				</>
 			}
@@ -933,7 +933,7 @@ export function WorkspaceToolbar({
 							<span>{degradedLead}</span>
 						</span>
 					</TooltipTrigger>
-					<TooltipContent side="bottom" className="max-w-80 text-xs font-semibold">
+					<TooltipContent side="bottom" className="max-w-80 font-semibold">
 						{degradedDetail}
 					</TooltipContent>
 					</Tooltip>

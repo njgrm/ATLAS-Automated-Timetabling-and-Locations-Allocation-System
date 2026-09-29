@@ -526,7 +526,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context, onEditDraft, onDiscardDraf
 									</span>
 								</Badge>
 							</TooltipTrigger>
-							<TooltipContent side="bottom" className="max-w-xs text-xs" data-testid="timetable-term-authority-unverified-disclosure">
+							<TooltipContent side="bottom" className="max-w-xs" data-testid="timetable-term-authority-unverified-disclosure">
 								{termAuthorityNotice}
 							</TooltipContent>
 						</Tooltip>

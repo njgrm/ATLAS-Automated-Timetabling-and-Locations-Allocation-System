@@ -83,7 +83,7 @@ export function MetricExplain({ label, explanation }: { label: string; explanati
 						{label}
 					</button>
 				</TooltipTrigger>
-				<TooltipContent className="max-w-65 text-xs font-normal leading-relaxed" side="bottom">
+				<TooltipContent className="max-w-65 font-normal leading-relaxed" side="bottom">
 					{explanation}
 				</TooltipContent>
 			</Tooltip>

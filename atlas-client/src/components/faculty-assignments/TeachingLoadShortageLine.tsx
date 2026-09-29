@@ -137,7 +137,7 @@ export function TeachingLoadShortageLine({
 							{`+${line.moreSubjectCount} more`}
 						</Button>
 					</TooltipTrigger>
-					<TooltipContent side="bottom" className="max-w-72 text-xs font-medium">
+					<TooltipContent side="bottom" className="max-w-72 font-medium">
 						{line.moreLabel}
 					</TooltipContent>
 				</Tooltip>
@@ -162,7 +162,7 @@ export function TeachingLoadShortageLine({
 							</Button>
 						</span>
 					</TooltipTrigger>
-					<TooltipContent side="bottom" className="max-w-72 text-xs font-semibold">
+					<TooltipContent side="bottom" className="max-w-72 font-semibold">
 						{writeBlockedReason
 							? writeBlockedReason
 							: figuresVerified

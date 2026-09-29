@@ -132,7 +132,7 @@ export function SimpleHeaderMessageRow({ message }: { message: SimpleHeaderMessa
 						{message.text}
 					</p>
 				</TooltipTrigger>
-				<TooltipContent side="bottom" className="max-w-xs text-xs leading-relaxed">
+				<TooltipContent side="bottom" className="max-w-xs leading-relaxed">
 					<span className="block font-semibold">Technical detail</span>
 					<span className="mt-1 block">{message.diagnostic}</span>
 				</TooltipContent>

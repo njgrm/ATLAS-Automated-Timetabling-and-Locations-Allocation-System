@@ -75,7 +75,7 @@ export function StatItem({
 						{content}
 					</Button>
 				</TooltipTrigger>
-				<TooltipContent className="max-w-55 text-xs font-normal leading-relaxed" side="bottom">
+				<TooltipContent className="max-w-55 font-normal leading-relaxed" side="bottom">
 					{explanation}
 				</TooltipContent>
 			</Tooltip>
@@ -92,7 +92,7 @@ export function MetricExplain({ label, explanation }: { label: string; explanati
 						{label}
 					</Button>
 				</TooltipTrigger>
-				<TooltipContent className="max-w-65 text-xs font-normal leading-relaxed" side="bottom">
+				<TooltipContent className="max-w-65 font-normal leading-relaxed" side="bottom">
 					{explanation}
 				</TooltipContent>
 			</Tooltip>
@@ -199,7 +199,7 @@ export function ViolationGroup({
 												</span>
 													</Button>
 												</TooltipTrigger>
-								<TooltipContent className="z-[100] max-w-[min(18rem,calc(100vw-2rem))] whitespace-normal break-words text-xs font-normal leading-relaxed space-y-1 py-2 px-3 border-amber-200 bg-amber-50 text-amber-900" side="right">
+								<TooltipContent className="z-[100] max-w-[min(18rem,calc(100vw-2rem))] whitespace-normal break-words font-normal leading-relaxed space-y-1 py-2 px-3 border-amber-200 bg-amber-50 text-amber-900" side="right">
 									<div className="font-semibold text-amber-700 pb-1 mb-1 border-b border-amber-200/60">Details</div>
 													{v.meta.consecutiveMinutes != null && v.meta.maxConsecutive != null && (
 														<div>Observed: {String(v.meta.consecutiveMinutes)} minutes · Limit: {String(v.meta.maxConsecutive)} minutes · <span className="font-semibold">Δ +{Number(v.meta.consecutiveMinutes) - Number(v.meta.maxConsecutive)} minutes</span></div>

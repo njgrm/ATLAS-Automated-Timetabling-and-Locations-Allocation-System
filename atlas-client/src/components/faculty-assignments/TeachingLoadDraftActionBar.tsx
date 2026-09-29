@@ -86,7 +86,7 @@ export function TeachingLoadDraftActionBar({
 						<Undo2 className="size-4" />
 					</Button>
 				</TooltipTrigger>
-				<TooltipContent side="bottom" className="text-xs font-semibold">Undo change</TooltipContent>
+				<TooltipContent side="bottom" className="font-semibold">Undo change</TooltipContent>
 			</Tooltip>
 
 			<Tooltip>
@@ -103,7 +103,7 @@ export function TeachingLoadDraftActionBar({
 						<Redo2 className="size-4" />
 					</Button>
 				</TooltipTrigger>
-				<TooltipContent side="bottom" className="text-xs font-semibold">Redo change</TooltipContent>
+				<TooltipContent side="bottom" className="font-semibold">Redo change</TooltipContent>
 			</Tooltip>
 
 			<Button

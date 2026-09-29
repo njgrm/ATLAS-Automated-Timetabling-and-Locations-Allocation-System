@@ -154,7 +154,7 @@ export const EntrySeverityIndicator = memo(function EntrySeverityIndicator({
 						<span className="truncate">{warningSummary}</span>
 					</span>
 				</TooltipTrigger>
-				<TooltipContent side="bottom" className="z-100 max-w-sm space-y-1.5 p-2 text-xs" data-testid="timetable-entry-warning-tooltip">
+				<TooltipContent side="bottom" className="z-100 max-w-sm space-y-1.5 p-2" data-testid="timetable-entry-warning-tooltip">
 					<p className={cn('font-semibold', severity === 'HARD' ? 'text-red-800' : 'text-amber-900')}>{warningSummary}</p>
 					{allWarnings.map((warning, warningIndex) => (
 						<p key={`${warning.severity}-${warningIndex}`}>
@@ -222,7 +222,7 @@ export const ConflictBadgeWithTooltip = memo(function ConflictBadgeWithTooltip({
 	return (
 		<Tooltip open={isOpen} onOpenChange={setIsOpen}>
 			<TooltipTrigger asChild>{badge}</TooltipTrigger>
-			<TooltipContent side="right" className="z-100 max-w-64 space-y-1.5 p-2 text-xs">
+			<TooltipContent side="right" className="z-100 max-w-64 space-y-1.5 p-2">
 				<p className={cn('font-semibold', info.kind === 'hard' ? 'text-red-700' : 'text-amber-700')}>
 					{info.kind === 'hard' ? 'Must fix - fix before saving' : 'Warning - review before saving'}
 				</p>

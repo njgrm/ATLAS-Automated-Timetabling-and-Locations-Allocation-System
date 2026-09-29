@@ -370,7 +370,7 @@ export function CoverShortageDialog({
 											</Button>
 										</span>
 									</TooltipTrigger>
-									<TooltipContent side="bottom" className="max-w-64 text-xs">
+									<TooltipContent side="bottom" className="max-w-64">
 										ATLAS checks the plan without saving anything.
 									</TooltipContent>
 								</Tooltip>
@@ -390,7 +390,7 @@ export function CoverShortageDialog({
 											</Button>
 										</span>
 									</TooltipTrigger>
-									<TooltipContent side="bottom" className="max-w-64 text-xs font-semibold">
+									<TooltipContent side="bottom" className="max-w-64 font-semibold">
 										{disabledReason ?? 'Save a to-be-hired teacher and the classes this load covers.'}
 									</TooltipContent>
 								</Tooltip>

@@ -186,7 +186,7 @@ export function AppSidebar({
 																<span className='text-xs text-muted-foreground'>Working from saved data</span>
 													</div>
 												</TooltipTrigger>
-															<TooltipContent side="right" className="p-2 text-xs font-semibold">
+															<TooltipContent side="right" className="p-2 font-semibold">
 													Unable to reach EnrollPro. Using saved school year data.
 												</TooltipContent>
 											</Tooltip>

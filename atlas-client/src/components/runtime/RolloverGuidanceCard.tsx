@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, Archive, CheckCircle2, Loader2, RefreshCw, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -674,7 +674,7 @@ export function RolloverGuidanceCard({
 									<X className="size-3.5" />
 								</Button>
 							</TooltipTrigger>
-							<TooltipContent side="bottom" className="text-xs">Hide this status</TooltipContent>
+							<TooltipContent side="bottom">Hide this status</TooltipContent>
 						</Tooltip>
 					</TooltipProvider>
 				) : null}
@@ -781,7 +781,7 @@ export function RolloverGuidanceCard({
 											<X className="size-4" />
 										</Button>
 									</TooltipTrigger>
-									<TooltipContent side="bottom" className="text-xs">Hide this status. It returns when the year status changes.</TooltipContent>
+									<TooltipContent side="bottom">Hide this status. It returns when the year status changes.</TooltipContent>
 								</Tooltip>
 							</TooltipProvider>
 						) : null}

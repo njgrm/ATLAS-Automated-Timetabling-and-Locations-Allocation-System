@@ -161,7 +161,7 @@ function DuplicateTeacherNameCue({ count, sameLoad }: { count: number; sameLoad:
 					<span className="sr-only">{explanation}</span>
 				</span>
 			</TooltipTrigger>
-			<TooltipContent className="max-w-80 text-xs font-medium leading-relaxed">{explanation}</TooltipContent>
+			<TooltipContent className="max-w-80 font-medium leading-relaxed">{explanation}</TooltipContent>
 		</Tooltip>
 	);
 }
@@ -603,7 +603,7 @@ export function FacultyPreferredGradesControl({ faculty }: { faculty: FacultySum
 								Wide span
 							</span>
 						</TooltipTrigger>
-						<TooltipContent className="max-w-56 text-xs">
+						<TooltipContent className="max-w-56">
 							This teacher is assigned across {normalizePreferredGrades(faculty.assignedGradeLevels).length} grades. Review their preferred grades before adding more load.
 						</TooltipContent>
 					</Tooltip>
@@ -711,7 +711,7 @@ export function FacultyWeeklyLoadCell({ faculty }: { faculty: FacultySummary }) 
 						{isOver && <span className="ml-1 text-[0.65rem] font-bold text-rose-600">over</span>}
 					</span>
 				</TooltipTrigger>
-				<TooltipContent className="max-w-52 text-xs leading-relaxed">
+				<TooltipContent className="max-w-52 leading-relaxed">
 					{weeklyHours > 0
 						? `${weeklyHours}h teaching / ${STANDARD_WEEKLY_TEACHING_HOURS}h standard (max ${maxHours}h)`
 						: `No load assigned. Standard is ${STANDARD_WEEKLY_TEACHING_HOURS}h, max ${maxHours}h.`}
@@ -732,7 +732,7 @@ export function FacultyLoadStateBadge({ faculty }: { faculty: FacultySummary }) 
 						{presentation.label}
 					</Badge>
 				</TooltipTrigger>
-				<TooltipContent className="max-w-60 text-xs leading-relaxed">{presentation.help}</TooltipContent>
+				<TooltipContent className="max-w-60 leading-relaxed">{presentation.help}</TooltipContent>
 			</Tooltip>
 		</TooltipProvider>
 	);

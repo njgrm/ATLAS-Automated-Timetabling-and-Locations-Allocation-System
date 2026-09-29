@@ -953,7 +953,7 @@ export function SubjectFormModal({
 									</span>
 								</TooltipTrigger>
 								{!canSave && !saving && saveDisabledReason ? (
-									<TooltipContent side="top" className="text-xs">{saveDisabledReason}</TooltipContent>
+									<TooltipContent side="top">{saveDisabledReason}</TooltipContent>
 								) : null}
 							</Tooltip>
 						</TooltipProvider>

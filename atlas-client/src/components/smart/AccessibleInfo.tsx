@@ -93,7 +93,7 @@ export function AccessibleInfo({
 						<TooltipTrigger asChild>
 							<PopoverTrigger asChild>{trigger}</PopoverTrigger>
 						</TooltipTrigger>
-						<TooltipContent side={side} className="max-w-64 text-xs leading-relaxed">
+						<TooltipContent side={side} className="max-w-64 leading-relaxed">
 							{shortHelp}
 						</TooltipContent>
 					</Tooltip>
@@ -117,7 +117,7 @@ export function AccessibleInfo({
 		<TooltipProvider delayDuration={200}>
 			<Tooltip>
 				<TooltipTrigger asChild>{trigger}</TooltipTrigger>
-				<TooltipContent side={side} className="max-w-64 text-xs leading-relaxed">
+				<TooltipContent side={side} className="max-w-64 leading-relaxed">
 					{shortHelp}
 				</TooltipContent>
 			</Tooltip>
