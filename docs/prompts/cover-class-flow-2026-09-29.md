@@ -51,3 +51,17 @@ absolute last resort, when there are no identifiable teachers that can cover a c
 - Subtract: remove the old cover/outage dialog pieces the audit rejects; one look for every Assign button.
 - Proof: cover 3 open classes on staging with (1) a qualified teacher, (2) an other-department teacher via the Allow
   prompt, (3) a to-be-hired only after declining; screenshots at 1366x768.
+
+## Addendum 16:05 — Codex audit landed (REJECT_UX), binding additions
+Read `docs/reviews/codex-live-cover-ux-e75d6b8f.md` (screens in Lane C scratchpad). Must-fix in c10 (A6) / c4 (A8):
+- **Placeholders are counted as staffed** in Sections ("Needs staffing" shows 0 while the header says 72) and Subjects
+  ("Full coverage", "MISSING COVERAGE 0"). A placeholder-owned class is OPEN everywhere: filter, counts, coverage.
+- The existing "Cross-subject" switch on /teaching-load is an unlabeled filter, not a permission: either retire it or
+  label it "Include teachers from other departments"; the permission itself lives in the Cover window + teacher profile.
+- Teachers roster: real teachers first; placeholders in a collapsed "To be hired — last resort (14)" group at the end;
+  "Review temporary" only on placeholders.
+- "Review load" opens THAT teacher's load (the staff-wide audit is a separate "View all teachers" link) — reconcile with
+  A6 c9's 38.1 work.
+- "UNASSIGN ALL / UNASSIGN GRADE" move behind a "More" menu with confirmation.
+- Suggest-assignments review: one reconciled count; no Apply while checking; one Close.
+- Subjects "Review coverage" and the teacher profile edit the same permission list.
