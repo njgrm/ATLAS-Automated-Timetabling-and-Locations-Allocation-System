@@ -326,9 +326,25 @@ export function anchorLocalOffset(w: number, h: number, anchor: string): { x: nu
 /** How close two edges must be, in stage px, for a snap guide to appear. */
 export const ALIGNMENT_SNAP_THRESHOLD = 5;
 
-/** The stage's zoom bounds. One pair of constants for both zoom controls. */
-export const CANVAS_MIN_SCALE = 0.4;
-export const CANVAS_MAX_SCALE = 2.5;
+/**
+ * The stage's zoom bounds. One pair of constants for both zoom controls.
+ *
+ * A9 m1 widened BOTH ends, and the lower one is the reported defect: the operator
+ * said "we can't zoom out and lock the map in place, causing the map to be cut
+ * off". At 0.4 the operator could not back off far enough to see a whole uploaded
+ * photo with a margin around it. 0.25 makes the whole image comfortably visible at
+ * HALF the view and still smaller, and 4 (was 2.5) lets a small building be
+ * placed precisely on a large plan.
+ *
+ * These are the same two numbers as `MIN_VIEW_ZOOM` / `MAX_VIEW_ZOOM` in
+ * `campusMapBackground.ts`, which the read-only viewers use. They are declared
+ * here as literals rather than imported so this module keeps no dependency on
+ * the background contract; `__tests__/a9-m1-campus-background.test.ts` asserts
+ * the two pairs are EQUAL, so a future edit to one cannot silently disagree with
+ * the other.
+ */
+export const CANVAS_MIN_SCALE = 0.25;
+export const CANVAS_MAX_SCALE = 4;
 
 /** Clamp a requested zoom step, from either the buttons or the wheel. The
  *  arithmetic is the editor's, unchanged; only the bounds are now named and

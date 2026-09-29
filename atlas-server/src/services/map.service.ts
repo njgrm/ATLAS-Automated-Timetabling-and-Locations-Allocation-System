@@ -251,6 +251,90 @@ export async function getCampusImage(schoolId: number) {
 	return school?.campusImageUrl ?? null;
 }
 
+/**
+ * A9 m1 — the placement, exactly as it was stored, or null.
+ *
+ * NULL is a MEANINGFUL answer, not a missing one: it is a school whose photo
+ * predates the Background step, and the client normalises it to "fit whole image,
+ * centred, locked". This function deliberately does NOT normalise, and does NOT
+ * default, so the client's guarantee is proved by the client's own arithmetic
+ * rather than laundered through a server default that no test can see.
+ */
+export async function getCampusMapPlacement(schoolId: number): Promise<unknown> {
+	const school = await prisma.school.findUnique({
+		where: { id: schoolId },
+		select: { campusMapPlacement: true },
+	});
+	return school?.campusMapPlacement ?? null;
+}
+
+/**
+ * A9 m1 — validate and store the background placement.
+ *
+ * The WRITE is scoped to the ACTOR's own school, and the path parameter is only
+ * used for the lookup AFTER that comparison: `actorSchoolId` comes from the
+ * verified token, and a mismatch is refused rather than silently redirected. A
+ * privileged role therefore does not grant authority over ANOTHER school's map.
+ *
+ * The stored shape is checked here rather than trusted: a non-finite coordinate, a
+ * non-positive width or an unknown mode is a 400, and the aspect fields are
+ * recorded as given so the client can detect a replacement upload and refit.
+ */
+export async function setCampusMapPlacement(
+	schoolId: number,
+	actorSchoolId: number | undefined,
+	placement: unknown,
+) {
+	if (actorSchoolId === undefined) {
+		throw Object.assign(new Error('Access denied: actor school scope is unknown.'), { statusCode: 403, code: 'CROSS_SCHOOL_DENIED' });
+	}
+	if (schoolId !== actorSchoolId) {
+		throw Object.assign(new Error('Access denied: this school belongs to another account.'), { statusCode: 403, code: 'CROSS_SCHOOL_DENIED' });
+	}
+	if (!placement || typeof placement !== 'object' || Array.isArray(placement)) {
+		throw Object.assign(new Error('A placement object is required.'), { statusCode: 400, code: 'INVALID_PLACEMENT' });
+	}
+
+	const raw = placement as Record<string, unknown>;
+	const finite = (value: unknown): number | null => {
+		const n = typeof value === 'number' ? value : Number(value);
+		return Number.isFinite(n) ? n : null;
+	};
+	const imageWidth = finite(raw.imageWidth);
+	const imageHeight = finite(raw.imageHeight);
+	const x = finite(raw.x);
+	const y = finite(raw.y);
+	const width = finite(raw.width);
+	if (imageWidth === null || imageHeight === null || x === null || y === null || width === null) {
+		throw Object.assign(new Error('imageWidth, imageHeight, x, y and width must all be numbers.'), { statusCode: 400, code: 'INVALID_PLACEMENT' });
+	}
+	if (imageWidth <= 0 || imageHeight <= 0 || width <= 0) {
+		throw Object.assign(new Error('imageWidth, imageHeight and width must be greater than zero.'), { statusCode: 400, code: 'INVALID_PLACEMENT' });
+	}
+	const mode = raw.mode === 'fill' || raw.mode === 'custom' ? raw.mode : raw.mode === 'fit' ? 'fit' : null;
+	if (mode === null) {
+		throw Object.assign(new Error("mode must be 'fit', 'fill' or 'custom'."), { statusCode: 400, code: 'INVALID_PLACEMENT' });
+	}
+
+	// Rounded to a tenth of a pixel: enough that a stored value round-trips through
+	// JSON exactly, small enough that a second save of an unchanged placement is a
+	// no-op rather than a drift.
+	const stored = {
+		imageWidth: Math.round(imageWidth),
+		imageHeight: Math.round(imageHeight),
+		x: Math.round(x * 10) / 10,
+		y: Math.round(y * 10) / 10,
+		width: Math.round(width * 10) / 10,
+		locked: raw.locked !== false,
+		mode,
+	};
+	return prisma.school.update({
+		where: { id: schoolId },
+		data: { campusMapPlacement: stored },
+		select: { campusMapPlacement: true },
+	});
+}
+
 export async function setCampusImage(schoolId: number, imageUrl: string) {
 	return prisma.school.update({
 		where: { id: schoolId },

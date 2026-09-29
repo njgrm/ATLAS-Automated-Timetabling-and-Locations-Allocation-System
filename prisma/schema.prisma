@@ -19,6 +19,13 @@ model School {
   name                       String
   shortName                  String                      @db.VarChar(50)
   campusImageUrl             String?                     @map("campus_image_url")
+  /// A9 m1 — where the uploaded campus photo sits in the world, so it is never
+  /// stretched, never cropped, and can be locked. NULLABLE with no default and no
+  /// backfill: a school whose photo predates this change reads NULL, and the
+  /// client normalises that to "fit whole image, locked" — the exact framing the
+  /// old fixed 920x580 box produced for a 1.59:1 image, with every building in
+  /// the same place. See `atlas-client/src/components/campus-map/campusMapBackground.ts`.
+  campusMapPlacement         Json?                       @map("campus_map_placement")
   createdAt                  DateTime                    @default(now())
   updatedAt                  DateTime                    @updatedAt
   subjects                   Subject[]

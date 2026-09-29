@@ -194,15 +194,51 @@ router.delete('/schools/:schoolId/campus-image', authenticate, requirePrivileged
 	res.status(204).end();
 });
 
-// Public: get campus image URL
-router.get('/schools/:schoolId/campus-image', async (req: Request, res: Response) => {
-	const schoolId = Number(req.params.schoolId);
-	if (Number.isNaN(schoolId)) {
-		res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId must be a number.' });
-		return;
+// Public: get campus image URL and its background placement
+router.get('/schools/:schoolId/campus-image', async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.params.schoolId);
+		if (Number.isNaN(schoolId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId must be a number.' });
+			return;
+		}
+		// A9 m1 — the placement rides on the READ every viewer already makes, so no
+		// viewer can render the old fixed 920x580 framing by forgetting a second
+		// request. It is returned RAW: `null` is a school's honest "nothing decided
+		// yet", and the client is what turns that into "fit whole image, locked".
+		const [campusImageUrl, campusMapPlacement] = await Promise.all([
+			mapService.getCampusImage(schoolId),
+			mapService.getCampusMapPlacement(schoolId),
+		]);
+		res.json({ campusImageUrl, campusMapPlacement });
+	} catch (err) {
+		next(err);
 	}
-	const campusImageUrl = await mapService.getCampusImage(schoolId);
-	res.json({ campusImageUrl });
+});
+
+// Auth required: store the background placement (A9 m1).
+//
+// SCOPE NOTE — the guard is the token, not the path. `actorSchoolId` comes from
+// the verified token and is compared to `schoolId` in the service, which refuses
+// a mismatch with 403 CROSS_SCHOOL_DENIED. The path parameter is used only for
+// the lookup AFTER that comparison, so a privileged role does not grant authority
+// over another school's map. The pre-existing campus-image POST above trusts its
+// path parameter and is NOT fixed here: it is a recorded finding, out of this
+// packet's scope, and widening it would mix an auth-boundary change into a
+// background-framing candidate.
+router.put('/schools/:schoolId/campus-map-placement', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.params.schoolId);
+		if (Number.isNaN(schoolId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId must be a number.' });
+			return;
+		}
+		const actorSchoolId = (req.user as any)?.schoolId as number | undefined;
+		const saved = await mapService.setCampusMapPlacement(schoolId, actorSchoolId, req.body?.placement);
+		res.json({ placement: saved.campusMapPlacement });
+	} catch (err) {
+		next(err);
+	}
 });
 
 export default router;

@@ -1,0 +1,40 @@
+-- A9 m1 `campus_map_placement` — store WHERE the uploaded campus photo sits in
+-- the world, so it is never stretched, never cropped by ATLAS, and can be locked.
+--
+-- WHY IT EXISTS. `schools.campus_image_url` was the only campus-image storage, and
+-- the photo was painted into a fixed 920x580 world with two INDEPENDENT pattern
+-- scales (`CANVAS_WIDTH / image.width` and `CANVAS_HEIGHT / image.height`). Any
+-- photo that was not 1.59:1 was stretched, and the 920x580 box WAS the coordinate
+-- space, so a panorama's edges were unreachable and zooming out was clamped at
+-- 0.4. The operator's words: "uploading an image that will serve as the map
+-- background is limited, since we can't zoom out and lock the map in place,
+-- causing the map to be cut off ... unless they crop it perfectly, which is a
+-- hassle."
+--
+-- SHAPE. ONE nullable JSONB column. Additive only: no table is altered, no index
+-- is added, no existing row is read, written, backfilled or dropped.
+--
+--   - NULLABLE, and with NO DEFAULT. A school that has never opened the
+--     Background step stores NULL, which is the honest state: nothing has been
+--     decided. The client normalises NULL to "fit whole image, centred, locked",
+--     which for a 1.59:1 image is exactly the framing the old fixed box
+--     produced, and which leaves every existing building at its current
+--     on-screen position. That is the "existing schools are unchanged"
+--     guarantee, and it needs no data migration to hold.
+--   - NO BACKFILL, deliberately. Writing a placement for every school would make
+--     this migration a data change against rows nobody has reviewed, and would
+--     destroy the one fact that matters — that ATLAS never touched them.
+--
+-- PAYLOAD (written by `atlas-client/src/components/campus-map/campusMapBackground.ts`,
+-- read by `atlas-server/src/services/map.service.ts`):
+--   { "imageWidth": Int, "imageHeight": Int, "x": Float, "y": Float,
+--     "width": Float, "locked": Bool, "mode": "fit" | "fill" | "custom" }
+-- `width` is UNIFORM — the drawn height is always `width * imageHeight / imageWidth`,
+-- so no stored value can describe a stretched photo. `imageWidth`/`imageHeight`
+-- record the file the placement was measured against, and a mismatch with the
+-- photo the browser actually loaded makes the client refit rather than stretch a
+-- replacement upload.
+--
+-- This migration is NOT applied by this candidate; the SQL is written and
+-- schema-validated only. Applying it is a HIGH action outside this packet.
+ALTER TABLE "schools" ADD COLUMN "campus_map_placement" JSONB;
