@@ -10,7 +10,7 @@ permission:
     "*": deny
     "C:/Users/njgro/.config/opencode/agents/**": allow
     "C:/Users/njgro/.config/opencode/opencode.jsonc": allow
-    "D:/ATLAS/**": allow
+    "D:/ATLAS/**": deny
     "E:/ATLAS-worktrees/**": allow
     "D:/ATLAS-worktrees/**": allow
     "D:/ATLAS-runtime-config/**": deny

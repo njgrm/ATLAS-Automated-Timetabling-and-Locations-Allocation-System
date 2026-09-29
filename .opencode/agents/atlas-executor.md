@@ -8,7 +8,7 @@ steps: 300
 permission:
   edit:
     "*": deny
-    "D:/ATLAS/**": allow
+    "D:/ATLAS/**": deny
     "E:/ATLAS-worktrees/**": allow
     "D:/ATLAS-worktrees/**": allow
     "D:/ATLAS-runtime-config/**": deny
