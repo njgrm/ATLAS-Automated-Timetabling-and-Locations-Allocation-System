@@ -407,10 +407,22 @@ test("A6C6-1 SUPERSEDED IN PART by A6 c8 item 39 (2026-09-29). RETAINED, NOT DEL
 	const panel = host;
 
 	const EXPECTED: Array<[string, string]> = [
-		// A6 c8 item 39, superseding A6 c6's `Show teachers outside their subject
-		// area` / `Show teachers with no matched subject` as the VISIBLE face.
-		['show-outside-dept', 'Cross-subject'],
+		// A6 c8 item 39 set the visible face to `Cross-subject`; A6 c10 REPLACED it
+		// with `Include other depts` on the operator's authority. The Codex audit
+		// (2026-09-29, release e75d6b8f) recorded that `Cross-subject` beside a
+		// switch reads as a PERMISSION to teach outside the department, and it is not
+		// one — it only changes which teachers are listed. The audit's own remedy was
+		// "retire it or label it `Include teachers from other departments`"; retiring
+		// it would silently hide every cross-department teacher, so it is labelled,
+		// in the audit's direction. The superseded face is kept in the tuple below so
+		// the change is a record and not a silent edit.
+		['show-outside-dept', 'Include other depts'],
 		['show-unmapped-specialization', 'No subject match'],
+	];
+	// SUPERSEDED by A6 c10 (kept, not deleted): the faces this row used to print.
+	// `Cross-subject` is the one the audit called a permission in disguise.
+	const SUPERSEDED_FACES: Array<[string, string]> = [
+		['show-outside-dept', 'Cross-subject'],
 	];
 	for (const [id, sentence] of EXPECTED) {
 		const label = panel.querySelector(`label[for="${id}"]`) as HTMLLabelElement;
@@ -1430,7 +1442,7 @@ test("A6C6-8b the ONE row carries search, four content-sized pickers and BOTH di
 	// SHORT FACE, FULL SENTENCE as the accessible name, and the Tooltip source is
 	// the same sentence — a `title` attribute is banned by `AGENTS.md` §8.
 	for (const [id, face, sentence] of [
-		['show-outside-dept', 'Cross-subject', 'Show teachers who teach a subject outside their subject area'],
+		['show-outside-dept', 'Include other depts', 'Filter: show teachers from other departments in this list. To let one teacher teach another subject, use Cover this class or Teaching permissions on their profile.'],
 		['show-unmapped-specialization', 'No subject match', 'Show only teachers whose subject is not in the catalog'],
 	] as Array<[string, string, string]>) {
 		const label = primary.querySelector(`label[for="${id}"]`);

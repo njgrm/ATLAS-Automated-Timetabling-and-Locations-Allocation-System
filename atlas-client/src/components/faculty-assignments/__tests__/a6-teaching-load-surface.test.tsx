@@ -1329,7 +1329,11 @@ test('A6-39-1c no `More filters` element exists in any state, BOTH switches are 
 	// Short VISIBLE label, full SENTENCE as the accessible name, and no `title`
 	// attribute anywhere near it (`AGENTS.md` §8).
 	for (const [id, face, sentence] of [
-		['show-outside-dept', 'Cross-subject', 'Show teachers who teach a subject outside their subject area'],
+		// A6 c10: `Cross-subject` was replaced by `Include other depts` because the
+		// Codex audit recorded it reading as a PERMISSION to teach outside the
+		// department, which it is not. The sentence now says it is a filter AND where
+		// the real permission lives, so the control does not merely deny a meaning.
+		['show-outside-dept', 'Include other depts', 'Filter: show teachers from other departments in this list. To let one teacher teach another subject, use Cover this class or Teaching permissions on their profile.'],
 		['show-unmapped-specialization', 'No subject match', 'Show only teachers whose subject is not in the catalog'],
 	] as Array<[string, string, string]>) {
 		const label = primary.querySelector(`label[for="${id}"]`) as HTMLLabelElement;

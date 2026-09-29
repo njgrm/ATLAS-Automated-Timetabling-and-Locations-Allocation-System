@@ -49,7 +49,7 @@ import { CheckCircle2, CircleAlert, Loader2, UserRoundPlus } from 'lucide-react'
 
 import { Button } from '@/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 
 import {
 	COVER_LAST_RESORT_LABEL,
@@ -86,6 +86,18 @@ export function CoverClassDialog({
 	const hasAnyone = groups.length > 0;
 
 	return (
+		/*
+		 * A6 c10 — THE DIALOG CARRIES ITS OWN `TooltipProvider`.
+		 *
+		 * Every row's disabled reason lives in a Tooltip, and Radix's Tooltip throws
+		 * without a provider above it. This dialog is mounted from four different
+		 * parents, only one of which happens to wrap its slot in a provider — so
+		 * relying on a parent would make the window work on Teaching Load and crash
+		 * on Sections. A component that cannot be mounted on its own is a component
+		 * that gets a provider added at the call site, and then a fourth call site
+		 * forgets. The provider is here so the window is self-sufficient.
+		 */
+		<TooltipProvider delayDuration={200}>
 		<Dialog open={open} onOpenChange={(next) => { if (!next) cover.close(); }}>
 			<DialogContent
 				className="flex max-w-2xl flex-col"
@@ -222,6 +234,7 @@ export function CoverClassDialog({
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>
+		</TooltipProvider>
 	);
 }
 

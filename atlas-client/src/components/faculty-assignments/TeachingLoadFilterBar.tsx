@@ -126,6 +126,39 @@ import { AT_STANDARD_LABEL, BELOW_STANDARD_LABEL, EXCESS_LOAD_LABEL } from '@/li
  */
 const SWITCH_CHROME = 'flex h-9 shrink-0 items-center gap-2 rounded-xl border border-border/60 bg-background px-2.5 transition-colors hover:bg-muted/40';
 
+/*
+ * A6 c10 — `Cross-subject` READ AS A PERMISSION, and it is not one.
+ *
+ * Codex audit, 2026-09-29 against release `e75d6b8f`, finding 1 (MINOR) and
+ * repeated in the 16:05 addendum: "The existing `Cross-subject` switch on
+ * /teaching-load is an unlabeled filter, not a permission: either retire it or
+ * label it `Include teachers from other departments`; the permission itself lives
+ * in the Cover window + teacher profile."
+ *
+ * A scheduler reading `Cross-subject` next to a switch reasonably concludes that
+ * flipping it lets teachers teach outside their department. It does not: it only
+ * changes WHICH TEACHERS ARE LISTED. The audit's remedy is either/or — retire it,
+ * or label it — and retiring it is not available here, because the row it sits on
+ * would then silently drop every cross-department teacher from the roster and the
+ * scheduler would never learn they existed. So it is LABELLED, in the audit's own
+ * direction, with the first word doing the work: `Include` is a verb about the
+ * LIST, which is what the control does.
+ *
+ * The explanation says so explicitly and then says where the real permission
+ * lives, because a control that only says "this is not that" leaves the scheduler
+ * with no route. The permission is now reachable from two places: the Allow prompt
+ * in `Cover this class`, and `Teaching permissions` on the teacher's profile.
+ *
+ * WIDTH. `Include other depts` is 19 characters against `Cross-subject`'s 12, so
+ * the face grows by about 45px. It carries ONE capital, so `a6-tl-header-budget`
+ * `A6c4-G2-6` (caps on a switch label <= 2) still passes untouched. The row
+ * arithmetic in this file's header is unchanged, and fix 39's `auto` picker
+ * variant is content-sized, so no other control has to move.
+ */
+export const OUTSIDE_DEPT_FILTER_FACE = 'Include other depts';
+export const OUTSIDE_DEPT_FILTER_EXPLANATION =
+	'Filter: show teachers from other departments in this list. To let one teacher teach another subject, use Cover this class or Teaching permissions on their profile.';
+
 /** The shared switch-LABEL class. Sentence case: it is read, not shouted. */
 const SWITCH_LABEL_CLASS = 'cursor-pointer whitespace-nowrap text-xs font-semibold text-muted-foreground';
 
@@ -441,15 +474,15 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 										id="show-outside-dept"
 										checked={showOutsideDept}
 										onCheckedChange={onToggleOutsideDept}
-										aria-label="Show teachers who teach a subject outside their subject area"
+										aria-label={OUTSIDE_DEPT_FILTER_EXPLANATION}
 									/>
 									<Label htmlFor="show-outside-dept" className={SWITCH_LABEL_CLASS}>
-										Cross-subject
+										{OUTSIDE_DEPT_FILTER_FACE}
 									</Label>
 								</div>
 							</TooltipTrigger>
-							<TooltipContent side="top" className="max-w-64 text-xs leading-relaxed">
-								Show teachers who teach a subject outside their subject area
+							<TooltipContent side="top" className="max-w-72 text-xs leading-relaxed">
+								{OUTSIDE_DEPT_FILTER_EXPLANATION}
 							</TooltipContent>
 						</Tooltip>
 
