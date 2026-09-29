@@ -12,6 +12,37 @@
 	--font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
 	--font-heading: 'Poppins', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
 
+	/* A7 C8 SLICE 1 (operator, 2026-09-29 16:40/16:48: "There is a lot of text that
+	   is too small, which fails accessibility. Lock in." / "Our default text and
+	   sizes should naturally be bigger.") — the DEFAULT type scale, raised once, here.
+
+	   WHY THIS BLOCK AND NOT `@theme inline`. Tailwind v4's `@theme inline` is for
+	   values that REFERENCE another variable, so the emitted utility inlines the
+	   resolved value instead of emitting a `var()` that must resolve in the consumer's
+	   scope. These are plain literal `rem` lengths, so they belong in the non-inline
+	   `@theme`; that way the utilities stay `var(--text-xs)`-driven and ONE edit here
+	   moves every page. `a3-c8-warning-token.test.ts` reads the `@theme inline` block
+	   for the four `--color-warning*` utilities, so nothing here can disturb it.
+
+	   WHY 14px AND 15px. Tailwind's defaults are `xs` = 0.75rem (12px) and `sm` =
+	   0.875rem (14px). 12px body-adjacent text is below the size the operator's
+	   audience reads comfortably, and it is the size 137 arbitrary `text-[9-12px]`
+	   overrides were reaching around. `xs` becomes 0.875rem and `sm` becomes
+	   0.9375rem, so the two steps a page actually uses both clear 14px.
+
+	   THE LINE HEIGHTS ARE PAIRED, NOT INHERITED. Tailwind emits a bare
+	   `font-size` with no `line-height` when a theme font-size carries no
+	   `--line-height` companion, and the element then falls back to whatever
+	   inherited `line-height` it inherited — which in a dense grid row is the
+	   PARENT's line box, not this element's. That is how a bigger `xs` silently
+	   clips inside a fixed-height row. Each size therefore declares its own
+	   `--line-height` in the v4 paired syntax. `base` keeps the 1rem default and is
+	   left alone: it was never the defect. */
+	--text-xs: 0.875rem;
+	--text-xs--line-height: 1.25rem;
+	--text-sm: 0.9375rem;
+	--text-sm--line-height: 1.375rem;
+
 	/* TIMETABLE-HEADER-COLLAPSE-C01 (C1) — the header's one-row breakpoint, as a
 	   NAMED breakpoint rather than an arbitrary `min-[1366px]:` variant.
 

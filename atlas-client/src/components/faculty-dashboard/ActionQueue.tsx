@@ -75,9 +75,9 @@ function ToneCard({ tone, icon: Icon, title, body, link, linkText }: { tone: Ton
 				</span>
 				<div className='min-w-0 flex-1'>
 					<p className={`text-[13px] font-semibold leading-tight ${s.title}`}>{title}</p>
-					<p className={`mt-0.5 text-[12px] leading-snug ${s.body}`}>{body}</p>
+					<p className={`mt-0.5 text-xs leading-snug ${s.body}`}>{body}</p>
 					{link && linkText && (
-						<Link to={link} className={`mt-2 inline-flex items-center gap-1 text-[12px] font-semibold ${s.cta}`}>
+						<Link to={link} className={`mt-2 inline-flex items-center gap-1 text-xs font-semibold ${s.cta}`}>
 							{linkText} <ArrowRight className='size-3' />
 						</Link>
 					)}
@@ -141,7 +141,7 @@ export default function ActionQueue({ counts, hasDraftPreferences, hasDraftRoomR
 
 	return (
 		<section className='space-y-2'>
-			<p className='px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>Needs your attention</p>
+			<p className='px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground'>Needs your attention</p>
 			<div className='space-y-2'>
 				{actions.map((a) => (
 					<ToneCard key={a.id} tone={a.tone} icon={a.icon} title={a.title} body={a.description} link={a.link} linkText={a.linkText} />

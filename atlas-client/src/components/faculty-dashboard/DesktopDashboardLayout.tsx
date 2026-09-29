@@ -27,9 +27,9 @@ type DesktopDashboardLayoutProps = {
 function StatTile({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
 	return (
 		<div className='rounded-xl border border-border/60 bg-card px-4 py-3'>
-			<p className='text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>{label}</p>
+			<p className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>{label}</p>
 			<p className='mt-1 text-2xl font-bold leading-none text-foreground'>{value}</p>
-			{hint && <p className='mt-1 text-[11px] text-muted-foreground'>{hint}</p>}
+			{hint && <p className='mt-1 text-xs text-muted-foreground'>{hint}</p>}
 		</div>
 	);
 }
@@ -52,7 +52,7 @@ export default function DesktopDashboardLayout({
 			{/* Hero strip */}
 			<section className='flex flex-wrap items-end justify-between gap-6 rounded-2xl border border-border/60 bg-card p-6 shadow-sm'>
 				<div className='min-w-0'>
-					<p className='text-[11px] font-semibold uppercase tracking-wider text-primary/80'>Faculty workspace</p>
+					<p className='text-xs font-semibold uppercase tracking-wider text-primary/80'>Faculty workspace</p>
 					<h1 className='mt-1 text-3xl font-bold tracking-tight text-foreground'>Welcome back, {firstName}</h1>
 					<p className='mt-1.5 max-w-xl text-sm text-muted-foreground'>{phaseMessage}</p>
 				</div>
@@ -80,16 +80,16 @@ export default function DesktopDashboardLayout({
 								<CalendarClock className='size-4 text-primary' />
 								Your class assignments
 							</h2>
-							<span className='text-[11px] font-medium text-muted-foreground'>Review phase</span>
+							<span className='text-xs font-medium text-muted-foreground'>Review phase</span>
 						</div>
 						<div className='min-h-0 flex-1 overflow-auto'>
 							<table className='w-full text-sm'>
 								<thead className='sticky top-0 z-10 bg-muted/60 backdrop-blur-sm'>
 									<tr className='border-b border-border/60'>
-										<th className='px-5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>Class</th>
-										<th className='px-5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>Schedule</th>
-										<th className='px-5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>Room</th>
-										<th className='px-5 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>Status</th>
+										<th className='px-5 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground'>Class</th>
+										<th className='px-5 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground'>Schedule</th>
+										<th className='px-5 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground'>Room</th>
+										<th className='px-5 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground'>Status</th>
 									</tr>
 								</thead>
 								<tbody className='divide-y divide-border/40'>
@@ -114,7 +114,7 @@ export default function DesktopDashboardLayout({
 												<td className='px-5 py-3'>
 													<p className='font-medium text-foreground'>{entry.currentRoomName}</p>
 													{entry.requestedRoomName && (
-														<p className='mt-0.5 text-[11px] font-semibold text-primary'>Requested: {entry.requestedRoomName}</p>
+														<p className='mt-0.5 text-xs font-semibold text-primary'>Requested: {entry.requestedRoomName}</p>
 													)}
 												</td>
 												<td className='px-5 py-3'>

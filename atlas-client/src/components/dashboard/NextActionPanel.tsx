@@ -136,7 +136,7 @@ export function NextActionPanel(props: NextActionInput) {
 						)}
 					</div>
 					<div className="flex-1 min-w-0">
-						<p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+						<p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
 							Your next step
 						</p>
 						<h2 className="text-xl font-semibold tracking-tight text-foreground mt-0.5 flex items-center gap-2 flex-wrap">

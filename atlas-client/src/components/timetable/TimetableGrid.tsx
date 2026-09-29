@@ -166,7 +166,7 @@ const GridCell = memo(function GridCell({
 					role="button"
 					tabIndex={0}
 					aria-label={`Blocked slot: ${eventName ?? 'Special Event'} on ${TIMETABLE_DAY_SHORT[day] ?? day} ${formatTime(startTime)}`}
-					className="px-1 py-1 align-top border-l border-border/30 bg-amber-50/40 text-center text-[12px] font-medium text-amber-700 outline-none ring-2 ring-primary/40 ring-offset-1"
+					className="px-1 py-1 align-top border-l border-border/30 bg-amber-50/40 text-center text-xs font-medium text-amber-700 outline-none ring-2 ring-primary/40 ring-offset-1"
 					onKeyDown={(event) => {
 						if (event.key === 'Enter' || event.key === ' ') {
 							event.preventDefault();
@@ -184,7 +184,7 @@ const GridCell = memo(function GridCell({
 				data-start-time={startTime}
 				data-end-time={endTime}
 				data-cell-entry-ids={cellEntries.map((entry) => entry.entryId).join(' ')}
-				className="px-1 py-1 align-top border-l border-border/30 bg-amber-50/40 text-center text-[12px] font-medium text-amber-700"
+				className="px-1 py-1 align-top border-l border-border/30 bg-amber-50/40 text-center text-xs font-medium text-amber-700"
 			>
 				{eventName ?? 'Special Event'}
 			</td>
@@ -333,7 +333,7 @@ const GridCell = memo(function GridCell({
 			    dashed emerald outline from the conflict rings has been told nothing. */}
 			{isMoveTarget && (
 				<div
-					className="mb-0.5 flex items-center gap-1 rounded-sm bg-emerald-100 px-1 py-0.5 text-[12px] font-semibold leading-none text-emerald-900"
+					className="mb-0.5 flex items-center gap-1 rounded-sm bg-emerald-100 px-1 py-0.5 text-xs font-semibold leading-none text-emerald-900"
 					data-testid="timetable-move-target-cue"
 				>
 					<Plus className="size-2.5 shrink-0" aria-hidden="true" />
@@ -342,7 +342,7 @@ const GridCell = memo(function GridCell({
 			)}
 			{ceremonyOverlayWithClass && (
 				<div
-					className="mb-0.5 flex items-center gap-1 rounded-sm bg-amber-100 px-1 py-0.5 text-[12px] font-semibold leading-none text-amber-800"
+					className="mb-0.5 flex items-center gap-1 rounded-sm bg-amber-100 px-1 py-0.5 text-xs font-semibold leading-none text-amber-800"
 					data-testid="timetable-ceremony-overlay-label"
 				>
 					<Flag className="size-2.5 shrink-0" aria-hidden="true" />
@@ -358,7 +358,7 @@ const GridCell = memo(function GridCell({
 				// because the overflow sheet is a second place to look and this label
 				// is the only place that says the collision exists.
 				<div
-					className="mb-0.5 flex items-center gap-1 rounded-sm bg-amber-100 px-1 py-0.5 text-[12px] font-semibold leading-none text-amber-900"
+					className="mb-0.5 flex items-center gap-1 rounded-sm bg-amber-100 px-1 py-0.5 text-xs font-semibold leading-none text-amber-900"
 					data-testid="timetable-blocked-overlap-label"
 					data-overlap-count={visibleEntries.length}
 					data-overlap-hidden={hiddenOverlaps}
@@ -383,7 +383,7 @@ const GridCell = memo(function GridCell({
 			)}
 			{isActive && activeInfo?.kind === 'self' && (
 				<div className="mb-0.5 flex h-4 items-center justify-center rounded-sm bg-blue-100 px-1">
-					<span className="text-[12px] font-medium leading-none text-blue-700">Current</span>
+					<span className="text-xs font-medium leading-none text-blue-700">Current</span>
 				</div>
 			)}
 			{placementLabel && (
@@ -393,7 +393,7 @@ const GridCell = memo(function GridCell({
 					data-placement-state={placementLabel.text.toLowerCase()}
 				>
 					<placementLabel.Icon className="size-3" aria-hidden="true" />
-					<span className="text-[12px] font-semibold leading-none">{placementLabel.text}</span>
+					<span className="text-xs font-semibold leading-none">{placementLabel.text}</span>
 				</div>
 			)}
 			<div className="space-y-0.5 min-h-6 overflow-hidden">
@@ -487,7 +487,7 @@ const GridCell = memo(function GridCell({
 								<span className="min-w-0 flex-1 truncate">{entrySubjectLabel}</span>
 								{entryTermLabel ? (
 									<span
-										className="shrink-0 rounded bg-muted px-1 py-0.5 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground"
+										className="shrink-0 rounded bg-muted px-1 py-0.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
 										data-testid="timetable-entry-term-label"
 										data-term-index={entry.termIndex ?? ''}
 									>
@@ -504,7 +504,7 @@ const GridCell = memo(function GridCell({
 									/>
 								) : null}
 								{entry.entryKind === 'COHORT' && entry.cohortCode && (
-									<span className="rounded bg-sky-100 px-1 py-0.5 text-[12px] font-bold uppercase tracking-wide text-sky-700 shrink-0">
+									<span className="rounded bg-sky-100 px-1 py-0.5 text-xs font-bold uppercase tracking-wide text-sky-700 shrink-0">
 										{entry.cohortCode}
 									</span>
 								)}
@@ -574,7 +574,7 @@ const GridCell = memo(function GridCell({
 						type="button"
 						variant="ghost"
 						size="sm"
-						className="h-7 min-h-7 w-full justify-start rounded-md px-1.5 text-[12px] text-muted-foreground hover:bg-muted"
+						className="h-7 min-h-7 w-full justify-start rounded-md px-1.5 text-xs text-muted-foreground hover:bg-muted"
 						onClick={(event) => {
 							event.stopPropagation();
 							setOverflowOpen(true);
@@ -586,7 +586,7 @@ const GridCell = memo(function GridCell({
 						Show {cellEntries.length - 2} more class{cellEntries.length - 2 === 1 ? '' : 'es'}
 						{hiddenAffectedCount > 0 ? (
 							<span
-								className="ml-auto rounded bg-violet-100 px-1 text-[12px] font-semibold text-violet-700"
+								className="ml-auto rounded bg-violet-100 px-1 text-xs font-semibold text-violet-700"
 								data-testid="teacher-departure-hidden-cell-badge"
 							>
 								{hiddenAffectedCount} need teacher

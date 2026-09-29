@@ -132,11 +132,11 @@ export function PublishedTimetableMatrix({
 					</colgroup>
 					<thead className="bg-muted/40">
 						<tr>
-							<th className="border-b border-r border-border/70 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+							<th className="border-b border-r border-border/70 px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
 								Time
 							</th>
 							{visibleDays.map((day) => (
-								<th key={day} className="border-b border-border/70 px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+								<th key={day} className="border-b border-border/70 px-3 py-2 text-center text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
 									{DAY_LABELS[day]}
 								</th>
 							))}
@@ -147,7 +147,7 @@ export function PublishedTimetableMatrix({
 							<tr key={`${slot.startTime}-${slot.endTime}`} className="align-top">
 								<td className="border-b border-r border-border/70 px-3 py-3 align-top text-xs font-semibold whitespace-nowrap text-foreground">
 									<div>{formatShortTime(slot.startTime)}</div>
-									<div className="text-[11px] font-medium text-muted-foreground">to {formatShortTime(slot.endTime)}</div>
+									<div className="text-xs font-medium text-muted-foreground">to {formatShortTime(slot.endTime)}</div>
 								</td>
 								{visibleDays.map((day) => {
 									const cellEntries = cellIndex.get(`${day}-${slot.startTime}-${slot.endTime}`) ?? [];
@@ -162,11 +162,11 @@ export function PublishedTimetableMatrix({
 															<div className="flex flex-wrap items-start gap-2">
 																<div className="min-w-0 flex-1">
 																	<p className="truncate text-sm font-semibold text-foreground">{entry.subject.name}</p>
-																	<p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{entry.subject.code}</p>
+																	<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{entry.subject.code}</p>
 																</div>
 																{renderEntryBadges && <div className="flex flex-wrap items-center gap-1.5">{renderEntryBadges(entry)}</div>}
 															</div>
-															<div className="mt-2 space-y-1 text-[11px] leading-relaxed text-muted-foreground">
+															<div className="mt-2 space-y-1 text-xs leading-relaxed text-muted-foreground">
 																{renderEntryDetails(entry)}
 															</div>
 														</div>

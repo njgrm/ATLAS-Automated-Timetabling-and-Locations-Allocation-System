@@ -99,7 +99,7 @@ export default function RoomRequestHeader({
 						type='button'
 						variant='ghost'
 						size='sm'
-						className='h-6 px-2 text-[11px]'
+						className='h-6 px-2 text-xs'
 						onClick={() => setAdvisoryExpanded((current) => !current)}
 					>
 						{advisoryExpanded ? 'Hide' : 'Learn more'}

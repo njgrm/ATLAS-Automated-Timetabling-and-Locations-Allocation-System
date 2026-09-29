@@ -63,7 +63,7 @@ export default function ConflictInspector({
 							{preview.humanConflicts.map((conflict, index) => (
 								<div key={`${conflict.code}-${conflict.humanTitle}-${index}`} className='rounded-xl border border-border bg-muted/30 p-3'>
 									<p className='text-xs font-bold'>{conflict.humanTitle}</p>
-									<p className='mt-1 text-[11px] text-muted-foreground leading-relaxed'>{conflict.humanDetail}</p>
+									<p className='mt-1 text-xs text-muted-foreground leading-relaxed'>{conflict.humanDetail}</p>
 								</div>
 							))}
 						</div>
@@ -75,7 +75,7 @@ export default function ConflictInspector({
 				<div className='space-y-3 pt-2 border-t border-border'>
 					<div className='flex items-center justify-between'>
 						<p className='text-xs font-bold'>Why is this change needed?</p>
-						<span className='text-[10px] uppercase font-bold text-destructive'>Required</span>
+						<span className='text-xs uppercase font-bold text-destructive'>Required</span>
 					</div>
 					
 					<div className='flex flex-wrap gap-2'>
@@ -84,7 +84,7 @@ export default function ConflictInspector({
 								key={q}
 								type='button'
 								onClick={() => onReasonChange(q)}
-								className='text-[10px] px-2 py-1 rounded-full border border-border bg-background hover:bg-muted transition-colors'
+								className='text-xs px-2 py-1 rounded-full border border-border bg-background hover:bg-muted transition-colors'
 							>
 								{q}
 							</button>
@@ -99,7 +99,7 @@ export default function ConflictInspector({
 					/>
 
 					{!reason.trim() && (
-						<p className='text-[10px] text-destructive font-medium animate-pulse'>
+						<p className='text-xs text-destructive font-medium animate-pulse'>
 							âš  Please provide a reason to continue.
 						</p>
 					)}
