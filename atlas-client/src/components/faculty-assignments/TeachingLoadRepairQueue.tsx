@@ -193,7 +193,7 @@ export function TeachingLoadRepairQueue({
 						)}
 					</span>
 				</TooltipTrigger>
-				<TooltipContent side="bottom" className="max-w-80 text-xs font-medium leading-relaxed">
+				<TooltipContent side="bottom" className="max-w-80 font-medium leading-relaxed">
 					{/* The one thing that moved behind a hover. A6 c4 (G1): the
 					 * status is no longer restated here, because the grid behind
 					 * this chip is always rendered, so the status the trigger

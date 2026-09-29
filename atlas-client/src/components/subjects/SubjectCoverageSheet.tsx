@@ -196,7 +196,7 @@ export function SubjectCoverageSheet({
 														<span className="text-xs font-bold text-violet-600 uppercase tracking-tight">Rotates by term</span>
 													</div>
 												</TooltipTrigger>
-												<TooltipContent side="top" className="text-xs font-bold max-w-50">
+												<TooltipContent side="top" className="font-bold max-w-50">
 													This subject shares a weekly schedule lane with related subjects across terms.
 												</TooltipContent>
 											</Tooltip>

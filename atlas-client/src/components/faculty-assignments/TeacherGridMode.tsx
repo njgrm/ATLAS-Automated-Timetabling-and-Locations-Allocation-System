@@ -441,7 +441,7 @@ export function TeacherGridMode({
 																<TooltipTrigger asChild>
 																	<Star className="size-3.5 text-amber-500 fill-amber-500 shrink-0" />
 																</TooltipTrigger>
-																<TooltipContent side="top" className="text-xs font-semibold uppercase">Class Adviser</TooltipContent>
+																<TooltipContent side="top" className="font-semibold uppercase">Class Adviser</TooltipContent>
 															</Tooltip>
 														)}
 														{hasDraft && <Badge variant="secondary" className="h-4 px-1.5 text-xs font-semibold uppercase bg-sky-100 text-sky-700 animate-pulse">Draft</Badge>}

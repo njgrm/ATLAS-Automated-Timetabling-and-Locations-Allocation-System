@@ -366,7 +366,7 @@ export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision 
 											{upstreamVerified ? 'Up to date with EnrollPro' : 'Using saved data'}
 										</Badge>
 									</TooltipTrigger>
-									<TooltipContent side="bottom" className="max-w-72 p-3 text-xs font-medium leading-relaxed">
+									<TooltipContent side="bottom" className="max-w-72 p-3 font-medium leading-relaxed">
 										{upstreamVerified
 											? 'These numbers come from the saved Teaching Load and match EnrollPro.'
 											: 'EnrollPro could not be reached just now, so these numbers come from the last saved Teaching Load. Recent changes in EnrollPro may be missing.'}

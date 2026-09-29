@@ -66,7 +66,7 @@ export function ProgramScopeChips({ scopes }: { scopes: string[] }) {
 								{programScopeChipLabel(code)}
 							</span>
 						</TooltipTrigger>
-						<TooltipContent side="top" className="max-w-64 text-xs">
+						<TooltipContent side="top" className="max-w-64">
 							{programFullLabel(code)}
 						</TooltipContent>
 					</Tooltip>

@@ -208,7 +208,7 @@ function LeftRailContentImpl({ context }: LeftRailContentProps) {
 										    run's unplaced count. */}
 										<Badge variant="secondary" className="h-5 px-2 text-xs cursor-default">{draftBoard?.counts.unscheduled ?? 0} {WEEKLY_UNPLACED_BADGE_LABEL}</Badge>
 									</TooltipTrigger>
-									<TooltipContent className="max-w-48 text-xs">{WEEKLY_UNPLACED_LABEL}. A finished run reports a different count: the sessions that run could not place.</TooltipContent>
+									<TooltipContent className="max-w-48">{WEEKLY_UNPLACED_LABEL}. A finished run reports a different count: the sessions that run could not place.</TooltipContent>
 								</Tooltip>
 							</TooltipProvider>
 							<TooltipProvider>
@@ -216,7 +216,7 @@ function LeftRailContentImpl({ context }: LeftRailContentProps) {
 									<TooltipTrigger asChild>
 										<Badge variant="secondary" className="h-5 px-2 text-xs cursor-default">{draftBoard?.counts.draft ?? 0} pinned</Badge>
 									</TooltipTrigger>
-									<TooltipContent className="max-w-48 text-xs">Sessions placed in the draft grid. These become anchors when schedule generation runs.</TooltipContent>
+									<TooltipContent className="max-w-48">Sessions placed in the draft grid. These become anchors when schedule generation runs.</TooltipContent>
 								</Tooltip>
 							</TooltipProvider>
 							{preGenPending ? <Badge className="h-5 px-2 text-xs">Pending preview</Badge> : null}

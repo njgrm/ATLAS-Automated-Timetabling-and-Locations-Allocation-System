@@ -402,7 +402,7 @@ function RightPanelImpl(props: RightPanelProps) {
 																	</div>
 																</TooltipTrigger>
 																{explanation && (
-																	<TooltipContent side="left" className="max-w-62.5 text-xs">
+																	<TooltipContent side="left" className="max-w-62.5">
 																		<p className="font-semibold mb-1">{violationTitle}</p>
 																		<p className="text-muted-foreground leading-normal">{explanation.why}</p>
 																	</TooltipContent>

@@ -220,13 +220,22 @@ test('A5-34/35: the Subjects column-header bubble renders on document.body, outs
 		'a clipping ancestor still sits between the bubble and document.body',
 	);
 
-	// THE DARK, READABLE STYLE (operator item 34: the previous
-	// `bg-popover text-popover-foreground` was a white pill on a white card).
-	// A5 item 35.1 replaced `whitespace-nowrap` with the WRAP contract, so the
-	// required set now carries `whitespace-normal` and asserts the cap that
-	// forces a long sentence onto a second line.
-	for (const token of ['z-50', 'bg-slate-900', 'text-white', 'font-medium', 'text-xs', 'px-2.5', 'py-1', 'rounded-md', 'shadow-md', 'pointer-events-none', 'w-max', 'max-w-xs', 'md:max-w-sm', 'whitespace-normal', 'break-words', 'leading-normal']) {
-		assert.ok(hasClass(node, token), `the bubble is missing the standard tooltip token "${token}"`);
+	// THE WHITE, READABLE STYLE (A7 c10, operator 2026-09-29: "Why on earth are
+	// the tooltips black? Why is it not just white with a shadowed background?").
+	//
+	// SUPERSEDED. This row used to require `bg-slate-900 text-white text-xs` and
+	// to assert that `bg-popover` was ABSENT, which encoded the 2026-09-28 dark
+	// workaround as the standard. The dark tokens are not deleted from this file:
+	// they are asserted in the opposite direction below, and
+	// `a5-subjects-c1.test.tsx` A5-34/35 MUTANT CONTROL keeps both historical
+	// lists as rejected mutants. What was actually wrong with the old white pill
+	// is the missing EDGE, and the edge is `border` + `border-border` +
+	// `shadow-md` — all three are required below.
+	//
+	// A5 item 35.1 replaced `whitespace-nowrap` with the WRAP contract; A7 c10
+	// replaced the `max-w-xs md:max-w-sm` cap with the operator's `max-w-[22rem]`.
+	for (const token of ['z-50', 'bg-popover', 'text-popover-foreground', 'border', 'border-border', 'font-medium', 'text-sm', 'px-2.5', 'py-1', 'rounded-md', 'shadow-md', 'pointer-events-none', 'w-max', 'max-w-[22rem]', 'whitespace-normal', 'break-words', 'leading-normal']) {
+		assert.ok(hasClass(node, token), `the bubble is missing the shared tooltip token "${token}"`);
 	}
 	// The wrap contract is only real if the nowrap force is GONE. This is the
 	// control that distinguishes item 35.1 from the class list it replaced.
@@ -236,10 +245,17 @@ test('A5-34/35: the Subjects column-header bubble renders on document.body, outs
 		'whitespace-nowrap is back on the shared primitive, so a long sentence is clipped again',
 	);
 	// It still carries a real pair of background/foreground classes, i.e. the
-	// content is not white-on-white whatever the theme.
-	assert.match(node.className, /bg-slate-900/);
-	assert.match(node.className, /text-white/);
-	assert.ok(!/bg-popover/.test(node.className), 'the white popover surface is back, so the text is unreadable again');
+	// content is never the same colour as its own surface. A7 c10 checks the
+	// REVERSED direction too: the surface must be light and the text dark.
+	assert.match(node.className, /bg-popover/);
+	assert.match(node.className, /text-popover-foreground/);
+	for (const dark of ['bg-slate-900', 'bg-slate-8', 'text-white', 'text-slate-100', 'dark:bg', 'shadow-none']) {
+		assert.equal(
+			node.className.includes(dark),
+			false,
+			`the rendered bubble still carries "${dark}", so this tooltip is black or has lost its edge`,
+		);
+	}
 });
 
 test('A5-34/35: the bubble names the column AND the sort action, and is not a restatement of the accessible name', async () => {
@@ -336,7 +352,7 @@ test('A5-34/35 PRESERVATION: the Sections table header — a file this lane did 
 	assert.equal(cell.contains(node), false, 'the Sections bubble is still inside the header cell');
 	assert.equal(host.contains(node), false, 'the Sections bubble is still inside the render container');
 	assert.equal(clippingAncestorClass(node), null, 'a clipping ancestor still sits above the Sections bubble');
-	for (const token of ['z-50', 'bg-slate-900', 'text-white', 'font-medium']) {
+	for (const token of ['z-50', 'bg-popover', 'text-popover-foreground', 'font-medium']) {
 		assert.ok(hasClass(node, token), `the Sections bubble is missing "${token}"`);
 	}
 });
@@ -370,7 +386,7 @@ test('A5-34/35 PRESERVATION + MUTANT CONTROL: the shared AdminDataTable header p
 	const node = bubble();
 	assert.equal(cell.contains(node), false, 'the AdminDataTable bubble is still inside the header cell');
 	assert.equal(clippingAncestorClass(node), null, 'a clipping ancestor still sits above the AdminDataTable bubble');
-	for (const token of ['z-50', 'bg-slate-900', 'text-white']) {
+	for (const token of ['z-50', 'bg-popover', 'text-popover-foreground']) {
 		assert.ok(hasClass(node, token), `the AdminDataTable bubble is missing "${token}"`);
 	}
 
@@ -391,14 +407,22 @@ type SortFieldish = { field: 'code' | 'name'; sortField: 'code' | 'name' };
 
 test('A5-34/35 MUTANT CONTROL: the PRE-FIX bubble class list is rejected by the rendered-style check, so that check is not vacuous', async () => {
 	// The base `TooltipContent` class list, verbatim. Item 34 asked for `z-50`
-	// and the standard dark style; the base was `z-[9999]` with a
-	// `bg-popover text-popover-foreground` white pill.
+	// and, as it stood on 2026-09-28, a dark style; the base was `z-[9999]` with
+	// a `bg-popover text-popover-foreground` white pill and NO EDGE. A7 c10 makes
+	// this string the most relevant mutant in the file: it is the shape that
+	// produced the "blank white pill" report, and the new contract keeps white
+	// while requiring `border-border` + `shadow-md` so the bubble can never be
+	// that shape again.
 	const PRE_FIX = 'z-[9999] overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md animate-in';
 	// A5 item 35.1: the same base, plus the `whitespace-nowrap` force that
 	// clipped every sentence-length helper. This is the SECOND half of the
 	// mutant: it proves the wrap contract is load-bearing, not decoration.
 	const PRE_FIX_NOWRAP = `${PRE_FIX} whitespace-nowrap`;
-	const REQUIRED = ['z-50', 'bg-slate-900', 'text-white', 'font-medium', 'text-xs', 'px-2.5', 'py-1', 'rounded-md', 'shadow-md', 'pointer-events-none', 'w-max', 'max-w-xs', 'whitespace-normal', 'break-words', 'leading-normal'];
+	// A7 c10: the list that WAS required until 2026-09-29. Added here as a THIRD
+	// mutant, asserted from the opposite direction, so the superseded dark
+	// contract stays in the file as evidence rather than being deleted.
+	const SUPERSEDED_DARK = 'z-50 rounded-md bg-slate-900 px-2.5 py-1 text-xs font-medium text-white shadow-md pointer-events-none animate-in w-max max-w-xs md:max-w-sm whitespace-normal break-words leading-normal';
+	const REQUIRED = ['z-50', 'bg-popover', 'text-popover-foreground', 'border', 'border-border', 'font-medium', 'text-sm', 'px-2.5', 'py-1', 'rounded-md', 'shadow-md', 'pointer-events-none', 'w-max', 'max-w-[22rem]', 'whitespace-normal', 'break-words', 'leading-normal'];
 
 	// The same predicate row 1 applies to the rendered bubble.
 	const missing = (className: string) => {
@@ -411,12 +435,21 @@ test('A5-34/35 MUTANT CONTROL: the PRE-FIX bubble class list is rejected by the 
 	// and the expectation could not hold. What matters is that the control FIRES
 	// and that it fires on the tokens that matter, not on cosmetics.
 	assert.ok(missing(PRE_FIX).length > 0, 'MUTANT CONTROL DID NOT FIRE: the pre-fix class list no longer fails the style check, so row 1 is asserting nothing');
-	for (const token of ['z-50', 'bg-slate-900', 'text-white', 'w-max', 'max-w-xs', 'whitespace-normal', 'break-words', 'leading-normal']) {
+	for (const token of ['z-50', 'border-border', 'w-max', 'max-w-[22rem]', 'whitespace-normal', 'break-words', 'leading-normal']) {
 		assert.ok(missing(PRE_FIX).includes(token), `the pre-fix list must be rejected for ${token}, not merely for cosmetics`);
+	}
+	// A7 c10: the superseded dark list must be rejected too — for the surface,
+	// the text, the edge and the size. This is what proves the white contract
+	// discriminates rather than renaming the dark one.
+	for (const token of ['bg-popover', 'text-popover-foreground', 'border-border', 'text-sm', 'max-w-[22rem]']) {
+		assert.ok(
+			missing(SUPERSEDED_DARK).includes(token),
+			`MUTANT CONTROL DID NOT FIRE: the superseded dark list still passes for ${token}, so the white contract is not load-bearing`,
+		);
 	}
 	// The 35.1 mutant: nowrap present, wrap contract absent. The predicate must
 	// still reject it — otherwise the wrap classes are decoration.
-	for (const token of ['w-max', 'max-w-xs', 'whitespace-normal', 'break-words', 'leading-normal']) {
+	for (const token of ['w-max', 'max-w-[22rem]', 'whitespace-normal', 'break-words', 'leading-normal']) {
 		assert.ok(missing(PRE_FIX_NOWRAP).includes(token), `MUTANT CONTROL DID NOT FIRE: the 35.1 nowrap list still passes, so the wrap contract is not load-bearing (${token})`);
 	}
 

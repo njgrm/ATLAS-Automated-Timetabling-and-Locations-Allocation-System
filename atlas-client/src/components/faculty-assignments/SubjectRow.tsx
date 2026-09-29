@@ -749,7 +749,7 @@ export const SubjectRow = memo(({
 																							{owner.facultyName}
 																						</span>
 																					</TooltipTrigger>
-																					<TooltipContent side="top" className="text-xs font-bold">
+																					<TooltipContent side="top" className="font-bold">
 																						{`Assigned to ${owner.facultyName}. Click the swap arrows to move this class.`}
 																					</TooltipContent>
 																				</Tooltip>
@@ -776,7 +776,7 @@ export const SubjectRow = memo(({
 																							{section.assignmentSpecializationLabel}
 																						</span>
 																					</TooltipTrigger>
-																					<TooltipContent side="top" className="text-xs font-bold">
+																					<TooltipContent side="top" className="font-bold">
 																						Required: {section.assignmentSpecializationLabel}
 																						{isApprovedCompatibility && " (Approved Alternative)"}
 																					</TooltipContent>
@@ -792,7 +792,7 @@ export const SubjectRow = memo(({
 																							</span>
 																						</div>
 																					</TooltipTrigger>
-																					<TooltipContent side="top" className="text-xs font-bold">
+																					<TooltipContent side="top" className="font-bold">
 																						Two teachers are both saved as the owner of this class. Review before continuing.
 																					</TooltipContent>
 																				</Tooltip>
@@ -820,7 +820,7 @@ export const SubjectRow = memo(({
 																							<ArrowLeftRight className="size-3" />
 																						</Button>
 																					</TooltipTrigger>
-																					<TooltipContent side="top" className="text-xs font-bold">
+																					<TooltipContent side="top" className="font-bold">
 																						{owner.isPending ? 'Swap from pending owner' : 'Swap ownership to current teacher'}
 																					</TooltipContent>
 																				</Tooltip>

@@ -481,7 +481,7 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 									</Label>
 								</div>
 							</TooltipTrigger>
-							<TooltipContent side="top" className="max-w-72 text-xs leading-relaxed">
+							<TooltipContent side="top" className="max-w-72 leading-relaxed">
 								{OUTSIDE_DEPT_FILTER_EXPLANATION}
 							</TooltipContent>
 						</Tooltip>
@@ -500,7 +500,7 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 									</Label>
 								</div>
 							</TooltipTrigger>
-							<TooltipContent side="top" className="max-w-64 text-xs leading-relaxed">
+							<TooltipContent side="top" className="max-w-64 leading-relaxed">
 								Show only teachers whose subject is not in the catalog
 							</TooltipContent>
 						</Tooltip>

@@ -85,7 +85,7 @@ export function TeacherAttentionFilters({
 									<span className="ml-1 tabular-nums opacity-80">{chip.count}</span>
 								</Button>
 							</TooltipTrigger>
-							<TooltipContent side="bottom" className="max-w-60 text-xs">{chip.helper}</TooltipContent>
+							<TooltipContent side="bottom" className="max-w-60">{chip.helper}</TooltipContent>
 						</Tooltip>
 					</TooltipProvider>
 				))}

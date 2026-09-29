@@ -230,7 +230,7 @@ export function TeacherSubjectPermissions({
 												</Button>
 											</span>
 										</TooltipTrigger>
-										<TooltipContent side="bottom" className="max-w-72 text-xs font-semibold">
+										<TooltipContent side="bottom" className="max-w-72 font-semibold">
 											{`Stop ${facultyName} being offered ${row.name}. Subjects they already teach are not affected.`}
 										</TooltipContent>
 									</Tooltip>

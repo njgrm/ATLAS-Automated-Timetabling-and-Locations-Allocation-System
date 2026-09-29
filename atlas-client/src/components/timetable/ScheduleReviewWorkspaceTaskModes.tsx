@@ -59,7 +59,7 @@ export function ScheduleReviewWorkspaceTaskModes({ taskModes }: { taskModes: Tim
 									)}
 								</Button>
 							</TooltipTrigger>
-							<TooltipContent side="bottom" className="max-w-xs text-xs">
+							<TooltipContent side="bottom" className="max-w-xs">
 								{task.helper}
 							</TooltipContent>
 						</Tooltip>

@@ -737,7 +737,7 @@ export function CenterWorkspacePaneSurface(props: CenterWorkspacePaneSurfaceProp
 															<span className="min-w-0 truncate">{pivotLabel(Number(entityFilter))}</span>
 														</Badge>
 													</TooltipTrigger>
-													<TooltipContent side="bottom" className="max-w-[min(32rem,calc(100vw-2rem))] text-xs">
+													<TooltipContent side="bottom" className="max-w-[min(32rem,calc(100vw-2rem))]">
 														{viewMode === 'faculty' ? 'Teacher' : viewMode === 'room' ? 'Room' : 'Section'}: {pivotLabel(Number(entityFilter))}
 													</TooltipContent>
 												</Tooltip>

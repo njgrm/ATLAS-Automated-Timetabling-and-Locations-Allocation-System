@@ -66,7 +66,7 @@ export function ScheduleReviewWorkspaceSummaryStats({
 												{initials}
 											</div>
 										</TooltipTrigger>
-										<TooltipContent className="p-2 text-xs">
+										<TooltipContent className="p-2">
 											<p className="font-semibold text-foreground">{label}</p>
 											<p className="text-xs capitalize text-muted-foreground">{user.role?.toLowerCase()} &middot; Active</p>
 										</TooltipContent>
