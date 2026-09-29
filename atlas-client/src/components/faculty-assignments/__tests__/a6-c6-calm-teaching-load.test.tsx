@@ -33,6 +33,24 @@ import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 import { act, createElement } from 'react';
 import { JSDOM } from 'jsdom';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { TEMPORARY_ROLE_BUCKET_KEY, TEMPORARY_ROLE_BUCKET_LABEL } from '@/hooks/useTeachingLoadUI';
+
+/** A repository source file, read by path from the client root. */
+const readSource = (relative: string): string =>
+	readFileSync(resolve(import.meta.dirname, '../../../..', relative), 'utf8');
+
+/**
+ * A source file with its comments removed.
+ *
+ * A comment that NAMES a retired defect is a record, not a defect. A scan that
+ * cannot tell the two apart gets satisfied by deleting the history, which is the
+ * failure `AGENTS.md` §16 exists to prevent — so every "this string must be gone"
+ * claim in this file is made against CODE only.
+ */
+const stripComments = (source: string): string =>
+	source.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
 
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
 	url: 'http://localhost/teaching-load',
@@ -427,6 +445,57 @@ test("A6C6-1 the two inclusion switches carry Lane C's exact plain sentences, an
 });
 
 /* ═══════════════ A6C6-2 — ITEM 1's second half: the editor heading ═══════ */
+
+test('A6C6-1b MUTANT ROW: the temporary-role group heading is a plain label, not a code', () => {
+	/*
+	 * THE FINDING THIS ROW EXISTS FOR CAME FROM THE BROWSER, NOT FROM A GREP.
+	 *
+	 * The source sweep in the packet found the two inclusion switches and the
+	 * `Cross-Department` heading. It missed this one, because the string lives in
+	 * `hooks/useTeachingLoadUI.ts` — a file no source sweep for the filter bar
+	 * looks at — and the loopback render at 1366x768 put it on screen as the
+	 * roster's group heading. That is the `AGENTS.md` §11 lesson applied to itself:
+	 * a source scan of the files you edited is not a sweep of the page.
+	 *
+	 * WHAT IT WAS: `UNSTAFFED TEMPORARY ROLES` — the code, printed as a heading,
+	 * for the same rows the header chip has always called `Temporary substitutes`.
+	 */
+	const ui = readSource('src/hooks/useTeachingLoadUI.ts');
+
+	// The label is the product's own word, exported so the heading and the
+	// constant cannot drift.
+	assert.equal(TEMPORARY_ROLE_BUCKET_LABEL, 'Temporary substitutes', 'the temporary-role heading must be a plain label');
+	assert.doesNotMatch(
+		TEMPORARY_ROLE_BUCKET_LABEL,
+		/[A-Z][A-Z_]{2,}/,
+		'and must carry no all-caps code token',
+	);
+
+	// The key stays a code. It is Map identity: changing it would move the group
+	// for reasons no scheduler can see, and the fix was the LABEL, not the key.
+	assert.equal(TEMPORARY_ROLE_BUCKET_KEY, 'TEMPORARY_ROLE', 'the group key stays a stable code');
+	assert.ok(
+		ui.includes(`grouped.set(TEMPORARY_ROLE_BUCKET_KEY, bucket)`),
+		'the placeholder branch must group under the exported key',
+	);
+	assert.ok(
+		ui.includes('label: TEMPORARY_ROLE_BUCKET_LABEL'),
+		'and it must take its READABLE label from the same exported constant, not a second literal',
+	);
+
+	// MUTANT: the old code must not survive in the hook's CODE. Comments are
+	// stripped first, for the reason `A6C6-1` already states for the filter bar: a
+	// comment that NAMES a retired defect is a record, not a defect, and a scan
+	// that cannot tell them apart gets satisfied by deleting the history.
+	assert.ok(
+		!stripComments(ui).includes('UNSTAFFED TEMPORARY ROLES'),
+		'the all-caps heading code must be gone from the hook',
+	);
+	assert.ok(
+		!/label:\s*'[^']*[A-Z][A-Z_]{2,}[^']*'/.test(stripComments(ui)),
+		'and no group label in this file may be a quoted all-caps code',
+	);
+});
 
 test("A6C6-2 the editor's outside-the-department heading reads as a plain sentence", () => {
 	// The base heading was `Cross-Department` — a hyphenated CODE, in

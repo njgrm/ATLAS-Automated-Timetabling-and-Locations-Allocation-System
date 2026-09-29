@@ -1,4 +1,26 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+
+/**
+ * A6 c6 item 1 (2026-09-29) — the temporary-role group's key and its READABLE
+ * label, declared together so they can never drift.
+ *
+ * The key is identity and stays a code: it is the `Map` key the groups are built
+ * and sorted on, and changing it would move the group for reasons no scheduler
+ * can see. The label is what a person reads, and it is the product's own word —
+ * the same word the header chip has always used (`Temporary substitutes: N`) and
+ * the same word `AutoFillSummaryModal` renders for `TEMPORARY_SUBSTITUTE`. The
+ * heading used to print the code itself, `UNSTAFFED TEMPORARY ROLES`, which is
+ * the one all-caps code left on this page after the two inclusion switches were
+ * reworded.
+ *
+ * WHERE THIS FINDING CAME FROM, because it is the point: the packet's source
+ * sweep looked at the four Teaching Load component files and missed this string
+ * entirely, because it lives in this hook. The loopback render at 1366x768 put
+ * it on screen. A source scan of the files you edited is not a sweep of the
+ * page — `AGENTS.md` §11's rendered rule, applied to the row that enforces it.
+ */
+export const TEMPORARY_ROLE_BUCKET_KEY = 'TEMPORARY_ROLE';
+export const TEMPORARY_ROLE_BUCKET_LABEL = 'Temporary substitutes';
 import type { 
 	FacultySummary, 
 	Subject, 
@@ -221,9 +243,11 @@ export function useTeachingLoadUI({
 		const grouped = new Map<string, { label: string; members: FacultySummary[] }>();
 		for (const member of filteredFaculty) {
 			if (member.isPlaceholder) {
-				const bucket = grouped.get('UNSTAFFED TEMPORARY ROLES') ?? { label: 'UNSTAFFED TEMPORARY ROLES', members: [] };
+				// The key is the exported code; the label is the product's own word.
+				// See `TEMPORARY_ROLE_BUCKET_LABEL` for why they are separate.
+				const bucket = grouped.get(TEMPORARY_ROLE_BUCKET_KEY) ?? { label: TEMPORARY_ROLE_BUCKET_LABEL, members: [] };
 				bucket.members.push(member);
-				grouped.set('UNSTAFFED TEMPORARY ROLES', bucket);
+				grouped.set(TEMPORARY_ROLE_BUCKET_KEY, bucket);
 				continue;
 			}
 			// Server-supplied canonical identity groups the grid; unknown maps group under Unmapped.
