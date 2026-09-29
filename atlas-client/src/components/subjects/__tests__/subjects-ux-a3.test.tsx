@@ -2409,10 +2409,40 @@ test('A3-33A: the scheduling-rules section is always rendered, with no disclosur
 // Fix 19 — the action menu is route-scoped: wide enough, and no wrapping.
 // ===========================================================================
 test('A3-19: the subject action menu is widened and non-wrapping at this call site only', async () => {
-	// The shared primitive is untouched — that is the boundary.
+	// A5 c8b RE-POINTED the two boundary rows below; the claim is unchanged, the
+	// words that carry it moved. §16 forbids deleting a row to close a finding, so
+	// both are re-pointed in place, with the reason, and are still green. The
+	// boundary being asserted is the SAME one A3-19 asserted: the primitive's own
+	// base is untouched, and the fix is opt-in at the call site.
+	//
+	// Row 1 was `assert.equal(/whitespace-nowrap/.test(primitive), false)` over the
+	// WHOLE `ui/dropdown-menu.tsx` file. That was a true boundary when
+	// `ui/dropdown-menu.tsx` contained only the primitive. A5 c8b added the opt-in
+	// recipe constants to that same file — the packet's designated §8 home — so the
+	// file-level scan now trips on the constant that EXISTS to be passed to a
+	// call site, and would have to delete it to pass. The claim is re-pointed at the
+	// two things it was actually about, and row A3-19b below then proves the same
+	// boundary on the RENDERED primitive.
 	const primitive = code('src/ui/dropdown-menu.tsx');
 	assert.match(primitive, /min-w-\[8rem\]/, 'the shared DropdownMenu primitive min-width was changed');
-	assert.equal(/whitespace-nowrap/.test(primitive), false, 'whitespace-nowrap leaked into the shared primitive');
+	// The boundary, precisely: neither primitive component may reference the recipe.
+	// If either did, the nowrap would stop being opt-in and every picker, toolbar
+	// and timetable menu would inherit it.
+	for (const component of ['DropdownMenuContent', 'DropdownMenuItem'] as const) {
+		const start = primitive.indexOf(`const ${component} = React.forwardRef<`);
+		assert.ok(start >= 0, `the shared primitive ${component} moved; re-read this row`);
+		const body = primitive.slice(start, primitive.indexOf(`${component}.displayName`, start));
+		assert.doesNotMatch(
+			body,
+			/rowMenu(Content|Item)ClassName/,
+			`${component} references the opt-in row-menu recipe, so nowrap is no longer opt-in and the sentence-length menus that share this primitive inherit it`,
+		);
+		assert.doesNotMatch(
+			body,
+			/whitespace-nowrap/,
+			`whitespace-nowrap leaked into the shared ${component} base class, not into a call site`,
+		);
+	}
 
 	const host = await render(
 		<MemoryRouter>
@@ -2451,10 +2481,18 @@ test('A3-19: the subject action menu is widened and non-wrapping at this call si
 
 	const menu = document.querySelector('[role="menu"]');
 	assert.ok(menu, 'the action menu did not open');
-	// The load-bearing guard: the call site must beat the primitive's own
-	// min-w-[8rem], or long labels wrap and clip again.
-	assert.match(menu.className, /min-w-\[13rem\]/, 'the call site did not widen the menu');
-	assert.match(menu.className, /w-56/, 'the call site kept the old w-44 width');
+	// The load-bearing guard, re-pointed: the call site must beat the primitive's own
+	// min-w-[8rem], or long labels wrap and clip again. A3-19 wrote the floor by hand
+	// as `min-w-[13rem]`; A5 c8b names it `min-w-52`, which IS 13rem, so the same
+	// 208px floor still beats the primitive. The class is read from the shared
+	// recipe rather than retyped, so moving the recipe moves this row with it.
+	assert.match(menu.className, /\bmin-w-52\b/, 'the call site did not widen the menu past the primitive\'s own min-w-[8rem]');
+	assert.match(menu.className, /\bw-max\b/, 'the menu is not sized to its longest item, so a long label still wraps');
+	assert.match(menu.className, /max-w-\[min\(28rem,90vw\)\]/, 'the menu has no viewport cap, so a long label can spill off the right edge');
+	// Anchored, because `min-w-52` CONTAINS the substring `w-52` and a bare
+	// `/\bw-\d{2}\b/` would match the recipe's own floor and fail this row on the
+	// very class that fixes the defect. A fixed width is a standalone `w-*`.
+	assert.doesNotMatch(menu.className, /(^|\s)w-\d{2}(\s|$)/, 'a fixed width is back; the menu must fit its longest item instead of clipping it');
 	const items = Array.from(menu.querySelectorAll('[role="menuitem"]'));
 	assert.ok(items.length >= 3);
 	for (const item of items) {
@@ -2466,4 +2504,49 @@ test('A3-19: the subject action menu is widened and non-wrapping at this call si
 		items.some((i) => i.textContent?.includes('Archive for new schedules')),
 		'the longest menu label is missing',
 	);
+});
+
+test('A3-19b: the recipe is OPT-IN — a bare primitive item still wraps, a recipe item does not', async () => {
+	/* A5 c8b (2026-09-29). The row above proves the boundary in the SOURCE; this
+	   proves it in the DOM, which is where a leak would actually reach a user.
+
+	   It matters because `ui/dropdown-menu.tsx` is shared with menus whose items are
+	   long SENTENCES that are meant to wrap — `ScheduleReviewWorkspaceHeader`,
+	   `WorkspaceToolbar`, `TimetableSimpleHeader`. A recipe applied to the primitive
+	   instead of to the call site would push those off the viewport, and no
+	   file-level regex would report it as a user-visible fault. */
+	const { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, rowMenuContentClassName, rowMenuItemClassName } =
+		await import('@/ui/dropdown-menu');
+
+	/* `render` unmounts the previous tree itself, so the document holds exactly
+	   the current render at each step — the same guarantee A3-19 relies on. */
+	await render(
+		<DropdownMenu open={true}>
+			<DropdownMenuTrigger>A bare toolbar menu</DropdownMenuTrigger>
+			<DropdownMenuContent>
+				<DropdownMenuItem onSelect={() => {}}>Refresh the canonical derived demand and re-read every term before generating</DropdownMenuItem>
+			</DropdownMenuContent>
+		</DropdownMenu>,
+	);
+	const bareItem = document.querySelector('[role="menuitem"]') as HTMLElement | null;
+	assert.ok(bareItem, 'the bare primitive menu did not open');
+	assert.doesNotMatch(
+		bareItem.className,
+		/whitespace-nowrap/,
+		'the shared primitive forces nowrap on its own, so the sentence-length toolbar and timetable menus can no longer wrap',
+	);
+
+	await render(
+		<DropdownMenu open={true}>
+			<DropdownMenuTrigger>A roster row menu</DropdownMenuTrigger>
+			<DropdownMenuContent className={rowMenuContentClassName}>
+				<DropdownMenuItem onSelect={() => {}} className={rowMenuItemClassName}>Edit temporary teacher details</DropdownMenuItem>
+			</DropdownMenuContent>
+		</DropdownMenu>,
+	);
+	const optedItem = document.querySelector('[role="menuitem"]') as HTMLElement | null;
+	assert.ok(optedItem, 'the opt-in menu did not open');
+	assert.match(optedItem.className, /whitespace-nowrap/, 'a call site that took the recipe did not get its nowrap');
+	assert.equal(optedItem.textContent, 'Edit temporary teacher details', 'the fixture is not the real widest roster label, so this row would be vacuous');
+	await unmount();
 });

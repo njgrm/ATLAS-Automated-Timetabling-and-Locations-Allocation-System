@@ -37,8 +37,8 @@ import { cn } from '@/lib/utils';
  * `min-w-52` is 13rem — deliberately the same 208px the Subjects call site had
  * hand-written as `min-w-[13rem]`, so adopting the recipe there moved nothing.
  */
-export const rowMenuContentClassName = 'w-max min-w-52 max-w-[min(28rem,90vw)]';
-export const rowMenuItemClassName = 'gap-2 whitespace-nowrap';
+const rowMenuContentClassName = 'w-max min-w-52 max-w-[min(28rem,90vw)]';
+const rowMenuItemClassName = 'gap-2 whitespace-nowrap';
 
 const DropdownMenu = DropdownMenuPrimitive.Root;
 
