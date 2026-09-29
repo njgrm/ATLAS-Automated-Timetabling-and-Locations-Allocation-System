@@ -142,38 +142,37 @@ export function AppSidebar({
 	return (
 		<>
 			<Sidebar collapsible='icon' className={className}>
-				<SidebarHeader>
+				{/* Lane C 30 Sep: EnrollPro's brand block. The fixed-height `size='lg'` menu button
+				    clipped the three lines once the type scale grew; this block has no fixed height,
+				    a 48px logo, and a school name that wraps instead of truncating. */}
+				<SidebarHeader className='min-h-20 justify-center group-data-[state=expanded]:px-4 group-data-[state=collapsed]:px-1.5'>
 					<SidebarMenu>
 						<SidebarMenuItem>
-							<SidebarMenuButton
-								size='lg'
-								className='data-[state=open]:bg-sidebar-accent cursor-default'
-								tooltip={schoolName}
+							<div
+								className='flex items-center group-data-[state=expanded]:gap-3 group-data-[state=collapsed]:justify-center'
+								title={schoolName ?? undefined}
+								data-testid='sidebar-brand'
 							>
 								{visibleLogoUrl ? (
-									<div className='flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden shrink-0'>
-										<img src={visibleLogoUrl} alt='Logo' className='size-8 object-contain' onError={() => setFailedLogoUrl(logoUrl)} />
+									<div className='flex aspect-square size-12 items-center justify-center rounded-lg overflow-hidden shrink-0 border bg-muted p-1 group-data-[collapsible=icon]:size-8'>
+										<img src={visibleLogoUrl} alt='Logo' className='size-full object-contain' onError={() => setFailedLogoUrl(logoUrl)} />
 									</div>
 								) : (
-									<div className='flex aspect-square size-8 items-center justify-center rounded-lg bg-muted shrink-0'>
-										<School className='size-4 text-muted-foreground' />
+									<div className='flex aspect-square size-9 items-center justify-center rounded-lg bg-primary/10 shrink-0 group-data-[collapsible=icon]:size-8'>
+										<School className='size-5 text-primary' />
 									</div>
 								)}
-								<div className='grid flex-1 text-left text-sm leading-tight overflow-hidden'>
+								<div className='grid flex-1 gap-0.5 text-left leading-tight group-data-[collapsible=icon]:hidden'>
 									{schoolName ? (
-										<span className='truncate font-semibold'>{schoolName}</span>
+										<span className='block text-wrap font-extrabold uppercase leading-[1.1] text-primary'>{schoolName}</span>
 									) : (
-										<Skeleton className='h-3.5 w-28 my-0.5' />
+										<Skeleton className='h-4 w-28 my-0.5' />
 									)}
-									<div className='flex items-center gap-1 mt-0.5'>
-										<span className='truncate text-xs uppercase tracking-wider font-semibold text-primary/80'>
-											Scheduling Portal
-										</span>
-									</div>
-									<div className='flex items-center gap-1 mt-0.5'>
+									<span className='text-xs font-semibold uppercase tracking-wider text-primary/80'>Scheduling Portal</span>
+									<div className='flex flex-wrap items-center gap-x-1'>
 										{activeYearLabel ? (
 											<>
-												<span className='truncate text-xs text-foreground'>S.Y. {activeYearLabel}</span>
+												<span className='text-xs text-foreground'>S.Y. {activeYearLabel}</span>
 												<span className='shrink-0 text-xs font-semibold text-emerald-600'>
 													• ACTIVE
 												</span>
@@ -193,7 +192,7 @@ export function AppSidebar({
 										)}
 									</div>
 								</div>
-							</SidebarMenuButton>
+							</div>
 						</SidebarMenuItem>
 					</SidebarMenu>
 				</SidebarHeader>
