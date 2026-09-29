@@ -35,6 +35,9 @@ import { requiresFacultyIssueConfirmation, resolveTimetableEntryPivot, resolveVi
 import { decideDraftPlacementReview, type DraftPlacementReviewDecision } from '@/lib/simple-timetable-state';
 import type { PendingSwapAction } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 import type { ActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+// A8 — the hook contract's own re-read options. Type-only, so the two hook
+// modules share one shape without a runtime import cycle.
+import type { FetchOptions, LoadAllOptions } from '@/hooks/useTimetableData';
 import { isPublishedDirectEditRefusal, PUBLISHED_DIRECT_EDIT_MESSAGE } from '@/lib/published-entry-change';
 import type {
 	CommitResult,
@@ -195,8 +198,8 @@ type UseTimetableMutationsInput = {
 	enforceShiftWindows: boolean;
 	setEnforceShiftWindows: React.Dispatch<React.SetStateAction<boolean>>;
 	draftBoardSummary: DraftBoardState['counts'] | null;
-	fetchDraftBoardSummary: (syId: number) => Promise<DraftBoardState['counts'] | null>;
-	loadAll: (preserveRun?: boolean) => Promise<void>;
+	fetchDraftBoardSummary: (syId: number, options?: FetchOptions) => Promise<DraftBoardState['counts'] | null>;
+	loadAll: (options?: LoadAllOptions | boolean) => Promise<void>;
 	setNewDraftLoading: React.Dispatch<React.SetStateAction<boolean>>;
 	setDraftBoard: React.Dispatch<React.SetStateAction<DraftBoardState | null>>;
 	setDraftBoardSummary: React.Dispatch<React.SetStateAction<DraftBoardState['counts'] | null>>;
@@ -834,8 +837,15 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				setPreGenAllowSoftOverride(false);
 				try { localStorage.removeItem('atlas_pregen_active'); } catch { /* ignore */ }
 			}
-			await loadAll(false);
-			await fetchDraftBoardSummary(schoolYearId);
+			// A8 — the run the POST just created is newer than the 60 s Timetable
+			// cache window, so the active-scope re-read MUST bypass the cache. The
+			// legacy boolean `loadAll(false)` mapped only to `preserveRun`, leaving
+			// `force` false: `ensureTimetableRuns`/`ensureTimetableRunBundle` then
+			// served the cached bundle, and the new draft was invisible until a full
+			// reload rebuilt the query client. Force every active-scope read for
+			// (schoolId, schoolYearId, runId='latest', termIndex) instead.
+			await loadAll({ preserveRun: false, force: true });
+			await fetchDraftBoardSummary(schoolYearId, { forceRefresh: true });
 		} catch (e: unknown) {
 			const axiosErr = e as { response?: { data?: { message?: string } } };
 			const msg = axiosErr?.response?.data?.message ?? (e instanceof Error ? e.message : 'Generation request failed.');
