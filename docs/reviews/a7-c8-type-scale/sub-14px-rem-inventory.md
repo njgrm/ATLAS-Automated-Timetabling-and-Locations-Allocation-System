@@ -79,3 +79,66 @@ For each, the re-fit pass must either give the row more height or accept the lar
 face, and must carry rendered proof at 1366x768 (per `docs/plans/codex-walk-standard.md`).
 Trimming the text to make a larger face fit is the wrong answer: the operator asked
 for larger default text, not less of it.
+
+## Rendered clip measurement (2026-09-29, A7 c8 planner, staging 1366x768)
+
+Raising `--text-xs` to 14px while `--text-xs--line-height` stayed `1.25rem` (20px)
+gave every single-line pill a 20px line box inside a smaller fixed box, and
+`overflow-hidden` cut the glyphs. Representative rendered measurement, taken on
+staging at 1366x768 at `font-size: 14px`:
+
+| Box | `clientHeight` | `scrollHeight` | Verdict |
+|---|---|---|---|
+| `ui/badge-variants.ts` base class (`h-5 text-xs`, no `leading-*`) | 18 | 21 | ~3px internal clip |
+
+Chips observed clipping through `<Badge>`: the role chip `Admin` (every page),
+`Active Term: T1`, `Full coverage`, `Ready`, `Needs rooms`, `Live source`, `7 ready`.
+
+**Fixed by this commit.** `ui/badge-variants.ts` base class gains `leading-none`.
+Arithmetic: `h-5` = 20px border-box, minus `border` 1px x2, minus `py-0.5` 2px x2
+leaves a 14px content box; `leading-none` makes the line box 14px, which fits
+exactly. The pill stays 20px tall - it is not grown. This is the only `@/ui`
+primitive that paired a fixed `h-4..h-6` box with `text-xs` + `overflow-hidden` and
+no `leading-*`, so the one class corrects every `<Badge>` chip at once
+(AGENTS.md §8, one look per control).
+
+**Not fixed here - re-fit pass.** The pre-existing sub-14px `rem` population above.
+Counting method: `Select-String` over `atlas-client/src/**/*.tsx` counting *lines*
+matching `<Badge[^>]*text-\[0\.[0-9]+rem` = **45 lines across 17 files**
+(323 `<Badge` element lines in total; a different method gave the planner's 266
+usages, recorded rather than reconciled):
+
+| Count | File |
+|---|---|
+| 9 | `components/BuildingPanel.tsx` |
+| 7 | `components/LockPanel.tsx` |
+| 6 | `components/sections/SectionDetailsSheet.tsx` |
+| 5 | `components/ManualEditPanel.tsx` |
+| 3 | `components/faculty/FacultyRow.tsx` |
+| 2 | `components/subjects/SubjectMobileCard.tsx` |
+| 2 | `components/subjects/SubjectRow.tsx` |
+| 2 | `components/timetable/SimplePublishReadinessSheet.tsx` |
+| 1 each | `components/timetable/TimetableStatusLegend.tsx`, `components/PolicyImpactSummary.tsx`, `components/SchedulingPolicyPane.tsx`, `components/room-schedules/OccupancyTemplatePreview.tsx`, `components/faculty/FacultyProfileSheet.tsx`, `components/dashboard/RoomSchedulePreview.tsx`, `components/timetable/TacticalSandboxDock.parts.tsx`, `components/timetable/simple/SimpleTaskDrawerHelpers.tsx`, `components/subjects/SyncPreviewSheet.tsx` |
+
+`leading-none` removes the *inherited* 20px line box for these too, but their own
+face is 10-11.2px in an `h-4` (16px) box whose content box is 10px, so a residual
+sub-pixel clip remains. These clip on `main` too and belong to the re-fit pass,
+not to this slice.
+
+**Page-local pills, not `<Badge>`.** 5 lines pair a fixed `h-*` box with a
+sub-14px `rem` face; 4 of the 5 already carry `leading-none`
+(`components/faculty/FacultyRow.tsx:166,328`,
+`components/subjects/ProgramScopeChips.tsx:62`,
+`components/subjects/SubjectRow.tsx:188`) - the house pattern this fix adopts. The
+fifth, `components/CampusMapEditor.tsx:609`, does not, and is the map room status
+pill the planner saw clip. Fixed-height sub-14px **Buttons** are a separate
+population (`components/LockPanel.tsx:444,447,450`,
+`components/dashboard/RoomSchedulePreview.tsx:141,148`).
+
+**Re-fit pass to-do, in order.** (1) Re-measure rendered `scrollHeight` vs
+`clientHeight` per Part 2 page on staging at 1366x768 and record the per-page clip
+count - this slice recorded static counts only, because the rendered per-page walk
+belongs to the re-fit pass. (2) Decide box-vs-face for each `h-4` cluster above,
+`h-4` = 16px cannot carry a 14px face with 1px borders and 2px padding. (3) Fix
+`CampusMapEditor.tsx:609`. Do not raise the pill height where it breaks row rhythm;
+give the row room instead.
