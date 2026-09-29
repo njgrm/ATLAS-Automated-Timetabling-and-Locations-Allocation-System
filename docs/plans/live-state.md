@@ -1839,6 +1839,48 @@ or process borrower, and is `RETIRE_AFTER_INTEGRATION` (E: 47.55 GiB before reti
 
 ## Lane C — current lane (written only by Planner C)
 
+### A8 server stalls + SSE stream leak — 2026-09-29 ~10:0x +08 — **ready for release at `6a496cbd` on `main`**
+
+Packet `docs/prompts/a8-server-stalls-2026-09-29.md`. Items 2 and 4 closed; **items 1, 3 and 5 are NOT
+discharged** (see below). 7 paths, 769+/28−, **0 `prisma/`**, no migration, no auth change. A4 owns the deploy.
+
+- **The 2.4 s freeze is NOT ATLAS application work, and this is measured, not argued.** Live and staging stall in
+  lockstep: over the 98-min overlap **523 of 596** staging stalls have a live stall within ±1 s, **median offset
+  0.000 s**, rates 5.99 vs 6.07/min. A bare Node probe running concurrently on the same host saw **0 blocks
+  >200 ms in 75 s** while the server logged **10 stalls** in that window. A full ATLAS server on loopback against
+  the same staging data: **0 stalls in 8 min at 0 streams, 0 in 3 min at 26 verified streams**.
+  **Eliminations:** across 2,266 stall lines heap never exceeded **53 MB of 4,288 MB (≤1.2%)** → GC excluded;
+  `corr(streams, blocked_ms) = −0.037` on live and median blocked time *falls* as the leak grows → **the leak does
+  not cause the stalls**. Independent QA searched for an in-repo cause and found none.
+  **What proves it:** the two supervisor logs (read-only), plus the loopback numbers above.
+- **The stream leak WAS ours and is fixed.** All four SSE routes discarded `sseWrite`'s return value, which is
+  `false` exactly when the peer is gone — so a half-open socket kept its timer, subscriber and slot forever. Now
+  the failed write is authoritative. Measured: 26 verified streams → **0** established 12 s after client abort
+  (before and after); 26 concurrent attempts by one principal → **20 × 200** `text/event-stream` + **6 × 429**
+  `TOO_MANY_STREAMS`. Four heavy routes warm p95/20: `runtime/context` **15 ms**, `scheduling-authority` **141 ms**,
+  `readiness/diagnostic` **387 ms**, `sections/summary` **347 ms** — all under the packet's 1 s target.
+- **QA: round 1 `CORRECTION_REQUIRED` 11 rows / 7 pass / 4 fail, 2 BLOCKING — both mine and both real.** (1) My cap
+  was a **school-wide** bucket on `preference` + `published-schedule`: those handlers verify the token into a
+  local and never set `req.user`, so every user collapsed to `anon:<school>:<year>` — QA proved `[200×20, 429×5]`
+  with 25 distinct users vs `[200×25]` on the control. (2) My admitted slot leaked on the **error path**, locking a
+  principal out until restart while `openCount` reported 0. (3) My per-tick-work row was a **tautology** —
+  `activeHeartbeatCount` was `byId.size` and deleting `clearInterval` survived 4/4. All three fixed.
+  **Round 2: `ACCEPT_READY` 11/11, blocked 0, unperformed 0**, 18 of 20 of QA's own mutations caught + byte-restored.
+  Preserved: 10/10, 6/6, 2/2, 11/11, 8/8. `tsc` 0 errors, build exit 0.
+- **⚠ THIS WILL NOT STOP THE DEMO FREEZE (as of 2026-09-29 ~10:0x).** 32 streams and a 30 s stall at 08:32 was
+  observed live and is unexplained by ATLAS code. **What proves it:** the lockstep and elimination numbers above.
+  **A4 must not let this candidate be described as a freeze fix.**
+- **Open, dated 2026-09-29:** (a) packet items 1/3/5 undischarged — the freeze needs a **host/volume-level** answer,
+  and `E:` is at ~29.8 GiB with 80 registered worktrees, so the §3 reclaim is A4's and is still owed before a
+  release build; (b) the 20-stream cap is per `(user, school, schoolYearId)`, **not per account** — QA measured one
+  account at 40. Do not lower it: a browser `EventSource` treats 429 as fatal and will not retry. (c) The
+  non-privileged faculty 403 branch was **not executed** (no seeded disposable DB) — byte-identical to base, so
+  source evidence only.
+- **Not claimed:** nothing on the live Tailnet, nothing on staging, no deploy, no login, no generation, no
+  publication, no migration, no live-data write, no runtime/task/env change. Worktree
+  `E:/ATLAS-worktrees/lane-a8-server-stalls` = **PRESERVE_FOR_DECISION** until A4 ships `6a496cbd`.
+- **Next action (single, A4's):** put `6a496cbd` in the next train. It closes the leak, not the freeze.
+
 **Pruned by Planner A2 on 2026-09-26, on operator instruction** (Lane C is held by the opencode
 primary-planner session, so A2 may maintain it). **352 lines → this length.** Everything cut was narrative
 or superseded history and stays in Git — `git show a94e2aa5:docs/plans/live-state.md` — and in the lane

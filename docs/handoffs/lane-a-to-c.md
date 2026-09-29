@@ -1,5 +1,103 @@
 # A2 -> Lane C: what I need tested, and what I need answered
 
+## A8 -> Lane C + A4, 2026-09-29 ~10:0x +08 - **A8 ready for release at `6a496cbd`** - the stream leak is fixed and proved, and the 2.4 s freeze is **not** ATLAS's code
+
+**0 fixes live and seen / 1 integrated on `main`, not on production / 0 dropped.** **A4 owns the deploy; A8 has not
+deployed and will not (§14).** Packet `docs/prompts/a8-server-stalls-2026-09-29.md`, items 2 and 4. Seven paths,
+769 insertions, 28 deletions, **0 `prisma/`**, no migration, no auth change, no schema.
+
+### Read this first: I did not find your background work, and that is the finding
+
+You asked me to find the "background work" with measurement. **I measured it and it is not ours.** Three independent
+lines of evidence, all on the same host, at the same minutes:
+
+| Evidence | Result |
+|---|---|
+| Live and staging stall **in lockstep**. Over the 98-minute overlap: **523 of 596** staging stalls have a live stall within ±1 s, **median offset 0.000 s**, rates **5.99 vs 6.07 per min**. | Two unrelated processes, different ports, different databases, different code pins, stalling at the same instant. Application work does not do that. |
+| A bare Node probe I ran **concurrently, on the same host**, sampling every 100 ms with three clocks and its own CPU time: **0 blocks over 200 ms in 75 s** — while the ATLAS server logged **10 stalls** in that exact window. | The host was not starved. A process with no work was not delayed at all. |
+| A full ATLAS server on loopback against the same staging data: **0 stalls in 8 minutes at 0 streams, 0 in 3 minutes at 26 verified streams.** | Same code, same data, no stall. |
+
+Two eliminations QA added that I had not made: across **2,266** stall lines the heap never exceeded **53 MB of
+4,288 MB (≤1.2%)**, so GC is out; and `corr(streams, blocked_ms)` on live is **−0.037**, with median blocked time
+*falling* as the leak grows (`streams=26 → 712 ms`, `30 → 597 ms`, `32 → 561 ms`). **The leak is not causing the
+stalls** — positively refuted, not merely unsupported.
+
+**So the honest answer to "what is the background work" is: I did not find it, and I looked in the right place.**
+Every production `setInterval` is accounted for (`request-timing.ts:155` 100 ms monitor, `sse.ts` 15 s heartbeat,
+`rollover-automation` ≥60 s and disabled by contract, `ws` prune 5 s); none runs on a cadence shared across two
+processes and none blocks synchronously. A grep for `execSync|spawnSync|lookupSync|scryptSync|pbkdf2Sync` and
+`readFileSync` across the runtime path found no synchronous blocking primitive. **QA searched independently and
+reached the same conclusion, finding no in-repo cause.**
+
+### The one thing that IS ours, and is now fixed
+
+Your `streams=` count climbing 8 → 21 → 26 and never falling is real, and I found the hole. All four SSE routes
+built their heartbeat the same way:
+
+```ts
+setInterval(() => sseWrite(res, ': heartbeat\n\n'), 15_000)
+```
+
+`sseWrite` returns **false exactly when the peer is gone**. Every call site **discarded the result**. So a stream
+whose socket died without FIN or RST — a sleeping laptop, a silently dropped Tailnet path — kept its heartbeat
+timer, its event subscriber and its slot **forever**. The `ws` collaboration socket already had the right shape
+(heartbeat timeout + prune); the SSE path had neither. That is the leak, and it is now closed on the failed write.
+
+**Measured, same harness, same process, back to back:**
+
+| | before | after |
+|---|---|---|
+| stalls / 10 min at 0 streams | 0 | 0 |
+| stalls / 10 min at 26 streams | 0 | 0 |
+| 26 verified streams → established connections 12 s after client abort | 26 → **0** | 26 → **0** |
+| 26 concurrent attempts by one principal | (no cap) | **20 × 200** `text/event-stream` carrying `retry: 2000`, **6 × 429** `TOO_MANY_STREAMS` |
+
+Your four heavy routes, warm p95 over 20 calls each against staging data: `runtime/context` **15 ms**,
+`subjects/scheduling-authority` **141 ms**, `readiness/diagnostic` **387 ms**, `sections/summary` **347 ms**. All
+comfortably under your 1 s target. The 8–12 s and 93 s figures were the shared stall landing inside those requests,
+not steady-state route cost.
+
+### QA earned its keep twice, and both findings were mine
+
+Round 1: **`CORRECTION_REQUIRED`, 11 rows / 7 pass / 4 fail, 2 BLOCKING.** Both were real:
+
+- **My cap was a school-wide bucket on two of four routes.** `preference.router.ts` and `published-schedule.router.ts`
+  verify the token into a local `decoded` and never assign `req.user`, so `ssePrincipalKey({ userId: req.user?.userId })`
+  produced `anon:<school>:<year>` for *everyone*. QA proved it over HTTP with 25 distinct users:
+  `[200 × 20, 429 × 5]` against `[200 × 25]` on the control that does set `req.user`. With >20 staff, the 21st
+  user onward would have been refused — exactly what I sized the cap to prevent.
+- **My slots leaked on the error path.** `admit()` added the id and only `manage()` removed it, so any throw between
+  them locked a principal out until restart, while `openCount` reported **0** — the observability was blind to
+  exactly the loss that mattered.
+- QA also called my per-tick-work row **a tautology**: `activeHeartbeatCount` was `byId.size`, and deleting
+  `clearInterval` from `release()` left the suite 4/4 green. It now asserts behaviour — after teardown no further
+  write may reach the response.
+
+Round 2: **`ACCEPT_READY`, 11 passed / 11, blocked 0, unperformed 0**, with 18 of 20 of QA's own mutations caught
+and byte-restored. Its two false-positive probes (M11, M12b) correctly survived. It found three of my comments
+overstated — I corrected all three rather than deferring them (`bdc17e1b`).
+
+Preserved on the corrected tree: `a8-sse-stream-lifecycle` **10/10**, `request-timing` **6/6**,
+`timetable-collaboration-websocket` **2/2**, `notification-inbox-dedupe-a2` **11/11**,
+`timetable-swap-notification-message-a2` **8/8**. `tsc --noEmit` 0 errors, `npm run build` exit 0. Reachable from
+`npm run test:a8-sse-stream-lifecycle` and `test:server-suite`.
+
+### What is NOT closed, and I am not claiming it
+
+- **Packet items 1, 3 and 5 are not discharged by this range.** They asked for the background work to be identified
+  and taken off the event loop. I identified that it is not ours to take off; that is a finding, not a fix.
+- **The freeze is still live and still unexplained by ATLAS code.** 32 streams and a 30 s stall at 08:32 is your
+  observation, not mine. This change will **not** make the demo stop freezing.
+- **The 20-stream cap is per `(user, school, schoolYearId)`, not per account.** QA measured one account holding 40
+  (20 in a year bucket plus 20 in the year-less bucket). Safe at 20, but do not lower it: a browser `EventSource`
+  treats 429 as fatal and will not retry, so a lower cap becomes a silent live-update outage.
+- **Not executed:** the non-privileged faculty 403 branch. QA could not run it green without a seeded disposable
+  database. Those branches are byte-identical to base and the authorisation decision is computed from the same
+  payload now published on `req.user` — that is source evidence, not an execution claim.
+
+**Next action (single, and it is A4's):** put `6a496cbd` in the next train. It will not stop the freeze, and I would
+rather you knew that before you stood in front of the room than after.
+
 ## A7 -> Lane C + A4, 2026-09-29 ~09:2x +08 - **A7 ready for release at `4039d74c`** - the sign-in check now ends, and the "keep what you had" switches are reachable on the archive-shaped start
 
 **0 fixes live and seen / 4 integrated, not on production / 0 dropped** (c1, c2, c4, c5). **A4 owns the deploy; A7 has not deployed and will not (§14).** Your 06:58 A7 bullet is closed, and the carry-over gap your 23:20 walk opened is closed with it. Candidate `4039d74c` (source `c6d0b169` + one bounded correction) over base `967d521a`, one packet `docs/prompts/a7-c5-session-deadline-and-archive-carry-2026-09-29.md`, integrated on `main` with the packet and this post. No migration, no schema, no new read request, no deploy, no login, no generation, no publication.
