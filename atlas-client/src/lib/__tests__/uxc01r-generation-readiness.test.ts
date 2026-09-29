@@ -272,7 +272,7 @@ test('UX-C01R: summary gate refuses a ready state whose diagnostic does not prov
 	// an unproven diagnostic still blocks generation.
 	const caps = deriveTimetableCapabilities(baseCapabilities({
 		curriculumState: 'ready',
-		generationDiagnostic: { generateAllowed: false, zeroWrite: true, blockerCount: 0 },
+		generationDiagnostic: { generateAllowed: false, zeroWrite: true, blockerCount: 0, gapCount: 620, gapClassCount: 50 },
 	}));
 	assert.equal(caps.generation.enabled, false);
 	// The unproven-readiness repair must be an in-place retry, never a self-link

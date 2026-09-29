@@ -792,7 +792,11 @@ export function BuildingView({
 		<div className={cn('relative', fillAvailableHeight && 'h-full')}>
 			{showToolbar && (
 				<TooltipProvider>
-					<div ref={toolbarRef} className="mb-2 flex items-center gap-1">
+				{/* A9 C6, fix 1.2 item 10.2 — horizontal inset ONLY: three of the four callers pass a
+				    FIXED stage height and this row's height is bound by its `h-7` buttons ON PURPOSE.
+				    Same `px-4 md:px-6` on the drawing surface below; `a3-c4-map-truth.test.ts` B has
+				    the rationale, the `contentRect` proof and the :834 decline. */}
+				<div ref={toolbarRef} className="mb-2 flex items-center gap-1 px-4 md:px-6">
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Button variant="outline" size="sm" className="h-7 w-7 p-0" aria-label="Zoom in building view" onClick={() => zoomTo(scale * 1.15)}>
@@ -843,7 +847,7 @@ export function BuildingView({
 				</TooltipProvider>
 			)}
 
-			<div ref={containerRef} className={cn('overflow-hidden rounded-md border border-border bg-slate-50 relative', fillAvailableHeight && 'h-full')}>
+			<div ref={containerRef} className={cn('overflow-hidden rounded-md border border-border bg-slate-50 relative px-4 md:px-6', fillAvailableHeight && 'h-full')}>
 				<Stage
 					width={containerW}
 					height={canvasHeight}

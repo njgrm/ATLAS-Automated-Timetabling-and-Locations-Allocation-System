@@ -293,15 +293,15 @@ test('F24-c10-1 the rendered labels are the ORIGINAL requested copy, verbatim', 
 		createElement(FacultyRosterActions as any, {
 			onCreateTemporary: () => {},
 			onRefreshRoster: () => {}, syncing: false, isOnline: true, refreshing: false,
-			nextTeacherNumber: 42,
 		}),
 	);
 	const texts = buttonsIn(host).map((b) => (b.textContent ?? '').trim());
 
-	// `Create Temporary` -> `Create temporary teacher (Teacher X)`, with the REAL
-	// next teacher number substituted for X.
+	// `Create Temporary` -> `Create temporary teacher (Teacher X)`. Fix 24.2: `X`
+	// is the operator's LITERAL capital X, not the next roster number, so the
+	// label is the same string at every roster size.
 	assert.ok(
-		texts.includes('Create temporary teacher (Teacher 42)'),
+		texts.includes('Create temporary teacher (Teacher X)'),
 		`expected the restored create copy, got ${JSON.stringify(texts)}`,
 	);
 	// FIX 24.1 renames the refresh copy once more: `Refresh teacher list` ->
@@ -319,9 +319,66 @@ test('F24-c10-1 the rendered labels are the ORIGINAL requested copy, verbatim', 
 	// The replacement really is the longer, more specific string the criterion
 	// asked for — the earlier cycle shortened it, c10 restores it.
 	assert.ok(
-		'Create temporary teacher (Teacher 42)'.length > 'Add temporary'.length,
+		'Create temporary teacher (Teacher X)'.length > 'Add temporary'.length,
 		'the restored label must not be the shortened one',
 	);
+});
+
+/**
+ * F24.2 EXACTNESS — the parenthetical is a LITERAL `X`.
+ *
+ * This is the control that distinguishes fix 24.2 from the behaviour it replaced.
+ * An interpolation and a literal produce the same string for one number, so
+ * "the label is present" cannot tell them apart; only "the parenthetical carries
+ * no digits" can, and only across more than one roster size.
+ */
+test('F24.2-1 the create label renders a LITERAL X, with no digits in the parenthetical', () => {
+	// The exported single source, and the function that must no longer take a
+	// number. `temporaryTeacherActionLabel.length` is 0: an ignored parameter
+	// would be a future lie about where the copy comes from.
+	assert.equal(temporaryTeacherActionLabel.length, 0, 'the label must no longer accept a number argument');
+	assert.equal(temporaryTeacherActionLabel(), 'Create temporary teacher (Teacher X)');
+
+	// The token where the teacher NUMBER used to be, read out of the rendered
+	// string rather than sliced at a hand-counted offset (a brittle slice that
+	// silently shifts the moment the prefix is reworded).
+	const parenthetical = /\(([^)]*)\)\s*$/.exec('Create temporary teacher (Teacher X)')?.[1] ?? '';
+	assert.equal(parenthetical, 'Teacher X', 'the parenthetical is not the requested text');
+	assert.equal(
+		/\d/.test(parenthetical),
+		false,
+		`the parenthetical must contain no digits, got ${JSON.stringify(parenthetical)}`,
+	);
+	assert.equal(
+		parenthetical.trim().split(/\s+/).pop(),
+		'X',
+		'the token in place of the teacher number must be a bare capital X',
+	);
+
+	// And the same holds on a RENDERED button, at two very different roster
+	// counts, which is exactly what the interpolation used to change.
+	for (const totalCount of [1, 42, 9999]) {
+		const host = render(
+			createElement(FacultyRosterActions as any, {
+				onCreateTemporary: () => {},
+				onRefreshRoster: () => {}, syncing: false, isOnline: true, refreshing: false,
+			}),
+		);
+		const texts = buttonsIn(host).map((b) => (b.textContent ?? '').trim());
+		assert.ok(
+			texts.includes('Create temporary teacher (Teacher X)'),
+			`roster size ${totalCount} must render the literal label, got ${JSON.stringify(texts)}`,
+		);
+		// A rendered label can never carry a number, at any roster size.
+		assert.equal(
+			/Create temporary teacher \(Teacher \d+\)/.test(texts.join(' | ')),
+			false,
+			`a number was interpolated into the label at roster size ${totalCount}`,
+		);
+	}
+
+	// The fit budget is decided ONCE, not re-derived from a live count.
+	assert.equal(LONGEST_ROSTER_ACTION_LABEL, 'Create temporary teacher (Teacher X)');
 });
 
 test('F24-c10-2 the same string source drives both header buttons', () => {
@@ -336,12 +393,28 @@ test('F24-c10-2 the same string source drives both header buttons', () => {
 	// and menu variants to drift in the first place.
 	assert.doesNotMatch(source, /['"`]Create temporary teacher/, 'the create copy must not be duplicated as a literal');
 	assert.doesNotMatch(source, /['"`]Update teacher list/, 'the update copy must not be duplicated as a literal');
-	// Both are constructed only through the shared module.
-	assert.match(source, /temporaryTeacherActionLabel\(nextTeacherNumber\)/);
+	// Both are constructed only through the shared module. Fix 24.2 removed the
+	// number argument, so the call is now argument-free; the RENDERED text is
+	// pinned separately by `F24.2-1`, which is the behavioural proof (this row
+	// deliberately checks only that the copy is not spelled out as a literal at
+	// a call site).
+	assert.match(source, /temporaryTeacherActionLabel\(\)/);
 	assert.match(source, /:\s*UPDATE_TEACHER_LIST_LABEL/);
 	// The hard-coded narrowed strings are gone from the code.
 	assert.doesNotMatch(source, /['"`]Add temporary/);
 	assert.doesNotMatch(source, /['"`]Refresh roster/);
+	// Fix 24.2: the dead plumbing is gone, not left behind as an ignored prop.
+	// An unused parameter is a future lie about where the label comes from.
+	assert.doesNotMatch(
+		source,
+		/nextTeacherNumber/,
+		'nextTeacherNumber survived in FacultyRosterActions; an ignored prop is a future lie',
+	);
+	assert.doesNotMatch(
+		read('src/pages/Faculty.tsx'),
+		/nextTeacherNumber/,
+		'the roster-count computation is dead in pages/Faculty.tsx and must be removed',
+	);
 });
 
 test('F24-c10-3 no raw title attribute survives on the header actions (AGENTS.md §8)', () => {
@@ -349,7 +422,6 @@ test('F24-c10-3 no raw title attribute survives on the header actions (AGENTS.md
 		createElement(FacultyRosterActions as any, {
 			onCreateTemporary: () => {},
 			onRefreshRoster: () => {}, syncing: false, isOnline: true, refreshing: false,
-			nextTeacherNumber: 42,
 		}),
 	);
 	for (const button of buttonsIn(host)) {
@@ -377,7 +449,6 @@ test('F24-c10-4 the action row grows to its labels, and cannot wrap or clip them
 		createElement(FacultyRosterActions as any, {
 			onCreateTemporary: () => {},
 			onRefreshRoster: () => {}, syncing: false, isOnline: true, refreshing: false,
-			nextTeacherNumber: 42,
 		}),
 	);
 	const row = host.querySelector('[data-testid="faculty-roster-action-row"]') as HTMLElement;
@@ -407,9 +478,15 @@ test('F24-c10-5 the fit predicate is exercised at 1366x768 and at a narrow width
 	const clipped = actionLabelFits(longestLabelPx, 120, 1366);
 	assert.equal(clipped.outcome, 'clips');
 	assert.equal(clipped.available, 120 - ACTION_LABEL_PADDING_PX);
-	// The measured case is the real 4-digit label, not a 1-digit one.
-	assert.equal(LONGEST_ROSTER_ACTION_LABEL, 'Create temporary teacher (Teacher 9999)');
-	assert.ok(LONGEST_ROSTER_ACTION_LABEL.includes('9999'));
+	// The measured case is the FIXED literal label. Fix 24.2 removed the number
+	// interpolation, so the fit budget is a constant decided at authoring time
+	// and is identical at every roster size.
+	assert.equal(LONGEST_ROSTER_ACTION_LABEL, 'Create temporary teacher (Teacher X)');
+	assert.equal(
+		/\d/.test(LONGEST_ROSTER_ACTION_LABEL.slice(LONGEST_ROSTER_ACTION_LABEL.indexOf('('))),
+		false,
+		'the longest label must carry no digits',
+	);
 });
 
 test('F24-c10-6 a JSDOM measurement is UNMEASURABLE, never a pass', () => {

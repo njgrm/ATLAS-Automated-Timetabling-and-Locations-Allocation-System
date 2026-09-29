@@ -526,10 +526,26 @@ test('C2-a.5 a retry blocker really retries, and a navigate blocker targets a re
 			onRequestClose: () => {},
 		}),
 	));
+	// ── SUPERSEDED IN PLACE, A8 C3 (2026-09-29), packet item 2 ──
+	// The original assertions were:
+	//     const retries0 = document.querySelectorAll('[data-testid="timetable-generation-blocker-retry"]');
+	//     assert.equal(retries0.length, 1, 'exactly the ALGORITHM_LIMIT blocker offers an in-place retry');
+	//     await click(retries0[0]);
+	//     assert.equal(retries, 1, 'the retry control re-ran the readiness check — never a no-op');
+	//
+	// WHY: on live S.Y. 2023-2024 the panel rendered 651 rows, 620 of them the
+	// SAME 50 classes described at session grain, and every one of them carried
+	// its own "Recheck generation readiness" button. A control repeated 651 times
+	// is not information. The per-row control is removed; the panel now offers
+	// exactly ONE "Check again", which re-runs the same readiness check in place.
+	// The readiness check is year-wide, so the per-row control was never
+	// row-specific and nothing was lost by removing it.
+	//
+	// The replacement is `C2-a.5R` below and it is STRICTLY WIDER: it pins that
+	// exactly one in-place recheck exists anywhere in the panel, that it really
+	// re-runs the check, and that the row-SPECIFIC repairs are untouched.
 	const retries0 = document.querySelectorAll<HTMLElement>('[data-testid="timetable-generation-blocker-retry"]');
-	assert.equal(retries0.length, 1, 'exactly the ALGORITHM_LIMIT blocker offers an in-place retry');
-	await click(retries0[0]);
-	assert.equal(retries, 1, 'the retry control re-ran the readiness check — never a no-op');
+	assert.equal(retries0.length, 0, 'the per-row "Recheck generation readiness" control is gone (A8 C3)');
 
 	// Every navigate row is a real link to a mounted route.
 	const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('[data-testid="timetable-generation-blocker-navigate"]'));
@@ -541,6 +557,44 @@ test('C2-a.5 a retry blocker really retries, and a navigate blocker targets a re
 	}
 	// The repair kind matches the shared resolver, one per blocker.
 	assert.deepEqual(rows.map((row) => row.repair.kind), ['navigate', 'navigate', 'retry']);
+});
+
+test('C2-a.5R the panel offers exactly ONE in-place recheck, and it is not a no-op', async () => {
+	// The replacement for the superseded per-row retry in `C2-a.5`. It is wider:
+	// the original proved ONE row's button re-ran the check; this proves the
+	// panel has exactly one such control, that clicking it re-runs the check, and
+	// that no per-row duplicate of it survives anywhere in the panel — including
+	// inside the disclosed full list, which is where a regression would hide.
+	const { SimpleGenerationBlockerSheetBody } = await import('../simple/SimpleGenerationBlockerSheet');
+	const readiness = blockedReadiness();
+	if (readiness.state !== 'blocked') throw new Error('fixture must be blocked');
+	let retries = 0;
+	await mount(createElement(MemoryRouter, null,
+		createElement(SimpleGenerationBlockerSheetBody, {
+			diagnostic: readiness.diagnostic,
+			onRetry: () => { retries += 1; },
+			onRequestClose: () => {},
+		}),
+	));
+	const checkAgain = document.querySelectorAll<HTMLElement>('[data-testid="timetable-generation-blocker-check-again"]');
+	assert.equal(checkAgain.length, 1, 'exactly ONE "Check again" control for the whole panel');
+	await click(checkAgain[0]);
+	assert.equal(retries, 1, 'it re-ran the readiness check — never a no-op');
+
+	// Open the disclosed full list and confirm the duplicate did not survive there.
+	const trigger = document.querySelector<HTMLElement>('[data-testid="timetable-generation-blocker-detail-trigger"]');
+	assert.ok(trigger, 'the full row list stays behind a disclosure');
+	await click(trigger);
+	assert.equal(
+		document.querySelectorAll('[data-testid="timetable-generation-blocker-retry"]').length,
+		0,
+		'no per-row recheck survives behind the disclosure either',
+	);
+	assert.equal(
+		document.querySelectorAll('[data-testid="timetable-generation-blocker-item"]').length,
+		3,
+		'and every blocker row is still rendered there',
+	);
 });
 
 test('C2-a.6 a blocked check that reported NO blockers never claims to show items', async () => {

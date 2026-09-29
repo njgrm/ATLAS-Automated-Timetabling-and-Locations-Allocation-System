@@ -15,7 +15,7 @@ import {
 } from '@/lib/faculty-assignment-helpers';
 import { COVERAGE_MODE_CONFIG, formatTeachingLoadSaveError, buildSectionsBySubject, transferExactSectionPair, buildSaveCommitReceipt } from '@/lib/teaching-load-helpers';
 import { appliedSuggestionMessage, teachingLoadShortageNote } from '@/lib/teaching-load-suggestion-presentation';
-import { TooltipProvider } from '@/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { createScopeEpoch, captureEpoch } from '@/lib/scope-request-epoch';
 import { useTeachingLoadData } from '@/hooks/useTeachingLoadData';
 import { useTeachingLoadUI } from '@/hooks/useTeachingLoadUI';
@@ -660,15 +660,10 @@ export default function TeachingLoad() {
 
 	/*
 	 * A3-C10-S3: the truth summary (42px), the "Next step" repair queue (58px) and
-	 * the archived-load control were three `shrink-0` bands here and are now ONE
+	 * the archived-load MENU item were three `shrink-0` bands here and are now ONE
 	 * line inside the command strip. The full record lives on
 	 * `TEACHING_LOAD_HEADER_MODEL` in `WorkspaceToolbar.tsx`, which owns row 2.
-	 *
-	 * A6 c5: the line below is this page's OWN staffing reading, first in the
-	 * workspace so a scheduler who never opens a dialog still meets the honest
-	 * "still need a real teacher" count. `hidden` on short viewports matches the
-	 * rollover card above, so the workspace never grows a third band.
-	 */
+	 * A9 c5 added a VISIBLE `Past years` control in the rollover band below. */
 	const headerStateLine = (
 		/* A6 C2 (Major 1): row 2 is "one sentence of status + one primary
 		 * action", and this is that action. A6 c5 adds the shortage line as a
@@ -774,10 +769,8 @@ export default function TeachingLoad() {
 							/>
 						</TeachingLoadSummarySurface>
 					)}
-					// A6 C2 (Major 1): the `Archived load` link, built HERE and
-					// positioned by the toolbar's More menu. `client-quality-c01` reads
-					// both the test id and the `to` in this file, so keeping the node
-					// here keeps one place to read the reachability claim.
+					// A6 C2 (Major 1): the `Archived load` link, built HERE and positioned by the toolbar's
+					// More menu — `client-quality-c01` reads its test id and `to` in THIS file; do not move it.
 					historyAction={(
 						<Link to="/teaching-load/history" data-testid="teaching-load-history-link">
 							<History className="size-3.5" aria-hidden="true" />
@@ -801,8 +794,19 @@ export default function TeachingLoad() {
 					{/* Main Grid Area */}
 					<div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-y-auto">
 						{data.schoolId != null && (
-							<div className="shrink-0 px-3 pt-1 lg:px-5 [@media(max-height:640px)]:hidden">
-								<RolloverGuidanceCard compact schoolId={data.schoolId} />
+							/* A9 c5 r1 (D4): left-aligned; the guidance column is content-sized because an EMPTY `flex-1` still claimed the row, and dropping `justify-between` alone changed nothing. */
+							<div className="flex shrink-0 items-start gap-3 px-3 pt-1 lg:px-5 [@media(max-height:640px)]:hidden">
+								<div className="min-w-0">
+									<RolloverGuidanceCard compact schoolId={data.schoolId} />
+								</div>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button asChild type="button" variant="outline" size="sm" className="min-h-11 gap-1.5">
+											<Link to="/teaching-load/history" data-testid="teaching-load-past-years"><History className="size-3.5" aria-hidden="true" />Past years</Link>
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent>Read-only Teaching Load for every past school year.</TooltipContent>
+								</Tooltip>
 							</div>
 						)}
 
@@ -820,6 +824,7 @@ export default function TeachingLoad() {
 					 * header's own control, which is a stronger home for it than a
 					 * static line under a filter bar.
 					 */}
+
 
 					<div className="flex min-h-[140px] flex-1 flex-col" data-testid="teaching-load-workspace">
 
