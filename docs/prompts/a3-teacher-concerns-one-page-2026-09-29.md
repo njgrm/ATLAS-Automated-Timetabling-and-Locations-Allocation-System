@@ -55,3 +55,13 @@ requests appear on that teacher's form, not lost), and the side nav shows only "
   poll the log.
 - Browser rows for Lane C in the handoff: (1) fill one teacher's concerns including a room, save, reload, still
   there; (2) the old room-preferences URL lands on the teacher form; (3) the preview line shows before apply.
+
+## Addendum 10:35 — Codex older-user audit (docs/reviews/codex-staging-untouched-24e268fb/report.md), binding for QA
+Teacher Concerns scored 2/1/1/2 (worst page). Also fix, in this candidate:
+- **Blocker:** "Active ordered term unresolved" disables Save and Submit on staging. The scheduler must be able to
+  save. Use the one active-term source (A5 c2); if the term truly cannot be known, one plain "Choose term" control.
+- The default 48-row quarter-hour paint grid is intimidating. Lead with simple rows ("Monday: can't teach 7:00–9:00",
+  "+ Add a time") and presets (mornings / afternoons / whole day); the detailed grid is optional behind a link.
+- "Only a reviewed authority binds generation" and similar -> plain words; with one Save there is no review step.
+- Faculty Preferences shows "Missing 46" + "No teachers found": it goes away via the redirect; nothing is lost.
+- Room Preferences requires a draft run: room needs must be recordable BEFORE generation (see target item 3).
