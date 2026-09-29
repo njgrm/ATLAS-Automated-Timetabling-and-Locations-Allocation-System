@@ -73,19 +73,55 @@ type WorkspaceToolbarProps = {
 	 */
 	shortageLineSlot?: ReactNode;
 	/**
-	 * FIX 38 / A6 c6 item 2 — the header's `Load summary` control.
+	 * A6 c9 — the page's ONE row-2 claim, and it is a control.
 	 *
-	 * This is a SLOT, not a callback, on purpose. The toolbar owns the control's
-	 * POSITION in the action group and nothing else: the open flag and the dialog
-	 * belong to `TeachingLoadSummarySurface`, and the panel body belongs to the
-	 * page. A callback here would force the page to own all three, which is what
-	 * pushed it over the AGENTS.md §8 line cap and what would let the dialog's
-	 * figures drift from the page's `truthModel`.
+	 * The prop name is deliberately UNCHANGED: it is the one position in row 2 a
+	 * page-supplied claim owns, several committed controls read the branch order
+	 * below through it, and renaming it would rewrite a published contract
+	 * without changing a behaviour. What changed is what the page puts in it —
+	 * `TeachingLoadStaffingFigure`, supplied in EVERY state, whose
+	 * `84% staffed — See who needs a teacher ›` button opens the list of classes
+	 * that still need one and carries the single quiet saved-roster line.
 	 *
-	 * A6 c6 moved that position from row 1 into the `More` menu. The slot contract
-	 * is UNCHANGED — the page still builds `TeachingLoadSummarySurface` and still
-	 * hands it over; only the place it renders changed, and the toolbar says so
-	 * with `TeachingLoadSummaryMenuSlot` rather than by asking the page to know.
+	 * Because the page now always supplies it, the AMBER PILL below is
+	 * unreachable from the real route rather than suppressed by a rule: a host
+	 * that supplies nothing still gets the pill, unchanged, and no committed
+	 * control that does so changes.
+	 *
+	 * WHAT THE SLOT SUPPRESSES, restated from c5: neither this toolbar's status
+	 * sentence nor its `alertChip` clause. `Above weekly max: N` is therefore NOT
+	 * lost — the chip was always a duplicate of the repair queue's per-teacher
+	 * `over-cap` items, and the queue is still on row 2 in `stateLineSlot`. The
+	 * blocker is now stated exactly once, which is AGENTS.md §8's actual rule.
+	 */
+	/**
+	 * A6 c9 (38.1) — OPTIONAL page-owned control for the `Load summary` window.
+	 *
+	 * The menu item needs a host-owned open flag (a dialog rendered inside the
+	 * menu content is unmounted by the click that opens it), and a card's
+	 * `Review load` must open the SAME window already drilled into that teacher
+	 * (38.1), so the page has to be able to open it too.
+	 *
+	 * Omitted, this component keeps its own `useState` flag exactly as c6 shipped
+	 * it and every committed control that renders it without the prop is
+	 * untouched. Supplied, the page owns the flag, the open FACULTY and the reset.
+	 */
+	summaryControl?: {
+		open: boolean;
+		facultyId: number | null;
+		setOpen: (open: boolean, facultyId: number | null) => void;
+	};
+	/**
+	 * FIX 38 / A6 c6 item 2 — the header's `Load summary` control, as a SLOT and
+	 * not a callback.
+	 *
+	 * The toolbar owns the control's POSITION and nothing else: the open flag
+	 * belongs to `TeachingLoadSummarySurface` (or, from c9, to the page's
+	 * `summaryControl`), and the panel body belongs to the page. A callback here
+	 * would force the page to own all three, which is what pushed it over the
+	 * AGENTS.md §8 line cap and what would let the dialog's figures drift from the
+	 * page's `truthModel`. c6 moved the position from row 1 into the `More` menu
+	 * without changing that contract.
 	 */
 	loadSummaryAction?: ReactNode;
 	/**

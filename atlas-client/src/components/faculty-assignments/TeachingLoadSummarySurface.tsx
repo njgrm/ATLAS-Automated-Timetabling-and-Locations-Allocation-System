@@ -41,7 +41,7 @@ type TeachingLoadSummarySurfaceProps = {
 	/** The page's real `TeachingLoadTruthPanel` node, passed `expanded`. */
 	children: ReactNode;
 	/**
-	 * A6 c9 (38.1) ΓÇö the page's per-teacher workload node, rendered when the
+	 * A6 c9 (38.1) — the page's per-teacher workload node, rendered when the
 	 * dialog is drilled into one teacher.
 	 *
 	 * It is the SAME node the page already builds for the review/profile dialog
