@@ -94,6 +94,9 @@ const { useTeachingLoadOutage } = await import('@/hooks/useTeachingLoadOutage');
 const { TeachingLoadStaffingFigure } = await import('@/components/faculty-assignments/TeachingLoadStaffingFigure');
 const { COVER_THIS_CLASS_LABEL } = await import('@/components/faculty-assignments/TeachingLoadStaffingFigure');
 const { COVER_CLASSES_LABEL } = await import('@/components/faculty-assignments/TeachingLoadShortageLine');
+const { TeachingLoadRepairQueue } = await import('@/components/faculty-assignments/TeachingLoadRepairQueue');
+/** A6 c11: the queue reads the withheld clause from the toolbar's ONE function. */
+const { teachingLoadUnverifiedStatus } = await import('@/components/faculty-assignments/WorkspaceToolbar');
 /** Retired by A6 c10. Named so the SUPERSEDED row can still read what it asserted. */
 const ASSIGN_TEACHER_LABEL = undefined;
 const { buildStaffingFigureLabel, SAVED_ROSTER_NOTE_PREFIX } = await import('@/components/faculty-assignments/teachingLoadOutage');
@@ -265,6 +268,56 @@ function FigureHost(props: { params?: any; writeBlockedReason?: string | null })
 
 const figureIn = (root: ParentNode) =>
 	root.querySelector('[data-testid="teaching-load-staffing-figure"]') as HTMLElement | null;
+
+/**
+ * A6 c11 — THE TEACHING LOAD PAGE SUBTREE, and the reason `A6C9-3b` needs one.
+ *
+ * Row 2 of the real page carries BOTH the staffing figure (in the toolbar's
+ * `shortageLineSlot`) and the repair queue (in `stateLineSlot`). They sit side by
+ * side on one band, so "the header states the saved-roster fact once" is a claim
+ * about the PAIR, not about either slot — which is exactly why the pre-c11
+ * duplicate was invisible: each surface's own test was correct and the screen was
+ * not.
+ *
+ * So this host composes both the way the page does, and `A6C9-3b` counts the fact
+ * across the whole subtree. It is scoped to THIS subtree rather than
+ * `document.body` on purpose: a Radix dialog opened from anywhere on the page
+ * portals to `document.body`, so a document-wide count would read a window's own
+ * copy of the fact as a second statement of it on the header.
+ */
+function PageSubtreeHost(props: {
+	params?: any;
+	/** The withheld clause the queue's chip carries, from the REAL function. */
+	withheldStatus: string;
+}) {
+	const outage = useTeachingLoadOutage(props.params ?? SAVED);
+	return createElement('div', { 'data-testid': 'teaching-load-page-subtree' },
+		createElement(TeachingLoadStaffingFigure as any, {
+			outage,
+			writeBlockedReason: null,
+			onShowCoverageDetail: () => {},
+			fetchedAt: (props.params ?? SAVED).fetchedAt,
+		}),
+		// The chip's own markup, via the REAL `TeachingLoadRepairQueue` and the REAL
+		// withheld string, because the duplicate c11 removed lived in exactly these
+		// two fields and a hand-written stand-in would not be the product's surface.
+		createElement(TeachingLoadRepairQueue as any, {
+			items: [{
+				id: 'review-ready',
+				kind: 'review-ready',
+				title: 'Teaching Load not verified',
+				description: 'ATLAS cannot confirm this until the source is confirmed again.',
+				status: props.withheldStatus,
+				actionLabel: 'Review staff workload',
+			}],
+			activeItemId: 'review-ready',
+			isReadOnly: false,
+			saving: false,
+			onPrimaryAction: () => {},
+			hasShortageLine: true,
+		}),
+	);
+}
 
 /** The accessible NAME a screen reader gets: the visible words, nothing added. */
 function accessibleName(el: HTMLElement | null): string {
@@ -568,6 +621,33 @@ test('A6C9-3 a CURRENT roster renders NO notice at all; a SAVED one renders exac
 	// the current roster, one small grey line under the figure: 'From the saved
 	// roster (29 Sept)'. No amber, no 'Next step', no repetition. If the roster IS
 	// current, show nothing."
+	//
+	// ── A6 c11 (2026-09-29) RE-PINNED THIS ROW, ON PURPOSE. ──────────────────
+	//
+	// WHAT CHANGED. The operator's rule — which AGENTS.md §8 shares — is "clickable
+	// must look clickable", and its converse: a read-only FIGURE must not look
+	// pressable. c11 found the header stating the saved-roster fact TWICE: once in
+	// this slot's grey line (with its date) and once in the repair-queue chip's
+	// status clause, which the audit read as the same claim in a second vocabulary.
+	// So the queue's clause changed and the grey line did not.
+	//
+	// THE COUNT WAS MEASURED, NOT ASSUMED. A6C9-3's own render of the SAVED state
+	// produces EXACTLY ONE `[data-testid="teaching-load-saved-roster-note"]` inside
+	// the slot — it did before c11 and it does now — and that is the number the
+	// assertion below pins, because this slot's own quiet line is the ONE place the
+	// fact is allowed to be stated. It was NOT re-pinned to 0: c11 moved the
+	// duplicate, it did not delete the notice.
+	//
+	// THE SCOPE, and why it moved. This row used to read rendered ELEMENTS with no
+	// stated scope, which meant "at most one quiet line" was really a claim about the
+	// whole document — so a dialog opened anywhere else on the page, or a test that
+	// happened to leave a second mount mounted, could read as a violation of a rule
+	// this slot never made. It is now scoped to the TEACHING LOAD PAGE SUBTREE:
+	// the assertions query from `[data-testid="teaching-load-staffing-figure-slot"]`
+	// downward, and the `A6C9-3b` row added below mounts the WHOLE page subtree —
+	// the figure AND the repair queue that sits beside it on row 2 — and counts the
+	// saved-roster fact across BOTH. That is the assertion that would have caught
+	// the duplicate, and it is the one that now guards it.
 
 	// (a) CURRENT. The healthy page is SILENT. Anything at all in this slot is a
 	// second sentence the scheduler should not be troubled with.
@@ -597,7 +677,10 @@ test('A6C9-3 a CURRENT roster renders NO notice at all; a SAVED one renders exac
 	const saved = render(createElement(FigureHost as any, { params: SAVED }));
 	const savedSlot = saved.querySelector('[data-testid="teaching-load-staffing-figure-slot"]')!;
 	const notes = savedSlot.querySelectorAll('[data-testid="teaching-load-saved-roster-note"]');
-	assert.equal(notes.length, 1, `a SAVED roster renders exactly ONE quiet line; found ${notes.length}`);
+	// THE RE-PINNED NUMBER: 1, measured on the render above and on every run of
+	// this row. One quiet line, in this slot, and only when the roster is not the
+	// current one.
+	assert.equal(notes.length, 1, `a SAVED roster renders exactly ONE quiet line IN THE PAGE SLOT; found ${notes.length}`);
 	const note = notes[0] as HTMLElement;
 	assert.equal(note.tagName, 'P', 'and it is one sentence, not a card or a chip');
 	assert.equal(isAmber(note), false, 'it must NOT be amber — the operator overruled both amber banners');
@@ -654,6 +737,100 @@ test('A6C9-3 a CURRENT roster renders NO notice at all; a SAVED one renders exac
 	}
 	dispose(blocked);
 });
+
+test('A6C9-3b THE REPLACEMENT SCOPE: the Teaching Load PAGE SUBTREE states the saved-roster fact exactly ONCE', () => {
+	// WHY THIS ROW EXISTS. `A6C9-3` counts quiet lines inside the FIGURE's slot,
+	// which is correct and was correct — and it is also why the c11 duplicate was
+	// invisible. The header's row 2 carries TWO surfaces: the figure (the toolbar's
+	// `shortageLineSlot`) and the repair queue (`stateLineSlot`). The queue's chip
+	// printed `These numbers come from the last saved roster, not the current one.`
+	// while the figure printed `From the saved roster (29 Sept)` directly beneath
+	// it. Both surfaces passed their own test; the SCREEN said the same thing
+	// twice, and the duplicate carried no date. That is AGENTS.md §8's "two chips
+	// that say the same thing" in prose.
+	//
+	// So the count moves UP a level, to the subtree the page actually renders, and
+	// it counts the FACT rather than one surface's marker.
+
+	// THE MEASURED COUNT: 1. One statement of the saved-roster fact on the whole
+	// page subtree — the figure's grey line, which is the only surface holding the
+	// timestamp. The queue says the OTHER half (that the figures are unchecked),
+	// which is a different claim in different words.
+	const savedPage = render(createElement(PageSubtreeHost as any, {
+		params: SAVED,
+		withheldStatus: teachingLoadUnverifiedStatus({ dataSource: 'cached', isOnline: true }),
+	}));
+	const subtree = savedPage.querySelector('[data-testid="teaching-load-page-subtree"]')!;
+	assert.ok(subtree, 'the page subtree is mounted with BOTH row-2 surfaces in it');
+
+	const quietNotes = subtree.querySelectorAll('[data-testid="teaching-load-saved-roster-note"]');
+	assert.equal(quietNotes.length, 1, `the page subtree renders exactly ONE grey saved-roster line; found ${quietNotes.length}`);
+	assert.match(
+		(quietNotes[0] as HTMLElement).textContent ?? '',
+		new RegExp(`^${SAVED_ROSTER_NOTE_PREFIX} \\(`),
+		'and it is the dated one, under the figure',
+	);
+
+	const queueStatus = subtree.querySelector('[data-testid="teaching-load-repair-status"]');
+	assert.ok(queueStatus, 'precondition: the queue chip really is in this subtree, so the count below looked at both surfaces');
+	assert.equal(
+		/saved roster/i.test(queueStatus!.textContent ?? ''),
+		false,
+		'A6 c11: the queue must NOT restate that fact — one header, one statement of it',
+	);
+	assert.match(
+		queueStatus!.textContent ?? '',
+		/not been checked against the current roster/i,
+		'A6 c11: and it says the half the grey line does not — that the figures are UNCHECKED',
+	);
+
+	// AND ONE FACT ACROSS THE WHOLE SUBTREE, which is the rule in its most direct
+	// form. The saved-roster fact is counted in BOTH of the vocabularies it has
+	// ever been printed in — the grey line's `From the saved roster` and the
+	// queue clause's `last saved roster` — because a rule that only recognises one
+	// phrasing is satisfied by simply rewording the duplicate.
+	assert.equal(
+		countSavedRosterClaims(subtree.textContent ?? ''),
+		1,
+		'A6 c11: the fact is stated exactly once on the page subtree, in either vocabulary',
+	);
+
+	// THE MUTANT CONTROL, and it is the historical defect itself rather than a
+	// synthetic string: the pre-c11 queue clause, fed into the SAME host through
+	// the SAME detector, makes this row red. Without it, the row above could pass
+	// on a page that had silently regressed to the duplicate.
+	const regressed = render(createElement(PageSubtreeHost as any, {
+		params: SAVED,
+		withheldStatus: 'These numbers come from the last saved roster, not the current one.',
+	}));
+	const regressedSubtree = regressed.querySelector('[data-testid="teaching-load-page-subtree"]')!;
+	assert.equal(
+		countSavedRosterClaims(regressedSubtree.textContent ?? ''),
+		2,
+		'M5 MUTANT CONTROL: with the pre-c11 clause the page subtree states the fact TWICE, so this detector DISAGREES with the real render and can go red',
+	);
+	assert.equal(
+		(regressedSubtree.querySelectorAll('[data-testid="teaching-load-saved-roster-note"]')).length,
+		1,
+		'M5 MUTANT CONTROL: while `A6C9-3`\'s own slot count is still 1 — which is exactly why the slot-scoped row passed on the defective page and this page-scoped row is the one that catches it',
+	);
+	dispose(regressed);
+	dispose(savedPage);
+});
+
+/**
+ * How many times the saved-roster FACT is stated, in either vocabulary it has
+ * ever been printed in.
+ *
+ * Two patterns, because the duplicate did not reuse the grey line's wording: the
+ * line says `From the saved roster (29 Sept)` and the queue clause said
+ * `These numbers come from the last saved roster, not the current one.` A detector
+ * that matched only one of them would be satisfied by rewording the other, which
+ * is the same defect in a new costume.
+ */
+function countSavedRosterClaims(text: string): number {
+	return ((text.match(new RegExp(`${SAVED_ROSTER_NOTE_PREFIX}|last saved roster`, 'gi')) ?? []).length);
+}
 
 // ═════════════════════════════════════════════════════════════════════════════
 // A6C9-4 — MUTANT ROW: each detector above can go RED.
