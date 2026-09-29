@@ -7,6 +7,7 @@ import {
 	DoorOpen,
 	Download,
 	FileSpreadsheet,
+	Info,
 	Layers3,
 	MoreHorizontal,
 	Printer,
@@ -24,6 +25,7 @@ import { buildScheduleSourceSentence, formatScheduleMadeOn } from '@/lib/schedul
 import { resolveScheduleEmptyState, type ScheduleEmptyNextStep, type ScheduleEmptyReason } from '@/lib/schedule-empty-state';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -44,6 +46,7 @@ import { exportScheduleToCsv } from '@/components/room-schedules/schedule-export
 import { SchedulerPrintDialog } from '@/components/timetable/simple/SchedulerPrintDialog';
 import { academicTermDisplayLabel, isTermIndexWithinTerms, isVerifiedOrderedActiveTerm, type AcademicTermOption, type OrderedAcademicTerm } from '@/lib/academic-term';
 import { SmartSourceStatusChip } from '@/components/smart/SmartPageShell';
+import { LOOKUP_PRINT_LABEL } from '@/components/app-shell/navigation';
 import type { Building, Room, Subject, FacultyMirror, RoomScheduleView, SectionSummaryResponse, DraftReport, GenerationRun } from '@/types';
 import type { ViewMode, SectionInfo } from '@/components/room-schedules/schedule-types';
 
@@ -558,15 +561,41 @@ export default function RoomSchedules() {
 		<div className="flex h-[calc(100svh-3.5rem)] flex-col bg-primary/5">
 			{/* §8 HEADER BUDGET — row 1: title, ONE status chip, the primary action, `More`.
 			    Row 2: the three questions, the one name picker, the term control when the year
-			    warrants one, and the quiet line naming the timetable. Nothing else. */}
+			    warrants one, and the quiet line naming the timetable. Nothing else.
+
+			    A5 C5 PROOF FIX (2026-09-29) D1 — THE CHIP IS THE SCHEDULE'S, NOT THE NAME LIST'S.
+			    A real render showed this chip reading `Choose a name` while the picker DIRECTLY
+			    BELOW it read `Choose a room` — a room was already chosen. Two faults at once: it
+			    was wired to `state.status`, which is `'empty'` whenever staging has no finished
+			    timetable, so it told all three modes to choose a name they had already chosen; and
+			    it duplicated the picker's own instruction, which §8 forbids. It also reported the
+			    NAME LIST (`roomsLoading` -> `Loading names`), which is the picker's business.
+
+			    So it now reports only the schedule, and it never tells the user to use another
+			    control. `roomsLoading` is no longer an input: the chip is about what is on screen,
+			    and when nothing is on screen the empty state BELOW says why in a heading and
+			    offers the next step as a real action. SUBTRACT FIRST: the honest answer in the
+			    idle/empty/error states is to render no chip at all, and that is what this does. */}
 			<div className="shrink-0 px-3 pt-2 lg:px-5">
 				<div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/10 bg-white px-3 py-2 shadow-soft">
-					<h1 className="text-base font-bold text-foreground">Schedules</h1>
-					<SmartSourceStatusChip
-						label={state.status === 'ok' ? 'Ready' : roomsLoading ? 'Loading names' : 'Choose a name'}
-						tone={state.status === 'ok' ? 'live' : roomsLoading ? 'checking' : 'neutral'}
-						testId="schedules-readiness-chip"
-					/>
+					{/* A5 C5 PROOF FIX (2026-09-29) D3 — ONE NAME. This heading used to hardcode
+					    `Schedules`, a THIRD name for `/room-schedules`: the sidebar label and the
+					    chrome title both already resolve to `LOOKUP_PRINT_LABEL` through
+					    `resolveRouteChrome`. A7 C6 item 1 is "one destination, ONE name"; the page
+					    was carrying the duplicate-name defect A7 removed from the menu. Rendering
+					    the imported constant — the same pattern `a2-c13-one-place-name` pins for
+					    `/timetable` and the `a3-canonical-page-title-c1` rendered-h1 contract
+					    requires — means the three surfaces cannot drift apart again. This page
+					    owns one `h1` in a compact header strip, like `Sections`/`Subjects`/
+					    `Faculty`; `navigation.ts` is untouched. */}
+					<h1 className="text-base font-bold text-foreground">{LOOKUP_PRINT_LABEL}</h1>
+					{(state.status === 'ok' || state.status === 'loading') && (
+						<SmartSourceStatusChip
+							label={state.status === 'ok' ? 'Ready' : 'Loading schedule'}
+							tone={state.status === 'ok' ? 'live' : 'checking'}
+							testId="schedules-readiness-chip"
+						/>
+					)}
 					<div className="ml-auto flex items-center gap-1.5">
 						<Button
 							type="button"
@@ -769,6 +798,42 @@ export default function RoomSchedules() {
 								{emptyState.title}
 							</p>
 							<p className="mt-2 text-sm leading-relaxed text-muted-foreground">{emptyState.body}</p>
+							{/* A5 C5 PROOF FIX (2026-09-29) D2 — the server's own sentence, MOVED and
+							    not deleted. The `no-runs` body used to BE that string, so a browser
+							    render showed `No completed generation runs found for this school/year.`
+							    as the first thing a user reads on this page. The plain sentence above
+							    is now the primary read, and the evidence sits behind this `Help`
+							    popover — the same affordance, the same plain word `Help`, and the same
+							    `Technical detail` / `Server message` shape that A5 c4 established on
+							    the `TERM_CACHE_INVALID` chip. `AGENTS.md` §8 forbids the `title`
+							    attribute and requires an `@/ui` primitive, which is what this is.
+
+							    Rendered ONLY when the resolver supplied a raw detail, so a server that
+							    stops explaining itself removes the control instead of leaving a dead
+							    one. The trigger's visible label is the word `Help`, never the code
+							    (§11 rule 3), and the `aria-label` carries the detail for a screen
+							    reader. */}
+							{emptyState.rawDetail && (
+								<Popover>
+									<PopoverTrigger asChild>
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											className="mx-auto mt-2 h-7 gap-1 px-1.5 text-xs font-semibold text-primary hover:underline"
+											data-testid="schedules-empty-detail"
+											aria-label="Technical detail"
+										>
+											<Info className="size-3" />
+											<span>Help</span>
+										</Button>
+									</PopoverTrigger>
+									<PopoverContent align="center" className="w-80 space-y-2 p-3 text-xs leading-relaxed">
+										<p className="font-semibold uppercase tracking-wide text-muted-foreground">Technical detail</p>
+										<p><span className="font-semibold">Server message</span> · {emptyState.rawDetail}</p>
+									</PopoverContent>
+								</Popover>
+							)}
 							{emptyState.nextStep.kind === 'retry' ? (
 								<Button
 									variant="outline"
