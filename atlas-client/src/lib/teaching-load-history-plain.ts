@@ -213,12 +213,21 @@ export function tlHistoryGradeOptions(teachers: TlHistoryTeacher[]): string[] {
 	return Array.from(grades).sort(compareGradeNames);
 }
 
-/** Plain subject names for the loaded year, MOST COMMON FIRST — the year shape, not an alphabet. */
+/**
+ * Plain subject names for the loaded year, MOST COMMON FIRST — the year shape, not an alphabet.
+ *
+ * A9 c5 r2: keyed on the PLAIN label, not `subjectName`. On this data `subjectName` is
+ * the code (`DEVL_READING`, `SCI_BIO`, `STE_APPLIED_CHEM`), so the Subject list was a
+ * list of machine codes — the same defect as the row, one control away. Every reader of
+ * the subject filter compares against this same identity (see `tlHistoryMatches` and
+ * `tlHistoryNoMatchAnswer`), so changing it here alone would have made the filter
+ * select a value nothing matched.
+ */
 export function tlHistorySubjectOptions(teachers: TlHistoryTeacher[]): string[] {
 	const counts = new Map<string, number>();
 	for (const teacher of teachers) {
 		for (const assignment of teacher.assignments) {
-			const name = assignment.subjectName;
+			const name = tlHistorySubjectPrimary(assignment);
 			counts.set(name, (counts.get(name) ?? 0) + 1);
 		}
 	}
@@ -311,7 +320,7 @@ export function tlHistoryTeacherMatches(
 	const subject = filters.subject;
 
 	const matched = teacher.assignments.filter((assignment) => {
-		if (subject !== 'all' && subject !== '' && assignment.subjectName !== subject) return false;
+		if (subject !== 'all' && subject !== '' && tlHistorySubjectPrimary(assignment) !== subject) return false;
 		if (grade !== 'all' && grade !== '') {
 			if (!assignment.sections.some((section) => section.gradeLevelName === grade)) return false;
 		}
@@ -399,9 +408,10 @@ export function tlHistoryNoMatchAnswer(
 		const grades = new Set<string>();
 		for (const teacher of teachers) {
 			for (const assignment of teacher.assignments) {
-				// The filter's own identity is `subjectName`, so the suggestion is derived
-				// from the same field the filter compares against.
-				if (assignment.subjectName !== subject) continue;
+				// A9 c5 r2: the filter's own identity is the PLAIN label, so the
+				// suggestion is derived from the same field the filter compares
+				// against — otherwise the offered grade would select nothing.
+				if (tlHistorySubjectPrimary(assignment) !== subject) continue;
 				for (const section of assignment.sections) grades.add(section.gradeLevelName);
 			}
 		}
@@ -421,7 +431,8 @@ export function tlHistoryNoMatchAnswer(
 	for (const teacher of teachers) {
 		for (const assignment of teacher.assignments) {
 			if (!assignment.sections.some((section) => section.gradeLevelName === grade)) continue;
-			counts.set(assignment.subjectName, (counts.get(assignment.subjectName) ?? 0) + 1);
+			const label = tlHistorySubjectPrimary(assignment);
+			counts.set(label, (counts.get(label) ?? 0) + 1);
 		}
 	}
 	const suggestions = Array.from(counts.entries())

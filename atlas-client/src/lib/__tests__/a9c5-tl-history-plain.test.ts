@@ -33,6 +33,7 @@ import {
 	tlHistorySubjectCodeDetail,
 	tlHistorySubjectOptions,
 	tlHistorySubjectPrimary,
+	tlHistoryTeacherMatches,
 	tlHistoryTotalsLine,
 	tlHistoryVisibleTeachers,
 	tlHistoryYearOptionLabel,
@@ -276,6 +277,50 @@ test('A9C5-P9: the filter options come from the loaded year, subjects most commo
 	assert.deepEqual(tlHistorySubjectOptions(teachers), ['SCIENCE', 'EARTH SCIENCE', 'MAPEH']);
 	// Codes are never offered as a filter value.
 	assert.equal(tlHistorySubjectOptions(teachers).includes('SCI_BIO'), false);
+});
+
+test('A9C5-R2-P1: the Subject filter offers PLAIN names, and a code-only payload still filters', () => {
+	// The real 2022-2023 payload: `subjectName` IS the code, and `subjectLabel` is the
+	// human name. Before this row the Subject dropdown offered DEVL_READING,
+	// STE_APPLIED_CHEM and SCI_BIO — machine codes, the same defect as the row.
+	const teachers: TlHistoryTeacher[] = [
+		teacher({
+			facultyId: 1,
+			assignments: [
+				assignment({
+					facultySubjectId: 1,
+					subjectCode: 'DEVL_READING',
+					subjectName: 'DEVL_READING',
+					subjectLabel: 'Developmental Reading',
+					sections: [{ sectionId: 1, sectionName: 'Rizal', gradeLevelName: 'Grade 7' }],
+				}),
+				assignment({
+					facultySubjectId: 2,
+					subjectCode: 'SCI_BIO',
+					subjectName: 'SCIENCE',
+					subjectLabel: 'Science - Biology',
+					sections: [{ sectionId: 2, sectionName: 'Luna', gradeLevelName: 'Grade 8' }],
+				}),
+			],
+		}),
+	];
+	const options = tlHistorySubjectOptions(teachers);
+	assert.deepEqual(options, ['Developmental Reading', 'Science - Biology']);
+	// The offered value is the one the filter actually compares against, so selecting
+	// it returns the teacher instead of an empty page.
+	const selected = tlHistoryTeacherMatches(teachers[0], { query: '', grade: 'all', subject: 'Developmental Reading' });
+	assert.equal(selected?.length, 1);
+	// And the grade suggestion follows the same identity.
+	const answer = tlHistoryNoMatchAnswer(teachers, { query: '', grade: 'Grade 8', subject: 'Developmental Reading' }, '2022-2023');
+	assert.deepEqual(answer?.suggestions, ['Grade 7']);
+	// A payload from before the label field existed still filters on `subjectName`.
+	const legacy: TlHistoryTeacher[] = [
+		teacher({
+			facultyId: 2,
+			assignments: [assignment({ facultySubjectId: 3, subjectCode: 'FIL', subjectName: 'Filipino', sections: [{ sectionId: 4, sectionName: 'Luna', gradeLevelName: 'Grade 7' }] })],
+		}),
+	];
+	assert.equal(tlHistoryTeacherMatches(legacy[0], { query: '', grade: 'all', subject: 'Filipino' })?.length, 1);
 });
 
 /* ─── the honest lines ────────────────────────────────────────────────────── */
