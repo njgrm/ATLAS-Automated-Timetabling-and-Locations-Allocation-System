@@ -27,7 +27,14 @@ import {
 	type LockedEntryInput,
 	type SpreadOrdering,
 } from '../services/schedule-constructor.js';
-import { frameMismatchReason, measureShape, type MeasurableEntry } from '../scripts/a8-g1-live-shape-proof.js';
+import {
+	frameMismatchReason,
+	frameRepresentationProblem,
+	measureShape,
+	REPRESENTATION_MIN_REPEAT_PAIRS,
+	REPRESENTATION_MIN_WORST_CELL,
+	type MeasurableEntry,
+} from '../scripts/a8-g1-live-shape-proof.js';
 
 const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
 
@@ -684,4 +691,160 @@ test('A8-G1 8: spreading raises the number of days a pair occupies, leaving less
 	// capacity-dependent and only the restored live inputs can decide it.
 	assert.equal(production.unassignedCount, legacy.unassignedCount, 'on a non-binding grid, unplaced is unchanged');
 	assert.equal(production.unassignedCount, 0);
+});
+
+// ─── 9. D3 (frame content): the proof must run the PRODUCTION algorithm ─────
+//
+// Attempt 2 produced a LEGACY side with ZERO same-day repeats, so its `0 -> 0`
+// spread result was vacuous rather than a pass. The cause was that the harness
+// called `constructBaseline` directly, while `generation.service.ts:1006` calls
+// `runHybridScheduler(constructorInput)` — multi-profile, best-by-completion,
+// then `repairHardConflicts` and `repairUnassignedByEjection`. That is also why
+// attempt 2 read 855/65 where production reads 910/10.
+
+test('A8-G1 9: the production generation path is runHybridScheduler, not bare constructBaseline', async () => {
+	const generationSource = readFileSync(
+		path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../services/generation.service.js'.replace(/\.js$/, '.ts')),
+		'utf8',
+	);
+	// The row that would let a non-production frame back in: if generation stops
+	// going through the hybrid scheduler, a bare-constructBaseline harness would
+	// silently measure an algorithm that no run uses.
+	assert.match(
+		generationSource,
+		/runHybridScheduler\(\s*constructorInput\s*\)/,
+		'production generation must call runHybridScheduler(constructorInput)',
+	);
+	const { runHybridScheduler } = await import('../services/hybrid-scheduler.js');
+	assert.equal(typeof runHybridScheduler, 'function', 'and the production entry point exists');
+});
+
+test('A8-G1 9b: the spreadOrdering seam survives the hybrid path into every profile run', async () => {
+	const hybridSource = readFileSync(
+		path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../services/hybrid-scheduler.ts'),
+		'utf8',
+	);
+	// Every `constructBaseline` call inside the hybrid scheduler must spread the
+	// caller's input, or `spreadOrdering` would be dropped for all but one profile
+	// and the two sides would not differ by exactly one variable.
+	const calls = [...hybridSource.matchAll(/constructBaseline\(\{([^}]*)\}/g)].map((match) => match[1].trim());
+	assert.ok(calls.length > 0, 'the hybrid scheduler must call constructBaseline');
+	for (const call of calls) {
+		assert.match(call, /\.\.\.input/, `every constructBaseline call must spread ...input, got: ${call}`);
+	}
+	// And the hybrid result still carries the constructor's spread report, so the
+	// receipt survives the production path rather than only the bare one.
+	const { runHybridScheduler } = await import('../services/hybrid-scheduler.js');
+	const result = runHybridScheduler(withOrdering(buildInput(homeRoomBusyExceptMondayLocks()), 'DAY_COUNT_FIRST'));
+	assert.ok(result.spreadReport, 'the production path still emits the spread receipt');
+});
+
+// ─── 10. D3: THE REPRESENTATION GUARD (permanent) ───────────────────────────
+//
+// The single gate for this round: the LEGACY side must reproduce the live-shaped
+// defect, or the proof is worthless. A proof artefact must actually discriminate
+// (AGENTS.md §11).
+
+test('A8-G1 10: a LEGACY side that reproduces the defect PASSES the representation guard', () => {
+	const legacyOnThisFixture = measureShape(
+		constructBaseline(withOrdering(buildInput(homeRoomBusyExceptMondayLocks()), 'LEGACY_SOFT_PENALTY'))
+			.entries as unknown as MeasurableEntry[],
+		25,
+	);
+	assert.equal(
+		frameRepresentationProblem(legacyOnThisFixture),
+		null,
+		'a legacy side with repeats and a worst cell of 5 is representative',
+	);
+	assert.ok(legacyOnThisFixture.sameDayRepeatPairs >= REPRESENTATION_MIN_REPEAT_PAIRS);
+	assert.ok(legacyOnThisFixture.worstSameDayCount >= REPRESENTATION_MIN_WORST_CELL);
+});
+
+test('A8-G1 10b: a LEGACY side with repeats 0 is REJECTED, so a vacuous table can never pass', () => {
+	// Attempt 2's exact situation: the production path on the restored data
+	// produced repeats=0 and worst=0, which made `repeats 0 -> 0` meaningless.
+	// 855 entries, every one its own (section, subject) pair, so no pair can
+	// ever hold two sessions on one day.
+	const vacuous = measureShape(
+		Array.from({ length: 855 }, (_, index) => ({
+			facultyId: 1, roomId: 1, subjectId: 1, sectionId: 1000 + index,
+			day: 'MONDAY', startTime: '07:30', endTime: '08:15',
+		})),
+		920,
+	);
+	assert.equal(vacuous.sameDayRepeatPairs, 0, 'the fixture really does show no repeats');
+	const reason = frameRepresentationProblem(vacuous);
+	assert.notEqual(reason, null, 'the guard MUST fire when the before side cannot see the defect');
+	assert.match(reason as string, /NOT representative/);
+	assert.match(reason as string, /0 same-day repeat pair/);
+});
+
+test('A8-G1 10c: a LEGACY side whose worst cell is below 3 is REJECTED', () => {
+	const weak = measureShape(
+		[
+			{ facultyId: 1, roomId: 60, subjectId: 1, sectionId: 50, day: 'MONDAY', startTime: '07:30', endTime: '08:15' },
+			{ facultyId: 2, roomId: 60, subjectId: 1, sectionId: 50, day: 'MONDAY', startTime: '08:15', endTime: '09:00' },
+		],
+		2,
+	);
+	assert.equal(weak.worstSameDayCount, 2);
+	const reason = frameRepresentationProblem(weak);
+	assert.notEqual(reason, null, 'a worst cell of 2 is below the live Run 347 shape');
+	assert.match(reason as string, /worst same-day cell/);
+});
+
+test('A8-G1 10d: the guard thresholds are pinned to the packet, not to whatever passes', () => {
+	assert.equal(REPRESENTATION_MIN_REPEAT_PAIRS, 1, 'at least one repeated pair');
+	assert.equal(REPRESENTATION_MIN_WORST_CELL, 3, 'live Run 347 held five Filipino sessions on Monday');
+});
+
+// ─── 11. D3: NULL-FACULTY ENTRIES ARE NOT TEACHER OVERLAPS ──────────────────
+
+test('A8-G1 11: entries with no facultyId are excluded from the teacher counter and reported', () => {
+	// Attempt 2 reported 71 "teacher overlaps", every one of them `holder=tnone`.
+	// `schedule-constructor.ts:3203` emits `facultyId: isModularUnified ? null
+	// : facId`, so a modular-unified lane has per-term teachers resolved
+	// elsewhere. Collapsing them onto one placeholder holder manufactured the
+	// count and made a real signal unfalsifiable.
+	const counts = measureShape(
+		[
+			{ facultyId: null, roomId: 50, subjectId: 1, sectionId: 40, day: 'MONDAY', startTime: '11:30', endTime: '12:15', termIndex: 1 },
+			{ facultyId: null, roomId: 51, subjectId: 2, sectionId: 41, day: 'MONDAY', startTime: '11:30', endTime: '12:15', termIndex: 1 },
+			{ facultyId: null, roomId: 52, subjectId: 3, sectionId: 42, day: 'MONDAY', startTime: '11:30', endTime: '12:15', termIndex: 1 },
+		],
+		3,
+	);
+	assert.equal(counts.teacherOverlaps, 0, 'a null facultyId is not a teacher double-book');
+	assert.equal(counts.entriesWithUnresolvedFaculty, 3, 'and the three entries are reported, not dropped');
+	assert.deepEqual(counts.overlapDetail, [], 'no phantom offender is emitted');
+});
+
+test('A8-G1 11b: a REAL teacher double-book is still caught alongside null-faculty entries', () => {
+	// The D3 fix must not become an escape hatch: it excludes only entries with
+	// no faculty, never a genuine collision between two real teachers.
+	const counts = measureShape(
+		[
+			{ facultyId: null, roomId: 50, subjectId: 1, sectionId: 40, day: 'MONDAY', startTime: '11:30', endTime: '12:15', termIndex: 1 },
+			{ facultyId: 9, roomId: 53, subjectId: 4, sectionId: 43, day: 'MONDAY', startTime: '11:30', endTime: '12:15', termIndex: 1 },
+			{ facultyId: 9, roomId: 54, subjectId: 5, sectionId: 44, day: 'MONDAY', startTime: '11:30', endTime: '12:15', termIndex: 1 },
+		],
+		3,
+	);
+	assert.equal(counts.teacherOverlaps, 1, 'the real teacher collision is still counted');
+	assert.equal(counts.entriesWithUnresolvedFaculty, 1);
+	assert.equal(counts.overlapDetail[0]?.holder, 't9', 'and the offender is the real teacher, not a placeholder');
+});
+
+test('A8-G1 11c: the constructor really does emit null facultyId for a modular-unified lane', () => {
+	// Source-level confirmation of the D3 root cause, so the exclusion is tied to
+	// a real constructor behaviour rather than to a guess about the log.
+	const source = readFileSync(
+		path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../services/schedule-constructor.ts'),
+		'utf8',
+	);
+	assert.match(
+		source,
+		/facultyId:\s*isModularUnified\s*\?\s*null\s*:\s*facId/,
+		'schedule-constructor.ts must emit facultyId: null for a modular-unified placement',
+	);
 });

@@ -201,6 +201,16 @@ export interface ShapeCounts {
 	teacherOverlaps: number;
 	sectionOverlaps: number;
 	roomOverlaps: number;
+	/**
+	 * D3: entries emitted with `facultyId: null`. `schedule-constructor.ts:3203`
+	 * sets `facultyId: isModularUnified ? null : facId`, so a modular-unified lane
+	 * carries no single teacher — its per-term teachers are resolved elsewhere.
+	 * Counting those as one holder key made attempt 2 report 71 "teacher
+	 * overlaps" that were entirely this artifact, which made a real signal
+	 * unfalsifiable. They are excluded from the teacher counter and REPORTED
+	 * here instead, never silently dropped.
+	 */
+	entriesWithUnresolvedFaculty: number;
 	/** Up to 10 offenders, so a non-zero count can actually be checked. */
 	overlapDetail: OverlapDetail[];
 	/** Sessions demanded this run — the frame size, printed on every side. */
@@ -228,10 +238,16 @@ function termBucketOf(entry: MeasurableEntry): string {
  */
 function findHolderOverlaps(
 	entries: MeasurableEntry[],
-	holder: (entry: MeasurableEntry) => string,
-): { count: number; detail: OverlapDetail[] } {
+	holder: (entry: MeasurableEntry) => string | null,
+): { count: number; detail: OverlapDetail[]; skipped: number } {
 	const seen = new Map<string, { count: number; kinds: Set<string>; pairs: Set<string> }>();
+	let skipped = 0;
 	for (const entry of entries) {
+		const holderKey = holder(entry);
+		if (holderKey === null) {
+			skipped += 1;
+			continue;
+		}
 		const key = `${holder(entry)}|${termBucketOf(entry)}|${entry.day}|${entry.startTime}-${entry.endTime}`;
 		const bucket = seen.get(key) ?? { count: 0, kinds: new Set<string>(), pairs: new Set<string>() };
 		bucket.count += 1;
@@ -254,7 +270,7 @@ function findHolderOverlaps(
 		});
 	}
 	offenders.sort((a, b) => b.count - a.count || a.holder.localeCompare(b.holder) || a.slot.localeCompare(b.slot));
-	return { count: offenders.reduce((sum, o) => sum + o.count, 0), detail: offenders.slice(0, 10) };
+	return { count: offenders.reduce((sum, o) => sum + o.count, 0), detail: offenders.slice(0, 10), skipped };
 }
 
 export function measureShape(entries: MeasurableEntry[], sessionsDemanded: number): ShapeCounts {
@@ -270,7 +286,7 @@ export function measureShape(entries: MeasurableEntry[], sessionsDemanded: numbe
 		pairsWithRepeat.add(key.slice(0, key.lastIndexOf('|')));
 		if (count > worstSameDayCount) worstSameDayCount = count;
 	}
-	const teacher = findHolderOverlaps(entries, (entry) => `t${entry.facultyId ?? 'none'}`);
+	const teacher = findHolderOverlaps(entries, (entry) => (entry.facultyId == null ? null : `t${entry.facultyId}`));
 	const section = findHolderOverlaps(entries, (entry) => `s${entry.sectionId}`);
 	const room = findHolderOverlaps(entries, (entry) => `r${entry.roomId}`);
 	return {
@@ -280,9 +296,47 @@ export function measureShape(entries: MeasurableEntry[], sessionsDemanded: numbe
 		teacherOverlaps: teacher.count,
 		sectionOverlaps: section.count,
 		roomOverlaps: room.count,
+		entriesWithUnresolvedFaculty: teacher.skipped,
 		overlapDetail: [...teacher.detail, ...section.detail, ...room.detail].slice(0, 10),
 		sessionsDemanded,
 	};
+}
+
+/**
+ * D3 GUARD (representation): a proof that cannot see the defect it exists to
+ * measure proves nothing (AGENTS.md §11: "a proof artefact must actually
+ * discriminate — check that it differs before relying on it").
+ *
+ * Attempt 2 measured a LEGACY side with ZERO same-day repeats, so the `0 -> 0`
+ * spread result was vacuous rather than a pass. This guard is the permanent
+ * check: the legacy ordering, on the same frame, must reproduce the live-shaped
+ * defect — at least one repeated pair and a worst cell of three or more. Live
+ * Run 347 had 31 pairs and a worst cell of 15.
+ *
+ * Returns an error string, or `null` when the frame is representative. Pure, so
+ * the suite can prove it actually fires.
+ */
+export const REPRESENTATION_MIN_REPEAT_PAIRS = 1;
+export const REPRESENTATION_MIN_WORST_CELL = 3;
+
+export function frameRepresentationProblem(legacy: ShapeCounts): string | null {
+	if (legacy.sameDayRepeatPairs < REPRESENTATION_MIN_REPEAT_PAIRS) {
+		return (
+			`The frame is NOT representative: the LEGACY ordering produced ${legacy.sameDayRepeatPairs} same-day ` +
+			`repeat pair(s), expected at least ${REPRESENTATION_MIN_REPEAT_PAIRS}. A before/after table whose before ` +
+			`side cannot see the defect cannot measure the fix, so the spread row would be vacuous rather than a pass. ` +
+			`Either the restored frame does not reproduce live's home-room contention, or the measurement is not ` +
+			`running the production algorithm.`
+		);
+	}
+	if (legacy.worstSameDayCount < REPRESENTATION_MIN_WORST_CELL) {
+		return (
+			`The frame is NOT representative: the LEGACY ordering's worst same-day cell is ` +
+			`${legacy.worstSameDayCount}, expected at least ${REPRESENTATION_MIN_WORST_CELL}. Live Run 347 held five ` +
+			`Filipino sessions for 8-Makatao on Monday.`
+		);
+	}
+	return null;
 }
 
 /** A measurement that could not be taken. Never substituted with another frame. */
@@ -465,8 +519,7 @@ function selfTest(): void {
 		if (detail.samePair !== false) throw new Error('two different pairs were reported as one pair');
 	});
 
-	// A concurrent lane (termIndex undefined) and a term-scoped lane must not
-	// collide, and two concurrent lanes for the same teacher must.
+	// D2: two concurrent lanes for one teacher in one slot must collide.
 	const concurrentClash: MeasurableEntry[] = [
 		{ facultyId: 6, roomId: 42, subjectId: 1, sectionId: 32, day: 'TUESDAY', startTime: '07:30', endTime: '08:15' },
 		{ facultyId: 6, roomId: 43, subjectId: 2, sectionId: 33, day: 'TUESDAY', startTime: '07:30', endTime: '08:15' },
@@ -475,6 +528,60 @@ function selfTest(): void {
 	check('D2: two CONCURRENT lanes for one teacher in one slot DO overlap', () => {
 		if (concurrentCounts.teacherOverlaps !== 1) throw new Error(`expected 1, got ${concurrentCounts.teacherOverlaps}`);
 		if (concurrentCounts.overlapDetail[0]?.term !== 'CONCURRENT') throw new Error('term bucket should be CONCURRENT');
+	});
+
+	// D3: attempt 2 reported 71 "teacher overlaps" that were ALL `holder=tnone`.
+	// The constructor emits `facultyId: null` for a modular-unified lane
+	// (`schedule-constructor.ts:3203`), so those entries have per-term teachers
+	// resolved elsewhere and are not a double-book by anyone.
+	console.log('A8G1_SELF_TEST null-faculty handling (D3)');
+	const nullFaculty: MeasurableEntry[] = [
+		{ facultyId: null, roomId: 50, subjectId: 1, sectionId: 40, day: 'MONDAY', startTime: '11:30', endTime: '12:15', termIndex: 1 },
+		{ facultyId: null, roomId: 51, subjectId: 2, sectionId: 41, day: 'MONDAY', startTime: '11:30', endTime: '12:15', termIndex: 1 },
+		{ facultyId: null, roomId: 52, subjectId: 3, sectionId: 42, day: 'MONDAY', startTime: '11:30', endTime: '12:15', termIndex: 1 },
+	];
+	const nullFacultyCounts = measureShape(nullFaculty, 3);
+	check('D3: entries with no facultyId are NOT teacher overlaps', () => {
+		if (nullFacultyCounts.teacherOverlaps !== 0) throw new Error(`expected 0, got ${nullFacultyCounts.teacherOverlaps}`);
+	});
+	check('D3: and they are REPORTED, not silently dropped', () => {
+		if (nullFacultyCounts.entriesWithUnresolvedFaculty !== 3) {
+			throw new Error(`expected 3 reported, got ${nullFacultyCounts.entriesWithUnresolvedFaculty}`);
+		}
+	});
+	check('D3: a real teacher is still counted alongside them', () => {
+		const mixed = measureShape([
+			...nullFaculty,
+			{ facultyId: 9, roomId: 53, subjectId: 4, sectionId: 43, day: 'MONDAY', startTime: '11:30', endTime: '12:15', termIndex: 1 },
+			{ facultyId: 9, roomId: 54, subjectId: 5, sectionId: 44, day: 'MONDAY', startTime: '11:30', endTime: '12:15', termIndex: 1 },
+		], 5);
+		if (mixed.teacherOverlaps !== 1) throw new Error(`expected 1, got ${mixed.teacherOverlaps}`);
+		if (mixed.overlapDetail[0]?.holder !== 't9') throw new Error('the offender must be the real teacher');
+	});
+
+	console.log('A8G1_SELF_TEST representation guard');
+	const representative = measureShape(worst, 10);
+	check('D3-guard: a legacy side that repeats 5 on Monday PASSES the guard', () => {
+		if (frameRepresentationProblem(representative) !== null) throw new Error('expected a representative frame');
+	});
+	check('D3-guard: attempt 2\'s vacuous frame (repeats 0) is REJECTED', () => {
+		const vacuous = measureShape(spread, 920);
+		const reason = frameRepresentationProblem(vacuous);
+		if (reason === null) throw new Error('the guard did NOT fire on a zero-repeat before side');
+		if (!reason.includes('NOT representative')) throw new Error('the reason must say the frame is not representative');
+	});
+	check('D3-guard: a frame whose worst cell is only 2 is REJECTED', () => {
+		const weak = measureShape([
+			{ facultyId: 1, roomId: 60, subjectId: 1, sectionId: 50, day: 'MONDAY', startTime: '07:30', endTime: '08:15' },
+			{ facultyId: 1, roomId: 60, subjectId: 1, sectionId: 50, day: 'MONDAY', startTime: '08:15', endTime: '09:00' },
+		], 2);
+		const reason = frameRepresentationProblem(weak);
+		if (reason === null) throw new Error('the guard did NOT fire on a worst cell of 2');
+		if (!reason.includes('worst same-day cell')) throw new Error('the reason must name the worst cell');
+	});
+	check('D3-guard: the thresholds are the ones the packet names', () => {
+		if (REPRESENTATION_MIN_REPEAT_PAIRS !== 1) throw new Error('repeat-pair threshold drifted');
+		if (REPRESENTATION_MIN_WORST_CELL !== 3) throw new Error('worst-cell threshold drifted');
 	});
 
 	console.log('A8G1_SELF_TEST table renderer');
@@ -673,7 +780,17 @@ export async function runShapeComparison(target: string, databaseUrl: string, so
 
 		const { buildGenerationPreflight, buildPreflightConstructorInput, buildPreflightValidatorContext } =
 			await import('../services/generation-preflight.service.js');
-		const { constructBaseline } = await import('../services/schedule-constructor.js');
+		// D3 (frame content): the PRODUCTION algorithm, not a bare constructor.
+		// `generation.service.ts:1006` calls `runHybridScheduler(constructorInput)`,
+		// which runs `constructBaseline` across every seed profile, picks the best
+		// by fewest-unassigned then fitness, and then applies `repairHardConflicts`
+		// and `repairUnassignedByEjection`. Attempt 2 called `constructBaseline`
+		// directly, which is NOT what produced live Run 347 — hence its 855/65
+		// against production's 910/10, and hence a legacy side that spread
+		// perfectly and could not see the defect. `runHybridScheduler` takes the
+		// same `ConstructorInput`, so `spreadOrdering` reaches every profile run
+		// through its `{ ...input, demandOverride }` spread.
+		const { runHybridScheduler } = await import('../services/hybrid-scheduler.js');
 		const { validateHardConstraints } = await import('../services/constraint-validator.js');
 
 		const preflight = await buildGenerationPreflight(run.schoolId, run.schoolYearId, { client: drill as never });
@@ -684,7 +801,7 @@ export async function runShapeComparison(target: string, databaseUrl: string, so
 		const measure = (ordering: 'DAY_COUNT_FIRST' | 'LEGACY_SOFT_PENALTY', label: string): Side => {
 			const input = { ...baseInput, spreadOrdering: ordering };
 			const startedAt = Date.now();
-			const result = constructBaseline(input);
+			const result = runHybridScheduler(input);
 			const seconds = (Date.now() - startedAt) / 1000;
 			const validation = validateHardConstraints(
 				buildPreflightValidatorContext(preflight.assembly as never, result.entries as never, run.id),
@@ -701,7 +818,8 @@ export async function runShapeComparison(target: string, databaseUrl: string, so
 				`A8G1_SIDE ordering=${label} demanded=${sessionsDemanded} placed=${side.counts.entryCount} ` +
 				`unplaced=${side.unplaced} repeats=${side.counts.sameDayRepeatPairs} worst=${side.counts.worstSameDayCount} ` +
 				`overlaps(t/s/r)=${side.counts.teacherOverlaps}/${side.counts.sectionOverlaps}/${side.counts.roomOverlaps} ` +
-				`hard=${side.hardViolations} seconds=${seconds.toFixed(3)}`,
+				`noFaculty=${side.counts.entriesWithUnresolvedFaculty} hard=${side.hardViolations} ` +
+				`hybrid=${result.hybridEnabled} profile=${result.selectedProfileId} seconds=${seconds.toFixed(3)}`,
 			);
 			for (const detail of side.counts.overlapDetail) {
 				console.log(
@@ -716,20 +834,53 @@ export async function runShapeComparison(target: string, databaseUrl: string, so
 		const after = measure('DAY_COUNT_FIRST', 'DAY_COUNT_FIRST');
 
 		// The frame guard. A table whose two sides disagree about how much work
-		// they measured is not evidence of anything, and the first attempt's
-		// table looked decisive precisely because nothing checked this.
+		// they measured is not evidence of anything, and attempt 1's table looked
+		// decisive precisely because nothing checked this.
 		const frameProblem = frameMismatchReason(before.counts, after.counts);
 		if (frameProblem) throwFailure(frameProblem.startsWith('The two sides') ? 'FRAME_MISMATCH' : 'FRAME_EMPTY', frameProblem);
+
+		// The REPRESENTATION guard. Equal frames are not enough: the frame must also
+		// be able to see the defect. Attempt 2 satisfied the frame guard and still
+		// produced a vacuous `repeats 0 -> 0`, because its before side could not
+		// reproduce the same-day repeat at all.
+		const representationProblem = frameRepresentationProblem(before.counts);
+		if (representationProblem) {
+			console.error(
+				`A8G1_NOT_REPRESENTATIVE legacy_repeats=${before.counts.sameDayRepeatPairs} ` +
+				`legacy_worst=${before.counts.worstSameDayCount} demanded=${before.counts.sessionsDemanded} ` +
+				`placed=${before.counts.entryCount} hybrid_profile=${'see A8G1_SIDE'}`,
+			);
+			throwFailure('FRAME_NOT_REPRESENTATIVE', representationProblem);
+		}
+		console.log(
+			`A8G1_REPRESENTATIVE legacy_repeats=${before.counts.sameDayRepeatPairs} ` +
+			`legacy_worst=${before.counts.worstSameDayCount} (live Run 347: 31 pairs, worst 15)`,
+		);
 
 		console.log('A8G1_SHAPE_TABLE');
 		console.log(renderTable(before, after));
 
-		const report = after.counts.sameDayRepeatPairs;
-		console.log(`A8G1_VERDICT repeats ${before.counts.sameDayRepeatPairs} -> ${report} (target 0 non-block)`);
+		console.log(`A8G1_VERDICT repeats ${before.counts.sameDayRepeatPairs} -> ${after.counts.sameDayRepeatPairs} (target 0 non-block)`);
+		console.log(`A8G1_VERDICT worst ${before.counts.worstSameDayCount} -> ${after.counts.worstSameDayCount} (target <= ceil(sessions/5))`);
 		console.log(`A8G1_VERDICT unplaced ${before.unplaced} -> ${after.unplaced} (must not rise)`);
 		console.log(
 			`A8G1_VERDICT overlaps ${before.counts.teacherOverlaps}/${before.counts.sectionOverlaps}/${before.counts.roomOverlaps}` +
 			` -> ${after.counts.teacherOverlaps}/${after.counts.sectionOverlaps}/${after.counts.roomOverlaps} (must not rise)`,
+		);
+		console.log(
+			`A8G1_VERDICT unresolved-faculty entries ${before.counts.entriesWithUnresolvedFaculty} -> ` +
+			`${after.counts.entriesWithUnresolvedFaculty} (modular-unified lanes; excluded from the teacher counter)`,
+		);
+
+		// The packet's own frame is 910/920 from live Run 347. The table's frame is
+		// this run's own `demanded`. Reporting the two as if they were the same
+		// frame is exactly the error attempt 1 made, so the comparison is stated
+		// explicitly and never used to satisfy packet rule 3.
+		console.log(
+			`A8G1_PACKET_REFERENCE packet_frame=live_Run_347 placed=910 unplaced=10 of 920. ` +
+			`THIS table's frame is demanded=${after.counts.sessionsDemanded} placed=${after.counts.entryCount} ` +
+			`unplaced=${after.unplaced}. A DIFFERENT frame: equality of before/after unplaced inside this table ` +
+			`does NOT satisfy packet rule 3, which is stated against 910/920.`,
 		);
 
 		// Every row below stays FATAL. None is relaxed, and none is reported as
