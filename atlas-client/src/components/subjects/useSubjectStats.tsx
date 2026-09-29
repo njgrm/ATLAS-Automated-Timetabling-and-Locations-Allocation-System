@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import type { Subject, SubjectCoverageRow } from '@/types';
 import type { SubjectCoverageVerdict } from '@/components/subjects/subjects-coverage-truth';
+import { countSubjectGroups } from '@/lib/rotation-subject-count';
 import { splitSubjectFeatures } from './subject-feature-presentation';
 
 type SubjectStatsInput = {
@@ -73,9 +74,20 @@ export function countRoomConstrainedSubjects(subjects: Subject[]): number {
 
 export function useSubjectStats({ subjects, coverageBySubjectId, coverageVerdictBySubjectId }: SubjectStatsInput) {
 	return useMemo(() => {
-		const activeCount = subjects.filter((s) => s.isActive).length;
-		const archivedCount = subjects.length - activeCount;
-		const roomConstrainedCount = countRoomConstrainedSubjects(subjects);
+		/*
+		 * A5 (2026-09-30) — rotation-aware subject counts.
+		 *
+		 * A term-rotating family is stored as one catalogue row PER TERM SLOT
+		 * (Science = SCI_BIO/SCI_CHEM/SCI_ES, all `termGroupId` SCIENCE), so the
+		 * old `.length` read a section teaching both Science and TLE as SIX
+		 * subjects. `countSubjectGroups` counts a rotation family once and keeps
+		 * a standalone subject counting individually. The three tiles' meaning is
+		 * unchanged; only the number collapses to the count the scheduler knows.
+		 */
+		const activeSubjects = subjects.filter((s) => s.isActive);
+		const activeCount = countSubjectGroups(activeSubjects);
+		const archivedCount = countSubjectGroups(subjects.filter((s) => !s.isActive));
+		const roomConstrainedCount = countSubjectGroups(activeSubjects, isRoomConstrainedSubject);
 		/*
 		 * A6 c10 — the count reads the SHARED VERDICT, not `uncoveredSectionCount`.
 		 *
@@ -88,15 +100,15 @@ export function useSubjectStats({ subjects, coverageBySubjectId, coverageVerdict
 		 * is counted as not-yet-known, which is why the branch is `null`.
 		 */
 		const coverageRiskCount = coverageVerdictBySubjectId
-			? subjects.filter((s) => s.isActive && !coverageVerdictBySubjectId.get(s.id)?.fullyCoveredByRealTeachers).length
+			? countSubjectGroups(activeSubjects, (s) => !coverageVerdictBySubjectId.get(s.id)?.fullyCoveredByRealTeachers)
 			: coverageBySubjectId
-				? subjects.filter((s) => s.isActive && (coverageBySubjectId.get(s.id)?.uncoveredSectionCount ?? 0) > 0).length
+				? countSubjectGroups(activeSubjects, (s) => (coverageBySubjectId.get(s.id)?.uncoveredSectionCount ?? 0) > 0)
 				: null;
 		const placeholderOnlyCount = coverageVerdictBySubjectId
-			? subjects.filter((s) => {
+			? countSubjectGroups(activeSubjects, (s) => {
 				const verdict = coverageVerdictBySubjectId.get(s.id);
-				return s.isActive && verdict != null && !verdict.fullyCoveredByRealTeachers && verdict.label.startsWith('Covered by a to-be-hired teacher');
-			}).length
+				return verdict != null && !verdict.fullyCoveredByRealTeachers && verdict.label.startsWith('Covered by a to-be-hired teacher');
+			})
 			: null;
 		return [
 			{
