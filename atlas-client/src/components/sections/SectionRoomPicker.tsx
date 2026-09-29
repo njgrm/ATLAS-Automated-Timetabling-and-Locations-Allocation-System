@@ -240,9 +240,11 @@ export function centreTriggerForPopover(trigger: HTMLElement | null, viewportHei
 	if (!container) return false;
 	const before = trigger.getBoundingClientRect();
 	const targetCentre = viewportHeightPx * TRIGGER_CENTRE_FRACTION;
-	// How far the trigger must move UP for its centre to reach the target. The
-	// sign is inverted on the way to `scrollTop`: scrolling a container DOWN moves
-	// its content UP the screen, so the container is written by `-delta`.
+	// How far the trigger's centre is BELOW the target line. Scrolling a
+	// container down moves its content up the screen, so a positive delta is
+	// added to `scrollTop` to lift the trigger toward the target: the write
+	// below is `scrollTop + delta`, which is what raises the trigger (measured:
+	// container 1050 -> 1256, trigger bottom 713 -> lifted to a centre of 489).
 	const delta = (before.top + before.height / 2) - targetCentre;
 	if (delta === 0) return false;
 	const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
@@ -593,11 +595,13 @@ export function SectionRoomPicker({
 	 *    into view" result, confined to the list, with `block: 'center'` kept as
 	 *    centring WITHIN the viewport rather than within the page.
 	 *
-	 * The R1 centring `scrollIntoView` on the TRIGGER is deliberately untouched:
-	 * it fires only when the space below is under 192px, it runs before the
-	 * popover mounts, and the render confirms it gives a usable 248px popover on
-	 * the last visible row. It is on the trigger, in the table, before the popover
-	 * exists — a different act from revealing the selection after open. */
+	 * Moving the TRIGGER is a different act from revealing the selection, and it
+	 * happens before the popover exists. Since R4 that move is
+	 * `centreTriggerForPopover` (it writes the nearest scrollable ancestor's
+	 * `scrollTop`); `scrollIntoView` is only its no-ancestor fallback. It fires
+	 * when the space below is under `POPOVER_MIN_USABLE_PX`, and on the bottom-most
+	 * row of a list already scrolled to its end it cannot move the trigger at all —
+	 * which is why the measured cap is floored (see `popoverMaxHeightPx`). */
 	React.useEffect(() => {
 		if (!open) return;
 		const id = setTimeout(() => {
@@ -705,7 +709,7 @@ export function SectionRoomPicker({
 					 * never becomes smaller than the 79 options. Measured on real
 					 * staging data (planner, 2026-09-29, preview :5262, 79 options):
 					 *
-					 *   popover body     400px   (248px / 209px on lower rows — the cap works)
+					 *   popover body     400px   (248px on a mid-panel row at 1366x768)
 					 *   room list        312px   ← the definite-height outcome
 					 *   scroll viewport  clientHeight 312   scrollHeight 5448   scrollTop 0
 					 *
@@ -729,8 +733,17 @@ export function SectionRoomPicker({
 					 * does). The `maxHeight` is kept alongside it so the value can
 					 * never exceed the space below the trigger even if a later change
 					 * makes the height something other than the cap. A top row keeps
-					 * the same 400px list it has always had; a low row gets its
-					 * measured 248px with the list scrolling inside it.
+					 * the same 400px list it has always had; a mid-panel row gets
+					 * 248px (224px at 1280x720) with the list scrolling inside it.
+					 *
+					 * Since R4 the value is also FLOORED at `POPOVER_MIN_USABLE_PX`.
+					 * On the bottom-most row of an already-bottom-scrolled list there
+					 * are only 86px below the trigger — exactly the chrome — so an
+					 * unfloored cap gave the list a `clientHeight` of 0 and the
+					 * popover opened with no rooms in it at all. That row now opens
+					 * at 192px with `clientHeight 104` and two rooms on screen,
+					 * upward, because there is no room beneath it; a picker with zero
+					 * rooms in it is never acceptable, and it covers nothing.
 					 *
 					 * Do not "simplify" this back to a `maxHeight`: row 01 in
 					 * `a3-room-picker-rows-01-02.test.tsx` asserts
