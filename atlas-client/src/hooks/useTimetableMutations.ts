@@ -15,6 +15,13 @@ import { resolvePublicationActionIntent } from '@/lib/publication-approval-actio
 import { generationOutcomeToastSentence } from '@/lib/timetable-plain-language';
 import { buildEditReceipt, receiptClassLabel } from '@/lib/timetable-edit-receipt';
 import {
+	BoundedRequestTimeout,
+	SWAP_COMMIT_BOUND_MS,
+	SWAP_PREVIEW_TIMEOUT_MESSAGE,
+	SWAP_SAVE_TIMEOUT_MESSAGE,
+	withBoundedWait,
+} from '@/components/timetable/timetableSwapArming';
+import {
 	formatFacultyDisplayName,
 	isPlaceholderSentinelName,
 } from '@/components/faculty/teacherNameDisplay';
@@ -104,6 +111,33 @@ type RegularSwapPreviewState = {
 	loading: boolean;
 	error: string | null;
 };
+
+type RegularSwapStrategy = 'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE';
+
+type RegularSwapPreviewPayload = {
+	direct: PreviewResult;
+	autoFixBlockingPreview: PreviewResult | null;
+	autoFixBlockingTarget: { day: string; startTime: string; endTime: string } | null;
+	autoFixSourcePreview: PreviewResult | null;
+	autoFixSourceTarget: { day: string; startTime: string; endTime: string } | null;
+	recommendedStrategy: RegularSwapStrategy | 'BLOCKED';
+};
+
+/**
+ * A2 move-swap — the outcome of the ONE-ACTION swap. A2 mc S5 sliced the swap
+ * commit out of the dialog and behind a bound; the state hook registers Undo
+ * from `result.editId`/`newVersion`, exactly as the move path does.
+ */
+export type RegularSwapCommitOutcome =
+	| { ok: true; result: CommitResult; strategy: RegularSwapStrategy }
+	| { ok: false; message: string };
+
+/** The plain-words error a bounded or refused request resolves to. Never a code. */
+export function swapCommitErrorMessage(error: unknown, fallback: string): string {
+	if (error instanceof BoundedRequestTimeout) return error.message;
+	const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+	return typeof message === 'string' && message.trim() ? message : fallback;
+}
 
 function buildTeachingLoadRepairChangesFromProposals(
 	proposals: ManualEditProposal[],
@@ -403,6 +437,8 @@ export type TimetableMutationState = {
 	commitConfirmPlacement: () => Promise<DraftPlacementCommitResult | null>;
 	executeSwapAction: () => Promise<void>;
 	executeRegularSwap: () => Promise<void>;
+	/** A2 move-swap — the ONE-ACTION, bounded swap the operator's second pick runs. */
+	commitRegularSwapNow: (entryA: ScheduledEntry, entryB: ScheduledEntry) => Promise<RegularSwapCommitOutcome>;
 	regularSwapStrategy: 'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE' | null;
 	setRegularSwapStrategy: React.Dispatch<React.SetStateAction<'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE' | null>>;
 	unassignDraftPlacement: (placementId: number) => Promise<void>;
@@ -1607,17 +1643,17 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 
 		void (async () => {
 			try {
-				const { data } = await atlasApi.post<{
-					direct: PreviewResult;
-					autoFixBlockingPreview: PreviewResult | null;
-					autoFixBlockingTarget: { day: string; startTime: string; endTime: string } | null;
-					autoFixSourcePreview: PreviewResult | null;
-					autoFixSourceTarget: { day: string; startTime: string; endTime: string } | null;
-					recommendedStrategy: 'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE' | 'BLOCKED';
-				}>(`${apiBase}/swap/preview`, {
-					entryIdA: entryA.entryId,
-					entryIdB: entryB.entryId,
-				});
+				/* A2 move-swap — BOUNDED. The dialog path (published runs) gets the
+				 * same bound the one-action path gets, so no swap surface can leave a
+				 * spinner standing on a request that never settles. */
+				const { data } = await withBoundedWait(
+					atlasApi.post<RegularSwapPreviewPayload>(`${apiBase}/swap/preview`, {
+						entryIdA: entryA.entryId,
+						entryIdB: entryB.entryId,
+					}),
+					SWAP_COMMIT_BOUND_MS,
+					SWAP_PREVIEW_TIMEOUT_MESSAGE,
+				);
 
 				const previewState: RegularSwapPreviewState = {
 					directPreview: data.direct,
@@ -1633,7 +1669,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				setRegularSwapPreview(previewState);
 				setRegularSwapStrategy(data.recommendedStrategy === 'BLOCKED' ? null : data.recommendedStrategy);
 			} catch (error) {
-				const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+				const message = swapCommitErrorMessage(error, 'Unable to preview swap.');
 				setRegularSwapPreview({
 					directPreview: null,
 					autoFixBlockingPreview: null,
@@ -1642,7 +1678,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 					autoFixSourceTarget: null,
 					recommendedStrategy: null,
 					loading: false,
-					error: message ?? 'Unable to preview swap.',
+					error: message,
 				});
 				setRegularSwapStrategy(null);
 			}
@@ -2048,16 +2084,60 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		}
 	}, [schoolYearId, swapAction, setSwapSaving, buildPreGenPendingPlacement, setDraftBoard, setDraftBoardSummary, setSelectedEntry, setPreGenKbSource, setKbSelectedSource, setShowSwapConfirm, setSwapAction, setSwapPreview, setInlineActionStatus]);
 
+	/* A2 mc S5 — the SWAP path speaks the same receipt as move and place, derived
+	 * from the committed `CommitResult.violationDelta`. The strategy clause is
+	 * ADDITIVE: it says whether ATLAS also relocated a third session, which is a
+	 * fact about the strategy and not about the exchange.
+	 *
+	 * THE CLASS NAME, HONESTLY: this hook has no subject/section label resolver
+	 * in scope, so the receipt names the section from the `sectionMap` it DOES
+	 * hold and never prints a bare id. A class it cannot name is not invented.
+	 *
+	 * A2 move-swap — extracted so the dialog commit and the ONE-ACTION commit
+	 * cannot describe the same swap in two ways. */
+	const composeSwapReceipt = useCallback((
+		entryA: ScheduledEntry,
+		entryB: ScheduledEntry,
+		// Named `data` deliberately: it is the committed `CommitResult` the server
+		// measured after the write, and the accepted S5c control asserts the
+		// committed-delta read by that name. Both call sites pass the COMMITTED
+		// record — never the optimistic preview.
+		data: CommitResult,
+		strategy: RegularSwapStrategy,
+	): { message: string; tone: 'success' | 'warning' } => {
+		const swappedSection = entryA.sectionId != null ? sectionMap.get(entryA.sectionId) : undefined;
+		const swapReceipt = buildEditReceipt({
+			editType: 'SWAP_ENTRIES',
+			classLabel: receiptClassLabel({ sectionLabel: swappedSection?.name ?? null }),
+			from: { day: String(entryA.day), startTime: String(entryA.startTime) },
+			to: { day: String(entryB.day), startTime: String(entryB.startTime) },
+			problems: {
+				now: data.violationDelta.hardAfter + data.violationDelta.softAfter,
+				before: data.violationDelta.hardBefore + data.violationDelta.softBefore,
+			},
+		});
+		const strategyClause = strategy === 'AUTO_FIX_MOVE_SOURCE'
+			? 'ATLAS also moved the source session to the nearest valid slot.'
+			: strategy === 'AUTO_FIX_MOVE_BLOCKING'
+				? 'ATLAS also relocated the blocking session.'
+				: 'The grid and edit history were updated.';
+		return {
+			message: `${swapReceipt.sentence} ${strategyClause}`,
+			tone: swapReceipt.tone === 'warning' || strategy !== 'DIRECT_SWAP' ? 'warning' : 'success',
+		};
+	}, [sectionMap]);
+
 	const executeRegularSwap = useCallback(async () => {
 		if (!regularSwapPending || !apiBase) return;
 		const { entryA, entryB } = regularSwapPending;
 		setRegularSwapSaving(true);
 		try {
-			const strategy = regularSwapStrategy ?? regularSwapPreview?.recommendedStrategy ?? 'DIRECT_SWAP';
+			const rawStrategy = regularSwapStrategy ?? regularSwapPreview?.recommendedStrategy ?? 'DIRECT_SWAP';
 			if (regularSwapPreview?.recommendedStrategy === 'BLOCKED') {
 				toast.error('No safe swap strategy is available for this occupied slot.');
 				return;
 			}
+			const strategy: RegularSwapStrategy = rawStrategy === 'BLOCKED' ? 'DIRECT_SWAP' : rawStrategy;
 			if (strategy === 'AUTO_FIX_MOVE_BLOCKING' && !regularSwapPreview?.autoFixBlockingTarget) {
 				toast.error('Blocking-session auto-fix target is unavailable for this slot.');
 				return;
@@ -2071,13 +2151,17 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				: strategy === 'AUTO_FIX_MOVE_SOURCE'
 					? regularSwapPreview?.autoFixSourceTarget
 					: null;
-			const { data } = await atlasApi.post<CommitResult>(`${apiBase}/swap`, {
-				entryIdA: entryA.entryId,
-				entryIdB: entryB.entryId,
-				expectedVersion: runVersion,
-				strategy,
-				autoFixTarget,
-			});
+			const { data } = await withBoundedWait(
+				atlasApi.post<CommitResult>(`${apiBase}/swap`, {
+					entryIdA: entryA.entryId,
+					entryIdB: entryB.entryId,
+					expectedVersion: runVersion,
+					strategy,
+					autoFixTarget,
+				}),
+				SWAP_COMMIT_BOUND_MS,
+				SWAP_SAVE_TIMEOUT_MESSAGE,
+			);
 			setDraft(data.draft);
 			if (schoolYearId && runIdNumeric) {
 				const violRes = await atlasApi.get<ViolationReport>(`/generation/${schoolId}/${schoolYearId}/runs/${runIdNumeric}/violations`);
@@ -2086,36 +2170,8 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			await fetchEditHistory();
 			setRegularSwapPending(null);
 			setSelectedEntry(null);
-		/* A2 mc S5 — the SWAP path speaks the same receipt as move and place, derived
-		 * from the committed `CommitResult.violationDelta`. The strategy clause is
-		 * ADDITIVE: it says whether ATLAS also relocated a third session, which is a
-		 * fact about the strategy and not about the exchange.
-		 *
-		 * THE CLASS NAME, HONESTLY: this hook has no subject/section label resolver
-		 * in scope, so the receipt names the section from the `sectionMap` it DOES
-		 * hold and never prints a bare id. A class it cannot name is not invented. */
-		const swappedSection = entryA.sectionId != null ? sectionMap.get(entryA.sectionId) : undefined;
-		const swapReceipt = buildEditReceipt({
-			editType: 'SWAP_ENTRIES',
-			classLabel: receiptClassLabel({
-				sectionLabel: swappedSection?.name ?? null,
-			}),
-			from: { day: String(entryA.day), startTime: String(entryA.startTime) },
-			to: { day: String(entryB.day), startTime: String(entryB.startTime) },
-			problems: {
-				now: data.violationDelta.hardAfter + data.violationDelta.softAfter,
-				before: data.violationDelta.hardBefore + data.violationDelta.softBefore,
-			},
-		});
-		const strategyClause = strategy === 'AUTO_FIX_MOVE_SOURCE'
-			? 'ATLAS also moved the source session to the nearest valid slot.'
-			: strategy === 'AUTO_FIX_MOVE_BLOCKING'
-				? 'ATLAS also relocated the blocking session.'
-				: 'The grid and edit history were updated.';
-		setInlineActionStatus({
-			tone: swapReceipt.tone === 'warning' || strategy !== 'DIRECT_SWAP' ? 'warning' : 'success',
-			message: `${swapReceipt.sentence} ${strategyClause}`,
-		});
+		const composed = composeSwapReceipt(entryA, entryB, data, strategy);
+		setInlineActionStatus({ tone: composed.tone, message: composed.message });
 		/* A2 mc S5d — NO SECOND SENTENCE. The receipt above now states the swap, its
 		 * slots and its consequence, so the toast beside it that said "Sessions
 		 * swapped." was the same fact twice. It is REMOVED, not reworded, for the
@@ -2128,7 +2184,121 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		} finally {
 			setRegularSwapSaving(false);
 		}
-	}, [regularSwapPending, apiBase, runVersion, regularSwapPreview, regularSwapStrategy, setRegularSwapSaving, setDraft, schoolYearId, runIdNumeric, setViolationReport, fetchEditHistory, setRegularSwapPending, setSelectedEntry, setInlineActionStatus, sectionMap]);
+	}, [regularSwapPending, apiBase, runVersion, regularSwapPreview, regularSwapStrategy, setRegularSwapSaving, setDraft, schoolYearId, runIdNumeric, setViolationReport, fetchEditHistory, setRegularSwapPending, setSelectedEntry, setInlineActionStatus, composeSwapReceipt]);
+
+	/**
+	 * A2 move-swap — ONE ACTION, BOUNDED. The operator's second pick (or an
+	 * accepted swap offer) runs this: one bounded `/swap/preview`, then one bounded
+	 * `/swap`, with no dialog commit button in between. The receipt is the SAME
+	 * `buildEditReceipt` the dialog path composes; the state hook registers the
+	 * contextual Undo from the returned `editId`/`newVersion`.
+	 *
+	 * A refused preview (BLOCKED) or an elapsed bound returns `{ ok:false }` with a
+	 * plain-words sentence. It never leaves a spinner standing: every exit writes a
+	 * decided state to `regularSwapPreview` and clears `regularSwapPending` on a
+	 * refusal.
+	 */
+	const commitRegularSwapNow = useCallback(async (
+		entryA: ScheduledEntry,
+		entryB: ScheduledEntry,
+	): Promise<RegularSwapCommitOutcome> => {
+		if (!apiBase) return { ok: false, message: 'Open a schedule run before swapping two classes.' };
+		const idlePreview: RegularSwapPreviewState = {
+			directPreview: null, autoFixBlockingPreview: null, autoFixBlockingTarget: null,
+			autoFixSourcePreview: null, autoFixSourceTarget: null, recommendedStrategy: null,
+			loading: true, error: null,
+		};
+		setRegularSwapPending({ entryA, entryB });
+		setRegularSwapPreview(idlePreview);
+
+		let payload: RegularSwapPreviewPayload;
+		try {
+			const { data } = await withBoundedWait(
+				atlasApi.post<RegularSwapPreviewPayload>(`${apiBase}/swap/preview`, {
+					entryIdA: entryA.entryId,
+					entryIdB: entryB.entryId,
+				}),
+				SWAP_COMMIT_BOUND_MS,
+				SWAP_PREVIEW_TIMEOUT_MESSAGE,
+			);
+			payload = data;
+		} catch (error) {
+			const message = swapCommitErrorMessage(error, 'ATLAS could not check this swap. Nothing changed; try again.');
+			setRegularSwapPreview({ ...idlePreview, loading: false, error: message });
+			setRegularSwapStrategy(null);
+			setRegularSwapPending(null);
+			// A2 move-swap — never a silent stall: the one action always ends in a
+			// plain sentence, whether the request was refused, errored or timed out.
+			setInlineActionStatus({ tone: 'error', message });
+			return { ok: false, message };
+		}
+
+		setRegularSwapPreview({
+			directPreview: payload.direct,
+			autoFixBlockingPreview: payload.autoFixBlockingPreview,
+			autoFixBlockingTarget: payload.autoFixBlockingTarget,
+			autoFixSourcePreview: payload.autoFixSourcePreview,
+			autoFixSourceTarget: payload.autoFixSourceTarget,
+			recommendedStrategy: payload.recommendedStrategy,
+			loading: false,
+			error: null,
+		});
+		regularSwapPreviewCacheRef.current.set(`${runVersion}:${entryA.entryId}:${entryB.entryId}`, {
+			directPreview: payload.direct,
+			autoFixBlockingPreview: payload.autoFixBlockingPreview,
+			autoFixBlockingTarget: payload.autoFixBlockingTarget,
+			autoFixSourcePreview: payload.autoFixSourcePreview,
+			autoFixSourceTarget: payload.autoFixSourceTarget,
+			recommendedStrategy: payload.recommendedStrategy,
+			loading: false,
+			error: null,
+		});
+
+		if (payload.recommendedStrategy === 'BLOCKED') {
+			const message = 'These two classes cannot trade times safely, so the swap was not saved. Choose a different class.';
+			setRegularSwapStrategy(null);
+			setRegularSwapPending(null);
+			setInlineActionStatus({ tone: 'error', message });
+			return { ok: false, message };
+		}
+
+		const strategy = payload.recommendedStrategy;
+		setRegularSwapStrategy(strategy);
+		const autoFixTarget = strategy === 'AUTO_FIX_MOVE_BLOCKING'
+			? payload.autoFixBlockingTarget
+			: strategy === 'AUTO_FIX_MOVE_SOURCE'
+				? payload.autoFixSourceTarget
+				: null;
+		try {
+			const { data: commit } = await withBoundedWait(
+				atlasApi.post<CommitResult>(`${apiBase}/swap`, {
+					entryIdA: entryA.entryId,
+					entryIdB: entryB.entryId,
+					expectedVersion: runVersion,
+					strategy,
+					autoFixTarget,
+				}),
+				SWAP_COMMIT_BOUND_MS,
+				SWAP_SAVE_TIMEOUT_MESSAGE,
+			);
+			setDraft(commit.draft);
+			if (schoolYearId && runIdNumeric) {
+				const violRes = await atlasApi.get<ViolationReport>(`/generation/${schoolId}/${schoolYearId}/runs/${runIdNumeric}/violations`);
+				setViolationReport(violRes.data);
+			}
+			await fetchEditHistory();
+			setRegularSwapPending(null);
+			setSelectedEntry(null);
+			const composed = composeSwapReceipt(entryA, entryB, commit, strategy);
+			setInlineActionStatus({ tone: composed.tone, message: composed.message });
+			return { ok: true, result: commit, strategy };
+		} catch (error) {
+			const message = swapCommitErrorMessage(error, 'ATLAS could not save the swap. Nothing changed; try again.');
+			setRegularSwapPreview((current) => ({ ...(current ?? idlePreview), loading: false, error: message }));
+			setInlineActionStatus({ tone: 'error', message });
+			return { ok: false, message };
+		}
+	}, [apiBase, runVersion, schoolYearId, schoolId, runIdNumeric, setRegularSwapPending, setRegularSwapPreview, setRegularSwapStrategy, setDraft, setViolationReport, fetchEditHistory, setSelectedEntry, setInlineActionStatus, composeSwapReceipt]);
 
 	const unassignDraftPlacement = useCallback(async (placementId: number) => {
 		if (!schoolYearId) return;
@@ -2220,6 +2390,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		commitConfirmPlacement,
 		executeSwapAction,
 		executeRegularSwap,
+		commitRegularSwapNow,
 		unassignDraftPlacement,
 		getDraggedDraftPlacementId,
 		commitPreGenPending,

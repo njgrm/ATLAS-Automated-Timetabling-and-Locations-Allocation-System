@@ -932,6 +932,7 @@ export function useScheduleReviewWorkspaceState() {
 		commitConfirmPlacement,
 		executeSwapAction,
 		executeRegularSwap,
+		commitRegularSwapNow,
 		openRegularSwapPrompt,
 		regularSwapPreview,
 		regularSwapStrategy,
@@ -1165,6 +1166,37 @@ export function useScheduleReviewWorkspaceState() {
 		});
 	}, [commitConfirmPlacement, preGenConfirmCtx, confirmRoomId, subjectLabel, roomMap, setLastAutoSaveUndo]);
 
+	/**
+	 * A2 move-swap — ONE ACTION. The operator's second pick, or an accepted swap
+	 * offer, commits here with no dialog commit button in between. The bounded
+	 * preview+commit lives in `useTimetableMutations`; this registers the SAME
+	 * contextual Undo the move path registers (ledger 'run', the commit's own edit
+	 * id), so a mis-picked swap is one Undo away.
+	 *
+	 * On a refusal or an elapsed bound the mutations hook has already written
+	 * plain words to the status, and this registers nothing — because nothing
+	 * committed.
+	 */
+	const commitRegularSwapOneAction = useCallback(async (entryA: ScheduledEntry, entryB: ScheduledEntry) => {
+		const outcome = await commitRegularSwapNow(entryA, entryB);
+		if (!outcome.ok) return null;
+		const { result } = outcome;
+		const section = entryA.sectionId != null ? sectionMap.get(entryA.sectionId) : undefined;
+		setLastAutoSaveUndo({
+			ledger: 'run',
+			editId: result.editId,
+			newVersion: result.newVersion,
+			subjectLabel: section?.name ?? (subjectLabel ? subjectLabel(entryA.subjectId) : 'Session'),
+			day: String(entryB.day),
+			startTime: String(entryB.startTime),
+			endTime: String(entryB.endTime),
+			roomLabel: entryB.roomId != null && roomMap.has(entryB.roomId)
+				? `${roomMap.get(entryB.roomId)!.name} - ${roomMap.get(entryB.roomId)!.buildingShortCode || roomMap.get(entryB.roomId)!.buildingName}`
+				: '',
+		});
+		return result;
+	}, [commitRegularSwapNow, sectionMap, subjectLabel, roomMap, setLastAutoSaveUndo]);
+
 	const handleEntryClick = useCallback((entry: ScheduledEntry) => {
 		if (swapClassTimesMode != null && centerView === 'schedule') {
 			// Explicit Swap class times mode: arm Class A first, then Class B.
@@ -1206,7 +1238,14 @@ export function useScheduleReviewWorkspaceState() {
 				}
 				setSwapClassBEntryId(entry.entryId);
 				captureReviewFocusReturn(timetableEntryFocusSelector(entry.entryId));
-				openRegularSwapPrompt(classA, entry);
+				// A2 move-swap — the pick IS the decision. A draft swap commits on this
+				// one action (bounded, with receipt + Undo); only a PUBLISHED run keeps
+				// the dated-revision dialog, because that flow is a different contract.
+				if (draftPublishedRef.current) {
+					openRegularSwapPrompt(classA, entry);
+				} else {
+					void commitRegularSwapOneAction(classA, entry);
+				}
 				setSwapClassTimesMode(null);
 				setSwapClassAEntryId(null);
 				setSwapClassBEntryId(null);
@@ -1215,7 +1254,7 @@ export function useScheduleReviewWorkspaceState() {
 		}
 		// Ordinary browsing: a second occupied class opens details, never an implicit swap.
 		handleEntrySelect(entry);
-	}, [captureReviewFocusReturn, centerView, handleEntrySelect, openRegularSwapPrompt, selectedEntry, setSelectedEntry, setSelectedViolation, swapClassTimesMode, swapClassAEntryId, swapClassBEntryId, gridEntries, setSwapClassTimesMode, setSwapClassAEntryId, setSwapClassBEntryId, setInlineActionStatus, applyArmedVerdict, actorUserId, resolveEntryLabel]);
+	}, [captureReviewFocusReturn, centerView, handleEntrySelect, openRegularSwapPrompt, commitRegularSwapOneAction, selectedEntry, setSelectedEntry, setSelectedViolation, swapClassTimesMode, swapClassAEntryId, swapClassBEntryId, gridEntries, setSwapClassTimesMode, setSwapClassAEntryId, setSwapClassBEntryId, setInlineActionStatus, applyArmedVerdict, actorUserId, resolveEntryLabel]);
 
 	const handleCollaborativeTimetableEvent = useCallback(() => {
 		toast.info('Timetable updated by another scheduler. Refreshing data...', { id: 'collab-edit-alert' });
@@ -1961,8 +2000,15 @@ export function useScheduleReviewWorkspaceState() {
 			const swapCandidate = findRegularSwapCandidate(entry, slotEntries);
 			if (swapCandidate) {
 				captureReviewFocusReturn(timetableEntryFocusSelector(swapCandidate.entryId));
-				setInlineActionStatus({ tone: 'warning', message: 'Review swap before saving. This occupied slot will exchange the two sessions.' });
-				openRegularSwapPrompt(entry, swapCandidate);
+				// A2 move-swap — the drop IS the decision on a draft run: the swap
+				// commits on this one action. A published run keeps the dated-revision
+				// dialog.
+				if (draftPublishedRef.current) {
+					setInlineActionStatus({ tone: 'warning', message: 'Review swap before saving. This occupied slot will exchange the two sessions.' });
+					openRegularSwapPrompt(entry, swapCandidate);
+				} else {
+					void commitRegularSwapOneAction(entry, swapCandidate);
+				}
 				setDragItem(null);
 				return;
 			}
@@ -2047,7 +2093,7 @@ export function useScheduleReviewWorkspaceState() {
 			message: `${moveReceipt.sentence} Undo below.`,
 		});
 	},
-		[captureReviewFocusReturn, dragItem, previewEdit, commitEditWithMeta, runPreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, placeGeneratedUnassigned, subjectLabel, sectionLabel, roomMap, setLastAutoSaveUndo],
+		[captureReviewFocusReturn, dragItem, previewEdit, commitEditWithMeta, runPreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, commitRegularSwapOneAction, placeGeneratedUnassigned, subjectLabel, sectionLabel, roomMap, setLastAutoSaveUndo],
 	);
 
 	/** Keyboard-accessible placement confirm */
@@ -2109,8 +2155,14 @@ export function useScheduleReviewWorkspaceState() {
 				const swapCandidate = findRegularSwapCandidate(fakeItem.entry, slotEntries);
 				if (swapCandidate) {
 					captureReviewFocusReturn(timetableEntryFocusSelector(swapCandidate.entryId));
-					setInlineActionStatus({ tone: 'warning', message: 'Review swap before saving. This occupied slot will exchange the two sessions.' });
-					openRegularSwapPrompt(fakeItem.entry, swapCandidate);
+					// A2 move-swap — the pick IS the decision on a draft run. Published
+					// runs keep the dated-revision dialog.
+					if (draftPublishedRef.current) {
+						setInlineActionStatus({ tone: 'warning', message: 'Review swap before saving. This occupied slot will exchange the two sessions.' });
+						openRegularSwapPrompt(fakeItem.entry, swapCandidate);
+					} else {
+						void commitRegularSwapOneAction(fakeItem.entry, swapCandidate);
+					}
 					return;
 				}
 				// LANE-C C03 (B3) — a published run refuses direct edits; the move
@@ -2194,7 +2246,7 @@ export function useScheduleReviewWorkspaceState() {
 		});
 		setKbSelectedSource(null);
 	},
-		[captureReviewFocusReturn, kbSelectedSource, preGenKbSource, previewEdit, commitEditWithMeta, runPreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, placeGeneratedUnassigned, subjectLabel, sectionLabel, roomMap, setLastAutoSaveUndo],
+		[captureReviewFocusReturn, kbSelectedSource, preGenKbSource, previewEdit, commitEditWithMeta, runPreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, commitRegularSwapOneAction, placeGeneratedUnassigned, subjectLabel, sectionLabel, roomMap, setLastAutoSaveUndo],
 	);
 
 	/** Load edit history on mount / run change */
