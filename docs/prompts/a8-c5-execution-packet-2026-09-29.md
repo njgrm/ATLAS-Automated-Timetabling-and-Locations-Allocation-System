@@ -49,10 +49,19 @@ ordinary UI mutations on staging that an acceptance row needs (§12). No generat
 
 **S1.1 — never default a school-year id in a write path.** `faculty.router.ts:169`, `section.router.ts:267`,
 `section.router.ts:465`. When the caller supplies no `schoolYearId` and the EnrollPro active school year
-cannot be resolved, fail closed with a typed error (HTTP 409, code `ACTIVE_SCHOOL_YEAR_UNRESOLVED`, the
-existing vocabulary) and **zero writes and zero downstream sync dispatch**. Also add the missing
-caller-supplied-id validation to the two sites that lack it, using the shape 465 already uses
-(`400 INVALID_BODY`, positive integer). Never substitute a year id.
+cannot be resolved, fail closed with a typed error and **zero writes and zero downstream sync dispatch**.
+
+- The refusal code is **NEW**: `ACTIVE_SCHOOL_YEAR_UNRESOLVED` does not exist anywhere at `f925045c`
+  (`git grep` returns only this packet). Mark it new in the code comment. Its **shape** copies the existing
+  unresolved-authority refusals — `ACTIVE_SCHOOL_YEAR_AMBIGUOUS` (asserted in
+  `atlas-server/src/__tests__/active-term-live-resolution-c02.test.ts:370`) and the client vocabulary
+  `ACTIVE_SCHOOL_YEAR_REQUIRED` (`atlas-client/src/pages/Subjects.tsx:171`). HTTP **409**, matching
+  `ACTIVE_TERM_UNRESOLVED`.
+- Its **authority** is Lane C's 17:25 ruling ("Fail closed with a typed error; never default a year id"), not
+  a new contract grant. It refuses a write; it creates no new capability.
+- Also add the missing caller-supplied-id validation to the two sites that lack it (`faculty.router.ts:165-166`,
+  `section.router.ts:263-264`), using the shape `section.router.ts:456-461` already uses
+  (`400 INVALID_BODY`, positive integer). Never substitute a year id.
 
 **S1.2 — a placeholder-owned class is a third state (Lane C's ruling; the 17:25 BLOCKER).**
 `generation-preflight.service.ts` ignores `isPlaceholder`, so a class sitting on a to-be-hired record is
@@ -64,9 +73,24 @@ indistinguishable from a class with a real owner. The contract:
 - It does **not** block generation (unchanged from A8 c3) and it does **not** block publication.
 - An **open** class still blocks exactly as it does today. Do not widen the A8 c3 gap rules.
 - Publication shows "N classes are on to-be-hired teachers" in words, with the names.
-- This must keep `POLICY_ADVISORY_VIOLATION_CODES` honest: distinguish `LACKING_FACULTY` (open — blocking)
-  from the placeholder-owned state (advisory), and prove the existing c3 publication-refusal tests still
-  refuse an OPEN class.
+
+**The mechanism, because the word "advisory" already means the opposite in this codebase.** In ATLAS "advisory"
+means *non-blocking for generation, still refused by publication*: `generation-blocker-groups.service.ts:69-73`
+states that invariant, and every code in `POLICY_ADVISORY_VIOLATION_CODES` (`generation.service.ts:667-672`)
+is also on `PROMOTABLE_CONSTRAINT_CODES` (`scheduling-policy.service.ts:181`). So a placeholder-owned class must
+be a **distinct state with its own persisted code**, not a code added to either set:
+
+- Emit a **new** code for a placeholder-owned class, named from the existing vocabulary
+  (`SYNTHETIC_PLACEHOLDER` / "to-be-hired"; `faculty-assignment.service.ts:6136` already uses
+  `SYNTHETIC_PLACEHOLDER`). It must be **absent** from `PROMOTABLE_CONSTRAINT_CODES` and **absent** from
+  `POLICY_ADVISORY_VIOLATION_CODES`.
+- `resolveUnassignedViolationCode` (`generation.service.ts:437`) must stop collapsing a placeholder-owned class
+  into `LACKING_FACULTY`. `LACKING_FACULTY` stays in **both** existing sets, unchanged, so an **open** class
+  still blocks publication exactly as today.
+- **No membership may be removed from any existing set.** Removing one is a publication-gate relaxation
+  outside this packet's authority, and a subtractive change to existing evidence (AGENTS.md 16).
+- The run summary carries the placeholder-owned class count and names alongside the existing gap/advisory
+  breakdown (`summarizeTeacherGaps`, `generation.service.ts:688`).
 
 **S1.3 — the hire estimate uses the saved workload policy.** `teaching-load-automation.service.ts:1257`
 must divide by the **resolved** policy standard minutes (the same value as line 787), not the
@@ -82,8 +106,11 @@ are correct. Control: the export test must fail on base with the old label and p
 
 **S2.0 (addendum 19:05) — guard `groups`.** `timetable-generation-readiness.ts:302` must treat a missing or
 non-array `groups` as empty and take the legacy one-line fallback its own comment promises. Then re-pin
-`a2-header-budget-2026-09-29.test.tsx` H4 state A and state B **on purpose**: both must keep their current
-labelled behaviour, and H4 A/B must now also prove the panel renders with the guard in place.
+`a2-header-budget-2026-09-29.test.tsx` H4 state A (line 625) and state B (line 668), script
+`test:ux-2-header-budget` → `test:ux-a2-header-budget`, **on purpose**: both must keep their current labelled
+behaviour, and both must now also render through the guard. Re-run the groups suite
+`atlas-client/src/components/timetable/__tests__/a8-c3-generate-gaps-groups.test.tsx` (script
+`test:a8-c3-generate-gaps`) unchanged.
 
 **S2.1 (rules 2 + 3) — every hard blocker code has a sentence and a route, and the test proves it.**
 Build ONE shared, exported table of the hard blocker codes the preflight can emit, with, per code: the plain
@@ -102,6 +129,11 @@ the reason in the table. The test is table-driven with **a fixture per code** an
 in the exported inventory has a non-empty sentence and a real mounted route, and (b) a code with no entry
 fails — prove (b) with a failing-first control, or the test is vacuous.
 
+**A source-text read is not visible proof.** The inventory-driven completeness test reads the server's
+exported constant; on its own it proves only that the table matches the constant, never that a scheduler
+sees a fixable line. Rows B1 and B2 are that proof and must not be dropped or merged into A7: A7 is the
+source-level completeness control, B1/B2 are the rendered control.
+
 **S2.2 (rule 1) — one line per root cause, one "Check again".** A8 c3 already renders this shape
 (`SimpleGenerationBlockerGroups.tsx`). Keep it and make it correct against the S2.1 table: no per-row
 repetition, no codes, counts in classes, ONE fix button per cause to the exact page/state, ONE "Check again"
@@ -118,6 +150,12 @@ A check that could not run retries **by itself once**, then says so plainly with
 Table-driven test over **every** capability input: no state returns a disabled Generate except "run in
 progress". Nothing that is only a warning may stop generation.
 
+**This change is presentational, never a new server gate.** The canonical decision stays
+`deriveGenerateDecision` in `generation.service.ts` (exercised by
+`atlas-server/src/__tests__/generation-canonical-readiness-genc02.test.ts:366,385,422`), which still refuses
+on its own terms. "Always enabled" means the operator always gets the dialog and an honest list; it does not
+mean the client became the only gate, and the server test must stay green and be re-run.
+
 **S2.4 (rule 4) — publication names the classes in the same words.** The client publish refusal surface must
 name placeholder-owned and open classes with the same sentence shape as S2.1, driven by the same table.
 
@@ -133,10 +171,10 @@ existing receipt pattern, do not invent a second one.
 | # | Row | Harness | Decided by |
 | --- | --- | --- | --- |
 | A1 | No write path defaults a school-year id; unresolved → typed 409, zero writes, zero dispatch | `atlas-server/src/__tests__/a8-c5-active-year-fail-closed.test.ts` on a **disposable** DB via `npm run test:server-db` | executor, then QA |
-| A2 | Placeholder-owned is a named third state: not a real owner, listed by name, blocks neither generation nor publication; OPEN still blocks both | `atlas-server/src/__tests__/a8-c5-placeholder-third-state.test.ts` (disposable DB) — must include a **failing-first** control on the old predicate | executor, then QA |
+| A2 | Placeholder-owned is a named third state: **not a real owner** and **listed by name** (both fail on base); blocks neither generation nor publication (preservation); **OPEN still blocks both** | `atlas-server/src/__tests__/a8-c5-placeholder-third-state.test.ts` (disposable DB) — the failing-first control is on "not a real owner" / "listed by name", which is where base is wrong; pair it with the **existing** OPEN-class refusal proof `atlas-server/src/__tests__/a8-c3-generate-with-gaps.test.ts:181-200` ("C3.11 SAFETY", script `test:a8-c3-generate-gaps`), which must stay green and must be re-run | executor, then QA |
 | A3 | Publication refusal names placeholder-owned classes in words | same suite as A2, plus a client assertion on the refusal sentence | executor, then QA |
 | A4 | `recommendedNewHires` follows the saved policy; a default policy reproduces the base number | `atlas-server/src/__tests__/a8-c5-hire-estimate-policy.test.ts` | executor, then QA |
-| A5 | Both exports label the total per week; day columns unchanged | the existing workbook / room-program export suites, re-pinned | executor, then QA |
+| A5 | Both exports label the total per week; day columns unchanged | workbook: re-pin `atlas-server/src/__tests__/tt-output-c03r.test.ts:433` (the only existing assertion of `'TOTAL MINUTES PER DAY'`, and it must FAIL on base and PASS on the fix). room-program: **no existing suite pins that label** — `exportRoomProgramWorkbook` is imported by `published-immutability-c08.test.ts:137` and `tt-output-c05-beneficiary-parity.test.ts:34`, neither of which asserts the totals row. Add the label assertion to `tt-output-c05-beneficiary-parity.test.ts` (the parity suite that already owns that writer) and name it in the handoff. | executor, then QA |
 | A6 | Missing `groups` takes the legacy fallback; H4 A/B re-pinned | `atlas-client/src/components/timetable/__tests__/a2-header-budget-2026-09-29.test.tsx` + the groups suite | executor, then QA |
 | A7 | Every hard blocker code maps to a non-empty sentence and a real route; a missing entry FAILS | new table-driven client test, **one fixture per code**, with a failing-first control | executor, then QA |
 | A8 | No capability input returns a disabled Generate except `generating`; each former denial is a named dialog stopper with a count and a fix route | new table-driven `timetable-capabilities` test over every input | executor, then QA |
