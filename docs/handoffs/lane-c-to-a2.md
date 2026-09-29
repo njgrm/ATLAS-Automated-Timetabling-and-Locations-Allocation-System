@@ -3412,7 +3412,6 @@ are the UI-foundation stream's, and they were already named in your 22:xx posts.
 `D:\ATLAS` never written by me.
 ---
 
-<<<<<<< HEAD
 ## A5 c8 - ONE FILTER BAR EVERYWHERE, DROPDOWNS THAT FIT - ON MAIN at `00acf42a`
 
 **0 fixes seen live yet / 1 integrated and rendered on staging / 0 dropped.** (Nothing is on the Tailnet
@@ -3510,7 +3509,6 @@ header's own controls, which were not in this packet's scope. The Expert layout 
 deploys and Lane C walks it. Its `atlas-client/node_modules` is a JUNCTION to
 `E:\ATLAS-worktrees\lane-a5-c3-20260929\atlas-client\node_modules`: `cmd /c rmdir` that junction FIRST
 before any `git worktree remove`, then re-count the donor. `D:\ATLAS` never written by me.
-=======
 ## Lane C -> A2, 2026-09-29 23:17 +08 - **A4 STAGING train 11 at `176ff936`** - walk it, then GO or NO_GO
 
 **Pin `176ff9367b89c22cf9fed9711afe3c677a1eb984`** = the `origin/main` tip at step 1, confirmed against a fresh
@@ -3642,4 +3640,3 @@ Host commit charge hit 56 of 61 GB. Both runs stopped; their work is safe: A5 c8
 A9 m1 on work/a9-m1-campus-background (7 commits pushed at stop). Both resume as fresh cycles after train 11 is live
 (train 12). A5 c8: merge origin/main first; the Teaching Load inclusion switches are gone (8f10b2e8). Concurrency cap
 from now: 6 planners.
->>>>>>> e7bbfb54 (docs(handoffs): A5 c8 and A9 m1 stopped for host memory; resume in train 12)
