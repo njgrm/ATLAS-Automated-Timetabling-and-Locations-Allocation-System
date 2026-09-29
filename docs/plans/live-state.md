@@ -487,6 +487,80 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **— CUTOVER TARGET (RETRY), recorded 2026-09-29 22:3x +08 by Lane A4 ahead of the operator-approved **retry** of the
+  second hotfix. Required by `deploy-runner.ps1` `Assert-LiveReleaseRecorded`, which fails closed without it. Target
+  release `8d98628d` (full `8d98628d3829977db7dabffbbd720f8f4fc86a2b`), rollback basis `9462d82d` (the incumbent,
+  currently live).** Branch `hotfix/rollover-term-20260929`. **Parent of `8d98628d` IS `f4d34c75`** - the exact tree
+  that failed to boot - so this retry carries **the same code** and changes only the budget.
+  **The cause of the rollback, as measured: `ops/runtime/runtime-contract.json` `readinessTimeoutMs: 45000`, and the
+  new tree needed ~80 s to boot under memory pressure.** `8d98628d` raises it to **`180000`** and touches **one
+  file, `ops/runtime/runtime-contract.json`, one line** - no product source, so the already-built `dist` and
+  `node_modules` from the failed attempt are reused verbatim (**no rebuild**): server `dist/server.js` present,
+  client entry chunk **`index-BfzPMwrg.js`**, server/client `node_modules` 209/155, **0 reparse points**,
+  10 runtime campus uploads.
+  Target tree `E:\ATLAS-worktrees\lane-a4-hotfix-tl-prod`, branch `release/2026-09-29-10-hotfix-tl`,
+  **fast-forwarded from `f4d34c75` to `8d98628d`**, HEAD == pin, `status --short` empty. The same 45 s -> 180 s
+  change is already on `main` as `029e5425`. Contract / supervisor / deploy-runner tests pass per the operator.
+  The hotfix chain still totals **8 product paths vs `9462d82d`** (7 client Teaching Load + 1 server transaction
+  timeouts) plus this 1 contract line, **0 `prisma/`**.
+
+- **— FAILED ATTEMPT (rolled back), 2026-09-29 22:28 +08 by Lane A4: the operator-approved SECOND HOTFIX
+  `f4d34c75` reached `CUTOVER_STARTED` but its tree never finished booting inside the supervisor's fixed
+  `readinessTimeoutMs: 45000`, twice (restart attempts 1 and 2), and both live listeners went absent. Rolled back
+  to `9462d82d` by restoring `task-before.xml` from audit `f4d34c75-20260929-222820\` plus the two machine runtime
+  variables. Downtime ~3 min 20 s; `9462d82d` verified healthy afterwards.** The **build was clean** (server `tsc` 0,
+  client `vite` 0, `term-contract-atlas-consumption-c02.test.ts` 9/9, 0 `prisma/`), and both discriminators were
+  proven on the artifacts before the cutover (entry chunk `index-BfzPMwrg.js` vs `index-BdvkYd2N.js`; `Show other
+  subjects` 1 vs 0; `Cross-subject` 0 vs 1; `timeout: 30_000, maxWait: 10_000` 3 sites vs 0). **Leading hypothesis
+  is host contention, not the code** - hotfix #1's own cold start was **43 s, only 2 s inside the 45 s budget**,
+  and eight lanes were running builds concurrently - but **that is NOT exoneration.** The built tree is retained at
+  `E:\ATLAS-worktrees\lane-a4-hotfix-tl-prod` (`f4d34c75`, branch `release/2026-09-29-10-hotfix-tl`, HEAD == pin)
+  as **PRESERVE_FOR_DECISION: do not retire**; it is the artifact the next staging boot must time. Full record and
+  the data note (nine content tables byte-identical; `audit_logs` +4 rows of **operator** activity, ids 1168-1171)
+  are in `docs/handoffs/lane-c-to-a2.md`, "SECOND HOTFIX `f4d34c75` FAILED TO START".
+
+- **— CUTOVER TARGET, recorded 2026-09-29 22:2x +08 by Lane A4 ahead of the **operator-approved SECOND HOTFIX** (not
+  train 11). Required by `deploy-runner.ps1` `Assert-LiveReleaseRecorded`, which fails closed without it. Target
+  release `f4d34c75` (full `f4d34c7565b58e9201639e33d9e42527d7c94f07`), rollback basis `9462d82d` (the incumbent,
+  currently live).** Branch `hotfix/rollover-term-20260929`. **`9462d82d` is verified an ancestor of `f4d34c75`**
+  (`git merge-base --is-ancestor 9462d82d f4d34c75` → true), reached via the intermediate `11f103ed`, so the target
+  is exactly *live + the two approved changes*:
+  (a) **client** `atlas-client/src/pages/TeachingLoad.tsx` + `TeacherGridMode.tsx` + `TeachingLoadFilterBar.tsx` +
+  4 test files — the `Past years` button is removed from under the header (the tools-menu item keeps the name), the
+  `Cross-subject` and `No subject match` switches are gone, and a per-teacher **`Show other subjects`** control is
+  in the load editor;
+  (b) **server** `teaching-load-suggestion-proposal.service.ts` — all **three** Serializable transactions
+  (`create`, `apply`, `cancel`) get **`timeout: 30_000, maxWait: 10_000`**, replacing Prisma's 5 s default that
+  produced live `P2028` at 22:17.
+  Target tree `E:\ATLAS-worktrees\lane-a4-hotfix-tl-prod`, branch `release/2026-09-29-10-hotfix-tl`, HEAD == pin,
+  `status --short` empty, own dependency trees (seeded from `-hotfix-term-prod` + `prisma generate`; server `tsc` 0,
+  client `vite` 0 with `VITE_ENROLLPRO_URL`), the incumbent's **10 runtime campus uploads** copied in.
+  **8 paths vs live, 0 `prisma/`.** Regression: `term-contract-atlas-consumption-c02.test.ts` **9 pass / 0 fail,
+  exit 0**, so hotfix #1's term fix is carried forward intact. New entry chunk **`index-BfzPMwrg.js`**, old
+  **`index-BdvkYd2N.js`**.
+
+- **— LIVE: `9462d82d3a57f87d9020784ed12850ef91024869` @ DEPLOYED TO PRODUCTION 2026-09-29 22:13 +08 by Lane A4 —
+  operator-approved HOTFIX (not train 11). Rollback basis `cd542245` (the incumbent).**
+
+  | | |
+  |---|---|
+  | **LIVE** | **`9462d82d3a57f87d9020784ed12850ef91024869`** (branch `hotfix/rollover-term-20260929`; parent **is** `cd542245`) |
+  | **Live dir** | `E:\ATLAS-worktrees\lane-a4-hotfix-term-prod`, branch `release/2026-09-29-10-hotfix-term`, HEAD == pin, `status --short` empty, 0 reparse points, own dependency trees (seeded from `-10prod` + `prisma generate`; server `tsc` 0, client `vite` 0) |
+  | **Listeners** | 5001 → **4060**, 5174 → **26472** (were 49120 / 47192) |
+  | **Machine scope** | both runtime variables repointed to `-hotfix-term-prod` / `9462d82d…`; task action **and** `Start In** both `-hotfix-term-prod`, **Running** |
+  | **Rollback basis** | **`cd54224522d44c39f8f3877134b08488541f415f`**, dir `E:\ATLAS-worktrees\lane-a4-release-20260929-10prod` @ HEAD == pin. One-step supervised reset. |
+  | **Scope** | **2 paths, both `atlas-server/src`**, **0 `prisma/`** → no migration (11 before and after) |
+  | **Cutover** | `deploy-runner.ps1` dry run first (`mutates: false`, `secretsPrinted: false`, supervisor lineage verified, `Assert-LiveReleaseRecorded` **passed**), then `-Execute` → **`CUTOVER_STARTED`**. Audit `C:\ProgramData\ATLAS\release-audit\9462d82d-20260929-221354\` |
+  | **Acceptance** | **DEPLOYED, all rows PASS.** Loopback + Tailnet health/ready **200** with DB-backed `GET /api/v1/subjects?schoolId=1` **200 (20 335 B)** · `tsx --test src/__tests__/term-contract-atlas-consumption-c02.test.ts` **9 pass / 0 fail, exit 0** · **zero write** — 10 signature tables byte-identical, baseline captured **22:13:35, before** the quiesce · **live-data invariant exactly 1 active mirror (`2024-2025`)** |
+  | **Discriminator — SERVER** | the hotfix bundle contains `if (suppliedIdentity === null \|\| suppliedIdentity === undefined)`, which is **absent** from the live `cd542245` bundle (`verified independently` 4 vs 3, `ACTIVE_TERM_UNRESOLVED` 6 vs 4) |
+  | **Discriminator — CLIENT** | **byte-identical by design.** `atlas-client/dist` is **218 files with an identical SHA-256** to `cd542245`, so the served entry chunk is legitimately still **`index-BdvkYd2N.js`** (200, 307 649 B). The hotfix changes no client byte, so the chunk-name test cannot discriminate here and is **not** claimed as proof — the server bundle is the proof. |
+  | **Data-portability fix** | the incumbent's **10 runtime campus uploads** (referenced by `schools.campus_image_url`) copied into the new tree before the cutover; `/atlas-server/uploads/` is in `.git/info/exclude`, so the target still passes `Get-GitIdentity`'s clean gate. |
+  | **Evidence** | `docs/handoffs/lane-c-to-a2.md`, "A4 LIVE hotfix 9462d82d" |
+
+  Supervisor log: `All targets healthy (liveness and dependency readiness)`, `DB connected, 2 school(s) found`,
+  `[rollover-automation] Disabled via ROLLOVER_AUTO_SYNC_ENABLED=false`. Cold start was ~43 s (Prisma init),
+  so the 60 s wait before health-checking is what made this cutover a PASS rather than a false alarm.
+
 - **— CUTOVER TARGET, recorded 2026-09-29 22:0x +08 by Lane A4 ahead of the **operator-approved HOTFIX** (not train
   11). Required by `deploy-runner.ps1` `Assert-LiveReleaseRecorded`, which fails closed without it. Target release
   `9462d82d` (full `9462d82d3a57f87d9020784ed12850ef91024869`), rollback basis `cd542245` (the incumbent, currently
