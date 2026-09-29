@@ -128,16 +128,28 @@ function productionFiles(dir = srcRoot, found: string[] = []): string[] {
 	return found;
 }
 
+/** Render into a fresh host and remember the root, so unmount disposes of THAT root. */
+const roots = new WeakMap<HTMLElement, Root>();
 async function render(node: React.ReactNode): Promise<HTMLElement> {
 	const host = document.createElement('div');
 	document.body.appendChild(host);
 	const root: Root = createRoot(host);
+	roots.set(host, root);
 	await act(async () => { root.render(node); });
 	return host;
 }
 
 async function unmount(host: HTMLElement): Promise<void> {
-	await act(async () => { createRoot(host).unmount(); });
+	const root = roots.get(host);
+	/* The root is looked up rather than re-created. `createRoot(host).unmount()` on a
+	 * container that already has a root throws in React 19, and `render(host, …)`
+	 * re-uses a root that a previous row left mounted — either way the next row would
+	 * be asserting against a tree nobody disposed of. A contract file that leaks roots
+	 * between rows produces failures that look like product defects. */
+	if (root) {
+		await act(async () => { root.unmount(); });
+		roots.delete(host);
+	}
 	host.remove();
 }
 
@@ -261,11 +273,17 @@ test('A5-C8-BAR-1: the bar is ONE wrapping row: search first, then every child, 
 	assert.doesNotMatch(bar.className, /justify-(between|center|end)/, 'the bar is not left-aligned');
 	assert.doesNotMatch(bar.className, /overflow/, 'the bar is a scroll container');
 	/* Order: search, then the two pickers, then the reset — asserted on the DOM, not
-	   on the source, because "search then filters" is a reading-order claim. */
+	   on the source, because "search then filters" is a reading-order claim. The first
+	   child is checked as the SEARCH BOX (an input inside a wrapper), not merely as a
+	   `div`, so a future edit that puts a helper element in front of the search would
+	   fail here rather than pass on a tag name. */
+	assert.equal(bar.children.length, 4, `the bar rendered ${bar.children.length} children, not search + 2 filters + reset`);
+	assert.match(bar.children[0].className, /w-\[240px\]/, 'the first thing in the row is not the shared 240px search box');
+	assert.equal(bar.children[0].querySelector('input')?.getAttribute('placeholder'), 'Search teachers');
 	assert.deepEqual(
-		Array.from(bar.children).map((child) => child.tagName.toLowerCase() + ':' + visible(child).slice(0, 12)),
-		['div:', 'button:Roster: All', 'button:Grade: All', 'button:Reset'],
-		'the bar did not render search, filters, then reset in that order',
+		Array.from(bar.children).slice(1).map((child) => child.tagName.toLowerCase() + ':' + visible(child).slice(0, 12)),
+		['button:Roster: All', 'button:Grade: All', 'button:Reset'],
+		'the bar did not render the filters, then the reset, in that order',
 	);
 	await unmount(host);
 });
