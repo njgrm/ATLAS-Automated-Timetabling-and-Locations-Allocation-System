@@ -8,6 +8,7 @@ import { isHomeroomGuidanceCode, placementSaveAvailability } from '../timetable-
 import { deriveSimplePublishReadiness } from '../../components/timetable/simplePublishReadiness';
 import { buildBlockerGroups } from '../../components/timetable/simple/SimpleTaskDrawerHelpers';
 import { readinessLabel } from '../../components/timetable/simple/SimpleHeaderHelpers';
+import { CLASS_SCHEDULE_LABEL } from '../class-schedule-naming';
 
 const clientRoot = resolve(import.meta.dirname, '../../..');
 function source(path: string): string {
@@ -596,7 +597,14 @@ test('TTX-08 tutorial trigger has an accessible name and 44px mobile target', ()
 	// accessible name and the 44px touch target are asserted there. The
 	// schedule-sheet trigger it also pins is still in the header helpers.
 	const tutorial = source('src/components/timetable/simple/SimpleTutorial.tsx');
-	assert.match(tutorial, /aria-label="Open timetable tutorial"/);
+	// SUPERSEDED (A2 C13, 2026-09-29) — the label only. The ORIGINAL row read:
+	//     assert.match(tutorial, /aria-label="Open timetable tutorial"/);
+	// The internal name no longer reaches this control; it is now the place-name
+	// constant, so the accessible name is `Open class schedule tutorial`. The
+	// tutorial trigger still exists, is still reachable, and the 44px touch target
+	// asserted on the next line is unchanged. `L6b` pins that the nav item, the
+	// breadcrumb group and the `<h1>` all read the same constant.
+	assert.match(tutorial, new RegExp(`aria-label="Open ${CLASS_SCHEDULE_LABEL.toLowerCase()} tutorial"`));
 	assert.match(tutorial, /min-h-11/);
 	const helpers = source('src/components/timetable/simple/SimpleHeaderHelpers.tsx');
 	assert.match(

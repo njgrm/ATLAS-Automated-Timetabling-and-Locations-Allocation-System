@@ -62,6 +62,7 @@
     "test:ux-a2-header-budget": "tsx --max-old-space-size=6144 --test src/components/timetable/__tests__/a2-header-budget-2026-09-29.test.tsx",
     "test:ux-a2-c12-past-year": "tsx --max-old-space-size=6144 --test src/components/timetable/__tests__/a2-c12-past-year-view.test.tsx",
     "test:ux-a2-c12-entity-index-p1": "tsx --test src/lib/__tests__/a2-c12-entity-index-p1.test.ts",
+    "test:ux-a2-c13-calm-loading": "tsx --max-old-space-size=6144 --test src/components/timetable/__tests__/a2-c13-calm-loading.test.tsx src/components/timetable/__tests__/a2-c13-unavailable-generate.test.tsx src/lib/__tests__/a2-c13-one-place-name.test.tsx",
     "test:timetable-scheduling-quality-c03": "tsx --test src/components/timetable/__tests__/timetable-scheduling-quality-c03.test.tsx",
     "test:retired-faculty-portal": "tsx --test src/lib/__tests__/retired-faculty-portal-custody.test.tsx",
     "test:notification-inbox": "tsx --test src/__tests__/notification-inbox.test.ts",

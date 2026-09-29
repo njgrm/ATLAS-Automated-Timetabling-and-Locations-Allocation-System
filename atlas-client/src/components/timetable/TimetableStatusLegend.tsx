@@ -1,6 +1,7 @@
 import { CircleHelp } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
@@ -30,7 +31,7 @@ export function TimetableStatusLegend({ compact = false }: TimetableStatusLegend
 					size="sm"
 					className={cn('h-9 shrink-0 gap-1.5 px-2.5 text-xs font-semibold', compact ? 'bg-background' : 'bg-background/80')}
 					data-testid="timetable-status-legend"
-					aria-label="Open timetable status key"
+					aria-label={`Open ${CLASS_SCHEDULE_LABEL.toLowerCase()} status key`}
 				>
 					<CircleHelp className="size-3.5" aria-hidden="true" />
 					<span>Status key</span>
@@ -47,7 +48,7 @@ export function TimetableStatusLegend({ compact = false }: TimetableStatusLegend
 					<p className="text-sm font-semibold text-foreground">What the grid labels mean</p>
 					<p className="text-xs leading-relaxed text-muted-foreground">The words stay meaningful even when colors are hard to distinguish.</p>
 				</div>
-				<div className="mt-3 grid gap-2" role="list" aria-label="Timetable status definitions">
+				<div className="mt-3 grid gap-2" role="list" aria-label={`${CLASS_SCHEDULE_LABEL} status definitions`}>
 					{STATUS_ITEMS.map((item) => (
 						<div key={item.label} className="flex items-start gap-2" role="listitem">
 							<Badge variant="outline" className={cn('mt-0.5 h-6 shrink-0 px-1.5 text-[0.68rem] font-semibold', item.tone)}>

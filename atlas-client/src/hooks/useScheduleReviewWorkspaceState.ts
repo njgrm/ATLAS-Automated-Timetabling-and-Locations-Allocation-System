@@ -2280,6 +2280,24 @@ export function useScheduleReviewWorkspaceState() {
 		draft,
 		error,
 		loadAll,
+		/**
+		 * A2 C13 (item 1b) — "a published run is ALREADY derivable from data on
+		 * screen, with no new fetch".
+		 *
+		 * `publishedReturnState.snapshot` is populated ONLY by
+		 * `capturePublishedReturnState`, which stores nothing unless the run on
+		 * screen was published (`context.isPublished`, a strict
+		 * `isDraftPublishedStrict` read) and carried a real run id. So a non-null
+		 * snapshot IS the truth that a published run has been seen — no request
+		 * is fired to discover whether the loading skeleton may offer a link, which
+		 * would be a second stall on the slowest screen in the product.
+		 *
+		 * It is exposed at the TOP level, beside `draft`, because the loading early
+		 * return in `ScheduleReviewWorkspace` runs before `headerContext` is known
+		 * to exist; reading it off the header context would make the answer
+		 * `undefined` on exactly the render that needs it.
+		 */
+		hasPublishedReturnState: publishedReturnState.snapshot != null,
 		generating,
 		previewLoading,
 		commitLoading,

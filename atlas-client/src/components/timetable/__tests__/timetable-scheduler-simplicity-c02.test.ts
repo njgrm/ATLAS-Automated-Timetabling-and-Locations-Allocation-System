@@ -180,9 +180,19 @@ test('cross-faculty issue selection asks before changing teacher and confirm sel
 	assert.equal(requiresFacultyIssueConfirmation({ viewMode: 'faculty', entityFilter: '9', facultyId: 12, canonicalFacultyExists: true }), true);
 	assert.equal(requiresFacultyIssueConfirmation({ viewMode: 'section', entityFilter: '7', facultyId: 12, canonicalFacultyExists: false }), false);
 	assert.match(workspace, /<TimetableFacultyIssuePivotDialog/);
-	assert.match(confirmation, /Open \{teacherLabel\}&apos;s timetable\?/);
+	// SUPERSEDED (A2 C13, operator adjudication 2026-09-29) — the WORD only. The
+	// ORIGINAL rows read:
+	//     assert.match(confirmation, /Open \{teacherLabel\}&apos;s timetable\?/);
+	//     assert.match(confirmation, /onConfirm\}>Open teacher timetable/);
+	// This dialog names the TEACHER'S OWN weekly schedule, not the workspace, so it
+	// takes the plain word "schedule" and NOT the `CLASS_SCHEDULE_LABEL` constant:
+	// sending an operator to a place called "Class Schedule" when they mean their
+	// own timetable is the mistake the carve-out exists to prevent.
+	// The rows are kept and still decide the same things — the confirmation exists,
+	// it is about the one teacher, and it cancels or confirms. Only the noun moved.
+	assert.match(confirmation, /Open \{teacherLabel\}&apos;s schedule\?/);
 	assert.match(confirmation, /onCancel\}>Cancel/);
-	assert.match(confirmation, /onConfirm\}>Open teacher timetable/);
+	assert.match(confirmation, /onConfirm\}>Open teacher schedule/);
 	assert.match(source('src/hooks/useScheduleReviewWorkspaceState.ts'), /setSelectedViolation\(pending\.violation\)[\s\S]+setSelectedEntry\(pending\.entry\)/);
 });
 

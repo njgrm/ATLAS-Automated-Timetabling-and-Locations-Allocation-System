@@ -28,6 +28,7 @@ import { deriveTimetableCapabilities } from '../timetable-capabilities';
 import {
 	PUBLISHED_CHANGE_HINT,
 	PUBLISHED_GENERATE_LABEL,
+	resolveSimpleGenerateActionState,
 	SimpleGenerateAction,
 	SimplePublishedState,
 } from '../../components/timetable/simple/SimpleHeaderHelpers';
@@ -44,6 +45,21 @@ import { mayClaimEmptyHistory } from '../../lib/timetable-edit-history-truth';
 import type { ScheduledEntry } from '../../types';
 
 const source = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
+
+/**
+ * A2 C13 — the "Generate is available" state, produced by the PRODUCTION resolver
+ * rather than hand-written here. `SimpleGenerateAction` now takes the whole
+ * `SimpleHeaderActionState` instead of separate `disabled`/`disabledReason` props
+ * so the visible short reason and the `aria-label` sentence cannot drift; these
+ * two call sites therefore needed the state object, and deriving it keeps them
+ * honest if the resolver's shape ever moves.
+ */
+const READY_ACTION_STATE = resolveSimpleGenerateActionState({
+	canPlanOrGenerate: true,
+	loading: false,
+	generating: false,
+	gateReason: null,
+});
 
 const entry = {
 	entryId: 'entry-4::t2',
@@ -165,7 +181,7 @@ test('B4 the lifecycle label for a published schedule is honest too', () => {
 });
 
 test('B4 beside a published schedule, Generate says it builds a new draft, not a new version', () => {
-	const published = renderToStaticMarkup(createElement(SimpleGenerateAction, { disabled: false, disabledReason: null, onClick: () => {}, published: true }));
+	const published = renderToStaticMarkup(createElement(SimpleGenerateAction, { actionState: READY_ACTION_STATE, onClick: () => {}, published: true }));
 	assert.match(published, new RegExp(`>${PUBLISHED_GENERATE_LABEL}<`));
 	// A2-UX-MENU-C2 (#56): the aria-label is now the copy module's one verb plus
 	// its one reassurance. The pre-fix string said "Build a new version of the
@@ -175,7 +191,7 @@ test('B4 beside a published schedule, Generate says it builds a new draft, not a
 	assert.match(published, /aria-label="Build a new draft\. Your published schedule stays in use\."/);
 	assert.doesNotMatch(published, /new version/i);
 	assert.equal(PUBLISHED_GENERATE_LABEL, 'Build a new draft', 'the label is the copy module\'s one verb, not a second string');
-	const ordinary = renderToStaticMarkup(createElement(SimpleGenerateAction, { disabled: false, disabledReason: null, onClick: () => {} }));
+	const ordinary = renderToStaticMarkup(createElement(SimpleGenerateAction, { actionState: READY_ACTION_STATE, onClick: () => {} }));
 	assert.match(ordinary, />Generate</);
 	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): beside a run, Generate is the More entry; it carries the same flag.
 	// assert.match(source('../../components/timetable/TimetableSimpleHeader.tsx'), /published=\{isRunPublished\}/);

@@ -143,14 +143,14 @@ export function TimetableUndoRedoControl({
 								disabled={revertLoading || editHistoryCount === 0 || undoBlockedReason !== null}
 								onClick={() => void revertLastEdit()}
 								data-testid="timetable-visible-undo"
-								aria-label="Undo last manual timetable change"
+								aria-label="Undo last manual schedule change"
 							>
 								<Undo2 className="size-3.5" aria-hidden="true" />
 								<span className="hidden sm:inline">Undo</span>
 							</Button>
 						</span>
 					</TooltipTrigger>
-					<TooltipContent>{undoBlockedReason ?? 'Undo the last manual timetable change'}</TooltipContent>
+					<TooltipContent>{undoBlockedReason ?? 'Undo the last manual schedule change'}</TooltipContent>
 				</Tooltip>
 			</TooltipProvider>
 			<TooltipProvider>

@@ -66,6 +66,16 @@ const { legalMoveTargets, describeMoveTargets, NO_LEGAL_TARGET_IN_VIEW } =
 	await import('@/components/timetable/timetableMoveTargets');
 const { CenterWorkspaceManualEditEmpty, MANUAL_EDIT_NO_SELECTION_HINT } =
 	await import('@/components/timetable/CenterWorkspaceManualEditEmpty');
+// A2 C13 — the production publish resolver, imported here so the two call sites
+// that now pass the ONE `SimpleHeaderActionState` derive it instead of hand-writing
+// a shape that could drift from the resolver.
+const { resolveSimplePublishActionState } =
+	await import('@/components/timetable/simple/SimpleHeaderHelpers');
+const PUBLISHABLE_ACTION_STATE = resolveSimplePublishActionState({
+	publicationEnabled: true,
+	isRunPublished: false,
+	gateReason: null,
+});
 
 const CLIENT_ROOT = resolve(import.meta.dirname, '../../../..');
 const roots: any[] = [];
@@ -184,8 +194,10 @@ test('D2R RENDERED (QA-B2 re-point): the draft strip is a SENTENCE and adds no c
 	const view = renderIn(createElement('div', null,
 		createElement(SimplePublishAction, {
 			primary: true,
-			enabled: true,
-			disabledReason: null,
+			// A2 C13 — the control now takes the ONE `SimpleHeaderActionState`, derived
+			// here from the production resolver rather than hand-written, so this row
+			// cannot drift from the real "publishable" state.
+			actionState: PUBLISHABLE_ACTION_STATE,
 			onClick: () => calls.push('publish'),
 		}),
 	));
@@ -240,15 +252,28 @@ test('D3R RENDERED (QA-B2 re-point): a PUBLISHED run says Published and cannot P
 	// The reason now travels with the publication control itself, which is the
 	// control that can no longer act — the same sentence, on the real surface.
 	const view = renderIn(createElement(SimplePublishAction, {
-		enabled: false,
-		disabledReason: PUBLISH_WHEN_ALREADY_PUBLISHED,
+		// A2 C13 — the ONE state object; `PUBLISH_WHEN_ALREADY_PUBLISHED` is the
+		// resolver's own full sentence for this state, so the row still pins the real
+		// reason text rather than a copy of it.
+		actionState: resolveSimplePublishActionState({
+			publicationEnabled: true,
+			isRunPublished: true,
+			gateReason: null,
+		}),
 		primary: true,
 		onClick: () => calls.push('publish'),
 	}));
-	// The reason is rendered as text, not only placed in a `title`/tooltip.
-	assert.equal(view.testId('timetable-publish-blocked-reason'), PUBLISH_WHEN_ALREADY_PUBLISHED);
+	// A2 C13 — the visible reason is on screen beside the control, not hover-only.
+	// It is the resolver's own ≤ 6-word short form (same source as the `aria-label`).
+	assert.equal(view.testId('timetable-simple-publish-short-reason'), 'Already published');
 	const publish = view.host.querySelector('[data-testid="timetable-simple-publish-action"]') as HTMLButtonElement;
 	assert.equal(publish.disabled, true, 'a published run cannot be published again');
+	// The FULL sentence is still carried, and still not hover-only (AGENTS.md §8).
+	assert.equal(
+		publish.getAttribute('aria-label'),
+		`Publish schedule — ${PUBLISH_WHEN_ALREADY_PUBLISHED}`,
+		'the control keeps the full reason in its accessible name',
+	);
 	// AGENTS.md §8 — no raw `title` attribute carrying the explanation.
 	assert.equal(view.host.querySelector('[title]'), null, 'no raw title attribute is used for the reason');
 	act(() => { publish.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })); });
@@ -280,7 +305,7 @@ test('D5 M5 WIRING: there is exactly ONE Undo control in the workspace source (s
 	);
 	// The unique accessible name is preserved (A2-TIMETABLE-CUSTODY).
 	const control = readFileSync(resolve(CLIENT_ROOT, 'src/components/timetable/TimetableUndoRedoControl.tsx'), 'utf8');
-	assert.equal((control.match(/aria-label="Undo last manual timetable change"/g) ?? []).length, 1,
+	assert.equal((control.match(/aria-label="Undo last manual schedule change"/g) ?? []).length, 1,
 		'the Undo keeps ONE accessible name');
 });
 
@@ -640,7 +665,7 @@ test('M5 SUPERSEDED (correction 4, F4): Undo sits in the persistent draft strip 
 	// draft state — not buried in a menu.
 	assert.ok(view.has('timetable-draft-state-strip'), 'the persistent strip is on screen');
 	assert.ok(view.text.includes('not visible to teachers until you publish'), 'the draft state names its audience');
-	const undo = view.byLabel('Undo last manual timetable change')
+	const undo = view.byLabel('Undo last manual schedule change')
 		?? view.host.querySelector('[data-testid="timetable-visible-undo"]');
 	assert.ok(undo, 'the Undo control is rendered inside the strip');
 	assert.equal((undo as HTMLButtonElement).disabled, false, 'with one edit in the draft, Undo is live');

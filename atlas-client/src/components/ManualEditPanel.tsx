@@ -39,6 +39,7 @@ import {
 	type ManualEditPanelProps,
 } from '@/components/manual-edit/manual-edit-foundation';
 import { useManualEditOptionGroups } from '@/components/manual-edit/useManualEditOptionGroups';
+import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
 
 /* ─── Constants ─── */
 
@@ -299,16 +300,16 @@ export default function ManualEditPanel({
 								size="sm"
 								className="h-7 gap-1.5 text-muted-foreground"
 								onClick={onClose}
-								aria-label="Back to timetable (Esc)"
-							>
-								<ArrowLeft className="size-3.5" />
-								Back to Timetable
-								<kbd className="text-[0.5625rem] bg-muted border border-border/40 rounded px-1 py-px font-mono opacity-60">Esc</kbd>
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent side="bottom">
-							Return to the timetable grid view
-						</TooltipContent>
+							aria-label={`Back to ${CLASS_SCHEDULE_LABEL} (Esc)`}
+						>
+							<ArrowLeft className="size-3.5" />
+							Back to {CLASS_SCHEDULE_LABEL}
+							<kbd className="text-[0.5625rem] bg-muted border border-border/40 rounded px-1 py-px font-mono opacity-60">Esc</kbd>
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent side="bottom">
+						Return to the {CLASS_SCHEDULE_LABEL} grid view
+					</TooltipContent>
 					</Tooltip>
 				</TooltipProvider>
 

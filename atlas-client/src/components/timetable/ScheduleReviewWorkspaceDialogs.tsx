@@ -2,6 +2,7 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
 import { Loader2, RefreshCw } from 'lucide-react';
+import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
 
 export type SetupImpactDialogProps = {
 	open: boolean;
@@ -53,7 +54,7 @@ export function SyncTimetableConfirmDialog({ open, onOpenChange, syncing, onSync
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="sm:max-w-md">
 				<DialogHeader>
-					<DialogTitle>Sync Timetable with Setup</DialogTitle>
+					<DialogTitle>Sync {CLASS_SCHEDULE_LABEL} with Setup</DialogTitle>
 					<DialogDescription className="space-y-2">
 						<span>This will update the timetable draft to match live setup changes:</span>
 						<ul className="list-disc list-inside text-xs space-y-1">

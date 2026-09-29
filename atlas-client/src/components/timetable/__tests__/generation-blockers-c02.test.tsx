@@ -573,7 +573,25 @@ test('C2-a.7 the blocked state keeps the ≤6 visible-control cap and exactly on
 	// Generate is still the one visible primary, and still cannot dispatch.
 	const generate = blocked.querySelector<HTMLElement>('[data-testid="timetable-simple-generate-action"]');
 	assert.ok(generate && controls.includes(generate), 'Generate is the visible primary while blocked');
-	assert.match(generate.className, /\bbg-primary\b/);
+	// SUPERSEDED (A2 C13, 2026-09-29) — the ORIGINAL row read:
+	//     assert.match(generate.className, /\bbg-primary\b/);
+	// It is retained here as the record of what the control used to look like.
+	//
+	// WHY IT IS SUPERSEDED, and this is the defect the row used to ENFORCE:
+	// `default` is a solid `bg-primary` and the shared base adds
+	// `disabled:opacity-50`, so a disabled Generate was a PALE GREEN button. The
+	// operator's words on `/timetable`: *"the disabled Generate reads as a
+	// pale-green near-miss."* For this user the worst possible reading is a control
+	// that looks like the next step and is not.
+	//
+	// The replacement asserts the OPPOSITE and is the load-bearing one: a disabled
+	// Generate carries no `bg-primary` at all and wears the shared `unavailable`
+	// variant. The `disabled` and "Generate is the visible primary while blocked"
+	// rows above are UNCHANGED and still decided here.
+	// `L4` in `a2-c13-unavailable-generate.test.tsx` is the replacement row.
+	assert.doesNotMatch(generate.className, /\bbg-primary\b/,
+		'a DISABLED Generate must not wear the primary background — a pale-green near-miss reads as "almost ready"');
+	assert.match(generate.className, /\bbg-muted\b/, 'and wears the plainly-unavailable muted treatment');
 	assert.equal(generate.getAttribute('disabled'), '', 'Generate is disabled while generation is blocked');
 });
 

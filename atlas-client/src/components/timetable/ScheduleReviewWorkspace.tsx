@@ -28,6 +28,7 @@ import { setTimetableEntryReadOnly } from '@/components/timetable/TimetableDragg
 import { TimetableUndoRedoControl } from '@/components/timetable/TimetableUndoRedoControl';
 import { dispatchUndoByLedger, UNDO_CONFLICT_MESSAGE } from '@/components/timetable/timetableUndoRedoState';
 import { createSwapArmHandler } from '@/components/timetable/timetableSwapArming';
+import { createTeacherDepartureJump } from '@/components/timetable/timetableTeacherDepartureJump';
 import { TimetableMoveStatusLine } from '@/components/timetable/TimetableMoveStatusLine';
 import ConcurrentCommitNoticeBar from '@/components/timetable/ConcurrentCommitNoticeBar';
 import { buildScopeKey, clearScopeState, shouldClearForScopeChange } from '@/components/timetable/timetableScopeHygiene';
@@ -36,10 +37,20 @@ import { SimplePastYearReadOnlySurface, type PastYearViewMode } from '@/componen
 import { buildPastYearBackHref, resolvePastYearViewState } from '@/components/timetable/simple/pastYearViewState';
 import { usePastYearTimetable } from '@/components/timetable/simple/usePastYearTimetable';
 import { YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
+import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
 
 const TeacherDepartureRecoverySheet = lazy(() => import('@/components/timetable/TeacherDepartureRecoverySheet').then((module) => ({
 	default: module.TeacherDepartureRecoverySheet,
 })));
+
+/** A2 C13 — extracted so this file sits UNDER §8's 1000-line cap with real headroom: it
+ *  stood at 997 and the two props A2 C13 adds took it to 1000, which is AT the line but
+ *  has zero room for the next edit — that is how a cap gets breached later. §8 says
+ *  EXTRACT, never delete a comment, so the C11 M3 record stays on the call site. Pure,
+ *  not a hook, so hook order is untouched and the #310 hazard below cannot return. */
+type MoveOccupant = { entryId: string; day: string; startTime: string; endTime: string };
+const toMoveOccupants = (es: Array<Record<string, unknown>>): MoveOccupant[] =>
+	es.map((e) => ({ entryId: String(e.entryId), day: String(e.day), startTime: String(e.startTime), endTime: String(e.endTime) }));
 
 export const onProfilerRender = (id: string, phase: string, actualDuration: number, baseDuration: number) => {
 	if (typeof window !== 'undefined') {
@@ -207,19 +218,9 @@ export default function ScheduleReviewWorkspace() {
 	}, [state.draft, teacherDepartureFacultyId, teacherDepartureOpen]);
 	const teacherDepartureEntryIds = teacherDepartureFocusedEntryIds ?? allTeacherDepartureEntryIds;
 
-	const jumpToTeacherDepartureEntry = useCallback((entryId: string) => {
-		if (typeof window === 'undefined') return;
-		window.requestAnimationFrame(() => {
-			const escaped = window.CSS?.escape ? window.CSS.escape(entryId) : entryId.replace(/"/g, '\\"');
-			const direct = document.querySelector<HTMLElement>(`[data-timetable-entry-id="${escaped}"]`);
-			const cell = direct?.closest<HTMLElement>('td[data-day][data-start-time][data-end-time]')
-				?? document.querySelector<HTMLElement>(`td[data-cell-entry-ids~="${escaped}"]`);
-			const trigger = document.querySelector<HTMLElement>(`[data-overflow-entry-ids~="${escaped}"]`);
-			(cell ?? trigger ?? direct)?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-			(cell ?? trigger ?? direct)?.classList.add('ring-2', 'ring-violet-500', 'ring-offset-2');
-			window.setTimeout(() => (cell ?? trigger ?? direct)?.classList.remove('ring-2', 'ring-violet-500', 'ring-offset-2'), 1600);
-		});
-	}, []);
+	/* A2 C13 — extracted to `timetableTeacherDepartureJump.ts` for §8's cap; the DOM
+	   work, the order and the callback identity are unchanged. */
+	const jumpToTeacherDepartureEntry = useCallback(createTeacherDepartureJump(), []);
 
 	// R3: the selected-class Swap affordances must arm the same two-class swap
 	// workflow the Simple task path arms. Setting `activeSimpleTask` alone was a
@@ -308,12 +309,7 @@ export default function ScheduleReviewWorkspace() {
 	 */
 	const moveTargetNotice = describeMoveTargets({
 		slots: (state.centerWorkspaceContext?.timeSlots ?? []) as MoveSlot[],
-		occupants: ((state.centerWorkspaceContext?.draftEntries ?? []) as Array<{ entryId: string; day: string; startTime: string; endTime: string }>).map((candidate) => ({
-			entryId: candidate.entryId,
-			day: String(candidate.day),
-			startTime: String(candidate.startTime),
-			endTime: String(candidate.endTime),
-		})),
+		occupants: toMoveOccupants((state.centerWorkspaceContext?.draftEntries ?? []) as unknown as Array<Record<string, unknown>>),
 		movingEntry: state.selectedEntry
 			? { entryId: state.selectedEntry.entryId, day: String(state.selectedEntry.day), startTime: String(state.selectedEntry.startTime) }
 			: null,
@@ -408,7 +404,9 @@ export default function ScheduleReviewWorkspace() {
 	if (state.loading && !state.draft) {
 		const routeIntent = resolveTimetableLoadingIntent(location.pathname);
 		if (routeIntent) return <>{routeViewSync}<TimetableRouteLoadingState intent={routeIntent} /></>;
-		return <>{routeViewSync}<TimetableSkeleton /></>;
+		/* A2 C13 (item 1b) — the real reload path (`loadAll`), never a `location.reload()`,
+		 * as a plain prop on a component with no early returns: no hook added here. */
+		return <>{routeViewSync}<TimetableSkeleton onRetry={() => state.loadAll()} hasPublishedRun={state.hasPublishedReturnState} /></>;
 	}
 
 	if (state.error) {
@@ -435,7 +433,7 @@ export default function ScheduleReviewWorkspace() {
 		);
 	}
 	if (!state.headerContext || !state.leftRailContentContext || !state.centerWorkspaceContext || !state.rightPanelContext || !state.overlaysContext) {
-		return <TimetableSkeleton />;
+		return <TimetableSkeleton onRetry={() => state.loadAll()} hasPublishedRun={state.hasPublishedReturnState} />;
 	}
 	const showSchedulerChrome = isTimetableSchedulerView(state.headerContext.centerView);
 
@@ -801,7 +799,7 @@ export default function ScheduleReviewWorkspace() {
 								className="h-11 border border-border bg-background/95 px-3 text-xs shadow-sm"
 								onClick={() => setLayoutMode('simple')}
 								data-testid="timetable-layout-toggle"
-								aria-label="Switch to simple timetable view"
+								aria-label={`Switch to simple ${CLASS_SCHEDULE_LABEL.toLowerCase()} view`}
 							>
 								Simple view
 							</Button>

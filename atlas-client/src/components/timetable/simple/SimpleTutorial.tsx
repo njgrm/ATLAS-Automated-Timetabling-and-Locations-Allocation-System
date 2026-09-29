@@ -29,6 +29,7 @@ import { BookOpen, CalendarClock, CheckCircle2, ClipboardCheck, Download, ListCh
 
 import { cn } from '@/lib/utils';
 import { BUILD_NEW_DRAFT_LABEL, PUBLISHED_SCHEDULE_STAYS_IN_USE } from '@/lib/timetable-plain-language';
+import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/ui/dialog';
@@ -253,7 +254,7 @@ export function SimpleTutorialControl({ open, onOpenChange, lifecycle, triggerle
 						variant="outline"
 						size="sm"
 						className="h-8 min-h-11 min-w-11 gap-1.5 px-1.5 text-xs sm:min-h-0 sm:min-w-0 sm:px-2.5"
-						aria-label="Open timetable tutorial"
+						aria-label={`Open ${CLASS_SCHEDULE_LABEL.toLowerCase()} tutorial`}
 						data-testid="timetable-simple-tutorial-trigger"
 					>
 						<BookOpen className="size-3.5" aria-hidden="true" />
@@ -263,7 +264,7 @@ export function SimpleTutorialControl({ open, onOpenChange, lifecycle, triggerle
 			)}
 			<DialogContent className="max-w-md" data-testid="timetable-simple-tutorial">
 				<DialogHeader>
-					<DialogTitle>Simple timetable tutorial</DialogTitle>
+					<DialogTitle>Simple schedule tutorial</DialogTitle>
 					<DialogDescription>
 						Step {stepIndex + 1} of {steps.length}
 					</DialogDescription>

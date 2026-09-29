@@ -12,6 +12,8 @@ import {
 	Users,
 } from 'lucide-react';
 
+import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
+
 export type NavItemDef = {
 	label: string;
 	to: string;
@@ -59,7 +61,13 @@ export const teachersAndRoomsNav: NavItemDef[] = [
 ];
 
 export const timetableNav: NavItemDef[] = [
-	{ label: 'Class Schedule', to: '/timetable', icon: CalendarClock, adminOnly: true, schedulerAccess: true },
+	// A2 C13 (item 2) — the name is already "Class Schedule" here, and the
+	// ruling is that it STAYS: it is the familiar name, it already reaches the nav
+	// item, the group divider, the breadcrumb group, the page `<h1>` and the
+	// product's own cross-page links. The internal name "Timetable" is what has
+	// to stop leaking into user-visible text, not the other way round.
+	// `to: '/timetable'` is the ROUTE and is unchanged.
+	{ label: CLASS_SCHEDULE_LABEL, to: '/timetable', icon: CalendarClock, adminOnly: true, schedulerAccess: true },
 ];
 
 export const reviewPublishNav: NavItemDef[] = [
@@ -81,7 +89,7 @@ export const breadcrumbGroups: { label: string; items: NavItemDef[] }[] = [
 	{ label: 'Navigation', items: navigationNav },
 	{ label: 'School Setup', items: setupNav },
 	{ label: 'Teachers and Rooms', items: teachersAndRoomsNav },
-	{ label: 'Class Schedule', items: timetableNav },
+	{ label: CLASS_SCHEDULE_LABEL, items: timetableNav },
 	{ label: 'Review and Publish', items: reviewPublishNav },
 	{ label: 'Audit', items: auditNav },
 	{ label: 'My Portal', items: facultyNav },
@@ -121,19 +129,19 @@ const routeChromeOverrides: Record<string, { group?: string; title: string }> = 
 	'/assignments': { group: 'Teachers and Rooms', title: 'Assignments' },
 	'/faculty/preferences': { group: 'Teachers and Rooms', title: 'Faculty Preferences' },
 	'/faculty/concerns': { group: 'Teachers and Rooms', title: 'Teacher Concerns' },
-	'/timetabling/how-it-works': { group: 'Class Schedule', title: 'How Scheduling Works' },
+	'/timetabling/how-it-works': { group: CLASS_SCHEDULE_LABEL, title: 'How Scheduling Works' },
 	// UX-R03a — the nested policy route shares the Class Schedule shell.
-	'/timetable/policies': { group: 'Class Schedule', title: 'Scheduling Policy' },
+	'/timetable/policies': { group: CLASS_SCHEDULE_LABEL, title: 'Scheduling Policy' },
 	// UX-R03c — the R03a/R03b routes share the Class Schedule shell instead of the generic ATLAS fallback.
-	'/timetable/pre-generation': { group: 'Class Schedule', title: 'Pre-Generation' },
-	'/timetable/map': { group: 'Class Schedule', title: 'Campus Map' },
-	'/timetable/manual-edit': { group: 'Class Schedule', title: 'Manual Edit' },
-	'/timetable/building': { group: 'Class Schedule', title: 'Building View' },
-	'/timetable/exports': { group: 'Class Schedule', title: 'Download schedules' },
-	// UX-R03e (runs) — the read-only run-history route shares the Class Schedule shell.
-	'/timetable/runs': { group: 'Class Schedule', title: 'Runs' },
-	// UX-R03e (setup) — the composed setup route shares the Class Schedule shell.
-	'/timetable/setup': { group: 'Class Schedule', title: 'Setup' },
+	'/timetable/pre-generation': { group: CLASS_SCHEDULE_LABEL, title: 'Pre-Generation' },
+	'/timetable/map': { group: CLASS_SCHEDULE_LABEL, title: 'Campus Map' },
+	'/timetable/manual-edit': { group: CLASS_SCHEDULE_LABEL, title: 'Manual Edit' },
+	'/timetable/building': { group: CLASS_SCHEDULE_LABEL, title: 'Building View' },
+	'/timetable/exports': { group: CLASS_SCHEDULE_LABEL, title: 'Download schedules' },
+	// UX-R03e (runs) - the read-only run-history route shares the Class Schedule shell.
+	'/timetable/runs': { group: CLASS_SCHEDULE_LABEL, title: 'Runs' },
+	// UX-R03e (setup) - the composed setup route shares the Class Schedule shell.
+	'/timetable/setup': { group: CLASS_SCHEDULE_LABEL, title: 'Setup' },
 	'/room-schedules': { group: 'Review and Publish', title: 'Room Schedules' },
 	'/faculty/room-preferences': { group: 'Teachers and Rooms', title: 'Room Preferences' },
 	'/admin/year-setup': { group: 'School Setup', title: 'School Year Setup' },
