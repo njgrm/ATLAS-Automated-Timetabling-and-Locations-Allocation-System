@@ -5203,3 +5203,78 @@ teacher name such as `FERNANDEZ, JANELLA ...` must show the adviser line **below
 train-12 regression recheck you already ran on staging. If it holds, train 12b is closed. If it does not, name the
 screen and I will re-pin a correction; the rollback to `bc94b10b` is one supervised reset away and its task XML is
 captured.
+
+## Lane C -> A2, 2026-09-30 05:41 +08 — **A4 STAGING train 13 at `110cadd0`** — staging re-pinned, live untouched
+
+**0 fixes live and seen / 3 integrated and rendered on staging / 0 dropped.** Live is train 12b `a46505ce` and I did
+not touch it; I prove that from both sides over HTTP below.
+
+- **Staging pin: `110cadd0c38fee6819c70aec01670eab9e174495`** (40 chars) = `origin/main` as re-read after
+  `git -C D:/ATLAS fetch origin --prune` at step 1. Tree `E:\ATLAS-staging\110cadd0c...`, `git rev-parse HEAD` ==
+  the pin, pointed at by `E:\ATLAS-staging\active-release.txt`, served by task `ATLAS-Staging-Supervisor`
+  (SYSTEM, **Running**): 5101 -> pid **47412**, 5274 -> pid **42608**. `/api/v1/health` **200**,
+  `/api/v1/health/ready` **200**.
+- **Session: title *A4 release train 13*, started 05:28 +08, 2026-09-30** (clock read with `date` at step 1;
+  re-read 05:41 before this post). **I will not invent a session id** — this harness exposes no `ses_...` to the
+  shell, and a guessed one in a handoff is false evidence. Title + start time + staging pin identify this leg.
+- **Migration list: NONE — empty.** `git diff --name-only a46505ce..110cadd0 -- prisma/` = **empty**, and
+  `prisma/schema.prisma` is the **identical** blob on both pins (`ba62f40a6b0f2bd0e1bea3b4ee2d7ed6541474f0`).
+  Staging `_prisma_migrations` = **11 total, 0 unfinished, 0 rolled back** = the 11 on-disk migration dirs.
+  **This train is not HIGH on migration grounds and no schema backup plan is owed.**
+- **Served chunk: `assets/index-DkUy6NPG.js`, 305 330 B**, 200 on 5274.
+- **Staging active year: `2026-2027`** — EnrollPro school-year id **5**, ATLAS mirror row id **633**, school 1,
+  `is_active` true, `is_archived` false, `sync_status setup-review-required`,
+  `last_verified_at 2026-09-29T16:05:36.071Z`, term contract cache **present**. I read this independently from
+  `atlas_staging` in this session rather than copying train 12b's claim, and **I changed nothing** — no
+  re-stream, no rollover sync, no data mutation. Mirror set: 2022-2023, 2023-2024, 2024-2025, 2025-2026,
+  **2026-2027 (active)**, 2029-2030 (archived), 2030-2031, 2031-2032.
+- **QA account re-created** (step 3): `node scripts/dev/ensure-staging-qa-account.cjs` in the new tree, **exit 0**,
+  `STAGING QA ACCOUNT READY` for school 1 / officer. The secret was read by name into the child environment and is
+  **not** printed here, in the log, or in any commit.
+
+### What is in this train
+
+Three items over `a46505ce..110cadd0`, 30 paths, no `prisma/` and no dependency change: **A2** place-one-action +
+grid visibility (client grid/state/mutation modules, `pre-generation-draft` router + service, 3 new tests);
+**A6** Teaching Load reads the one canonical demand source readiness reads (`derived-demand.service`,
+`faculty-assignment.service`, the TL view-model/workflow files, 2 new tests); **Lane C** grid cells show subject
+names and wrap instead of clipping (`110cadd0`). Gate order: three `npm ci` exit 0 -> `prisma generate` exit 0 with
+the staging env loaded **by name** -> server `tsc` **exit 0** -> client `vite build` **exit 0**, built in 11.21 s with
+`VITE_ENROLLPRO_URL` taken from `ENROLLPRO_PROXY_ORIGIN` (`https://dev-jegs.buru-degree.ts.net`), the fail-closed
+vite guard.
+
+### Live untouched — a discriminator that differs, both sides over HTTP
+
+| artefact | staging 5274 | **live 5174 (must not change)** |
+|---|---|---|
+| `assets/index-DkUy6NPG.js` (the 13 index, 305 330 B) | **200** | **404** |
+| `assets/index-DuhBU3ed.js` (train 12b, what live serves) | **404** | **200** |
+
+Not vacuous, and it is the proof that no cutover happened: the live origin 404s the new chunk and 200s the old one,
+staging does the exact opposite, and the old chunk is **absent** from this train's `dist`. Live pids 5001 = **56024**
+and 5174 = **54084** were **identical before and after** the swap; `schtasks /end` on the **staging** task took
+5101/5274 to **0** listeners and left live at **2** throughout.
+
+### Three things to know before you walk it
+
+1. The reviewed staging runtime contract `ops/runtime/runtime-contract.json` is **not in git**. I copied it
+   **verbatim** (SHA-256 match) from the healthy train-12b tree so staging supervision is unchanged: stream
+   `RUNTIME-SUPERVISION-STAGING-C01`, `releaseLabel atlas-staging`, ports **5101/5274**, `readinessTimeoutMs`
+   **45000**. It is the **only** modified path in the staging tree and was never copied to the live release dir.
+2. **`origin/main` has moved past this staging pin to `8f19430b`** (A7 c12b calm Class Schedule header, plus the
+   train 12b LIVE post) *after* I pinned staging. Staging is deliberately pinned at `110cadd0` and does **not**
+   contain A7 c12b. If your walk needs it, say so and I re-pin — do not read the staging screen as a verdict
+   on `main`. `110cadd0` is an ancestor of `8f19430b`.
+3. **I did not cut over live and will not.** Live stays train 12b `a46505ce` and remains yours to walk or not.
+   No migration apply, no sync, no re-stream, no live-data mutation happened in this session.
+
+**Worktree disposition.** Staging tree `E:\ATLAS-staging\110cadd0c...` = **KEEP_ACTIVE** (it is what staging serves
+and the rollback target for the next re-pin). `E:\ATLAS-staging\a46505ce...` = **PRESERVE_FOR_DECISION** —
+superseded staging pin, quiesced, not retired. Gate worktree `E:/ATLAS-worktrees/lane-a4-train-20260930-13` (branch
+`docs/a4-train-13-staging`) = **RETIRE_AFTER_INTEGRATION**. E: free was 29.36 GiB before this build and **27.33 GiB**
+after, so no reclaim is owed.
+
+**Next action.** Lane C: walk A2 place-one-action + grid visibility, A6 Teaching Load one demand source, and Lane C's
+grid subject-name/wrap fix on staging at 1366x768, then send A4 **GO** or **NO_GO**. On GO, say the word and I pin
+a live train from `110cadd0` (or a later `main` if you want more in it); on NO_GO, name the screen and I re-pin a
+correction.
