@@ -26,6 +26,39 @@ rules are what make that safe:
    `docs/handoffs/planner-session-handoff.md`, Lane B in its own handoff file, Lane C in its
    section below until a stream needs a handoff.
 
+## Lane A4 — release lane, 2026-09-29 10:35 +08 (train 7 UP AT STAGING; trains 1—5 below as history)
+
+- **STAGING IS UP at `e9ddda71` (train 7).** `https://njgrm.buru-degree.ts.net:8443` (API 5101, client 5274),
+  loopback `http://127.0.0.1:5274`. Release dir `E:\ATLAS-staging\e9ddda71…`, HEAD == pin, owns its dependency
+  trees. Deploy `STAGING_DEPLOYED` in **79.4 s**; DB re-streamed from live (`SNAPSHOT_REFRESHED`,
+  `liveSignatureBefore == liveSignatureAfter == 1131|492|11`). Pin = the `origin/main` tip at start, on
+  `release/2026-09-29-7`; **273 paths** since `ce1257c8`, **0 `prisma/`**.
+- **GATE: PASS.** Prisma diff 0 · `test:staging-guards` 20/20 · client suite **1250/1213/37, NEW = 0** ·
+  live-data invariants PASS (1 active mirror, 0 fixture ids 900000–999999, 11 migrations) · S-R2 zero-write
+  **13/13 tables byte-identical** · **live measured untouched** (5001 -> 36980, 5174 -> 17236, same PIDs and
+  machine scope `ce1257c8`, health+ready 200 loopback and Tailnet). Full record in
+  `docs/handoffs/lane-c-to-a2.md`, "A4 STAGING at `e9ddda71`".
+- **The B5 `Audit.tsx` cap is GREEN, not waived** — A3 split it at `7b58c636` (873 -> 830 lines). Known-red is
+  one entry *shorter* than the baseline. Train 6 (`24e268fb`) is **superseded and never goes live**.
+- **Guided mode IS removed in this train** (`Guided mode` string 1 -> 0 across the whole client dist;
+  `TeachingLoadGuidedModePlaceholder.tsx` deleted). This **corrects** the train 5 / train 6 finding that
+  `a2c4c135` was a docs-only merge.
+- **NOT IN TRAIN (correct):** A8 stall/SSE `4b5d9278`, A2 c13 `b23b7df1` — not ancestors of the pin. Train 8.
+- **Two routed defects, not fixed here (A4 edits no product/ops code):** (1) the staging quiesce in
+  `ops/staging/deploy-staging.ps1` matches a live `cli.mjs` parent, so a **detached** staging supervisor whose
+  task is `Ready` is never collected — it failed closed with `Staging port 5101 did not clear`; killed by
+  recorded PID and resumed with `-SkipBuild`. It will bite train 8. (2) `powershell -File deploy-staging.ps1`
+  cannot run at all — PSScriptRoot is empty in a `param()` default (line 63); invoke with `&`.
+  Also stale: the runbook's 8443-vs-443 byte-count discriminator (both now 19 509 B after the DB re-stream).
+- **CAPACITY: `E:` 29.99 -> 25.45 GiB, just above the 25 GiB warn line (as of 2026-09-29 10:35 +08).**
+  **Train 8's reclaim is owed before its build.** Candidates: `E:\ATLAS-staging\{c9be17fe…, ce1257c8…\}`
+  (~2.9 GiB, superseded, reproducible) and `lane-a4-release-20260929-6` (train 6's abandoned gate worktree).
+  **Never touch** `lane-a4-release-20260929-5` (live) or `lane-a4-release-20260928-4prod` (rollback basis).
+- **Worktrees:** `lane-a4-release-20260929-7` = `KEEP_ACTIVE` (staging deploy source);
+  `lane-a4-release-20260929-6` = `PRESERVE_FOR_DECISION` pending the reclaim call.
+- **Next action (single):** Lane C runs the Codex walk on staging at `e9ddda71`, then resumes A4 with **GO**
+  for the production cutover of the same pin.
+
 ## Lane A4 — release lane, 2026-09-29 (train 5 SHIPPED to production; trains 1–4 below as history)
 
 - **TRAIN 5 IS LIVE at `ce1257c8`** (full table in the `## Live release` block). Cutover 00:37 +08 on Lane C's
