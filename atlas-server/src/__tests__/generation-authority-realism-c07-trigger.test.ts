@@ -24,6 +24,7 @@ import test from 'node:test';
 
 import { withDataContext } from '../lib/data-context.js';
 import { triggerGenerationRun, getRunDraft, getLatestRunDraft } from '../services/generation.service.js';
+import { buildGenerationPreflight } from '../services/generation-preflight.service.js';
 import { subscribeNotificationEvents } from '../services/notification-events.service.js';
 import { computeGenerationInputSnapshot } from '../services/generation-input-snapshot.service.js';
 import { getExpectedCanonicalSlots } from '../services/class-program-slot.service.js';
@@ -830,16 +831,23 @@ test('C07-R2c. the real trigger cannot reach Site A or an ownerless pair: the pr
 	});
 	assert.equal(aralHarness.sequence().length, 0, 'a blocked preflight performs zero writes');
 
-	// (ii) An ownerless derived pair is rejected by the preflight too, so the
-	// constructor can never see an ownerless pair through the real trigger.
+	// (ii) A8 DS-GEN — SUPERSEDED PREMISE. The former control asserted that an
+	// ownerless derived pair fails the preflight closed. Under the one-gate fix a
+	// coverage gap is no longer a generation blocker, so the trigger proceeds past
+	// the preflight. The pair is still DISCLOSED as `TL_DEMAND_UNCOVERED` (a gap
+	// row) and is never silently dropped; only the refuse/allow decision moved.
 	const ownerlessHarness = buildTriggerClient({ scenario: 'dedicatedSpecialized', noOwnershipForSubject: ROBOTICS_SUBJECT_ID });
-	await assert.rejects(trigger(ownerlessHarness.client), (error: any) => {
-		assert.equal(error.code, 'GENERATION_PREFLIGHT_BLOCKED');
-		const codes = (error.details?.blockers ?? []).map((blocker: { code: string }) => blocker.code);
-		assert.ok(codes.includes('TL_DEMAND_UNCOVERED'), `expected TL_DEMAND_UNCOVERED, saw ${codes.join(', ')}`);
-		return true;
-	});
-	assert.equal(ownerlessHarness.sequence().length, 0, 'a blocked preflight performs zero writes');
+	const ownerlessPreflight = await buildGenerationPreflight(SCHOOL_ID, SCHOOL_YEAR_ID, { client: ownerlessHarness.client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+	assert.equal(ownerlessPreflight.ok, true, 'a coverage gap must not fail the shared preflight gate');
+	const ownerlessCodes = ownerlessPreflight.blockers.map((blocker) => blocker.code);
+	assert.ok(ownerlessCodes.includes('TL_DEMAND_UNCOVERED'), `expected the disclosed gap row TL_DEMAND_UNCOVERED, saw ${ownerlessCodes.join(', ')}`);
+	let ownerlessTriggerCode: string | undefined;
+	try {
+		await trigger(ownerlessHarness.client);
+	} catch (error: any) {
+		ownerlessTriggerCode = error?.code;
+	}
+	assert.notEqual(ownerlessTriggerCode, 'GENERATION_PREFLIGHT_BLOCKED', `a coverage gap must not refuse generation at the preflight gate (failed with ${ownerlessTriggerCode ?? '(resolved)'})`);
 });
 
 test('C07-R2d. settled room contract re-asserted: CLASSROOM Science stays in classrooms, LABORATORY authority stays data-driven, no inference from name/code/rotation', async () => {

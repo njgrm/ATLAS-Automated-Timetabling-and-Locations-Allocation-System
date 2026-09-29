@@ -30,6 +30,7 @@ import {
 } from '../services/generation-preflight.service.js';
 import { subscribeNotificationEvents } from '../services/notification-events.service.js';
 import { getExpectedCanonicalSlots } from '../services/class-program-slot.service.js';
+import { classifyGenerationBlockers } from '../services/generation-blocker-groups.service.js';
 import type { VerifiedTermContract } from '../services/enrollpro-term-contract.service.js';
 
 process.env.ENROLLPRO_API = 'http://127.0.0.1:1/api';
@@ -55,6 +56,15 @@ const TERM_CONTRACT: VerifiedTermContract = {
 interface TriggerMockOptions {
 	missingPolicy?: boolean;
 	noOwnership?: boolean;
+	/**
+	 * A8 DS-GEN: owners exist for every demanded pair EXCEPT one (`subjectId` 12),
+	 * and that one pair also has no qualified `FacultySubject` scope. The ONLY
+	 * blocker rows produced are coverage gaps — the shared preflight reports
+	 * `TL_DEMAND_UNCOVERED`, and the readiness dry run adds `TL_NO_QUALIFIED_OWNER`
+	 * for the unassigned session. Used to prove the trigger's gate derives from the
+	 * shared advisory classification, not from the raw blocker-row count.
+	 */
+	uncoveredSubject?: boolean;
 	/** When set, the Nth `subjectSectionOwnership.findMany` call returns this set. */
 	ownershipOnCall?: { call: number; rows: any[] };
 }
@@ -76,16 +86,25 @@ function buildTriggerClient(options: TriggerMockOptions = {}) {
 	];
 
 	const faculty = [{ id: 71, department: 'REGULAR', maxHoursPerWeek: 30, ancillaryMinutesPerWeek: 0, isActiveForScheduling: true, isStale: false }];
-	const facultySubjects = [
+	const coveredFacultySubjects = [
 		{ facultyId: 71, subjectId: 11, gradeLevels: [7], sectionIds: [9001] },
 		{ facultyId: 71, subjectId: 12, gradeLevels: [7], sectionIds: [9001] },
 	];
+	// A8 DS-GEN: the uncovered pair has neither an owner row nor a qualified
+	// `FacultySubject` scope, so the constructor reports `NO_QUALIFIED_FACULTY`
+	// for its session and the ONLY rows are coverage gaps.
+	const facultySubjects = options.uncoveredSubject
+		? coveredFacultySubjects.filter((row) => row.subjectId !== 12)
+		: coveredFacultySubjects;
+	const coveredOwnership = [
+		{ id: 1, subjectId: 11, sectionId: 9001, facultyId: 71, facultySubjectId: 1 },
+		{ id: 2, subjectId: 12, sectionId: 9001, facultyId: 71, facultySubjectId: 2 },
+	];
 	const baseOwnership = options.noOwnership
 		? []
-		: [
-			{ id: 1, subjectId: 11, sectionId: 9001, facultyId: 71, facultySubjectId: 1 },
-			{ id: 2, subjectId: 12, sectionId: 9001, facultyId: 71, facultySubjectId: 2 },
-		];
+		: options.uncoveredSubject
+			? coveredOwnership.filter((row) => row.subjectId !== 12)
+			: coveredOwnership;
 	let ownershipCalls = 0;
 
 	const policy = {
@@ -252,4 +271,59 @@ test('F1d. the old create-run-first ordering would be detected by the control', 
 	return (client.generationRun.create({}) as Promise<unknown>).then(() => {
 		assert.deepEqual(writes, ['generationRun.create'], 'the write recorder must detect writes');
 	});
+});
+
+// ─── A8 DS-GEN: the Generate trigger uses the SAME advisory classification as readiness ───
+
+test('A8-DS-GEN A1/A4. coverage-gap-only blockers do not fail the trigger gate, and readiness parity holds', async () => {
+	const { client } = buildTriggerClient({ uncoveredSubject: true });
+	const preflight: GenerationPreflightResult = await buildGenerationPreflight(SCHOOL_ID, SCHOOL_YEAR_ID, { client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+	const readiness = await buildGenerationReadiness(SCHOOL_ID, SCHOOL_YEAR_ID, { client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+
+	// A1 — the shared preflight's OWN rows are coverage gaps only.
+	const preflightCodes = [...new Set(preflight.blockers.map((blocker) => blocker.code))].sort();
+	assert.deepEqual(preflightCodes, ['TL_DEMAND_UNCOVERED'], `the fixture must produce ONLY coverage-gap rows in the shared preflight: ${preflightCodes.join(', ')}`);
+	assert.equal(preflight.ok, true, 'a coverage-gap-only preflight must be allowed by the shared classification');
+
+	// A1 — readiness on the same client allows generation with zero blocking rows.
+	assert.equal(readiness.schedulerExecuted, true);
+	assert.equal(readiness.generateAllowed, true);
+	assert.equal(readiness.blockerCount, 0);
+
+	// A4 — parity: the gate and the count both come from the ONE classifier.
+	const classification = classifyGenerationBlockers(preflight.blockers);
+	assert.equal(preflight.ok, readiness.blockerCount === 0);
+	assert.equal(readiness.blockerCount, classification.blocking.length);
+	assert.equal(classification.blocking.length, 0);
+	assert.ok(readiness.gaps.length > 0, 'the gaps stay disclosed in the readiness result');
+	assert.ok(readiness.groups.some((group) => group.cause === 'TEACHER_COVERAGE_GAP'), 'the gap rows stay grouped for the operator');
+
+	// A4 — the unassigned classes stay listed in the run/readiness rows.
+	const readinessCodes = [...new Set(readiness.blockers.map((blocker) => blocker.code))].sort();
+	assert.ok(readinessCodes.includes('TL_DEMAND_UNCOVERED'), `expected TL_DEMAND_UNCOVERED, saw ${readinessCodes.join(', ')}`);
+	assert.ok(readinessCodes.includes('TL_NO_QUALIFIED_OWNER'), `expected the unassigned session row TL_NO_QUALIFIED_OWNER, saw ${readinessCodes.join(', ')}`);
+	assert.equal(readiness.violations.blockingHardCount, 0);
+
+	// A1 — the REAL trigger no longer refuses with the read-only preflight code.
+	let triggerCode: string | undefined;
+	try {
+		await trigger(client);
+	} catch (error: any) {
+		triggerCode = error?.code;
+	}
+	assert.notEqual(triggerCode, 'GENERATION_PREFLIGHT_BLOCKED', `the gap-only fixture must pass the preflight gate; the trigger failed with ${triggerCode ?? '(resolved)'}`);
+});
+
+test('A8-DS-GEN A3. the shared hard-blocker fixtures still fail the trigger with the same rows', async () => {
+	for (const fixture of [buildTriggerClient({ missingPolicy: true }), buildTriggerClient({ noOwnership: true })]) {
+		const direct: GenerationPreflightResult = await buildGenerationPreflight(SCHOOL_ID, SCHOOL_YEAR_ID, { client: fixture.client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+		assert.equal(direct.ok, false, 'a shared hard blocker must keep the preflight blocked');
+		assert.ok(classifyGenerationBlockers(direct.blockers).blocking.length > 0, 'the shared classifier must still see a blocking row');
+
+		await assert.rejects(withDataContext(fixture.client, () => triggerGenerationRun(SCHOOL_ID, SCHOOL_YEAR_ID, ACTOR_ID, { enforceShiftWindows: false })), (error: any) => {
+			assert.equal(error.code, 'GENERATION_PREFLIGHT_BLOCKED');
+			assert.deepEqual(error.details.blockers, direct.blockers, 'trigger blockers must equal the shared preflight blockers');
+			return true;
+		});
+	}
 });
