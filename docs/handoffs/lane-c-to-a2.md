@@ -2159,3 +2159,115 @@ packet-mandated screenshots had never been committed. Corrected by a docs/eviden
   overflows the 1366 viewport (the `More tools` trigger's right edge is 1400.7) and covers its centre, leaving
   ~12px of clickable strip; a neighbouring button is clipped mid-word. Zero delta from base, so it is not a
   regression - it is a header-budget miss for whichever lane owns the Expert view.
+
+## Lane C -> A2, 2026-09-29 18:40 +08 - **A4 STAGING at `cd542245` (train 10)** - walk it, then GO or NO_GO
+
+**Pin `cd54224522d44c39f8f3877134b08488541f415f`** = the `origin/main` tip at step 1, on branch
+`release/2026-09-29-10` in `E:\ATLAS-worktrees\lane-a4-release-20260929-10`. **90 commits since the live
+`e75d6b8f`.** Staging is up **at that same pin**. **Production is NOT cut over** - `e75d6b8f` still serves
+5001/5174 and is the rollback basis. I have **not** started the production leg.
+
+### Reclaim first, because E: was under the line
+
+E: was **22.48 GiB** (below the 25 warn line, and the packet's floor is 22). **30 worktrees retired, non-forced,
+junction-safe, donors re-counted after every removal:** `E: 22.48 -> 43.48 GiB`, and **38.92 GiB after the
+staging build**. Every removed tree was `ANCESTOR of origin/main`, complete `git status --short` empty, and free
+of a running process. **Junction `rmdir` first, then `worktree remove`, then `prune`**, on all 30.
+Donors re-counted and **intact**: `D:\ATLAS\atlas-client` 138, `D:\ATLAS\atlas-server` 209,
+`E:\ATLAS-runtime-supervised-861d89a2-20260925\atlas-client` 156, `lane-c-a7c7` 156/209.
+
+- **A4's own:** `-20260929-9` (train 9 gate tree), `-20260929-7prod` and `-20260928-4prod` (both beyond the
+  retention depth, per the register). `-9prod` **KEEP_ACTIVE**, `-8prod` **KEEP_ACTIVE** (rollback).
+  `-6` and `-c02-20260929` stay `PRESERVE_FOR_DECISION` (unintegrated `e85ee949`).
+- **Lanes landed:** A7 `school-year-setup`, `c5-exec` · A8 `c3-generate-gaps`, `tl-shortage-server`,
+  `server-stalls` · A9 `personnel-type` · A5 `c6-fix12` · A6 `c9-staffing-pct`(no) · A2 `header-budget` +
+  `-integ` · A3 `c10-integ/s1/s2b/s3/s4/s5/s6` · A2 `c11-integ/s1-exec`, `c12-s2fix` · the three `lane-a-*guard`
+  2026-09-26 trees · `lane-b-secret-scrub`.
+- **PRESERVED, three by rule:** `lane-a3-c10-s2-roomcards`, `lane-a2-c11-s1-qa`, `lane-a2-c11-s3` are **dirty** -
+  not removed, not reset, not stashed. Also preserved as **active**: `lane-a6-c9-staffing-pct` and
+  `lane-a5-c3-20260929` (donors that active train-11 trees junction through), `lane-c-a7c7`, `lane-a2-c13`,
+  `lane-a3-c12-dashboard-map-sections`, `lane-a3-c16-codes`, `lane-a7-c8-type-scale`, `lane-a6-c10-cover-flow`,
+  `lane-a8-c4-cover`, `lane-a9-c7-home-room`, `lane-c-a2-c15-grade-identity` - each had a **live process** on it.
+
+### Gates - verdict **GO-eligible**, with 5 named NON_BLOCKING rows
+
+| Gate | Result |
+|---|---|
+| Prisma diff `e75d6b8f..cd542245` | **empty** - no migration, no schema change |
+| `test:encoding` (new this train) | **1/1** - no mojibake in client/server source |
+| `test:staging-guards` | **20/20** |
+| client suite vs baseline | **1305/1266/39 -> 1312/1270/42**; **+7 tests, +4 pass, +3 fail; 5 new failing rows, 2 fixed** |
+| live-data invariant | live **1 active non-archived mirror, `2023-2024`, 20 faculty**; staging identical after the re-stream |
+| live zero-write | **`1155\|516\|11` before and after**, unchanged by the whole staging leg |
+| shipped-vs-claimed | every packet bullet found in the **built** bundle - table below |
+
+**All 5 new failures are NON_BLOCKING under the packet's standing rule, each against a named in-train commit
+whose code it asserts - no other new failure.**
+
+1. `a2-header-budget-2026-09-29.test.tsx` **H4 state A** and **H4 state B** (the `468 setup items to fix` chip)
+   - **A8 c3 `d87e1b3e` + `73f479eb`**. The new `presentGenerationBlockerGroups`
+   (`timetable-generation-readiness.ts:302`) reads `diagnostic.groups.length` with no absent-field guard, so a
+   diagnostic **without** `groups` throws `TypeError` instead of taking the legacy fallback its own docstring
+   promises ("a server payload with no groups ... falls back to ONE line"). The test fixture is simply
+   pre-A8-c3-shaped. **This is a real (narrow) gap in new code, not a stale assertion** - see the routing note
+   below; it is the only finding from this gate I would not call a stale row.
+2. `draft-ux-c01.test.tsx` **S4** (`left-[50%]`) and `timetable-truth-labels-a2.test.ts` **#43** (one labelled
+   close) - **A5 c6 `e54e649f` + `b4ad75d6`**, the universal resizable data dialogs. The class list is now
+   `grid w-full ... min-w-[min(480px,95vw)] max-w-[720px] overflow-y-auto`, i.e. the deliberate redesign.
+3. `timetable-truth-labels-a2.test.ts` **ADOPTED (was DEPENDENCY)** - **A8 c3 `d87e1b3e`** changed
+   `buildGenerationCompletedMessage` from `(unplacedCount: number)` to an input object with `teacherGapClasses`,
+   `timeSlotClasses`, `policyAdvisories`; the row greps for the old `!Number.isFinite(unplacedCount)` form.
+
+The two pre-approved rows you named (the `index.css` palette ratchets from A5 c6, `a3-c8-warning-token` 66 vs 67)
+are both inside the 39 baseline failures, so they are unchanged by this train.
+
+### Shipped-vs-claimed, on the built `dist` - new-only markers prove the train
+
+`E:\ATLAS-staging\cd542245...\atlas-client\dist` vs the incumbent `e75d6b8f` dist:
+
+| Bullet | Discriminator | Verdict |
+|---|---|---|
+| A3 c15 Teacher Preferences | `Teacher Preferences` **new-only**; `Teacher Concerns` **present in old, absent in new** | **IN TRAIN** |
+| A5 c6 fix-1.2 | `Teacher X` **new-only** | **IN TRAIN** |
+| A8 c3 generate with gaps | client `...still need a teacher and will be listed` **new-only**; server `hardGapCount` **new-only** | **IN TRAIN** |
+| A9 c5 past-year Teaching Load | `View past years`, `Loading past Teaching Load` **new-only** | **IN TRAIN** |
+| A9 c6 room filters + inset | `Filter rooms by readiness` **new-only** | **IN TRAIN** |
+| A3 c14, A5 c7, A6 c8, A6 c9r | strings present in both builds - **no string-level discriminator exists** | present in the bundle; **your rendered walk is the judge** |
+| A7 c8, A5 c8, A2 c15, A6 c10, A8 c4 | **not in the range** (docs-only packet commits only) | **correctly NOT in train 10** |
+
+**One packet premise corrected:** A6 c8's filter labels are **already in the incumbent `e75d6b8f` build**, so
+that part of the bullet was live before this train. No missing item follows from it.
+
+### Staging leg - `STAGING_DEPLOYED` in **94 s**, everything checked
+
+`ops/staging/deploy-staging.ps1 -Sha cd542245... -Execute`. Release dir
+`E:\ATLAS-staging\cd54224522d44c39f8f3877134b08488541f415f`, owns its own dependency trees (seeded from
+`-9prod`, no junctions), server build tsc + client build (VITE_ENROLLPRO_URL key set) both green.
+
+- **DB re-stream from live: `SNAPSHOT_REFRESHED`**, `liveSignatureBefore == liveSignatureAfter == stagingSignature = 1155|516|11`,
+  `liveUnchanged: true`, archive never written to disk.
+- **`STAGING QA ACCOUNT READY`, exit 0** (`node scripts/dev/ensure-staging-qa-account.cjs`; officer, school 1;
+  password file path only - no value printed). Staging audit moved `1155|516` -> `1156|517`, i.e. exactly the
+  one expected login row.
+- **Health:** loopback `5274` `/`, `/api/v1/health`, `/api/v1/health/ready` **200/200/200**; Tailnet
+  **`https://njgrm.buru-degree.ts.net:8443`** `/`, health, ready **200/200/200**; DB-backed
+  `GET /api/v1/subjects?schoolId=1` -> **200, 19,482 B**.
+- **Chunk discriminator, NON-VACUOUS:** new `/assets/index-BdvkYd2N.js` **200, 307,649 B**; the incumbent's
+  `/assets/index-GM9QISwG.js` **404**. New != old, both named.
+- **Live untouched:** 5001 -> 20432, 5174 -> 17156 unchanged through the cutover; machine scope still
+  `-9prod` / `e75d6b8f…`; task Running.
+
+### Your move
+
+Walk **staging** per `docs/plans/codex-walk-standard.md` against
+`https://njgrm.buru-degree.ts.net:8443` (or `http://127.0.0.1:5274`), asserting `window.location.origin` on
+every row: `/faculty/preferences`, `/subjects`, `/teaching-load/history`, `/map`, `/admin/year-setup`,
+`/timetable`. **A new MAJOR is NO_GO.** On your GO I cut production over to this same pin in one turn, with
+rollback to `e75d6b8f` on failure, and post `A4 LIVE at cd542245`.
+
+**Two follow-ups to route (not gates):**
+1. **A8** - `presentGenerationBlockerGroups` (`atlas-client/src/lib/timetable-generation-readiness.ts:302`)
+   should treat a **missing** `groups` the way it treats an empty one, because its own comment promises the
+   legacy fallback for an older server. It is the only new-code defect this gate surfaced.
+2. **A3** - `docs/prompts/a4-train-2026-09-29-8.md:16-17` still describes `/faculty/preferences` as the thing
+   that redirects. (You already flagged it; repeating so it is not lost in a night of trains.)
