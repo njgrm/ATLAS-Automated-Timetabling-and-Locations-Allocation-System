@@ -1,5 +1,30 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+## 🟢 A5 → Lane C, 2026-09-30 01:2x +08 — rotation counts: a term-rotation group now counts as ONE subject (display-only)
+
+**0 fixes live and seen / 1 integrated / 0 dropped.** Candidate `594f091b` (base `08bd21ce`) accepted and pushed to `main` at merge **`72304151`** (third reconcile over `cd8eb5b4`; origin advanced mid-cycle, docs-only). Independent QA `ses_f11bc24b8ffe8kUNUcbsTVLDlF` → **`ACCEPT_READY` 17/17, blocked 0, unperformed 0** (incl. the DB-backed dashboard suite on a disposable `atlas_restore_drill_*`, zero residue). **A4 owns the deploy; A5 has not deployed and will not.** No generation, publication, migration, live-data write or sign-in.
+
+**What a scheduler now sees:** a section teaching the Science rotation (SCI_BIO/SCI_CHEM/SCI_ES, `termGroupId` `SCIENCE`) **and** the TLE rotation (TLE_AFA_EXP/TLE_FCS_EXP/TLE_ICT_EXP, `termGroupId` `TLE_EXPLORATORY`) reads **2 subjects, not 6**. Display only — scheduling, minutes and generation untouched.
+
+### Places changed (one shared helper + 5 sites)
+
+| # | Surface | File | Before → after |
+|---|---|---|---|
+| — | shared rule | `atlas-client/src/lib/rotation-subject-count.ts` (new) | `countSubjectGroups` — key = `termGroupId` ‖ `rotationFamily`; a group counts once when ANY member matches |
+| 1 | Subjects header tiles | `components/subjects/useSubjectStats.tsx` | Active / Missing coverage / Room constrained collapse |
+| 2 | Teaching Load per section | `components/faculty-assignments/SectionGridMode.tsx` | `Grade 7 • 4 Subjects` (was 8); staffed fraction `4 / 4` |
+| 3 | Teaching Load "Show other subjects (N)" | `components/faculty-assignments/TeacherGridMode.tsx` | collapses |
+| 4 | Teachers profile stat | `components/faculty/FacultyProfileSheet.tsx` | now derived from `faculty.assignments` (scalar 6 → 2) |
+| 5 | Dashboard "Subjects" tile | `atlas-server/src/services/dashboard-readiness.service.ts` (+ server twin `subject-rotation-count.service.ts`) | `subjectCount` = groups; `unassignedSubjectCount` family-level (never hides a gap) |
+
+No subject count exists on **Sections** or **Year Setup**; **Subjects filters** render no counts; the catalog footer count is a row count of the list being paged — all left untouched. **Filter bars untouched**; `docs/plans/operator-decisions.md` row 4 guard green (`test:ux-filter-bar` 15/15).
+
+### Tally (independent QA, literal)
+
+`17 mandatory / 17 passed / 0 blocked / 0 unperformed`. Failing-first reproduced (naive 6 → fixed 2; +2 standalone → 4); broken-key mutant discriminates; 121-fixture client↔server parity; DB-backed dashboard suite green on `atlas_restore_drill_20260930_qa`. Merged-tree combined gates: client typecheck (only the pre-existing TS2367), client build ✓, new client tests 11/11, server build ✓, new server tests 5/5, union suite `a6-c6-calm-tl` 14/0/3, `git diff --check` clean.
+
+**Not done, dated 2026-09-30:** not deployed (A4). Worktrees `E:/ATLAS-worktrees/lane-a5-rotation-counts` and `…-integ` = `RETIRE_AFTER_INTEGRATION`.
+
 ## 🔴 A7 → Lane C, 2026-09-30 00:5x — **c12a tooltip QA: the slice is source-clean, but it is NOT merge-ready — one content conflict on `TeachingLoadFilterBar.tsx`**
 
 **Verdict `CORRECTION_REQUIRED` · merge-ready: NO.** Fresh independent QA `ses_f11f1396affe79ehJVdSTWfUAp` (read-only, candidate worktree, range `fae01b9d..aec13de2`): **12 mandatory rows — 11 pass, 1 FAIL, 0 blocked, 0 unperformed.** `ACCEPT_READY` is invalid because the merge row fails. Nothing was merged, pushed as a candidate, deployed or run live.
