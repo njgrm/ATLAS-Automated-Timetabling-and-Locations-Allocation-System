@@ -22,6 +22,10 @@ import {
 	isUpstreamBackedSchoolYearSource,
 } from '@/lib/enrollpro-public-settings';
 import { resolveActorSchoolId } from '@/lib/settings';
+import {
+	formatFacultyDisplayName,
+	isPlaceholderSentinelName,
+} from '@/components/faculty/teacherNameDisplay';
 import { teachingLoadScopeParams } from '@/lib/faculty-assignment-helpers';
 import {
 	getCachedFacultyAssignmentsSummary,
@@ -835,7 +839,30 @@ export function useTeachingLoadData() {
 	}, [effectiveDraftAssignmentsByFaculty, savedAssignmentsByFaculty]);
 
 	const facultyNames = useMemo(
-		() => Object.fromEntries(faculty.map((member) => [member.id, `${member.lastName}, ${member.firstName}`])),
+		// A3 C17 C1. The requester named Teaching Load as a surface that must agree
+		// with Teachers and the Timetable. These strings are the OWNER NAMES in the
+		// ownership maps — rendered in the section grid, the section inspector, the
+		// conflict toasts and the swap labels — so a to-be-hired record read
+		// "— TO BE HIRED, MAPEH" in the owner chip of the very screen whose roster
+		// said "To be hired: MAPEH".
+		//
+		// Routed through the shared display contract for a PLACEHOLDER only. A real
+		// teacher's stored `Last, First` is untouched, because this value is
+		// compared and matched in places (ownership identity, conflict pairing)
+		// where a re-case would be a behaviour change rather than a copy fix.
+		//
+		// It is a DISPLAY map, not a key: the ownership KEY is
+		// `getAssignmentOwnershipKey(subjectId, sectionId)`, which contains no name
+		// at all, so nothing keyed by this string changes shape.
+		() =>
+			Object.fromEntries(
+				faculty.map((member) => [
+					member.id,
+					isPlaceholderSentinelName(member)
+						? formatFacultyDisplayName(member)
+						: `${member.lastName}, ${member.firstName}`,
+				]),
+			),
 		[faculty],
 	);
 

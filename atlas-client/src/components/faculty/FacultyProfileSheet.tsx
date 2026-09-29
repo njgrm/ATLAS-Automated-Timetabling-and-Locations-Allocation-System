@@ -35,17 +35,36 @@ import { deriveLoadStatus, STANDARD_WEEKLY_TEACHING_HOURS } from '@/lib/faculty-
 import { departmentLabel } from '@/lib/deped-glossary';
 
 /**
- * Weekly minutes as hours at ONE decimal, the precision the per-section badge
- * already used.
+ * Weekly hours as a NUMBER at one decimal — the precision the per-section badge
+ * already used, and the same rounding as before (`Math.round(h * 10) / 10`).
  *
- * A3 c17 row 2 makes the per-section badge and the subject TOTAL read from this
- * one function. That is the whole point: when they were two inline expressions a
- * later edit to one would silently disagree with the other, and "3.8h" beside
- * "30h a week" for 8 sections is the kind of arithmetic a scheduler stops
- * trusting.
+ * A3 c17 row 2, as corrected by C3. The first cut of this row rounded the
+ * subject TOTAL from raw minutes while the badge and the "each" figure rounded
+ * PER SECTION, which put "3 classes · 11.3h a week" beside "3.8h each" on an
+ * ordinary ESP load: 3 × 3.75 rounds to 11.3, and 3 × 3.8 is 11.4. The row is
+ * called "hours that add up", and a scheduler who multiplies the two visible
+ * numbers must land on the third.
+ *
+ * So the total is now DERIVED FROM the visible per-section figure rather than
+ * recomputed from raw minutes. `each × count` is then the total by
+ * construction, for every input, including a subject whose minutes are not a
+ * whole number of minutes and cannot be represented exactly.
  */
-function formatHoursLabel(minutes: number): string {
-	return `${Math.round((minutes / 60) * 10) / 10}h`;
+function toWeeklyHours(minutes: number): number {
+	return Math.round((minutes / 60) * 10) / 10;
+}
+
+/**
+ * A subject's weekly total for this teacher, in hours, guaranteed to equal the
+ * VISIBLE per-section figure multiplied by the VISIBLE class count.
+ *
+ * `perSectionHours` is passed in already-rounded, deliberately: this is the only
+ * way to make the identity hold in floating point as well as on screen. Rounding
+ * the sum instead would agree for 225 minutes and disagree for 230 (3.83 x 3 is
+ * 11.5, and the exact 11.5 rounds the same only by luck).
+ */
+function subjectTotalHours(perSectionHours: number, sectionCount: number): number {
+	return Math.round(perSectionHours * sectionCount * 10) / 10;
 }
 
 /** One grade group inside a subject card. `grade` is null when unresolvable. */
@@ -438,6 +457,16 @@ export function FacultyProfileSheet({
 								 */
 								const gradeGroups = groupSectionsByResolvedGrade(fs.sections);
 								const sectionTotal = fs.sections.length;
+								/*
+								 * A3 c17 C3. The per-section figure is rounded ONCE, and the
+								 * total is that rounded number times the visible count — so
+								 * the three numbers on this line satisfy
+								 * `each x count = total` for every input, which is the
+								 * whole promise of a row called "hours that add up". The
+								 * badge to the right reads the same `perSectionHours`.
+								 */
+								const perSectionHours = toWeeklyHours(fs.subject?.minMinutesPerWeek ?? 0);
+								const totalHours = subjectTotalHours(perSectionHours, sectionTotal);
 								return (
 								<div key={fs.id} className="p-3 rounded-xl border border-border bg-background shadow-sm space-y-2.5">
 									<div className="flex items-start justify-between gap-2 border-b pb-2 mb-2 border-border/40">
@@ -448,14 +477,14 @@ export function FacultyProfileSheet({
 										    scheduler has to decode. What replaces it is the number the
 										    card was missing — what this subject costs THIS teacher. */}
 										<p className="text-sm text-muted-foreground">
-											{`${sectionTotal} ${sectionTotal === 1 ? 'class' : 'classes'} · ${formatHoursLabel((fs.subject?.minMinutesPerWeek ?? 0) * sectionTotal)} a week`}
+											{`${sectionTotal} ${sectionTotal === 1 ? 'class' : 'classes'} · ${totalHours}h a week`}
 											{sectionTotal > 1 && fs.subject?.minMinutesPerWeek
-												? ` · ${formatHoursLabel(fs.subject.minMinutesPerWeek)} each`
+												? ` · ${perSectionHours}h each`
 												: ''}
 										</p>
 										</div>
 										<Badge variant="secondary" className="text-xs font-bold px-1.5 py-0.5 h-5 shrink-0 bg-muted/50">
-											{fs.subject?.minMinutesPerWeek ? formatHoursLabel(fs.subject.minMinutesPerWeek) : '-'}
+											{fs.subject?.minMinutesPerWeek ? `${perSectionHours}h` : '-'}
 										</Badge>
 									</div>
 									{gradeGroups.length > 0 ? (

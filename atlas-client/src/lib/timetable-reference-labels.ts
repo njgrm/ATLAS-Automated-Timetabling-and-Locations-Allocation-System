@@ -16,6 +16,11 @@
 
 import type { ExternalSection, FacultyMirror, Subject } from '@/types';
 import { resolveSectionGradeNumber } from '@/lib/schedule-review-helpers';
+import {
+	formatFacultyDisplayName,
+	formatFacultyInitials,
+	isPlaceholderSentinelName,
+} from '@/components/faculty/teacherNameDisplay';
 
 export type RoomLabelSource = {
 	id: number;
@@ -42,6 +47,22 @@ export function buildFacultyLabel(
 		const faculty = facultyMap.get(id);
 		if (!faculty) return `Faculty #${id}`;
 		const adviserSuffix = faculty.advisedSectionName ? ` · Adviser ${faculty.advisedSectionName}` : '';
+		// A3 C17 C1. The requester named THREE surfaces that must agree — Teachers,
+		// Teaching Load, Timetable — and the Timetable was the one that did not:
+		// this rebuilt `${lastName}, ${firstName}` from the stored fields, so the
+		// SAME to-be-hired record read "To be hired: MAPEH" on the roster and
+		// "— TO BE HIRED, MAPEH" in a timetable cell. Two identities for one
+		// person, on two screens open at once.
+		//
+		// It is routed through the shared display contract ONLY for a placeholder.
+		// A real teacher's output must stay byte-identical to the template above:
+		// this label is read in cell tooltips, the conflict list and the warning
+		// text, and a silent re-case there would be a regression, not a fix. The
+		// stored form is what those surfaces have always shown, so it is what they
+		// keep.
+		if (isPlaceholderSentinelName(faculty)) {
+			return `${formatFacultyDisplayName(faculty)}${adviserSuffix}`;
+		}
 		return `${faculty.lastName}, ${faculty.firstName}${adviserSuffix}`;
 	};
 }
@@ -52,6 +73,15 @@ export function buildFacultyInitials(
 	return (id) => {
 		const faculty = facultyMap.get(id);
 		if (!faculty) return `Faculty #${id}`;
+		// A3 C17 C1. This builder's own template — `${initial} ${lastName}` —
+		// turned a placeholder into "M. — TO BE HIRED" inside a timetable CELL, a
+		// fixed-width box that can hold a couple of characters. A placeholder gets
+		// the same short initials the Profile avatar uses; a real teacher keeps
+		// "C. Aguilar" exactly, which the compact-cell renderer depends on.
+		if (isPlaceholderSentinelName(faculty)) {
+			const initials = formatFacultyInitials(faculty);
+			return initials.length > 0 ? initials : `Faculty #${id}`;
+		}
 		const initial = faculty.firstName ? `${faculty.firstName.charAt(0).toUpperCase()}.` : '';
 		const label = `${initial} ${faculty.lastName}`.trim();
 		return label.length > 0 ? label : `Faculty #${id}`;

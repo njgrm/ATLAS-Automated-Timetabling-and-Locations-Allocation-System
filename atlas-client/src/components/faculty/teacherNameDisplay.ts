@@ -54,12 +54,30 @@
  * data the app does not own: a leading numeric token (`1 `) and a leading
  * em-dash/hyphen run are removed from the LAST name only, and what remains is
  * the label. Nothing is re-cased, re-ordered, or invented here beyond that
- * prefix removal — so a record that does NOT carry the sentinel is untouched by
- * this branch and still renders through `formatFacultyStoredName`.
+ * prefix removal.
  *
- * The sentinel is matched on the STORED last name, not on a flag alone, so a
- * record flagged `isPlaceholder` but already carrying a real person's name
- * keeps its real name on screen instead of being relabelled "To be hired".
+ * ── IDENTITY IS THE FLAG; THE SENTINEL ONLY SHAPES THE TEXT (A3 c17 C2) ──
+ *
+ * The first cut of this row required `isPlaceholder` AND the stored sentinel.
+ * That was a narrowing of the requester's words, which are "for `isPlaceholder`,
+ * no `#ID-PENDING` and no 'Active teacher'" — the FLAG, named, with no condition
+ * on the stored text — and it bought a protection that turned out to be a
+ * liability: a placeholder whose stored last name lacks the sentinel kept both
+ * the invented `#ID-PENDING` chip and the false "Active teacher" line, i.e. it
+ * rendered as a real teacher. Unobservable on today's two live records only
+ * because both happen to carry the sentinel; a placeholder created through
+ * `CreatePlaceholderDialog` with a typed last name does not.
+ *
+ * So: `isPlaceholder` ALONE decides that a record is to-be-hired, and the
+ * sentinel is a TEXT rule applied inside that branch. A flagged record with a
+ * real person's name keeps that name as its label (it is still a person who has
+ * not been hired yet, and inventing a status word over their name would destroy
+ * information) — but it can no longer be mistaken for a hired teacher, because
+ * every consumer of this module asks the same exported predicate.
+ *
+ * The two must never disagree, and they cannot: `isPlaceholderSentinelName` (the
+ * Profile header's badge) and `formatFacultyDisplayName` (everywhere else) both
+ * read `faculty.isPlaceholder` and nothing else.
  */
 import type { FacultySummary } from '@/types';
 
@@ -78,6 +96,8 @@ type NameLike = {
  * The stored sentinel, matched loosely enough to survive the casing and
  * punctuation variants observed on the real records
  * (`— TO BE HIRED`, `1 — TO BE HIRED`, `TO BE HIRED`).
+ *
+ * A TEXT rule, not an identity rule — see the C2 note in this file's header.
  */
 const PLACEHOLDER_SENTINEL = /to\s+be\s+hired/i;
 
@@ -140,6 +160,16 @@ export function teacherNameSortKey(faculty: NameLike | null | undefined): string
 function placeholderLabel(faculty: NameLike): { label: string; counter: string } {
 	const last = tidy(faculty?.lastName);
 	const first = tidy(faculty?.firstName);
+
+	// A3 C17 C2: a flagged record whose last name is a REAL person's name keeps
+	// that whole name as its label. Taking only the first name here would drop
+	// the surname — "To be hired: Roberto" for Alcantara, Roberto — which is
+	// information loss on a record that has a real name to lose. The status word
+	// still goes in front, so the record is still identified as to-be-hired.
+	if (!PLACEHOLDER_SENTINEL.test(last)) {
+		return { label: last && first ? `${last}, ${first}` : last || first, counter: '' };
+	}
+
 	// A leading numeric token is a running counter on the record, not a name.
 	const counter = /^(\d+)\s*[-–—]?\s*/.exec(last)?.[1] ?? '';
 	// Strip the sentinel phrase and every dash run from the LAST name; the
@@ -164,15 +194,16 @@ const PLACEHOLDER_DISPLAY_PREFIX = 'To be hired';
  * Falls back to whichever part exists, so a partially-entered placeholder
  * teacher still renders something rather than a stray comma.
  *
- * A3 c17 row 4: a record whose STORED last name carries the to-be-hired
- * sentinel renders `To be hired: <label>` instead of the sentinel itself. The
- * decision is made on the stored string rather than on `isPlaceholder` alone,
- * so a real person's name on a flagged record is never overwritten — this
- * function cannot lose a name, only replace punctuation and a shouted sentinel.
+ * A3 c17 row 4, as corrected by C2: `isPlaceholder` ALONE selects the
+ * to-be-hired branch (see this file's header for why the flag, not the
+ * sentinel, is the identity rule). Inside that branch the sentinel is a TEXT
+ * rule — it is stripped when present — so a flagged record with a real person's
+ * name keeps that name as its label. This function still cannot LOSE a name: it
+ * can only replace punctuation, a shouted sentinel and a leading counter.
  */
 export function formatFacultyDisplayName(faculty: NameLike | null | undefined): string {
 	if (!faculty) return 'UNNAMED TEACHER';
-	if (faculty.isPlaceholder && PLACEHOLDER_SENTINEL.test(tidy(faculty.lastName))) {
+	if (faculty.isPlaceholder) {
 		const { label, counter } = placeholderLabel(faculty);
 		if (!label) return PLACEHOLDER_DISPLAY_PREFIX;
 		return `${PLACEHOLDER_DISPLAY_PREFIX}: ${label.toUpperCase()}${counter ? ` ${counter}` : ''}`;
@@ -181,14 +212,17 @@ export function formatFacultyDisplayName(faculty: NameLike | null | undefined): 
 }
 
 /**
- * True when this record's STORED last name carries the to-be-hired sentinel.
+ * True when this record is a to-be-hired one.
  *
- * Exported so a surface that needs a different WORD for the same fact (the
- * profile dialog's `To be hired` badge, say) agrees with the formatter instead
- * of re-implementing the match.
+ * THE IDENTITY PREDICATE (A3 c17 C2), and the single answer every surface must
+ * use: the roster, the Profile header's `To be hired` badge, the Teaching Load
+ * repair queue and the Timetable grid all ask THIS, so they cannot disagree
+ * about which record is a placeholder. It reads the flag and nothing else; the
+ * stored sentinel is a text rule inside the display formatters, not a second
+ * opinion about identity.
  */
 export function isPlaceholderSentinelName(faculty: NameLike | null | undefined): boolean {
-	return Boolean(faculty?.isPlaceholder) && PLACEHOLDER_SENTINEL.test(tidy(faculty?.lastName));
+	return Boolean(faculty?.isPlaceholder);
 }
 
 /** Convenience overload for the common `FacultySummary` call site. */
@@ -204,13 +238,15 @@ export function formatFacultySummaryName(faculty: FacultySummary | null | undefi
  * mutates the input, and never returns a stray comma or digit when a name part
  * is missing.
  *
- * A3 c17 row 4: for a SENTINEL placeholder the initials come from the STRIPPED
- * token (`MAPEH` -> `M`), not from `TO BE HIRED` -> `TB`. A circular avatar
- * that renders six words overflows itself, and `TB` reads as a person's initials
- * when it is a status. Two characters, always.
+ * A3 c17 row 4: a PLACEHOLDER's initials come from its STRIPPED label
+ * (`MAPEH` -> `M`), not from `TO BE HIRED` -> `TB`. A circular avatar that
+ * renders six words overflows itself, and `TB` reads as a person's initials when
+ * it is a status. One or two characters, always — and the branch is selected by
+ * the same `isPlaceholder` flag the display name uses, so the avatar and the
+ * name can never disagree about which record this is.
  */
 export function formatFacultyInitials(faculty: NameLike | null | undefined): string {
-	if (faculty && PLACEHOLDER_SENTINEL.test(tidy(faculty.lastName))) {
+	if (faculty?.isPlaceholder) {
 		const stripped = placeholderLabel(faculty).label.replace(/[^A-Za-z0-9]/g, '').charAt(0);
 		return (stripped || 'T').toUpperCase();
 	}

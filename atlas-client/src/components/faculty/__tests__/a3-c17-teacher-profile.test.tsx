@@ -377,9 +377,14 @@ test('A3C17-2 the subject total is sections x minMinutesPerWeek, and "each" only
 
 	const text = textOf(dialog);
 
-	// 8 sections x 225 minutes = 1800 minutes = exactly 30h.
+	// 8 sections of 225 minutes. The EXACT sum is 1800 minutes = 30h, and that
+	// was the old expectation; A3 C17 C3 changed it to 30.4h, because the total
+	// is now derived from the visible per-section figure (3.8h) rather than from
+	// raw minutes, so that the two numbers a scheduler can see multiply to the
+	// third. 30.4 is the truthful arithmetic of the two displayed figures; 30 was
+	// only reachable by knowing the hidden raw minutes.
 	assert.ok(text.includes('8 classes'), `the class count is missing: ${text.slice(0, 400)}`);
-	assert.ok(text.includes('30h a week'), 'the subject total must be stated for this teacher');
+	assert.ok(text.includes('30.4h a week'), 'the subject total must be stated for this teacher');
 	// 225 min = 3.75h, which the badge's one-decimal rounding renders 3.8h.
 	assert.ok(text.includes('3.8h each'), 'the per-section figure must be stated above one section');
 	assert.ok(text.includes('3.8h'), 'the per-section badge must still read 3.8h');
@@ -408,10 +413,26 @@ test('A3C17-2 the subject total is sections x minMinutesPerWeek, and "each" only
 			// a green it never earned.
 			.find((t) => /\d+ class(?:es)? ·/.test(t)) ?? '';
 
+	// A3 C17 C3 CHANGED THIS EXPECTED VALUE, and the change is the point.
+	// It used to read "8 classes · 30h a week · 3.8h each": the total came from
+	// raw minutes (8 x 225 = exactly 30h) while "each" came from the rounded
+	// per-section figure (3.8h), so 3.8 x 8 = 30.4 and a scheduler multiplying
+	// the two visible numbers got something other than the third. The total is
+	// now DERIVED from the visible per-section figure, which is what makes the
+	// identity hold. The exact figure is still available elsewhere on the card
+	// (the weekly-hours total, from the server's own credited hours) — this card's
+	// line is the one that has to be internally consistent.
 	assert.equal(
 		hoursLineOf(dialog),
-		'8 classes · 30h a week · 3.8h each',
-		'the hours line is count, total and per-section figure in one sentence',
+		'8 classes · 30.4h a week · 3.8h each',
+		'the hours line is count, total and per-section figure, and total = each x count',
+	);
+	// The identity, asserted on the DISPLAYED numbers (3.8 * 8 is 11.3999… in
+	// IEEE-754, so raw-float equality would fail a correct implementation).
+	assert.equal(
+		Number((3.8 * 8).toFixed(1)),
+		30.4,
+		'precondition: 3.8h each x 8 classes is the 30.4h now shown, to the displayed precision',
 	);
 
 	// ONE section: singular, and no "each" — "1 classes" and "3.8h each" for a
@@ -458,12 +479,19 @@ test('A3C17-2 the subject total is sections x minMinutesPerWeek, and "each" only
 		`a subject with no weekly minutes states zero rather than nothing: "${noMinutesLine}"`,
 	);
 
-	// The badge and the total are read through ONE rounding expression, so they
-	// cannot disagree: 8 x the badge's 3.8h would be 30.4h if the badge were
-	// multiplied after rounding. The stated total must be the exact product.
+	// A3 C17 C3 INVERTED THIS ASSERTION, and the previous form is kept in the
+	// comment above it rather than deleted, because it encodes the exact belief
+	// QA found wrong: it required the total to be `sections x raw minutes`, which
+	// is what put "11.3h a week" beside "3.8h each" on a three-section ESP load.
+	// The requirement now is the identity, in the direction that makes the two
+	// visible numbers multiply to the third.
 	assert.ok(
-		!text.includes('30.4h'),
-		'the total must be sections x minutes, not sections x the rounded badge',
+		text.includes('30.4h'),
+		'the total must be the visible per-section figure x the count, so 3.8 x 8 = 30.4',
+	);
+	assert.ok(
+		!text.includes('· 30h a week'),
+		'the raw-minutes total (8 x 225 = 30h exactly) is no longer shown beside a 3.8h per-section figure',
 	);
 });
 
@@ -551,8 +579,13 @@ test('A3C17-4 the display name reads "To be hired: …" for the stored sentinel,
 		assert.ok(!/^\d/.test(display), `a display name must not lead with a digit: "${display}"`);
 	}
 
-	// A REAL person is untouched, and so is a placeholder that already carries
-	// one: this function must never overwrite a name.
+	// A REAL person is untouched. A3 C17 C2 CHANGED THE SECOND HALF of this
+	// block, which used to assert that a flagged record carrying a real name
+	// rendered as 'ALCANTARA, ROBERTO' — i.e. as a hired teacher. That was the
+	// flag+sentinel rule, and it meant a placeholder typed in through
+	// `CreatePlaceholderDialog` (which never writes the sentinel) rendered as a
+	// real person. Under rule (a) the name is still intact and the status is
+	// declared, which is the requester's "for isPlaceholder" read literally.
 	assert.equal(
 		formatFacultyDisplayName({ firstName: 'Roberto', lastName: 'Alcantara', isPlaceholder: false }),
 		'ALCANTARA, ROBERTO',
@@ -560,8 +593,8 @@ test('A3C17-4 the display name reads "To be hired: …" for the stored sentinel,
 	);
 	assert.equal(
 		formatFacultyDisplayName({ firstName: 'Roberto', lastName: 'Alcantara', isPlaceholder: true }),
-		'ALCANTARA, ROBERTO',
-		'a flagged record with a real name keeps the real name',
+		'To be hired: ALCANTARA, ROBERTO',
+		'C2: a flagged record with a real name keeps the whole name and gains the status',
 	);
 
 	// Every consumer calls this one function, which is why the row is one row.
@@ -628,13 +661,37 @@ test('A3C17-4 initials stay short for a placeholder, and the sentinel predicate 
 
 	// The predicate the profile header reads and the name the formatter returns
 	// must never disagree about which record is a to-be-hired one.
+	//
+	// A3 C17 C2 CHANGED LINE 2 OF THIS BLOCK. It used to read
+	// `assert.equal(isPlaceholderSentinelName({ Roberto, Alcantara, isPlaceholder: true }), false)`
+	// — the flag+sentinel rule, under which a flagged record with a real name was
+	// NOT a placeholder. C2 settled on rule (a): the FLAG alone decides identity,
+	// so that answer is now `true`, and the display name is
+	// "To be hired: ALCANTARA, ROBERTO" — the real name kept, the status
+	// declared. The broader C2 rows live in the sibling
+	// `a3-c17-timetable-identity.test.tsx`; this block keeps the invariant that
+	// the badge and the name cannot disagree.
 	assert.equal(isPlaceholderSentinelName({ firstName: 'MAPEH', lastName: '— TO BE HIRED', isPlaceholder: true }), true);
-	assert.equal(isPlaceholderSentinelName({ firstName: 'Roberto', lastName: 'Alcantara', isPlaceholder: true }), false);
+	// C2: the flag decides, so a flagged record with NO sentinel is still
+	// to-be-hired — and keeps its whole name, surname included.
+	assert.equal(isPlaceholderSentinelName({ firstName: 'Roberto', lastName: 'Alcantara', isPlaceholder: true }), true);
+	assert.equal(
+		formatFacultyDisplayName({ firstName: 'Roberto', lastName: 'Alcantara', isPlaceholder: true } as any),
+		'To be hired: ALCANTARA, ROBERTO',
+		'C2: a flagged record with a real name keeps the name and gains the status',
+	);
 	assert.equal(isPlaceholderSentinelName({ firstName: 'MAPEH', lastName: '— TO BE HIRED', isPlaceholder: false }), false);
 	assert.equal(
 		isPlaceholderSentinelName({ firstName: 'MAPEH', lastName: '— TO BE HIRED', isPlaceholder: true }),
 		formatFacultyDisplayName({ firstName: 'MAPEH', lastName: '— TO BE HIRED', isPlaceholder: true } as any).startsWith('To be hired'),
 		'the header badge and the display name must read the same fact',
+	);
+	// And the converse, which is the half that keeps the flag from being ignored:
+	// the stored sentinel alone never promotes a record.
+	assert.equal(
+		formatFacultyDisplayName({ firstName: 'MAPEH', lastName: '— TO BE HIRED' } as any),
+		'— TO BE HIRED, MAPEH',
+		'C2: the sentinel is a text rule inside the flagged branch, not an identity rule',
 	);
 	assert.equal(
 		formatFacultyInitials({ firstName: 'MAPEH', lastName: '1 — TO BE HIRED', isPlaceholder: true } as any),
