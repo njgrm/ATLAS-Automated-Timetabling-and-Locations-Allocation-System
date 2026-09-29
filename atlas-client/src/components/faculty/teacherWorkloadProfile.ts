@@ -73,8 +73,8 @@ function toBreakdown(faculty: FacultySummary): LoadBreakdownItem[] {
 			sectionName: section.name,
 			// A2 c15: the grade comes from the one client authority
 			// (`gradeNumberOf`: `gradeLevelName`, then `displayOrder`). It used to
-			// be `section.gradeLevelId ?? 0`, and EnrollPro re-mints that id on
-			// every wipe — 1..4 for Grades 7..10 as of 2026-09-28 — so
+			// read the section's EnrollPro `gradeLevelId` directly, and that id
+			// re-mints on every wipe — 1..4 for Grades 7..10 as of 2026-09-28 — so
 			// `WorkloadInspector` rendered `GR1`. A section that names no real
 			// grade reports `null` and renders no badge, never `GR1`.
 			gradeLevel: resolveSectionGradeNumber(section),

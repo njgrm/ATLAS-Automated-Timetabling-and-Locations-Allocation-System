@@ -320,9 +320,9 @@ export function normalizeEnrollProSectionsResponse(body: unknown): { gradeLevels
 		.filter((gradeLevel) => gradeLevel && typeof gradeLevel === 'object')
 		.map((gradeLevel) => {
 		const gradeLevelId = typeof gradeLevel.gradeLevelId === 'number' ? gradeLevel.gradeLevelId : 0;
-		// A2 c15 (L4): the fallback label used to be
-		// `Grade ${displayOrder ?? gradeLevelId}`, which can print "Grade 1" —
-		// the EnrollPro internal id, which reads 1..4 for Grades 7..10 since the
+		// A2 c15 (L4): the fallback label used to interpolate the mirror's
+		// `displayOrder` and fall back to the EnrollPro internal id, which can
+		// print "Grade 1" — that id reads 1..4 for Grades 7..10 since the
 		// 2026-09-28 re-mint. The label now comes from the one grade authority
 		// and is never fabricated from an id: an unresolvable level is labelled
 		// as unknown, and every downstream name parse then falls through to the

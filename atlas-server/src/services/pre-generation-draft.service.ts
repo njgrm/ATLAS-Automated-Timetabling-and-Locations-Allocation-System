@@ -420,7 +420,8 @@ function normalizeProgramType(programType?: string | null): string {
  * authority (`gradeNumberOf`: `gradeLevelName`, then `displayOrder`) so the
  * displayed grid and the validator window authority resolve the same scope.
  *
- * A2 c15: this used to be `displayOrder ?? gradeLevelId`, which silently
+ * A2 c15: this used to read the mirror's `displayOrder` and fall back to its
+ * EnrollPro `gradeLevelId`, which silently
  * re-introduced the EnrollPro internal id as a grade whenever `displayOrder`
  * was absent. A grade that resolves to no canonical rows simply keeps the
  * policy-derived shape — a null scope is honest, a fabricated `1` is not.
@@ -956,11 +957,12 @@ export function buildPreGenerationValidatorContext(
 	const windowAuthority = ctx.windowAuthority ?? buildWarningWindowAuthority({
 		sections: [...(ctx.sectionsById?.entries() ?? [])].map(([id, section]) => ({
 			id,
-			// A2 c15: the real grade through the one authority. This was
-			// `displayOrder ?? gradeLevelId`, which re-introduced the EnrollPro
-			// internal id (1..4 for Grades 7..10 since 2026-09-28) whenever
-			// `displayOrder` was absent. 0 means "no grade-scoped window applies",
-			// which is the honest outcome for a section that names no real grade.
+			// A2 c15: the real grade through the one authority. This used to read
+			// the mirror's `displayOrder` and fall back to the EnrollPro internal
+			// id, which re-introduced a scope of 1..4 for Grades 7..10 (the id has
+			// read 1..4 since the 2026-09-28 re-mint) whenever `displayOrder` was
+			// absent. 0 means "no grade-scoped window applies", which is the
+			// honest outcome for a section that names no real grade.
 			gradeLevel: gradeNumberOf(section) ?? 0,
 			programType: section.programType ?? null,
 		})),
