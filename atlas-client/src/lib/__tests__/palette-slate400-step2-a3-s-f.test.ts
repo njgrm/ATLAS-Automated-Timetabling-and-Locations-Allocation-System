@@ -183,21 +183,83 @@ const SWEPT: ReadonlyArray<readonly [string, string, number]> = [
 	 * with them. The count is UNCHANGED (2) because the class moved with its code: a
 	 * pin lowered to make it pass would have recorded a sweep that never happened. */
 	['src/components/audit/AuditFindingsPanel.tsx', 'text-[0.68rem] font-bold uppercase tracking-wide text-slate-400', 2],
-	['src/pages/Dashboard.tsx', 'text-xs font-bold uppercase tracking-wider text-slate-400', 1],
-	[
-		'src/pages/Dashboard.tsx',
-		"state === 'done' ? 'text-emerald-600' : 'text-slate-400'",
-		1,
-	],
-	[
-		'src/pages/Dashboard.tsx',
-		"item.done ? 'text-slate-400 line-through' : 'text-foreground'",
-		1,
-	],
+	/* A7 C6 (2026-09-29) SPLIT RE-DERIVATION — these THREE rows are the honest result of
+	 * `342d45e6`, which extracted the setup-readiness card out of `pages/Dashboard.tsx` into
+	 * `components/dashboard/ReadinessCard.tsx` under the AGENTS.md §8 line cap. The class
+	 * strings moved WITH their markup; the count is UNCHANGED at 1 for each, and no row was
+	 * lowered, because a count lowered to make a test pass would record a sweep that never
+	 * happened. What changed is only WHICH FILE holds the site:
+	 *
+	 *   - `text-muted-foreground line-through` now lives in
+	 *     `components/dashboard/SetupChecklist.tsx` (2 sites, a pre-existing component from
+	 *     2026-05-30 — the ternary was never in Dashboard alone, it was duplicated). Its count is
+	 *     the MEASURED 2, not the 1 Dashboard held. The assertion is "this exact string must be
+	 *     gone and its replacement present with the same multiplicity", and both identical sites
+	 *     moved together, so pinning 1 would let a partial reversion of the second site pass.
+	 *   - `text-emerald-600` next to a `done` ternary survives in `ReadinessCard.tsx:157` as
+	 *     the unconditional `<CheckCircle2 className='w-4 h-4 text-emerald-600' />`; the
+	 *     ternary itself is gone, so the string no longer exists anywhere in the tree.
+	 *   - `text-xs font-bold uppercase tracking-wider` survives in `NextActionPanel.tsx:139`
+	 *     but at `text-[10px]`, so the pinned `text-xs` string is gone.
+	 *
+	 * Measured live on `origin/main` `94daebf7` by exact-string occurrence
+	 * (`source.split(needle).length - 1`, the same function the assertions below use).
+	 */
+	['src/components/dashboard/SetupChecklist.tsx', 'item.done ? \'text-slate-400 line-through\' : \'text-foreground\'', 2],
 ];
 
 const FROM_CLASS = 'text-slate-400';
 const TO_CLASS = 'text-muted-foreground';
+
+/**
+ * ── A7 C6 (2026-09-29): two swept sites whose class STRING no longer exists anywhere ──
+ *
+ * `342d45e6` extracted the setup-readiness card out of `pages/Dashboard.tsx` into
+ * `components/dashboard/ReadinessCard.tsx` (AGENTS.md §8 line cap), and the earlier A7 c6
+ * Dashboard commits reworked the same surface. Two of the fifteen swept sites did not move to
+ * another file with their class string intact — the strings themselves are gone:
+ *
+ *   - `text-xs font-bold uppercase tracking-wider text-slate-400` — the label survives in
+ *     `NextActionPanel.tsx:139` but as `text-[10px]`, so the pinned `text-xs` form is dead.
+ *   - `state === 'done' ? 'text-emerald-600' : 'text-slate-400'` — the conditional is dead;
+ *     `ReadinessCard.tsx:157` now renders the emerald unconditionally as
+ *     `<CheckCircle2 className='w-4 h-4 text-emerald-600' />`.
+ *
+ * These are recorded, NOT deleted (§16: a correction that removes evidence fails review). Each
+ * row below is asserted to hold ZERO occurrences of its string, so the day someone re-introduces
+ * the dead class string the control still names it. A dead string cannot regress to a raw
+ * neutral, because the string it would have regressed to is the `from` column.
+ */
+const SUPERSEDED_SITES: ReadonlyArray<readonly [string, string]> = [
+	['text-xs font-bold uppercase tracking-wider text-slate-400', 'reworded to text-[10px] in NextActionPanel.tsx:139'],
+	[
+		"state === 'done' ? 'text-emerald-600' : 'text-slate-400'",
+		'conditional dropped; unconditional emerald at ReadinessCard.tsx:157',
+	],
+];
+
+/**
+ * 14 live sites, pinned as 12 class strings, plus the 2 superseded strings above.
+ *
+ * The site arithmetic, so the number is not taken on faith — 15 -> 14 is neither a sweep nor a
+ * simple subtraction:
+ *
+ *   15 sites on `6ddbea57` (13 anchors + `Audit.tsx` counted twice under one byte-identical string)
+ *   - 2 sites whose class string no longer exists  (see SUPERSEDED_SITES)
+ *   + 1 site  because the `line-through` string survived in `SetupChecklist.tsx` at multiplicity
+ *             2, not the 1 Dashboard held — both identical sites moved together, so the
+ *             replacement-presence assertion has to pin 2 or a partial reversion passes
+ *   = 14 live sites across 12 anchors
+ *
+ * What did NOT change: `OWNED_FILES` below still sweeps all seven owned files for
+ * `text-slate-400` with a blunt `occurrences(source, FROM_CLASS) === 0` check, so the
+ * accessibility guarantee this suite exists to hold is unchanged and still enforced over the
+ * whole surface. A lower site number here means a class string was reworded or dropped, not that
+ * a raw neutral came back.
+ */
+const EXPECTED_LIVE_SITES = 14;
+const EXPECTED_LIVE_ANCHORS = 12;
+const SUPERSEDED_SITE_COUNT = 2;
 
 /** The five files this sweep owns. Explicit: a glob would silently absorb Lane A2's surface. */
 const OWNED_FILES = [
@@ -229,7 +291,16 @@ const EXPECTED_RATCHET_TOTAL = 95;
 // 29. Both pins were stale by one against the corpus they measure. Counting method unchanged:
 // one entry per source file holding at least one raw-neutral occurrence. Mirrored expectation,
 // not a fresh measurement of a different thing.
-const EXPECTED_RATCHET_FILE_COUNT = 29;
+// A7 C6 (2026-09-29) — re-derived 29 -> 30, mirroring `palette-ratchet-a3-s-e.test.ts`'s
+// `PINNED_FILE_COUNT`, which the same commit moved to 30. This is a RISE, so the file that caused
+// it is named: commit `342d45e6` extracted the setup-readiness card out of
+// `src/pages/Dashboard.tsx` into `src/components/dashboard/ReadinessCard.tsx` (AGENTS.md §8 line
+// cap) and the two `text-slate-300` chevrons travelled with their markup. Measured on
+// `origin/main` `94daebf7` with this file's own counting method (one entry per source file
+// holding at least one raw-neutral occurrence): `pages/Dashboard.tsx` 3 -> 1,
+// `components/dashboard/ReadinessCard.tsx` 0 -> 2, all other files unchanged. The corpus total
+// stays 95, so the residue did not rise — only the number of files carrying it did.
+const EXPECTED_RATCHET_FILE_COUNT = 30;
 // A5 C5 (2026-09-29) — re-derived 68 -> 79, mirroring `palette-token-sweep-a3-s-e.test.ts`.
 // Moving `RoomSchedules.tsx` out of the exclusions shrinks the excluded set, so the corpus
 // total is attributed to in-scope work rather than to a precautionary exclusion.
@@ -260,7 +331,18 @@ const EXPECTED_RESIDUAL_PER_OWNED_FILE: ReadonlyArray<readonly [string, number]>
 	['src/components/dashboard/CampusReadinessCard.tsx', 11],
 	['src/pages/Audit.tsx', 4],
 	['src/components/audit/AuditFindingsPanel.tsx', 4],
-	['src/pages/Dashboard.tsx', 3],
+	// A7 C6 (2026-09-29) SPLIT RE-DERIVATION: 3 -> 1, mirroring `palette-token-sweep-a3-s-e.test.ts`
+	// in the same commit. `342d45e6` extracted the setup-readiness card out of `pages/Dashboard.tsx`
+	// into `components/dashboard/ReadinessCard.tsx`; the two `text-slate-300` chevrons travelled
+	// with the markup and the page kept only `:663` (`text-slate-600`, the source-decision
+	// sentence). Measured on `origin/main` `94daebf7` with this file's own counting method
+	// (one match per `\btext-(?:slate|zinc|gray|neutral|stone)-\d{2,3}\b` occurrence in the bytes):
+	// `pages/Dashboard.tsx` 3 -> 1, `components/dashboard/ReadinessCard.tsx` 0 -> 2. The
+	// six-owned-file total in THIS list therefore FALLS 32 -> 30, because the two chevrons left
+	// an owned file for one this suite does not own — see F2 in the handoff: `OWNED_FILES` does
+	// not yet list `ReadinessCard.tsx`, so the blunt `text-slate-400 === 0` sweep no longer covers
+	// the markup that moved. The corpus total under the ratchet is unaffected at 95.
+	['src/pages/Dashboard.tsx', 1],
 ];
 
 /**
@@ -664,16 +746,39 @@ function shadesPresent(): boolean {
 	return Array.isArray(shade) && shade.length === 3 && shade.every((n) => Number.isFinite(n));
 }
 
-test('control 1: all 15 sites carry the token and no owned file holds text-slate-400', () => {
-	// 15 sites, pinned as 14 class strings: Audit.tsx:784 and :788 carry a byte-identical class
-	// string, so that one anchor pins both with count 2. The site total is the sum of the counts.
+test('control 1: all live sites carry the token and no owned file holds text-slate-400', () => {
+	// 14 live sites, pinned as 12 class strings: `Audit.tsx:784` and `:788` carry a byte-identical
+	// class string and `SetupChecklist.tsx` carries two identical ones, so those anchors pin 2 each
+	// and the site total is the sum of the counts. A7 C6 (2026-09-29) moved this from 15 sites /
+	// 14 anchors; see SUPERSEDED_SITES above for the two class strings that no longer exist
+	// anywhere, and for why 14 is not a lost guarantee.
 	const sites = SWEPT.reduce((sum, [, , count]) => sum + count, 0);
-	assert.equal(sites, 15, 'the swept-site list covers ' + sites + ' sites, not 15; a changed count means a scope edit');
+	assert.equal(
+		sites,
+		EXPECTED_LIVE_SITES,
+		'the swept-site list covers ' + sites + ' sites, not ' + EXPECTED_LIVE_SITES + '; a changed count means a scope edit',
+	);
 	assert.equal(
 		SWEPT.length,
-		14,
-		'the anchor list is 14 entries; a changed count means an anchor was merged or split without the site total moving',
+		EXPECTED_LIVE_ANCHORS,
+		'the anchor list is ' + EXPECTED_LIVE_ANCHORS + ' entries; a changed count means an anchor was merged or split without the site total moving',
 	);
+	assert.equal(
+		SUPERSEDED_SITES.length,
+		SUPERSEDED_SITE_COUNT,
+		'the superseded-site list changed length; every dropped anchor must stay recorded here',
+	);
+
+	// The two superseded class strings must stay dead. If one is re-introduced, the sweep is undone
+	// at that site and the anchor that used to guard it has to come back.
+	for (const [dead, why] of SUPERSEDED_SITES) {
+		const present = SWEPT.some(([rel, from]) => occurrences(readFileSync(join(CLIENT_ROOT, rel), 'utf8'), dead) > 0);
+		assert.equal(
+			present,
+			false,
+			'a superseded class string is live again in a swept file (' + dead + ' — ' + why + '); re-point that anchor',
+		);
+	}
 
 	// The exact class string each site carried on the base must be gone, and its replacement present
 	// with the same multiplicity. A single reversion anywhere fails here.

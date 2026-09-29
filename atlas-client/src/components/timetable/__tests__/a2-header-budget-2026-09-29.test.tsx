@@ -854,7 +854,38 @@ const REPO_ROOT = resolve(CLIENT_ROOT, '..');
 
 const SCOPE_FILES = [
 	'components/timetable/simple/SimplePastYearView.tsx',
-	'components/timetable/simple/SimplePastYearReadOnlySurface.tsx',
+	// A2 c14 follow-up R1 (2026-09-29): `SimplePastYearReadOnlySurface.tsx` was
+	// REMOVED from this list, with a dated reason, exactly as
+	// `hooks/useScheduleReviewWorkspaceState.ts` was removed by A2 C13 above. The
+	// other three are unchanged and still byte-identical to the base.
+	//
+	// WHY, and it is narrow. QA's correction round found the SAME defect this
+	// range was about, in this file: the term `Select` was handed
+	// `value={hasTerms ? String(termIndex) : undefined}`, and `undefined` is how
+	// Radix is told to be UNCONTROLLED. `orderedTerms` arrives as `[]` from
+	// `ScheduleReviewWorkspace.tsx:392` and populates a moment later, so one
+	// mounted control changed mode mid-life and React warned on `/timetable` —
+	// the same warning `ScheduleSourceBand` had, and the same fix
+	// (`SELECT_NO_VALUE`). Leaving it would have meant shipping a known React
+	// warning on a page QA explicitly named, while claiming the fix was done.
+	//
+	// WHAT THIS DOES NOT DO. It does not resurrect the parked feature. The delta
+	// is one value expression, one added import of a shared constant, and a
+	// comment: no control is re-enabled, no fetch is added, no term mutation
+	// returns, and the read-only contract is untouched.
+	//
+	// WHAT REPLACES THE PROTECTION. Byte-identity was guarding "nothing here
+	// moved". The property that actually matters for this file is now carried by a
+	// behavioural control, which is stronger than a byte compare for the failure
+	// this change could cause: `a2-c14-select-controlled.test.tsx` S4 renders the
+	// real surface through the real `[]`→populated transition and fails on the
+	// uncontrolled↔controlled warning, and S5 pins that no item value can collide
+	// with the sentinel. Both are reachable from `test:ux-a2-c14-followups`.
+	//
+	// THIS IS A SCOPE DECISION, not a mechanical fix, and it is surfaced as one:
+	// widening a range-scope guard is the integrator's to ratify, and the honest
+	// alternative — reverting the second call site and leaving the warning — was
+	// rejected because it would have shipped a defect QA named as BLOCKING.
 	'components/timetable/simple/usePastYearTimetable.ts',
 	'components/timetable/simple/pastYearViewState.ts',
 ] as const;

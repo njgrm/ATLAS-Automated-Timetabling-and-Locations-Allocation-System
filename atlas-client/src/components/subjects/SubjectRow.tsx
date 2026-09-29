@@ -20,6 +20,7 @@ import { ROOM_TYPE_LABELS } from '@/lib/subject-constants';
 import { GRADE_COLORS } from '@/lib/grade-labels';
 import { cn } from '@/lib/utils';
 import { AccessibleInfo } from '@/components/smart/AccessibleInfo';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { splitSubjectFeatures, subjectFeatureHelp, ownerDepartmentRead } from './subject-feature-presentation';
 import { ProgramScopeChips } from './ProgramScopeChips';
 import type { Subject, SubjectCoverageRow } from '@/types';
@@ -127,6 +128,19 @@ export function SubjectRow({
 	const isFullCoverage = coverageStatus === 'FULL';
 	const isPartialCoverage = coverageStatus === 'PARTIAL';
 	const isZeroCoverage = coverageStatus === 'ZERO';
+
+	/**
+	 * A6 c8 / operator fix 2.17.1: the sentence the deleted info icon used to carry.
+	 *
+	 * It is now the coverage control's accessible name and its Tooltip body, so it
+	 * has to survive the control change intact. For missing coverage it also ends in
+	 * "Click to see which." — the cell is no longer a sentence with a dead icon beside
+	 * it, it is a button that opens the window, and saying so is the difference
+	 * between a status and an affordance. These are the packet's two exact strings.
+	 */
+	const coverageHelp = hasMissingCoverage
+		? `${coverageRow?.uncoveredSectionCount} section${coverageRow?.uncoveredSectionCount === 1 ? '' : 's'} still need a teacher. Click to see which.`
+		: 'All required sections have a teacher assigned.';
 
 	return (
 		<tr className="border-b last:border-0 hover:bg-muted/30 transition-colors group">
@@ -248,39 +262,89 @@ export function SubjectRow({
 				</div>
 			</td>
 
-			{/* Col 5 — Teacher coverage */}
-			<td className="px-4 py-3" data-testid={`subject-coverage-cell-${subject.id}`}>
-				{isArchived ? (
-					<Badge variant="secondary" className="text-xs font-bold">Archived</Badge>
-				) : coverageRow ? (
-					<span className="flex items-center gap-1">
-						{isFullCoverage ? (
-							<Badge variant="outline" className="text-xs font-bold bg-emerald-50 text-emerald-700 border-emerald-200 shadow-none" aria-label={`${subject.name} has full section coverage`}>
-								Full coverage
-							</Badge>
-						) : isPartialCoverage ? (
-							<Badge variant="outline" className="text-xs font-bold bg-amber-50 text-amber-700 border-amber-200 shadow-none" aria-label={`${subject.name} has partial section coverage`}>
-								{coverageRow.ownedSectionCount}/{coverageRow.relevantSectionCount} covered
-							</Badge>
-						) : (
-							<Badge variant="outline" className="text-xs font-bold bg-red-50 text-red-700 border-red-200 shadow-none" aria-label={`${subject.name} has no section coverage`}>
-								No coverage
-							</Badge>
-						)}
-						<AccessibleInfo
-							label={`${subject.name} coverage: ${coverageRow.ownedSectionCount}/${coverageRow.relevantSectionCount} sections`}
-							shortHelp={hasMissingCoverage ? `${coverageRow.uncoveredSectionCount} section${coverageRow.uncoveredSectionCount === 1 ? '' : 's'} still need a teacher.` : 'All required sections have a teacher assigned.'}
-							size="icon-xs"
-						/>
-					</span>
-				) : (
-					<span className="flex items-center gap-1">
-						<Badge variant="outline" className="text-xs font-bold bg-slate-50 text-muted-foreground border-slate-200 shadow-none">
-							Checking
-						</Badge>
-					</span>
-				)}
-			</td>
+		{/* Col 5 — Teacher coverage. The COUNT IS THE CONTROL.
+
+			A6 c8 / operator fix 2.17.1 (2026-09-29) — this cell's only affordance
+			was a dead `AccessibleInfo` info icon. Reproduced on real staging data
+			for subject `ESP/GMRC`: the cell read "18/20 covered" beside the icon,
+			clicking the icon opened NOTHING, and only the row's `Review` action
+			opened the window. So the cell LOOKED like data and DID NOTHING, which
+			is the one failure mode worse than having no affordance at all.
+
+			The fix is a subtraction and an addition of the same affordance:
+			  - the dead info icon is GONE. It stated the same fact the dialog
+			    states, and it was the element that was clicked and did nothing.
+			  - the coverage `Badge` itself is now a real `<button>` that calls the
+			    `onShowCoverage(subject)` prop already on this component — the same
+			    prop the `Review` action calls, and the same `SubjectCoverageSheet`
+			    (read-only: it renders assigned teachers and uncovered grades and
+			    takes only `onRetry` (a re-read) and `onClose`; there is no write).
+
+			THE BADGE KEEPS ITS STATUS COLOUR. The amber / green / red band is the
+			meaning of this column and a DepEd-free semantic status colour that
+			already existed here, so the button is a `<button>` that LOOKS like the
+			badge — same classes, plus `hover:underline` and `focus-visible:ring` so
+			it is discoverably clickable. It is deliberately NOT restyled into a
+			`@/ui` button variant: the defect was "looks like data, does nothing",
+			not "looks like data". `AGENTS.md` §8 "One look per control" is about
+			pickers and actions, and a status cell keeps its status look.
+
+			THE SENTENCE MOVED, it was not deleted. It was the info icon's
+			`shortHelp`; it is now the button's `aria-label` and its `@/ui` Tooltip
+			(never a raw `title` — `AGENTS.md` §8), and for missing coverage it ends
+			in "Click to see which." because the control is now clickable. The badge
+			keeps its own `aria-label` (`… has partial section coverage`) so the
+			STATUS is still stated on the status element.
+
+			`Review` in the action cell is UNCHANGED and deliberately not deleted: it
+			is the row's labelled action and a committed surface. Two affordances for
+			one window is not a duplicate *status*.
+
+			`SubjectMobileCard` was checked for the same dead affordance and does NOT
+			have one: its coverage line is a plain `<span>` (not clickable, so not
+			misleading) and its `Review coverage` button calls the same handler. It is
+			left alone on purpose — this packet is two items, not a sweep. */}
+		<td className="px-4 py-3" data-testid={`subject-coverage-cell-${subject.id}`}>
+			{isArchived ? (
+				<Badge variant="secondary" className="text-xs font-bold">Archived</Badge>
+			) : coverageRow ? (
+				<TooltipProvider delayDuration={200}>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<button
+								type="button"
+								className="inline-flex rounded-md text-left hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+								aria-label={coverageHelp}
+								onClick={() => onShowCoverage(subject)}
+							>
+								{isFullCoverage ? (
+									<Badge variant="outline" className="text-xs font-bold bg-emerald-50 text-emerald-700 border-emerald-200 shadow-none" aria-label={`${subject.name} has full section coverage`}>
+										Full coverage
+									</Badge>
+								) : isPartialCoverage ? (
+									<Badge variant="outline" className="text-xs font-bold bg-amber-50 text-amber-700 border-amber-200 shadow-none" aria-label={`${subject.name} has partial section coverage`}>
+										{coverageRow.ownedSectionCount}/{coverageRow.relevantSectionCount} covered
+									</Badge>
+								) : (
+									<Badge variant="outline" className="text-xs font-bold bg-red-50 text-red-700 border-red-200 shadow-none" aria-label={`${subject.name} has no section coverage`}>
+										No coverage
+									</Badge>
+								)}
+							</button>
+						</TooltipTrigger>
+						<TooltipContent side="top" className="max-w-64 text-xs leading-relaxed">
+							{coverageHelp}
+						</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+			) : (
+				<span className="flex items-center gap-1">
+					<Badge variant="outline" className="text-xs font-bold bg-slate-50 text-muted-foreground border-slate-200 shadow-none">
+						Checking
+					</Badge>
+				</span>
+			)}
+		</td>
 
 		{/* Col 6 — Action: text primary + More menu.
 

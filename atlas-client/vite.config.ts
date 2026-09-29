@@ -71,6 +71,18 @@ export default defineConfig(({ command, mode }) => {
 			host: true,
 			port: 5174,
 			allowedHosts: ['njgrm.buru-degree.ts.net', 'dev-jegs.buru-degree.ts.net'],
+			/*
+			 * A6 c8 (2026-09-29): a lane worktree's `atlas-client/node_modules` is a JUNCTION to
+			 * a shared donor worktree (`AGENTS.md` section 3, junction rules), so the donor's real
+			 * path lies OUTSIDE the serving root and Vite's default `fs.allow` 403s every
+			 * `@fontsource` file. The symptom is silent and misleading: the page renders, the
+			 * Poppins/Inter faces do not load, and any width or row-fit measurement taken from
+			 * that page is measured in a fallback font. Read-only serving of the two worktree
+			 * roots is all this grants.
+			 */
+			fs: {
+				allow: [path.resolve(__dirname, '..'), 'E:/ATLAS-worktrees', 'D:/ATLAS'],
+			},
 			proxy: {
 				'/api': {
 					target: atlasProxyTarget,

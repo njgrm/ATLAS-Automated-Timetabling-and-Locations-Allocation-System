@@ -54,3 +54,5 @@ Return exactly `AUDIT_CLEAR`, `CORRECTION_REQUIRED`, or
 `PLANNER_DECISION_REQUIRED`. When the remedy is deterministic, include a complete
 copy-ready correction handoff. End with `RETURN_TO_PRIMARY_PLANNER`; do not add a
 standard coordination block or repeat the entire wave history.
+
+**Never write in `D:\ATLAS`** (the operator's checkout). Work, mutation tests, screenshots and temp files go only in your packet's `E:/ATLAS-worktrees/lane-*` worktree or `$env:TEMP`. A mutant applied to `D:\ATLAS` was found there on 2026-09-29 (14:02). Restore every mutant before you finish.

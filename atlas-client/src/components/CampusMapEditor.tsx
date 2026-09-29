@@ -1,7 +1,7 @@
 import Konva from 'konva';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Group, Layer, Line, Rect, Stage, Text, Transformer } from 'react-konva';
-import { DoorOpen, ImageOff, Minus, MousePointer2, Plus, Redo2, RotateCcw, Save, Square, Undo2, Upload } from 'lucide-react';
+import { DoorOpen, ImageOff, MousePointer2, Redo2, Save, Square, Undo2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
@@ -15,6 +15,10 @@ import {
 	MAP_TRANSFORMER_STROKE,
 	getPrimaryCanvasColor,
 } from '@/components/campus-map/campusMapPalette';
+// A9 c4 — the view cluster, extracted because this file reached the AGENTS.md §8
+// 1000-line cap while the fit view was added. Dumb by design: it holds no zoom
+// arithmetic and no view state.
+import { CampusMapEditorZoomControls } from '@/components/campus-map/CampusMapEditorZoomControls';
 // A3 c11 fix 36 — every number the canvas decision needs, as pure functions, in
 // one place with the geometry contract that explains them. See the module header
 // for the 1366px arithmetic that reproduces the operator's clip.
@@ -25,6 +29,7 @@ import {
 	canvasWorkArea,
 	clampBuildingToCanvas,
 	campusEditorCanvasSize,
+	campusEditorViewTransform,
 	drawRectFromPointer,
 	nextZoomScale,
 	smartLabelRotation,
@@ -69,8 +74,12 @@ export function CampusMapEditor({
 	onUndo,
 	onRedo,
 }: CampusMapEditorProps) {
-	const [scale, setScale] = useState(1);
-	const [position, setPosition] = useState({ x: 0, y: 0 });
+	// A9 c4, fix 36 — the operator's two numbers, not one. `zoom` and `pan` are
+	// the USER's; the stage's own size is the coordinate space they act on. The
+	// default is therefore the FIT view (see `campusEditorViewTransform`), and
+	// reset returns to the fit rather than to 100%.
+	const [zoom, setZoom] = useState(1);
+	const [pan, setPan] = useState({ x: 0, y: 0 });
 	const [tool, setTool] = useState<Tool>('select');
 	const [saving, setSaving] = useState(false);
 	const [campusImage, setCampusImage] = useState<HTMLImageElement | null>(null);
@@ -87,6 +96,21 @@ export function CampusMapEditor({
 		[containerSize.width, containerSize.height, buildings],
 	);
 	const { width: CANVAS_WIDTH, height: CANVAS_HEIGHT } = canvas;
+
+	// A9 c4, fix 36 — the view the stage is PAINTED through: the measured work
+	// area is the free area, the stage's own size is the content space, and the
+	// result is the fit × the operator's zoom, centred, with the operator's pan
+	// clamped. The stage's `width`/`height` and every building's stored `x`/`y`
+	// are untouched, so the A3 c11 size and containment contract is unchanged.
+	const fitBox = useMemo(
+		() => ({ freeWidth: containerSize.width, freeHeight: containerSize.height }),
+		[containerSize.width, containerSize.height],
+	);
+	const canvasSpace = useMemo(() => ({ canvasWidth: CANVAS_WIDTH, canvasHeight: CANVAS_HEIGHT }), [CANVAS_WIDTH, CANVAS_HEIGHT]);
+	const view = useMemo(
+		() => campusEditorViewTransform({ free: fitBox, canvas: canvasSpace, zoom, pan }),
+		[fitBox, canvasSpace, zoom, pan],
+	);
 
 	useEffect(() => {
 		const host = canvasHostRef.current;
@@ -564,41 +588,22 @@ export function CampusMapEditor({
 						</Tooltip>
 					</div>
 
-					{/* Group: view */}
-					<div className="inline-flex items-center gap-1">
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Button variant="outline" size="icon-xs" onClick={() => setScale((s) => nextZoomScale(s, 0.15))} aria-label="Zoom in">
-									<Plus className="size-3.5" />
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent>Zoom in</TooltipContent>
-						</Tooltip>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Button variant="outline" size="icon-xs" onClick={() => setScale((s) => nextZoomScale(s, -0.15))} aria-label="Zoom out">
-									<Minus className="size-3.5" />
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent>Zoom out</TooltipContent>
-						</Tooltip>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Button
-									variant="outline"
-									size="icon-xs"
-									onClick={() => {
-										setScale(1);
-										setPosition({ x: 0, y: 0 });
-									}}
-									aria-label="Reset view"
-								>
-									<RotateCcw className="size-3.5" />
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent>Reset view</TooltipContent>
-						</Tooltip>
-					</div>
+					{/* Group: view. `zoom` is the operator's multiplier ON TOP of the
+					    fit, so zoom in starts from "the whole campus" rather than
+					    from a canvas that was already too big for its box. The
+					    cluster itself is extracted; see its file for why reset is
+					    the fit and not 100%. */}
+					<CampusMapEditorZoomControls
+						onZoomIn={() => setZoom((z) => nextZoomScale(z, 0.15))}
+						onZoomOut={() => setZoom((z) => nextZoomScale(z, -0.15))}
+						onReset={() => {
+							// A9 c4, fix 36 — reset returns to the FIT view, not to
+							// 100%: at the 1366px default 100% is the view that put a
+							// building under the panel.
+							setZoom(1);
+							setPan({ x: 0, y: 0 });
+						}}
+					/>
 
 					{/* Group: Rooms */}
 					<div className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2 text-[0.7rem] font-semibold text-slate-600" aria-label="Rooms summary">
@@ -713,7 +718,12 @@ export function CampusMapEditor({
 			    left of the inspector and grows for content beyond it. Growth is
 			    reachable, never clipped: `w-max` makes THIS box as large as the
 			    stage, so an over-sized stage enlarges the region (which scrolls)
-			    instead of being cut here. */}
+			    instead of being cut here.
+			    A9 c4, fix 36 — and reachability alone was not the ask: the operator
+			    must SEE the whole campus without scrolling. The stage is therefore
+			    PAINTED through the fitted view transform above, which is a change of
+			    scale and origin only; the stage's `width`/`height` and the painted
+			    ground's size in stage coordinates are exactly as they were. */}
 			<div
 				ref={canvasHostRef}
 				className={`w-max overflow-hidden rounded-lg border border-border bg-muted/30 ${tool === 'add' ? 'cursor-crosshair' : ''}`}
@@ -723,23 +733,36 @@ export function CampusMapEditor({
 					width={CANVAS_WIDTH}
 					height={CANVAS_HEIGHT}
 					draggable={tool === 'select'}
-					x={position.x}
-					y={position.y}
-					scaleX={scale}
-					scaleY={scale}
+					x={view.x}
+					y={view.y}
+					scaleX={view.scale}
+					scaleY={view.scale}
 					onDragEnd={(e) => {
 						if (e.target === stageRef.current) {
-							setPosition({ x: e.target.x(), y: e.target.y() });
+							// Konva hands back the stage's own translated position,
+							// which is the centring offset PLUS the operator's pan.
+							setPan({ x: e.target.x() - view.x, y: e.target.y() - view.y });
 						}
+					}}
+					dragBoundFunc={(next) => {
+						// Bounded DURING the drag, not snapped back after it, so the
+						// clamped pan is felt rather than corrected.
+						const bounded = campusEditorViewTransform({
+							free: fitBox,
+							canvas: canvasSpace,
+							zoom,
+							pan: { x: next.x - view.x, y: next.y - view.y },
+						});
+						return { x: bounded.x, y: bounded.y };
 					}}
 					onClick={handleStageClick}
 					onMouseDown={handleStageMouseDown}
 					onMouseMove={handleStageMouseMove}
 					onMouseUp={handleStageMouseUp}
-					onWheel={(event) => {
-						event.evt.preventDefault();
-						setScale((current) => nextZoomScale(current, event.evt.deltaY < 0 ? 0.1 : -0.1));
-					}}
+				onWheel={(event) => {
+					event.evt.preventDefault();
+					setZoom((current) => nextZoomScale(current, event.evt.deltaY < 0 ? 0.1 : -0.1));
+				}}
 				>
 					<Layer>
 						{/* Campus photo layer */}
@@ -957,7 +980,7 @@ export function CampusMapEditor({
 									? 'Click to select • Double-click to rename'
 									: 'Click a building to select it'}
 				</span>
-				<span className="tabular-nums">{Math.round(scale * 100)}% zoom</span>
+				<span className="tabular-nums">{Math.round(view.scale * 100)}% zoom</span>
 			</div>
 		</div>
 	);

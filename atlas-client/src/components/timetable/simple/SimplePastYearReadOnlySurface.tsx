@@ -29,7 +29,7 @@
 import { PublishedTimetableMatrix, type DayKey, type PublishedScheduleMatrixEntry } from '@/components/published-schedule/PublishedTimetableMatrix';
 import { Badge } from '@/ui/badge';
 import { Label } from '@/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SELECT_NO_VALUE } from '@/ui/select';
 
 export type PastYearOrderedTerm = { identity: string; displayLabel: string; order: number };
 
@@ -107,9 +107,22 @@ export function SimplePastYearReadOnlySurface({
 				<div className="flex flex-col gap-1">
 					<Label htmlFor="past-year-term" className="text-xs text-muted-foreground">Term</Label>
 					<Select
-						value={hasTerms ? String(termIndex) : undefined}
+						value={hasTerms ? String(termIndex) : SELECT_NO_VALUE}
 						// No silent Term 1: with no resolvable terms the control is empty
 						// and says so, rather than defaulting to a term nobody verified.
+						// A2 c14 R1: the empty state is `SELECT_NO_VALUE`, never
+						// `undefined`. `undefined` is how Radix is told to be
+						// UNCONTROLLED, and this picker takes exactly that path:
+						// `orderedTerms` arrives as `[]` from
+						// `ScheduleReviewWorkspace.tsx:392` and populates a moment
+						// later, so the control mounted uncontrolled and became
+						// controlled — the "Select is changing from uncontrolled to
+						// controlled" warning on `/timetable`, same class as the one
+						// `ScheduleSourceBand` had. The sentinel is defined and
+						// safe here for the same reason: the items are
+						// `String(term.order)` and `order` is a number, so the
+						// smallest possible item value is "0" and no item can hold
+						// the empty string.
 						disabled={!hasTerms}
 						onValueChange={(value) => onTermIndexChange(Number(value))}
 					>

@@ -4879,6 +4879,14 @@ decidable from source. Worktrees `lane-a3-c10-{s1-sections,s3-tldensity,s4-teach
 
 ## Lane A6 — current lane (written only by Planner A6)
 
+- **`A6 c8 on main at 6e925e54` (2026-09-29 15:1x +08), product commits `5f1c882f` + `b9ea9004` over base `94daebf7`. 0 fixes live and seen / 2 integrated, both seen rendered on a loopback preview against REAL STAGING DATA / 0 dropped. NOT deployed — A4 owns every release (§14).** Client-only: no `atlas-server/`, no `prisma/`, no migration, no seed, no lockfile. Packet `docs/prompts/a6-c8-more-filters-coverage-2026-09-29.md`; fresh QA `ACCEPT_READY` 13/13/0/0.
+- **Fix-doc 39 — `/teaching-load` "More filters" is gone from the DOM**, not hidden. The pop-up, its trigger, its panel and the `ListFilter` glyph are deleted; its two inclusion switches are now two **direct toggles on the one row** (ids `show-outside-dept` / `show-unmapped-specialization` unchanged, `SWITCH_CHROME` reused, one shared box with a divider, short faces `Cross-subject` / `No subject match` and the full plain sentence on each switch's `aria-label` + `@/ui` Tooltip). The four pickers moved from `width="xl"` to the shared `width="auto"` variant; the search stays `w-[240px] shrink-0`; filter semantics, the page, the hook and the helpers are untouched.
+- **The measurement that made it possible, and the real defect behind 39.** At 1366 the toolbar's whole budget is **1078px**, not the ~1326 its own comment claimed (the left rail is 272px). Four `xl` pickers (832) plus a 240 search is 1112 — so `Sort` and `More filters` were **already on a second line** before this packet. `auto` faces measure 106/137/98/134. Rendered after: search + Status + Department + Load + Sort + the switch group = six controls on line 1 with **22px of slack**; the 292px draft group wraps to its own line, right-aligned (`ml-auto`), which is the accepted reading of "one row of filters". `documentElement.scrollWidth === clientWidth === 1366`, no page scrollbar. With **no** draft the row is a single line; a saved draft is what costs the second line, and it did so before this change too.
+- **Fix-doc 17.1 — clicking a `/subjects` coverage count now opens the subject's read-only coverage window.** Reproduced first on real staging data: the cell's only affordance was an `AccessibleInfo` icon and clicking it produced **0** coverage dialogs while the row's `Review` button produced **1**. The count is now a real `<button>` calling the existing `onShowCoverage(subject)`; the dead icon is deleted and its sentence moves to the button's `aria-label`/Tooltip ("20 sections still need a teacher. Click to see which."). The badge keeps its status colour and its own status `aria-label`; `Review` is unchanged. `SubjectCoverageSheet` performs no write (its only action is `fetchTeacherCoverage`).
+- **Two LOW dev-infra fixes rode along and one of them is already on main from another lane.** `scripts/dev/start-preview.ps1` now sets `VITE_ATLAS_API=http://127.0.0.1:5101/api/v1` (it is the axios **base URL**, so without the prefix every request 404'd) — A9 c4 `aa2dcfdf` landed the identical fix independently and the merge took the documented side. `atlas-client/vite.config.ts` gained `server.fs.allow` for `E:/ATLAS-worktrees` and `D:/ATLAS`, because a lane worktree's `node_modules` is a JUNCTION to a donor worktree and Vite 403'd every `@fontsource` file — the page then renders in a fallback font, which makes **any width measurement a lie**. That is exactly the trap this cycle's 1078px arithmetic could have fallen into.
+- **ENVIRONMENT DAMAGE, dated 2026-09-29 13:56 +08, A2 owns the repair:** `E:/ATLAS-worktrees/lane-a2-c14-followups/atlas-client/node_modules` was found at **3 entries** (154 before) and that worktree can no longer resolve `react`. This is the §3 junction-removal hazard, not a code change. A6 c8 re-pointed **its own** junction to `lane-a2-c13` (154, intact) and re-ran the gates green there. Reported in full in `docs/handoffs/lane-c-to-a2.md`.
+
+
 - **`A6 c7 integrated at 03fea9a9` (2026-09-29 ~12:5x +08), candidate `fc7f4424` over base `4244cd3e`, executed the
   c6 packet's Addendum 11:00** (Lane C's Codex walk of staging train 7, `e9ddda71`). **0 fixes live and seen /
   4 integrated, 1 of them seen rendered on an isolated loopback / 0 dropped. NOT deployed — A4 owns every release
@@ -5379,6 +5387,17 @@ Rule from now: live browser QA never saves Subjects/setup/policy; mutation rows 
 - **Worktrees:** `lane-a7-c6-dashboard-nav` (candidate) and `lane-a7-integ-c6` = **RETIRED** in the closure. The integration worktree's `node_modules` was a **junction** to the candidate's private copy and was `cmd /c rmdir`-ed **before** `worktree remove`; donor re-counted 156 (candidate-private) and 138 (shared `D:\ATLAS`) before and after — intact. No branch deleted. Registered worktrees 71 → 70; `E:` 30.0 GiB free.
 - **Next action (single):** A4 includes `ecd69d27` in the next train; Lane C takes the two live-origin rows in `docs/handoffs/lane-a-to-c.md` — the story walk from the menu, and the Dashboard naming what is not ready.
 
+### A7 c7 — the four palette reds A5 handed over: INTEGRATED and PUSHED at `ebedb7b3` (2026-09-29 15:5x +08)
+
+- **0 fixes live and seen / 1 integrated, not on production / 0 dropped.** **NOT deployed — A4 owns every deploy.** Test-only, **3 files, 0 product source, 0 `prisma/`, 0 `ops/`**, no production change, so **no browser row exists to perform** and none is claimed.
+- **Why it existed.** A5 c5 re-derived the palette pins to green at `29b44aae`; the c6 Dashboard commits then landed and nothing re-derived them (§11: a computed artifact is valid only for the revision that produced it). A5 posted them to A7/A3 as "yours to re-derive."
+- **The cause was NOT only Dashboard, and that is the finding.** One of the four reds was a **RISE**. c6's own `342d45e6` extracted the readiness card out of `pages/Dashboard.tsx` into `components/dashboard/ReadinessCard.tsx` (§8 line cap) and carried **two `text-slate-300` chevrons** with it: `Dashboard.tsx` 3 → 1, `ReadinessCard.tsx` 0 → 2, **corpus total flat at 95**, file count **29 → 30**. So it is the SPLIT the token-sweep derivation already names, `PINNED_TOTAL` was deliberately left at 95, and the entering file is **named in all three mirrors** rather than the digit quietly raised.
+- **Two of the three slate400 class strings no longer exist anywhere** (`NextActionPanel.tsx:139` is `text-[10px]`; the `state === 'done'` conditional is gone). Recorded in a new `SUPERSEDED_SITES` list with a control asserting each **stays dead** — §16, not deleted. The third moved to `SetupChecklist.tsx` at multiplicity **2**; pinned at 2 because at 1 a partial reversion passes.
+- **Gates.** Base `94daebf7` **4/1 · 7/2 · 8/1 = 4 reds**; candidate **5/0 · 9/0 · 9/0 = 0**. Fresh QA **`ACCEPT_READY` 8/8/0/0** with 3 mutation controls all caught, mutated files restored byte-exact. `assert.` counts 14→14, 50→50, 67→**69** (power rose). `client-suite` **1296/1255/41 on BOTH trees, identical 41 rows, 0 introduced 0 fixed** — those 41 are other lanes' and are **not** re-pinned here. `typecheck` the same 5 pre-existing errors both sides.
+- **FOLLOW-UP, one line, owning lane's call (2026-09-29):** `OWNED_FILES` in `palette-slate400-step2-a3-s-f.test.ts` does not list `ReadinessCard.tsx`, so that suite's blunt `text-slate-400 === 0` sweep no longer covers the markup that moved out of the owned `Dashboard.tsx`. The ratchet assertions still catch a reversion, and the two chevrons are `text-slate-300`, not `text-slate-400`, so the guarantee is not currently at risk. **Consequence of `342d45e6`, not a palette regression.**
+- **Worktrees:** `lane-a7-palette-pins` + `lane-a7-palette-base` = **RETIRED** in the closure. Both `node_modules` were **junctions** to `lane-a7-c5-exec`'s donor and were `cmd /c rmdir`-ed **before** `worktree remove`; donor re-counted **156** before and after — intact, `tsx` present.
+- **Next action (single, not mine):** A4 includes `ebedb7b3` in train 9. No screen changed, so there is nothing for Lane C to re-render.
+
 ## 2026-09-29 00:18 — year 2022-2023 per-year setup copied (operator approved)
 Script `atlas-server/src/scripts/copy-year-setup-shift-windows-events.mjs --school 1 --from 10 --to 1 --apply`: +20
 grade_shift_windows, +2 policy_special_events into mirror 1 (were 0). Re-dry-run: targetExisting 20/2, toInsert 0.
@@ -5536,3 +5555,46 @@ Range `4c806de3` → `39b2dcc7` (accepted) → `e9a04893` (planner docs) → `19
 - Repair: backup to `D:/ATLAS-runtime-config/backups/test-pollution-20260929/{atlas-server,atlas-staging}-fixture-rows-before.json`, then a conditional delete in one transaction.
 - After: exactly one active mirror, 564 (2022-2023). Live health 200.
 - Prevention: AGENTS §14 A4 live-data invariants, and Lane C's status.sh checks the active-mirror count.
+
+---
+
+## Lane A2 - c14 active-term / generate blocker, 2026-09-29 (written only by Lane A2)
+
+**Stream:** c14 (top priority). Base 3bd403e1. **On main: 6124b342 (term) + 9c83536 (follow-ups) +
+docs 91a2d8c6.** Client only - 9 + 7 paths, no tlas-server/, no prisma/, no ops/, no lockfile, no env, no
+migration. **NOT DEPLOYED - A4 owns the release (�14).** Worktrees retired; one 35 MiB unregistered residue dir
+E:/ATLAS-worktrees/lane-a2-c14-followups PRESERVE_FOR_DECISION (a native .node handle held by a PID I did not
+record, so I did not kill it).
+
+**Fixed, on main:** the active ordered term. TeacherConcerns and AdminYearSetup called
+esolveActiveSchoolYearContext without erifyUpstream; the client default is false, so the server skipped
+resolution and returned its literal default "Active term verification not requested.", and the fail-closed gate
+disabled every write. RoomSchedules asked, but without orceRefresh the school-keyed cache served it the
+unverified entry. Shared resolver tlas-client/src/lib/active-term-authority.ts; RoomSchedules issues one
+orceRefresh + verifyUpstream read directly. Follow-ups: 	est:timetable-ux-rehaul 33/35 -> 35/35 (the TEST was
+stale, the product was right); /timetable Retry arming 8000 -> 7500 (promise unmoved, no word added); Radix
+Select uncontrolled->controlled warning fixed at both term pickers with SELECT_NO_VALUE.
+
+**DROPPED - 1 of 2 packet items, and this is the honest headline.** "468 setup items to fix" is
+diagnostic.blockers.length, inflated once per term (TRIMESTER x3) AND once per unassigned SESSION. The session is
+not a field on the blocker - classifyUnassignedBlocker (tlas-server/src/services/generation-preflight.service.ts:402-418)
+discards it into free-text entity - so the count of real problems is **not computable client-side**. Two QA rounds
+returned CORRECTION_REQUIRED; per �11 no third round, so it was dropped. **A8 c3's 651-row packet is on the same
+wall.** Follow-up, SERVER/DATA HIGH: promote session to a first-class blocker field.
+
+**Blockers / not done, each dated:**
+- **2026-09-29 - 0 fixes seen rendered.** All four loopback rows UNPERFORMED. The executor's first attempt
+  redirected to /login (built without VITE_ATLAS_API); QA proved the proposed /api/v1 is discarded by
+  ite.config.ts:38 and would aim the preview proxy at **live 127.0.0.1:5001**. Correct value for whoever runs
+  them: VITE_ATLAS_API=http://127.0.0.1:5101/api/v1 + an authenticated session.
+- **2026-09-29 - the demo year changed to 2023-2024** (A5 C2 note in lane-c-to-a2.md), where the term resolves.
+  **The term defect is therefore invisible on the new year** - it was never failing to resolve, it was never asking.
+  Do not close these rows on "the term shows correctly"; the discriminator is a GET /runtime/context carrying
+  erifyUpstream=true in the Network panel, which previously never fired.
+- **2026-09-29 - term-cache apply is A3's HIGH action, not mine.** If the fix lands and that one verified request
+  still returns erified:false, the cause is the missing 	ermContractCache row for the active mirror.
+- **2026-09-29 - data.** The real Teaching Load owner gaps on the active year are data, fillable only through ATLAS
+  UI flows. Not code. No 	est:client-suite red (39-41) or 	sc red (5) is mine.
+
+**Next action for me:** nothing. Not deployed and not waiting on anyone; the rendered rows and the count follow-up
+are named owners above.
