@@ -585,6 +585,14 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **- LIVE CUTOVER IN FLIGHT (recorded before the mutation, per the fail-closed `Assert-LiveReleaseRecorded` gate):
+  target `a46505cee3ab9f4d8d24bd87dabdf7a1d280964d` @ `E:\ATLAS-worktrees\lane-a4-release-20260930-12bprod`
+  (branch `release/2026-09-30-12b`), rollback basis `bc94b10bd3294e59c7f1081e8a159840c6ee76a1` @
+  `E:\ATLAS-worktrees\lane-a4-release-20260930-11prod`, both `KEEP_ACTIVE`. Train 12b, authorized by Lane C GO
+  2026-09-30 05:18 +08. **No migrations** (`prisma/**` diff empty, `schema.prisma` blob `ba62f40a…` identical on
+  both pins, live `_prisma_migrations` 11 / 0 unfinished / 0 rolled back), **no data writes, no publish**. This
+  entry is replaced by the `DEPLOYED` line below once the cutover returns healthy; until then the live release is
+  still `bc94b10b`.**
 - **- LIVE: `bc94b10bd3294e59c7f1081e8a159840c6ee76a1` @ DEPLOYED TO PRODUCTION 2026-09-30 00:29 +08 by Lane A4 on Lane C GO (session `ses_f124d3556ffeD2leYFPJ6zt4RN`). Rollback basis `8d98628d` (dir `E:\ATLAS-worktrees\lane-a4-hotfix-tl-prod`), KEEP_ACTIVE. Train 11 RE-PIN.** Live dir `E:\ATLAS-worktrees\lane-a4-release-20260930-11prod` (branch `release/2026-09-30-11-repin`), listeners 5001 to **44980** and 5174 to **45684**, machine scope + task action + Start In all repointed, served chunk `index-CYuWuj7B.js`. Cold start **12.1 s** supervisor launch to all targets healthy. No migration, no deployment-caused data write.
 - **— LIVE: `8d98628d3829977db7dabffbbd720f8f4fc86a2b` @ DEPLOYED TO PRODUCTION 2026-09-29 22:40 +08 by Lane A4 —
   operator-approved **retry** of the second hotfix. Rollback basis `9462d82d`.** This is the same code as the failed
