@@ -113,6 +113,7 @@
     "test:a2-c5-map-route-intent": "tsx --test src/components/timetable/__tests__/a2-c5-map-route-intent.test.tsx",
     "test:a5-c2b-surface-truth": "tsx --test src/__tests__/a5-c2b-surface-truth.test.ts",
     "test:a8-policy-pane-workload": "tsx --test src/lib/__tests__/tl-shortage-policy-pane-roundtrip-c02.test.ts",
+    "test:a9-c3-sections-rooms": "node --experimental-test-module-mocks --import tsx --test src/lib/__tests__/a9-c3-review-copy.test.ts src/components/sections/__tests__/a9-c3-guided-home-room-step.test.tsx",
     "test:a5-c4-term-plain-words": "tsx --test src/components/subjects/__tests__/a5-c4-term-authority-plain-words.test.tsx",
     "test:a5-c4-filter-disclosure": "tsx --test src/components/subjects/__tests__/a5-c4-subjects-filter-disclosure.test.tsx",
     "test:a5-c4-catalog-loading": "tsx --test src/components/subjects/__tests__/a5-c4-subjects-catalog-loading.test.tsx",

@@ -299,14 +299,37 @@ test('CONTROL: the grade exemption is load-bearing, not a hole in the detector',
 		'the exemption did not remove the grade line'
 	);
 	// The detector still goes red the moment a NON-grade raw class is added to that same file.
+	//
+	// A9 C3 (2026-09-29): THE ANCHOR MOVED, and the reason is a vacuity this row would
+	// otherwise have hidden. The injection used to target `const REASON_LABELS`, a line
+	// that the A9-C3 rewrite of `HomeRoomAutoAssignDialog.tsx` DELETED (the enum labels are
+	// now plain phrases in `@/lib/home-room-review-copy`). `String.replace` on a string that
+	// is not present returns the receiver UNCHANGED, so the "contaminated" source was the
+	// clean file, the count stayed 0, and this row — whose entire job is to prove the
+	// exemption is not a hole in the detector — passed while testing nothing at all.
+	//
+	// The anchor is now `const GRADE_COLORS`, which is asserted present below, so a future
+	// deletion of THAT would fail loudly instead of silently disarming the control.
+	const ANCHOR = 'const GRADE_COLORS';
+	assert.ok(
+		source.includes(ANCHOR),
+		`${rel} no longer contains "${ANCHOR}"; re-anchor this control's injection, because a ` +
+			'`String.replace` on a missing needle returns the source unchanged and this row would ' +
+			'pass while testing nothing',
+	);
 	const contaminated = source.replace(
-		'const REASON_LABELS',
-		'const WARNING_ICON_BADGE = "bg-amber-500";\n\nconst REASON_LABELS'
+		ANCHOR,
+		'const WARNING_ICON_BADGE = "bg-amber-500";\n\nconst GRADE_COLORS',
+	);
+	assert.notEqual(
+		contaminated,
+		source,
+		'the injection did not change the source, so the count below would be vacuous',
 	);
 	assert.equal(
 		countRawWarningLines(stripGradeBadgeExemptions(rel, contaminated)),
 		1,
-		'a fabricated bg-amber-500 next to the grade exemption was not detected; the exemption is too broad'
+		'a fabricated bg-amber-500 next to the grade exemption was not detected; the exemption is too broad',
 	);
 });
 
@@ -358,8 +381,38 @@ test('repo-wide remaining raw amber/yellow count is pinned (files and lines; der
 	// line, and it is a surface item 6 does not govern. That is why the file pin is unmoved
 	// and only the line literal moves. No exemption was added, no scope was widened, and no
 	// other constant was touched.
+	// ── RE-PINNED 2026-09-29 by stream `a9-c3` (packet A9 c3: Sections + Campus) ──────────
+	//   files  68 -> 68   (unchanged)
+	//   lines 230 -> 226
+	// Derivation, measured with THIS file's own detector over the same corpus in the same
+	// working tree as the gate run, and not carried from a handoff: `git diff --name-only
+	// 955d2e7a..HEAD` under the corpus roots reduces to the A9-C3 client files, and the sole
+	// movement is raw amber/yellow LEAVING, in three files, per `countRawWarningLines`:
+	//   components/sections/SectionsHomeRoomActions.tsx   1 -> 0
+	//       the `N needs rooms` amber Popover/Badge chip, replaced by one plain button and
+	//       one save-state line;
+	//   components/sections/SectionRow.tsx                4 -> 3
+	//       the row's unresolved-room icon moved from raw `text-amber-600` to the measured
+	//       `--warning` token family, which is the direction this gate exists to push;
+	//   components/campus-map/CampusMapOverview.tsx       6 -> 5
+	//       the selected-building status Badge's raw amber pair, gone with the metric Cards
+	//       and the `N need attention` badge the A9-C3 problems region replaced.
+	// No raw amber/yellow was ADDED anywhere, and no file emptied, so the file pin is
+	// unmoved. `HomeRoomAutoAssignDialog.tsx` stays at 0 after its G8 exemption, and the
+	// fabrication control above is re-anchored to `const GRADE_COLORS` because the A9-C3
+	// rewrite deleted the `const REASON_LABELS` line it used to inject before — a
+	// `String.replace` on a missing needle returns the source unchanged, which had left that
+	// control passing while testing nothing.
+	//
+	// DISCLOSED MEASUREMENT GAP, not chased: this file's aggregate moved 4 lines while the
+	// three per-file deltas above sum to 3. The difference is one line in the BASE reading
+	// between this file's `readdirSync` walk and an independent `git show` walk over
+	// `git ls-files`; the NOW value agrees at 226 either way, and the pin is this file's own
+	// figure, so the pin was moved to what the gate measures rather than to a second
+	// implementation's opinion. Recorded because a pin that silently reconciles two
+	// disagreeing counts is the failure §11 warns about.
 	const PINNED_REMAINING_FILES = 68;
-	const PINNED_REMAINING_LINES = 230;
+	const PINNED_REMAINING_LINES = 226;
 
 	const files = remainingFiles();
 	const lines = files.reduce(

@@ -188,8 +188,17 @@ test('the stat tile counts a stale homeRoomId as needing a room, exactly as its 
 	const tile = tilePrints(list);
 
 	// The rows, as the operator reads them.
-	const rowsNeeding = list.filter((s) => rowTextFor(s).includes('Needs home room')).length;
-	const rowsReady = list.filter((s) => rowTextFor(s).includes('Ready:')).length;
+	//
+	// A9 C3 (2026-09-29): the two row sentences were reworded, and this row is the
+	// proof that the AGREEMENT — the whole point of A3 C4 defect A — survived the
+	// rewording. SUPERSEDED WORDING, quoted rather than deleted (AGENTS.md §11: never
+	// delete an assertion to close a finding):
+	//   was: rowText.includes('Needs home room')  /  rowText.includes('Ready:')
+	//   now: rowText.includes('Needs a home room') /  rowText.includes('Room 501')
+	// The old row also printed a second line of status text under the picker; the cell
+	// is now a single plain read, which is where the page got shorter.
+	const rowsNeeding = list.filter((s) => rowTextFor(s).includes('Needs a home room')).length;
+	const rowsReady = list.filter((s) => rowTextFor(s).includes('Room 501')).length;
 
 	assert.equal(rowsNeeding, 2, 'the stale id and the unset section both read as needing a room');
 	assert.equal(rowsReady, 1);
@@ -201,15 +210,36 @@ test('the stat tile counts a stale homeRoomId as needing a room, exactly as its 
 	assert.equal(tile.printed, 2, 'the tile shows a count, so it shows 2 and not an "assigned" total');
 });
 
-test('the row says Ready for a resolvable home room, and the tile counts it assigned', () => {
+test('the row names the resolved room and the building it is in, and the tile counts it assigned', () => {
+	// A9 C3: this row used to read `Ready: Building A`, which named the building but
+	// NOT the room — the one fact a scheduler checks against her own plan. It now reads
+	// the room and the building together. Same population, same shared predicate.
 	const list = [RESOLVED, section(4, 'G8 - Rizal', 501)];
-	for (const s of list) assert.ok(rowTextFor(s).includes('Ready: Building A'), `${s.name} reads Ready`);
+	for (const s of list) {
+		const text = rowTextFor(s);
+		assert.ok(text.includes('Room 501'), `${s.name} names the room it uses`);
+		assert.ok(text.includes('Building A'), `${s.name} names the building it is in`);
+	}
 	assert.equal(tilePrints(list).printed, '2/2', 'a fully assigned roster prints the n/n form');
 });
 
-test('a read-only row with a stale home room says so, and the tile still agrees', () => {
+test('an unresolved row says the room is needed, and the tile still agrees', () => {
+	// A9 C3, and the one assertion here that is genuinely GONE rather than reworded:
+	// the row's own read-only sentence, "Needs home room. Edits paused.". A row with no
+	// control in it has no read-only STATE of its own to describe, so a second wording
+	// for it would have been a second statement of a fact the page already states once
+	// (the save-state line beside the one action) and again in this row's map Tooltip.
+	// The FACT it carried is preserved and is asserted here: the row still says the
+	// room is needed, and the map control still opens on exactly that row.
 	const text = rowTextFor(DANGLING, { isReadOnly: true });
-	assert.ok(text.includes('Needs home room. Edits paused.'), 'the read-only wording is preserved');
+	assert.ok(text.includes('Needs a home room'), 'a read-only unresolved row still says the room is needed');
+	assert.equal(text.includes('paused'), false, 'and does not carry a second read-only sentence');
+	// The map is still the per-row editor for a section that already has a room, and it
+	// is still reachable on a row that has none.
+	assert.ok(
+		renderRow(DANGLING, { isReadOnly: true }).querySelector('button[aria-label="View room map for G7 - Mabini"]'),
+		'a read-only unresolved row still offers the map',
+	);
 	assert.equal(tilePrints([DANGLING]).needing, 1);
 });
 
@@ -282,8 +312,25 @@ test('the room-map control does not disturb the home-room edit path', () => {
 	const control = el.querySelector<HTMLButtonElement>('button[aria-label="View room map for G7 - Rizal"]');
 	act(() => { control!.click(); });
 	assert.equal(changed, 0, 'opening the map is not an assignment');
-	// And the picker trigger is still a combobox, not a raw control.
-	assert.ok(el.querySelector('[role="combobox"]'), 'the home-room picker is intact');
+	// A9 C3: the row's own `SectionRoomPicker` is GONE from the table, so the
+	// `assert.ok(el.querySelector('[role="combobox"]'), 'the home-room picker is intact')`
+	// line that used to sit here is superseded, and its replacement asserts the new
+	// invariant instead: the repeated per-row control is not rendered. Against the
+	// pre-A9-C3 row this FAILS (twenty comboboxes), which is what makes it evidence
+	// rather than a description.
+	assert.equal(
+		el.querySelectorAll('[role="combobox"]').length,
+		0,
+		'the row still renders a home-room picker; the guided step owns that control now',
+	);
+	// The editor is not lost, it moved: the row's map button opens a full room picker
+	// for THIS section, and it writes through the same `onHomeRoomChange` the row used
+	// to call. Asserted here so "the picker was removed" can never be read as "the
+	// capability was removed".
+	assert.ok(
+		el.querySelector('button[aria-label="View room map for G7 - Rizal"]'),
+		'the per-row room editor (the map) is still on the row',
+	);
 });
 
 /* ───────────────── C: the read-only truth on the map control (review N2) ─────── */
@@ -331,10 +378,26 @@ test('a read-only row still opens the map, and says picking is paused', () => {
 	act(() => { control!.click(); });
 	assert.deepEqual(opened, [RESOLVED.id], 'read-only browsing still opens the map');
 
-	// The sibling picker, by contrast, IS disabled in read-only — asserted so
-	// the two controls' divergence is deliberate and visible rather than a bug.
-	const picker = el.querySelector<HTMLButtonElement>('[role="combobox"]');
-	assert.equal(picker!.hasAttribute('disabled'), true, 'the sibling picker keeps its read-only disable');
+	// A9 C3: the sibling assertion that used to close this row is superseded and is
+	// quoted, not deleted. It read:
+	//   const picker = el.querySelector('[role="combobox"]');
+	//   assert.equal(picker!.hasAttribute('disabled'), true, 'the sibling picker keeps its read-only disable');
+	// The desktop row no longer HAS a sibling picker, so that row could only be kept as
+	// a `null!.hasAttribute()` crash. The DIVERGENCE it protected is real and still
+	// required: browsing the map stays ENABLED in read-only while every WRITE control is
+	// disabled. It is now proved where the write control lives — the guided step's apply
+	// action, in `a9-c3-guided-home-room-step.test.tsx` — and the two halves are asserted
+	// here on the row that still owns one of them.
+	assert.equal(
+		el.querySelectorAll('[role="combobox"]').length,
+		0,
+		'a read-only row must not grow a write control back',
+	);
+	assert.equal(
+		control!.hasAttribute('disabled'),
+		false,
+		'and the read-only browse control beside it must stay enabled',
+	);
 });
 
 test('a writable row does NOT claim picking is paused', () => {
@@ -352,8 +415,14 @@ test('a writable row does NOT claim picking is paused', () => {
 test('the read-only row still tells the operator the room is needed', () => {
 	// The point of N2: making a control honest must not soften the reason the
 	// control is limited. A read-only unresolved row still says so.
+	//
+	// A9 C3: the sentence this row used to match, "Needs home room. Edits paused.",
+	// is superseded — a row with no control in it has no read-only state of its own to
+	// describe, and the page states the read-only truth ONCE (the save-state line beside
+	// the one action) instead of once per row. The FACT is unchanged and is asserted
+	// here; the sibling row above asserts the same fact with the tile's agreement.
 	const text = rowTextFor(DANGLING, { isReadOnly: true });
-	assert.ok(text.includes('Needs home room. Edits paused.'), 'the read-only wording is preserved');
+	assert.ok(text.includes('Needs a home room'), 'a read-only row still says the room is needed');
 	// And the map control is still reachable on exactly that row.
 	assert.ok(
 		renderRow(DANGLING, { isReadOnly: true }).querySelector('button[aria-label="View room map for G7 - Mabini"]'),
