@@ -20,7 +20,7 @@ import {
 	type GridDisplaySlot,
 } from '@/lib/timetable-grid-slots';
 import { buildLiveConflictIndex, createLiveConflictLookup, termCompatibleEntry } from '@/lib/timetable-live-conflict';
-import { matchesTermScope } from '@/lib/timetable-term-scope';
+import { filterDraftEntriesForView, projectDraftPlacementsToEntries } from '@/lib/timetable-draft-entries';
 import {
 	buildFacultyInitials,
 	buildFacultyLabel,
@@ -753,23 +753,14 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		prevHardCountRef.current = hardViolationCount;
 	}, [hardViolationCount, isLeftCollapsed, leftPanelRef, setLeftTab, setSeverityFilter]);
 
-	const preGenEntries = useMemo<ScheduledEntry[]>(() => {
-		return (draftBoard?.placements ?? [])
-			.filter((placement) => placement.status === 'DRAFT' && placement.facultyId != null && placement.roomId != null)
-			.map((placement) => ({
-				entryId: `draft-placement-${placement.id}`,
-				facultyId: placement.facultyId!,
-				roomId: placement.roomId!,
-				subjectId: placement.subjectId,
-				sectionId: placement.sectionId,
-				day: placement.day,
-				startTime: placement.startTime,
-				endTime: placement.endTime,
-				durationMinutes: minutesBetween(placement.startTime, placement.endTime),
-				entryKind: placement.entryKind,
-				cohortCode: placement.cohortCode ?? null,
-			}));
-	}, [draftBoard?.placements]);
+	// A2 place-one-action — the projection (and the `termIndex` it carries) lives
+	// in `lib/timetable-draft-entries.ts`. A committed draft placement used to be
+	// dropped from the grid the moment a numeric term was selected, because the
+	// inline projection discarded its persisted term.
+	const preGenEntries = useMemo<ScheduledEntry[]>(
+		() => projectDraftPlacementsToEntries(draftBoard?.placements ?? []),
+		[draftBoard?.placements],
+	);
 
 	const isPreGenerationWorkspace = centerView === 'pre-generation'
 		|| (centerView === 'map' && (preGenOnboarding || preGenMapContext))
@@ -1235,17 +1226,19 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		return activeLookup?.(cellId) ?? null;
 	}, [activeGridEntriesBase, facultyMap, getCellConflict, liveConflictIndex, roomMap, sectionMap, subjectMap, effectiveTermFilter, timeSlots]);
 
-	const filteredDraftEntries = useMemo(() => {
-		return activeGridEntriesBase.filter((entry) => {
-			const programType = entry.programType ?? sectionMap.get(entry.sectionId)?.programType ?? null;
-			if (!matchesProgramFilter(programType, programFilter)) return false;
-			if (!matchesEntryKindFilter(entry.entryKind, entryKindFilter)) return false;
-			// Term is the authoritative schedule scope: an entry belongs to exactly
-			// one numeric term; entries without a termIndex stay all-term-only.
-			if (!matchesTermScope(entry, effectiveTermFilter)) return false;
-			return true;
-		});
-	}, [activeGridEntriesBase, entryKindFilter, programFilter, effectiveTermFilter, sectionMap]);
+	// A2 place-one-action — the one view filter, extracted so the rendered control
+	// exercises the same predicate the grid uses. Term is the authoritative
+	// schedule scope: an entry belongs to exactly one numeric term; entries without
+	// a termIndex stay all-term-only.
+	const filteredDraftEntries = useMemo(
+		() => filterDraftEntriesForView(activeGridEntriesBase, {
+			programFilter,
+			entryKindFilter,
+			termFilter: effectiveTermFilter,
+			sectionMap,
+		}),
+		[activeGridEntriesBase, entryKindFilter, programFilter, effectiveTermFilter, sectionMap],
+	);
 
 	const programKindFilteredUnassignedItems = useMemo(() => {
 		const unassignedTerm = typeof effectiveTermFilter === 'number' ? effectiveTermFilter : null;

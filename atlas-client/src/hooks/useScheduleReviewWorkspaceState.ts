@@ -379,6 +379,8 @@ export function useScheduleReviewWorkspaceState() {
 		day: string;
 		startTime: string;
 		endTime: string;
+		/** A2 place-one-action — the term a fail-closed dialog commit was dropped into. */
+		termIndex?: number | null;
 	} | null>(null);
 	const [confirmFacultyId, setConfirmFacultyId] = useState<string>('');
 	const [confirmRoomId, setConfirmRoomId] = useState<string>('');
@@ -1867,6 +1869,39 @@ export function useScheduleReviewWorkspaceState() {
 	]);
 
 	/** Handle drop of item onto a timetable cell */
+	// A2 place-one-action — the ONE drag/keyboard entry to a pre-generation drop.
+	// `stagePreGenDrop` now COMMITS a clean or soft-warned drop itself; this wrapper
+	// registers the existing contextual Undo from the operation identity it returns
+	// and carries the term the operator is viewing, so the placement is persisted
+	// and filtered into that term. A fail-closed drop returns `null` and keeps its
+	// single recovery surface.
+	const runPreGenDrop = useCallback(async (
+		source: PreGenDragSource,
+		day: string,
+		startTime: string,
+		endTime: string,
+	) => {
+		const outcome = await stagePreGenDrop(source, day, startTime, endTime, {
+			termIndex: typeof effectiveTermFilter === 'number' ? effectiveTermFilter : null,
+		});
+		if (!outcome) return;
+		const { result, pending } = outcome;
+		setLastAutoSaveUndo({
+			// C11 — the draft commit authors the draft ledger, so Undo must revert
+			// the draft ledger, not the run manual-edits ledger.
+			ledger: 'draft',
+			editId: result.operationId,
+			newVersion: result.resultingVersion,
+			subjectLabel: subjectLabel ? subjectLabel(pending.subjectId) : 'Draft placement',
+			day: pending.day,
+			startTime: pending.startTime,
+			endTime: pending.endTime,
+			roomLabel: pending.roomId != null && roomMap.has(pending.roomId)
+				? `${roomMap.get(pending.roomId)!.name} - ${roomMap.get(pending.roomId)!.buildingShortCode || roomMap.get(pending.roomId)!.buildingName}`
+				: '',
+		});
+	}, [stagePreGenDrop, effectiveTermFilter, setLastAutoSaveUndo, subjectLabel, roomMap]);
+
 	const handleCellDrop = useCallback(
 		async (day: string, startTime: string, endTime: string, dragSource?: DragSource) => {
 			const activeDragItem = dragSource ?? dragItem;
@@ -1879,14 +1914,14 @@ export function useScheduleReviewWorkspaceState() {
 					return;
 				}
 				captureReviewFocusReturn(timetableCellFocusSelector(day, startTime, endTime));
-				await stagePreGenDrop(activeDragItem, day, startTime, endTime);
+				await runPreGenDrop(activeDragItem, day, startTime, endTime);
 				setDragItem(null);
 				return;
 			}
 
 			if (activeDragItem.type === 'draftQueue') {
 				captureReviewFocusReturn(timetableCellFocusSelector(day, startTime, endTime));
-				await stagePreGenDrop(activeDragItem, day, startTime, endTime);
+				await runPreGenDrop(activeDragItem, day, startTime, endTime);
 				setDragItem(null);
 				return;
 			}
@@ -1904,7 +1939,7 @@ export function useScheduleReviewWorkspaceState() {
 						return;
 					}
 					captureReviewFocusReturn(timetableCellFocusSelector(day, startTime, endTime));
-					await stagePreGenDrop({ type: 'draftPlacement', placement }, day, startTime, endTime);
+					await runPreGenDrop({ type: 'draftPlacement', placement }, day, startTime, endTime);
 					setDragItem(null);
 					return;
 				}
@@ -2012,7 +2047,7 @@ export function useScheduleReviewWorkspaceState() {
 			message: `${moveReceipt.sentence} Undo below.`,
 		});
 	},
-		[captureReviewFocusReturn, dragItem, previewEdit, commitEditWithMeta, stagePreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, placeGeneratedUnassigned, subjectLabel, sectionLabel, roomMap, setLastAutoSaveUndo],
+		[captureReviewFocusReturn, dragItem, previewEdit, commitEditWithMeta, runPreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, placeGeneratedUnassigned, subjectLabel, sectionLabel, roomMap, setLastAutoSaveUndo],
 	);
 
 	/** Keyboard-accessible placement confirm */
@@ -2028,13 +2063,13 @@ export function useScheduleReviewWorkspaceState() {
 					return;
 				}
 				captureReviewFocusReturn(timetableCellFocusSelector(day, startTime, endTime));
-				await stagePreGenDrop(fakeItem, day, startTime, endTime);
+				await runPreGenDrop(fakeItem, day, startTime, endTime);
 				return;
 			}
 
 			if (fakeItem.type === 'draftQueue') {
 				captureReviewFocusReturn(timetableCellFocusSelector(day, startTime, endTime));
-				await stagePreGenDrop(fakeItem, day, startTime, endTime);
+				await runPreGenDrop(fakeItem, day, startTime, endTime);
 				return;
 			}
 
@@ -2046,7 +2081,7 @@ export function useScheduleReviewWorkspaceState() {
 						return;
 					}
 					captureReviewFocusReturn(timetableCellFocusSelector(day, startTime, endTime));
-					await stagePreGenDrop({ type: 'draftPlacement', placement }, day, startTime, endTime);
+					await runPreGenDrop({ type: 'draftPlacement', placement }, day, startTime, endTime);
 					return;
 				}
 				toast.error('Swap-safe draft placement could not be resolved. Refresh the pre-generation workspace and retry.');
@@ -2159,7 +2194,7 @@ export function useScheduleReviewWorkspaceState() {
 		});
 		setKbSelectedSource(null);
 	},
-		[captureReviewFocusReturn, kbSelectedSource, preGenKbSource, previewEdit, commitEditWithMeta, stagePreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, placeGeneratedUnassigned, subjectLabel, sectionLabel, roomMap, setLastAutoSaveUndo],
+		[captureReviewFocusReturn, kbSelectedSource, preGenKbSource, previewEdit, commitEditWithMeta, runPreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, placeGeneratedUnassigned, subjectLabel, sectionLabel, roomMap, setLastAutoSaveUndo],
 	);
 
 	/** Load edit history on mount / run change */

@@ -65,6 +65,10 @@ function parsePlacementBodyValue(body: Record<string, unknown>) {
 		cohortCode: body.cohortCode == null ? null : String(body.cohortCode),
 		notes: body.notes == null ? null : String(body.notes),
 		expectedVersion: body.expectedVersion == null ? undefined : Number(body.expectedVersion),
+		// A2 place-one-action — the ordered term the operator placed into. The
+		// service validates it (1..4 and inside the school year's contract) and
+		// persists it; absence leaves the stored term unchanged.
+		termIndex: body.termIndex == null ? undefined : Number(body.termIndex),
 	};
 }
 
@@ -98,6 +102,9 @@ function toEditablePlacementInput(existing: Awaited<ReturnType<typeof draftServi
 		cohortCode: existing.cohortCode,
 		notes: existing.notes,
 		expectedVersion: existing.version,
+		// A2 place-one-action — a targeted faculty/room/timeslot edit keeps the
+		// placement's own persisted ordered term.
+		termIndex: existing.termIndex,
 	};
 }
 

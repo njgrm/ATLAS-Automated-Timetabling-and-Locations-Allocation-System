@@ -153,7 +153,19 @@ export type PreGenPendingPlacement = {
 	cohortCode?: string | null;
 	notes?: string | null;
 	expectedVersion?: number;
+	/**
+	 * A2 place-one-action — the ordered term the operator placed this class into.
+	 * Sent on commit so the server persists it (validated 1..4 against the ordered
+	 * contract) and carried into the projected grid entry.
+	 */
+	termIndex?: number | null;
 	sourceLabel: string;
+};
+
+/** A2 place-one-action — the outcome of a real one-action draft drop. */
+export type PreGenDropOutcome = {
+	result: DraftPlacementCommitResult;
+	pending: PreGenPendingPlacement;
 };
 
 type UseTimetableMutationsInput = {
@@ -238,12 +250,15 @@ type UseTimetableMutationsInput = {
 		day: string;
 		startTime: string;
 		endTime: string;
+		/** A2 place-one-action — the term a fail-closed dialog commit was dropped into. */
+		termIndex?: number | null;
 	} | null;
 	setPreGenConfirmCtx: React.Dispatch<React.SetStateAction<{
 		source: PreGenDragSource;
 		day: string;
 		startTime: string;
 		endTime: string;
+		termIndex?: number | null;
 	} | null>>;
 	confirmFacultyId: string;
 	setConfirmFacultyId: React.Dispatch<React.SetStateAction<string>>;
@@ -370,13 +385,19 @@ export type TimetableMutationState = {
 		sourceLabel: string,
 	) => void;
 	runPreGenPreview: (pending: PreGenPendingPlacement) => Promise<void>;
+	/**
+	 * A2 place-one-action — stage a drop. A clean or soft-warned drop COMMITS in
+	 * this one call (no Confirm step) and returns the operation identity so the
+	 * caller can register the contextual Undo; a drop the authoritative preview
+	 * cannot clear routes to the review dialog and returns `null`.
+	 */
 	stagePreGenDrop: (
 		source: PreGenDragSource,
 		day: string,
 		startTime: string,
 		endTime: string,
-		options?: { suppressConfirm?: boolean },
-	) => Promise<void>;
+		options?: { termIndex?: number | null },
+	) => Promise<PreGenDropOutcome | null>;
 	runConfirmPreview: () => Promise<void>;
 	/** C10 — returns the commit's operation identity so the caller can register Undo. */
 	commitConfirmPlacement: () => Promise<DraftPlacementCommitResult | null>;
@@ -1433,6 +1454,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		endTime: string,
 		facultyId: number,
 		roomId: number,
+		termIndex?: number | null,
 	): PreGenPendingPlacement => {
 		if (source.type === 'draftQueue') {
 			return {
@@ -1445,6 +1467,8 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				startTime,
 				endTime,
 				cohortCode: source.item.cohortCode,
+				// A2 place-one-action — the term the operator placed the class into.
+				termIndex: termIndex ?? null,
 				sourceLabel: `${source.item.subjectCode} - ${source.item.sectionName} - session ${source.item.sessionNumber}/${source.item.sessionsPerWeek}`,
 			};
 		}
@@ -1461,6 +1485,9 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			cohortCode: source.placement.cohortCode,
 			notes: source.placement.notes,
 			expectedVersion: source.placement.version,
+			// A move keeps the placement's own persisted term; it is never
+			// re-homed into the term the operator happens to be viewing.
+			termIndex: source.placement.termIndex ?? termIndex ?? null,
 			sourceLabel: `Draft placement #${source.placement.id}`,
 		};
 	}, []);
@@ -1638,20 +1665,57 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		}
 	}, [schoolYearId, setPreGenPreviewLoading, setPreGenPreviewError, setPreGenPreview]);
 
+	// A2 place-one-action — ONE commit body shared by the one-action drop and the
+	// inline retry control, so the two entry points cannot drift apart in the board
+	// refresh, the consequence sentence or the toast.
+	const commitPreGenPlacementBody = useCallback(async (pending: PreGenPendingPlacement): Promise<DraftPlacementCommitResult | null> => {
+		if (!schoolYearId) return null;
+		setPreGenSaving(true);
+		try {
+			const { data } = await atlasApi.post<DraftPlacementCommitResult>(
+				`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts/commit`,
+				pending,
+			);
+			setDraftBoard(data.board);
+			setDraftBoardSummary(data.board.counts);
+			setPreGenPreview(data.preview);
+			setPreGenAllowSoftOverride(false);
+			setPreGenPreviewError(null);
+			setInlineActionStatus({
+				tone: data.preview.softViolations.length > 0 ? 'warning' : 'success',
+				message: data.preview.softViolations.length > 0
+					? `Draft placement saved with ${data.preview.softViolations.length} soft warning(s).`
+					: 'Draft placement saved. The draft grid was updated.',
+			});
+			toast.success(pending.placementId ? 'Draft placement updated.' : 'Draft placement saved.');
+			return data;
+		} catch (err) {
+			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+			// Fail closed: the placement is NOT reported saved, and the inline bar
+			// stays as the single explicit retry surface.
+			setInlineActionStatus({ tone: 'error', message: message ?? 'Unable to save pre-generation placement.' });
+			toast.error(message ?? 'Unable to save pre-generation placement.');
+			return null;
+		} finally {
+			setPreGenSaving(false);
+		}
+	}, [schoolYearId, schoolId, atlasApi, setPreGenSaving, setDraftBoard, setDraftBoardSummary, setPreGenPreview, setPreGenAllowSoftOverride, setPreGenPreviewError, setInlineActionStatus]);
+
 	const stagePreGenDrop = useCallback(async (
 		source: PreGenDragSource,
 		day: string,
 		startTime: string,
 		endTime: string,
+		options?: { termIndex?: number | null },
 	) => {
-		if (!schoolYearId) return;
+		if (!schoolYearId) return null;
 		const sourcePlacementId = source.type === 'draftPlacement' ? source.placement.id : undefined;
 		if (source.type === 'draftPlacement' && isSameTimetableSlot(source.placement, { day, startTime, endTime })) {
 			setPreGenPending(null);
 			setPreGenPreview(null);
 			setPreGenPreviewError(null);
 			setInlineActionStatus({ tone: 'success', message: 'Session is already in this slot.' });
-			return;
+			return null;
 		}
 		const slotDisplacement = resolvePreGenSlotDisplacement(
 			draftBoard?.placements ?? [],
@@ -1663,26 +1727,26 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			const candidateRoomId = source.type === 'draftQueue' ? choosePreGenRoom(source.item) : (source.placement.roomId ?? 0);
 			if (!candidateFacultyId || !candidateRoomId) {
 				toast.error('Cannot switch this session yet. Fix the Teaching Load owner or room setup first.');
-				return;
+				return null;
 			}
-			const pendingForLabel = buildPreGenPendingPlacement(source, day, startTime, endTime, candidateFacultyId, candidateRoomId);
+			const pendingForLabel = buildPreGenPendingPlacement(source, day, startTime, endTime, candidateFacultyId, candidateRoomId, options?.termIndex ?? null);
 			openSwapPrompt(
 				source,
 				{ day, startTime, endTime, facultyId: candidateFacultyId, roomId: candidateRoomId },
 				slotDisplacement.placement,
 				pendingForLabel.sourceLabel,
 			);
-			return;
+			return null;
 		}
 		if (slotDisplacement.kind === 'multiple') {
 			toast.error('Swap could not start because multiple sessions already occupy this slot. Choose a clean slot or resolve one conflict first.');
-			return;
+			return null;
 		}
 
 		const candidateFacultyId = source.type === 'draftQueue' ? choosePreGenFaculty(source.item) : (source.placement.facultyId ?? 0);
 		const candidateRoomId = source.type === 'draftQueue' ? choosePreGenRoom(source.item) : (source.placement.roomId ?? 0);
 
-		setPreGenConfirmCtx({ source, day, startTime, endTime });
+		setPreGenConfirmCtx({ source, day, startTime, endTime, termIndex: options?.termIndex ?? null });
 		setConfirmFacultyId(candidateFacultyId ? String(candidateFacultyId) : '');
 		setConfirmRoomId(candidateRoomId ? String(candidateRoomId) : '');
 		setConfirmPreview(null);
@@ -1704,10 +1768,10 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			setPreGenPreviewError(null);
 			setPreGenAllowSoftOverride(false);
 			setPreGenPreviewLoading(false);
-			return;
+			return null;
 		}
 
-		const pending = buildPreGenPendingPlacement(source, day, startTime, endTime, candidateFacultyId, candidateRoomId);
+		const pending = buildPreGenPendingPlacement(source, day, startTime, endTime, candidateFacultyId, candidateRoomId, options?.termIndex ?? null);
 		setPreGenPending(pending);
 		setPreGenPreview(null);
 		setPreGenPreviewError(null);
@@ -1744,12 +1808,24 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			// inline pending bar is cleared and the two can never co-render.
 			setShowPreGenConfirm(true);
 			setPreGenPending(null);
+			return null;
 		}
+		// A2 place-one-action — ONE action. A clean or soft-warned drop commits
+		// HERE, with no Confirm click: the authoritative preview already cleared it,
+		// and the returned operation identity lets the caller register the existing
+		// contextual Undo. A commit the server refuses (a race, or a conflict the
+		// preview could not see) fails closed and leaves the inline bar as the one
+		// explicit retry surface — never a silent success.
+		const result = await commitPreGenPlacementBody(pending);
+		if (!result) return null;
+		setPreGenPending(null);
+		return { result, pending };
 	}, [
 		schoolYearId,
 		choosePreGenFaculty,
 		choosePreGenRoom,
 		buildPreGenPendingPlacement,
+		commitPreGenPlacementBody,
 		draftBoard?.placements,
 		openSwapPrompt,
 		setPreGenPending,
@@ -1782,7 +1858,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		setConfirmPreview(null);
 		setConfirmRawPreview(null);
 		const { source, day, startTime, endTime } = preGenConfirmCtx;
-		const body = buildPreGenPendingPlacement(source, day, startTime, endTime, fId, rId);
+		const body = buildPreGenPendingPlacement(source, day, startTime, endTime, fId, rId, preGenConfirmCtx.termIndex ?? null);
 		try {
 			const { data } = await atlasApi.post<PreviewResult>(`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts/preview`, body);
 			setConfirmRawPreview(data);
@@ -1828,7 +1904,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		}
 		setConfirmSaving(true);
 		const { source, day, startTime, endTime } = preGenConfirmCtx;
-		const baseBody = buildPreGenPendingPlacement(source, day, startTime, endTime, fId, rId);
+		const baseBody = buildPreGenPendingPlacement(source, day, startTime, endTime, fId, rId, preGenConfirmCtx.termIndex ?? null);
 		try {
 			const { data } = await atlasApi.post<DraftPlacementCommitResult>(`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts/commit`, baseBody);
 			setDraftBoard(data.board);
@@ -2080,33 +2156,14 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		return null;
 	}, []);
 
+	// The inline retry control (rendered only after a failed one-action commit)
+	// dispatches the SAME body the drop uses.
 	const commitPreGenPending = useCallback(async (): Promise<DraftPlacementCommitResult | null> => {
-		if (!schoolYearId || !preGenPending) return null;
-		setPreGenSaving(true);
-		try {
-			const { data } = await atlasApi.post<DraftPlacementCommitResult>(`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts/commit`, preGenPending);
-			setDraftBoard(data.board);
-			setDraftBoardSummary(data.board.counts);
-			setPreGenPreview(data.preview);
-			setPreGenPending(null);
-			setPreGenAllowSoftOverride(false);
-			setPreGenPreviewError(null);
-			setInlineActionStatus({
-				tone: data.preview.softViolations.length > 0 ? 'warning' : 'success',
-				message: data.preview.softViolations.length > 0
-					? `Draft placement saved with ${data.preview.softViolations.length} soft warning(s).`
-					: 'Draft placement saved. The draft grid was updated.',
-			});
-			toast.success(preGenPending.placementId ? 'Draft placement updated.' : 'Draft placement saved.');
-			return data;
-		} catch (err) {
-			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-			toast.error(message ?? 'Unable to save pre-generation placement.');
-			return null;
-		} finally {
-			setPreGenSaving(false);
-		}
-	}, [schoolYearId, preGenPending, setPreGenSaving, setDraftBoard, setDraftBoardSummary, setPreGenPreview, setPreGenPending, setPreGenAllowSoftOverride, setPreGenPreviewError, setInlineActionStatus]);
+		if (!preGenPending) return null;
+		const result = await commitPreGenPlacementBody(preGenPending);
+		if (result) setPreGenPending(null);
+		return result;
+	}, [preGenPending, commitPreGenPlacementBody, setPreGenPending]);
 
 	return {
 		filteredRoomRequests,

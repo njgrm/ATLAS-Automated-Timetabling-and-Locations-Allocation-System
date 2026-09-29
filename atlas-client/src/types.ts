@@ -1633,6 +1633,12 @@ export interface LockedSession {
 	lockedRunId?: number | null;
 	notes?: string | null;
 	version?: number;
+	/**
+	 * A2 place-one-action — the ordered term the placement was placed into. The
+	 * server returns and persists it (`pre-generation-draft.service.ts`), so the
+	 * client must not drop it: the grid's term filter reads it.
+	 */
+	termIndex?: number | null;
 	createdBy: number;
 	createdAt: string;
 	updatedAt?: string;
