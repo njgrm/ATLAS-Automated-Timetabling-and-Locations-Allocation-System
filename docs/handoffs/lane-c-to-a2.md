@@ -2064,3 +2064,56 @@ integrated, not deployed, and not seen rendered.
 - Known now (A9 c6 evidence): `palette-slate400-step2-a3-s-f` and `a3-palette-slate400-s-f` (7/9) go red from A5 c6's
   `atlas-client/src/index.css` token change, and `a3-c8-warning-token` (file-count pin 66 vs 67) is pre-existing. All
   three are NON_BLOCKING for train 10. **A5** re-measures and re-pins them in c7 (one commit, name the rows).
+
+## Lane C -> A2 + A4, 2026-09-29 ~18:30 +08 - A5 c7 done: fix-3 items 43 and 44 (Subjects), ON `main` at `78ef01c4`
+
+**0 fixes live and seen / 2 integrated, neither live / 0 dropped.** NOT deployed - A4 owns the release. Candidate `fef3f77a`,
+merge `78ef01c4`, base `cf7defa2`, client-only. QA `ACCEPT_READY` 12/12/0/0. Both items rendered on **real staging data**
+at 1366x768 (22 real subject rows), origin `http://127.0.0.1:5279` asserted, preview against the staging API on
+`127.0.0.1:5101` - **not live**.
+
+- **Item 43 (A5 c7) - DONE, on `main`.** `More filters`, its popover, the `Refine the subjects shown` heading and the
+  `(n)` count are gone. **All five filters inline in one row**: measured `distinctTops = [150]`, i.e. one line, with
+  `scrollWidth == clientWidth` on every trigger and **0** buttons matching `/more filters/i`. It is a move, not a
+  rewrite - the Status/Room/Term picker bodies are character-identical to base and every `shortLabels` map, `ariaLabel`
+  and `dataTestId` survives.
+- **Item 44 (A5 c7) - DONE, on `main`.** Root cause confirmed as filed: `thead` was `z-10` (its own stacking context) and
+  the `th`'s `z-20` was trapped inside it, so the body action cells at `z-10` painted over the ACTION header. Now
+  `thead z-30`, opaque header background, and one width constant shared by the `th` and every `td` (155.66px each). The
+  `th`'s dead `z-20` is deleted with a comment saying why it never worked. **Proof is a hit-test at 1130px scrolled
+  (16 rows past): all four probes return `TH` "ACTION"; on the base cascade the same probes return the row's `Review`
+  `TD`, so it discriminates.**
+
+### One correction to the packet as written, for the record
+The packet said "same height/size" for the five pickers. **That was not satisfiable together with "one line at 1366",**
+and item 43 is the request. At the fixed `md` width (128px, a published 12-character face budget) the subjects faces
+**cannot** fit: `Status: All` is already 12 characters and `Status: Active` is 13, before any long value. The first
+candidate measured a real clip on `Room: Laboratory` and correctly refused to guess. I moved all five to
+**`width="auto"`** - the `@/ui` variant whose own guard says *"a width that is not a fixed rectangle always fits"* - which
+keeps one height, border, radius and case, and makes the row **narrower when unfiltered** (561px vs 680px). Width is now
+spent only on the filter actually set. **`moreFilters: 0` and `overflowing: 0`** in the page audit are the direct proof.
+
+### For A4 - the shipped-vs-claimed check, already done
+Both claims are in the pinned diff and **verified rendered**: the string `More filters` is absent from the page and no
+`AdminWorkspace.tsx` stray button appears; the filter cluster is 5 controls on one line. **Not yet deployed** - this is
+the A4 row.
+
+### For A4 - `scripts/qa/ux-audit.js` is red page-wide, and it is NOT this change
+`/subjects` at 1366x768 reports **`major: 13`**. All 13 are `smallText` below 12px in chrome this change never touched
+(sidebar, the `USING SAVED DATA` chip, the three stat labels at 10.4px, the grade/program chips at 9.6px from
+`ProgramScopeChips.tsx`). **None is new and none is touched.** The new walk-standard rule blocks on *new or touched*
+majors, so this lane is clear - but the audit will read red on any page until someone raises those type sizes, and
+**that is a whole-app decision, not a train-10 one**.
+
+### Gates on the merged tree (main had moved 44 commits, so these are union numbers)
+`test:a6-c8-subjects-coverage` 90/0 · `test:a5-subjects-c1` 15/0 · `test:a3-subjects` 32/0 ·
+`test:a5-c3-subjects-calm-surface` 23/0 · `test:a3-c4-subjects-copy` 19/0 · `test:a5-c4-filter-disclosure` 11/0 ·
+`test:encoding` 1/0 · `tsc` exactly the 5 dated base reds (all timetable files, outside the range) · `build` exit 0 ·
+`git diff --check` clean. **Merged product tree is byte-identical to the accepted candidate**, and the two test files
+main also moved merged as a **true union**, so main's A9/A6 test additions are intact.
+
+### One operational note for whoever reclaims worktrees
+`lane-a5-c7-subjects` is `RETIRE_AFTER_INTEGRATION` and **holds a `node_modules` junction to
+`lane-a2-c13/atlas-client/node_modules` (156 entries)**. It needs `cmd /c rmdir` on the junction **before**
+`git worktree remove`, then `prune`, then a re-count of the donor. **A6 c9 and A3 c15 still junction through
+`lane-c-a7c7` to that same donor** - do not retire it before they are done.
