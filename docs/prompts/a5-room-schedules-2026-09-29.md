@@ -47,3 +47,7 @@ browse schedules" panel, a **"Generation run ID"** number input ("Use a whole nu
 - "No completed generation runs found" -> "No timetable has been made yet" + link "Make the timetable".
 - Share/print has no findable path today ("Export CSV" disabled). "Print this schedule" must work, and the page must
   be the obvious place to print/share (Lane C will ask A7 to name it so in the side menu).
+
+## Addendum 10:55 — owed by A5 in this candidate (from A2 c13's close)
+`test:a3-page-title-c1` is 12 pass / 2 fail on `origin/main`: the count of `currentPageTitle` in `AppShell.tsx` went
+2 -> 3 with A5 c4's route-change loading work (`RouteOutlet`). Fix the test or the code so it is green; name which.
