@@ -1786,7 +1786,17 @@ test('A3-C9: the Subjects page filters, resets and reports the term through the 
 	// A5 RETARGET (recorded, not deleted): the term filter is still a
 	// dependency of the pipeline; the dependency list now names the one merged
 	// `subjectStatusFilter` (items 9.1 + 41) in place of the two status states.
-	assert.match(bare, /subjectStatusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, termFilter, coverageBySubjectId/);
+	// A6 c10 (recorded, not deleted): the pipeline's coverage dependency is now
+	// `coverageVerdictBySubjectId`, not `coverageBySubjectId`. The superseded
+	// assertion below named the raw server map, which is the input that printed
+	// "MISSING COVERAGE 0" over 50 placeholder-held classes; the filter now reads
+	// the shared verdict, so the header count, the filter and the row label are one
+	// decision. The raw map is still a dependency of that verdict's own memo, and
+	// the replacement assertion is beside the superseded one.
+	assert.match(
+		bare,
+		/subjectStatusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, termFilter, coverageVerdictBySubjectId/,
+	);
 
 	// The removed disclosure state is gone from the page too, not just ignored.
 	assert.equal(/\bshowFilters\b/.test(bare), false, 'Subjects.tsx still carries the removed showFilters state');

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
 	BookOpen,
@@ -20,6 +20,11 @@ import { SubjectCoverageSheet } from '@/components/subjects/SubjectCoverageSheet
 import { SubjectStatusBanners } from '@/components/subjects/SubjectStatusBanners';
 import { SubjectTermAuthorityBanner } from '@/components/subjects/SubjectTermAuthorityBanner';
 import { useSubjectStats, useCoverageDetail, isRoomConstrainedSubject } from '@/components/subjects/useSubjectStats';
+import {
+	countPlaceholderHeldClasses,
+	subjectCoverageVerdict,
+	type SubjectCoverageVerdict,
+} from '@/components/subjects/subjects-coverage-truth';
 import { subjectToFormValues } from '@/components/subjects/subject-form-utils';
 import { SubjectFilterToolbar, type SubjectStatusFilter } from '@/components/subjects/SubjectFilterToolbar';
 import { SubjectCatalogBody } from '@/components/subjects/SubjectCatalogBody';
@@ -85,7 +90,10 @@ export default function Subjects() {
 	const [coverageSubject, setCoverageSubject] = useState<Subject | null>(null);
 	const [teacherCoverage, setTeacherCoverage] = useState<Record<number, {
 		// A5 (17.1): structured sections — see `SubjectCoverageDetail`.
-		assigned: { facultyId: number; name: string; grades: number[]; load: number; sections: { id: number | null; grade: number | null; name: string }[] }[]
+		// A6 c10: `isPlaceholder` is carried here because it is the only input
+		// that lets the page tell "covered" from "covered by nobody" — see
+		// `subjects-coverage-truth.ts` for the defect it closes.
+		assigned: { facultyId: number; name: string; grades: number[]; load: number; isPlaceholder: boolean; sections: { id: number | null; grade: number | null; name: string }[] }[]
 	}>>({});
 	const [coverageLoading, setCoverageLoading] = useState(false);
 	// Phase 2.3: per-subject coverage fetch error so the drawer can distinguish
@@ -203,9 +211,26 @@ export default function Subjects() {
 		fetchSubjects();
 	}, [fetchSubjects]);
 
-	const fetchTeacherCoverage = useCallback(async (subjectId: number) => {
-		const targetSubject = subjects.find(s => s.id === subjectId);
-		if (!targetSubject) return;
+	/*
+	 * A6 c10 — ONE READ FOR EVERY SUBJECT, not one per subject.
+	 *
+	 * This used to read `/faculty-assignments/summary` when a coverage dialog
+	 * opened, and to build only THAT subject's rows. It now builds every subject's
+	 * rows from the single response, for two reasons that are the same reason:
+	 *
+	 *  1. THE PAGE NEEDS THE OTHER SUBJECTS ANYWAY. `MISSING COVERAGE 0` and
+	 *     `Full coverage` are printed for every row, and correcting them needs the
+	 *     placeholder-held count for EVERY subject, not for the one whose dialog
+	 *     happens to be open. Reading per subject would have meant a second read
+	 *     of the same endpoint and two answers to "who is a placeholder".
+	 *  2. ONE READ IS ONE ANSWER. A per-subject read meant a row could be labelled
+	 *     "Full coverage" and then contradicted the moment its dialog loaded. The
+	 *     label and the detail are now computed from the same fetch.
+	 *
+	 * The `assigned` rows are built for subjects that have no coverage row in the
+	 * summary too, because a placeholder holding a class is the case being fixed.
+	 */
+	const fetchTeacherCoverage = useCallback(async (subjectId?: number) => {
 		// SCA-01.1: coverage reads are actor-scoped like the catalog read.
 		if (actorSchoolId == null) return;
 
@@ -215,14 +240,18 @@ export default function Subjects() {
 			const { data } = await atlasApi.get<{ faculty: any[] }>('/faculty-assignments/summary', {
 				params: { schoolId: actorSchoolId, schoolYearId },
 			});
-			
-			const assigned: { facultyId: number; name: string; grades: number[]; load: number; sections: { id: number | null; grade: number | null; name: string }[] }[] = [];
+			if (subjectId != null && !subjects.some((row) => row.id === subjectId)) return;
+
+			const assignedBySubject = new Map<number, { facultyId: number; name: string; grades: number[]; load: number; isPlaceholder: boolean; sections: { id: number | null; grade: number | null; name: string }[] }[]>();
 
 			for (const f of data.faculty ?? []) {
-				const isAssigned = (f.assignments ?? []).some((a: any) => a.subjectId === subjectId);
 				const load = (f as any).loadPercentage ?? 0;
-				if (isAssigned) {
-					const assignment = f.assignments.find((a: any) => a.subjectId === subjectId);
+				// A6 c10: the roster's OWN flag, read once per teacher. A to-be-hired
+				// record is not a teacher, and every coverage number on this page is
+				// built by excluding them.
+				const isPlaceholder = f.isPlaceholder === true;
+				for (const assignment of f.assignments ?? []) {
+					const target = assignedBySubject.get(assignment.subjectId) ?? [];
 					/*
 					 * A5 (operator item 17.1): a section is passed as DATA.
 					 * It used to be minted as a single display string
@@ -240,20 +269,21 @@ export default function Subjects() {
 							: (typeof section?.displayOrder === 'number' ? section.displayOrder : null),
 						name: typeof section?.name === 'string' ? section.name : '',
 					}));
-					assigned.push({ 
+					target.push({
 						facultyId: f.id,
-						name: `${f.lastName}, ${f.firstName}`, 
+						name: `${f.lastName}, ${f.firstName}`,
 						grades: assignment.gradeLevels ?? [],
 						load,
+						isPlaceholder,
 						sections,
 					});
+					assignedBySubject.set(assignment.subjectId, target);
 				}
 			}
 
-			setTeacherCoverage((prev) => ({ 
-				...prev, 
-				[subjectId]: { assigned } 
-			}));
+			const next: typeof teacherCoverage = {};
+			for (const [id, assigned] of assignedBySubject) next[id] = { assigned };
+			setTeacherCoverage(next);
 		} catch (err: any) {
 			// A3-C5-4: the server authors this sentence for a scheduler, so it is
 			// resolved to calm copy and the raw pair is parked for the popover.
@@ -262,7 +292,13 @@ export default function Subjects() {
 			);
 			setCoverageError((prev) => {
 				const next = new Map(prev);
-				next.set(subjectId, copy.message);
+				// A6 c10: the read is page-wide now, so the failure is page-wide too.
+				// Keyed on the subject the scheduler actually asked for when there was
+				// one, and on every subject otherwise, so the drawer can still say
+				// "could not load coverage" for the subject it is showing.
+				for (const subject of subjects) {
+					if (subjectId == null || subject.id === subjectId) next.set(subject.id, copy.message);
+				}
 				return next;
 			});
 			setMutationDetail({
@@ -292,6 +328,30 @@ export default function Subjects() {
 		}
 	}, [fetchCoverageSummary, subjects.length]);
 
+	/*
+	 * A6 c10 — the roster read runs at the same time as the summary read, not when
+	 * a coverage window opens.
+	 *
+	 * The row list, the header count and the status filter all need the
+	 * placeholder-held number, and all three print before any window has been
+	 * opened. Fetching it lazily is exactly how the page came to say "Full
+	 * coverage" on every row: the only number that could contradict it arrived
+	 * after the claim had been made, and nothing ever went back to revise the
+	 * claim. It is one read of an endpoint the page already reads.
+	 *
+	 * The effect is keyed on `subjects.length` and NOT on `fetchTeacherCoverage`,
+	 * which closes over the `subjects` array and would give a new identity on every
+	 * catalog refresh — an effect that re-fires on its own callback is the classic
+	 * render loop, and a coverage read that loops is worse than a missing one.
+	 */
+	const rosterReadStartedFor = useRef(0);
+	useEffect(() => {
+		if (subjects.length === 0 || subjects.length === rosterReadStartedFor.current) return;
+		rosterReadStartedFor.current = subjects.length;
+		void fetchTeacherCoverage();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [subjects.length]);
+
 	// Filtered, sorted, paginated
 	const coverageBySubjectId = useMemo(() => {
 		if (!subjectCoverageSummary) return null;
@@ -301,6 +361,48 @@ export default function Subjects() {
 		}
 		return map;
 	}, [subjectCoverageSummary]);
+
+	/*
+	 * A6 c10 — HOW MANY OF EACH SUBJECT'S CLASSES ARE HELD BY A TO-BE-HIRED RECORD.
+	 *
+	 * `coverage/summary` counts a class as covered when a pair exists, and a pair
+	 * exists when a placeholder holds it — so `uncoveredSectionCount` reads 0 for a
+	 * subject whose every class sits on a "— TO BE HIRED, MAPEH —" record. That is
+	 * how `/subjects` printed "MISSING COVERAGE 0" and a per-row "Full coverage"
+	 * while `/teaching-load` said 72 classes still need a real teacher, on the same
+	 * data, on the same release (Codex audit, 2026-09-29).
+	 *
+	 * This map is the missing number, and it comes from the page's OWN roster read
+	 * rather than a new endpoint: `teacherCoverage` is built from
+	 * `/faculty-assignments/summary`, and `isPlaceholder` is the roster's own flag.
+	 * One read, one answer to "is a person teaching this class".
+	 */
+	const placeholderHeldBySubjectId = useMemo(() => {
+		const map = new Map<number, number>();
+		for (const [subjectId, entry] of Object.entries(teacherCoverage)) {
+			map.set(Number(subjectId), countPlaceholderHeldClasses(entry.assigned));
+		}
+		return map;
+	}, [teacherCoverage]);
+
+	/**
+	 * The one place a subject's coverage is decided on this page, so the status
+	 * filter, the header count and the row's own line cannot disagree. It returns
+	 * `null` while the roster read has not resolved, which every consumer treats
+	 * as "not yet known" rather than as "covered" — a page that printed
+	 * `Full coverage` before the number arrived is the defect, not a fix for it.
+	 */
+	const coverageVerdictBySubjectId = useMemo(() => {
+		if (!coverageBySubjectId) return null;
+		const map = new Map<number, SubjectCoverageVerdict>();
+		for (const [subjectId, row] of coverageBySubjectId) {
+			map.set(subjectId, subjectCoverageVerdict({
+				uncoveredSectionCount: row.uncoveredSectionCount ?? 0,
+				placeholderHeldSectionCount: placeholderHeldBySubjectId.get(subjectId) ?? 0,
+			}));
+		}
+		return map;
+	}, [coverageBySubjectId, placeholderHeldBySubjectId]);
 
 	const { paged, totalFiltered, totalPages } = useMemo(() => {
 		let list = subjects;
@@ -328,7 +430,14 @@ export default function Subjects() {
 		// A3-C9: the term filter uses the SHARED predicate, so the option the
 		// toolbar offered and the rows that survive it cannot disagree.
 		if (termFilter !== TERM_FILTER_ALL) list = list.filter((s) => matchesTermFilter(s, termFilter));
-		if (subjectStatusFilter === 'missing-coverage' && coverageBySubjectId) list = list.filter((s) => s.isActive && (coverageBySubjectId.get(s.id)?.uncoveredSectionCount ?? 0) > 0);
+			// A6 c10: a subject held entirely by to-be-hired records used to be
+		// FILTERED OUT of the one filter whose job is to find them, because the
+		// predicate read `uncoveredSectionCount > 0` and a placeholder-held class
+		// is not "uncovered". The verdict is the shared decision, so the filter and
+		// the row label are the same question asked once.
+		if (subjectStatusFilter === 'missing-coverage' && coverageVerdictBySubjectId) {
+			list = list.filter((s) => s.isActive && !coverageVerdictBySubjectId.get(s.id)?.fullyCoveredByRealTeachers);
+		}
 		// A3-C5: this list is the "Room constrained" tile's twin, so it filters
 		// with the SAME predicate the tile counts with. It previously carried its
 		// own inline copy of the rule, which treated an ownership marker as a
@@ -354,7 +463,7 @@ export default function Subjects() {
 		const tp = Math.max(1, Math.ceil(tf / pageSize));
 		const start = (page - 1) * pageSize;
 		return { paged: sorted.slice(start, start + pageSize), totalFiltered: tf, totalPages: tp };
-	}, [subjects, searchQuery, subjectStatusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, termFilter, coverageBySubjectId, sortField, sortDir, page, pageSize]);
+	}, [subjects, searchQuery, subjectStatusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, termFilter, coverageVerdictBySubjectId, sortField, sortDir, page, pageSize]);
 
 	// Reset page when filters change
 	useEffect(() => { setPage(1); }, [searchQuery, subjectStatusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, termFilter, pageSize]);
@@ -547,7 +656,7 @@ export default function Subjects() {
 		return 'saved-data';
 	}, [actorScopeResolved, error, loading, subjects.length]);
 
-	const subjectStats = useSubjectStats({ subjects, coverageBySubjectId });
+	const subjectStats = useSubjectStats({ subjects, coverageBySubjectId, coverageVerdictBySubjectId });
 	const coverageDetail = useCoverageDetail({ coverageSubject, teacherCoverage });
 	const openSubjectEditor = useCallback((subject: Subject) => {
 		setModalSubject(subjectToFormValues(subject));
@@ -669,6 +778,7 @@ stats={subjectStats}
 				paged={paged}
 				subjects={subjects}
 				coverageBySubjectId={coverageBySubjectId}
+			coverageVerdictBySubjectId={coverageVerdictBySubjectId}
 				termAuthority={termAuthority}
 				sortField={sortField}
 				sortDir={sortDir}
