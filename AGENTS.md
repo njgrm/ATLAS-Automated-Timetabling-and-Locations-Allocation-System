@@ -325,6 +325,18 @@ work against `main` moving; a disk reading taken during a concurrent wave). A2 l
   fixtures; real teacher ids run about 1000100 and up; must be 0). A failure is `NO_GO(DATA)` and goes to Lane C before any deploy. Evidence: a bare test at
   01:58 left an active fixture year (910101) on live. Train 6 then refused every Teaching Load action, and it
   surfaced only in the Codex walk.
+- **Staging QA account, every staging deploy (operator, 2026-09-29):** staging is re-streamed from live on each A4
+  deploy, which **drops** the QA login, so every staging deploy ends by running
+  `node scripts/dev/ensure-staging-qa-account.cjs` and recording `STAGING QA ACCOUNT READY` with its exit code. Without
+  it planners get a login screen on staging and fall back to fixtures. The script refuses any database that is not
+  loopback `atlas_staging` (exit 2), so it can never touch live; the password lives only in
+  `D:\ATLAS-runtime-config\atlas-staging-qa.env` and is never printed or committed.
+- **Loopback preview origins on staging (operator, 2026-09-29):** staging's `CORS_EXTRA_ORIGINS` in
+  `D:\ATLAS-runtime-config\atlas-staging.env` carries `http://127.0.0.1:5200-5299` and `http://localhost:5200-5299`
+  so a candidate's loopback preview can render real staging data. That file's DACL is **read-only for every user
+  including elevated Administrators** — a write needs a temporary ACE, and the original SDDL must be captured first and
+  restored and proven identical afterwards. It is staging-only: the live env `atlas-server.env` is never touched, and
+  the change needs a staging-only API restart (5101) with live 5001/5174 PIDs measured before and after.
 - Fresh session per release. Packet template: `docs/prompts/templates/a4-release.md`.
 
 ---

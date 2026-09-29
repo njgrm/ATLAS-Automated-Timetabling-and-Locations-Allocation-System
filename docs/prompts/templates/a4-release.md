@@ -11,6 +11,9 @@ Decide and record; ask nothing. Never run a server in a foreground command. Live
    semantic → post to the owning lane with paths, drop that SHA from this train, continue with the rest.
 2. Gate once by tier on the merged range (fresh reviewer for anything no independent QA has seen). Pin the SHA.
 3. E: ≥ 25 GiB before build (reclaim only retired worktrees / old releases, never live or rollback). Build pinned SHA.
+3a. **Staging leg first (same pin).** Re-stream staging from live, then — because the re-stream drops the QA login —
+   run `node scripts/dev/ensure-staging-qa-account.cjs` and record `STAGING QA ACCOUNT READY` with its exit code
+   (non-zero = staging is not QA-ready; do not send the walk). Lane C's Codex walk runs against it.
 4. Cutover; health + ready + public API; rollback on failure. Config/env changes named here only: `<none|...>`.
 5. Fresh Codex run (write the prompt fresh from THIS packet's included rows; never reuse an earlier smoke prompt; its
    report's first line must be `SMOKE: pass X / fail Y` or it is not evidence — train 2's smoke answered a stale packet) (`codex exec ... < /dev/null`, @Brave "Your Brave", ATLAS origin only): smoke (pages render,
