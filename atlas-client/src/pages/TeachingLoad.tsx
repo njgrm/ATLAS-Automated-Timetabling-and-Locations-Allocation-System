@@ -659,15 +659,10 @@ export default function TeachingLoad() {
 
 	/*
 	 * A3-C10-S3: the truth summary (42px), the "Next step" repair queue (58px) and
-	 * the archived-load control were three `shrink-0` bands here and are now ONE
+	 * the archived-load MENU item were three `shrink-0` bands here and are now ONE
 	 * line inside the command strip. The full record lives on
 	 * `TEACHING_LOAD_HEADER_MODEL` in `WorkspaceToolbar.tsx`, which owns row 2.
-	 *
-	 * A6 c5: the line below is this page's OWN staffing reading, first in the
-	 * workspace so a scheduler who never opens a dialog still meets the honest
-	 * "still need a real teacher" count. `hidden` on short viewports matches the
-	 * rollover card above, so the workspace never grows a third band.
-	 */
+	 * A9 c5 added a VISIBLE `Past years` control in the rollover band below. */
 	const headerStateLine = (
 		/* A6 C2 (Major 1): row 2 is "one sentence of status + one primary
 		 * action", and this is that action. A6 c5 adds the shortage line as a
@@ -798,26 +793,29 @@ export default function TeachingLoad() {
 					{/* Main Grid Area */}
 					<div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-y-auto">
 						{data.schoolId != null && (
-							<div className="shrink-0 px-3 pt-1 lg:px-5 [@media(max-height:640px)]:hidden">
-								<RolloverGuidanceCard compact schoolId={data.schoolId} />
+							/* A9 c5 item 5: `Past years` is VISIBLE, not only under More — the Codex
+							 * audit reached history in two clicks and called that a navigation problem.
+							 * It reuses the ONE `shrink-0` band `a3-c10` T4 allows, so
+							 * `TEACHING_LOAD_HEADER_MODEL` and the header-model tests are untouched. */
+							<div className="flex shrink-0 items-start justify-between gap-3 px-3 pt-1 lg:px-5 [@media(max-height:640px)]:hidden">
+								<div className="min-w-0 flex-1">
+									<RolloverGuidanceCard compact schoolId={data.schoolId} />
+								</div>
+								<Button asChild type="button" variant="outline" size="sm" className="min-h-11 gap-1.5">
+									<Link to="/teaching-load/history" data-testid="teaching-load-past-years"><History className="size-3.5" aria-hidden="true" />Past years</Link>
+								</Button>
 							</div>
 						)}
 
-					{/* A6 c5: the note below is the page's OWN reading of the staffing
-						figures, first in the workspace so a scheduler who never opens a
-						dialog still meets the honest "still need a real teacher" count.
-						`hidden` on short viewports matches the rollover card above, so
-						the workspace never grows a third band. It is deliberately NOT
-						a `shrink-0` band: it is content that scrolls with the roster,
-						and `a3-c10` T4 requires the main column to carry exactly one
-						`shrink-0` band — the out-of-fence rollover wrapper. The truth
-						strip, the "Next step" repair queue and the archived-load
-						control moved into `headerStateLine` above (A3-C10-S3 / FIX 38).
-
-					A6 c7: this stayed INLINE. Extracting it to
-					`TeachingLoadStaffingNote` to buy line budget broke
-					`A6C5-S9-1`, which proves the note is written on THIS page
-					and which c7 is not authorised to edit. */}
+					{/* A6 c5: the note below is the page's OWN reading of the staffing figures, first in
+						the workspace so a scheduler who never opens a dialog still meets the honest
+						"still need a real teacher" count. `hidden` on short viewports matches the
+						rollover band above, so the workspace never grows a third band. It is deliberately
+						NOT a `shrink-0` band — it scrolls with the roster, and `a3-c10` T4 requires exactly
+						one such band, the out-of-fence rollover wrapper above. The truth strip, the repair
+						queue and the header's `Archived load` MENU item live in `headerStateLine` / the
+						toolbar (A3-C10-S3 / FIX 38). A6 c7: this stayed INLINE — extracting it broke
+						`A6C5-S9-1`, which c7 may not edit. */}
 
 					{outage.staffingFigures.withoutRealTeacherCount > 0 && (
 						<p

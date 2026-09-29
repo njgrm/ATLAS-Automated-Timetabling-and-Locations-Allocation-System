@@ -544,7 +544,7 @@ export function AppShell() {
 						</p>
 						<div className='flex flex-wrap gap-2'>
 							<Button asChild variant='outline' className='min-h-11 bg-white'>
-								<Link to={`/teaching-load/history?schoolYearId=${rolloverNotice.previousSchoolYearId}`}>View archived load</Link>
+								<Link to={`/teaching-load/history?schoolYearId=${rolloverNotice.previousSchoolYearId}`}>View past years</Link>
 							</Button>
 							<Button asChild variant='ghost' className='min-h-11'>
 								<Link to='/admin/year-setup'>Year Setup</Link>
