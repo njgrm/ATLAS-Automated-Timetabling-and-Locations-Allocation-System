@@ -48,8 +48,12 @@ export const setupNav: NavItemDef[] = [
 	// here: that would advertise a page the page itself refuses.
 	//
 	// STORY POSITION: first in `setupNav`, before Subjects, because the demo
-	// walks School Year -> Subjects -> Teachers -> Teacher Concerns ->
-	// Teaching Load -> make the Timetable -> look up & print schedules.
+	// walks School Year -> Sections -> Subjects -> Teachers -> Teaching Load ->
+	// Teacher Concerns -> make the Timetable -> look up & print schedules.
+	// That is the ORDER OF THE MENU, read top to bottom. The demo script's own
+	// narrative pairs Teacher Concerns with Teaching Load; `teachersAndRoomsNav`
+	// has always carried Teaching Load first, and reordering it is not this
+	// packet's business, so the comment records the menu rather than the story.
 	{ label: 'School Year', to: '/admin/year-setup', icon: CalendarRange, adminOnly: true },
 	{ label: 'Sections', to: '/sections', icon: GraduationCap, adminOnly: true },
 	{ label: 'Subjects', to: '/subjects', icon: BookOpen, adminOnly: true },

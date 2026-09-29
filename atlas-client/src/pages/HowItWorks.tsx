@@ -308,7 +308,7 @@ export default function HowItWorks() {
 							<Card className="shadow-sm">
 								<Accordion type="single" collapsible>
 									<AccordionItem value="advanced">
-										<AccordionTrigger className="px-6 py-4 text-sm font-bold text-foreground">
+										<AccordionTrigger className="px-6 py-4">
 											<span className="flex items-center gap-2">
 												<div className="flex size-7 items-center justify-center rounded-md bg-muted text-muted-foreground">
 													<Settings className="size-4" />

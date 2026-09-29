@@ -69,12 +69,27 @@ the page has two competing primary actions.
 - **Constraint weights / policy tuning** move under an "Advanced" fold on
   `/timetabling/how-it-works` (`@/ui/accordion`, never a raw `<details>`).
 
+> **Round 2 correction (QA F1b).** Only the ALREADY-DONE rows may sit behind a
+> disclosure. The outstanding names are the rows directly under the header,
+> expanded and visible, each one a link to the page that fixes that step — that
+> is what the packet asked for, and hiding them behind a click would be worse
+> than the defect this note set out to fix.
+
 ## What the count now says
 
-The header line becomes the count **plus the names of what is not ready**, and
-every name is a link to the page that fixes it. The not-ready rows come first,
-each keeping its honest hint (`20 unassigned`, `Enrollment unavailable`) so
-"unavailable" always says what is unavailable and what to check.
+The header is the count plus how many steps are outstanding plus how many ATLAS
+could not read: "1 of 10 ready · 6 steps to go · 3 ATLAS could not check". It
+does **not** enumerate the names. Round 1 did, and at 1366x768 that was seven
+lines of ALL-CAPS that pushed the actionable rows to the viewport edge and
+repeated every name as a row immediately below (QA F1).
+
+**A step whose reading never arrived is a third state** (QA F2). It is not done
+and it is not outstanding work: the data established only that it could not be
+read. Those rows get their own visible list, their own honest wording, and no
+amber next-task ring. Before this correction an unresolved count was promoted
+into "not ready", so a screen could read "NOT READY: TIMETABLE MADE AND CHECKED"
+beside "Schedule is published" — which tells an older scheduler their published
+timetable is broken when the truth is that ATLAS does not know.
 
 ## Words that change (plain, and never a claim the data does not support)
 
@@ -100,12 +115,27 @@ schedules"**; its `to` (`/schedules`) is not a route-target change. The
 ## §8 self-check
 
 - No native `<select>`, no raw `<details>`, no raw unstyled `<button>`: the two
-  folds are `@/ui/accordion` (`AccordionTrigger` renders the shared trigger).
-- No page-local `className` that changes a `@/ui` primitive's look: the
-  Accordion is used with layout classes only (`py-*`, `px-*` on the wrapper).
+  folds are `@/ui/accordion`.
+- **No page-local `className` that changes a `@/ui` primitive's look.** The
+  `AccordionTrigger`s carry **layout classes only** — `py-3` on the Dashboard,
+  `px-6 py-4` on How Scheduling Works. Round 1 briefly added typography and
+  colour overrides (`text-sm font-semibold text-muted-foreground` and
+  `text-sm font-bold text-foreground`) to those two triggers; QA F4 caught that
+  this gave two disclosures two extra looks that differ from each other and from
+  every other `AccordionTrigger` in the product. Both overrides are removed, so
+  both triggers render the primitive's own `text-xs font-medium` base. A bolder
+  disclosure, if one is ever wanted, belongs in `ui/accordion.tsx` as a variant
+  so every page gets it.
 - Picker primitive: no new picker is introduced.
 - Header budget: unchanged hero (one row of title + chips + one action).
-- File size: `Dashboard.tsx` **shrinks** (966 -> well under 1000);
-  `HowItWorks.tsx` grows by the Advanced accordion, ~40 lines, on 289.
+- File size: `Dashboard.tsx` is **975 lines** on this correction and was **918**
+  at base `955d2e7a` — a small net *increase*, not the 966 -> "well under 1000"
+  this note originally claimed (that 966 was a miscount; QA measured the real
+  base as 918 and measured three methods). The honest statement is about
+  **visible chrome, not line count**: an entire card, a hero button, a
+  duplicated status line, a duplicated count badge, a 10-row always-expanded
+  list, a mobile-only toggle and its `useState` are all gone, replaced by a
+  counted header, an outstanding list, a "could not check" list and a collapsed
+  done list. `HowItWorks.tsx` is 344 lines. Both are under the 1000-line cap.
 - No-scroll architecture: the root and the single `overflow-auto` region are
   untouched (pinned by `a3-c4-dashboard-one-name-no-scroll`).

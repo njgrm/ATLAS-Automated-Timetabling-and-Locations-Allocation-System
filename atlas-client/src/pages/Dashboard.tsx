@@ -64,25 +64,6 @@ const TONE: Record<StatTone, { iconBg: string; iconRing: string; iconText: strin
 	},
 };
 
-/**
- * A7 C6 — the SETUP -> PREFERENCES -> GENERATION -> REVIEW -> PUBLISHED phase
- * names. The Dashboard no longer RENDERS this list: the "Scheduling lifecycle"
- * card that drew it was removed as a fourth telling of facts the next-step
- * card and the readiness list already carry.
- *
- * It is kept, with its `LifecyclePhase` key set, because it is the vocabulary
- * `lifecyclePhase` is expressed in and this file's own `LifecyclePhase` import
- * binds the same union. A follow-up that removes it must remove the import and
- * the `key` type in the same commit. Do not re-add a phase badge or rail.
- */
-const LIFECYCLE_STEPS: { key: LifecyclePhase; label: string; helper: string }[] = [
-	{ key: 'SETUP', label: 'Setup', helper: 'Year, terms, subjects, rooms' },
-	{ key: 'PREFERENCES', label: 'Preferences', helper: 'Faculty inputs' },
-	{ key: 'GENERATION', label: 'Generate', helper: 'Algorithm run' },
-	{ key: 'REVIEW', label: 'Review', helper: 'Fix blockers' },
-	{ key: 'PUBLISHED', label: 'Published', helper: 'Visible to faculty + students' },
-];
-
 const SOURCE_CHIP_COPY: Record<string, string> = {
 	verified_live: 'Live source',
 	checking_source: 'Checking source',
@@ -355,6 +336,16 @@ export type RunReviewChecklistItem = {
 	href: string;
 	hint?: string;
 	/**
+	 * A7 C6 R2 (QA F2) — TRUE when the data behind `done` could not be READ.
+	 *
+	 * An unresolved step is neither done nor not-ready. The server established
+	 * only that it could not count or could not read, so promoting it into the
+	 * "not ready" list tells an older scheduler that a published timetable is
+	 * broken when the truth is that ATLAS does not know. The `done` predicate
+	 * itself is unchanged and stays the accepted one.
+	 */
+	unresolved?: boolean;
+	/**
 	 * A7 C6 — the run-review row carries the ONE truthful run-blocker sentence
 	 * (`RunBlockerTile`) instead of a second, differently-worded copy of the
 	 * same fact. It is a slot marker, not a variant: the row renders the tile
@@ -387,7 +378,14 @@ export function buildRunReviewChecklistItem(args: {
 	else if (hardViolationCount === null) hint = 'ATLAS could not count the problems that must be fixed. Open the timetable to check.';
 	else if (hardViolationCount > 0) hint = `${hardViolationCount} run-wide hard blocker${hardViolationCount === 1 ? '' : 's'}`;
 	else if (softViolationCount !== null && softViolationCount > 0) hint = `${softViolationCount} warning${softViolationCount === 1 ? '' : 's'} acknowledged`;
-	return { label: 'Timetable made and checked', done, href: '/timetable', hint, statusSlot: 'run-blocker' };
+	// A7 C6 R2 (QA F2) — the third state, alongside `done` and `unresolved`.
+	// An unresolved step is a step ATLAS COULD NOT READ. It is not done, it is
+	// not "not ready", and it never takes the amber next-task ring: the ring
+	// means "do this next", and you cannot act on a reading that was never
+	// taken. `done` is left byte-identical — the accepted predicate is not this
+	// correction's to rewrite.
+	const unresolved = !generationAvailable || (latestRunStatus === 'COMPLETED' && hardViolationCount === null);
+	return { label: 'Timetable made and checked', done, href: '/timetable', hint, statusSlot: 'run-blocker', unresolved };
 }
 
 /**
@@ -528,27 +526,34 @@ export default function Dashboard() {
 	// and no snapshot field yet reports a truthful concerns state; inventing
 	// one would be a claim the data does not support. The menu entry exists, so
 	// the step is reachable.
+	// A7 C6 R2 (QA F2) — each row also carries `unresolved`: TRUE when the read
+	// behind its `done` predicate did not come back at all. Those rows get their
+	// OWN visible bucket and their own honest wording. Before this correction
+	// they fell through to `!done` and were listed as outstanding work, which
+	// told an older scheduler their published timetable was wrong when the truth
+	// was only that ATLAS could not read the count.
 	const checklist = [
-		{ label: 'School year and terms set', done: derivedDemandAvailable && derivedTermStructure !== null && !derivedTermBlocker, href: '/admin/year-setup', hint: !derivedDemandAvailable ? 'ATLAS could not read the school year and its terms' : derivedTermBlocker ? (derivedTermBlocker.message ?? 'Refresh the active EnrollPro year and terms') : undefined },
-		{ label: 'Sections confirmed', done: domainAvailability.sections && (sectionCount ?? 0) > 0, href: '/sections', hint: !domainAvailability.sections ? 'Enrollment could not be read' : sectionCount === null ? 'Enrollment could not be read' : undefined },
-		{ label: 'Subjects added', done: domainAvailability.subjects && (subjectCount ?? 0) > 0, href: '/subjects', hint: !domainAvailability.subjects ? 'Subject data could not be read' : undefined },
-		{ label: 'Every subject has its schedule details', done: derivedDemandAvailable && derivedMetadataExceptions.length === 0, href: '/subjects', hint: !derivedDemandAvailable ? 'Subject details could not be checked' : derivedMetadataExceptions.length > 0 ? (derivedMetadataExceptions[0].subjectCode ? `${derivedMetadataExceptions[0].subjectCode}: ${derivedMetadataExceptions[0].message}` : derivedMetadataExceptions[0].message) : undefined },
-		{ label: 'Teachers synced from EnrollPro', done: domainAvailability.faculty && (facultyCount ?? 0) > 0, href: '/teachers', hint: !domainAvailability.faculty ? 'The teacher list could not be read' : undefined },
-		{ label: 'Subjects have teacher coverage', done: domainAvailability.subjects && unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0, href: missingCoverageSubjectIds && missingCoverageSubjectIds.length > 0 ? `/teaching-load?view=subjects&filter=missing-coverage` : '/teaching-load', hint: !domainAvailability.subjects ? 'Teacher coverage could not be read' : unassignedSubjectCount && unassignedSubjectCount > 0 ? `${unassignedSubjectCount} subject${unassignedSubjectCount === 1 ? '' : 's'} still need${unassignedSubjectCount === 1 ? 's' : ''} a teacher` : 'This checks each subject. The exact subject-section ownership is confirmed on the Class Schedule page' },
-		{ label: 'Teaching rooms marked', done: domainAvailability.campus && buildingSetupStatus.done, href: '/map', hint: !domainAvailability.campus ? 'The room list could not be read' : buildingSetupStatus.subMessage },
-		{ label: 'Classes needed are worked out', done: derivedDemandAvailable && (derivedTotals?.totalPairs ?? 0) > 0, href: '/subjects', hint: !derivedDemandAvailable ? 'ATLAS could not work this out' : derivedTotals ? `${derivedTotals.totalPairs} subject-section pair${derivedTotals.totalPairs === 1 ? '' : 's'} · ${derivedTotals.totalLines} lesson${derivedTotals.totalLines === 1 ? '' : 's'} a week. An input milestone: a starting point, not the finished timetable` : 'No classes worked out yet' },
+		{ label: 'School year and terms set', done: derivedDemandAvailable && derivedTermStructure !== null && !derivedTermBlocker, unresolved: !derivedDemandAvailable, href: '/admin/year-setup', hint: !derivedDemandAvailable ? 'ATLAS could not read the school year and its terms' : derivedTermBlocker ? (derivedTermBlocker.message ?? 'Refresh the active EnrollPro year and terms') : undefined },
+		{ label: 'Sections confirmed', done: domainAvailability.sections && (sectionCount ?? 0) > 0, unresolved: !domainAvailability.sections || sectionCount === null, href: '/sections', hint: !domainAvailability.sections || sectionCount === null ? 'Enrollment could not be read' : undefined },
+		{ label: 'Subjects added', done: domainAvailability.subjects && (subjectCount ?? 0) > 0, unresolved: !domainAvailability.subjects, href: '/subjects', hint: !domainAvailability.subjects ? 'Subject data could not be read' : undefined },
+		{ label: 'Every subject has its schedule details', done: derivedDemandAvailable && derivedMetadataExceptions.length === 0, unresolved: !derivedDemandAvailable, href: '/subjects', hint: !derivedDemandAvailable ? 'Subject details could not be checked' : derivedMetadataExceptions.length > 0 ? (derivedMetadataExceptions[0].subjectCode ? `${derivedMetadataExceptions[0].subjectCode}: ${derivedMetadataExceptions[0].message}` : derivedMetadataExceptions[0].message) : undefined },
+		{ label: 'Teachers synced from EnrollPro', done: domainAvailability.faculty && (facultyCount ?? 0) > 0, unresolved: !domainAvailability.faculty, href: '/teachers', hint: !domainAvailability.faculty ? 'The teacher list could not be read' : undefined },
+		{ label: 'Subjects have teacher coverage', done: domainAvailability.subjects && unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0, unresolved: !domainAvailability.subjects, href: missingCoverageSubjectIds && missingCoverageSubjectIds.length > 0 ? `/teaching-load?view=subjects&filter=missing-coverage` : '/teaching-load', hint: !domainAvailability.subjects ? 'Teacher coverage could not be read' : unassignedSubjectCount && unassignedSubjectCount > 0 ? `${unassignedSubjectCount} subject${unassignedSubjectCount === 1 ? '' : 's'} still need${unassignedSubjectCount === 1 ? 's' : ''} a teacher` : 'This checks each subject. The exact subject-section ownership is confirmed on the Class Schedule page' },
+		{ label: 'Teaching rooms marked', done: domainAvailability.campus && buildingSetupStatus.done, unresolved: !domainAvailability.campus, href: '/map', hint: !domainAvailability.campus ? 'The room list could not be read' : buildingSetupStatus.subMessage },
+		{ label: 'Classes needed are worked out', done: derivedDemandAvailable && (derivedTotals?.totalPairs ?? 0) > 0, unresolved: !derivedDemandAvailable, href: '/subjects', hint: !derivedDemandAvailable ? 'ATLAS could not work this out' : derivedTotals ? `${derivedTotals.totalPairs} subject-section pair${derivedTotals.totalPairs === 1 ? '' : 's'} · ${derivedTotals.totalLines} lesson${derivedTotals.totalLines === 1 ? '' : 's'} a week. An input milestone: a starting point, not the finished timetable` : 'No classes worked out yet' },
 		buildRunReviewChecklistItem({ generationAvailable: domainAvailability.generation, latestRunStatus, hardViolationCount: runWideHardViolationCount, softViolationCount: runWideSoftViolationCount }),
 		// EVAL-C01: only a resolved published schedule counts as published.
 		// A reviewed timetable is "ready to publish", not published.
-		{ label: 'Schedule published', done: lifecyclePhase === 'PUBLISHED', href: '/schedules', hint: lifecyclePhase === 'PUBLISHED' ? 'Everyone can see the timetable' : 'Check the timetable, then publish it' },
+		{ label: 'Schedule published', done: lifecyclePhase === 'PUBLISHED', unresolved: false, href: '/schedules', hint: lifecyclePhase === 'PUBLISHED' ? 'Everyone can see the timetable' : 'Check the timetable, then publish it' },
 	];
 
 	const doneCount = checklist.filter((c) => c.done).length;
-	// A7 C6 — the list is rendered as TWO parts, never as one pile: what is
-	// not ready (first, each a link) and what is done (collapsed). Both are
-	// derived from the same `checklist`, so the header count, the not-ready
-	// names and the "N already done" trigger can never disagree.
-	const notReady = checklist.filter((c) => !c.done);
+	// A7 C6 R2 (QA F2) — THREE buckets, derived from the same `checklist`, so
+	// the header count, the outstanding list and the "could not check" list can
+	// never disagree. `unresolvedItems` is subtracted from `notReady`: a step
+	// whose reading never arrived is not outstanding work.
+	const unresolvedItems = checklist.filter((c) => !c.done && c.unresolved === true);
+	const notReady = checklist.filter((c) => !c.done && c.unresolved !== true);
 	const doneItems = checklist.filter((c) => c.done);
 	const sourceDecision = SOURCE_DECISION_COPY[readinessSourceState];
 	const sourceDecisionStyle = SOURCE_DECISION_STYLE[sourceDecision.tone];
@@ -861,11 +866,14 @@ export default function Dashboard() {
 							                                         jargon on the page for a user who
 							                                         just wants to know what to do.
 
-							  `LIFECYCLE_STEPS`, `lifecyclePhase`, `currentIdx`,
-							  `phaseNumber` and the `LifecyclePhase` type stay in
-							  place: `lifecyclePhase` still drives `pickNextStep`
-							  and the "Schedule published" readiness row, so no
+							  `lifecyclePhase` and the `LifecyclePhase` type stay,
+							  because `pickNextStep` still branches on them and the
+							  "Schedule published" row still reads the phase, so no
 							  truth was lost — only the fourth telling of it.
+							  `LIFECYCLE_STEPS` itself was then dead (A7 C6 R2, QA
+							  F7) and is deleted: the phase names were never a
+							  fact, only a second label for facts the readiness rows
+							  already state in plain nouns.
 
 							  Do NOT re-add a phase badge or a progress rail here.
 							  One status per fact (§8).
@@ -874,37 +882,56 @@ export default function Dashboard() {
 
 
 						{/* Setup readiness
-						    A7 C6 — the count now NAMES what is not ready, and the
-						    done rows are folded away. Structure, and why:
-						      - ONE count. The header said "6 of 10 ready" AND a
-						        "6/10" badge. The badge is gone (one status per fact).
-						      - NOT-READY FIRST, each row a link to the page that fixes
-						        it, each keeping its honest hint. This is what answers
-						        the packet's "a count alone is not acceptable": the
-						        names sit immediately under the count, and each name
-						        is the door handle to its own fix.
-						      - DONE ROWS COLLAPSED behind one `@/ui` accordion
-						        trigger, so the all-ready state shows zero rows and
-						        one calm sentence.
-						      - The "View all setup steps" toggle and its `useState`
-						        are GONE. They only existed to un-hide rows 4+ on
-						        mobile; the not-ready-first order means the first
-						        thing an operator sees is what they must do.
-						    The run-review row renders `RunBlockerTile` instead of a
-						    second, differently-worded copy of the same fact. */}
+						    A7 C6 R2 (QA F1, F1b, F2, F3). What this card is now:
+
+						    THE HEADER COUNTS, IT DOES NOT ENUMERATE. Round 1
+						    spelled out every not-ready name in the header line. At
+						    1366x768 with 1 of 10 ready that was seven lines of
+						    ALL-CAPS, ~150px of a ~320px column, it pushed the
+						    actionable rows to the viewport edge, and it repeated
+						    every name as a row immediately below — the same
+						    double-telling that deleting the lifecycle card was
+						    for. The header is now the count plus how many steps
+						    are outstanding, plus how many ATLAS could not read.
+
+						    THE NAMES ARE STILL IMMINENT. They are the rows
+						    directly under the header, expanded, in demo-story
+						    order, each one a link to the page that fixes that
+						    step. Nothing is behind a click: only the ALREADY-DONE
+						    rows are collapsed.
+
+						    THREE STATES, NOT TWO. A step whose reading never
+						    arrived (QA F2) is neither done nor outstanding. It
+						    gets its own visible list, its own honest wording,
+						    and no amber next-task ring. Before, an unresolved
+						    count was promoted into "not ready", so a screen
+						    could read "NOT READY: TIMETABLE MADE AND CHECKED"
+						    beside "Schedule is published" and an older scheduler
+						    would reasonably think their published timetable
+						    was wrong.
+
+						    The "View all setup steps" toggle and its `useState`
+						    are still gone. The run-review row renders
+						    `RunBlockerTile` instead of a second,
+						    differently-worded copy of the same fact. Both
+						    disclosure triggers on this card use the bare `@/ui`
+						    primitive with layout classes only (§8 one look). */}
 						<Card data-testid='dashboard-readiness-hub'>
 							<CardHeader className='border-b border-slate-100 px-6 py-4'>
 								<CardTitle className='text-lg text-foreground'>Setup readiness</CardTitle>
 								<CardDescription data-testid='dashboard-readiness-count'>
 									{doneCount} of {checklist.length} ready
-									{notReady.length > 0 ? ` · not ready: ${notReady.map((item) => item.label.toLowerCase()).join(', ')}` : ' · nothing left to do'}
+									{notReady.length > 0 ? ` · ${notReady.length} step${notReady.length === 1 ? '' : 's'} to go` : ''}
+									{unresolvedItems.length > 0 ? ` · ${unresolvedItems.length} ATLAS could not check` : ''}
+									{notReady.length === 0 && unresolvedItems.length === 0 ? ' · nothing left to do' : ''}
 								</CardDescription>
 							</CardHeader>
 							<CardContent className='p-2'>
-								{notReady.length === 0 ? (
+								{notReady.length === 0 && unresolvedItems.length === 0 ? (
 									<p className='px-4 py-4 text-sm text-muted-foreground'>Every step is done. Teachers and students see the timetable once it is published.</p>
-								) : (
-									<ul className='divide-y divide-slate-100'>
+								) : null}
+								{notReady.length > 0 && (
+									<ul className='divide-y divide-slate-100' data-testid='dashboard-not-ready-list'>
 										{notReady.map((item, idx) => (
 											<li key={item.label}>
 												<Link to={item.href} data-testid={`dashboard-not-ready-${idx + 1}`} className={`flex items-start gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-slate-50/80 sm:px-4 sm:py-3 ${idx === 0 ? 'ring-2 ring-amber-300 bg-amber-50/20' : ''}`}>
@@ -922,28 +949,64 @@ export default function Dashboard() {
 															</p>
 														) : null}
 													</div>
-													<ChevronRight className='w-4 h-4 text-slate-300 mt-1' />
-												</Link>
-											</li>
-										))}
+															<ChevronRight className='w-4 h-4 text-slate-300 mt-1' />
+														</Link>
+													</li>
+												))}
 									</ul>
+								)}
+								{unresolvedItems.length > 0 && (
+									<>
+										<p className='px-4 pt-3 text-xs font-semibold text-muted-foreground' data-testid='dashboard-unresolved-heading'>
+											ATLAS could not check these
+										</p>
+										<ul className='divide-y divide-slate-100' data-testid='dashboard-unresolved-list'>
+											{unresolvedItems.map((item, idx) => (
+												<li key={item.label}>
+													<Link to={item.href} data-testid={`dashboard-unresolved-${idx + 1}`} className='flex items-start gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-slate-50/80 sm:px-4 sm:py-3'>
+														<div className='mt-0.5 p-1 rounded-full bg-slate-100'>
+															<div className='w-4 h-4 rounded-full border-2 border-dashed border-slate-300' />
+														</div>
+														<div className='flex-1 min-w-0'>
+															<p className='text-sm font-medium text-muted-foreground'>{item.label}</p>
+															{item.statusSlot === 'run-blocker' ? (
+																<RunBlockerTile generationAvailable={domainAvailability.generation} hardViolationCount={runWideHardViolationCount} softViolationCount={runWideSoftViolationCount} />
+															) : item.hint ? (
+																<p className='flex items-center gap-1 text-xs text-muted-foreground mt-1'>
+																	<AlertTriangle className='w-3 h-3 shrink-0' />
+																	{item.hint}
+																</p>
+															) : null}
+														</div>
+														<ChevronRight className='w-4 h-4 text-slate-300 mt-1' />
+													</Link>
+												</li>
+											))}
+										</ul>
+									</>
 								)}
 								{doneItems.length > 0 && (
 									<Accordion type='single' collapsible className='border-t border-slate-100 px-3 sm:px-4'>
 										<AccordionItem value='done'>
-											<AccordionTrigger className='py-3 text-sm font-semibold text-muted-foreground'>
+											<AccordionTrigger className='py-3'>
 												{doneItems.length} already done
 											</AccordionTrigger>
 											<AccordionContent>
 												<ul className='divide-y divide-slate-100'>
 													{doneItems.map((item) => (
 														<li key={item.label}>
-															<Link to={item.href} className='flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-slate-50/80'>
-																<div className='mt-0.5 p-1 rounded-full bg-emerald-100'>
+															<Link to={item.href} className='flex items-start gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-slate-50/80'>
+																<div className='mt-0.5 shrink-0 p-1 rounded-full bg-emerald-100'>
 																	<CheckCircle2 className='w-4 h-4 text-emerald-600' />
 																</div>
-																<p className='flex-1 min-w-0 text-sm font-medium text-muted-foreground'>{item.label}</p>
-																{item.hint ? <span className='text-xs text-muted-foreground'>{item.hint}</span> : null}
+																{/* A7 C6 R2: the label and the hint STACK. They were
+															    siblings in one flex row, so a hint longer than the
+																    label wrapped underneath it and the two overlapped.
+															    Open the "already done" fold to see it. */}
+																<div className='min-w-0 flex-1'>
+																	<p className='text-sm font-medium text-muted-foreground'>{item.label}</p>
+																	{item.hint ? <p className='text-xs text-muted-foreground mt-0.5 leading-relaxed'>{item.hint}</p> : null}
+																</div>
 															</Link>
 														</li>
 													))}
