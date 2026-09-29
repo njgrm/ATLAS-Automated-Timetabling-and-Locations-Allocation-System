@@ -179,3 +179,46 @@ Use `scripts/dev/start-preview.ps1 -ClientDir <dir> -Port <p>` with `VITE_ATLAS_
 - Follow-ups recorded, not done here: the Sections view's all-caps styling; the identical `…owner…` question on the timetable page.
 - Known risks, each marked `BLOCKING` or `NON_BLOCKING`.
 - Verdict. Worktree disposition: `KEEP_ACTIVE` (the planner retires it after integration).
+
+## Addendum 11:40 — planner correction round 1 (independent QA `CORRECTION_REQUIRED`, 10/12 mandatory, 1 unperformed)
+
+**This is a bounded correction round, not a redesign. One additive commit on the same branch. Never amend `951bec35`.**
+
+QA (`mandatory 12 / passed 10 / blocked 0 / unperformed 1`) verified the source, the gates (8/8, 23/23, 11/11, 31/31, 9/9, typecheck 5 pre-existing), the additive supersession and the failing-first split as **clean**. Two things must be closed.
+
+### C1 (BLOCKING) — in the degraded state, the pill and the shortage line must not both render
+
+The executor changed `WorkspaceToolbar.tsx:905-923` from c5's either/or ternary into siblings, so the amber pill and the shortage line now render **together** whenever the source is degraded and classes lack a teacher. QA's finding, which is the substance of this correction:
+
+- No gate measures that state. `a6-tl-header-budget.test.ts:178-186` renders row 2 with only `stateLineSlot`, so the only state this slice changes is unmeasured.
+- On that gate's own declared basis (`TEXT_XS_ADVANCE_PX = 6.6`), the declared worst state was **1306.8px of 1334px = 27.2px of slack (4.1 chars)**, with wrap declared a fallback, not the design. The new line alone declares **396px**, plus `+2 more` 46px and `Cover these classes` 125px, on a text-only basis that ignores chrome. Row 2 is `flex-wrap`, so the projected outcome is a second line inside the band — the always-wrapped header c6 removed and the operator rejected.
+
+**Ruling — invert the precedence; do not shorten a fact.** c5's ternary was `degradedLead ? <pill> : hasShortageLine ? <line> : <sentence>`, and the degraded pill winning that order is the original defect: the surface vanished exactly when the scheduler most needs it. The corrected order is **`hasShortageLine ? <line> : degradedLead ? <pill> : <sentence>`** — the shortage line takes the slot, and the pill returns when there is **no** shortage to show.
+
+Why this is the right composition and not a silencing:
+
+- **Two chips that say the same thing is a §8 violation, before width enters it.** The pill says the roster is the last saved one; the shortage line's existing `· <date> roster` clause says the same thing. Rendering both was always the "two claims, one fact" defect; this slice merely made it visible. The saved-roster fact now has one home on the row.
+- **No capability is lost by not rendering the pill in that state.** c6 §1.5.3 made the header's **primary action** the retry; the pill was never the retry. When there is no shortage, the pill returns unchanged with its c6 copy and its technical `Tooltip`.
+- **Every figure survives.** The per-subject breakdown, the total, the date clause, `+N more`, `Cover these classes` and the cover dialog's drift re-check are all untouched.
+- Record the precedence in a code comment at the site, with this reasoning in two or three lines.
+
+**New row `A6C7-9`** (in the same committed file and the same `test:a6-c7-shortage-undo` script — a row no gate runs is not evidence): with a **cached** source **and** a shortage, row 2 renders the shortage line and the degraded pill is **absent**; with a cached source and **no** shortage, the pill renders and the line is absent; with a **live** source and a shortage, the line renders and the pill is absent. **Mutant row:** restore the pill-first precedence → red. Also keep the existing one-filled-amber-surface ratchet check in `A6C7-3` — with the line taking the slot in the degraded state, the band carries **no** filled amber surface at all, and the row must say so.
+
+### C2 (BLOCKING) — the rendered row (§4.3) is still owed, and it is not a formality
+
+QA recorded it `UNPERFORMED`; the executor's session ended on it. It must be performed and it must be performed **on the corrected tree**. Concrete recipe, so the second attempt is not the first attempt again:
+
+1. **Get past the auth guard.** `AppShell` calls `verifySessionWithinDeadline()`, which short-circuits to `no-token` and redirects to `/login` **before** any request — which is why the executor's `page.route` catch-all never fired. Seed the token before the app boots: `page.addInitScript` writing `sessionStorage.setItem('atlas_local_token', 'qa-mock-token')` (key from `src/lib/auth.ts:2`), then route `**/api/v1/**`.
+2. **Answer exactly what the page asks.** Read the fetch list out of `src/hooks/useTeachingLoadData.ts` plus the page's own calls, and answer each one from a fixture. A route you have not implemented must `fulfill` a `501` and log the URL, so a missing fixture is loud instead of silently falling through to a real staging call.
+3. **One fixture, two states.** Drive `dataSource` (`cached` vs `live`) and the degraded notice from a flag in the mock handler, so the before/after pair differs only in that state.
+4. Serve the client with `scripts/dev/start-preview.ps1 -ClientDir <dir> -Port <p>` (never in a foreground call; the script pins `VITE_ATLAS_API` to staging `5101`, and **no** mocked call may escape to it), capture with the Playwright MCP at **1366×768**, and assert `window.location.origin` on every capture. Label every capture `ISOLATED_LOCAL_BROWSER`.
+5. Report, per state: the shortage line's exact text, whether `teaching-load-cover-open` exists and is enabled, **row 2's chip count and its exact composition** (which of pill / line / sentence rendered), the chip's full text, the header's control count, the first teacher row's height, and **row 2's `scrollHeight` vs its single-line height** — the wrap question is the point of C1, so measure it.
+6. A **before** capture of the same surfaces is wanted: build one preview from the base sources (`git checkout 4244cd3e -- <the 9 product paths>`, capture, then `git checkout HEAD -- <those paths>` — the candidate is committed, so this is safe), or state plainly that the before is unavailable and why.
+
+**If a faithful full-page fixture is still unreachable, do not fake it and do not return nothing.** Report `UNPERFORMED` with the literal endpoint list that blocked it, after a bounded attempt, and commit the C1 fix with its gates green. A committed C1 with an honest unperformed row is worth more to the integrator than a soft render.
+
+### C3 (NON_BLOCKING, cheap — fix while you are in the file)
+
+1. `a6-teaching-load-surface.test.tsx:2673` — the supersession comment names `useTeachingLoadQueue.ts`; the real file is `useTeachingLoadRepairQueue.ts`.
+2. `A6C7-8:852` counts lines with `split('\n').length`, which reports `TeachingLoad.tsx` as **1000** — at the cap by that method while the file physically holds **999**. Count physical lines the way the rest of the repo's rows do, and report the number you actually measured.
+3. `A6C7-3`, `A6C7-5`, `A6C7-7` label clauses `MUTANT` that exercise a **local detector string**, not a mutated implementation. Relabel them `DETECTOR self-test` (or make them real implementation mutants). Do not leave a row wearing a name it does not earn — a gate that claims to discriminate something it does not is a false report.
