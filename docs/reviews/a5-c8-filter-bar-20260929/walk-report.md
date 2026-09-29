@@ -11,7 +11,25 @@ That script points the axios base AND the dev proxy at the **staging** API `http
 (`AGENTS.md` §5). Session: `http://127.0.0.1:5288/__dev/staging-login` (server-side staging sign-in;
 no credential typed, no credential read, live `:5001`/`:5174` never contacted).
 
-**Line 1: `pass 10/11 · MAJOR 0 (in this change's scope) · MINOR 4 · viewport 1366x768 · verdict GO_WITH_ONE_UNPERFORMED_ROW`.**
+**Line 1: `pass 11/11 · MAJOR 0 (in this change's scope) · MINOR 4 · viewport 1366x768 · verdict GO`.**
+
+**Correction round 1 (planner, after QA `CORRECTION_REQUIRED`, 2026-09-29 ~21:40).** Three changes to this
+report, all recorded rather than quietly made:
+1. **The `/timetable` row is now PERFORMED, not unperformed.** QA was right that an unperformed label is
+   not a classification the packet permits. The cause of the earlier "Your schedule is still loading" is
+   now known: `/timetable` opens in the **Simple** layout, and `TimetableToolbar` renders only in the
+   **Expert** layout (`ScheduleReviewWorkspace.tsx:752-776` branches on `layoutMode`). The page had a run
+   all along (Run 347). With the layout set to Expert — the same preference the page's own `Simple view`
+   button writes — the migrated bar renders and is measured below. It is a **deployment-acceptance
+   clause** for LIVE acceptance, and the rendered row below is its candidate-side evidence.
+2. **The `ux-audit.js` capture is now committed** as `ux-audit-1366x768.json`, per page, with every
+   threshold and counter the script's own.
+3. **A lost `§` was restored** in `a6-c6-calm-teaching-load.test.tsx:492` (`AGENTS.md` 16) -> (`AGENTS.md`
+   §16), found by QA. A whole-range non-ASCII inventory diff (base vs candidate, per file) found that one
+   real loss; the other deltas are superseded comment blocks that were deliberately removed. QA's second
+   reported loss, `pages/Faculty.tsx` `§8's` -> `8's`, does **not** exist: line 44 reads
+   `under §8's 1000-line cap` and a sign-by-sign scan of every touched file finds no bare `AGENTS.md` N`
+   citation. Recorded because a false blocking finding costs a round.
 
 `window.location.origin` on every row: `http://127.0.0.1:5288` (isolated loopback preview of the
 candidate build — labelled **isolated**, not live acceptance, per `AGENTS.md` §12).
@@ -45,7 +63,7 @@ One row per page. `origin` = `http://127.0.0.1:5288`, `viewport` = `1366x768` on
 | `/teaching-load/history` | School year · Grade · Subject (no search slot on this read-only view) | n/a | 36px | 8px, left, 1 row | none | none | 1070×36 |
 | `/room-schedules` | Show: · Rooms/Teachers/Sections (view) · Room · TERM 1 | n/a (no text filter) | 36px | 8px, left, 1 row | none | none | 1070×36 |
 | `/faculty/concerns` | Search teacher… (the one searchable roster picker) | n/a | 36px | 8px, left, 1 row | none | none | 1062×36 |
-| `/timetable` | **UNPERFORMED** — see row below | — | — | — | — | — | — |
+| `/timetable` (Expert layout) | Show · Schedule for · Term · Program · Entry type · attention-type chips | n/a (no text filter) | 36px | 8px, left, 1 row of controls + the chip group on a second line | none | none | 1110×72 |
 | `/admin/year-setup`, `/map`, `/` | no filter bar by design (setup wizard, map tabs, dashboard) | — | — | — | — | — | — |
 
 **Consistency verdict.** Order, height (36px), gap (8px), left alignment, search width (240px) and the
@@ -57,7 +75,10 @@ third row on that page are gone.
 
 ## Per-page audit summary (ux-audit.js, every page, real staging data)
 
-`u12` = distinct visible text nodes under 12px. `over` = `overflowing`. `mojib` = mojibake hits.
+**Committed artefact: `ux-audit-1366x768.json`** — the script's own thresholds and counters, per page,
+with `mojibake` / `moreFilters` / `overflowing` / `truncated` detail and a `u12Sample` for each page that
+has any. `u12` = distinct visible text nodes under 12px. `over` = `overflowing`. `mojib` = mojibake hits.
+Settled-state pass; the file records the load-state caveat.
 
 | Page | mojibake | moreFilters | overflowing | sideways scroll | u12 | error boundary | note |
 |---|---:|---:|---:|---|---:|---|---|
@@ -71,7 +92,8 @@ third row on that page are gone.
 | `/faculty/concerns` | 0 | 0 | 0 | no | 0 | none | — |
 | `/map` | 0 | 0 | 0 | no | 19 | none | map labels, A7 c8's scale |
 | `/room-schedules` | 0 | 0 | 0 | no | 0 | none | — |
-| `/timetable` | 0 | 0 | 0 | no | 0 | none | page never finished loading — see below |
+| `/timetable` (Simple) | 0 | 0 | 0 | no | 0 | none | no `FilterBar` on this layout; see Part 2b |
+| `/timetable` (Expert) | 0 | 0 | 0 | no | 7 | none | grid cell/legend type, A7 c8's scale; bar measured in Part 2b |
 
 **Every `u12` is a font-size finding, and font size is A7 c8's lane, not this change's.** This
 candidate does not touch `--theme`, `index.css` or any `text-[Npx]`, by packet §6. The audit's `major`
@@ -94,27 +116,47 @@ defects, and they are the reason the walk's own headline says `MAJOR 0 in this c
 4. **The `Show:` label on `/room-schedules`** is a 16px-tall plain text label (not a control, not
    clickable). Pre-existing, untouched by this candidate.
 
-## UNPERFORMED (one row, named harness, reason)
+## Part 2b — the `/timetable` row, resolved
 
-**Row: `/timetable`'s filter bar renders as one `FilterBar` with `data-tutorial="grid-controls"`.**
-Status: **UNPERFORMED — data unavailable, not a candidate defect.**
-Harness: this same loopback preview against the staging API, `/timetable` at 1366x768.
-What was observed: the page renders its tabs and then sits at `Checking schedule information…` — still
-that at **20 s**, with `[data-tutorial="grid-controls"]` **absent** from the DOM and no
-`flex flex-wrap items-center gap-2` bar anywhere on the page. `TimetableToolbar` is rendered by
-`ScheduleReviewWorkspaceHeader` (`atlas-client/src/components/timetable/ScheduleReviewWorkspaceHeader.tsx:874`),
-which only mounts once schedule information resolves, and staging has no generated run. The
-`Schedule`/`Planning`/`Setup`/`Policies`/`Runs` tabs are present and the page has **no error boundary**,
-**no mojibake**, **no `More filters`** and **no horizontal scroll**.
-What decides it: a staging (or loopback-with-mocked) timetable that resolves a run. A structural
-render row in the candidate's own committed gate is the only evidence that currently exists for that
-component. Screenshot of the observed state: `shots/timetable-1366-20s.png`.
+`/timetable` opens in the **Simple** layout. `TimetableToolbar` — the component this change rewrote from
+`h-7` + `overflow-x-auto` to a wrapping `h-9` `FilterBar` — renders in the **Expert** layout only
+(`atlas-client/src/components/timetable/ScheduleReviewWorkspace.tsx:752-776` branches on `layoutMode`;
+the header itself is mounted at line 787). The earlier capture read `Your schedule is still loading.`
+because the Simple layout was resolving, not because staging lacked a run — it has one (Run 347).
+
+With `localStorage['atlas_timetable_layout_mode'] = 'advanced'`, the same value the page's own
+`Simple view` button writes, at 1366x768 on real staging data:
+
+| Control | Width × height | `scrollWidth - clientWidth` |
+|---|---|---:|
+| `Show: Section` | 130×36 | 0 |
+| `Schedule for: GR7 - Rizal · SPA` | **224**×36 | 0 |
+| `Term: Term 1` | 128×36 | 0 |
+| `Program: All` | 128×36 | 0 |
+| `Entry type: All` | 129×36 | 0 |
+| attention-type chip group | 671×28 | 0 |
+
+Bar box `1110×72`, gap `8px`, left-aligned, `flex-wrap`; two visual lines because the chip group is a
+child that does not fit beside five controls — the packet's own "one row that wraps". `[role=combobox]`
+count on the page: 5, all 36px, all content-sized, none ellipsised. `More filters`: absent. Sideways
+scroll: none. `data-tutorial="grid-controls"` (the guided-walk target) present. Grid rendered with
+data (Run 347, `TLE` grid, Mon–Fri).
+Screenshot: `shots/timetable-advanced-bar-1366.png`.
+
+`Schedule for: GR7 - Rizal · SPA` at **224px** is the packet's item 2 in one number: the trigger follows
+its content (`min-w-32` = 128px floor, content wider, `max-w-[22rem]` = 352px ceiling not reached), and
+nothing is cut. The old fixed `w-60 … xl:w-80` rectangle could not have shown that entity name.
+
+**Deployment-acceptance clause.** For LIVE acceptance, `/timetable`'s bar is a browser row on a
+deployed build; this candidate-side evidence does not stand in for it (`AGENTS.md` §12). The Simple
+layout has no `FilterBar` and this change did not add one there: its three pickers are the Simple
+header's own controls, which were not in the packet's scope.
 
 ## Screenshots (all at 1366x768, real staging data, this candidate's build)
 
 `shots/dashboard-1366.png`, `year-setup-1366.png`, `sections-1366.png`, `subjects-1366.png`,
 `teachers-1366.png`, `teaching-load-1366.png`, `tl-history-1366.png`, `concerns-1366.png`, `map-1366.png`,
-`room-schedules-1366.png`, `timetable-1366.png`, `timetable-1366-20s.png`,
+`room-schedules-1366.png`, `timetable-1366.png`, `timetable-1366-20s.png`, `timetable-advanced-bar-1366.png`,
 plus open/selected states: `sections-program-open-1366.png`, `sections-homeroom-open-1366.png`,
 `sections-homeroom-set-1366.png`, `teaching-load-long-face-1366.png`,
 `room-schedules-long-face-1366.png`.

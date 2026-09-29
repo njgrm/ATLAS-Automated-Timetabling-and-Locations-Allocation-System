@@ -489,7 +489,7 @@ test('A6C6-1c MUTANT ROW: this page and /subjects share ONE mechanism for a cont
 	 *      class — a retired token with no replacement would be a regression, so
 	 *      the replacement is asserted.
 	 * The original expectation is kept verbatim, as a comment, so the round that
-	 * moved it is on record (`AGENTS.md` 16).
+	 * moved it is on record (`AGENTS.md` §16).
 	 *
 	 *  A5 c8 (2026-09-29) - THE WORKED EXAMPLES MOVED AGAIN; THE RULE DID NOT.
 	 *  `auto` is no longer `w-auto whitespace-nowrap`. It is
