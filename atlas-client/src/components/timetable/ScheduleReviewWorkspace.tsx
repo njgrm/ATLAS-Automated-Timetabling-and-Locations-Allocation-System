@@ -17,8 +17,7 @@ import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/time
 import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
 import { Button } from '@/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/dropdown-menu';
-import { AlertCircle, ArrowRight, ArrowRightLeft, BookOpen, DoorOpen, GraduationCap, Lock, MoreHorizontal, Move, Redo2, RefreshCw, Undo2, UserRoundX } from 'lucide-react';
+import { AlertCircle, ArrowRight, ArrowRightLeft, BookOpen, DoorOpen, GraduationCap, Lock, Move, Redo2, RefreshCw, Undo2, UserRoundX } from 'lucide-react';
 import { lazy, Profiler, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { ScheduledEntry } from '@/types';
@@ -38,7 +37,7 @@ import { SimplePastYearReadOnlySurface, type PastYearViewMode } from '@/componen
 import { buildPastYearBackHref, resolvePastYearViewState } from '@/components/timetable/simple/pastYearViewState';
 import { usePastYearTimetable } from '@/components/timetable/simple/usePastYearTimetable';
 import { useSelectedClassLock, useTimetableLocks } from '@/hooks/useTimetableLocks';
-import { ScheduleReviewWorkspaceSelectedActions } from '@/components/timetable/ScheduleReviewWorkspaceSelectedActions';
+import { ScheduleReviewWorkspaceSelectionStrip } from '@/components/timetable/ScheduleReviewWorkspaceSelectionStrip';
 import { YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
 import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
 
@@ -472,7 +471,7 @@ export default function ScheduleReviewWorkspace() {
 			// LANE-C C03 (B3) — on a published schedule the move is a dated change.
 			message: state.publishedChangeScope
 				? 'Select an available slot on the grid. Because this schedule is published, you will choose a start date next.'
-				: `Select one of the ${moveTargetNotice.slotKeys.length} highlighted free time slots to preview this move.`,
+				: `Select one of the ${moveTargetNotice.slotKeys.length} highlighted free time slots to move this class.`,
 		});
 	};
 
@@ -558,7 +557,6 @@ export default function ScheduleReviewWorkspace() {
 				icon: Move,
 				onClick: startMoveSelectedEntry,
 			};
-	const SelectedPrimaryIcon = selectedPrimaryAction.icon;
 
 	return (
 		<div className="flex flex-col h-[calc(100svh-3.5rem)] relative" data-timetable-year-binding="runtime-active-only">
@@ -697,59 +695,25 @@ export default function ScheduleReviewWorkspace() {
 			    RightPanel selected-class surface, so the duplicate strip is collapsed
 			    there instead of rendering two divergent flows. */}
 			{showSchedulerChrome && state.selectedEntry && layoutMode === 'simple' ? (
-				<div
-					role="status"
-					aria-live="polite"
-					data-testid="timetable-selection-strip"
-					className="pointer-events-auto fixed inset-x-3 bottom-3 z-40 mx-auto flex max-h-[112px] max-w-2xl flex-col items-stretch justify-between gap-2 overflow-hidden rounded-xl border border-border bg-background/95 px-3 py-2 text-xs shadow-lg backdrop-blur sm:flex-row sm:items-center sm:gap-3 [@media(max-height:500px)]:max-h-[72px] [@media(max-height:500px)]:py-1.5"
-				>
-					<div className="min-w-0 flex-1">
-						<p className="truncate font-semibold text-foreground">
-							Selected: {state.subjectLabel(state.selectedEntry.subjectId)} · {state.sectionLabel(state.selectedEntry.sectionId)}
-						</p>
-						<p className="truncate text-muted-foreground [@media(max-height:500px)]:hidden" data-testid="timetable-selection-strip-hint">
-							{state.publishedChangeScope
-								? 'Published schedule: a change starts on a date you choose.'
-								: 'Review the change before saving. Nothing changes until you confirm.'}
-						</p>
-					</div>
-					<div className="flex shrink-0 items-center justify-end gap-2">
-						<Button
-							type="button"
-							variant="default"
-							size="sm"
-							className="h-8 text-xs"
-							data-testid="simple-selected-primary-action"
-							aria-label={`${selectedPrimaryAction.label} for selected class`}
-							onClick={selectedPrimaryAction.onClick}
-						>
-							<SelectedPrimaryIcon className="mr-1.5 size-3.5" aria-hidden="true" />
-							{selectedPrimaryAction.label}
-						</Button>
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" data-testid="simple-selected-more-actions" aria-label="More actions for selected class">
-									<MoreHorizontal className="size-3.5" aria-hidden="true" />
-									<span className="hidden sm:inline">More</span>
-								</Button>
-							</DropdownMenuTrigger>
-							<ScheduleReviewWorkspaceSelectedActions
-								onDismissSelection={() => state.headerContext.setSelectedEntry(null)}
-								onChooseNewTime={startMoveSelectedEntry}
-								onChangeRoom={openSelectedChangeRoom}
-								onSwap={armSwapSessions}
-								lock={selectedClassLock}
-								onViewDetails={openSimpleSelectedDetails}
-								onChangeOwner={openSelectedOwnerRepair}
-								onTeacherLeaving={() => openTeacherDepartureRecovery(state.selectedEntry?.facultyId ?? null)}
-								onExpertDetails={() => {
-									setLayoutMode('advanced');
-									window.requestAnimationFrame(() => state.rightPanelContext?.rightPanelRef?.current?.expand());
-								}}
-							/>
-						</DropdownMenu>
-					</div>
-				</div>
+				<ScheduleReviewWorkspaceSelectionStrip
+					selectedEntry={state.selectedEntry}
+					subjectLabel={state.subjectLabel}
+					sectionLabel={state.sectionLabel}
+					publishedChangeScope={Boolean(state.publishedChangeScope)}
+					primaryAction={selectedPrimaryAction}
+					lock={selectedClassLock}
+					onDismissSelection={() => state.headerContext.setSelectedEntry(null)}
+					onChooseNewTime={startMoveSelectedEntry}
+					onChangeRoom={openSelectedChangeRoom}
+					onSwap={armSwapSessions}
+					onViewDetails={openSimpleSelectedDetails}
+					onChangeOwner={openSelectedOwnerRepair}
+					onTeacherLeaving={() => openTeacherDepartureRecovery(state.selectedEntry?.facultyId ?? null)}
+					onExpertDetails={() => {
+						setLayoutMode('advanced');
+						window.requestAnimationFrame(() => state.rightPanelContext?.rightPanelRef?.current?.expand());
+					}}
+				/>
 			) : null}
 			<DndContext sensors={state.sensors} collisionDetection={pointerWithin} onDragStart={state.handleGlobalDragStart} onDragMove={state.handleGlobalDragMove} onDragOver={state.handleGlobalDragOver} onDragEnd={state.handleGlobalDragEnd} onDragCancel={state.handleGlobalDragCancel}>
 				{showSchedulerChrome ? (layoutMode === 'simple' ? (

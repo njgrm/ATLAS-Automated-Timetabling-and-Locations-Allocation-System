@@ -185,12 +185,22 @@ test('setup guidance names what ATLAS found and the next safe step without claim
 });
 
 test('selected class actions show one concise context and safe preview guidance', () => {
+	// A2 move-swap item 1 (SUPERSEDED IN PLACE, 2026-09-30). Two assertions below
+	// used to read `ScheduleReviewWorkspace.tsx`; the selected-class strip was
+	// extracted to `ScheduleReviewWorkspaceSelectionStrip.tsx` (§8: the workspace
+	// was at 998 physical lines against the 1000 cap), so they are retargeted, not
+	// deleted:
+	//   was: assert.match(workspace, /Selected: \{state\.subjectLabel\(state\.selectedEntry\.subjectId\)\} · \{state\.sectionLabel\(state\.selectedEntry\.sectionId\)\}/);
+	//   was: assert.match(workspace, /Review the change before saving/);
 	const workspace = source('src/components/timetable/ScheduleReviewWorkspace.tsx');
-	assert.match(workspace, /Selected: \{state\.subjectLabel\(state\.selectedEntry\.subjectId\)\} · \{state\.sectionLabel\(state\.selectedEntry\.sectionId\)\}/);
+	const strip = source('src/components/timetable/ScheduleReviewWorkspaceSelectionStrip.tsx');
+	assert.match(strip, /Selected: \{subjectLabel\(selectedEntry\.subjectId\)\} · \{sectionLabel\(selectedEntry\.sectionId\)\}/);
 	assert.match(workspace, /Dismiss selection/);
 	assert.match(workspace, /Choose a new time/);
 	assert.match(workspace, /Swap with another class/);
-	assert.match(workspace, /Review the change before saving/);
+	// The old sentence promised a confirmation step the move path does not have.
+	assert.match(strip, /Changes apply as soon as you pick a slot\./);
+	assert.doesNotMatch(strip, /Review the change before saving/);
 	assert.doesNotMatch(workspace, /Choose another occupied slot to review a swap/);
 });
 

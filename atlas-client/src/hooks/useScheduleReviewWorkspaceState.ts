@@ -2145,7 +2145,7 @@ export function useScheduleReviewWorkspaceState() {
 					return;
 				}
 				flushSync(() => {
-					setInlineActionStatus({ tone: 'loading', message: 'Reviewing selected slot before saving this move.' });
+					setInlineActionStatus({ tone: 'loading', message: 'Moving this class…' });
 				});
 				const slotEntries = (draft?.entries ?? []).filter((candidate: ScheduledEntry) => (
 					candidate.day === day
@@ -2344,7 +2344,7 @@ export function useScheduleReviewWorkspaceState() {
 	const gridKbSelectedSource = kbSelectedSource ?? (centerView === 'pre-generation' ? preGenKbSource : null);
 	const handleKbPlaceStart = useCallback(() => {
 		flushSync(() => {
-			setInlineActionStatus({ tone: 'loading', message: 'Reviewing selected slot before saving this move.' });
+			setInlineActionStatus({ tone: 'loading', message: 'Moving this class…' });
 		});
 	}, []);
 
