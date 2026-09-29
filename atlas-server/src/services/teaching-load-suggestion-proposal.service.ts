@@ -327,7 +327,7 @@ export async function createTeachingLoadSuggestionProposal(input: {
 			},
 		});
 		return created;
-	}, { isolationLevel: 'Serializable' });
+	}, { isolationLevel: 'Serializable', timeout: 30_000, maxWait: 10_000 });
 
 	return {
 		proposal: { ...summarizeProposal(proposal), suggestedAssignmentBreakdown: breakdown },
@@ -950,7 +950,7 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 			throw err(409, 'TEACHING_LOAD_PROPOSAL_NOT_PENDING', 'The applied proposal could not be reloaded atomically.');
 		}
 		return { replay: false as const, row: updated, applyResult };
-	}, { isolationLevel: 'Serializable' });
+	}, { isolationLevel: 'Serializable', timeout: 30_000, maxWait: 10_000 });
 
 	if (txResult.replay) {
 		return appliedReplay(txResult.row);
@@ -1018,7 +1018,7 @@ export async function cancelTeachingLoadSuggestionProposal(input: {
 			},
 		});
 		return cancelled;
-	}, { isolationLevel: 'Serializable' });
+	}, { isolationLevel: 'Serializable', timeout: 30_000, maxWait: 10_000 });
 
 	return { proposal: summarizeProposal(updated) };
 }
