@@ -68,3 +68,25 @@ Commit and push wip every 30 min.
   chip `TimetableGridConflictBadge.tsx:114-169`): make the default 'hard' (must-fix only) and present it as the plain toggle
   "Show warnings (N)", remembered per user.
 - Tooltips: 64 of 274 call sites pass their own className; after the primitive turns white, sweep those 64 so none re-darken.
+
+## CORRECTION (operator, 21:50) — supersedes rows 1-2 above
+"Those tabs should not be moved to expert view, since expert view should be retired anyway, we should never use those. It
+was fine there in previous releases when the whole header wasn't filled. Just propose simplified fixes for each page. The
+draft should never be 'planning', it should be 'draft'; even our terms aren't consistent anymore. 'Build a new draft'
+generates a schedule? … We really need to place all our focus on this page … there is no system without the timetable."
+1. **Tabs stay** where they are (Schedule, Setup, Policies, Runs, and the draft tab). **Expert view is retired**: remove the
+   switch and never route a scheduler to it; the page is one mode.
+2. **Baseline = the relaxed header** of `3e894d0e` (2026-09-26 00:26, "relaxed Simple header"). Since then about 20 commits
+   from A2, A3, A8 and the export centre each added a control or a sentence to it. Start from that composition, keep only
+   what the scheduler needs first, move the rest into More.
+3. **One vocabulary**, the same on every button, dialog, status line, tab, history row and export: *Generate* (the action)
+   makes a *Draft* (the result); a draft is *Published*. Rename the "Planning" tab to "Draft"; the Generate button and its
+   dialog use the same words ("Generate a draft" → "Draft ready"), never "Build a new draft" or "schedule" for the same thing.
+   Grep and list every label that names these three ideas, before/after, in the handoff.
+4. **Step 0 is a proposal, not code** (except tooltips, which are approved): for each tab (Schedule, Draft, Setup,
+   Policies, Runs) and each panel (unplaced, publish readiness, change notice, More menu), one screenshot of today at
+   1366x768 and one plain proposal (what stays, what moves to More, what is deleted, the new words). Post it in
+   lane-c-to-a2.md; Lane C reviews it with the operator before the header code starts.
+5. **One owner.** Until the operator signs the page off, only A7 edits the Class Schedule header, tabs and panels'
+   layout and words. A2 mc changes behaviour (swap, lock, place) only and adds no control or sentence to the header.
+   Add a rendered test that counts controls above the grid (budget 7) and fails on any new one.
