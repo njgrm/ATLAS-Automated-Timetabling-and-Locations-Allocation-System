@@ -883,7 +883,7 @@ const SCOPE_FILES = [
  * surface them. Both are now wired into `test:client-suite`.
  */
 
-test('H9 RANGE-SCOPE ROW (NOT a behavioural row): the parked section-switch file and every past-year module are byte-identical to the base', () => {
+test('H9 RANGE-SCOPE ROW (NOT a behavioural row): every past-year module is byte-identical to the base', () => {
 	// LINE ENDINGS ARE NORMALISED, AND THAT IS DELIBERATE. `git show` returns the
 	// committed blob with LF endings, while the worktree checkout is CRLF, so a raw
 	// byte comparison reports a difference on a file nobody touched — which is a

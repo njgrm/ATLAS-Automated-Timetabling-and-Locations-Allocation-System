@@ -504,7 +504,7 @@ test('ITEM 2 the warnings chip shows SEVERITY: both classes of finding, never a 
 	assert.equal(readinessLabel(draftHeaderContext({ blockingHardCount: 0, softCount: 194, summary: summaryOf({ isPublished: false, unassignedCount: 0 }) }) as any), '194 warnings');
 });
 
-test('ITEM 2 the two-severity chip renders the split on the REAL header, and still keeps ONE solid primary', () => {
+test('ITEM 2 the two-severity chip renders the split on the REAL header, and keeps at most ONE solid primary', () => {
 	const view = simpleHeader(draftHeaderContext({ blockingHardCount: 3, softCount: 145, summary: summaryOf({ isPublished: false, unassignedCount: 0 }) }));
 	const chip = view.el('timetable-simple-readiness-chip')!;
 	assert.ok(chip, 'the warnings control is on screen');
