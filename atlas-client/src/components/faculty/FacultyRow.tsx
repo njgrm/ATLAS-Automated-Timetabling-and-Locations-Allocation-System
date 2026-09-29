@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { AlertTriangle, BookOpen, Eye, Star } from 'lucide-react';
+import { AlertTriangle, BookOpen, Star } from 'lucide-react';
 
 import {
 	deriveLoadStatus,
@@ -743,7 +743,6 @@ export function FacultyMobileCard({
 	primaryAction,
 	secondaryActionMenu,
 	onAssignedClassesClick,
-	onProfileClick,
 	duplicateRecordCount,
 	duplicateRecordsShareLoad,
 }: {
@@ -751,7 +750,6 @@ export function FacultyMobileCard({
 	primaryAction?: ReactNode;
 	secondaryActionMenu?: ReactNode;
 	onAssignedClassesClick?: () => void;
-	onProfileClick?: () => void;
 	/** A6 C3 item #6: forwarded to the identity cell, so the mobile card shows the
 	    same same-name cue the table row does. Undefined means no cue. */
 	duplicateRecordCount?: number;
@@ -824,14 +822,15 @@ export function FacultyMobileCard({
 					}
 				</button>
 			)}
+			{/*
+			 * A3 teacher-one §5 — ONE action button per row. The separate
+			 * `Profile` control is gone: it opened the same teacher dialog the
+			 * primary action now opens, so two buttons did one job. The primary
+			 * action's per-intent label (`Review load` / `Assign teaching load` /
+			 * `Move classes` / `Review temporary`) is unchanged.
+			 */}
 			<div className="mt-3 flex items-center gap-2">
 				{primaryAction}
-				{onProfileClick && (
-					<Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs font-bold" onClick={onProfileClick} aria-label={`View profile for ${teacherName}`} data-testid="teacher-row-profile-action">
-						<Eye className="size-3.5" />
-						Profile
-					</Button>
-				)}
 			</div>
 		</div>
 	);

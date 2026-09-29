@@ -31,7 +31,6 @@ import {
 } from '@/components/faculty/FacultyRow';
 import { FacultyProfileSheet } from '@/components/faculty/FacultyProfileSheet';
 import { FacultyRosterActions } from '@/components/faculty/FacultyRosterActions';
-import { FacultyWorkloadModal } from '@/components/faculty/FacultyWorkloadModal';
 import {
 	getTeacherRepairIntent,
 	useFacultyRowActions,
@@ -168,18 +167,17 @@ export default function Faculty() {
 	const [serverDepartments, setServerDepartments] = useState<string[]>([]);
 	const [rosterStats, setRosterStats] = useState<TeacherRosterStats | null>(null);
 	
-	// Roster profile drawer
-	const [profileTarget, setProfileTarget] = useState<FacultySummary | null>(null);
-
 	/**
-	 * Fix 25 — the in-page workload modal's selection.
+	 * A3 teacher-one (2026-09-30) — the ONE teacher dialog's selection.
 	 *
-	 * Both the teacher and the intent it was opened with are held, so the modal's
-	 * optional deep link can reproduce the exact `facultyId` + `task=` pair the
-	 * old row link used to produce. Opening sets this; closing clears it, which
-	 * is the ONLY state this feature touches — the roster's search, attention
-	 * filter, department/grade filters, sort, page and page size are untouched
-	 * and are never unmounted, because the modal is a sibling of the table.
+	 * Teacher Profile and Review load are one dialog now, so there is ONE target
+	 * state rather than two. Both the teacher and the intent it was opened with
+	 * are held, so the dialog's `Edit in Teaching Load` link reproduces the exact
+	 * `facultyId` + `task=` pair the old row link and the deleted workload modal
+	 * produced. Opening sets this; closing clears it, which is the ONLY state this
+	 * feature touches — the roster's search, attention filter, department/grade
+	 * filters, sort, page and page size are untouched and are never unmounted,
+	 * because the dialog is a sibling of the table.
 	 */
 	const [workloadTarget, setWorkloadTarget] = useState<{
 		faculty: FacultySummary;
@@ -187,6 +185,33 @@ export default function Faculty() {
 	} | null>(null);
 
 	const rosterScroll = useRosterScrollMemory();
+
+	/**
+	 * A3 teacher-one (2026-09-30) — ONE opener/closer for the merged teacher
+	 * dialog, defined ABOVE the roster's column definitions because the
+	 * Assigned-classes cell's `render` closure calls `openWorkloadModal`. A
+	 * `const` arrow used earlier in the same render body would be in its temporal
+	 * dead zone, which is a runtime ReferenceError, not merely a lint warning.
+	 *
+	 * The roster's scroll offset is captured HERE, on the click, before the
+	 * dialog exists — that is the offset the user was actually looking at, and it
+	 * is restored by `closeWorkloadModal` on every dismissal path. `event` is
+	 * optional because the Assigned-classes cell and the mobile card's
+	 * assigned-classes control supply no click event; for those paths the restore
+	 * is a no-op rather than a wrong region.
+	 */
+	const openWorkloadModal = useCallback(
+		(teacher: FacultySummary, event?: React.MouseEvent<HTMLElement>) => {
+			if (event) rosterScroll.captureFrom(event.currentTarget);
+			setWorkloadTarget({ faculty: teacher, intent: getTeacherRepairIntent(teacher) });
+		},
+		[rosterScroll],
+	);
+
+	const closeWorkloadModal = useCallback(() => {
+		rosterScroll.restore();
+		setWorkloadTarget(null);
+	}, [rosterScroll]);
 
 	// Placeholder dialog and confirm deletion states
 	const [placeholderDialogOpen, setPlaceholderDialogOpen] = useState(false);
@@ -627,14 +652,14 @@ export default function Faculty() {
 				<div className="flex flex-col gap-1">
 					<FacultyAssignedClassesCell
 						faculty={teacher}
-						onClick={() => setProfileTarget(teacher)}
+						onClick={() => openWorkloadModal(teacher)}
 					/>
 					<FacultyAssignedGradeChips faculty={teacher} />
 					<FacultyPreferredGradesControl faculty={teacher} />
 				</div>
 			),
 		},
-	], [duplicateNameCue]);
+	], [duplicateNameCue, openWorkloadModal]);
 
 	const teacherSourceState = useMemo<AdminSourceState>(() => {
 		if (dataSource === 'live') return 'verified-live';
@@ -692,28 +717,8 @@ export default function Faculty() {
 		setPlaceholderDialogOpen(true);
 	}, []);
 
-	/**
-	 * Fix 25. The row's primary action opens the modal IN PLACE. The roster's
-	 * scroll offset is captured HERE, on the click, before the dialog exists —
-	 * that is the offset the user was actually looking at, and it is restored by
-	 * `closeWorkloadModal` on every dismissal path.
-	 */
-	const openWorkloadModal = useCallback(
-		(teacher: FacultySummary, event: React.MouseEvent<HTMLElement>) => {
-			rosterScroll.captureFrom(event.currentTarget);
-			setWorkloadTarget({ faculty: teacher, intent: getTeacherRepairIntent(teacher) });
-		},
-		[rosterScroll],
-	);
-
-	const closeWorkloadModal = useCallback(() => {
-		rosterScroll.restore();
-		setWorkloadTarget(null);
-	}, [rosterScroll]);
-
 	const rowActions = useFacultyRowActions({
 		onReviewLoad: openWorkloadModal,
-		onOpenProfile: setProfileTarget,
 		onEditTemporary: (teacher) => {
 			setPlaceholderEditTarget(teacher);
 			setPlaceholderDialogOpen(true);
@@ -955,40 +960,29 @@ return (
 					secondaryActionMenu={context.secondaryActionMenu}
 					duplicateRecordCount={cueFor(teacher)?.count}
 					duplicateRecordsShareLoad={cueFor(teacher)?.sameLoad}
-					onAssignedClassesClick={() => setProfileTarget(teacher)}
-					onProfileClick={() => setProfileTarget(teacher)}
+					onAssignedClassesClick={() => openWorkloadModal(teacher)}
 				/>
 				)}
 			/>
 
 			{/*
-			 * Fix 25 — the in-page workload modal. A SIBLING of the roster, not a
-			 * route, so opening it cannot unmount the table and cannot discard
-			 * the search, filters, sort or page. The one piece of state the
+			 * A3 teacher-one (2026-09-30) — ONE teacher dialog, a SIBLING of the
+			 * roster, not a route, so opening it cannot unmount the table and
+			 * cannot discard the search, filters, sort or page. Teacher Profile
+			 * and Review load are merged here: load figures on top, the A3 c17
+			 * classes-taught layout below, and the cross-department permission
+			 * panel still reachable (A6 c10 — the only front door that can create
+			 * a `CrossDepartmentPermission`). The one piece of state the old
 			 * navigation used to destroy that is not React state at all — the
 			 * scroll offset — is captured on the click and restored by
 			 * `closeWorkloadModal` on every dismissal path.
 			 */}
-			<FacultyWorkloadModal
+			<FacultyProfileSheet
 				faculty={workloadTarget?.faculty ?? null}
 				open={workloadTarget !== null}
-				intent={workloadTarget?.intent ?? null}
-				scrollRegionRef={rosterScroll.regionRef}
-				onClose={closeWorkloadModal}
-			/>
-
-			{/* Roster review / profile — Fix 23: a centred Dialog, opened in place.
-			    A6 c10: it also carries `Teaching permissions` — the switch and the
-			    `Subjects they may also teach` list, which are the only controls in the
-			    product that can create a `CrossDepartmentPermission` outside the moment
-			    a class needs one (Codex audit finding 6; Lane C's "nothing can create
-			    or delete one"). `schoolId` is the ACTOR's, and the sheet takes no
-			    default for it. */}
-			<FacultyProfileSheet
-				faculty={profileTarget}
-				open={profileTarget !== null}
-				onOpenChange={(open) => !open && setProfileTarget(null)}
+				onOpenChange={(open) => !open && closeWorkloadModal()}
 				sourceFreshness={profileSourceLabel}
+				intent={workloadTarget?.intent ?? null}
 				reviewLabel={nextTeacherIntent?.label ?? 'Review teaching load'}
 				permissions={null}
 				schoolId={actorSchoolId}
