@@ -9,7 +9,7 @@ import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-iden
 import * as roomPreferenceService from '../services/room-preference.service.js';
 import { hasPrivilegedRole } from '../middleware/authorize.js';
 import { getRoomPreferenceEventsSince, subscribeRoomPreferenceEvents } from '../services/room-preference-events.service.js';
-import { attachSseErrorGuard, registerSseCleanup, sseWrite } from '../lib/sse.js';
+import { attachSseErrorGuard, ssePrincipalKey, sseStreams, sseWrite } from '../lib/sse.js';
 
 const router = Router();
 
@@ -480,6 +480,16 @@ router.get(
 			}
 
 			const facultyScope = requestingFacultyId ?? null;
+
+			// A8: admission precedes flushHeaders(), after which a 429 can no longer
+			// reach the client.
+			const principalKey = ssePrincipalKey({ userId: req.user?.userId, schoolId, schoolYearId });
+			const streamId = sseStreams.admit(principalKey);
+			if (streamId === null) {
+				res.status(429).json({ code: 'TOO_MANY_STREAMS', message: 'Too many live event streams for this account. Close an open tab and try again.' });
+				return;
+			}
+
 			res.setHeader('Content-Type', 'text/event-stream');
 			res.setHeader('Cache-Control', 'no-cache, no-transform');
 			res.setHeader('Connection', 'keep-alive');
@@ -508,10 +518,6 @@ router.get(
 				}
 			}
 
-			const heartbeat = setInterval(() => {
-				sseWrite(res, `event: heartbeat\ndata: ${JSON.stringify({ ts: new Date().toISOString() })}\n\n`);
-			}, 15000);
-
 			const unsubscribe = subscribeRoomPreferenceEvents({
 				schoolId,
 				schoolYearId,
@@ -519,9 +525,13 @@ router.get(
 				send: sendEvent,
 			});
 
-			registerSseCleanup(req, res, () => {
-				clearInterval(heartbeat);
-				unsubscribe();
+			sseStreams.manage({
+				req,
+				res,
+				principalKey,
+				streamId,
+				unsubscribe,
+				heartbeatPayload: () => `event: heartbeat\ndata: ${JSON.stringify({ ts: new Date().toISOString() })}\n\n`,
 			});
 		} catch (error) {
 			next(error);

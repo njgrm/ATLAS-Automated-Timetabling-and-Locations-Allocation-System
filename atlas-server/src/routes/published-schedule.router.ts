@@ -6,7 +6,7 @@ import { authenticate, extractSseToken } from '../middleware/authenticate.js';
 import { MAX_ACADEMIC_TERM_INDEX } from '../services/academic-term.service.js';
 import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-identity.service.js';
 import { resolvePastYearReadScope } from '../services/past-year-timetable-scope.js';
-import { attachSseErrorGuard, registerSseCleanup, sseWrite } from '../lib/sse.js';
+import { attachSseErrorGuard, ssePrincipalKey, sseStreams, sseWrite } from '../lib/sse.js';
 import {
 	getPublishedFacultySchedule,
 	getPublishedFacultyScheduleByExternalId,
@@ -629,6 +629,15 @@ router.get(
 			const lastIdRaw = req.headers['last-event-id'] as string | undefined;
 			const lastId = lastIdRaw ? parseInt(lastIdRaw, 10) : 0;
 
+			// A8: admission precedes flushHeaders(), after which a 429 can no longer
+			// reach the client.
+			const principalKey = ssePrincipalKey({ userId: req.user?.userId, schoolId, schoolYearId });
+			const streamId = sseStreams.admit(principalKey);
+			if (streamId === null) {
+				res.status(429).json({ code: 'TOO_MANY_STREAMS', message: 'Too many live event streams for this account. Close an open tab and try again.' });
+				return;
+			}
+
 			res.setHeader('Content-Type', 'text/event-stream');
 			res.setHeader('Cache-Control', 'no-cache, no-transform');
 			res.setHeader('Connection', 'keep-alive');
@@ -647,9 +656,7 @@ router.get(
 			}
 
 			const unsub = subscribePublishedScheduleEvents({ schoolId, schoolYearId, facultyId: scopeFacultyId, send });
-
-			const heartbeat = setInterval(() => sseWrite(res, ': heartbeat\n\n'), 15_000);
-			registerSseCleanup(req, res, () => { unsub(); clearInterval(heartbeat); });
+			sseStreams.manage({ req, res, principalKey, streamId, unsubscribe: unsub, heartbeatPayload: () => ': heartbeat\n\n' });
 		} catch (e) { next(e); }
 	},
 );

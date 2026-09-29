@@ -16,7 +16,7 @@ import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-iden
 import { subscribePreferenceEvents, getPreferenceEventsSince } from '../services/preference-events.service.js';
 import type { DayOfWeek, TimeSlotPreference } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
-import { attachSseErrorGuard, registerSseCleanup, sseWrite } from '../lib/sse.js';
+import { attachSseErrorGuard, ssePrincipalKey, sseStreams, sseWrite } from '../lib/sse.js';
 
 const router = Router();
 
@@ -484,6 +484,17 @@ router.get(
 			const lastIdRaw = req.headers['last-event-id'] as string | undefined;
 			const lastId = lastIdRaw ? parseInt(lastIdRaw, 10) : 0;
 
+			// A8: admission is the FIRST thing that happens. Once flushHeaders()
+			// runs the status line is on the wire and a 429 can no longer reach
+			// the client, so a cap check after it would answer a refused stream
+			// with a lying 200.
+			const principalKey = ssePrincipalKey({ userId: req.user?.userId, schoolId, schoolYearId });
+			const streamId = sseStreams.admit(principalKey);
+			if (streamId === null) {
+				res.status(429).json({ code: 'TOO_MANY_STREAMS', message: 'Too many live event streams for this account. Close an open tab and try again.' });
+				return;
+			}
+
 			res.setHeader('Content-Type', 'text/event-stream');
 			res.setHeader('Cache-Control', 'no-cache, no-transform');
 			res.setHeader('Connection', 'keep-alive');
@@ -502,9 +513,7 @@ router.get(
 			}
 
 			const unsub = subscribePreferenceEvents({ schoolId, schoolYearId, facultyId: scopeFacultyId, send });
-
-			const heartbeat = setInterval(() => sseWrite(res, ': heartbeat\n\n'), 15_000);
-			registerSseCleanup(req, res, () => { unsub(); clearInterval(heartbeat); });
+			sseStreams.manage({ req, res, principalKey, streamId, unsubscribe: unsub, heartbeatPayload: () => ': heartbeat\n\n' });
 		} catch (e) { next(e); }
 	},
 );
