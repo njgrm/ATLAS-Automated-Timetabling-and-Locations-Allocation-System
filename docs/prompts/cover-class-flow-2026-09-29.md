@@ -77,3 +77,5 @@ then the cover flow.
 
 ## Addendum 16:58 — build the cover window on the UI foundation
 A6: do the c9 follow-up first (16:27 addendum). Build the Cover window only with the shared components as they stand after A7 c8's type slice and A5 c8's filter bar/select (`docs/prompts/ui-foundation-2026-09-29.md`); 14px minimum text, no truncation, ux-audit.js clean.
+
+## Addendum 17:25 — also the A6 section of docs/prompts/truth-fixes-2026-09-29.md (placeholders are not staff) as part of the c9 follow-up.

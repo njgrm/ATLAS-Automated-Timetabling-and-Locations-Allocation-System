@@ -19,3 +19,5 @@ After A8 c3, generation proceeds with teacher gaps and workload/qualification ad
    no real teacher — Cover them ›").
 5. Proof on staging: force each of the top 4 blockers (e.g. remove a time window on a scratch year), screenshot the
    panel, follow the button, fix, generate.
+
+## Addendum 17:25 — do the A8 section of docs/prompts/truth-fixes-2026-09-29.md FIRST (two BLOCKERs), then this packet.

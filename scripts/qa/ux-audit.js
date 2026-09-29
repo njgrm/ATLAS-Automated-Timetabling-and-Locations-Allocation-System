@@ -29,7 +29,7 @@
 		const s = getComputedStyle(el);
 		const ownText = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).join(' ').trim();
 		if (ownText) {
-			const px = parseFloat(s.fontSize);
+			const px = Number.parseFloat(s.fontSize);
 			if (px < MIN_TEXT_PX && !el.closest('[aria-hidden="true"]')) {
 				const key = `${px}|${ownText.slice(0, 40)}`;
 				if (!seenText.has(key)) { seenText.add(key); out.smallText.push({ px, text: ownText.slice(0, 60), el: label(el) }); }
@@ -43,7 +43,7 @@
 			out.truncated.push({ el: label(el), shown: `${el.clientWidth}px`, needs: `${el.scrollWidth}px` });
 		}
 		// Overflowing: text that spills outside a bordered/filled box (buttons, selects, chips, inputs).
-		if (/^(button|a|label|span|div)$/i.test(el.tagName) && (s.borderStyle !== 'none' && parseFloat(s.borderWidth) > 0)
+		if (/^(button|a|label|span|div)$/i.test(el.tagName) && (s.borderStyle !== 'none' && Number.parseFloat(s.borderWidth) > 0)
 			&& s.overflow === 'visible' && el.scrollWidth > el.clientWidth + 2 && (el.innerText || '').trim()) {
 			out.overflowing.push({ el: label(el), box: `${el.clientWidth}px`, content: `${el.scrollWidth}px` });
 		}
@@ -57,7 +57,7 @@
 		out[k] = out[k].slice(0, 40);
 		out.summary[k] = out[k].length;
 	}
-	out.summary.tableCellsUnder16px = [...document.querySelectorAll('td, th')].filter((c) => visible(c) && parseFloat(getComputedStyle(c).fontSize) < MIN_BODY_PX).length;
+	out.summary.tableCellsUnder16px = [...document.querySelectorAll('td, th')].filter((c) => visible(c) && Number.parseFloat(getComputedStyle(c).fontSize) < MIN_BODY_PX).length;
 	out.major = out.summary.mojibake + out.summary.moreFilters + out.summary.overflowing + (out.pageScrollsSideways ? 1 : 0)
 		+ out.smallText.filter((t) => t.px < 12).length;
 	return out;
