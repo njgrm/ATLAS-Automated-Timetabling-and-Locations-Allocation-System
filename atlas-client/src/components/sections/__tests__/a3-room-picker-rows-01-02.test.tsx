@@ -737,40 +737,59 @@ test('R4 control: the popover body is never smaller than its chrome plus one opt
 	const OPTION_ROW_H = 64; // the committed OPTION_ROW_CLASS h-16
 	const MIN_VIABLE_BODY = CHROME_H + OPTION_ROW_H; // 150px
 	assert.equal(MIN_VIABLE_BODY, 150, 'the chrome and the row height are the measured figures');
-	assert.ok(
-		POPOVER_MIN_USABLE_PX >= MIN_VIABLE_BODY,
-		`the applied floor must leave room for at least one option row: floor ${POPOVER_MIN_USABLE_PX}px, minimum viable body ${MIN_VIABLE_BODY}px`,
-	);
 
-	// The measured case, through the component's own arithmetic, with the centring
-	// write given nothing to do (a container already at both ends — the harness's
-	// stand-in for a list that is already scrolled to its end).
-	const capBeforeCentring = popoverMaxHeightPx(662, 768);
-	assert.equal(capBeforeCentring, 86, `the measured pre-fix cap must be 86px; got ${capBeforeCentring}px`);
-	assert.ok(
-		capBeforeCentring < POPOVER_MIN_USABLE_PX,
-		'precondition: 86px is below the floor, which is why the floor exists',
-	);
-
-	// The FLOOR is what the component applies, so this is the number the body
-	// actually gets in the measured case — and it fits chrome plus a row.
-	const applied = Math.max(capBeforeCentring, POPOVER_MIN_USABLE_PX);
-	assert.equal(applied, POPOVER_MIN_USABLE_PX, 'the floor is the applied cap when the space below is smaller');
-	assert.ok(
-		applied >= MIN_VIABLE_BODY,
-		`THE fix: the body must be at least chrome + one row (${MIN_VIABLE_BODY}px); got ${applied}px`,
-	);
-
-	// And the same at the two viewports the proof rows use, with a trigger at the
-	// bottom of each — the case that produced 0px.
-	for (const vh of [768, 650, 720]) {
-		for (const bottom of [vh - 106, vh - 40, vh]) {
-			const cap = Math.max(popoverMaxHeightPx(bottom, vh), POPOVER_MIN_USABLE_PX);
-			assert.ok(
-				cap <= POPOVER_MAX_PX && cap >= MIN_VIABLE_BODY,
-				`a trigger at bottom ${bottom} in a ${vh}px viewport must yield a usable body; got ${cap}px (ceiling ${POPOVER_MAX_PX}, minimum ${MIN_VIABLE_BODY})`,
-			);
+	// And the number the component actually applies for that geometry — not a
+	// locally computed copy of it. A harness with no scrollable ancestor
+	// reproduces QA's "already at the end, nothing to move" case exactly, so the
+	// floor is the only thing standing between this and a 0px list.
+	const realRect = dom.window.HTMLElement.prototype.getBoundingClientRect;
+	const realInnerHeight = dom.window.innerHeight;
+	dom.window.HTMLElement.prototype.getBoundingClientRect = function rectStub(this: HTMLElement) {
+		if (this.getAttribute('role') === 'combobox') {
+			return { width: 160, height: 36, top: 626, left: 0, right: 160, bottom: 662, x: 0, y: 626, toJSON: () => ({}) } as DOMRect;
 		}
+		return realRect.call(this);
+	} as typeof realRect;
+	Object.defineProperty(dom.window, 'innerHeight', { value: 768, configurable: true, writable: true });
+	try {
+		const host = renderPicker();
+		openPopover(host);
+		const body = dom.window.document.querySelector<HTMLElement>('[data-testid="room-picker-popover-content"]');
+		assert.ok(body, 'precondition: the popover is open under the measured geometry');
+		const appliedBody = Number.parseFloat(body!.style.height);
+
+		assert.equal(
+			popoverMaxHeightPx(662, 768),
+			86,
+			'precondition: the measured pre-fix cap must be 86px',
+		);
+		assert.ok(
+			86 < POPOVER_MIN_USABLE_PX,
+			'precondition: 86px is below the floor, which is why the floor exists',
+		);
+		assert.ok(
+			appliedBody >= MIN_VIABLE_BODY,
+			`THE fix: the applied body must be at least chrome + one option row (${MIN_VIABLE_BODY}px); got ${appliedBody}px for a trigger with 86px below it`,
+		);
+		assert.ok(
+			appliedBody <= POPOVER_MAX_PX,
+			`and never more than the 400px ceiling; got ${appliedBody}px`,
+		);
+
+		// The same at the viewports the proof rows use, with a trigger at the bottom
+		// of each — the case that produced 0px.
+		for (const vh of [768, 650, 720]) {
+			for (const bottom of [vh - 106, vh - 40, vh]) {
+				const cap = Math.max(popoverMaxHeightPx(bottom, vh), POPOVER_MIN_USABLE_PX);
+				assert.ok(
+					cap <= POPOVER_MAX_PX && cap >= MIN_VIABLE_BODY,
+					`a trigger at bottom ${bottom} in a ${vh}px viewport must yield a usable body; got ${cap}px (ceiling ${POPOVER_MAX_PX}, minimum ${MIN_VIABLE_BODY})`,
+				);
+			}
+		}
+	} finally {
+		dom.window.HTMLElement.prototype.getBoundingClientRect = realRect;
+		Object.defineProperty(dom.window, 'innerHeight', { value: realInnerHeight, configurable: true, writable: true });
 	}
 });
 
