@@ -134,15 +134,20 @@ const routeChromeOverrides: Record<string, { group?: string; title: string }> = 
 	'/timetable/setup': { group: 'Class Schedule', title: 'Setup' },
 	'/room-schedules': { group: 'Review and Publish', title: 'Room Schedules' },
 	/*
-	 * A3 c13 — the two retired route-chrome entries for
-	 * `/faculty/room-preferences` (title "Room Preferences") and
-	 * `/faculty/preferences` (title "Faculty Preferences") are REMOVED, not
-	 * re-pointed. Both pages now render `<Navigate to="/faculty/concerns"
-	 * replace />`, so the browser lands on the concerns route and resolves its
-	 * chrome from the entry above. Keeping a title for a path that is never
-	 * rendered is a second name for one destination — the duplicate-link defect
-	 * A3-C6 removed elsewhere.
+	 * A3 c13 — the route-chrome entries for `/faculty/room-preferences` and
+	 * `/faculty/preferences` are RETIRED, not deleted. Their old titles
+	 * ("Room Preferences", "Faculty Preferences") named pages that no longer
+	 * exist; these name the page they actually land on.
+	 *
+	 * A URL that still exists — even one whose component is now a
+	 * `<Navigate replace />` — must never flash the generic "ATLAS" title while
+	 * the router settles, so both folded paths resolve the chrome of the page
+	 * they actually land on: Teacher Concerns. That is one destination under one
+	 * name, which is what the removal was for, and it is a behaviour the ux-r01
+	 * shared-chrome row pins for every authenticated route.
 	 */
+	'/faculty/preferences': { group: 'Teachers and Rooms', title: 'Teacher Concerns' },
+	'/faculty/room-preferences': { group: 'Teachers and Rooms', title: 'Teacher Concerns' },
 	'/admin/year-setup': { group: 'School Setup', title: 'School Year Setup' },
 };
 

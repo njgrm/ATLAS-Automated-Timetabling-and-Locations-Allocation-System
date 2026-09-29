@@ -99,6 +99,13 @@ export default function TeacherConcerns() {
 	const [concernError, setConcernError] = useState<string | null>(null);
 	const [saveFailure, setSaveFailure] = useState<string | null>(null);
 	const [savedMessage, setSavedMessage] = useState<string | null>(null);
+	/**
+	 * N2 — the ONE status chip's source of truth, as a union rather than a
+	 * sentence. `SAVED_NOT_BINDING` means the server stored the record and then
+	 * refused to make it count for the next timetable; that is a real answer
+	 * about the teacher's load, and the chip says so without parsing prose.
+	 */
+	const [saveOutcome, setSaveOutcome] = useState<'SAVED' | 'SAVED_NOT_BINDING' | null>(null);
 	const [saving, setSaving] = useState(false);
 	const [refreshNonce, setRefreshNonce] = useState(0);
 	/**
@@ -253,6 +260,7 @@ export default function TeacherConcerns() {
 		setRoomError(null);
 		setSavedMessage(null);
 		setSaveFailure(null);
+		setSaveOutcome(null);
 	}, [selectedFacultyId]);
 
 	/* ── Availability record → editable form state ── */
@@ -348,6 +356,7 @@ export default function TeacherConcerns() {
 		setSaving(true);
 		setConcernError(null);
 		setSaveFailure(null);
+		setSaveOutcome(null);
 		try {
 			const { availability: record, bindFailure } = await saveAndBindAvailability({
 				schoolId: actorSchoolId,
@@ -388,6 +397,13 @@ export default function TeacherConcerns() {
 				bindFailure,
 			});
 			setSavedMessage(counts);
+			/*
+			 * N2 — the chip reads a TYPED state, never a substring of the sentence
+			 * above. A copy edit to `describeSavedConcern` can no longer silently
+			 * turn "Saved" into "Saved, not yet counted" or back: the reason the
+			 * server gave us is carried beside the sentence as data.
+			 */
+			setSaveOutcome(bindFailure == null ? 'SAVED' : 'SAVED_NOT_BINDING');
 			bumpRefresh();
 		} catch (error) {
 			setSaveFailure(concernApiErrorMessage(error));
@@ -447,10 +463,16 @@ export default function TeacherConcerns() {
 		}
 	};
 
+	/*
+	 * N2 — derived from the typed `saveOutcome` union, never from the saved
+	 * sentence. A pre-existing record that already binds also reads as SAVED, so
+	 * a reload lands on the same chip as the save that produced it.
+	 */
+	const bindFailure = saveOutcome === 'SAVED_NOT_BINDING';
 	const statusInput = {
 		selected: selectedFacultyId != null,
-		saved: savedMessage != null || (availability != null && availability.status === 'REVIEWED'),
-		bindFailure: saveFailure != null || !!(savedMessage && savedMessage.includes('could not yet')),
+		saved: saveOutcome != null || (availability != null && availability.status === 'REVIEWED'),
+		bindFailure,
 	};
 
 	return (
