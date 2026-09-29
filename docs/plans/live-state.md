@@ -5687,6 +5687,49 @@ RENDERED on real staging data / 0 dropped. NOT deployed — A4 owns every releas
   `https://njgrm.buru-degree.ts.net` row for `/teaching-load/history` (2022-2023 offered, the three questions,
   no raw codes) at 1366x768.
 
+## Lane A8 — c3 DEMO BLOCKER, 2026-09-29 16:10 (on `main` at `0c3cf139`; NOT deployed, NOT seen rendered)
+
+**`A8 c3 ready for release at 0c3cf139` (product `d87e1b3e` + correction `73f479eb`, merged onto `origin/main`
+`01042d41`, pushed `01042d41..0c3cf139`). 0 fixes live and seen / 3 c3 items integrated and NOT seen rendered /
+0 dropped.** Packet `docs/prompts/a8-c3-generate-with-gaps-2026-09-29.md`; handoff
+`docs/reviews/a8-c3-generate-with-gaps/handoff.md`. Worktree `E:/ATLAS-worktrees/lane-a8-c3-generate-gaps`, branch
+`work/a8-c3-generate-gaps`, base `f1fb076a`, 19 paths, 0 `prisma/`. Risk HIGH (generation gate): **one**
+`atlas-reviewer-high` pass per round, 2 rounds used.
+
+- **What it does.** 2023-2024 showed the operator 651 identical blocker rows and could not generate. Now (1) the
+  panel renders **one line per root cause counted in CLASSES** — the 620 coverage rows collapse to "50 classes need
+  a teacher" — with ONE "Check again" and the raw list behind an `@/ui` Accordion, and (2) **generation is allowed
+  with teacher gaps**: `generateAllowed = blockingBlockers.length === 0 && scheduler.ran && blockingHardCount === 0
+  && zeroWrite`, with `TL_DEMAND_UNCOVERED`/`TL_NO_QUALIFIED_OWNER` plus attributable workload/qualification rows
+  classified GAP, unattributable `WORKLOAD_POLICY_BLOCK`/`FACULTY_SUBJECT_NOT_QUALIFIED`/`FACULTY_OVERLOAD`
+  classified ADVISORY (recorded, grouped, named), everything else BLOCKER. The completed-run sentence now names
+  the gaps: "New schedule ready. 50 classes still need a teacher: MAPEH 7-A, ENG 7-B, …". Placement is packet
+  option (b): the 50 classes stay unplaced and listed — no teacher-less placement lane was invented.
+- **Review caught a real defect and it is fixed.** Round 1 `CORRECTION_REQUIRED` 25/26: `blockingHardCount` was
+  **provably vacuous** (≡ 0 in every input) because the attribution test was computed and discarded, so the hard
+  term held only by accident via a blocker mirror; the negative control was helper-only. Correction `73f479eb`
+  makes the three classes explicit subsets of `hardCount` (untouched) and adds real-path `A8C3.7`, which drives
+  `FACULTY_DAILY_MAX_EXCEEDED` on a fully staffed year and fails if the hard term stops working. Round 2
+  **`ACCEPT_READY` 10/10/0/0** — two independent mutants red (the exact pre-correction form fails `A8C3.7`),
+  byte-restored and green.
+- **Publication authority is byte-unchanged** (`publication-contract.service.ts`, `scheduling-policy.service.ts`,
+  `isRunPublishedStrict` absent from the diff); QA drove the production `countBlockingHardViolations` for all three
+  advisory codes and each still refuses. A generated-but-unpublishable run is reachable **by design**.
+- **Gates on the merged + re-based tree:** server `tsc` 0 · `a8-c3-generate-with-gaps` 12/12 ·
+  `generation-canonical-readiness-genc02` 24/24 · `publication-contract-readiness` 1/1 ·
+  `test:server-suite` **467/467** · client `test:a8-c3-generate-gaps` **5/5** · client build 0 errors ·
+  server build `tsc` 0. `git diff --check` clean.
+- **⚠ Two rows are NOT closed, dated 2026-09-29.** (1) **Staging/live rendered proof on 2023-2024 with the 50 gaps
+  is A4's deployment-acceptance row and is UNPERFORMED** — the candidate is on `main`, not deployed, and nothing
+  here was seen rendered. (2) The **live 31-row advisory split is unverified** — QA could not read live, so the
+  relaxation's width rests on the packet's evidence and A4's staging rerun is the fact that settles it.
+- **Pre-existing, not this lane:** `test:generation-blockers-c02` `C2-a.7` ("≤6 visible controls", 11 seen) fails
+  byte-identically at base `27b36734` — a §8 header-budget regression belonging to the page's owner.
+- **Worktree disposition:** `E:/ATLAS-worktrees/lane-a8-c3-generate-gaps` = **`RETIRE_AFTER_INTEGRATION`**
+  (branch pushed and merged; A4 owns junction-safe reclamation, §14).
+- **Next action (single):** A4 puts `0c3cf139` in the next train and runs the 2023-2024 staging rows — Generate
+  enabled with the 50 gaps, the panel at ~3 lines, the run naming the gaps, and publication still refused.
+
 ## Lane A8 — Teaching Load shortage, server truth (written only by Lane A8)
 
 **`A8 ready for release at 195b52fe` (accepted candidate `39b2dcc7`). 0 fixes live and seen / 6 server items
