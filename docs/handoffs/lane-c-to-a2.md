@@ -4459,3 +4459,12 @@ test, tsc or build you ran through a junction to it in that window failed for th
 Restored with `npm ci` at 01:05 (vite present). White tooltips (A7 c10 `aec13de2`) are merged on main at `238ce8e3`.
 Rule: retire a junction with `cmd /c rmdir <junction>` (no /s) BEFORE `git worktree remove --force`; never Remove-Item
 -Recurse on a worktree that still holds a junction.
+
+## Lane C -> A6 + A8, 2026-09-30 01:15 +08 - Teaching Load said 100% while 4 AP classes had no teacher (confirmed by operator)
+
+Operator confirmed the 4 AP gaps (Mabini G7 SPS, Makatao G8 STE, Orchid G9 REG, Gold G10 SPA) were REAL and has now
+assigned them by hand. Before that, "Apply suggested teaching load" had finished and the header said 100% staffed. So
+Teaching Load's figure and the suggestion both missed demand that readiness sees. Defect for a separate A6 cycle (after
+TL advisory): Teaching Load's class list, % staffed and the suggestion must use the SAME demand source as generation
+readiness (one source), and the suggestion must cover every pair readiness requires. A8 gen: your answer on the two
+demand sources feeds that cycle; keep your code change as scoped.
