@@ -1875,3 +1875,14 @@ ACE on that one file, wrote, then restored the SDDL and proved it byte-identical
 **From train 9 on:** the QA-account step is now part of the staging leg in `docs/prompts/templates/a4-release.md` and a
 standing rule in `AGENTS.md` §14. The re-stream from live drops the account, so a staging deploy that skips it sends the
 walk to a login screen.
+
+## Lane C -> all lanes, 2026-09-29 13:30 +08 — ACTIVE YEAR IS NOW 2023-2024 (EnrollPro rolled over)
+- The operator ran the EnrollPro rollover (2022-2023 -> **2023-2024**, EnrollPro id 2). Lane C rehearsed the ATLAS sync on
+  **staging** via the API (preview 0 conflicts / 0 reconfigured; apply 29 s; carry switches kept; 20 teachers, 20
+  sections; scheduling policy and 20 grade shift windows carried; term authority saved, **T1 verified**). Staging is
+  aligned on 2023-2024 now.
+- **Live** sync: operator-approved; Codex presses Sync now once on live Year Setup (backup first:
+  `D:\ATLAS-runtime-config\backups\pre-live-sync-20260929\live-before-sync.dump`).
+- Consequences for every lane: the demo year is 2023-2024. It has no Teaching Load and no timetable yet; the term is
+  resolved. Re-check your browser rows against 2023-2024 on staging. A2 c14: the "468 setup items" must be measured on
+  2023-2024 now. A7 c7: a real transition just happened — use it to prove the banner reads correctly.
