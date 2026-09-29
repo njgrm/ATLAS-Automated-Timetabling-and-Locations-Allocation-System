@@ -30,6 +30,7 @@ import {
 	roomUtilizationLabel,
 } from '@/lib/room-utilization-display';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
+import { selectedBuildingRoomsSentence, teachingRoomTotals, teachingRoomsFigure } from '@/lib/teaching-room-readiness';
 import { pivotDraftToView } from '@/lib/schedule-pivot';
 import { parseGradeFromSectionName } from '@/components/GradeLevelBadge';
 import { cn } from '@/lib/utils';
@@ -49,8 +50,6 @@ export type CampusReadinessCardProps = {
 	loading: boolean;
 	buildings: Building[];
 	campusImageUrl?: string | null;
-	teachingRoomCount: number;
-	totalRoomCount: number;
 	setupStatus: BuildingSetupStatus;
 };
 
@@ -117,8 +116,6 @@ export function CampusReadinessCard({
 	loading,
 	buildings,
 	campusImageUrl,
-	teachingRoomCount: totalTeachingRooms,
-	totalRoomCount,
 	setupStatus,
 }: CampusReadinessCardProps) {
 	const [activeView, setActiveView] = useState<'map' | 'building'>('map');
@@ -141,7 +138,15 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 
 	const teachingBuildings = buildings.filter((building) => building.isTeachingBuilding !== false);
 	const attentionBuildings = teachingBuildings.filter((building) => teachingRoomCount(building) === 0);
-	
+
+	// A9 c8 (F3) — THE one room figure, from the definition `/map` renders from
+	// (`@/lib/teaching-room-readiness`). It replaces the `teachingRoomCount/totalRoomCount`
+	// props this card used to be handed, which produced `78/103`: 78 teaching rooms over
+	// 103 rooms in the school, beside a Campus page reading `78 of 78 teaching rooms are
+	// ready`. Both ends of the fraction are teaching rooms now, and the same function
+	// computes the Dashboard tile's figure, so the two cannot disagree.
+	const teachingRooms = teachingRoomTotals(buildings);
+
 	const selectedBuilding = buildings.find((building) => building.id === selectedBuildingId)
 		?? attentionBuildings[0]
 		?? teachingBuildings[0]
@@ -149,8 +154,7 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 		?? null;
 
 	const selectedTeachingRooms = selectedBuilding ? teachingRoomCount(selectedBuilding) : 0;
-	const readyCount = teachingBuildings.length - attentionBuildings.length;
-	
+
 	const sectionLabelMap = useMemo(
 		() => new Map([...sectionMap].map(([id, section]) => [id, section.name])),
 		[sectionMap],
@@ -479,28 +483,39 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 											<p className="mt-3 text-sm leading-relaxed text-muted-foreground">
 												Select a building, inspect rooms, and view the latest room schedules without leaving the dashboard.
 											</p>
-											<div className="mt-4 grid grid-cols-2 gap-3">
-												<MiniStat icon={Building2} label="Buildings" value={teachingBuildings.length.toString()} />
-												<MiniStat icon={DoorOpen} label="Teaching rooms" value={`${totalTeachingRooms}/${totalRoomCount}`} />
-											</div>
-											<div className="mt-4 flex flex-wrap gap-1.5">
-												<Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-													<CheckCircle2 className="size-3" />
-													{readyCount} ready
-												</Badge>
-												<Badge variant="outline" className={attentionBuildings.length > 0 ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-50 text-slate-600'}>
-													<AlertTriangle className="size-3" />
-													{setupStatus.done ? 'No room blockers' : setupStatus.subMessage ?? 'Needs review'}
-												</Badge>
-											</div>
+										<div className="mt-4 grid grid-cols-2 gap-3">
+											<MiniStat icon={Building2} label="Buildings" value={teachingBuildings.length.toString()} />
+											{/* A9 c8 (F3): `78/103` -> `78 of 78`, the Campus page's own fraction
+											    over one population. The school's 103 rooms are not a readiness
+											    number and never were on this line. */}
+											<MiniStat icon={DoorOpen} label="Teaching rooms" value={teachingRoomsFigure(teachingRooms)} />
 										</div>
+										{/* A9 c8 (F3) — the `7 ready` BADGE IS GONE. It counted BUILDINGS
+										    that hold at least one teaching room, so it said "7 ready" while
+										    the room banner said 78 of 78 were ready, and next to a building
+										    with none it claimed readiness the page it links to does not.
+										    §8 forbids two statuses for one fact. What remains is the ONE
+										    blocker line below, which is the actionable one, and the room
+										    figure above, which is the figure. Nothing is lost: every
+										    building with no teaching room is inside the "…has no rooms" count. */}
+										<div className="mt-4 flex flex-wrap gap-1.5">
+											<Badge variant="outline" className={setupStatus.done ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-amber-200 bg-amber-50 text-amber-700'}>
+												{attentionBuildings.length > 0 ? <AlertTriangle className="size-3" /> : <CheckCircle2 className="size-3" />}
+												{setupStatus.done ? 'No room blockers' : setupStatus.subMessage ?? 'Needs review'}
+											</Badge>
+										</div>
+									</div>
 
-										<div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-											<p className="text-xs font-semibold text-muted-foreground">Selected building</p>
-											<p className="mt-1 truncate text-base font-bold text-foreground">{selectedBuilding?.name ?? 'No building selected'}</p>
-											<p className="mt-1 text-xs text-muted-foreground">
-												{selectedBuilding ? `${selectedTeachingRooms} teaching room${selectedTeachingRooms === 1 ? '' : 's'} ready` : 'Open the map editor to draw buildings.'}
-											</p>
+									<div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+										<p className="text-xs font-semibold text-muted-foreground">Selected building</p>
+										<p className="mt-1 truncate text-base font-bold text-foreground">{selectedBuilding?.name ?? 'No building selected'}</p>
+										{/* A9 c8 (F3) — the Campus page's own sentence for one building,
+										    including the zero case, which used to read "0 teaching rooms
+										    ready" about a building the Campus page calls dead. One wording
+										    for one fact, on both screens. */}
+										<p className="mt-1 text-xs text-muted-foreground">
+											{selectedBuildingRoomsSentence(selectedBuilding)}
+										</p>
 											{selectedBuilding && (
 												<Button
 													size="sm"

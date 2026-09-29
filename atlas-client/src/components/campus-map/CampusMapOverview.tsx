@@ -33,6 +33,7 @@ import {
 	roomUtilizationLabel,
 } from '@/lib/room-utilization-display';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
+import { isReadyTeachingRoom, selectedBuildingRoomsSentence } from '@/lib/teaching-room-readiness';
 import { pivotDraftToView } from '@/lib/schedule-pivot';
 import { parseGradeFromSectionName } from '@/components/GradeLevelBadge';
 import { cn } from '@/lib/utils';
@@ -154,7 +155,7 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 	 * banner calls ready is a room the home-room step can actually assign.
 	 */
 	const readyTeachingRooms = buildings.reduce(
-		(acc, building) => acc + (building.rooms ?? []).filter((room) => room.isTeachingSpace && room.capacity && room.capacity > 0 && room.type !== 'OTHER').length,
+		(acc, building) => acc + (building.rooms ?? []).filter((room) => isReadyTeachingRoom(room)).length,
 		0,
 	);
 	const attentionCount = buildings.filter((building) => buildingStatus(building) === 'attention').length;
@@ -166,7 +167,8 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 		?? null;
 
 	const selectedTeachingRooms = selectedBuilding ? teachingRoomCount(selectedBuilding) : 0;
-	const selectedTotalRooms = selectedBuilding?.rooms?.length ?? 0;
+	// A9 c8: `selectedTotalRooms` is gone — the per-building fraction moved into
+	// `selectedBuildingRoomsSentence`, which names the population it divides.
 	const selectedFloors = selectedBuilding?.floorCount ?? 0;
 	const selectedStatus = selectedBuilding ? buildingStatus(selectedBuilding) : 'attention';
 	
@@ -586,18 +588,12 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 										</div>
 									<h3 className="mt-2 truncate text-xl font-bold text-foreground">{selectedBuilding?.name ?? 'No building selected'}</h3>
 									<p className="mt-2 text-sm text-muted-foreground">
-										{selectedBuilding
-											? /* A9 C3: this sentence used to read "0 teaching rooms out of 20
-											 * total rooms", which states a ratio and no consequence. A
-											 * building with no teaching room is DEAD — no section can be
-											 * placed there and the scheduler has to know that before she
-											 * builds a timetable — so the zero case now says so, and the
-											 * non-zero case keeps the count. The fix for it is the one
-											 * action already below this card, so no second action was added. */
-												selectedTeachingRooms === 0
-													? `None of its ${selectedTotalRooms} ${selectedTotalRooms === 1 ? 'room is' : 'rooms are'} marked as a teaching classroom, so no class can be held there.`
-													: `${selectedTeachingRooms} of ${selectedTotalRooms} ${selectedTotalRooms === 1 ? 'room is' : 'rooms are'} used for classes.`
-											: 'Open editor mode to draw buildings and add rooms.'}
+										{/* A9 c8 (2026-09-29): the sentence moved to
+										 * `selectedBuildingRoomsSentence` in `@/lib/teaching-room-readiness`
+										 * VERBATIM, because the Dashboard's campus panel used to say "0 teaching
+										 * rooms ready" about this same building while this page said no class can
+										 * be held there. One definition, one wording, two screens. */}
+										{selectedBuildingRoomsSentence(selectedBuilding)}
 									</p>
 
 									{selectedBuilding ? (

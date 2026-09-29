@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
-import { AlertTriangle, CheckCircle2, ChevronRight } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronRight, RefreshCw } from 'lucide-react';
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/ui/accordion';
+import { Button } from '@/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
 
 import { RunBlockerTile, type RunReviewChecklistItem } from '@/pages/Dashboard';
@@ -29,7 +30,40 @@ type Props = {
 	generationAvailable: boolean;
 	hardViolationCount: number | null;
 	softViolationCount: number | null;
+	/**
+	 * A9 c8 (F1) — the readiness read for this school has NOT answered yet.
+	 *
+	 * While it is true the whole region says so, in ONE line, and publishes no count at
+	 * all. The live screen this fixes published `0 OF 10 READY · 1 STEP TO GO · 9 ATLAS
+	 * COULD NOT CHECK` over a request that was merely in flight (a 17.5 s event-loop stall
+	 * on live), because `domainAvailability` starts all-`false` and a read that had not
+	 * ARRIVED looked exactly like a read that had FAILED. "Could not check" is now earned
+	 * only by a failure; the words used here are the ones the source chip and the source
+	 * panel already own (`checking_source` — "Checking source"), so no second vocabulary is
+	 * introduced for the same event.
+	 */
+	pending?: boolean;
+	/**
+	 * A9 c8 (F1) — the retry the "could not check" state previously lacked. A failure the
+	 * scheduler cannot re-read is a dead end: the only retry lived in the page header, three
+	 * regions away. It is the SAME `outline`/`sm` button the source panel's repair links
+	 * already use (`AGENTS.md` §8 one look per control), and it appears only when there is
+	 * something to retry.
+	 */
+	onRetry?: () => void;
 };
+
+/**
+ * A9 c8 (F1) — THE READING LINE, as a pure function so a control can decide the exact
+ * wording instead of grepping the JSX.
+ *
+ * It is deliberately ONE short sentence. The alternative — a spinner region, a progress
+ * line, a "9 of 10 checks still running" counter — adds words and controls to the calmest
+ * screen in the app to describe a wait the scheduler did not cause and cannot shorten.
+ */
+export function readinessPendingSentence(): string {
+	return 'Checking source. This list appears as soon as the check finishes.';
+}
 
 /**
  * A7 C6 — the three buckets, as a pure function so the promise this card makes
@@ -73,7 +107,7 @@ export function readinessHeaderText(rows: ReadinessRow[]): string {
  * in demo-story order, one link each to the page that fixes that step. Nothing
  * is behind a click. Only the already-done rows are collapsed.
  */
-export function ReadinessCard({ rows, generationAvailable, hardViolationCount, softViolationCount }: Props) {
+export function ReadinessCard({ rows, generationAvailable, hardViolationCount, softViolationCount, pending = false, onRetry }: Props) {
 	const { outstanding: notReady, unresolved: unresolvedItems, done: doneItems } = bucketReadinessRows(rows);
 	const runBlocker = <RunBlockerTile generationAvailable={generationAvailable} hardViolationCount={hardViolationCount} softViolationCount={softViolationCount} />;
 	const rowBody = (item: ReadinessRow) =>
@@ -88,12 +122,18 @@ export function ReadinessCard({ rows, generationAvailable, hardViolationCount, s
 		<Card data-testid='dashboard-readiness-hub'>
 			<CardHeader className='border-b border-slate-100 px-6 py-4'>
 				<CardTitle className='text-lg text-foreground'>Setup readiness</CardTitle>
+				{/* A9 c8 (F1) — PENDING REPLACES THE COUNT, it does not sit above it. While
+				    the read is in flight there is no `N of M ready`, no `N steps to go` and no
+				    `N ATLAS could not check`: all three would be claims about data that does
+				    not exist yet, and the third is the one the audit was called over. */}
 				<CardDescription data-testid='dashboard-readiness-count'>
-					{readinessHeaderText(rows)}
+					{pending ? readinessPendingSentence() : readinessHeaderText(rows)}
 				</CardDescription>
 			</CardHeader>
 			<CardContent className='p-2'>
-				{notReady.length === 0 && unresolvedItems.length === 0 ? (
+				{pending ? null : (
+					<>
+					{notReady.length === 0 && unresolvedItems.length === 0 ? (
 					<p className='px-4 py-4 text-sm text-muted-foreground'>Every step is done. Teachers and students see the timetable once it is published.</p>
 				) : null}
 				{notReady.length > 0 && (
@@ -116,9 +156,21 @@ export function ReadinessCard({ rows, generationAvailable, hardViolationCount, s
 				)}
 				{unresolvedItems.length > 0 && (
 					<>
-						<p className='px-4 pt-3 text-xs font-semibold text-muted-foreground' data-testid='dashboard-unresolved-heading'>
-							ATLAS could not check these
-						</p>
+						{/* A9 c8 (F1) — the retry lives ON the sentence that says the read
+						    failed. It replaces nothing: the heading was already there, and the
+						    button is the same `outline`/`sm` control the source panel's repair
+						    links use, so it is a known shape rather than a new one. */}
+						<div className='flex items-center justify-between gap-2 px-4 pt-3'>
+							<p className='text-xs font-semibold text-muted-foreground' data-testid='dashboard-unresolved-heading'>
+								ATLAS could not check these
+							</p>
+							{onRetry ? (
+								<Button type='button' variant='outline' size='sm' onClick={onRetry} className='h-7 shrink-0 gap-1.5 px-2.5 text-xs font-semibold' data-testid='dashboard-unresolved-retry'>
+									<RefreshCw className='w-3 h-3' />
+									Check again
+								</Button>
+							) : null}
+						</div>
 						<ul className='divide-y divide-slate-100' data-testid='dashboard-unresolved-list'>
 							{unresolvedItems.map((item, idx) => (
 								<li key={item.label}>
@@ -170,6 +222,8 @@ export function ReadinessCard({ rows, generationAvailable, hardViolationCount, s
 							</AccordionContent>
 						</AccordionItem>
 					</Accordion>
+				)}
+					</>
 				)}
 			</CardContent>
 		</Card>

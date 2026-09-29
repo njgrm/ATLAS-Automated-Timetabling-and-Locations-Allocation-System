@@ -275,7 +275,12 @@ function summarizeCampus(buildings: DashboardBuilding[], campusImageUrl: string 
 		} else if (teachingBuildingsWithoutRooms.length > 0 && placeholderNamedBuildings.length > 0) {
 			subMessage = `${teachingBuildingsWithoutRooms.length} without rooms, ${placeholderNamedBuildings.length} need a name`;
 		} else if (teachingBuildingsWithoutRooms.length > 0) {
-			subMessage = `${teachingBuildingsWithoutRooms.length} building${teachingBuildingsWithoutRooms.length !== 1 ? 's' : ''} have no rooms`;
+			// A9 c8 (F3) — GRAMMAR. The live Dashboard printed "1 building have no rooms",
+			// because this string is the one the client receives and prints verbatim (in the
+			// campus panel badge, the stat tile footer and the "Teaching rooms marked"
+			// readiness hint). The client's own fallback in `useDashboardData` builds the
+			// same sentence and is corrected the same way; the plural branch is unchanged.
+			subMessage = `${teachingBuildingsWithoutRooms.length} building${teachingBuildingsWithoutRooms.length === 1 ? ' has' : 's have'} no rooms`;
 		} else if (placeholderNamedBuildings.length > 0) {
 			subMessage = `${placeholderNamedBuildings.length} building${placeholderNamedBuildings.length !== 1 ? 's' : ''} need a name`;
 		}
