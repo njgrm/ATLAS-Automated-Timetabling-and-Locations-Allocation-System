@@ -123,6 +123,13 @@ const { createRoot } = await import('react-dom/client');
 const { MemoryRouter } = await import('react-router-dom');
 const { TimetableSimpleHeader } = await import('@/components/timetable/TimetableSimpleHeader');
 const { TimetableUndoRedoControl } = await import('@/components/timetable/TimetableUndoRedoControl');
+// A8-C5 S2.0: the real presentation entry point, exercised directly so the
+// `groups` guard is decided by the real function and not by the header's own
+// tolerance of a malformed diagnostic.
+const {
+	presentGenerationBlockerGroups,
+	parseGenerationReadinessDiagnostic,
+} = await import('@/lib/timetable-generation-readiness');
 /* NAMESPACE import on purpose — see the file header. `@/ui/select` exists at the
  * base; only the exported constant is new, so H7 fails on an assertion, never on a
  * module resolution. */
@@ -663,6 +670,82 @@ test('H4 state A with 468 setup blockers: the ONE chip reads exactly `468 setup 
 	// rendered row in `generation-blockers-c02.test.tsx` ("C2-a.4 the disclosure lists
 	// ALL THREE blockers in plain words, not just blockers[0]"). This row's subject is
 	// the CHIP: its label, its tooltip target and its dispatch.
+	//
+	// ── A8-C5 S2.0 RE-PIN (on purpose) ──────────────────────────────────────────
+	// This fixture's `curriculumReadiness.diagnostic` carries `blockers` and NO
+	// `groups`, which is the exact shape the S2.0 guard exists for. The assertion
+	// above is deliberately UNCHANGED: the chip must still read `468 setup items to
+	// fix` and open the real sheet. What changed is that the panel behind it now
+	// renders through the guard instead of throwing on `groups.length`. The
+	// discriminating row is the one immediately below.
+});
+
+test('H4-A A8-C5 S2.0: a diagnostic with NO `groups` renders the legacy one-line panel instead of throwing', () => {
+	// A well-formed server payload that OMITS `groups` entirely. This is the shape
+	// the S2.0 guard exists for: an older server, or any payload where the grouped
+	// projection is absent. The raw object really has no `groups` key.
+	const raw = {
+		scope: { schoolId: 1, schoolYearId: 10 },
+		status: 'BLOCKED',
+		generateAllowed: false,
+		zeroWrite: true,
+		schedulerExecuted: false,
+		blockerCount: 2,
+		blockers: [
+			{ code: 'TL_DEMAND_UNCOVERED', category: 'DATA_GAP', entity: 'Section 701', reason: 'no owner' },
+			{ code: 'ROOMS_MISSING', category: 'RESOURCE_INFEASIBLE', entity: 'Rooms', reason: 'no rooms' },
+		],
+		gapCount: 1,
+		gapClassCount: 1,
+	};
+	assert.equal(Object.prototype.hasOwnProperty.call(raw, 'groups'), false, 'the payload really omits `groups`');
+
+	const diagnostic = parseGenerationReadinessDiagnostic(raw);
+	assert.ok(diagnostic, 'the payload parses');
+	assert.deepEqual(diagnostic!.groups, [], 'the parser yields an empty groups array rather than a missing field');
+
+	// The guard's whole point: presentation over a groups-less diagnostic must not
+	// throw. Before S2.0, `diagnostic.groups.length` on an absent field raised.
+	const lines = presentGenerationBlockerGroups({ diagnostic: diagnostic! });
+	assert.equal(lines.length, 1, 'a groups-less diagnostic falls back to exactly ONE line, never an empty panel');
+	assert.equal(lines[0].key, 'generation-blocker-group-legacy', 'and it is the documented legacy fallback');
+	assert.equal(
+		lines[0].headline,
+		'2 items need attention',
+		'the fallback line names the count the diagnostic can actually measure',
+	);
+	assert.deepEqual(
+		lines[0].action,
+		{ kind: 'navigate', label: 'Open Year Setup', href: '/admin/year-setup' },
+		'and it always offers a real fix route — never a dead end',
+	);
+
+	// DISCRIMINATION: a NON-array `groups` takes the same guarded path, so a
+	// malformed payload cannot smuggle a crash back in.
+	const nonArray = presentGenerationBlockerGroups({
+		diagnostic: { ...diagnostic!, groups: 'not-an-array' as never },
+	});
+	assert.equal(nonArray.length, 1, 'a non-array `groups` is treated as empty, exactly like a missing one');
+	assert.equal(nonArray[0].key, 'generation-blocker-group-legacy');
+
+	// And a POPULATED `groups` still takes the grouped path, so the guard did not
+	// quietly disable the projection the guard exists to protect.
+	const populated = presentGenerationBlockerGroups({
+		diagnostic: {
+			...diagnostic!,
+			groups: [{
+				cause: 'TEACHER_COVERAGE_GAP',
+				code: 'TL_DEMAND_UNCOVERED',
+				count: 7,
+				unit: 'classes',
+				examples: ['MATH 7-A'],
+				action: { label: 'Assign teachers', target: '/teaching-load' },
+			} as never],
+		},
+	});
+	assert.equal(populated.length, 1);
+	assert.notEqual(populated[0].key, 'generation-blocker-group-legacy', 'a real group still renders through the grouped path');
+	assert.equal(populated[0].headline, '7 classes need a teacher', 'and it keeps its own counted sentence');
 });
 
 test('H4 state B with 468 setup blockers: the same short label, and a run on screen does not change the rule', () => {

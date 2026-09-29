@@ -269,7 +269,15 @@ export type TimetableGenerationBlockerGroupPresentation = {
 	action: { kind: 'navigate'; label: string; href: string };
 };
 
+/**
+ * The fallback noun for a cause the table does not know, and for the
+ * groups-less legacy line. It is the COMPLEMENT of the verb the caller already
+ * supplies ("items need …"), so the sentence reads once. A8-C5 S2.0 fixed the
+ * previous pair, which produced "2 items need need attention".
+ */
 const GENERIC_CAUSE_PHRASE = 'need attention';
+/** The bare noun, for the call sites that already carry the verb themselves. */
+const LEGACY_CAUSE_NOUN = 'attention';
 
 /**
  * The noun and the verb for one root cause, so the line reads as a sentence an
@@ -299,17 +307,28 @@ export function presentGenerationBlockerGroups(input: {
 	labelForSection?: (id: number) => string;
 }): TimetableGenerationBlockerGroupPresentation[] {
 	const { diagnostic } = input;
-	if (diagnostic.groups.length > 0) {
-		return diagnostic.groups.map((group, index) => ({
+	// A8-C5 S2.0: `groups` is guarded, exactly as the comment above promises. A
+	// diagnostic built by a test fixture, an older payload, or any caller that
+	// omits the field must take the legacy one-line fallback, not throw on
+	// `.length` of undefined. `Array.isArray` is the single guard: a non-array
+	// `groups` is treated as empty, and the fallback below names the count it can
+	// actually measure (`blockerCount`).
+	const groups = Array.isArray(diagnostic.groups) ? diagnostic.groups : [];
+	if (groups.length > 0) {
+		return groups.map((group, index) => ({
 			key: `generation-blocker-group-${group.cause}-${index}`,
 			headline: groupHeadline(group),
 			detail: group.examples.length > 0 ? `For example: ${group.examples.join(', ')}.` : null,
 			action: { kind: 'navigate', label: group.action.label, href: group.action.target },
 		}));
 	}
+	// A8-C5 S2.0: the fallback line. The verb is spelled out here, so the phrase
+	// constant is the COMPLEMENT ("attention", not "need attention") — the previous
+	// pair rendered "2 items need need attention", a doubled word a scheduler reads
+	// on the one line this fallback produces.
 	return [{
 		key: 'generation-blocker-group-legacy',
-		headline: `${diagnostic.blockerCount} ${diagnostic.blockerCount === 1 ? 'item needs' : 'items need'} ${GENERIC_CAUSE_PHRASE}`,
+		headline: `${diagnostic.blockerCount} ${diagnostic.blockerCount === 1 ? 'item needs' : 'items need'} ${LEGACY_CAUSE_NOUN}`,
 		detail: null,
 		action: { kind: 'navigate', label: 'Open Year Setup', href: '/admin/year-setup' },
 	}];
