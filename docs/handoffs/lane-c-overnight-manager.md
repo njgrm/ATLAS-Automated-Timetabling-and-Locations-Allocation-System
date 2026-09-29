@@ -251,3 +251,34 @@ medium) then GO. After live: Sync now (reconcile) with operator → ids 3/20/33 
   steps, planner 400; rules: checkpoint commits, never revert uncommitted work, staging sign-in only via
   `/__dev/staging-login`, UX regressions block, ux-audit.js in every proof, `test:encoding`. Stop Codex only with
   `scratchpad/codex-stop.ps1`.
+
+## Session checkpoint — 2026-09-29 21:51 (Lane C, before compaction)
+
+**Live:** `cd542245` (train 10) since 19:52, verified by served chunk `index-BdvkYd2N.js`; rollback `e75d6b8f`. Health 200.
+Backups today: `D:/ATLAS-runtime-config/backups/pre-term1-confirm-20260929/` and `pre-drill-20260929/` (nothing was
+written for Term 1: it is already verified from EnrollPro). Live has draft Run 347 (2023-2024 Term 1, 910/920 placed).
+Checklist artifact v4 "Train 10": https://claude.ai/artifact/EQ6Zas4FD6GZHpu29TwjVv (source `scratchpad/atlas-fix-docs-qa.html`,
+builder `scratchpad/t10artifact.py`).
+
+**Operator rulings tonight (standing):** receipts rule (walk standard); presentation over function; no imposed freezes;
+walk baseline = caused or worsened by the train; Generate is never greyed out (A8 c5); **Class Schedule is the top
+priority after the current planners** — tabs stay, **Expert view retired**, baseline = relaxed header `3e894d0e`, one
+vocabulary (Generate → Draft → Published; "Planning" tab → "Draft"), one owner (A7) for its layout/words, proposal
+before code (operator reviews A7's per-tab proposal; show it to the operator when posted). ATLAS must propose placements
+for unplaced classes (A8 r1). Rollover still paused.
+
+**Running planners:** A2 c15 (grades), A2 c17 (preferences kept, both pages), A2 mc (swap stall, lock, place, preview;
+behaviour only), A3 p1 (Preferences Save — demo blocker), A3 c17 (teachers.docx 5 + profile), A5 c8 (+c8b chained: row
+menus), A6 c10r2 (cover flow; preview port must be 5200-5299), A7 c10b (calm timetable, proposal first; session
+`ses_f129d4df5ffeeTjrs5rghfXyZm`), A8 c5 (never-disabled Generate + receipt), A8 g1 (spread classes across days; HIGH),
+A8 r1 (placement proposals; HIGH), A9 c8 (Dashboard "could not check"), A9 m1 (campus map background). On main for
+train 11: A3 c16, A7 c8, A7 c9, A8 c4, A9 c7. Train 11 proposal: cut when A3 p1 + A5 c8 land (~22:30); the calm
+timetable follows. A4 release session id must be in its STAGING post; GO resume uses it with a numbered cutover prompt.
+
+**Open Codex jobs:** `codex-qa/tt-walk-a` then `tt-walk-b` (timetable component walk, read-only) — feed findings into
+`docs/prompts/timetable-calm-2026-09-29.md` for A7. Remaining drill rows not yet exercised: Grade/Section/Room and Excel
+exports, Expert/Advanced rules/Tutorial/Refresh (rerun after A2 mc lands). Preference test waits for A3 p1.
+
+**Tooling fixed tonight:** await.sh waits for runs not yet started; start-preview refuses ports outside 5200-5299; agents
+deny edits to D:/ATLAS; workflow-metrics records the train 10 cutover incident. Watchers: reaper, monitor, A7 proposal
+watcher (`scratchpad/await-a7-proposal.sh`).
