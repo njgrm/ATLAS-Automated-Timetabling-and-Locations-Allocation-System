@@ -21,6 +21,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 
 import { SimpleChangeNotice, changeNoticeSentence } from '../simple/SimpleChangeNotice';
+import { TimetableTaskDrawer } from '../TimetableTaskDrawer';
 
 const clientRoot = resolve(import.meta.dirname, '../../../..');
 function source(path: string): string {
@@ -67,4 +68,42 @@ test('ITEM 1: the historical 1-area and 3-area sentences are unchanged', () => {
 		'Teaching Load changed since this schedule was made.');
 	assert.equal(changeNoticeSentence(['Teaching Load', 'Rooms', 'Teacher availability']),
 		'Teaching Load and 2 other areas changed since this schedule was made.');
+});
+
+/* ── ITEM 4 — the task-drawer step text wraps ───────────────────────────────── */
+
+test('ITEM 4: the task-drawer step text wraps instead of clipping', () => {
+	const rail = new Proxy({ setSeverityFilter: () => {}, handleViolationSelect: () => {} }, {
+		get: (target: Record<string, unknown>, key: string) => (key in target ? target[key] : () => {}),
+	});
+	const markup = renderToStaticMarkup(createElement(MemoryRouter, null,
+		createElement(TimetableTaskDrawer, {
+			task: 'publish',
+			onTaskChange: () => {},
+			leftRailContentContext: rail as never,
+			hardCount: 0,
+			blockingHardCount: 0,
+			softCount: 0,
+			unassignedCount: 0,
+			assignedCount: 0,
+			runId: 318,
+			isPreGenerationWorkspace: false,
+			onPublish: () => {},
+			violations: [],
+		} as never),
+	));
+	const steps = markup.match(/aria-label="Task steps"[^>]*>([\s\S]*?)<\/div>/)?.[1] ?? '';
+	assert.ok(steps, 'the task-steps region renders');
+	assert.ok(steps.includes('Confirm blockers are clear'), 'step 1 is rendered in full, not `Confirm blockers are c…`');
+	assert.ok(steps.includes('Publish the schedule'), 'step 2 is rendered in full');
+	const spans = [...steps.matchAll(/<span class="([^"]*)"[^>]*>/g)].map((match) => match[1].split(/\s+/));
+	for (const tokens of spans) {
+		for (const clip of ['truncate', 'lg:truncate', 'text-ellipsis']) {
+			assert.equal(tokens.includes(clip), false, `a step span must not carry \`${clip}\``);
+		}
+	}
+	const stepSpans = spans.filter((tokens) => !tokens.includes('font-semibold')); // the `1.` / `2.` prefixes are font-semibold
+	assert.ok(stepSpans.length >= 2, 'both step spans are found');
+	assert.ok(stepSpans.every((tokens) => tokens.includes('break-words') || tokens.includes('whitespace-normal')),
+		'each step span declares a wrap');
 });

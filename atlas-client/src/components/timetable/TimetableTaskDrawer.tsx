@@ -178,10 +178,10 @@ function TimetableTaskDrawerImpl({
 				</div>
 				<div className="mt-1.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground [@media(max-height:500px)]:hidden" aria-label="Task steps">
 					<span className="font-semibold text-foreground">1.</span>
-					<span className="truncate">{copy.stepOne}</span>
+					<span className="min-w-0 break-words">{copy.stepOne}</span>
 					<ChevronRight className="size-3 shrink-0" aria-hidden="true" />
 					<span className="font-semibold text-foreground">2.</span>
-					<span className="truncate">{copy.stepTwo}</span>
+					<span className="min-w-0 break-words">{copy.stepTwo}</span>
 				</div>
 				{task === 'place-unresolved' && unassignedCount > 0 ? (
 					<p className="mt-1 text-xs font-medium text-amber-700" aria-label="Sessions left to place">
