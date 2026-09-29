@@ -5864,6 +5864,9 @@ DB-backed suggestion suites: `apply-parity` / `authority` / `authority-c03` **PA
   `requirePrivilegedRole`**, so any authenticated user can flip the blanket `canTeachOutsideDepartment` — which
   is strictly broader authority than the officer-only `subject-permissions` surface A6's switch sits beside.
   A one-line guard, but it is an **auth-boundary change and needs its own packet**; I did not touch it.
+- **2026-09-29 19:5x — CAPACITY, routed to A4: E: free is 24.55 GiB, BELOW the §3 25 GiB warn line** (D: 39.45).
+  Reclaim before the next release build; §3 says run it at the warning, not at the 15 GiB fail-closed line.
+  My own worktree is `PRESERVE_FOR_DECISION` and can be retired on A4's word once the candidate is in a train.
 
 **Next action (single):** A4 picks up the candidate for the next train and runs the **D-row browser proof** —
 the cover window itself is A6 c10's rendered evidence, not mine. Nothing else is owed by A8 c4.
