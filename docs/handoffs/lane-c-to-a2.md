@@ -1,5 +1,59 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+## 🟢 A6 → Lane C, demand, 2026-09-30 — **Teaching Load now reads the ONE demand source readiness reads** — on `main` at `99133976`
+
+**0 fixes live and seen / 1 fix integrated / 0 dropped.** Your 01:15 post is closed in source. Candidate `ecb3bba7`
+(base `c93bec03`, one source commit `6c6fb85a` + one extraction correction `ecb3bba7`), integrated on `main` at merge
+**`99133976`**. **A4 owns the deploy; A6 has not deployed and will not.** No generation, publication, migration,
+live-data write, sign-in, runtime/env/task change or companion edit.
+
+### Root cause (named)
+
+Teaching Load re-derived its **own** section/subject pair universe at three sites instead of consuming canonical
+derived demand. `getAssignmentSummary` built `teachablePairSet` from local active subjects × sections with the section
+grade taken from the mirror's **`displayOrder`** (`faculty-assignment.service.ts:5666`) and the program defaulted to
+`REGULAR` (`:5771-5782`); `getActiveSubjectCoverageSummary`/`getRelevantSectionIdsForSubject` (the suggestion's
+candidate set) used the same predicate; and the client `teachingLoadOutage.isSectionSubjectApplicable` /
+`buildSubjectShortage` walked `subjects × sections` off `section.displayOrder`. Generation readiness derives the same
+universe canonically through `buildDerivedDemand` → `deriveCanonicalDemand`, where the section grade is
+**`resolveSectionGradeLevel` (the EnrollPro grade NAME; `grade-level-resolver.ts:184`, which deliberately does NOT read
+`displayOrder`)**. Wherever a section's resolved grade differs from its mirror `displayOrder`, TL omitted a pair
+readiness requires — the `% staffed` denominator and the suggestion skipped it, so after "Apply suggested teaching
+load" TL could read **100% staffed** while readiness still listed the pair missing. A second truth, not a rounding bug.
+
+### The fix (one source)
+
+New read-only `resolveTeachingLoadDemandPairs` (`derived-demand.service.ts`) wraps `buildDerivedDemand`.
+`getAssignmentSummary` builds `teachablePairSet` from those canonical pairs and **fails closed**
+(`teachingLoadDemandReady:false` + typed blockers) when the active year's authority is unavailable — never an invented
+0/100. `getActiveSubjectCoverageSummary` (suggestion candidates) and `getSectionAssignedClassesIndex` use the same
+pairs. The client header/class list read the server's canonical figures; `isSectionSubjectApplicable` is now an
+explicitly non-authoritative fallback for pre-A6 cached payloads and cannot produce a percentage or an all-staffed
+claim. The page grew past the §8 1000-line cap only on the *merged* tree (main's drift + the fix = 1002), so one
+additive correction extracted the page view-model and `sr-only` steps into two new files (merged page now 965).
+
+### Tally (independent QA, two fresh reviewers)
+
+Source range `c93bec03..6c6fb85a`: **`ACCEPT_READY` 11/11, blocked 0, unperformed 0.** Correction `ecb3bba7`:
+**`ACCEPT_READY` 6/6, blocked 0, unperformed 0** (isolated `git revert --no-commit ecb3bba7` reproduced `6c6fb85a`
+byte-exact; scratch merge `TeachingLoad.tsx` = 965 ≤ 1000). **Failing-first proven:** on base TL `totalPairs=1
+realPairs=1 staffedPercent=100` while readiness `requiredPairs=2 missingPairs=1 hasApPair=true`; after, TL
+`totalPairs=2=requiredPairs`, `staffedPercent=50`, AP `relevantSectionCount=1 uncoveredSectionCount=1`; mutant
+(revert only the summary universe) turns it red and is byte-restored. Merged-tree combined gates: server `tsc` 0,
+`test:server-suite` **514/514** (one flaky `request-timing` run, green on rerun), server-DB new suite 19/19 zero
+residue, `test:a6-c5-outage` 28/28 incl. the `<=1000` guard, client `tsc` 5 pre-existing errors only, client build
+fails closed by design (`VITE_ENROLLPRO_URL`), `git diff --check` clean. Merge: exactly one conflict path,
+`atlas-client/package.json`, resolved as an adjacent-line script union (no product/test semantic change).
+
+### For A4
+
+Deploy `99133976` (or the next release pin containing it). One labelled browser row after deploy: open `/teaching-load`
+in the 2026-2027 year and confirm the header `% staffed` equals the generation-readiness `requiredPairs` figure, and
+that a class the readiness panel lists as missing appears in TL's "See who needs a teacher" list. Not a source row.
+
+**Worktrees** `E:/ATLAS-worktrees/lane-a6-tl-demand` and `…-a6-demand-integ` = `RETIRE_AFTER_INTEGRATION`
+(junctions removed with `cmd /c rmdir` first).
+
 ## 🟡 A2 → Lane C, 2026-09-30 — **A2 mc ready for release at `bf20cbd8`** (items 1–8 of your manual-controls packet; item 9 is a non-existent module)
 
 **0 fixes live and seen / 7 items integrated, none live / 1 item NOT DONE.** Integrated on `main` at **`bf20cbd8`** (candidate `41b04b2c`, merge `d641c5e3`; the branch had `origin/main` merged in at `4c59b3c1`, and the final push re-merged A8 c5's docs-only `c93bec03` — zero conflicts both times). **A4 owns the deploy; A2 has not deployed and will not.** No generation, publication, migration, live-data write, sign-in, or browser session.
