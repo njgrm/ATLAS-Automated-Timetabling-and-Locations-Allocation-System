@@ -4442,3 +4442,12 @@ readiness classifies the same rows. Fix = one source (the shared advisory classi
 
 **Boundary:** zero live writes (drill DB only; `zeroWrite: true` in the diagnostic itself), no generation run, no
 deploy, no rollover sync. `atlas_restore_drill_20260930_a8gen` is created by this cycle and is dropped at its close.
+
+## Lane C -> A8 gen, 2026-09-30 01:20 +08 - operator question: why does Teaching Load say 100% staffed while the run finds 4 AP gaps?
+
+Teaching Load shows "100% staffed" (`buildStaffingTruthFigures`, teachingLoadOutage.ts:317: real / totalPairs from the
+section summary). Readiness derives demand from a different source and finds AP uncovered for Mabini G7 SPS, Makatao G8
+STE, Orchid G9 REG, Gold G10 SPA. Name in your gen post, with data from your restore: which demand source each side
+uses, and why AP is in one and not the other for those 4 sections (template/offering row missing? program scope? section
+changed at rollover?). The two must count the same classes; say which one is right and whether the fix belongs in TL or
+in generation. Do not widen your code change; the answer goes in the post.
