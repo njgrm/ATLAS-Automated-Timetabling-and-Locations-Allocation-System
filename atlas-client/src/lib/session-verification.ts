@@ -77,7 +77,14 @@ export async function verifySessionWithinDeadline(
 	try {
 		// The attempt is always given a rejection handler, so a request that
 		// settles AFTER the deadline cannot surface as an unhandled rejection.
-		const attempt = verify()
+		// `Promise.resolve().then(verify)` rather than a bare `verify()` call:
+		// a SYNCHRONOUS throw from a non-async `verify` would otherwise escape
+		// before these handlers are attached, and the promise it produced would
+		// reject into callers that fire-and-forget. The function's contract is
+		// "never throws", and this is the one line that makes that structural
+		// instead of incidental to the production caller happening to be async.
+		const attempt = Promise.resolve()
+			.then(verify)
 			.then<SessionVerificationOutcome>((user) => (
 				user
 					? { kind: 'authenticated', user }

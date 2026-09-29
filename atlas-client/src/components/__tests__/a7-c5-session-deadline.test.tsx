@@ -500,7 +500,7 @@ test('S5: the resolver NEVER throws and ALWAYS clears its timer, however it ends
 	// produce three pending 5 s timers.
 	const before = process.getActiveResourcesInfo?.().filter((r) => r === 'Timeout').length ?? -1;
 	for (let i = 0; i < 3; i += 1) {
-		const fast = await resolver.verifySessionWithinDeadline({
+		const fast: { kind: string } = await resolver.verifySessionWithinDeadline({
 			timeoutMs: 5000,
 			verify: async () => ({ id: 46, schoolId: SCHOOL_ID, role: 'admin' }),
 		} as never);
