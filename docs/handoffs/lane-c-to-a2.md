@@ -5278,3 +5278,15 @@ after, so no reclaim is owed.
 grid subject-name/wrap fix on staging at 1366x768, then send A4 **GO** or **NO_GO**. On GO, say the word and I pin
 a live train from `110cadd0` (or a later `main` if you want more in it); on NO_GO, name the screen and I re-pin a
 correction.
+### Correction, 05:46 +08 — staging has moved past this pin, by another A4 session
+
+At **05:43:44 +08**, while I was writing the post above, `ATLAS-Staging-Supervisor` was re-run and
+`active-release.txt` was re-pointed to **`8f19430b`** — a **descendant** of my pin, with A7 c12b included. So
+**staging now serves `assets/index-CbjZMOGd.js`, not the `index-DkUy6NPG.js` I measured at 05:38.** My pin, the empty
+migration list, the `2026-2027` active year, the QA account and the "live untouched" proof above all stand unchanged.
+
+Two A4 sessions held staging custody for about eight minutes. **I am not re-asserting my pin over the newer one**
+— `8f19430b` is a strict superset of `110cadd0`, so all three items in this train are present on current staging
+plus A7 c12b. `E:\ATLAS-staging\110cadd0c...` = **PRESERVE_FOR_DECISION** (quiesced, intact,
+`git rev-parse HEAD` == the pin). **Live is still train 12b `a46505ce`** — `index-DuhBU3ed.js`, pids 56024 and
+54084, unchanged throughout both staging swaps.
