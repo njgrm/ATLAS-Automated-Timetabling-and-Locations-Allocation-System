@@ -522,6 +522,7 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **CUTOVER TARGET OF RECORD 2026-09-30 00:30 +08: `bc94b10b` (train 11 RE-PIN), rollback basis `8d98628d`.** Lane C GO session `ses_f124d3556ffeD2leYFPJ6zt4RN`; staging served `index-CYuWuj7B.js`; no migrations, no data writes. This target line leads the cutover and is replaced by the `A4 LIVE` row once the cutover completes.
 - **— LIVE: `8d98628d3829977db7dabffbbd720f8f4fc86a2b` @ DEPLOYED TO PRODUCTION 2026-09-29 22:40 +08 by Lane A4 —
   operator-approved **retry** of the second hotfix. Rollback basis `9462d82d`.** This is the same code as the failed
   `f4d34c75` (its parent) plus **one line**: `ops/runtime/runtime-contract.json` `readinessTimeoutMs` **45 000 ->
