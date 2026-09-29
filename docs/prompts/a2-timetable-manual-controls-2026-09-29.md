@@ -29,3 +29,8 @@ Commit and push wip every 30 min.
 8. **Place session** for an unplaced class offered no candidate and no words; say "No free time: every time double-books
    <teacher> or <room>" and offer the nearest swap.
 9. Print from Room Schedules ("Print this schedule") did not open a print view within the wait; check it opens promptly.
+
+## Addendum (operator, 21:50) — behaviour only
+The Class Schedule header, tabs and panel wording now have one owner (A7 c10, `timetable-calm-2026-09-29.md` CORRECTION).
+A2 mc fixes behaviour (swap stall, lock, place, preview speed, readiness counts from one source) and adds NO control,
+banner or sentence to the header. Where a receipt is needed, return the data; A7 decides where and how it shows.
