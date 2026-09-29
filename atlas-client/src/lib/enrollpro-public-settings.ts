@@ -35,6 +35,8 @@ type ActiveSchoolYearCacheRecord = {
 	activeSchoolYearLabel: string | null;
 	activeTerm: ActiveTermPayload | null;
 	cachedAt: string;
+	/** A7-C7: the server's own verdict for the cached year. Absent on entries written before the field existed. */
+	activeSchoolYearArchived?: boolean;
 };
 
 export type ActiveSchoolYearContextSource = 'atlas-persisted' | 'enrollpro-verified' | 'enrollpro' | 'cache';
@@ -47,6 +49,16 @@ export type ActiveSchoolYearContext = {
 	stale: boolean;
 	cachedAt: string;
 	activeTerm: ActiveTermPayload | null;
+	/**
+	 * A7-C7 — is the reported year archived?
+	 *
+	 * `null` means "this answer did not come from the ATLAS runtime context and
+	 * says nothing about the archive state" (the EnrollPro public-settings
+	 * fallback, which carries no archive authority). A consumer that must not
+	 * present an archived year as new treats `true` as the disqualifier and `null`
+	 * as unknown — never as proof that the year is current.
+	 */
+	activeSchoolYearArchived: boolean | null;
 };
 
 export type ResolveActiveSchoolYearContextOptions = {
@@ -189,6 +201,7 @@ export function cacheActiveSchoolYearContext(
 	activeSchoolYearId: number | null | undefined,
 	activeSchoolYearLabel?: string | null,
 	activeTerm?: ActiveSchoolYearContext['activeTerm'],
+	activeSchoolYearArchived?: boolean | null,
 ): void {
 	if (!activeSchoolYearId || Number.isNaN(activeSchoolYearId)) {
 		return;
@@ -199,6 +212,7 @@ export function cacheActiveSchoolYearContext(
 		activeSchoolYearLabel: activeSchoolYearLabel ?? null,
 		activeTerm: activeTerm ?? null,
 		cachedAt: new Date().toISOString(),
+		...(activeSchoolYearArchived == null ? {} : { activeSchoolYearArchived }),
 	};
 	activeSchoolYearMemory.set(schoolId, payload);
 
@@ -309,6 +323,7 @@ export async function resolveActiveSchoolYearContext(options: ResolveActiveSchoo
 			stale: !hasFreshCache,
 			cachedAt: cached.cachedAt,
 			activeTerm: cached.activeTerm ?? null,
+			activeSchoolYearArchived: cached.activeSchoolYearArchived ?? null,
 		};
 	}
 
@@ -324,6 +339,7 @@ export async function resolveActiveSchoolYearContext(options: ResolveActiveSchoo
 			stale: false,
 			cachedAt: cached.cachedAt,
 			activeTerm: cached.activeTerm ?? null,
+			activeSchoolYearArchived: cached.activeSchoolYearArchived ?? null,
 		};
 	}
 
@@ -371,6 +387,7 @@ async function _fetchRuntimeContext(
 				runtimeContext.activeSchoolYearId,
 				runtimeContext.activeSchoolYearLabel ?? null,
 				retainedTerm,
+				runtimeContext.activeSchoolYear?.isArchived === true,
 			);
 			const updated = readCachedActiveSchoolYear(schoolId);
 
@@ -382,6 +399,11 @@ async function _fetchRuntimeContext(
 				stale: runtimeContext.stale,
 				cachedAt: updated?.cachedAt ?? new Date().toISOString(),
 				activeTerm: runtimeContext.activeTerm ?? null,
+				// A7-C7: `null` only when the running server predates the field,
+				// so the answer carries no archive verdict of its own.
+				activeSchoolYearArchived: runtimeContext.activeSchoolYear
+					? runtimeContext.activeSchoolYear.isArchived
+					: null,
 			};
 		}
 	} catch (error) {
@@ -402,6 +424,7 @@ async function _fetchRuntimeContext(
 			stale: true,
 			cachedAt: cachedFallback.cachedAt,
 			activeTerm: cachedFallback.activeTerm ?? null,
+			activeSchoolYearArchived: cachedFallback.activeSchoolYearArchived ?? null,
 		};
 	}
 
@@ -422,6 +445,9 @@ async function _fetchRuntimeContext(
 			stale: false,
 			cachedAt: updated?.cachedAt ?? new Date().toISOString(),
 			activeTerm: null,
+			// A7-C7: public settings name the live year but carry no archive
+			// authority, so this answer says nothing about it.
+			activeSchoolYearArchived: null,
 		};
 	} catch (error) {
 		if (!allowStaleOnError || !cachedFallback) {
@@ -436,6 +462,7 @@ async function _fetchRuntimeContext(
 			stale: true,
 			cachedAt: cachedFallback.cachedAt,
 			activeTerm: cachedFallback.activeTerm ?? null,
+			activeSchoolYearArchived: cachedFallback.activeSchoolYearArchived ?? null,
 		};
 	}
 }

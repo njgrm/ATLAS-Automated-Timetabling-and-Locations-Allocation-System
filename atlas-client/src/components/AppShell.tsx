@@ -19,6 +19,7 @@ import {
 	evaluateRolloverTransition,
 	persistRolloverAwarenessNotice,
 	readRolloverAwarenessNotice,
+	reconcilePersistedRolloverNotice,
 	type RolloverAwarenessNotice,
 } from '@/lib/rollover-awareness';
 import {
@@ -183,15 +184,42 @@ export function AppShell() {
 			setActiveTermLabel(isVerifiedOrderedActiveTerm(context.activeTerm)
 				? context.activeTerm?.activeTerm ?? null
 				: null);
+			// A7-C7 — operators who already carry the false notice must lose it as
+			// soon as the server answers truthfully. The durable entry is removed,
+			// not merely hidden, so the next load does not rehydrate it. Reaching
+			// this point means verification SUCCEEDED; when it throws, the catch
+			// below leaves the notice alone so an offline operator keeps a
+			// legitimate one.
+			const persisted = readRolloverAwarenessNotice(actorSchoolId);
+			const reconciled = reconcilePersistedRolloverNotice({
+				notice: persisted,
+				verifiedYear: {
+					id: context.activeSchoolYearId,
+					archived: context.activeSchoolYearArchived === true,
+				},
+			});
+			if (reconciled === null && persisted !== null) {
+				clearRolloverAwarenessNotice(actorSchoolId);
+			}
 			const transition = evaluateRolloverTransition({
 				schoolId: actorSchoolId,
 				previous,
-				next: { id: context.activeSchoolYearId, label: context.activeSchoolYearLabel ?? null },
+				next: {
+					id: context.activeSchoolYearId,
+					label: context.activeSchoolYearLabel ?? null,
+					archived: context.activeSchoolYearArchived === true,
+					// Only the server's own live confirmation of the year counts as
+					// "this year is now active". An `atlas-persisted` answer means
+					// EnrollPro could not be reached and the year is unconfirmed.
+					serverVerifiedActive: context.source === 'enrollpro-verified',
+				},
 			});
 			if (transition.changed && transition.notice) {
 				persistRolloverAwarenessNotice(transition.notice);
 				setRolloverNotice(transition.notice);
 				setRouteEpoch((epoch) => epoch + 1);
+			} else {
+				setRolloverNotice(reconciled);
 			}
 		} catch {
 			// Remain on the last verified context. Recovery triggers will retry.
