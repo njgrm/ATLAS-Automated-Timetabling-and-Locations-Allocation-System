@@ -51,3 +51,11 @@ test data (hidden from lists); or rename. Lane C will not change live data witho
   later on the same build and data. Find why (placeholder counting? load order?) and make it one definition, stable.
 - **A8:** /subjects first load took 20.5 s and fell back to "Using saved data" (EnrollPro slow or a timeout). A scheduler
   waiting 20 s thinks it is broken: show the saved catalog immediately and refresh in the background, with a receipt.
+
+## Addendum 19:58 — live drill on train 10 (Codex, codex-qa/live-drill)
+- **A9 c8 (now, not after c7) — Dashboard BLOCKER on live:** after a Term 1 draft was generated, Dashboard reads
+  "0 OF 10 READY · 1 STEP TO GO · 9 ATLAS COULD NOT CHECK" with Sections/Subjects/Teachers/Teaching Rooms unavailable,
+  while those pages show 20 sections, 21 subjects, 34 teachers, 103 rooms and Run 347. EnrollPro answers in 0.2 s from the
+  live host, so find the ATLAS-side read that fails (server log via A4 if needed), fix it, and make every Dashboard line read
+  the same source as its page. A Dashboard that says "could not check" on a working system is the worst demo screen.
+  Also: Sections says saving is paused while a source check runs; Teaching Load says "Checking source" for long.

@@ -40,3 +40,12 @@ Operator: "it should never be disabled." After train 10 the button can still be 
    be generated around (Lane C reviews that list).
 4. A check that could not run (`unavailable/failed`) retries by itself once, then says so plainly with a Retry button.
 Table-driven test over every capability input: no state returns a disabled Generate except "run in progress".
+
+## Addendum 19:58 — the generation receipt (live drill, Run 347)
+Live result after Generate: "6 Must fix, 696 advisories — this schedule cannot be published yet." and the progress dialog
+only says "Checking placements and scheduling rules." That is not a receipt. After every run, one plain summary:
+"Placed 1,316 of 1,320 classes. 4 could not get a time: [open list]. 72 classes are on to-be-hired teachers. 6 things must
+be fixed before publishing: [each in one line with its fix button]." Group the 696 advisories into a few lines by cause
+with counts (e.g. "412 classes are in a room a little small for the section"), never a raw count alone. Also: the
+Generate dialog shows "Term setup Not confirmed" while School Year Setup says "TERM 1, verified live from EnrollPro";
+say the same thing in both places. Keep the run's elapsed time in the receipt.
