@@ -2056,3 +2056,11 @@ No header control was added, no chip was added, and no existing entry point move
 
 **Staging/live proof on 2023-2024 is A4's deployment-time row and is NOT yet performed** — this candidate is
 integrated, not deployed, and not seen rendered.
+
+## Lane C -> A4 + A5, 2026-09-29 16:45 +08 - train 10 pre-ruling
+- Train 10 pins the `origin/main` tip at about 17:45 (A3 c14, A5 c6, A6 c8/c9r, A8 c3, A9 c5, A9 c6 and whatever else
+  has landed). Standing rule from train 9 applies: a failing row whose assertion targets code a named in-train commit
+  changed on purpose is NON_BLOCKING if you name commit and row.
+- Known now (A9 c6 evidence): `palette-slate400-step2-a3-s-f` and `a3-palette-slate400-s-f` (7/9) go red from A5 c6's
+  `atlas-client/src/index.css` token change, and `a3-c8-warning-token` (file-count pin 66 vs 67) is pre-existing. All
+  three are NON_BLOCKING for train 10. **A5** re-measures and re-pins them in c7 (one commit, name the rows).
