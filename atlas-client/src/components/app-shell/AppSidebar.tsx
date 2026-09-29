@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-	AlertTriangle,
 	LogOut,
 	School,
 } from 'lucide-react';
@@ -30,7 +29,6 @@ import {
 	SidebarMenuItem,
 	SidebarSeparator,
 } from '@/ui/sidebar';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
 import { ConfirmationModal } from '@/ui/confirmation-modal';
 
 import {
@@ -123,7 +121,6 @@ export type AppSidebarProps = {
 export function AppSidebar({
 	schoolName,
 	logoUrl,
-	activeYearLabel,
 	bridgeUser,
 	sessionVerificationState = 'unauthenticated',
 	pathname,
@@ -168,29 +165,6 @@ export function AppSidebar({
 									) : (
 										<Skeleton className='h-4 w-28 my-0.5' />
 									)}
-									<span className='text-xs font-semibold uppercase tracking-wider text-primary/80'>Scheduling Portal</span>
-									<div className='flex flex-wrap items-center gap-x-1'>
-										{activeYearLabel ? (
-											<>
-												<span className='text-xs text-foreground'>S.Y. {activeYearLabel}</span>
-												<span className='shrink-0 text-xs font-semibold text-emerald-600'>
-													• ACTIVE
-												</span>
-											</>
-										) : (
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<div className="flex items-center gap-1 cursor-help">
-														<AlertTriangle className='size-3 shrink-0 text-amber-500' />
-																<span className='text-xs text-muted-foreground'>Working from saved data</span>
-													</div>
-												</TooltipTrigger>
-															<TooltipContent side="right" className="p-2 font-semibold">
-													Unable to reach EnrollPro. Using saved school year data.
-												</TooltipContent>
-											</Tooltip>
-										)}
-									</div>
 								</div>
 							</div>
 						</SidebarMenuItem>
