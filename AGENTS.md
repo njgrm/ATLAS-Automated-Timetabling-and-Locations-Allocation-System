@@ -73,12 +73,7 @@ After every output that changes code or files, suggest a conventional commit mes
   `atlas_restore_drill_*`), and must fail closed when the connected database name is not disposable. Incident: a bare
   `enrollpro-rollover-automation.test.ts` run wrote 5 `schools` rows into LIVE (live-state.md 02:25).
 - **Loopback previews never talk to live (2026-09-29).** A candidate `vite preview`/`dev` for rendered proof must proxy
-  to the STAGING API: start it with `VITE_ATLAS_API=http://127.0.0.1:5101/api/v1` — **the `/api/v1` suffix is part of the
-  value**, because `src/lib/api.ts` uses `VITE_ATLAS_API` verbatim as the axios `baseURL`; without it every request goes
-  to `5101/auth/login` instead of `5101/api/v1/auth/login` and staging answers `500` (observed 2026-09-29, A3 c13). The
-  loopback origin is not in staging's CORS allowlist either, so an authenticated loopback render also needs a browser-side
-  bridge that drops `Origin` on the way out and adds `Access-Control-Allow-Origin` on the way back; a harness that edits
-  staging's CORS env is a HIGH action and is not one. The default target `127.0.0.1:5001` is the
+  to the STAGING API: start it with `VITE_ATLAS_API=http://127.0.0.1:5101`. The default target `127.0.0.1:5001` is the
   LIVE server: the candidate UI then reads and could write production data, and login fails on `http://127.0.0.1`
   because live issues Secure cookies (operator saw "Failed to load subjects" / "No saved data" after logging in on :5292).
 
@@ -320,23 +315,6 @@ work against `main` moving; a disk reading taken during a concurrent wave). A2 l
   pinned diff (a removed string is absent from `dist`, a new label is present) and lists any claimed item it cannot find
   as `NOT IN TRAIN`. Evidence: A6 c3 "Guided mode removed" shipped in train 5's notes but "Guided mode is active" was
   still in `dist` and on live.
-- **Live-data invariants before staging (2026-09-29):** A4 counts, on the live DB, the active non-archived school-year
-  mirrors (must be exactly 1) and any school-year, section or faculty mirror whose external id is 900000-999999 (test
-  fixtures; real teacher ids run about 1000100 and up; must be 0). A failure is `NO_GO(DATA)` and goes to Lane C before any deploy. Evidence: a bare test at
-  01:58 left an active fixture year (910101) on live. Train 6 then refused every Teaching Load action, and it
-  surfaced only in the Codex walk.
-- **Staging QA account, every staging deploy (operator, 2026-09-29):** staging is re-streamed from live on each A4
-  deploy, which **drops** the QA login, so every staging deploy ends by running
-  `node scripts/dev/ensure-staging-qa-account.cjs` and recording `STAGING QA ACCOUNT READY` with its exit code. Without
-  it planners get a login screen on staging and fall back to fixtures. The script refuses any database that is not
-  loopback `atlas_staging` (exit 2), so it can never touch live; the password lives only in
-  `D:\ATLAS-runtime-config\atlas-staging-qa.env` and is never printed or committed.
-- **Loopback preview origins on staging (operator, 2026-09-29):** staging's `CORS_EXTRA_ORIGINS` in
-  `D:\ATLAS-runtime-config\atlas-staging.env` carries `http://127.0.0.1:5200-5299` and `http://localhost:5200-5299`
-  so a candidate's loopback preview can render real staging data. That file's DACL is **read-only for every user
-  including elevated Administrators** — a write needs a temporary ACE, and the original SDDL must be captured first and
-  restored and proven identical afterwards. It is staging-only: the live env `atlas-server.env` is never touched, and
-  the change needs a staging-only API restart (5101) with live 5001/5174 PIDs measured before and after.
 - Fresh session per release. Packet template: `docs/prompts/templates/a4-release.md`.
 
 ---
@@ -378,7 +356,11 @@ Do not maintain a per-transition register, state machine, lease table, or receip
   `[System.IO.File]` absolute paths (relative paths resolve against the process CWD, `D:\ATLAS`).
 - Use the Write/Edit tools for long appends, never heredocs, and never an Edit that escapes backticks.
 - Remove a worktree junction-safe: `cmd /c rmdir` its `node_modules` junction first, then non-forced
-  `git worktree remove`, then `git worktree prune`.
+  `git worktree remove`, then `git worktree prune`. **`git worktree remove` follows a junction and
+  empties its target** — observed 2026-09-29 (A5 c5), where a clean, registered worktree was removed
+  with the `rmdir` skipped and a shared donor went 156 entries to 0 while git reported success. Do
+  the `rmdir` for EVERY worktree in the closure, including your own integration boundary; a clean
+  `git status` is not evidence a worktree holds no junction; and re-count the donor afterwards.
 
 ### Token economy — coordination is context
 

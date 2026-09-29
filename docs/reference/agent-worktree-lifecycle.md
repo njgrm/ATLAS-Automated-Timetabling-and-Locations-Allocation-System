@@ -127,6 +127,26 @@ instant re-point. Any reclaim under this policy still requires the frozen-manife
   or junctions to one that will not be retired.
 - Never run an install through a shared junction, and never count or delete its target
   during cleanup.
+- **`git worktree remove` FOLLOWS a `node_modules` junction and empties its target.** Observed
+  2026-09-29 (A5 c5): a closure removed three worktrees correctly — `cmd /c rmdir` on the
+  junction, non-forced `git worktree remove`, `prune` — and then removed the **integration
+  boundary** worktree with a bare `git worktree remove`, skipping the `rmdir` because a prior
+  `Test-Path` had already been run in the wrong order. The worktree was registered and clean,
+  so git deleted through the reparse point and **emptied the shared donor**: 156 entries to 0,
+  silently, with `git worktree remove` reporting success. The donor was another lane's
+  `KEEP_ACTIVE` worktree, which could no longer build or test.
+  - **`rmdir` the junction in EVERY worktree before ANY worktree removal, including your own
+    integration boundary and including a worktree you believe is already clean.** Order matters:
+    `cmd /c rmdir <worktree>\atlas-client\node_modules` FIRST, then `git worktree remove`, then
+    `git worktree prune`. Never reason "this one has no junction" from an earlier check.
+  - **A clean `git status` is not evidence that a worktree holds no junction.** Untracked
+    junctions do not dirty the tree.
+  - **After a retirement closure, re-count the donor** (`Get-ChildItem <donor> -Force | Measure-Object`)
+    and record the number. A donor is a shared dependency; emptying it is an incident even when
+    the only consumer is another lane's worktree, and the restore is a full reinstall.
+  - The safe general shape: prefer that a worktree being retired has **no** junction inside it.
+    If it does, remove the junction in the same closure, one worktree at a time, and verify the
+    donor between each removal rather than after the batch.
 - A release that is a rollback basis is a do-not-retire dependency **within the retention policy
   above** (live + the two most recent accepted): record it in `docs/plans/live-state.md` when a
   deployment makes it one, and drop it from that list when a later accepted release displaces it.
