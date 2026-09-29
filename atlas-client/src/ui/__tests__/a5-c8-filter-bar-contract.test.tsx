@@ -380,7 +380,10 @@ test('A5-C8-REACH-1: /subjects — all five filters are in the DOM on first rend
 			onProgramScopeFilterChange={() => {}}
 			termFilter="all"
 			onTermFilterChange={() => {}}
-			termOptions={[{ value: 'all', label: 'All terms' }, { value: 'term-1', label: 'Term 1' }]}
+			termOptions={[
+				{ value: 'all', label: 'All terms', kind: 'all' },
+				{ value: 'term-1', label: 'Term 1', kind: 'term' },
+			]}
 			onResetFilters={() => {}}
 		/>,
 	);
@@ -492,7 +495,7 @@ test('A5-C8-REACH-4: /teaching-load — the row is ONE wrapping bar, both switch
 			onSearchQueryChange={() => {}}
 			filterStatus="teaching-assigned"
 			onFilterStatusChange={() => {}}
-			statusFacetCounts={{ 'teaching-assigned': 4, 'no-teaching': 1, 'adviser-only': 0 }}
+			statusFacetCounts={{ 'teaching-assigned': 4, 'no-teaching': 1, 'adviser-only': 0, 'below-standard': 0, 'at-standard': 0, excess: 0, unmapped: 0 }}
 			loadFilter="all"
 			loadFacetCounts={{ 'below-standard': 1, 'at-standard': 2, excess: 1 }}
 			onLoadFilterChange={() => {}}

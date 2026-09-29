@@ -317,17 +317,30 @@ export function SearchableSelect({
 				    pre-A5 reading of the same expression and would have silently undone
 				    A5's work. Mechanical union, both sides' behaviour preserved.
 
-				    A5 c8 (2026-09-29) — `min-w-0 break-words` ON THE SPAN ITSELF. A flex
-				    child's default `min-width` is `auto`, so with no floor of its own this
-				    span refuses to shrink below its content and the composed face runs
-				    straight out through the trigger's border. That is the `/sections`
-				    defect Lane C measured in words ("Home room: Home room assigned spills
-				    outside its select"), and it is why `pickerTriggerClass` pairs a
-				    content-sized width with `h-auto min-h-9`: the face needs somewhere to
-				    WRAP once `min-w-0` lets it. `break-words` covers a single
-				    over-long token (a raw program code, a data-driven department name).
-				    No `truncate` and no `whitespace-nowrap` — §8 forbids a cut-off face. */}
-				<span className="min-w-0 break-words text-left">{visibleLabel}</span>
+				    A5 c8 (2026-09-29) - `min-w-0 whitespace-normal break-words` ON THE
+				    SPAN ITSELF, and the explicit `whitespace-normal` is load-bearing
+				    rather than redundant. A flex child's default `min-width` is `auto`,
+				    so with no floor of its own this span refuses to shrink below its
+				    content and the composed face runs straight out through the
+				    trigger's border. That is the `/sections` defect Lane C measured in
+				    words ("Home room: Home room assigned spills outside its select"),
+				    and it is why `pickerTriggerClass` pairs a content-sized width with
+				    `h-auto min-h-9`: the face needs somewhere to WRAP once `min-w-0`
+				    lets it.
+
+				    And it cannot simply INHERIT the wrap: `@/ui/button`'s base class
+				    carries `whitespace-nowrap`, so a span with no class of its own is
+				    nowrap even after the `auto` variant dropped that class. That is why
+				    this change removed `whitespace-nowrap` from the VARIANT *and* states
+				    `whitespace-normal` on the SPAN - the first alone would have been a
+				    no-op, and the class list would have said the face could wrap while
+				    the browser kept it on one line. A5 c8's own gate row checks the
+				    rendered span, not the variant string, for exactly this reason.
+
+				    `break-words` covers a single over-long token (a raw program code, a
+				    data-driven department name). `AGENTS.md` section 8 forbids a
+				    cut-off or spilling face, so there is no `truncate` here. */}
+				<span className="min-w-0 whitespace-normal break-words text-left">{visibleLabel}</span>
 					<ChevronsUpDown className="ml-1 size-3 shrink-0 opacity-50" />
 				</Button>
 			</PopoverTrigger>

@@ -799,18 +799,11 @@ export default function Sections() {
 			)}
 			toolbar={(
 				/* A5 c8 (2026-09-29): `AdminSearchFilterToolbar` is deleted from
-				   `AdminWorkspace.tsx` — it was the last consumer, so there is no
-				   second filter-bar implementation left in the codebase. This page
-				   renders the ONE shared row, with the search box the bar owns and
-				   the three pickers as its children. */
+				   `AdminWorkspace.tsx` — it was the last consumer, so there is no second
+				   filter-bar implementation left. This page renders the ONE shared row. */
 				<FilterBar
 					dataTestId="sections-filter-bar"
-					search={{
-						value: searchQuery,
-						onChange: setSearchQuery,
-						placeholder: 'Search sections...',
-						ariaLabel: 'Search sections',
-					}}
+					search={{ value: searchQuery, onChange: setSearchQuery, placeholder: 'Search sections...', ariaLabel: 'Search sections' }}
 				>
 					<SectionsFilterToolbar
 						gradeFilter={gradeFilter}

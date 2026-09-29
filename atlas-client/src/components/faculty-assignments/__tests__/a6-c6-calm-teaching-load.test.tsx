@@ -513,7 +513,7 @@ test('A6C6-1c MUTANT ROW: this page and /subjects share ONE mechanism for a cont
 	// A5's variant survives, intact, with its own rationale.
 	assert.match(
 		stripComments(pt),
-		/auto:\s*'w-auto min-w-32 max-w-\[22rem\]'/,
+		/auto:\s*'w-auto min-w-32 max-w-\[22rem\][^']*'/,
 		'`/subjects`\'s `auto` width variant must survive this lane - it is the adopted mechanism, not something this slice competes with',
 	);
 	// The retired expectation, kept on record rather than deleted (`AGENTS.md` 16):

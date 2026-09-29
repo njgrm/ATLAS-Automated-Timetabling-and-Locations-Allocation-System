@@ -82,8 +82,15 @@ const SelectTrigger = React.forwardRef<
 		 * is never clamped. `min-w-0` lets the flex child shrink (its default
 		 * `min-width: auto` is what pushed the face out through the border), and
 		 * `whitespace-normal break-words` puts a long value on a second line instead
-		 * of cutting it. */}
-		<span className="min-w-0 break-words whitespace-normal text-left">{children}</span>
+		 * of cutting it.
+		 *
+		 * `whitespace-normal` is NOT redundant here either: the base `SelectTrigger`
+		 * class does not carry `whitespace-nowrap` (it was `[&>span]:line-clamp-1`
+		 * that did the cutting, and that is gone), but a caller that puts
+		 * `whitespace-nowrap` on a trigger — and `/timetable` did, at `h-7` — would
+		 * otherwise still pin the face to one line. Stating the wrap on the span means
+		 * the primitive's promise does not depend on what the caller left on. */}
+		<span className="min-w-0 whitespace-normal break-words text-left">{children}</span>
 		<SelectPrimitive.Icon asChild>
 			<ChevronDown className='h-4 w-4 opacity-50' />
 		</SelectPrimitive.Icon>

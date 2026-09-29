@@ -761,8 +761,7 @@ return (
 					}}
 					onReset={hasActiveFilters ? clearAllFilters : undefined}
 					resetLabel="Reset filters"
-				>
-					{/* A5 C3 slice B: the four roster filters live in
+				>					{/* A5 C3 slice B: the four roster filters live in
 					    `components/faculty/FacultyFilterRow.tsx` and sit on the one shared
 					    `@/ui` picker. Two reasons, in order: the file is at §8's 1000-line
 					    cap (981 physical at 419277e4) and the conversion had to land with the

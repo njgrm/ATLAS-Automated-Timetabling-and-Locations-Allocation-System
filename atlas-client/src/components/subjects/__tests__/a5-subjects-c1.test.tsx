@@ -569,9 +569,19 @@ async function ensureMoreFiltersOpen(): Promise<void> {
 test('A5-9.1/41: the filter row is ONE cluster with exactly one All Status control, and ALL FIVE filters are in it', async () => {
 	await render(<MemoryRouter><SubjectFilterToolbar {...TOOLBAR} hasActiveFilters /></MemoryRouter>);
 
-	// One row: the shared inline row, with no second always-visible row beside it.
-	assert.ok(document.body.querySelector('[data-testid="admin-inline-filter-row"]'), 'the single filter row is gone');
-	assert.equal(document.body.querySelector('[data-testid="admin-primary-filter-row"]') === null, true, 'a second always-visible filter row is back');
+	// One row. A5 c8 (2026-09-29), RE-POINTED: `admin-inline-filter-row` and
+	// `admin-primary-filter-row` belonged to `AdminSearchFilterToolbar`, which is
+	// DELETED (it was the last consumer, and the packet forbids a second
+	// filter-bar implementation). The ONE row is now `@/ui/filter-bar`, and this
+	// page's existing `subjects-filter-cluster` hook is its container — so the
+	// "one row, not two" claim is now made positively, on the element that IS the
+	// row, instead of by counting two retired hooks.
+	assert.ok(document.body.querySelector('[data-testid="subjects-filter-cluster"]'), 'the single filter row is gone');
+	assert.equal(
+		document.body.querySelectorAll('[data-testid="subjects-filter-cluster"]').length,
+		1,
+		'a second filter bar rendered; this page must have exactly one',
+	);
 
 	// One wrapping cluster carrying the whole row, at the operator's spacing.
 	//
@@ -676,8 +686,19 @@ test('A5-9.1/41: the search box is the fixed compact width, and every select car
 	assert.ok(search, 'the search box is gone');
 	assert.equal(search.placeholder, 'Search name or code...', 'the search placeholder is not the operator text');
 	const wrapper = search.parentElement as HTMLElement;
+	// A5 c8 (2026-09-29), RE-POINTED TWICE on this row.
+	//
+	// (1) The wrapper no longer needs a `max-w-[240px]`: the shared bar's search
+	//     wrapper is `relative w-[240px] shrink-0`, and a fixed `w-*` already cannot
+	//     grow. The old class was the deleted toolbar's belt-and-braces, and keeping
+	//     the assertion would mean requiring a second spelling of a width `@/ui`
+	//     already owns.
+	// (2) The trigger height token is `min-h-9`, not `h-9`, on the `auto` variant —
+	//     see the note below the loop. `h-9` remains on the FIXED variants and on
+	//     the search input; `auto` composes `h-auto min-h-9` so a long face WRAPS
+	//     inside its own box instead of running past its border.
 	assert.ok(hasClass(wrapper, 'w-[240px]'), `the search wrapper is not w-[240px]: ${wrapper.className}`);
-	assert.ok(hasClass(wrapper, 'max-w-[240px]'), 'the search box can still grow past the compact width');
+	assert.ok(hasClass(wrapper, 'shrink-0'), 'the search box can be squeezed by a filter beside it');
 	for (const token of ['h-9', 'text-xs']) {
 		assert.ok(hasClass(search, token), `the search input is missing "${token}"`);
 	}
@@ -729,12 +750,29 @@ test('A5-9.1/41: the search box is the fixed compact width, and every select car
 	const triggers = allVisibleTriggers();
 	assert.equal(triggers.length, 5, `expected 5 offered filters, found ${triggers.length}`);
 	// The per-trigger look check over all five. A5 C7 CORRECTION ROUND 1: the width token
-	// is `w-auto` rather than round 0's `w-32` — see the note above for why a fixed
+	// is `w-auto` rather than round 0's `w-32` - see the note above for why a fixed
 	// rectangle smaller than the content is a clipping instruction, not a budget.
+	//
+	// A5 c8 (2026-09-29), RE-POINTED. The token list used to be
+	//   ['h-9', 'w-auto', 'whitespace-nowrap', 'text-xs', 'px-3', 'normal-case']
+	// and TWO of those entries are gone by design:
+	//   - `h-9` is now `min-h-9` on the `auto` variant, because that variant composes
+	//     `h-auto min-h-9` so a long face WRAPS inside its own box instead of running
+	//     past its border. `h-9` is still the height of the search input and of every
+	//     FIXED width variant, so the "one height" claim survives in the form the
+	//     product actually has: one MINIMUM, shared by everything on the row.
+	//   - `whitespace-nowrap` is REMOVED, and its absence is asserted. It is the class
+	//     that let `Home room: Home room assigned` spill outside its select on
+	//     `/sections`; `AGENTS.md` §8 forbids a cut-off or spilling face.
 	for (const trigger of triggers) {
-		for (const token of ['h-9', 'w-auto', 'whitespace-nowrap', 'text-xs', 'px-3', 'normal-case']) {
+		for (const token of ['min-h-9', 'w-auto', 'text-xs', 'px-3', 'normal-case']) {
 			assert.ok(hasClass(trigger, token), `a select trigger is missing the shared "${token}": ${trigger.getAttribute('aria-label')}`);
 		}
+		assert.equal(
+			/(^|\s)whitespace-normal(\s|$)/.test(trigger.querySelector('span')?.className ?? ''),
+			true,
+			`a select trigger's face does not wrap inside its own box, so a long value escapes it: ${trigger.getAttribute('aria-label')}`,
+		);
 		// The page-local chrome string is gone, not renamed: `rounded-xl` +
 		// `border-slate-200` + `bg-white` were this page's own look, and §8 forbids it.
 		for (const gone of ['rounded-xl', 'border-slate-200', 'bg-white']) {

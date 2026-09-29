@@ -1407,7 +1407,7 @@ test('A6-39-1c no `More filters` element exists in any state, BOTH switches are 
 	// not a page-local string — is unchanged.
 	assert.equal(
 		PICKER_TRIGGER_WIDTH_CLASS.auto,
-		'w-auto min-w-32 max-w-[22rem]',
+		'w-auto min-w-32 max-w-[22rem] h-auto min-h-9 items-center py-1',
 		'the shared `auto` variant must still be the one bounded, wrapping, content-sized variant the row is measured against',
 	);
 	assert.ok(
@@ -1440,7 +1440,16 @@ test('A6-39-1c no `More filters` element exists in any state, BOTH switches are 
 		 * 128px width on a trigger that declares a 128px MINIMUM and a 352px maximum.
 		 * The bans now require a real class boundary, which is what they always meant.
 		 */
-		assert.doesNotMatch(cls, /whitespace-nowrap/, `the ${name} pick forbids its face from wrapping, so a long value escapes its own box`);
+		assert.doesNotMatch(
+			trigger.querySelector('span')?.className ?? '',
+			/(^|\s)whitespace-nowrap(\s|$)/,
+			`the ${name} pick's face is pinned to one line, so a long value escapes its own box`,
+		);
+		assert.match(
+			trigger.querySelector('span')?.className ?? '',
+			/(^|\s)whitespace-normal(\s|$)/,
+			`the ${name} pick's face does not wrap inside its own box, so a long value will be cut or will spill`,
+		);
 		for (const fixed of [/\bw-52\b/, /\bw-44\b/, /\bw-32\b/]) {
 			const boundary = new RegExp(`(^|\\s)${fixed.source.slice(2, fixed.source.length - 2)}(\\s|$)`);
 			assert.doesNotMatch(cls, boundary, `the ${name} pick still carries a fixed width; \`xl\` is what overflowed the 1078px row`);

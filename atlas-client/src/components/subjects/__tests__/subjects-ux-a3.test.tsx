@@ -899,6 +899,16 @@ function alwaysVisibleRow(host: HTMLElement): HTMLElement | null {
 	return query(host, 'subjects-filter-cluster') ?? primaryRow(host);
 }
 
+/**
+ * A5 c8 (2026-09-29): the wrapping cluster and the row are now the SAME element —
+ * `subjects-filter-cluster` is `@/ui/filter-bar`'s own container. This helper exists
+ * so the rows below that compare the two keep saying what they meant before the
+ * shared toolbar was deleted, and go red the moment a second bar reappears.
+ */
+function clusterOf(row: HTMLElement): HTMLElement {
+	return query(row, 'subjects-filter-cluster') ?? row;
+}
+
 // The no-crowding / no-page-scrollbar half of Fix 15, asserted over the class
 // contract jsdom can actually read.
 //
@@ -1178,12 +1188,24 @@ test('A3-C9 [SUPERSEDED IN BEHAVIOUR by A3-C10 on the Room Type / Program reach,
 	);
 
 	// (2) Exactly ONE row holds the always-visible filters, and it is the same
-	// row the search box is in — the header is one row, not two.
-	const row = query(host, 'admin-inline-filter-row');
+	// row the search box is in - the header is one row, not two.
+	//
+	// A5 c8 (2026-09-29), RE-POINTED: `admin-inline-filter-row` and
+	// `admin-search-filter-toolbar` belonged to the deleted `AdminSearchFilterToolbar`.
+	// The ONE row is now `@/ui/filter-bar`, and this page's existing
+	// `subjects-filter-cluster` hook sits on its container — the same element, the
+	// same place, the same assertion, re-pointed at the component that renders it.
+	const row = alwaysVisibleRow(host);
 	assert.ok(row, 'the filters are not in a single row with the search box');
-	assert.ok(query(host, 'admin-primary-filter-row') === null, 'a second always-visible filter row is still rendered');
-	assert.equal(query(host, 'admin-search-filter-toolbar')!.querySelectorAll('[data-testid="admin-inline-filter-row"]').length, 1);
-	assert.equal(row.className.includes('flex-wrap'), false, 'the single row wraps, so it can still spill onto a second line');
+	assert.equal(row.querySelectorAll('[role="combobox"]').length, 5, 'the single row does not carry all five filters');
+	/* A5 c8, reversed from the A3-C9 expectation, for the reason recorded on the
+	 * `A3-15` row above: a nowrap row only fits because every control is forced into
+	 * a fixed rectangle, and that is how a face comes to spill outside its own
+	 * select. The row WRAPS; §8 explicitly allows a second LINE and forbids a
+	 * concealed control. The A3-C9 expectation, on record:
+	 *   assert.equal(row.className.includes('flex-wrap'), false,
+	 *     'the single row wraps, so it can still spill onto a second line'); */
+	assert.equal(row.className.includes('flex-wrap'), true, 'the single row does not wrap, so a filter set that does not fit will overflow the page');
 
 	// (3) The triage selects are in that row, reachable with no hunting.
 	// A5 RETARGET (recorded, not deleted): `Filter by attention status` was
@@ -1277,7 +1299,7 @@ test('A3-C10: Room Type and Program are direct filters — one click on the filt
 	//   assert.ok(disclosurePanel, 'the `More filters` disclosure is not open');
 	//   assert.ok(disclosurePanel!.contains(roomTrigger), 'Room Type is not inside the disclosure that was opened');
 	await openMoreFilters();
-	const row = query(host, 'admin-inline-filter-row');
+	const row = alwaysVisibleRow(host);
 	assert.ok(row, 'the filters are not in a single row with the search box');
 	const roomTrigger = byLabel(host, 'Filter by room type: All room types');
 	const programTrigger = byLabel(host, 'Filter by program scope: All programs');
@@ -1396,18 +1418,33 @@ test('A3-C10: the six filters wrap instead of overflowing, Reset appears only wh
 	const row = alwaysVisibleRow(host);
 	assert.ok(row, 'no single filter row');
 
-	// (1) The shared inline row stays `flex-nowrap` (it is the sibling-owned
-	// component and A3-15/A3-C9 both pin this), so the wrapping has to happen
-	// in a cluster inside it — and it does.
-	assert.equal(row.className.includes('flex-wrap'), false, 'the shared inline row was re-wrapped; that component is not owned here');
-	const cluster = query(host, 'subjects-filter-cluster');
-	assert.ok(cluster, 'the controls have no wrapping cluster, so a narrow viewport overflows the row horizontally');
-	assert.ok(cluster.className.includes('flex-wrap'), 'the cluster does not wrap, so a narrow viewport overflows horizontally instead of wrapping');
-	assert.ok(cluster.className.includes('min-w-0'), 'the cluster cannot shrink, so it overflows instead of wrapping');
+	// (1) THE ROW ITSELF WRAPS, and the wrapping cluster IS the row.
+	//
+	// A5 c8 (2026-09-29), RE-POINTED. This used to read:
+	//
+	//   assert.equal(row.className.includes('flex-wrap'), false,
+	//     'the shared inline row was re-wrapped; that component is not owned here');
+	//   const cluster = query(host, 'subjects-filter-cluster');
+	//   assert.ok(cluster.className.includes('flex-wrap'), '…');
+	//   assert.ok(cluster.className.includes('min-w-0'), '…');
+	//
+	// i.e. a nowrap shared row containing a wrapping cluster. The shared component is
+	// gone; the ONE row is `@/ui/filter-bar`, and `subjects-filter-cluster` is that
+	// row's own container — so the row and the cluster are the same element, and
+	// asserting them separately would assert the same thing twice while pretending
+	// there were two. The property this control exists for is "the filters wrap
+	// instead of overflowing", and it is asserted once, on the row that does it.
+	// The A3-C9 expectation is on record above.
+	assert.equal(row.className.includes('flex-wrap'), true, 'the single row does not wrap, so a narrow viewport overflows horizontally instead of wrapping');
+	assert.equal(
+		clusterOf(row) === row,
+		true,
+		'the wrapping cluster and the row are different elements again, so this page is back to two filter-bar implementations',
+	);
 	// No horizontal-overflow escape hatch anywhere in the toolbar: the fix is to
 	// WRAP, not to hide the overflow behind a scroller.
-	const toolbar = query(host, 'admin-search-filter-toolbar')!;
-	for (const [name, el] of [['the row', row], ['the cluster', cluster], ['the toolbar', toolbar]] as const) {
+	const cluster = clusterOf(row);
+	for (const [name, el] of [['the row', row], ['the cluster', cluster]] as const) {
 		assert.equal(
 			/h-\[|max-h-\[|overflow-y-auto|overflow-auto|overflow-x-auto|overflow-scroll/.test(el.className),
 			false,
@@ -1496,7 +1533,17 @@ test('A3-C10: the six filters wrap instead of overflowing, Reset appears only wh
 	const u = (n: number) => n * 4;
 	const searchWrapper = document.body.querySelector('input[placeholder="Search name or code..."]')!.parentElement!;
 	assert.match(searchWrapper.className, /w-\[240px\]/, 'the search box is not the fixed compact width the one-row budget depends on');
-	assert.match(searchWrapper.className, /max-w-\[240px\]/, 'the search box can still grow past the compact width');
+	/* A5 c8 (2026-09-29), RE-POINTED. The old assertion was
+	 *   assert.match(searchWrapper.className, /max-w-\[240px\]/, 'the search box can still grow past the compact width');
+	 * and the `max-w-[240px]` came from the deleted shared toolbar's own class list.
+	 * `@/ui/filter-bar` states the width ONCE, as `w-[240px] shrink-0`, and a fixed
+	 * `w-*` with `shrink-0` already cannot grow or be squeezed — so requiring a second
+	 * spelling of the same number would mean requiring a page to restate a token
+	 * `@/ui` owns, which is the defect §8 forbids. The property is asserted from the
+	 * classes that decide it.
+	 */
+	assert.match(searchWrapper.className, /shrink-0/, 'the search box can be squeezed by a filter beside it');
+	assert.doesNotMatch(searchWrapper.className, /(^|\s)w-full(\s|$)/, 'the search box became elastic, so the controls beside it move with the viewport');
 	// A5 C7 ROUND 1: all five are content-sized, so what is asserted is the VARIANT,
 	// not a number. `w-<n>` with a digit in it is the round-0 shape and is exactly what
 	// produced the clipping, so it is rejected by name as well as by value.
@@ -1636,7 +1683,9 @@ test('A3-C9 [SUPERSEDED IN PART by A3-C10 on the width budget, verbatim otherwis
 	// restatement of the design, so editing a trigger's width without editing
 	// this number is caught.
 	const rem = (n: number) => n * 16;
-	const toolbar = query(host, 'admin-search-filter-toolbar')!;
+	// A5 c8: the `toolbar` local was `admin-search-filter-toolbar`, the deleted shared
+	// component's hook. The row the filters and the search box share IS the toolbar
+	// now — one element, one claim — so the local is dropped and `row` is used.
 	const searchWrapper = document.body.querySelector('input[placeholder="Search name or code..."]')!.parentElement!;
 	assert.match(searchWrapper.className, /w-\[240px\]/, 'the search box is not the fixed compact width the one-row budget depends on');
 
@@ -1739,8 +1788,10 @@ test('A3-C9 [SUPERSEDED IN PART by A3-C10 on the width budget, verbatim otherwis
 		`the filter cluster renders ${declared.length} triggers, not the five controls this budget accounts for`,
 	);
 	// The root is a plain block flow inside the admin frame: it adds no fixed
-	// height and no overflow, so it cannot spawn a global scrollbar.
-	assert.equal(/h-\[|max-h-\[|overflow-y-auto|overflow-auto/.test(toolbar.className), false, 'the toolbar gained a height/overflow constraint');
+	// height and no overflow, so it cannot spawn a global scrollbar. A5 c8: the
+	// `toolbar` local was the deleted `admin-search-filter-toolbar`; the row IS the
+	// toolbar now, and it is asserted twice above.
+	assert.equal(/h-\[|max-h-\[|overflow-y-auto|overflow-auto/.test(row.className), false, 'the toolbar gained a height/overflow constraint');
 });
 
 // ===========================================================================
