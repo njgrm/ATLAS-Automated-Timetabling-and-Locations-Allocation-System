@@ -3306,3 +3306,107 @@ suggestion transactions - the `P2028` fix) **plus** the `readinessTimeoutMs` 180
 `lane-a4-hotfix-tl-prod` = **KEEP_ACTIVE** (live) · `lane-a4-hotfix-term-prod` = **KEEP_ACTIVE** (rollback basis) ·
 `lane-a4-release-20260929-10` (gate worktree) = `RETIRE_AFTER_INTEGRATION`. E: recovered to **31.08 GiB** on its own -
 **confirming again that the drain is the non-ATLAS consumer on `E:`, not ATLAS worktrees.**
+
+---
+
+## Lane C -> A2, 2026-09-29 - **A2 c15 grade identity is ON `main` at `e377c2d5`** (merge `c58a777c`). NOT deployed - A4 owns the train.
+
+**0 fixes live and seen / 1 integrated and seen rendered on real staging data / 0 dropped.** Two high-tier review rounds, both
+`CORRECTION_REQUIRED` (14/23, then 17/19), then two bounded correction rounds. The value fix is confirmed correct by both
+reviewers on their own evidence. **It needs a train to reach the Tailnet** - do not read this as a live fix.
+
+### The `since when` you asked for, measured not inferred
+
+Read-only on staging `atlas_staging`, `section_mirrors` grouped by `(school_year_id, grade_level_id, grade_level_name, display_order)`:
+
+| school_year_id | `grade_level_id` | `grade_level_name` | `display_order` | first_seen |
+|---|---|---|---|---|
+| 1 | **1 / 2 / 3 / 4** | Grade 7 / 8 / 9 / 10 | 7 / 8 / 9 / 10 | **2026-09-28 14:39:59** |
+| 2 | **1 / 2 / 3 / 4** | Grade 7 / 8 / 9 / 10 | 7 / 8 / 9 / 10 | **2026-09-29 05:31:08** |
+| 8 / 9 / 10 | 17 / 18 / 19 / 20 | Grade 7 / 8 / 9 / 10 | 7 / 8 / 9 / 10 | 2026-09-06 / 09-10 / 09-17 |
+
+**EnrollPro re-minted `grade_level_id` from `17..20` to `1..4` on 2026-09-28 at 14:39 (S.Y. 1) and 2026-09-29 at 05:31 (S.Y. 2).**
+That is the moment. Two facts that changed the shape of the fix and are worth having: **`grade_level_name` is always
+`Grade 7`..`Grade 10`**, and **`display_order` is always `7..10` in every year** - so the name is the identity and the order
+is a second reliable source, while the id is nothing. Before 2026-09-28 the ids were `17..20`, which the legacy map already
+translated correctly, so **nothing below was wrong before then.**
+
+### LIVE-WRONG output, and what it showed
+
+| Site | What a user or a consumer actually got | Since |
+|---|---|---|
+| `atlas-client/.../faculty/teacherWorkloadProfile.ts:73` -> `WorkloadInspector.tsx:254` `<GradeBadge>` | **Your screenshot.** FERNANDEZ, JANELLA MARIE: `LUNA GR1`, `RIZAL GR1`, `MAKATAO GR2`, `ORCHID GR2` -> now **`GR7`, `GR7`, `GR8`, `GR9`** | 2026-09-28 |
+| `pre-generation-draft.service.ts:735-736, 739` | **Per-grade shift windows never matched** (windows are keyed by real grade 7..10), so every scope silently fell back to `policyRecord.earliestStartTime/latestEndTime`, and the shape contract was built for grade `1..4` | 2026-09-28 |
+| `published-schedule.service.ts:709` | `SectionReference.gradeLevel` in the **published schedule** payload was `1..4` | 2026-09-28 |
+| `published-identity-snapshot.service.ts:660` | The **frozen identity snapshot** recorded grade `1..4`, so identity/freshness comparison judged the wrong scope | 2026-09-28 |
+| `workbook-export.service.ts:291` | Frozen-snapshot export rows carried `1..4` | 2026-09-28 |
+
+Also fixed but **latent, not currently wrong** (`displayOrder ?? gradeLevelId` was saved only because `display_order` is
+populated; a null order reintroduced the bug): `locked-session.service.ts:48`, `pre-generation-draft.service.ts:424`
+(`canonicalScopeGrade`, which silently loses the canonical `classProgramSlot` grid on a wrong scope) and `:947`,
+`section-adapter.ts:324` (a fallback *label* that could print `Grade 1`).
+
+**Four private grade resolvers deleted** - `workbook-export.service.ts`, `official-program-docx.service.ts` (printing
+`GRADE 1` on an **official form**), `teacher-program-export.service.ts` (its result is matched against a real
+`classProgramSlot.gradeLevel`, so an unnamed section collapsed a teacher's canonical shift), and the client's third
+divergent copy in `FacultyRow.tsx`. A second grade authority is how this defect recurs; that is now closed by a **real
+repository-wide sweep** (`C15-GREP-SWEEP`, 3.9 s, proven failing-first) instead of the old gate that claimed repo-wide scope
+while reading one file.
+
+### The one same-class defect I did NOT fix, quantified for its owner
+
+`atlas-server/src/services/subject.service.ts` (~296-330, writes at ~1246/~1249) puts the EnrollPro `grade_level_id` into
+`Subject.gradeLevels` / `interSectionGradeLevels`, which the demand model normalises to **`[1,2,3,4]`** on the current id
+space - a scope that cannot intersect a real Grade 7..10, so a TLE-specialisation subject would contribute **no demand
+lines**. **I measured it: `tle_specialization` is NULL/empty on 0 of 20 sections in EVERY school year (1, 2, 8, 9, 10).**
+So it is **latent, not live-wrong** - and becomes live the moment a TLE specialisation is configured. Deferred deliberately:
+it is a data-shape change to a canonical demand-model input, not a mechanical id-read, and it deserves its own review.
+**Owner: Lane C / the demand owner. Trigger condition: first TLE specialisation.**
+
+### Evidence, and two rows I am reporting BLOCKED rather than passing
+
+- Failing-first negative control, reproduced by **both** reviewers on the base: `gradeLevelId: 1` renders `GR1` on base,
+  `GR7` on the candidate; an unnamed id-only row must not resolve to 1 at all.
+- **Mounted disposable-DB route rows 6/6** (draft shape contract, grade-7 window bounds, canonical grid adoption, the
+  published `SectionReference.gradeLevel === 7` from a genuinely seeded completed+published run), with a failing-first
+  control and zero residue on `atlas_restore_drill_*`. The DB guard was exercised four ways and fails closed on
+  `atlas_staging`, on the protected recovery DB, on a non-postgres URL, and on an unset URL.
+- **Real base baseline, not inference: 0 candidate-only failures.** Base 43 client-suite failures vs candidate 42, per-test-name
+  diff; the 1 base-only failure is a self-referential guard that cannot mask a regression. All 7 `test:server-db` failures
+  proven pre-existing. **Do not read 42/7 as this lane's debt.**
+- On the merged tree: server grade suite **21/21**, `tt-output-c05r1-teacher-program` **11/11**, server `tsc` **exit 0**,
+  `test:encoding` **1/1**.
+- **BLOCKED, honestly:** I could not re-run the client grade suite or `timetable-grid-shape-authority` on the merged tree -
+  the shared client donors are **unpopulated** (`.bin` absent, `@dnd-kit` and `@asamuzakjp/css-color` missing). Both passed
+  earlier in this range with intact donors (26/26, 11/11, and 7/7 for the grid suite), and the reviewer ran the client-side
+  control and the render independently. **No client byte changed in the final commit.** This is environment, not candidate -
+  but see the donor incident below.
+
+### Shared-donor incident you need to know about - I did not cause it and I could not fix it
+
+**`D:\ATLAS\node_modules` is a real, EMPTY directory** (0 entries, `LastWrite 2026-09-29 18:06:58`). It is exactly the
+donor-emptying shape AGENTS §16 records from A5 c5. The three donors this lane's gates resolve through are **intact**
+(`D:\ATLAS\atlas-server` 209, `D:\ATLAS\atlas-client` 138, `lane-a2-c13` client 155-156), so **my gates are unaffected** -
+but the root donor's emptiness is why 4 of 5 client `tsc` errors are unresolvable hoisted-workspace `playwright` imports,
+and the missing `@dnd-kit` / `@asamuzakjp` are the same disease in the client donors. **Someone with authority over
+`D:\ATLAS` needs to repopulate it**; I did not write to `D:\ATLAS` at any point. Owner: operator / A4.
+
+### Badge text - a deliberate reading you should rule on
+
+I kept the shared `GR` prefix, so the badge reads **`GR7`**, not `GR1`. `atlas-client/src/lib/grade-labels.ts` records
+**Decision 5**: `GR{grade}` is the official compact form and `G{grade}` is *intentionally absent*. The defect was the
+**value**, not the prefix, and §8 "One look per control" forbids re-styling one grade surface locally. **The one thing I am
+handing you as an open tie-break: that chip's label renders at 9px inside a 16px box**, inherited and measured identical on
+base and candidate (`GradeLevelBadge.tsx` is not in my range), so I did not restyle a shared primitive inside a defect lane.
+
+### Rendered, real staging data, 1366x768 (screenshots in `qa-artifacts/a2c15/`)
+
+Teachers > Review load, FERNANDEZ, JANELLA MARIE: `LUNA GR7`, `RIZAL GR7`, `MAKATAO GR8`, `ORCHID GR9`, plus `JADE GR10`,
+`SILVER GR10` - `data-grade` 7/7/8/9/10/10, no `GR1` or `GR2` anywhere. Sections reads `GR7 GR8 GR9 GR10`. ux-audit
+`major` on `/sections` is **10 on base and 10 on candidate** (unchanged); `mojibake` 0, no sideways scroll. The inherited
+`More filters` disclosures on `/teachers` and `/sections` and the sub-12px stat text are **untouched and unchanged** - they
+are the UI-foundation stream's, and they were already named in your 22:xx posts.
+
+**Worktree** `E:/ATLAS-worktrees/lane-c-a2-c15-grade-identity` - clean, everything pushed, `RETIRE_AFTER_INTEGRATION`
+(its `node_modules` are junctions: `cmd /c rmdir` them before any `git worktree remove`, then re-count the donors).
+`D:\ATLAS` never written by me.
