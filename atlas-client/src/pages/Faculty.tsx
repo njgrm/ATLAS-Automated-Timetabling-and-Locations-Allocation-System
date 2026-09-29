@@ -906,13 +906,22 @@ return (
 				onClose={closeWorkloadModal}
 			/>
 
-			{/* Roster review / profile — Fix 23: a centred Dialog, opened in place. */}
+			{/* Roster review / profile — Fix 23: a centred Dialog, opened in place.
+			    A6 c10: it also carries `Teaching permissions` — the switch and the
+			    `Subjects they may also teach` list, which are the only controls in the
+			    product that can create a `CrossDepartmentPermission` outside the moment
+			    a class needs one (Codex audit finding 6; Lane C's "nothing can create
+			    or delete one"). `schoolId` is the ACTOR's, and the sheet takes no
+			    default for it. */}
 			<FacultyProfileSheet
 				faculty={profileTarget}
 				open={profileTarget !== null}
 				onOpenChange={(open) => !open && setProfileTarget(null)}
 				sourceFreshness={profileSourceLabel}
 				reviewLabel={nextTeacherIntent?.label ?? 'Review teaching load'}
+				permissions={null}
+				schoolId={actorSchoolId}
+				onPermissionsChanged={() => { void fetchFaculty({ forceRefresh: true }); }}
 			/>
 
 			{/* Create/Edit Placeholder Modal */}

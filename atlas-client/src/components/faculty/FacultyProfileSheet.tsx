@@ -25,6 +25,9 @@ import type { FacultySummary } from '@/types';
 import { Link } from 'react-router-dom';
 import { getDepartmentColor } from '@/lib/department-colors';
 import { GradeBadge } from '@/components/faculty-assignments/GradeBadge';
+import { TeacherSubjectPermissions } from '@/components/faculty/TeacherSubjectPermissions';
+import { useSubjectPermissions } from '@/hooks/useSubjectPermissions';
+import { useSchoolSubjects } from '@/hooks/useSchoolSubjects';
 import { formatFacultyDisplayName, formatFacultyInitials } from '@/components/faculty/teacherNameDisplay';
 import { deriveLoadStatus, STANDARD_WEEKLY_TEACHING_HOURS } from '@/lib/faculty-assignment-helpers';
 import { departmentLabel } from '@/lib/deped-glossary';
@@ -43,6 +46,21 @@ interface FacultyProfileSheetProps {
 	onReviewLoad?: (faculty: FacultySummary) => void;
 	/** Label for the primary action. Defaults to "Review teaching load". */
 	reviewLabel?: string;
+	/**
+	 * A6 c10 — the subject-permission handle, owned by the PAGE.
+	 *
+	 * The page owns it because `Review coverage` on `/subjects` edits the SAME list
+	 * (A8 c4 contract §4) and must see a grant the profile just made without a
+	 * reload. Passing a handle rather than a teacher id keeps one reader for one
+	 * table; the panel itself is presentational.
+	 */
+	permissions: ReturnType<typeof useSubjectPermissions> | null;
+	/** The actor's school. Required for every permission read and write. */
+	schoolId?: number | null;
+	/** The page's write gate; a read-only workspace offers no permission control. */
+	writeBlockedReason?: string | null;
+	/** Called after a permission write, so the page re-reads its own roster. */
+	onPermissionsChanged?: () => void;
 }
 
 export function FacultyProfileSheet({
@@ -52,7 +70,27 @@ export function FacultyProfileSheet({
 	sourceFreshness,
 	onReviewLoad,
 	reviewLabel = 'Review teaching load',
+	permissions,
+	schoolId,
+	writeBlockedReason,
+	onPermissionsChanged,
 }: FacultyProfileSheetProps) {
+	/*
+	 * A6 c10 — the permission handle and its subject list, read HERE because the
+	 * sheet is the only thing that knows a profile is open. `enabled` is the open
+	 * state, so a closed profile reads nothing: the permission route is a read per
+	 * (teacher, school) and re-reading it for a dialog nobody is looking at is a
+	 * request with no reader.
+	 */
+	const permissionHandle = useSubjectPermissions({
+		facultyId: open && faculty ? faculty.id : null,
+		schoolId: schoolId ?? null,
+		writeBlockedReason,
+		onChanged: onPermissionsChanged,
+	});
+	const subjectList = useSchoolSubjects({ schoolId: schoolId ?? null, enabled: open && Boolean(faculty) });
+	const resolvedPermissions = permissions ?? (open && faculty ? permissionHandle : null);
+
 	if (!faculty) return null;
 
 	const subjectCount = faculty.subjectCount ?? 0;
@@ -349,6 +387,37 @@ export function FacultyProfileSheet({
 					</div>
 
 					<Separator className="opacity-50" />
+
+					{/*
+					 * A6 c10 — THE MISSING FRONT DOOR, and the only place on the
+					 * product a scheduler can grant a teacher a subject outside their
+					 * own department outside the moment a class needs one.
+					 *
+					 * Codex audit finding 6 (MAJOR): the profile showed department,
+					 * subjects, sections, hours and `CLOSE PROFILE`, and no way to
+					 * authorize a cross-department teacher at all. Lane C's own fact:
+					 * `CrossDepartmentPermission` was READ by five server consumers and
+					 * CREATABLE by nothing. This panel is the missing control, and it
+					 * edits the same list `Cover this class` writes through the Allow
+					 * prompt, because A8 c4's contract makes them the same table.
+					 *
+					 * It renders NOTHING when the caller has no handle — an unmounted
+					 * caller (the in-page `Review teachers` surface on another route)
+					 * simply has no permission surface, which is honest, and is not the
+					 * same as a panel claiming a teacher has no permissions.
+					 */}
+						{resolvedPermissions && (
+							<>
+								<TeacherSubjectPermissions
+									permissions={resolvedPermissions}
+									subjects={subjectList.subjects}
+									subjectsLoading={subjectList.loading}
+									facultyVersion={faculty.version}
+									facultyName={formatFacultyDisplayName(faculty)}
+								/>
+								<Separator className="opacity-50" />
+							</>
+						)}
 
 					<div className="space-y-3 rounded-xl border bg-slate-50/70 p-4">
 						<h4 className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-widest">Adviser and source context</h4>
