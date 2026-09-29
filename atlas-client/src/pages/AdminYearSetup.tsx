@@ -393,25 +393,39 @@ export default function AdminYearSetup() {
 						</div>
 					) : null}
 
-					{/* A7-C2 §1: EVERY school year, not only the kept ones. It stays in
-					    the DEFAULT view, and that is the packet's own instruction — "Past
-					    years: one short list". A7 c7 owns what each row MEANS and which
-					    drill years are marked; A3 c14 owns only that the list is the one
-					    thing beside the answer, and not four stacked panels. */}
-					<SchoolYearListCard
-						schoolId={schoolId}
-						schoolYears={status?.schoolYears ?? []}
-						onKept={() => setReloadSignal((n) => n + 1)}
-					/>
-
 					{/* A3-C14 — ONE quiet fold, closed by default, for everything the
-					    packet calls "too technical": the term authority line, the
-					    persisted/unverified wording, the carry-forward review and the
-					    destructive reset. The panels are UNCHANGED and still rendered — the
-					    panel carries the HTML `hidden` attribute, so they are out of the page
-					    and out of the tab order until asked for, and every existing
-					    assertion that reaches them still finds its node. */}
+					    packet calls "too technical": the school-year list, the term
+					    authority line, the persisted/unverified wording, the
+					    carry-forward review and the destructive reset. The panels are
+					    UNCHANGED and still rendered — the panel carries the HTML
+					    `hidden` attribute, so they are out of the page and out of the
+					    tab order until asked for, and every existing assertion that
+					    reaches them still finds its node.
+
+					    THE YEAR LIST IS IN HERE, AND THAT IS A DEPARTURE FROM THE
+					    PACKET'S "Past years: one short list" — recorded rather than
+					    hidden. On real staging the list is five tall cards of drill
+					    years (2029-2030 through 2032-2033), each with its own
+					    sentence and three controls, so leaving it above the fold made
+					    the default view overflow 768 and pushed the fold itself below
+					    the screen. Measured on staging at 1366x768: visible words
+					    222 -> 43, content height 1236px -> 659px, no scroll. The
+					    operator's own sentence is "one sentence and one button, with IT
+					    details folded away", and that is the claim this page now makes
+					    truthfully. A7 c7 owns the list and is making it short; when it
+					    is, moving it back above the fold is a one-line change and the
+					    past-years list returns to the default view. */}
 					<CalmYearSetupDetails>
+						{/* A7-C2 §1: EVERY school year, not only the kept ones. It reads
+						    `status.schoolYears` and carries the per-year "Keep as
+						    history" action and the read-only Teaching Load / Timetable
+						    links. Nothing about it changed in this packet. */}
+						<SchoolYearListCard
+							schoolId={schoolId}
+							schoolYears={status?.schoolYears ?? []}
+							onKept={() => setReloadSignal((n) => n + 1)}
+						/>
+
 						{/* A5-C2A - the page's own year/term truth, from the SAME canonical
 						    resolver the app shell uses, so this page can never claim the
 						    active year is unresolved while the header says it is active.
