@@ -1980,3 +1980,39 @@ After the QA-account step, **rotate the staging QA password** (delete `ATLAS_STA
 - **One data-loss risk found and closed before the cutover (worth recording):** campus-map uploads are written to the release tree at runtime (`map.router.ts` multer) and served by `app.ts` `express.static('/uploads')`. The incumbent tree held a runtime upload `campus-6a61ada4-….png` referenced by `schools.campus_image_url` that the new tree lacked - a straight cutover would have 404'd the live campus image. A4 **copied the runtime upload into the new tree** and added `/atlas-server/uploads/` to `.git/info/exclude` (same class as the existing `ops/runtime/logs/` rule) so the target still passes `deploy-runner` `Get-GitIdentity`'s clean-tree gate. It now serves on live (**200, 1 285 767 B**). No live row failed because of it.
 - **Staging was not a participant** in the cutover; it is still up at the same pin (5101 -> 11024, 5274 -> 40336).
 - **Gate lineage:** pre-action review `CORRECTION_REQUIRED` 22/28 (1 BLOCKING, packet wording) -> applied docs-only; gates re-run on the re-pinned train: Prisma 0 (11->11), client suite 1305/1266/39 with 4 new rows all NON_BLOCKING and attributed, `test:staging-guards` 20/20; Codex staging walk 5/8, no real blocker.
+
+## A4 post-cutover follow-ups (train 9) - 2026-09-29 - all three done
+
+- **1. Staging QA password ROTATED (Lane C 15:25 request), value never printed.** Backup
+  D:\ATLAS-runtime-config\backups\atlas-staging-qa.env.bak-20260929-rotation. Deleted the
+  ATLAS_STAGING_QA_PASSWORD line from tlas-staging-qa.env (keeping the header comment and
+  ATLAS_STAGING_QA_IDENTIFIER, LF endings, no BOM), then re-ran the sanctioned
+  
+ode scripts/dev/ensure-staging-qa-account.cjs -> STAGING QA ACCOUNT READY (exit 0), which generated a fresh
+  password and rewrote the hash in tlas_staging. **Proof of rotation without disclosing anything:** the SHA-256 prefix
+  of the stored value moved A495B2B8946F1A16 -> A1F1DAD539EDA702 (length 24 both times); the file's ACL survived
+  the rewrite. **This also closes the leak vector named in the pre-action review** - two planner relays had exposed the
+  old value on loopback.
+- **2. /__dev/staging-login CONFIRMED WORKING on a 5200-5299 preview.** Started via the sanctioned
+  scripts/dev/start-preview.ps1 on **:5200** (free port; **:5231/:5261/:5274/:5291/:5293 were already occupied by
+  other lanes' previews and were left untouched**). GET /__dev/staging-login -> **200**, served by the
+  tlas-dev-staging-login middleware (proved it was **not** the SPA fallback: the body carries no /@vite/client
+  and differs in length from an unknown-path response), it issued a token, and that token authenticated
+  GET http://127.0.0.1:5101/api/v1/auth/me -> **200**. **So the rotated password produces a working staging session.**
+  Only my own preview was stopped (the PID recorded on :5200); no other process was touched.
+  *Trap worth recording:* start-preview.ps1 reports READY on any port that already answers 200, so on a busy port
+  it returns success while its own Vite has exited with Port ... already in use - always confirm the log says Vite is
+  ready, not just that the port answers.
+- **3. The dirty E:\ATLAS-staging\3216d383… dir is RESOLVED - preserved, then removed.** Its single modification was
+  ops/runtime/runtime-contract.json, and it is a **generated** artifact: ops/staging/deploy-staging.ps1 installs the
+  staging contract into every staging release dir, and the file's own $comment ends "Never copy this file into the
+  live release directory." The diff is preserved at
+  docs/handoffs/staging-3216d383-runtime-contract-diff.md. Restored the file, re-checked reparse points (**0**), then
+  git worktree remove (non-forced) + prune, both exit 0; no branch or ref deleted. **E: 24.35 -> 25.90 GiB**; the
+  surviving staging tree re-counts **155** 
+ode_modules entries, unchanged. Staging (5101 -> 11024, 5274 -> 40336) and
+  live (5001 -> 20432, 5174 -> 17156) both healthy throughout.
+- **Follow-up owed, not done here (A4 edits no product/ops code):** tlas-staging-qa.env still carries an inherited
+  Authenticated Users: Modify ACE, and ensure-staging-qa-account.cjs writes it with a bare writeFileSync and no ACL
+  handling - the same containment gap that forced the staging env's capture-then-restore. The password is now rotated, but
+  the file remains world-readable-to-modify. Route to whoever owns scripts/dev/.
