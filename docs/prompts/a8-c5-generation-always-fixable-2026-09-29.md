@@ -21,3 +21,8 @@ After A8 c3, generation proceeds with teacher gaps and workload/qualification ad
    panel, follow the button, fix, generate.
 
 ## Addendum 17:25 — do the A8 section of docs/prompts/truth-fixes-2026-09-29.md FIRST (two BLOCKERs), then this packet.
+
+## Addendum 19:05 (A4 train 10 gate) — one hardening row
+`atlas-client/src/lib/timetable-generation-readiness.ts:302` reads `diagnostic.groups.length` unguarded; treat a missing
+`groups` like an empty one (the legacy one-line fallback its comment promises). Runtime is safe today (the parser at :483
+always sets it), so this is a test-fixture gap; re-pin `a2-header-budget-2026-09-29.test.tsx` H4 A/B on purpose.
