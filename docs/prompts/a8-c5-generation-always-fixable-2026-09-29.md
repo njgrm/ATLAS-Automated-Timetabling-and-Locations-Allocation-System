@@ -26,3 +26,17 @@ After A8 c3, generation proceeds with teacher gaps and workload/qualification ad
 `atlas-client/src/lib/timetable-generation-readiness.ts:302` reads `diagnostic.groups.length` unguarded; treat a missing
 `groups` like an empty one (the legacy one-line fallback its comment promises). Runtime is safe today (the parser at :483
 always sets it), so this is a test-fixture gap; re-pin `a2-header-budget-2026-09-29.test.tsx` H4 A/B on purpose.
+
+## Addendum 20:05 (operator) — Generate is never greyed out
+Operator: "it should never be disabled." After train 10 the button can still be disabled by `timetable-capabilities.ts:161-210`:
+`curriculumState === 'blocked'` ("Setup inputs for the active school year are not ready yet"), `!generateAllowed ||
+!zeroWrite` ("Generation readiness is not verified"), `driftBlocked`, `unavailable/failed`. Change the contract:
+1. The Generate button is always enabled (except the seconds while a run is in progress, which shows progress).
+2. Clicking it always opens the Generate dialog. If generation can run (teacher gaps, advisories), it runs and the result
+   lists what was left open, in words. If something truly prevents any timetable (no sections, no time periods, no
+   subjects, school year out of sync), the dialog says so in one plain line per cause with a count, one fix button each
+   that opens the exact place, and "Check again" — never a greyed button with a tooltip.
+3. Anything that is only a warning must not stop generation; list the true stoppers in the handoff and why each cannot
+   be generated around (Lane C reviews that list).
+4. A check that could not run (`unavailable/failed`) retries by itself once, then says so plainly with a Retry button.
+Table-driven test over every capability input: no state returns a disabled Generate except "run in progress".

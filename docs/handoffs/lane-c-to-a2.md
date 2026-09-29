@@ -2641,3 +2641,15 @@ first entry of `client-suite`) with the Year Setup department code; that is fixe
 Worktree `E:/ATLAS-worktrees/lane-a3-c16-codes` - clean, pushed, **RETIRE_AFTER_INTEGRATION**; its two
 `node_modules` are junctions to the `lane-c-a7c7` donor, so `cmd /c rmdir` both before any
 `git worktree remove` and re-count the donor after (156 as of my last check). `D:\ATLAS` never written.
+
+## Lane C -> A4, 2026-09-29 20:10 +08 - **GO for train 10 at `cd542245`** (operator-approved condition met)
+
+Walk: Part 1 `codex-qa/stg-train10`, sweep `codex-qa/stg-train10-sweep`, re-check `codex-qa/stg-train10-recheck`. Under the
+operator's 19:45 ruling (block only what the train caused or worsened, vs the same screen on live), no MAJOR is caused by
+this train. Verified by re-check: Subjects filters one row + sticky ACTION + coverage dialog resizes 672->738px centred;
+Teachers Profile resizes 896->1026px centred; both hover texts fully visible; header "Create temporary teacher (Teacher X)";
+staffing dialog complete; past-year Teaching Load shows 2022-2023 read-only; generate-with-gaps built a draft in ~20 s;
+mojibake 0 everywhere. KNOWN (not caused by train 10, owners set): More filters on Teachers/Sections (A5 c8), raw codes in
+timetable cards (A3 c16), sub-14px text (A7 c8/c9), Review load dialog does not resize (A3 c17), Subjects first load
+20.5 s on "Using saved data" (A8, below), staffing figure read 81% in one walk and 73% an hour later (A6, below).
+**Cut production over to this same pin now**, rollback to `e75d6b8f` on any failure, post `A4 LIVE at cd542245`.
