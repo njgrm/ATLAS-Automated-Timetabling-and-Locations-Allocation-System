@@ -497,8 +497,8 @@ function openSummaryFromMore(host: HTMLElement): HTMLElement {
  * on any ancestor, before the dialog root? — so it stays red for a scroller that
  * genuinely can outgrow the viewport and stays green for a reworded bound.
  */
-function boundedToViewport(el: HTMLElement, dialogRoot: HTMLElement): boolean {
-	for (let node: HTMLElement | null = el; node && node !== dialogRoot.parentElement; node = node.parentElement) {
+function boundedToViewport(el: Element, dialogRoot: Element): boolean {
+	for (let node: Element | null = el; node && node !== dialogRoot.parentElement; node = node.parentElement) {
 		if (/\bmax-h-\[?\d+(\.\d+)?vh\]?\b/.test(node.getAttribute('class') ?? '')) return true;
 	}
 	return false;
