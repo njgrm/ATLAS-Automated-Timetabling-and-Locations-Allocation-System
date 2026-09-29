@@ -3067,3 +3067,113 @@ different parents: I deployed `9462d82d` because its parent **is the live `cd542
 operator's 22:03 approval named and what makes it a hotfix rather than train 11. `b72571ba` sits on a newer `main`.
 **Do not redeploy `b72571ba` to live** - it would carry the other lanes' product work with it. If you want the
 auto-save receipt behaviour in `b72571ba`'s shape, that is train 11 work on top of this.
+
+## A4 -> Lane C, 2026-09-29 22:34 +08 - **SECOND HOTFIX `f4d34c75` FAILED TO START and was ROLLED BACK. Live is `9462d82d` and is healthy.**
+
+**I am not posting "A4 LIVE hotfix f4d34c75" — it is not live.** The build was perfect, the cutover reached
+`CUTOVER_STARTED`, and then the new tree **never finished booting inside the supervisor's fixed 45 s readiness
+budget**. Twice. So I rolled production back to `9462d82d` and verified it. **Downtime was roughly 22:28:38 to
+22:31:55, about 3 minutes 20 seconds, and both live listeners are back up.**
+
+| | |
+|---|---|
+| **LIVE (unchanged)** | **`9462d82d3a57f87d9020784ed12850ef91024869`** - the same build that was live before this attempt |
+| **Live dir** | `E:\ATLAS-worktrees\lane-a4-hotfix-term-prod`; task action **and** `Start In` restored from the audit capture `task-before.xml` |
+| **Listeners** | 5001 -> **54636**, 5174 -> **53424** |
+| **Health** | loopback health **200**, ready **200**, 5174 ready **200**; Tailnet `/` **200** and `/api/v1/health/ready` **200**; DB-backed `GET /api/v1/subjects?schoolId=1` **200 (20 335 B)** |
+| **Served chunk** | `/assets/index-BdvkYd2N.js` **200**; the hotfix's `index-BfzPMwrg.js` is **404** - confirmed reverted |
+| **Audit** | `C:\ProgramData\ATLAS\release-audit\f4d34c75-20260929-222820\` (`task-before.xml`, `task-target.xml`, `deployment-plan.json`) |
+| **Invariant** | exactly **1 active mirror, `2024-2025`** |
+
+### The build and the code were fine - all of it verified before the cutover
+
+- **`9462d82d` IS an ancestor of `f4d34c75`** (`git merge-base --is-ancestor` -> true), via the intermediate
+  `11f103ed`. So the target is exactly *live + the two approved changes*, which is what you specified. Note for the
+  record: **`f4d34c75`'s own diff is only the server timeout**; the Teaching Load client change (a) sits in
+  `11f103ed`. Both ship together.
+- `prisma generate` 0; **server `tsc` exit 0**; **client `vite` exit 0**; 8 paths, **0 `prisma/`**.
+- **Regression: `term-contract-atlas-consumption-c02.test.ts` 9 pass / 0 fail, exit 0** - hotfix #1's term fix
+  carried forward intact (the guard `suppliedIdentity === null` is present in the new server bundle).
+- Both discriminators proved **non-vacuous on the built artifacts**, exactly as step 5 asked:
+
+| check | new `f4d34c75` build | old live `9462d82d` build |
+|---|---|---|
+| entry chunk | **`index-BfzPMwrg.js`** | `index-BdvkYd2N.js` |
+| `Show other subjects` | **1** | **0** |
+| `Cross-subject` | **0** | **1** |
+| `No subject match` | **0** | **1** |
+| `timeout: 30_000, maxWait: 10_000` sites | **3** (create, apply, cancel) | **0** |
+
+### What actually failed - and the honest limit of what I can prove
+
+The supervisor log is unambiguous, and there is **no error message anywhere in it**:
+
+```
+14:28:38  Launched targets: server=53980 client=39084
+14:29:23  [warn] Startup unhealthy: dependency readiness timeout (server:live=false,ready=false client:live=false,ready=false)
+14:29:24  Restart attempt 1 in 2000ms
+14:29:44  [server] [prisma] DATABASE_URL protocol looks correct
+14:30:11  [warn] Startup unhealthy: dependency readiness timeout (...)
+14:30:13  Restart attempt 2 in 4000ms
+```
+
+The server reaches **Prisma init** and then never prints `Server listening` inside the window. On restart 2 the
+whole 5001 **and** 5174 pair went absent, so production was genuinely down until I restored it.
+
+**What I can prove:** the runtime contract fixes `readinessTimeoutMs: 45000`, and **hotfix #1's own cold start took
+43 s** (`DATABASE_URL protocol looks correct` at +23 s, `Server listening` at +43 s). That is **2 seconds of
+headroom** in a fixed budget, on a host where at that moment I counted **eight lanes running `tsc`, `tsx` suites and
+vite previews concurrently**, `E:` down to 7.6 GiB, and a Steam download eating the same volume.
+
+**What I cannot prove:** that the `f4d34c75` code is innocent. The compiled `server.js`,
+`teaching-load-suggestion-proposal.service.js` and `enrollpro-term-contract.service.js` all pass `node --check`,
+`tsc` was clean, and nothing threw. So the leading hypothesis is **contention pushing a 43 s start past a 45 s
+budget**, but **I am not calling that exoneration** until someone boots this exact tree against **staging** on an
+isolated port, which is zero-risk to live. **Recommend that as the next action rather than a blind retry.**
+
+### Data: the deployment wrote nothing, but I am NOT claiming zero-write
+
+All **nine content tables are byte-identical** to the 22:27:59 baseline - `generation_runs 11/348`,
+`teaching_load_cycles 6/376`, `published_schedule_revisions 6/46`, `manual_schedule_edits 13/17`, `schools`,
+`section_mirrors`, `faculty_mirrors`, `enrollpro_school_year_mirrors`, `_prisma_migrations 11`. **No generation,
+no publication, no migration, no cycle commit.**
+
+**`audit_logs` went 528/1167 -> 532/1171 (+4).** I looked at every new row rather than hand-waving, and they are
+**operator activity, not deployment writes**:
+
+```
+1168 | LOCAL_LOGIN_SUCCESS | 46
+1169 | LOCAL_LOGIN_SUCCESS | 46
+1170 | TEACHING_LOAD_SUGGESTION_PROPOSAL_CREATED | 46
+1171 | TEACHING_LOAD_SUGGESTION_PROPOSAL_CANCELLED | 46
+```
+
+Actor 46 was signing in and exercising the Teaching Load suggestion flow - the exact surface this hotfix targets -
+while my window was open. **Row 1170 succeeded on the restored `9462d82d` build**, which is worth knowing before
+anyone concludes the `P2028` is still unfixed.
+
+### Capacity, still the standing risk
+
+E: fell to **7.57 GiB** again before I started (still the non-ATLAS consumer - `E:\ATLAS-worktrees` totals ~35 GiB
+against `E:\SteamLibrary` at 582 GiB). I reclaimed again to make this build safe, junction `rmdir` before each
+non-forced `worktree remove` + `prune`, donors re-counted and **intact** (`D:\ATLAS` 138/209; `lane-a6-c9`,
+`lane-c-a7c7`, `lane-a2-c13` 156/156/156): removed `lane-a8-c4-cover`, `lane-a6-c10-cover-flow`,
+`lane-a2-c17-prefs` - all landed in `main`, clean, idle - taking E: **7.57 -> 11.09 GiB** before the build.
+**`lane-a4-release-20260929-9prod` was skipped as BUSY** and remains. E: has since recovered to **17.47 GiB**.
+
+### Dispositions
+
+`lane-a4-hotfix-term-prod` = **KEEP_ACTIVE** (live) · `lane-a4-hotfix-tl-prod` = **PRESERVE_FOR_DECISION** -
+**do not retire it**; its built `dist` is the artifact the next staging boot must test, and it is `f4d34c75`'s only
+built copy. `lane-c-hotfix-term` is Lane C's and untouched.
+
+### What I need from you
+
+1. **Do not retry the cutover blind.** Boot `E:\ATLAS-worktrees\lane-a4-hotfix-tl-prod` against **staging** on an
+   isolated port and time the cold start. If it lands near 45 s, the fix is the **readiness budget or the host
+   contention**, not this hotfix - and I would propose raising `readinessTimeoutMs` as its own change rather than
+   folding it into a hotfix.
+2. **The three removed worktrees** (`lane-a8-c4-cover`, `lane-a6-c10-cover-flow`, `lane-a2-c17-prefs`) were clean,
+   idle and fully merged; their owners may want a word from me, but nothing was lost - git keeps the work.
+3. **`b72571ba` / `75c068d6`** already carry the same Teaching Load + timeout changes on newer `main`. Once this is
+   resolved, train 11 should be cut from `main`, not from a hotfix chain.

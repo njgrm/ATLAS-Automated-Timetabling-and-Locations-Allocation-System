@@ -487,6 +487,21 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **— FAILED ATTEMPT (rolled back), 2026-09-29 22:28 +08 by Lane A4: the operator-approved SECOND HOTFIX
+  `f4d34c75` reached `CUTOVER_STARTED` but its tree never finished booting inside the supervisor's fixed
+  `readinessTimeoutMs: 45000`, twice (restart attempts 1 and 2), and both live listeners went absent. Rolled back
+  to `9462d82d` by restoring `task-before.xml` from audit `f4d34c75-20260929-222820\` plus the two machine runtime
+  variables. Downtime ~3 min 20 s; `9462d82d` verified healthy afterwards.** The **build was clean** (server `tsc` 0,
+  client `vite` 0, `term-contract-atlas-consumption-c02.test.ts` 9/9, 0 `prisma/`), and both discriminators were
+  proven on the artifacts before the cutover (entry chunk `index-BfzPMwrg.js` vs `index-BdvkYd2N.js`; `Show other
+  subjects` 1 vs 0; `Cross-subject` 0 vs 1; `timeout: 30_000, maxWait: 10_000` 3 sites vs 0). **Leading hypothesis
+  is host contention, not the code** - hotfix #1's own cold start was **43 s, only 2 s inside the 45 s budget**,
+  and eight lanes were running builds concurrently - but **that is NOT exoneration.** The built tree is retained at
+  `E:\ATLAS-worktrees\lane-a4-hotfix-tl-prod` (`f4d34c75`, branch `release/2026-09-29-10-hotfix-tl`, HEAD == pin)
+  as **PRESERVE_FOR_DECISION: do not retire**; it is the artifact the next staging boot must time. Full record and
+  the data note (nine content tables byte-identical; `audit_logs` +4 rows of **operator** activity, ids 1168-1171)
+  are in `docs/handoffs/lane-c-to-a2.md`, "SECOND HOTFIX `f4d34c75` FAILED TO START".
+
 - **— CUTOVER TARGET, recorded 2026-09-29 22:2x +08 by Lane A4 ahead of the **operator-approved SECOND HOTFIX** (not
   train 11). Required by `deploy-runner.ps1` `Assert-LiveReleaseRecorded`, which fails closed without it. Target
   release `f4d34c75` (full `f4d34c7565b58e9201639e33d9e42527d7c94f07`), rollback basis `9462d82d` (the incumbent,
