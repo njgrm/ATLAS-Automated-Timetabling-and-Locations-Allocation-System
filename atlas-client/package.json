@@ -149,7 +149,8 @@
     "test:ux-type-scale-a7c8": "tsx --test src/lib/__tests__/a7-c8-type-scale.test.ts",
     "test:ux-badge-refit-a7c9": "tsx --test src/lib/__tests__/a7-c9-refit.test.ts",
     "test:a3p1-prefs-save": "tsx --test src/lib/__tests__/a3p1-teacher-prefs-stale-read-polarity.test.ts src/components/faculty-shared/__tests__/a3p1-concern-save-reason.test.tsx",
-    "test:a2-c18-lockpanel-truth": "tsx --test src/components/__tests__/a2-c18-lockpanel-truth.test.tsx"
+    "test:a2-c18-lockpanel-truth": "tsx --test src/components/__tests__/a2-c18-lockpanel-truth.test.tsx",
+    "test:a7-c12-calm-header": "tsx --max-old-space-size=6144 --test src/components/timetable/__tests__/a7-c12-calm-header-budget.test.tsx src/components/timetable/__tests__/a7-c12-calm-copy.test.tsx"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
