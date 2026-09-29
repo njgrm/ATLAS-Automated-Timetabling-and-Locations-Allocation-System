@@ -430,7 +430,11 @@ test('class-program layout emits reconciled learner totals, unmerged break cells
 
 	// Daily totals row.
 	const totalsRow = breakRow + 1;
-	assert.equal(cellText(sheet, totalsRow, 1), 'TOTAL MINUTES PER DAY');
+	// A8-C5 S1.4: cell (1,2) is the FIVE-DAY sum, so the label says per week. This
+	// is the ONLY existing assertion of the old label, and it is the control that
+	// FAILS on base and PASSES on the fix. The five day columns keep their
+	// per-day meaning (asserted immediately below) and the arithmetic is unchanged.
+	assert.equal(cellText(sheet, totalsRow, 1), 'TOTAL MINUTES PER WEEK');
 	// SUPERSEDED (a2-c5-map 4b) — this row's own comment used to read "3 class
 	// periods × 45 minutes reconcile exactly" and asserted 135 in both cells, i.e.
 	// the CONFIGURED period structure. The shipped writer sums the PLACED entries

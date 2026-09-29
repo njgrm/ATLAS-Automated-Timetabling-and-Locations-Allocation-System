@@ -1058,6 +1058,15 @@ function buildStaffingReport(
 	capacityUsed: Map<number, number>,
 	coverageMode: CoverageMode = REAL_ONLY_STANDARD_MODE,
 	nonTeachingMinutesByFaculty?: Map<number, number>,
+	/**
+	 * A8-C5 S1.3 — the SAVED workload policy for this school year, so the hire
+	 * estimate divides missing hours by the standard the school actually set
+	 * rather than by the `STANDARD_CAP_MIN` module constant. Same resolution the
+	 * per-teacher capacity gate already uses (`resolveSharedRealFacultyCapMinutes`,
+	 * line 787): `policy?.teachingStandardMinutes ?? STANDARD_CAP_MIN`. When the
+	 * saved policy equals the default, the estimate is byte-identical to base.
+	 */
+	policy?: { teachingStandardMinutes?: number | null; hardCapMinutes?: number | null } | null,
 ): StaffingReport {
 	const effectiveCoverageMode = resolveRealCoverageMode(coverageMode);
 	const rawByDepartment = new Map<string, { count: number; missingMinutesPerWeek: number }>();
@@ -1254,7 +1263,14 @@ function buildStaffingReport(
 	);
 	const recoverableConcurrentMissingHoursPerWeek = Math.round((recoverableConcurrentMissingMinutesPerWeek / 60) * 10) / 10;
 	const constrainedConcurrentMissingHoursPerWeek = Math.round((constrainedConcurrentMissingMinutesPerWeek / 60) * 10) / 10;
-	const recommendedNewHires = Math.round((concurrentMissingHoursPerWeek / (STANDARD_CAP_MIN / 60)) * 10) / 10;
+	// A8-C5 S1.3: the RESOLVED policy standard minutes, the same value the
+	// per-teacher capacity gate uses. A school whose saved standard is not the
+	// default gets an estimate from its own number; a school on the default
+	// reproduces the base figure exactly.
+	const resolvedStandardMinutes = Math.max(0, Math.round(policy?.teachingStandardMinutes ?? STANDARD_CAP_MIN));
+	const recommendedNewHires = resolvedStandardMinutes > 0
+		? Math.round((concurrentMissingHoursPerWeek / (resolvedStandardMinutes / 60)) * 10) / 10
+		: 0;
 
 	const initialSpareByFaculty = new Map<number, number>();
 	for (const member of faculty) {
@@ -2181,6 +2197,8 @@ function simulateRealFacultyCoverage(input: {
 	nonTeachingMinutesByFaculty?: Map<number, number>;
 	sectionGradeLevelBySectionId?: ReadonlyMap<number, number>;
 	preferredGradeLevelsByFacultyId?: ReadonlyMap<number, number[]>;
+	/** A8-C5 S1.3: the saved workload policy, forwarded to the staffing report. */
+	policy?: { teachingStandardMinutes?: number | null; hardCapMinutes?: number | null } | null;
 	/** SHIFT-COHERENCE-C01 (D11): policy switches, per-section windows, seeded assignments. */
 	shiftCoherence?: {
 		enabled: boolean;
@@ -2339,7 +2357,7 @@ function simulateRealFacultyCoverage(input: {
 		rowsClosedByRealFaculty,
 		unresolvedPairs,
 		capacityUsed,
-		staffingReport: buildStaffingReport(unresolvedPairs, input.realFaculty, capacityUsed, input.coverageMode, input.nonTeachingMinutesByFaculty),
+		staffingReport: buildStaffingReport(unresolvedPairs, input.realFaculty, capacityUsed, input.coverageMode, input.nonTeachingMinutesByFaculty, input.policy),
 		candidateRejections,
 		preferenceNotices,
 		shiftCoherenceNotices,
@@ -2700,6 +2718,15 @@ export async function autoFill(
 		schoolYearId,
 		(options?.client as never) ?? null,
 	);
+	// A8-C5 S1.3: the SAVED workload policy, forwarded to every staffing report so
+	// the hire estimate divides by the school's own standard rather than the
+	// `STANDARD_CAP_MIN` module constant. This is the SAME policy object the
+	// shift-coherence switches below are read from, so there is no second read and
+	// no possibility of the two disagreeing.
+	const resolvedWorkloadPolicy = (schedulingPolicy ?? null) as {
+		teachingStandardMinutes?: number | null;
+		hardCapMinutes?: number | null;
+	} | null;
 	const enableShiftCoherenceGuard = typeof (schedulingPolicy as { enableShiftCoherenceGuard?: unknown })?.enableShiftCoherenceGuard === 'boolean'
 		? (schedulingPolicy as { enableShiftCoherenceGuard: boolean }).enableShiftCoherenceGuard
 		: SCHEDULING_POLICY_DEFAULTS.enableShiftCoherenceGuard;
@@ -2741,7 +2768,7 @@ export async function autoFill(
 	const allSectionIds = Array.from(sectionGradeLevel.keys());
 	if (allSectionIds.length === 0) {
 		warnings.push('No active sections were resolved for the selected school year. Auto-fill cannot continue.');
-		const emptyReport = buildStaffingReport([], [], new Map<number, number>(), realCoverageMode);
+		const emptyReport = buildStaffingReport([], [], new Map<number, number>(), realCoverageMode, undefined, resolvedWorkloadPolicy);
 		const emptyTruth: StaffingTruthComparison = {
 			baseline: {
 				totalTeachableRows: 0,
@@ -3103,6 +3130,7 @@ export async function autoFill(
 		nonTeachingMinutesByFaculty,
 		sectionGradeLevelBySectionId: sectionGradeLevel,
 		preferredGradeLevelsByFacultyId,
+		policy: resolvedWorkloadPolicy,
 		shiftCoherence: {
 			enabled: enableShiftCoherenceGuard,
 			enforce: enforceShiftCoherenceGuard,
@@ -3119,6 +3147,7 @@ export async function autoFill(
 		nonTeachingMinutesByFaculty,
 		sectionGradeLevelBySectionId: sectionGradeLevel,
 		preferredGradeLevelsByFacultyId,
+		policy: resolvedWorkloadPolicy,
 		shiftCoherence: {
 			enabled: enableShiftCoherenceGuard,
 			enforce: enforceShiftCoherenceGuard,
@@ -3140,7 +3169,7 @@ export async function autoFill(
 		? standardSimulation
 		: hardCapSimulation;
 	const selectedStaffingReport = coverageMode === 'REAL_FACULTY_THEN_TEACHER_X'
-		? buildStaffingReport([], realFaculty, hardCapSimulation.capacityUsed, REAL_ONLY_HARD_CAP_MODE, nonTeachingMinutesByFaculty)
+		? buildStaffingReport([], realFaculty, hardCapSimulation.capacityUsed, REAL_ONLY_HARD_CAP_MODE, nonTeachingMinutesByFaculty, resolvedWorkloadPolicy)
 		: selectedSimulation.staffingReport;
 	const selectedUnresolvedForMode = coverageMode === 'REAL_FACULTY_THEN_TEACHER_X'
 		? 0
@@ -3461,7 +3490,7 @@ export async function autoFill(
 	const stillNeedRealTeacher = unresolvedPairs.length;
 	const finalUnresolved = stillNeedRealTeacher;
 	const staffingReport = coverageMode === 'REAL_FACULTY_THEN_TEACHER_X'
-		? buildStaffingReport([], realFaculty, capacityUsed, REAL_ONLY_HARD_CAP_MODE, nonTeachingMinutesByFaculty)
+		? buildStaffingReport([], realFaculty, capacityUsed, REAL_ONLY_HARD_CAP_MODE, nonTeachingMinutesByFaculty, resolvedWorkloadPolicy)
 		: selectedStaffingReport;
 
 	// ─── Build suggestedRows preview from the actual assignment plan ──────
