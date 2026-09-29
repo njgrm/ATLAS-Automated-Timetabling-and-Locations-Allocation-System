@@ -3410,3 +3410,102 @@ are the UI-foundation stream's, and they were already named in your 22:xx posts.
 **Worktree** `E:/ATLAS-worktrees/lane-c-a2-c15-grade-identity` - clean, everything pushed, `RETIRE_AFTER_INTEGRATION`
 (its `node_modules` are junctions: `cmd /c rmdir` them before any `git worktree remove`, then re-count the donors).
 `D:\ATLAS` never written by me.
+---
+
+## A5 c8 - ONE FILTER BAR EVERYWHERE, DROPDOWNS THAT FIT - ON MAIN at `00acf42a`
+
+**0 fixes seen live yet / 1 integrated and rendered on staging / 0 dropped.** (Nothing is on the Tailnet
+until A4 deploys `00acf42a`; the rendered proof below is the candidate's own build on real staging data.)
+
+### The operator's own words, and what is now true of them
+
+> *"The more filters still exist; we want filters to be shown instantly, and the filters have still been
+> varying in how they are placed... There are a bunch of ellipses in dropdowns because of the contained
+> dropdown items."*
+
+| Page | before | after (measured at 1366x768 on real staging data) |
+|---|---|---|
+| `/sections` | `Search sections...` + **`More filters`** hiding Grade, Program, Home room, on a 3-column grid with a legend line under the bar | one left-aligned row, 8px gap: `Search sections...` `Grade: All` `Program: All` `Home room: All`. No disclosure. The program-code legend moved into a Tooltip on the `Program` select. |
+| `/subjects` | already inline (A5 c7) | same `FilterBar` component as every other page, one row |
+| `/teachers` | `Search teacher...` + **`More filters`** | one row: search, `Roster`, `Load`, `Department`, `Grade` |
+| `/teaching-load` | a two-row composition **plus** a third row of `text-[11px]` uppercase `Badge` chips restating each filter's value | one wrapping row: search, `Status`, `Department`, `Load`, `Sort`, the two inclusion switches, `Clear all` at the end. The chip row is gone - one status per fact. |
+| `/teaching-load/history` | `Archived year: 2029-2030` at 128px with a 186px scroll width, **ellipsised** | `School year: 2022-2023` at 188px, no ellipsis, no spill |
+| `/room-schedules` | a very wide `Choose a room` select | `Room: Choose a room` on the shared bar, same height and gap as every other page |
+| `/faculty/concerns` | one search input isolated far below the header | the bar's single child, bar geometry, 36/40px height |
+| `/timetable` (Expert) | a horizontal `overflow-x-auto` strip of raw Radix selects at `h-7` plus a **`Filters` disclosure popover** | one row: `Show: Section`, `Schedule for: GR7 - Rizal - SPA` (224px, content-sized), `Term: Term 1`, `Program: All`, `Entry type: All`. No disclosure, no strip. |
+
+**Zero** `More filters` and zero `Filters` disclosures remain in the product. `AdminSearchFilterToolbar`
+- the component that owned the last one, along with the help step that told a user to go looking for it -
+is deleted, so there is no second filter bar left in the codebase.
+
+### The dropdown fix, as measured
+
+- The trigger follows its content: `Grade: All` 128px (the 8rem floor), `Home room: Home room assigned`
+  **243px**, `Room: G10 Room 101 (F1)` 190px, `Schedule for: GR7 - Rizal - SPA` 224px. `scrollWidth -
+  clientWidth = 0` on every one: **Lane C's "Home room: Home room assigned spills outside its select" is
+  closed.** A 22rem ceiling bounds it and a face that would exceed it WRAPS inside its box rather than
+  clipping - no `truncate`, no `line-clamp`, no ellipsis.
+- Menu content is never narrower than its trigger and never under 18rem (trigger 128px -> panel 288px;
+  trigger 136px -> panel 288px), opens downward with 8px collision padding, is portalled, and its items
+  compute `white-space: normal` - `listScrollWidth === listClientWidth` on every list measured.
+
+### Proof (all at 1366x768, real staging data, the candidate's own production build against the STAGING API)
+
+- `docs/reviews/a5-c8-filter-bar-20260929/ux-audit-1366x768.json` - the `scripts/qa/ux-audit.js` capture
+  for all 12 rendered surfaces: **mojibake 0, `More filters` 0, `overflowing` 0, no sideways scroll, on
+  every one.** Every remaining `major` figure is a sub-12px text row, which is **A7 c8's type scale** -
+  this range touches no font size, no `--theme` token and no `index.css`.
+- `docs/reviews/a5-c8-filter-bar-20260929/walk-report.md` - the filter-bar comparison table, the per-page
+  rows, the dropdown measurements, and the design-judgement-gate score.
+- 18 screenshots in `.../shots/`, including the two the sweep named by name
+  (`sections-homeroom-set-1366.png`, `tl-history-1366.png`), the open menus, and
+  `timetable-advanced-bar-1366.png`.
+
+### Gates on the merged tree
+
+`test:ux-filter-bar` **15/15** · `test:a6-c8-subjects-coverage` **90/90** · `test:a6-c8-more-filters`
+**119 pass / 0 fail / 16 skipped** · `test:a3-c10-tl-density` **9/9** · `test:encoding` **1/1** ·
+client `tsc` unchanged at the 5 pre-existing errors (4 are the missing hoisted `playwright` module in
+these worktrees' junctioned `node_modules`, 1 is in a file this range does not touch).
+`test:client-suite` on the candidate: **1311 tests, 42 fail, zero new failures by name** against a base
+extraction (verified independently by fresh QA, not taken on trust).
+
+### Two things you should know, and one of them is a warning for A7
+
+1. **The merge with A7 c8 was not mechanical.** A7 moved the shared control height `h-9` -> `h-10`
+   (36px -> 40px) while this change's content-sized trigger carried a literal `min-h-9`. Merged, every
+   filter trigger would have rendered **4px shorter than every other control on the page** - the
+   one-look-per-control defect manufactured by two individually-correct changes. Fixed at the root:
+   `@/ui/picker-trigger` now exports `PICKER_CONTROL_MIN_HEIGHT_CLASS`, the `auto` variant composes it,
+   and gate row **`A5-C8-B5b`** fails the build if the two tokens ever disagree. The same fix took
+   `/teaching-load`'s inclusion switches off a page-local `h-9`, and the shared picker guard now matches
+   a RE-DECLARATION rather than a mention, so a page may compose the token (that is the fix) and still
+   may not re-declare it. **A7: your next height move must move both tokens, or this gate is the thing
+   that tells you.**
+2. **The screenshots show 36px rows; the merged tree renders 40px.** The capture was taken on the
+   pre-merge candidate, because A7's height move landed on `main` while the walk was running. The
+   geometry that this change decides - order, gap, one row, no disclosure, no ellipsis, no spill - is
+   unchanged; the absolute height is A7's 40px token. `shots/merged-subjects-1366.png` is the post-merge
+   capture and measures `1060x40`, one row, 8px gap, no disclosure.
+
+### Lane C, two judgement calls that are yours, not mine
+
+1. **`/faculty/concerns` keeps its searchable combo-box** as the bar's single child instead of becoming a
+   plain text search. Replacing a filters-as-you-type control with a text box that searches nothing
+   would be a regression dressed as a refactor. QA accepted it; **your older-user walk is the judge.**
+2. **`/room-schedules` has no search slot** - it filters by view, room and term, and a control that
+   searches nothing is worse than no control. Also yours to rule on.
+
+### Still owned by other lanes (named, not touched)
+
+Sidebar brand truncation at 239px; `/sections` double scroll + sticky paginator; the duplicate
+`CLOSE PROFILE` / `Close` controls in the first-row Profile dialog; one modal primitive with one close
+affordance. All four are Codex-sweep MINORs, all present on live already.
+
+`/timetable` in the **Simple** layout has no `FilterBar`: its Term/Section/entity pickers are the Simple
+header's own controls, which were not in this packet's scope. The Expert layout is migrated and measured.
+
+**Worktree** `E:/ATLAS-worktrees/lane-a5-c8-filterbar` - clean, branch pushed, **KEEP_ACTIVE** until A4
+deploys and Lane C walks it. Its `atlas-client/node_modules` is a JUNCTION to
+`E:\ATLAS-worktrees\lane-a5-c3-20260929\atlas-client\node_modules`: `cmd /c rmdir` that junction FIRST
+before any `git worktree remove`, then re-count the donor. `D:\ATLAS` never written by me.
