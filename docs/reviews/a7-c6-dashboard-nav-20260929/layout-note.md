@@ -78,10 +78,18 @@ the page has two competing primary actions.
 ## What the count now says
 
 The header is the count plus how many steps are outstanding plus how many ATLAS
-could not read: "1 of 10 ready · 6 steps to go · 3 ATLAS could not check". It
+could not read: "1 OF 10 READY · 6 STEPS TO GO · 3 ATLAS COULD NOT CHECK". It
 does **not** enumerate the names. Round 1 did, and at 1366x768 that was seven
 lines of ALL-CAPS that pushed the actionable rows to the viewport edge and
 repeated every name as a row immediately below (QA F1).
+
+**The header is not always one line.** It is 16px / one line in the ready
+state, and **32px / two lines in the 333px right rail in the degraded state**,
+where "1 OF 10 READY · 6 STEPS TO GO · 3 ATLAS COULD NOT CHECK" wraps. Earlier
+rounds of this note and of the commit messages called it one line
+unconditionally; it is not, and both figures are measured from the rendered
+element's bounding box at 1366x768.
+
 
 **A step whose reading never arrived is a third state** (QA F2). It is not done
 and it is not outstanding work: the data established only that it could not be
@@ -128,14 +136,23 @@ schedules"**; its `to` (`/schedules`) is not a route-target change. The
   so every page gets it.
 - Picker primitive: no new picker is introduced.
 - Header budget: unchanged hero (one row of title + chips + one action).
-- File size: `Dashboard.tsx` is **975 lines** on this correction and was **918**
-  at base `955d2e7a` — a small net *increase*, not the 966 -> "well under 1000"
-  this note originally claimed (that 966 was a miscount; QA measured the real
-  base as 918 and measured three methods). The honest statement is about
-  **visible chrome, not line count**: an entire card, a hero button, a
-  duplicated status line, a duplicated count badge, a 10-row always-expanded
-  list, a mobile-only toggle and its `useState` are all gone, replaced by a
-  counted header, an outstanding list, a "could not check" list and a collapsed
-  done list. `HowItWorks.tsx` is 344 lines. Both are under the 1000-line cap.
+- File size, **physical** line count (blank lines and comments counted, as
+  §8 requires). Method, so this number can be reproduced and re-checked:
+  `(Get-Content -LiteralPath <file>).Count` in PowerShell, or
+  `git show <rev>:<path> | Measure-Object -Line` for a base revision.
+  - `atlas-client/src/pages/Dashboard.tsx` — **872** physical lines
+  - `atlas-client/src/components/dashboard/ReadinessCard.tsx` — **179** physical lines
+  - `atlas-client/src/pages/HowItWorks.tsx` — **360** physical lines
+  - `Dashboard.tsx` at base `955d2e7a` — **966** physical lines
+
+  `Dashboard.tsx` is under the 1000-line cap again, and stays under it because
+  the setup-readiness card now lives in
+  `atlas-client/src/components/dashboard/ReadinessCard.tsx` (the seam QA named),
+  extracted when the file reached 1038. That extraction is byte-proved: the
+  rendered `dashboard-readiness-hub` innerHTML is SHA-256-identical before and
+  after in both the not-ready and the ready state. Two earlier rounds of this
+  note quoted **blank-line-excluding** counts (918/923/344/983) and called them
+  "measured truth"; that is how a false number survives two rounds. Physical
+  count only, from now on.
 - No-scroll architecture: the root and the single `overflow-auto` region are
   untouched (pinned by `a3-c4-dashboard-one-name-no-scroll`).
