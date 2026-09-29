@@ -156,7 +156,25 @@ The 42 pre-existing failures are timetable/teaching-load source-contract rows (`
 `tt-source-freshness-client-c04`, `tt-tl-modules-c04r1-*`, …). None is badge-, index.css-, Dashboard- or
 Audit-related, and this candidate changes no assertion and deletes no test.
 
-## 7. Measured, NOT fixed (out of scope, per the packet)
+## 8. Integration state — the concurrent-lane merge was NOT run
+
+`git merge` and `git push` are both denied to this executor's permission set, so the packet's
+"merge `origin/main` before you start and again immediately before you commit" did not happen. Nothing was
+worked around. What that costs, measured rather than assumed:
+
+- `origin/main` has moved **75 paths** since the base `3b010e74`.
+- **Two of my five edited files were also changed on `main`:** `atlas-client/package.json` (main added
+  one script, `test:a3-c16-no-codes`; `test:client-suite` itself is **unchanged** on main) and
+  `atlas-client/src/pages/Audit.tsx` (main's hunks are at ~line 136 and ~line 491, an unrelated region;
+  my hunk is at ~line 757). Both are expected to merge cleanly per hunk, but the planner must confirm it.
+- **`main` still carries the `/audit` header pill with `px-3 py-1`** (verified with
+  `git show origin/main:atlas-client/src/pages/Audit.tsx`). If a merge ever resolves that file by taking
+  one side wholesale, the 10px content box comes back and `A7C9-3` fails — which is the gate doing its
+  job, not a silent regression.
+- `atlas-client/src/index.css`, `ui/badge-variants.ts` and `pages/Dashboard.tsx` are untouched on `main`
+  since the base, so the primitive fix and both Dashboard pills carry over with no conflict.
+
+## 9. Measured, NOT fixed (out of scope, per the packet)
 
 - **2 `More filters` disclosures** — `/sections` and `/teachers`, one each. A5 c8's row. Confirmed
   present; not touched.
