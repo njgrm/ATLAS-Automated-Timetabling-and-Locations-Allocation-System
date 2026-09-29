@@ -49,3 +49,9 @@ roster, not the current one." + "Review subject coverage"; below, small grey "50
 - Also fold in fix-1.2 **16.2** (Teaching Load cards): card body opens nothing by accident; Review load and Edit
   assignments each do only their own thing (stopPropagation); order Name -> Hours/Subjects/Sections (fixed-width
   right-aligned columns) -> actions pinned far right, same height on every row.
+
+## Addendum 14:47 — ride-along test fix (binding)
+Train 9 gate row `R1`: `tl-operator-workspace-c05.test.ts` still asserts `savedOwnershipMap` is gone from
+`SectionGridMode`, but A6 c7 `951bec35` reintroduced it as a live prop on purpose. Remove `savedOwnershipMap` from that
+dead-prop list in c9 (one line). Also: `TeachingLoad.tsx` is at 999/1000 lines — c9 must not grow it; extract the header
+into its own component.
