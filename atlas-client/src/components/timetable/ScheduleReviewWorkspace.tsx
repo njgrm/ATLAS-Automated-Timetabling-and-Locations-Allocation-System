@@ -18,7 +18,7 @@ import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
 import { Button } from '@/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/dropdown-menu';
-import { AlertCircle, ArrowRight, ArrowRightLeft, BookOpen, DoorOpen, GraduationCap, MoreHorizontal, Move, Redo2, RefreshCw, Undo2, UserRoundX } from 'lucide-react';
+import { AlertCircle, ArrowRight, ArrowRightLeft, BookOpen, DoorOpen, GraduationCap, Lock, MoreHorizontal, Move, Redo2, RefreshCw, Undo2, UserRoundX } from 'lucide-react';
 import { lazy, Profiler, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { ScheduledEntry } from '@/types';
@@ -37,6 +37,8 @@ import { SimplePastYearView } from '@/components/timetable/simple/SimplePastYear
 import { SimplePastYearReadOnlySurface, type PastYearViewMode } from '@/components/timetable/simple/SimplePastYearReadOnlySurface';
 import { buildPastYearBackHref, resolvePastYearViewState } from '@/components/timetable/simple/pastYearViewState';
 import { usePastYearTimetable } from '@/components/timetable/simple/usePastYearTimetable';
+import { useSelectedClassLock, useTimetableLocks } from '@/hooks/useTimetableLocks';
+import { ScheduleReviewWorkspaceSelectedActions } from '@/components/timetable/ScheduleReviewWorkspaceSelectedActions';
 import { YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
 import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
 
@@ -44,12 +46,12 @@ const TeacherDepartureRecoverySheet = lazy(() => import('@/components/timetable/
 	default: module.TeacherDepartureRecoverySheet,
 })));
 
-/** A2 C13 — the `MoveOccupant` projection and its record moved to
- *  `timetableMoveTargets.ts` next to the derivation that consumes it: this file
- *  stood at 995 physical lines against §8's 1000, and the A2 mc R1 swap offers
- *  required the projection to GROW (it carried no section/teacher/room/term, which
- *  is why the grid's move path offered no swap at all). §8 says EXTRACT. Pure,
- *  not a hook, so hook order is untouched and the #310 hazard below cannot return. */
+/** A2 C13 — extracted so this file sits UNDER §8's 1000-line cap with real headroom: it
+ *  stood at 963 and the two props A2 C13 adds took it to 1000, which is AT the line but
+ *  has zero room for the next edit — that is how a cap gets breached later. §8 says EXTRACT,
+ *  never delete a comment, so the C11 M3 record stays on the call site. The `MoveOccupant`
+ *  projection and `TimetableDragOverlay` have since moved to `timetableMoveTargets.ts` and
+ *  their own file for the same reason. Pure, not a hook, so hook order is untouched. */
 
 export const onProfilerRender = (id: string, phase: string, actualDuration: number, baseDuration: number) => {
 	if (typeof window !== 'undefined') {
@@ -273,6 +275,14 @@ export default function ScheduleReviewWorkspace() {
 		return () => setTimetableEntryReadOnly(false);
 	}, [isDraftPublished]);
 
+	/* A2 mc R2, item 7 — the lock read. Declared ABOVE every early return (the
+	 * #310 hazard) and happy with a null scope, so the hook count cannot depend on
+	 * which branch a render takes. */
+	const locks = useTimetableLocks({
+		schoolId: state.headerContext?.schoolId ?? null,
+		schoolYearId: state.headerContext?.schoolYearId ?? null,
+	});
+
 	/**
 	 * C11 M3 — the legal move targets in the CURRENT view, from the very slots and
 	 * entries the grid is already rendering (no new data, no new request).
@@ -453,6 +463,30 @@ export default function ScheduleReviewWorkspace() {
 		void state.centerWorkspaceContext.handleKbPlace(offer.day, offer.startTime, offer.endTime);
 		state.headerContext.setKbSelectedSource(null);
 	};
+
+	/* A2 mc R2, item 7 — the lock action. The server capability exists
+	 * (`GET/POST/DELETE …/locks`) and no client surface called it, so this is the
+	 * first reachable `Lock this class` on `/timetable`. The label, the enabled state
+	 * and the reason are ONE derivation in `useSelectedClassLock`, so they cannot
+	 * disagree. */
+	const selectedClassLock = useSelectedClassLock(
+		locks,
+		state.selectedEntry
+			? {
+				entryId: state.selectedEntry.entryId,
+				sectionId: state.selectedEntry.sectionId,
+				subjectId: state.selectedEntry.subjectId,
+				facultyId: state.selectedEntry.facultyId,
+				roomId: state.selectedEntry.roomId,
+				day: String(state.selectedEntry.day),
+				startTime: String(state.selectedEntry.startTime),
+				endTime: String(state.selectedEntry.endTime),
+				entryKind: state.selectedEntry.entryKind,
+				cohortCode: state.selectedEntry.cohortCode,
+			}
+			: null,
+		(status) => state.setInlineActionStatus(status),
+	);
 
 	const openSimpleSelectedDetails = () => {
 		if (layoutMode === 'simple') {
@@ -700,50 +734,20 @@ export default function ScheduleReviewWorkspace() {
 									<span className="hidden sm:inline">More</span>
 								</Button>
 							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end" className="w-64">
-								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); state.headerContext.setSelectedEntry(null); }} data-testid="timetable-simple-dismiss-selection">
-									Dismiss selection
-								</DropdownMenuItem>
-								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); startMoveSelectedEntry(); }}>
-									<Move className="mr-2 size-3.5" aria-hidden="true" />
-									Choose a new time
-								</DropdownMenuItem>
-								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); openSelectedChangeRoom(); }} data-testid="timetable-simple-selected-change-room-action">
-									<DoorOpen className="mr-2 size-3.5" aria-hidden="true" />
-									Change room
-								</DropdownMenuItem>
-								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); armSwapSessions(); }} data-testid="timetable-simple-selected-swap-action">
-									<ArrowRightLeft className="mr-2 size-3.5" aria-hidden="true" />
-									Swap with another class
-								</DropdownMenuItem>
-								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); openSimpleSelectedDetails(); }} data-testid="timetable-simple-selected-details-action">
-									<BookOpen className="mr-2 size-3.5" aria-hidden="true" />
-									View class details
-								</DropdownMenuItem>
-								<DropdownMenuSeparator />
-								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); openSelectedOwnerRepair(); }} data-testid="timetable-simple-selected-owner-repair-action">
-									<GraduationCap className="mr-2 size-3.5" aria-hidden="true" />
-									<span className="flex flex-col">
-										<span>Change Teaching Load owner</span>
-										<span className="text-xs text-muted-foreground">Opens Teaching Load for this subject, section, and teacher</span>
-									</span>
-								</DropdownMenuItem>
-								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); openTeacherDepartureRecovery(state.selectedEntry?.facultyId ?? null); }} data-testid="teacher-departure-selected-action">
-									<UserRoundX className="mr-2 size-3.5" aria-hidden="true" />
-									<span className="flex flex-col">
-										<span>Teacher leaving (all classes)</span>
-										<span className="text-xs text-muted-foreground">Bulk repair for every class this teacher handles</span>
-									</span>
-								</DropdownMenuItem>
-								<DropdownMenuItem onSelect={(event) => {
-									event.preventDefault();
+							<ScheduleReviewWorkspaceSelectedActions
+								onDismissSelection={() => state.headerContext.setSelectedEntry(null)}
+								onChooseNewTime={startMoveSelectedEntry}
+								onChangeRoom={openSelectedChangeRoom}
+								onSwap={armSwapSessions}
+								lock={selectedClassLock}
+								onViewDetails={openSimpleSelectedDetails}
+								onChangeOwner={openSelectedOwnerRepair}
+								onTeacherLeaving={() => openTeacherDepartureRecovery(state.selectedEntry?.facultyId ?? null)}
+								onExpertDetails={() => {
 									setLayoutMode('advanced');
 									window.requestAnimationFrame(() => state.rightPanelContext?.rightPanelRef?.current?.expand());
-								}}>
-									<GraduationCap className="mr-2 size-3.5" aria-hidden="true" />
-									Expert details
-								</DropdownMenuItem>
-							</DropdownMenuContent>
+								}}
+							/>
 						</DropdownMenu>
 					</div>
 				</div>

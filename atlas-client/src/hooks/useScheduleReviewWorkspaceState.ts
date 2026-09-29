@@ -22,6 +22,7 @@ import { buildAcademicTermOptions, isVerifiedOrderedActiveTerm, repairTermFilter
 import { isTargetSlotOccupiedForTerm } from '@/lib/timetable-term-scope';
 import { formatTime } from '@/lib/utils';
 import { buildEditReceipt, receiptClassLabel, receiptProblemSentence } from '@/lib/timetable-edit-receipt';
+import { plainConflictDetail } from '@/lib/manual-edit-conflict-summary';
 import atlasApi from '@/lib/api';
 import type {
 	Building,
@@ -1487,13 +1488,32 @@ export function useScheduleReviewWorkspaceState() {
 				});
 				return;
 			}
-			if (decision.kind === 'review-blocked') {
-				setInlineActionStatus({
-					tone: 'error',
-					message: preview?.humanConflicts.find((hc) => hc.severity === 'HARD')?.humanTitle ?? 'Placement blocked by hard conflicts.',
-				});
-				return;
-			}
+		if (decision.kind === 'review-blocked') {
+			/* A2 mc R2, item 8 — PLACE SESSION SAYS SOMETHING.
+			 *
+			 * The recorded defect: placing an unplaced class offered no candidate and
+			 * no words, and the one message that did exist named a CATEGORY
+			 * (`Teacher double-booked`) instead of the teacher. The packet's words are
+			 * `No free time: every time double-books <teacher> or <room>`.
+			 *
+			 * So the sentence is composed from the item's OWN resolved teacher and
+			 * room — never an id — and then names the first obstruction in the words
+			 * `buildHumanConflicts` already produced, put through the ONE scrubber
+			 * (`plainConflictDetail`) the preview path uses. No new vocabulary and no
+			 * second scrubber. */
+			const room = defaultRoomId != null && roomMap.has(defaultRoomId) ? roomMap.get(defaultRoomId) : undefined;
+			const teacher = item.facultyId != null ? facultyLabel(item.facultyId) : 'a teacher who is not assigned yet';
+			const roomPart = room ? room.name : 'a room';
+			const obstruction = preview?.humanConflicts.find((hc) => hc.severity === 'HARD');
+			const detail = obstruction ? plainConflictDetail(obstruction.code, obstruction.humanDetail) : '';
+			setInlineActionStatus({
+				tone: 'error',
+				message: detail
+					? `No free time: this slot double-books ${teacher} or ${roomPart}. ${detail}`
+					: `No free time: this slot double-books ${teacher} or ${roomPart}.`,
+			});
+			return;
+		}
 			setInlineActionStatus(null);
 		}
 
