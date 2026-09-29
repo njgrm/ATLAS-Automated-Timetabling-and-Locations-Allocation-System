@@ -134,15 +134,45 @@ test('A9-C4-1: the details surface renders as a CENTRED dialog at a normal width
 	await open();
 	const dialog = dom.window.document.querySelector<HTMLElement>('[role="dialog"]');
 	assert.ok(dialog, 'the section details must render a dialog (role="dialog")');
-	// Operator decision #10: about 42rem (`max-w-2xl`), never near full screen.
+	// A9 c4 R1 (2026-09-30): the open width is still the normal ~42rem modal width,
+	// now carried by a viewport-guarded `w-[min(42rem,95vw)]` RATHER THAN a page-local
+	// `max-w-2xl`. A page-local `max-width` defeats the primitive's inline drag width
+	// (CSS resolves `max-width` over `style.width`), which is the defect the A3 C10
+	// teacher card records; the operator asked for this dialog to be draggable.
 	const classes = dialog.className;
-	assert.match(classes, /\bmax-w-2xl\b/, `the dialog must open at the normal 42rem width: ${classes}`);
+	assert.match(classes, /\bw-\[min\(42rem,95vw\)\]/, `the dialog must open at the normal 42rem width: ${classes}`);
 	assert.doesNotMatch(classes, /\bsm:max-w-xl\b/, 'the old right-drawer width must be gone');
+	// The ONLY max-width is the shared resizable ceiling, so a drag can widen past 42rem.
+	assert.match(classes, /max-w-\[95vw\]/, 'the shared resizable ceiling must govern the dialog');
+	assert.doesNotMatch(
+		classes,
+		/(^|\s)(sm:)?max-w-(?!\[95vw\])\S/,
+		'a page-local max-width would defeat the drag handler; the 42rem default must be a `w-`, not a max-w',
+	);
 	// The primitive centres it with a flex parent, not a translate.
 	const centering = dom.window.document.querySelector('[data-dialog-centering="flex"]');
 	assert.ok(centering, 'the shared primitive must centre the dialog with its flex parent');
-	// Decision #10 makes resizing optional; a fixed-width dialog must not show dead handles.
-	assert.equal(dialog.getAttribute('data-resizable'), 'false', 'a fixed normal-width dialog must not offer dead resize handles');
+	// A9 c4 R1: the operator asked for drag-resize, so the dialog is NOT hard-disabled
+	// from resizing and the primitive's two handles render.
+	assert.equal(dialog.getAttribute('data-resizable'), 'true', 'the details dialog must be resizable by dragging');
+	const handles = dom.window.document.querySelectorAll('[data-testid="dialog-resize-handle"]');
+	assert.equal(handles.length, 2, 'a resizable dialog offers both width drag handles');
+	await close();
+});
+
+test('A9-C4-3 (R1): the dialog is NOT hard-disabled from resizing, and still opens at 42rem', async () => {
+	// Fails first at 51c2f2c3: there the sheet passed `resizable={false}` and
+	// `className="w-full max-w-2xl"`, so `data-resizable` was `false`, no handles
+	// rendered, and the width was a max-width that would block a drag.
+	await open();
+	const dialog = dom.window.document.querySelector<HTMLElement>('[role="dialog"]');
+	assert.ok(dialog, 'the section details must render a dialog');
+	assert.notEqual(dialog.getAttribute('data-resizable'), 'false', 'the dialog must not be hard-disabled from resizing');
+	assert.equal(dialog.querySelectorAll('[data-testid="dialog-resize-handle"]').length, 2, 'both drag handles must render');
+	// The committed OPEN width is the normal-modal one, not the primitive's 95vw default:
+	// the box declares `42rem` (min(42rem,95vw)) and no other page-local max-width.
+	assert.match(dialog.className, /\bw-\[min\(42rem,95vw\)\]/, 'the committed open width must be the ~42rem one');
+	assert.doesNotMatch(dialog.className, /\bw-full\b/, 'the primitive 95vw default would open near full screen; the 42rem width must win');
 	await close();
 });
 

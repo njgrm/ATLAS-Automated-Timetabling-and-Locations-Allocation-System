@@ -142,15 +142,23 @@ export function SectionDetailsSheet({
 	/* A9 c4 (2026-09-30) — the section details surface is a CENTRED DIALOG, not a
 	 * right-side drawer. Operator (section.docx item 1): *"currently it is a drawer. Make
 	 * this as a modal at the center of the page."* Operator decision #10 fixes the width:
-	 * a NORMAL centred width of about 42rem (`max-w-2xl`), never near full screen, with
-	 * both side gutters visible at 1366x768 and an internal scroller for long content
-	 * (`max-h-[85vh]` + the primitive's own `overflow-y-auto`). `resizable={false}` is
-	 * deliberate: decision #10 makes resizing optional, and visible drag handles capped at
-	 * a fixed width would be an affordance that does nothing. The props/API and every fact
+	 * a NORMAL centred width of about 42rem, never near full screen, with both side
+	 * gutters visible at 1366x768 and an internal scroller for long content
+	 * (`max-h-[85vh]` + the primitive's own `overflow-y-auto`).
+	 *
+	 * A9 c4 R1 (2026-09-30): the operator also asked for it to be *"resizable by dragging
+	 * if the user wants more"*, so `resizable` now takes the shared primitive default and
+	 * the two drag handles render. The OPEN width is unchanged at ~42rem: it is carried by
+	 * `w-[min(42rem,95vw)]`, NOT by a page-local `max-w`. A page-local `max-width` would
+	 * defeat the primitive's inline drag width (CSS resolves `max-width` over
+	 * `style.width`), which is the exact defect the A3 C10 teacher card records — the
+	 * handle moves and the box does not. The width is viewport-guarded so a narrow laptop
+	 * gets `95vw`, never a horizontal scrollbar, and `max-w-[95vw]` is the primitive's own
+	 * shared ceiling, so the box can still be dragged wider. The props/API and every fact
 	 * on screen are unchanged. */
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent resizable={false} className="w-full max-w-2xl">
+			<DialogContent resizable className="w-[min(42rem,95vw)] max-w-[95vw]">
 				<DialogHeader className="pb-6 border-b">
 					<DialogTitle className="flex items-center gap-2 text-xl font-bold">
 						<Users className="size-5 text-primary" />
