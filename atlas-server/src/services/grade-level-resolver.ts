@@ -39,14 +39,32 @@ const MIN_GRADE = 7;
 const MAX_GRADE = 12;
 
 const GRADE_NAME_PATTERN = /grade\s*(\d{1,2})/i;
+/**
+ * The compact house form, `GR7` / `GR 7`. `lib/grade-labels.ts` Decision 5
+ * makes `GR{grade}` the sanctioned compact grade label, and the resolvers this
+ * authority replaced both accepted any name carrying a grade digit. A mirror row
+ * may therefore legitimately be named `GR7`, and refusing it would lose a grade
+ * the previous code could read.
+ */
+const COMPACT_GRADE_NAME_PATTERN = /^gr\.?\s*(\d{1,2})$/i;
 
-/** Parse "Grade 7" / "grade10" / "GRADE 9 - STE" into 7 / 10 / 9. Null when absent. */
-export function gradeFromGradeLevelName(name: string | null | undefined): number | null {
+/** Parse a grade out of a grade-level name, long form ("Grade 7") or compact ("GR7"). */
+function parseGradeName(name: string | null | undefined): number | null {
 	if (typeof name !== 'string') return null;
+	const compact = name.trim().match(COMPACT_GRADE_NAME_PATTERN);
+	if (compact) {
+		const compactGrade = Number.parseInt(compact[1], 10);
+		return Number.isInteger(compactGrade) && compactGrade > 0 ? compactGrade : null;
+	}
 	const match = name.match(GRADE_NAME_PATTERN);
 	if (!match) return null;
 	const grade = Number.parseInt(match[1], 10);
 	return Number.isInteger(grade) && grade > 0 ? grade : null;
+}
+
+/** Parse "Grade 7" / "grade10" / "GRADE 9 - STE" into 7 / 10 / 9. Null when absent. */
+export function gradeFromGradeLevelName(name: string | null | undefined): number | null {
+	return parseGradeName(name);
 }
 
 const LEGACY_ENROLLPRO_GRADE_IDS: Readonly<Record<number, number>> = {
@@ -133,8 +151,8 @@ export function gradeNumberOf(ref: {
  *     non-JHS grade can no longer leak through the name leg.
  *   - Adding the `displayOrder` leg means an unnamed mirror row now resolves to
  *     its true grade instead of its id's legacy reading. That is the same fix
- *     applied to every former `displayOrder ?? gradeLevelId` call site, and it
- *     cannot turn a correct grade into a wrong one.
+ *     applied to every former "display order, else the EnrollPro id" call site,
+ *     and it cannot turn a correct grade into a wrong one.
  */
 export function resolveSectionGradeLevel(
 	ref: GradeLevelRef,

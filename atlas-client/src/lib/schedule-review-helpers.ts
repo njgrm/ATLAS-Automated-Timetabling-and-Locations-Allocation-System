@@ -80,19 +80,33 @@ export function normalizeInternalGradeId(value: unknown): number {
  * rather than "GR1".
  */
 export function gradeNumberOf(ref: { gradeLevelName?: string | null; displayOrder?: number | null; gradeLevelId?: number | null }): number | null {
-	const name = typeof ref.gradeLevelName === 'string' ? ref.gradeLevelName : null;
-	if (name !== null) {
-		const match = name.match(/grade\s*(\d{1,2})/i);
-		if (match) {
-			const fromName = normalizeJhsGradeNumber(Number(match[1]));
-			if (fromName !== null) return fromName;
-			const named = Number.parseInt(match[1], 10);
-			if (Number.isInteger(named) && named >= MIN_GRADE && named <= MAX_GRADE) return named;
-		}
-	}
+	const fromName = parseGradeName(ref.gradeLevelName);
+	if (fromName !== null && fromName >= MIN_GRADE && fromName <= MAX_GRADE) return fromName;
 	const order = ref.displayOrder;
 	if (typeof order === 'number' && Number.isInteger(order) && order >= MIN_GRADE && order <= MAX_GRADE) return order;
 	return null;
+}
+
+/**
+ * Parse a grade out of a grade-level name: the long form ("Grade 7",
+ * "GRADE 9 - STE") and the compact house form ("GR7", "GR 7").
+ *
+ * `lib/grade-labels.ts` Decision 5 makes `GR{grade}` the sanctioned compact
+ * grade label, and both resolvers this twin replaced accepted any name carrying
+ * a grade digit — so refusing `GR7` would lose a grade the previous code read.
+ */
+function parseGradeName(name: string | null | undefined): number | null {
+	if (typeof name !== 'string') return null;
+	const trimmed = name.trim();
+	const compact = trimmed.match(/^gr\.?\s*(\d{1,2})$/i);
+	if (compact) {
+		const compactGrade = Number.parseInt(compact[1], 10);
+		return Number.isInteger(compactGrade) && compactGrade > 0 ? compactGrade : null;
+	}
+	const match = trimmed.match(/grade\s*(\d{1,2})/i);
+	if (!match) return null;
+	const grade = Number.parseInt(match[1], 10);
+	return Number.isInteger(grade) && grade > 0 ? grade : null;
 }
 
 /**

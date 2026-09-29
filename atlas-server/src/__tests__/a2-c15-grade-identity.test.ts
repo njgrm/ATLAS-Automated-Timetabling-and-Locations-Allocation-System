@@ -442,3 +442,45 @@ test('C15-GREP-PROOF. no production path reads an EnrollPro grade id as a grade'
 		}
 	}
 });
+
+test('C15-GREP-ACCOUNTED. the only remaining `gradeLevel: ... gradeLevelId` lines pass the id INTO the authority', () => {
+	// A repository-wide grep for `gradeLevel: .*gradeLevelId` in production paths
+	// is loose: `.*` also matches a call ARGUMENT list. It returns exactly these
+	// three lines, all in teaching-load-carry-forward, and each hands the id to
+	// `resolveCarryForwardGrade` — the shared authority itself
+	// (`resolveSectionGradeLevel(..., null, 'grade-first')`, name-first). The id
+	// is an INPUT to the authority, never the grade value. They are listed here
+	// so the loose grep proof is reproducible rather than caveated.
+	const source = readSource('atlas-server/src/services/teaching-load-carry-forward.service.ts');
+
+	// The TIGHT form — the grade value itself is the id — finds nothing anywhere.
+	assert.deepEqual(
+		source.match(/gradeLevel:\s*[\w.]*gradeLevelId\b/g) ?? [],
+		[],
+		'no grade value may be the EnrollPro id',
+	);
+
+	// The LOOSE form finds exactly these three, no more.
+	const loose = source.split('\n')
+		.filter((line) => /gradeLevel:\s*.*gradeLevelId/.test(line))
+		.map((line) => line.trim().replace(/\s+/g, ' '));
+	assert.equal(loose.length, 3, `the loose grep must return exactly three accounted lines; saw ${loose.length}`);
+	for (const line of loose) {
+		assert.match(
+			line,
+			/gradeLevel: resolveCarryForwardGrade\([\w.]+gradeLevelId, [\w.]+gradeLevelName\),/,
+			`unaccounted loose hit: ${line}`,
+		);
+	}
+	// Every one of them hands the id AND the name to the authority — never a
+	// bare id, and never a name-less id-only read. (Proved by the per-line shape
+	// match above; the three differ only in which local row they read.)
+
+	// The resolver those three lines call is the shared authority, not a second
+	// one, and it reads the name first.
+	assert.match(
+		source,
+		/export function resolveCarryForwardGrade\(gradeLevelId: number, gradeLevelName\?: string \| null\): number \{\s*\n\s*return resolveSectionGradeLevel\(\{ gradeLevelId, gradeLevelName \}, null, 'grade-first'\);/,
+		'resolveCarryForwardGrade must delegate to the shared authority',
+	);
+});
