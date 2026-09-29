@@ -47,11 +47,9 @@ import type {
 	ViolationReport,
 } from '@/types';
 import {
-	deriveTimetableGenerationStoppers,
 	resolveGenerateTrigger,
 	type TimetableGenerationStopper,
 } from '@/lib/timetable-capabilities';
-import { summarizeGenerationReadiness } from '@/lib/timetable-generation-readiness';
 import {
 	buildCenterWorkspaceContext,
 	buildDialogContext,
@@ -1089,23 +1087,21 @@ export function useScheduleReviewWorkspaceState() {
 	 *
 	 * `stoppers` is passed IN by the click site, because the headers are the only
 	 * readers of the complete capability input (school-year drift lives in the
-	 * rollover status each header already fetches). The fallback below is for a
-	 * caller that has not wired it: it derives the same array from the readiness this
-	 * hook owns, so the dialog is never empty and never invents a cause. The
-	 * fallback cannot see drift; the wired path can.
+	 * rollover status each header already fetches).
+	 *
+	 * A8-C5 CORRECTION (2026-09-30): this hook used to derive a FALLBACK list here
+	 * for a caller that passed nothing, and that list could not see drift — so a
+	 * caller that forgot the argument silently lost the "school year out of sync"
+	 * cause, one of the four the operator named, with nothing on screen saying the
+	 * list was short. A partial list presented as complete is worse than no list, so
+	 * the fallback is GONE. `resolveGenerateTrigger` now answers a caller with no
+	 * stoppers with one honest cause that says not every reason could be checked,
+	 * and this hook no longer computes a list it cannot complete.
 	 */
 	const handleTriggerGenerate = useCallback((stoppers?: TimetableGenerationStopper[]) => {
 		const outcome = resolveGenerateTrigger({
 			readinessState: curriculumReadiness.state,
 			clickSiteStoppers: stoppers,
-			fallbackStoppers: deriveTimetableGenerationStoppers({
-				scopeResolved: typeof schoolId === 'number' && Number.isInteger(schoolId) && schoolId > 0
-					&& Number.isInteger(schoolYearId) && (schoolYearId ?? 0) > 0,
-				curriculumState: curriculumReadiness.state,
-				generating,
-				generationDiagnostic: summarizeGenerationReadiness(curriculumReadiness),
-				readinessRepair: curriculumReadiness.state === 'blocked' ? curriculumReadiness.repair : null,
-			}),
 		});
 		setGenerationStoppers(outcome.stoppers);
 		// A8-C5 S2.3: a year that cannot generate OPENS THE DIALOG, which now names
@@ -1116,7 +1112,7 @@ export function useScheduleReviewWorkspaceState() {
 			return;
 		}
 		handleTriggerGenerateUnsafe();
-	}, [curriculumReadiness, handleTriggerGenerateUnsafe, schoolId, schoolYearId, generating]);
+	}, [curriculumReadiness, handleTriggerGenerateUnsafe]);
 
 	// Wrap commitPreGenPending to capture operation ID/version for contextual Undo
 	const wrappedCommitPreGenPending = useCallback(async () => {

@@ -30,6 +30,14 @@ import {
 	buildSubjectLabel,
 } from '@/lib/timetable-reference-labels';
 import { deriveGenerationReadinessState, type TimetableCurriculumReadinessState } from '@/lib/timetable-generation-readiness';
+// A8-C5 S2.3 CORRECTION (2026-09-30) — the retry-once policy. It lives in a lib so
+// the behaviour ("twice on a failing read, once on a succeeding read, never over a
+// newer read") is testable without mounting this 2,000-line provider hook, and it
+// is called from the one place below that reads generation readiness.
+import {
+	GENERATION_READINESS_LOADING_MESSAGE,
+	readGenerationReadinessWithRetry,
+} from '@/lib/timetable-readiness-retry';
 import { isVerifiedOrderedActiveTerm } from '@/lib/academic-term';
 import {
 	isResolvedTimetableScope,
@@ -1461,22 +1469,38 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		// template/window, retained-placement, or hard-validator blockers.
 		const requestSeq = generationReadinessSeqRef.current + 1;
 		generationReadinessSeqRef.current = requestSeq;
-		setCurriculumReadiness({ state: 'loading', message: 'Checking generation readiness (Teaching Load, shape, policy, validators)…' });
-		try {
-			// Readiness gates generation, so it is always re-verified rather than
-			// served from the cache window the rest of the route uses.
-			const readiness = await ensureTimetableReadiness(buildFetchScope(syId, selectedRunIdRef.current), { force: true });
-			if (requestSeq !== generationReadinessSeqRef.current) return;
-			// A diagnostic for a different school/year, a failed read, or a
-			// derived-ready-but-blocked diagnostic never reuses a prior ready.
-			setCurriculumReadiness(deriveGenerationReadinessState(readiness, { schoolId, schoolYearId: syId }));
-		} catch (error) {
-			if (requestSeq !== generationReadinessSeqRef.current) return;
-			setCurriculumReadiness({
-				state: 'failed',
-				message: buildTimetableErrorMessage(error, 'Generation readiness could not be checked. Retry before generating.'),
-			});
-		}
+		setCurriculumReadiness({ state: 'loading', message: GENERATION_READINESS_LOADING_MESSAGE });
+		/*
+		 * A8-C5 S2.3 CORRECTION (2026-09-30) — THE RETRY IS REAL NOW.
+		 *
+		 * The operator's own words (addendum 20:05, item 4): "A check that could not
+		 * run (`unavailable/failed`) retries by itself once, then says so plainly
+		 * with a Retry button." The capability model already produced `checkFailed`
+		 * and a `retryLabel` for exactly that case, and nothing retried — so the
+		 * source and the tests claimed a behaviour the product did not have. The
+		 * fix is to make the claim true.
+		 *
+		 * `readGenerationReadinessWithRetry` owns the policy: at most TWO attempts,
+		 * with a bounded 1.2 s backoff between them, and a `failed`/`unavailable`
+		 * first result is never published before the retry. The request-sequence
+		 * guard is passed IN as `isSuperseded` and is read — never written — from
+		 * there, so the retry cannot resurrect a superseded request: it is checked
+		 * before every attempt, after every response and again after the backoff.
+		 *
+		 * The read and the interpretation below are the real ones: the forced
+		 * `ensureTimetableReadiness` (readiness gates generation, so it is never
+		 * served from the cache window) and the real
+		 * `deriveGenerationReadinessState`, which turns a payload for the wrong
+		 * school/year or an untrusted payload into `unavailable`/`failed` — the
+		 * states the operator's rule names.
+		 */
+		await readGenerationReadinessWithRetry({
+			read: () => ensureTimetableReadiness(buildFetchScope(syId, selectedRunIdRef.current), { force: true }),
+			interpret: (raw) => deriveGenerationReadinessState(raw, { schoolId, schoolYearId: syId }),
+			messageForError: (error) => buildTimetableErrorMessage(error, 'Generation readiness could not be checked. Retry before generating.'),
+			isSuperseded: () => requestSeq !== generationReadinessSeqRef.current,
+			onState: setCurriculumReadiness,
+		});
 	}, [buildFetchScope, schoolId]);
 
 	const applyRunSnapshot = useCallback((draftSnapshot: DraftReport, violationsSnapshot: ViolationReport) => {

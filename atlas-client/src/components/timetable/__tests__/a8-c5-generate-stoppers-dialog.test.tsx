@@ -95,7 +95,7 @@ const { createRoot } = await import('react-dom/client');
 const { MemoryRouter } = await import('react-router-dom');
 const { deriveGenerationReadinessState, representativeBlockerCode } = await import('../../../lib/timetable-generation-readiness');
 const { BLOCKER_CODE_COPY, blockerSentence } = await import('../../../lib/timetable-blocker-code-copy');
-const { resolveGenerateTrigger } = await import('../../../lib/timetable-capabilities');
+const { resolveGenerateTrigger, deriveTimetableGenerationStoppers } = await import('../../../lib/timetable-capabilities');
 const { composePublishRefusalCauses, TimetableWorkflowDialogs } = await import('../modals/TimetableWorkflowDialogs');
 const { TimetableSimpleHeader } = await import('../TimetableSimpleHeader');
 const { buttonVariants } = await import('@/ui/button');
@@ -175,7 +175,10 @@ function Workspace(props: {
 	const [stoppers, setStoppers] = useState<TimetableGenerationStopper[]>([]);
 	const state = (props.readiness.state ?? 'ready') as 'loading' | 'ready' | 'blocked' | 'unavailable' | 'failed';
 	const handleTriggerGenerate = (clickSite: TimetableGenerationStopper[] = []) => {
-		const outcome = resolveGenerateTrigger({ readinessState: state, clickSiteStoppers: clickSite, fallbackStoppers: [] });
+		// A8-C5 CORRECTION (2026-09-30): no `fallbackStoppers` any more. A caller that
+		// passes none is told the list is incomplete instead of being handed a partial
+		// one it cannot see the drift cause in. Row D9 is that answer, rendered.
+		const outcome = resolveGenerateTrigger({ readinessState: state, clickSiteStoppers: clickSite });
 		setStoppers(outcome.stoppers);
 		if (outcome.opensDialog) setOpen(true);
 	};
@@ -265,6 +268,11 @@ const dialogText = () => all('timetable-generate-confirm-dialog')[0]?.textConten
 const panelLines = () => all('timetable-generation-blocker-group-headline').map((node) => node.textContent?.trim() ?? '');
 const stopperLines = () => all('timetable-generate-stopper-cause').map((node) => node.textContent?.trim() ?? '');
 
+/** The model authors these sentences; this row only asserts they are rendered. */
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /* ────────────────────────────────────────────────────────────────────────────
  * D0 — the click DECISION, stated as a table so it cannot drift quietly.
  * ──────────────────────────────────────────────────────────────────────────── */
@@ -277,10 +285,6 @@ test('D0 the click always reaches the dialog; only a ready year may start a run'
 		const outcome = resolveGenerateTrigger({
 			readinessState,
 			clickSiteStoppers: [],
-			fallbackStoppers: [{
-				key: 'setup-blocked', line: 'x', shortReason: 'y', count: 3, href: '/admin/year-setup',
-				actionLabel: 'Open Year Setup', checkFailed: false, retryLabel: null, repair: { kind: 'none', label: null, href: null },
-			}],
 		});
 		assert.equal(outcome.opensDialog, true, `a "${readinessState}" year opens the dialog that explains it`);
 		assert.equal(outcome.mayGenerate, false, `a "${readinessState}" year never starts a run`);
@@ -291,27 +295,52 @@ test('D0 the click always reaches the dialog; only a ready year may start a run'
 	// that no longer has anything to explain.
 	const ready = resolveGenerateTrigger({
 		readinessState: 'ready',
-		clickSiteStoppers: [{ key: 'setup-drift', line: 'x', shortReason: 'y', count: null, href: '/admin/year-setup', actionLabel: 'Open Year Setup', checkFailed: false, retryLabel: null, repair: { kind: 'none', label: null, href: null } }],
-		fallbackStoppers: [],
+		clickSiteStoppers: [{ key: 'setup-drift', line: 'x', shortReason: 'y', count: null, href: '/admin/year-setup', actionLabel: 'Open Year Setup', checkFailed: false, retryLabel: null, retryNote: null, repair: { kind: 'none', label: null, href: null } }],
 	});
 	assert.deepEqual(ready, { stoppers: [], opensDialog: false, mayGenerate: true });
 
-	// THE CLICK SITE WINS, and it is the one that can see drift: the workspace's
-	// own fallback is a strict subset, never a second, different list.
+	// THE CLICK SITE WINS, and it is the only list the dialog will read: the
+	// workspace's own fallback is not a second, different list — it is gone.
 	const wired = resolveGenerateTrigger({
 		readinessState: 'blocked',
-		clickSiteStoppers: [{ key: 'setup-drift', line: 'drift', shortReason: 'drift', count: null, href: '/admin/year-setup', actionLabel: 'Open Year Setup', checkFailed: false, retryLabel: null, repair: { kind: 'none', label: null, href: null } }],
-		fallbackStoppers: [{ key: 'setup-blocked', line: 'blocked', shortReason: 'blocked', count: 4, href: '/admin/year-setup', actionLabel: 'Open Year Setup', checkFailed: false, retryLabel: null, repair: { kind: 'none', label: null, href: null } }],
+		clickSiteStoppers: [{ key: 'setup-drift', line: 'drift', shortReason: 'drift', count: null, href: '/admin/year-setup', actionLabel: 'Open Year Setup', checkFailed: false, retryLabel: null, retryNote: null, repair: { kind: 'none', label: null, href: null } }],
 	});
 	assert.deepEqual(wired.stoppers.map((stopper) => stopper.key), ['setup-drift'],
 		'the array the clicked control derived is the one the dialog reads');
-	// ...and an EMPTY click-site array falls back rather than opening an empty dialog.
-	const fellBack = resolveGenerateTrigger({
-		readinessState: 'blocked', clickSiteStoppers: [],
-		fallbackStoppers: [{ key: 'setup-blocked', line: 'blocked', shortReason: 'blocked', count: 4, href: '/admin/year-setup', actionLabel: 'Open Year Setup', checkFailed: false, retryLabel: null, repair: { kind: 'none', label: null, href: null } }],
-	});
-	assert.deepEqual(fellBack.stoppers.map((stopper) => stopper.key), ['setup-blocked'],
-		'a caller that passed no stoppers still gets the causes this workspace owns — never an empty dialog');
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * D9 — the honest fallback (A8-C5 CORRECTION, 2026-09-30).
+ * ──────────────────────────────────────────────────────────────────────────── */
+test('D9 a caller with no stoppers is told the list is incomplete, and is never handed the partial one', () => {
+	// THE DEFECT THIS ROW IS ABOUT. The old signature took a `fallbackStoppers` array
+	// the workspace derived from its own readiness, and the workspace cannot see
+	// school-year drift — that lives in the rollover status each HEADER fetches. A
+	// caller that passed no stoppers therefore got a list that had silently lost
+	// "school year out of sync", one of the four causes the operator named, with
+	// nothing on screen saying the list was short. SUPERSEDED EXPECTATION (kept
+	// here, not deleted, per AGENTS.md §16):
+	//     assert.deepEqual(fellBack.stoppers.map((s) => s.key), ['setup-blocked'],
+	//         'a caller that passed no stoppers still gets the causes this workspace owns — never an empty dialog');
+	// Its replacement is the three assertions below. The first is the refusal; the
+	// second is what makes the refusal mean something — a partial list is never
+	// presented as the whole truth; the third is the reason it exists, so a future
+	// edit cannot quietly re-introduce a drift-blind source.
+	const incomplete = resolveGenerateTrigger({ readinessState: 'blocked', clickSiteStoppers: [] });
+	assert.deepEqual(incomplete.stoppers.map((stopper) => stopper.key), ['causes-incomplete'],
+		'no stoppers means the dialog refuses to present a list it cannot complete');
+	assert.match(incomplete.stoppers[0].line, /could not check every reason/i,
+		'and it says the reason in plain words rather than implying a short list is the whole story');
+	assert.equal(incomplete.stoppers[0].href, '/admin/year-setup', 'with one real route to check');
+	// DISCRIMINATION: this is a different list from a partial one, not a shorter one.
+	// A drifted year is a real cause the click site DOES see; the refusal cause is
+	// not that cause, and it must never be mistaken for it.
+	assert.notEqual(incomplete.stoppers[0].key, 'setup-drift');
+	// A READY year is unaffected: there is nothing to explain, and the caller that
+	// passed nothing still starts the run.
+	const readyWithoutStoppers = resolveGenerateTrigger({ readinessState: 'ready' });
+	assert.deepEqual(readyWithoutStoppers, { stoppers: [], opensDialog: false, mayGenerate: true },
+		'the refusal is about an incomplete EXPLANATION, never about permission to generate');
 });
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -427,6 +456,55 @@ test('D5 a year whose school scope never loaded still gets a plain explanation, 
 		lines.map(() => 'none'),
 		'an unmeasured cause states no number',
 	);
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * D8 — A8-C5 CORRECTION (2026-09-30): the retry is real, and it is SAID.
+ * ──────────────────────────────────────────────────────────────────────────── */
+test('D8 the cause whose check could not run says on screen that ATLAS already retried it, and names the one Retry control', async () => {
+	// The operator's own words (addendum 20:05, item 4): "A check that could not run
+	// (`unavailable/failed`) retries by itself once, then says so plainly with a
+	// Retry button." Before this correction NEITHER half was true: the model
+	// produced `checkFailed`/`retryLabel`, the tests asserted them, no component
+	// rendered them, and nothing retried. The automatic retry is now real
+	// (`readGenerationReadinessWithRetry`, exercised in
+	// `test:a8-c5-readiness-retry`), and this row is the visible half.
+	//
+	// EXPECTED TEXT COMES FROM THE MODEL, not from this row, so a copy change in the
+	// capability model cannot leave a stale string asserted here.
+	const modelStoppers = deriveTimetableGenerationStoppers({
+		scopeResolved: true,
+		curriculumState: 'unavailable',
+		generating: false,
+	});
+	const failedCheck = modelStoppers.find((stopper) => stopper.key === 'setup-check-failed');
+	assert.ok(failedCheck, 'the model names the check that could not run');
+	assert.equal(failedCheck!.checkFailed, true, 'and marks it as a check that could not run');
+	assert.ok(failedCheck!.retryNote, 'the model states, in words, what the automatic retry did');
+	assert.ok(failedCheck!.retryLabel, 'and carries the label of the one control that retries it');
+
+	await mount(createElement(Workspace, {
+		readiness: { state: 'unavailable', message: 'Your school and school year scope could not be verified.' },
+	}));
+	await clickGenerate();
+	assert.equal(dialogOpen(), true, 'the same click as D5');
+
+	const notes = all('timetable-generate-stopper-retry-note');
+	assert.ok(notes.length > 0, 'THE ACCOUNT OF THE RETRY IS ON SCREEN, not only in the model and its tests');
+	const rendered = notes.map((node) => node.textContent ?? '').join(' ');
+	assert.match(rendered, new RegExp(escapeRegExp(failedCheck!.retryNote!)),
+		'the words the model authored for the failed check are rendered on its cause');
+	assert.match(rendered, new RegExp(escapeRegExp(failedCheck!.retryLabel!)),
+		'and the label of the Retry control is rendered with them, so it is not a bare button');
+	// NO SECOND CONTROL. The dialog still has exactly ONE recheck control; the note
+	// names it rather than adding a duplicate for the same action.
+	assert.equal(all('timetable-generate-check-again').length, 1,
+		'the account of the retry adds WORDS, not a second recheck control');
+	assert.equal(all('timetable-generate-stopper-retry').length, 0,
+		'and the cause row has no retry button of its own');
+	// The 14px floor (D6) applies to this new element too.
+	assert.match(notes[0].getAttribute('class') ?? '', /\btext-sm\b/,
+		'the note is on the same 15px step as the sentence above it');
 });
 
 /* ────────────────────────────────────────────────────────────────────────────

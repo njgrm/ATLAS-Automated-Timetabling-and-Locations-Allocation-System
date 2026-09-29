@@ -275,6 +275,14 @@ export function composeStopperCauseLines(
 			count: stopper.count,
 			href: stopper.href,
 			actionLabel: stopper.actionLabel,
+			// A8-C5 S2.3 CORRECTION (2026-09-30): the automatic-retry account and
+			// the name of the one recheck control travel with the cause, so the cause
+			// row can say "it tried, and here is the Retry" in words. Before this the
+			// two fields were produced by the model, asserted by tests, and rendered
+			// nowhere — the dialog showed a bare button and no account of a retry that
+			// had not even existed.
+			retryNote: stopper.retryNote,
+			retryLabel: stopper.retryLabel,
 		}));
 }
 

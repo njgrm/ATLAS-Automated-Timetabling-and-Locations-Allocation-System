@@ -141,10 +141,27 @@ export type TimetableGenerationStopper = {
 	 * True when the CAUSE is that a check could not run, not that setup is wrong.
 	 * The dialog retries these by itself once, and then says so plainly with a
 	 * Retry button — it never spins forever and it never pretends to know.
+	 *
+	 * A8-C5 CORRECTION (2026-09-30): this used to be a claim with no behaviour
+	 * behind it. `fetchCurriculumReadiness` now really does retry by itself exactly
+	 * once through `readGenerationReadinessWithRetry`
+	 * (`@/lib/timetable-readiness-retry`), and `retryNote` below is what the dialog
+	 * renders so the operator is told it, in words, on the cause itself.
 	 */
 	checkFailed: boolean;
 	/** The Retry label, present exactly when `checkFailed`. */
 	retryLabel: string | null;
+	/**
+	 * WHAT THE AUTOMATIC RETRY ACTUALLY DID, for this cause, in one plain
+	 * sentence. Present exactly when `checkFailed`.
+	 *
+	 * It is authored per cause rather than derived from a flag because the honest
+	 * answer differs: a check that has not started, a check still running, a check
+	 * that was tried twice and did not come back, and a check that DID come back
+	 * and answered are four different facts. One shared sentence would make three
+	 * of them false — the defect class this lane exists to remove.
+	 */
+	retryNote: string | null;
 	/**
 	 * The real repair for this cause, carried through to the header unchanged.
 	 * `none` is legitimate: a cause whose fix is only a fix ROUTE (which the
@@ -152,6 +169,19 @@ export type TimetableGenerationStopper = {
 	 */
 	repair: TimetableRepair;
 };
+
+/**
+ * A8-C5 S2.3 CORRECTION (2026-09-30) — THE INCOMPLETE-LIST CAUSE.
+ *
+ * The fallback this replaces could not see `driftBlocked`: school-year drift lives
+ * in the rollover status each HEADER already fetches, so a list derived anywhere
+ * else is missing one of the operator's four named causes, and the miss was
+ * silent — the dialog rendered a short list and said it was the whole truth. A
+ * partial list presented as complete is worse than no list, so a caller that
+ * passes no stoppers no longer gets one: it gets `INCOMPLETE_CAUSES_STOPPER`
+ * (below, next to the repair helpers it uses), which says that not every reason
+ * could be checked and where to check them.
+ */
 
 /**
  * A8-C5 S2.3 — the ONE decision behind the Generate click.
@@ -168,13 +198,14 @@ export type TimetableGenerationStopper = {
  * clickable, clicked it, and was told nothing, with no way forward — the exact
  * dead end the addendum was written to remove, reached by a different route.
  *
- * THE TWO SOURCES, AND WHY. `clickSiteStoppers` is the array the clicked control
- * itself derived; the headers are the only readers of the complete capability
- * input on those surfaces, because school-year drift comes from the rollover
- * status each header already fetches. `fallbackStoppers` is what this workspace
- * owns, for a caller that passes none. They cannot disagree about WORDING — the
- * sentences are composed in `deriveTimetableGenerationStoppers` — only about
- * which causes were visible, and the wired path is the complete one.
+ * ONE SOURCE, AND NO SILENT SUBSET. The dialog reads the array the clicked
+ * control itself derived (`clickSiteStoppers`), because the headers are the only
+ * readers of the complete capability input on those surfaces — school-year drift
+ * comes from the rollover status each header already fetches. There is
+ * deliberately NO workspace-owned fallback any more (correction, 2026-09-30): it
+ * could not see drift, so a caller that passed nothing used to get a list that
+ * silently dropped one of the operator's four causes. It now gets
+ * `INCOMPLETE_CAUSES_STOPPER` and is told the list is not complete.
  *
  * `mayGenerate` is a plain restatement of the readiness state, and it is the
  * ONLY thing that decides whether the run starts. "Always enabled" never became
@@ -183,13 +214,16 @@ export type TimetableGenerationStopper = {
 export function resolveGenerateTrigger(input: {
 	readinessState: 'loading' | 'ready' | 'blocked' | 'unavailable' | 'failed';
 	clickSiteStoppers?: TimetableGenerationStopper[] | null;
-	fallbackStoppers: TimetableGenerationStopper[];
 }): { stoppers: TimetableGenerationStopper[]; opensDialog: boolean; mayGenerate: boolean } {
 	const fromClickSite = Array.isArray(input.clickSiteStoppers) && input.clickSiteStoppers.length > 0
 		? input.clickSiteStoppers
-		: input.fallbackStoppers;
+		: null;
 	if (input.readinessState !== 'ready') {
-		return { stoppers: fromClickSite, opensDialog: true, mayGenerate: false };
+		return {
+			stoppers: fromClickSite ?? [INCOMPLETE_CAUSES_STOPPER],
+			opensDialog: true,
+			mayGenerate: false,
+		};
 	}
 	// A ready year clears the list: a cause captured during an earlier blocked visit
 	// must never linger in a dialog that no longer has anything to explain.
@@ -204,6 +238,25 @@ function navigate(label: string, href: string): TimetableRepair {
 function retry(label: string): TimetableRepair {
 	return { kind: 'retry', label, href: null };
 }
+
+/**
+ * A8-C5 S2.3 CORRECTION (2026-09-30) — THE INCOMPLETE-LIST CAUSE, the whole
+ * answer for a caller that passes no stoppers. See `resolveGenerateTrigger`.
+ */
+const INCOMPLETE_CAUSES_STOPPER: TimetableGenerationStopper = {
+	key: 'causes-incomplete',
+	line: 'ATLAS could not check every reason this timetable is blocked. Open Year Setup to look at this school year, then try again.',
+	shortReason: 'Not every reason is listed',
+	count: null,
+	href: YEAR_SETUP_HREF,
+	actionLabel: 'Open Year Setup',
+	// It IS a check that could not run, so it carries the same retry wording and the
+	// same honest note the other such causes carry.
+	checkFailed: true,
+	retryLabel: 'Retry schedule check',
+	retryNote: 'ATLAS could not gather every reason for this list, so it is not showing you a partial one.',
+	repair: retry('Retry schedule check'),
+};
 
 function allowed(): TimetableActionGate {
 	return { enabled: true, reason: null, shortReason: null, repair: NONE };
@@ -267,6 +320,7 @@ export function deriveTimetableGenerationStoppers(input: TimetableGenerationStop
 			actionLabel: 'Open Year Setup',
 			checkFailed: true,
 			retryLabel: 'Retry schedule check',
+			retryNote: 'This check has not started, because ATLAS has not loaded your school and school year yet.',
 			repair: NONE,
 		});
 	}
@@ -281,6 +335,7 @@ export function deriveTimetableGenerationStoppers(input: TimetableGenerationStop
 			actionLabel: 'Open Year Setup',
 			checkFailed: true,
 			retryLabel: 'Retry schedule check',
+			retryNote: 'The check is still running. If it does not come back, ATLAS tries it once more on its own before it stops.',
 			repair: NONE,
 		});
 	}
@@ -310,6 +365,7 @@ export function deriveTimetableGenerationStoppers(input: TimetableGenerationStop
 			// is never retried behind the operator's back.
 			checkFailed: false,
 			retryLabel: null,
+			retryNote: null,
 			repair,
 		});
 	}
@@ -324,6 +380,11 @@ export function deriveTimetableGenerationStoppers(input: TimetableGenerationStop
 			actionLabel: 'Open Year Setup',
 			checkFailed: true,
 			retryLabel: 'Retry schedule check',
+			// The true sentence for the one cause the automatic retry exists for.
+			// `fetchCurriculumReadiness` read twice, on its own, and neither read
+			// came back — so this is what the operator is told, rather than a bare
+			// Retry button with no account of what already happened.
+			retryNote: 'ATLAS already tried this check twice on its own, and it did not come back either time.',
 			repair: retry('Retry schedule check'),
 		});
 	}
@@ -353,6 +414,12 @@ export function deriveTimetableGenerationStoppers(input: TimetableGenerationStop
 			// the "a check that could not run" case the packet wants retried once.
 			checkFailed: repair.kind === 'retry',
 			retryLabel: repair.kind === 'retry' ? repair.label : null,
+			// HONEST DISTINCTION: the check DID come back and this is its answer, so
+			// ATLAS will not re-run it behind the operator's back. What re-runs it is
+			// the Retry button, and this says so.
+			retryNote: repair.kind === 'retry'
+				? 'The check came back with this answer, so ATLAS will not re-run it on its own.'
+				: null,
 			repair,
 		});
 	}
@@ -370,6 +437,7 @@ export function deriveTimetableGenerationStoppers(input: TimetableGenerationStop
 			actionLabel: 'Open Year Setup',
 			checkFailed: false,
 			retryLabel: null,
+			retryNote: null,
 			repair: navigate('Open Year Setup', YEAR_SETUP_HREF),
 		});
 	}

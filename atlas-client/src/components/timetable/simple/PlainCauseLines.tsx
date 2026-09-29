@@ -54,6 +54,23 @@ export type PlainCauseLine = {
 	href: string;
 	/** The ONE button label for that route. */
 	actionLabel: string;
+	/**
+	 * A8-C5 S2.3 CORRECTION (2026-09-30) — what the AUTOMATIC retry already did for
+	 * this cause, in one plain sentence, or null when nothing was retried.
+	 *
+	 * It is WORDS, never a second control: the dialog has exactly one recheck
+	 * control (`onCheckAgain`, the panel-level "Check again"), and a second button
+	 * for the same action on the same screen is the duplicate-control defect. What
+	 * was missing before this correction is not another button — it is the account
+	 * of what already happened, so a scheduler is not left staring at a bare Retry
+	 * with no idea whether ATLAS tried anything.
+	 */
+	retryNote?: string | null;
+	/**
+	 * The name of that one control, carried from the capability model so the note
+	 * points at the real button instead of inventing a label of its own.
+	 */
+	retryLabel?: string | null;
 };
 
 export type PlainCauseLinesProps = {
@@ -93,10 +110,31 @@ export function PlainCauseLines({ causes, heading, onCheckAgain, testId }: Plain
 							 * supporting line and for the outline buttons, whose shared `sm`
 							 * size is 12.8px and would otherwise drop below the floor.
 							 */}
-							<p className="min-w-0 flex-1 text-sm font-medium text-foreground" data-testid={`${testId}-line`}>
-								{cause.line}
-							</p>
-						</div>
+						<p className="min-w-0 flex-1 text-sm font-medium text-foreground" data-testid={`${testId}-line`}>
+							{cause.line}
+						</p>
+					</div>
+					{cause.retryNote && cause.retryLabel ? (
+						/*
+						 * A8-C5 S2.3 CORRECTION (2026-09-30) — the account of the
+						 * automatic retry, in the same row as the cause it belongs to and
+						 * in `text-sm` (15px, the same step as the sentence above; §8's
+						 * floor is 14px).
+						 *
+						 * It is deliberately NOT a button. The single recheck control for the
+						 * whole list is the "Check again" below, so this names that control
+						 * instead of adding a second one for the same action — two controls
+						 * that do the same thing on one screen is its own defect.
+						 */
+						<p
+							className="mt-1.5 pl-6 text-sm text-muted-foreground"
+							data-testid={`${testId}-retry-note`}
+						>
+							{cause.retryNote}{' '}
+							<span className="font-medium text-foreground">{cause.retryLabel}</span>
+							{onCheckAgain ? ' is the button at the end of this list.' : ' is the control for this cause.'}
+						</p>
+					) : null}
 						<div className="mt-2 flex justify-start">
 							<Button asChild variant="outline" size="sm" className="h-9 gap-1.5 text-xs">
 								<Link to={cause.href} data-testid={`${testId}-action`}>
