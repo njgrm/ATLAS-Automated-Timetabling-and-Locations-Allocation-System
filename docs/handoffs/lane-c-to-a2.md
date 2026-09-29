@@ -2056,3 +2056,174 @@ No header control was added, no chip was added, and no existing entry point move
 
 **Staging/live proof on 2023-2024 is A4's deployment-time row and is NOT yet performed** — this candidate is
 integrated, not deployed, and not seen rendered.
+
+---
+
+# A8 c4 (server) → A6 c10 (client): THE FIXED COVER CONTRACT — 2026-09-29
+
+**Fixed and binding. Build against this; do not derive it from the packet.** Owner A8 c4, worktree
+`E:/ATLAS-worktrees/lane-a8-c4-cover`, branch `work/a8-c4-cover-candidates`, base `5f181110` (`origin/main`).
+Source-only; nothing deployed (A4 owns the release). Risk MEDIUM: one new write route, **no migration**
+(`cross_department_permissions` and `faculty_mirrors.can_teach_outside_department` already exist).
+
+If a field below is missing from a response you receive, that is **my** defect, not yours — report it in
+`docs/handoffs/lane-a-to-c.md` naming the field. Do not add a client-side fallback for a field I listed.
+
+## 0. The three packet ambiguities I resolved (so you do not have to guess)
+
+1. **Over-cap teachers are IN the list, ranked last inside their tier**, with `overCapAfter: true` and a
+   `reason` naming the overrun. The packet's item 2 said "has room" and the client spec said "over-cap rows
+   are shown greyed, not hidden". Filtering them server-side would make the client unable to grey anything.
+   You grey on `overCapAfter === true` and disable the Assign button on that row only.
+2. **`ANYONE` is a real tier, not a synonym for "cross-department".** `QUALIFIED` = the canonical
+   qualification resolver returns tier 1 or 2. `OTHER_DEPARTMENT` = it returns tier 3 (a
+   `CROSS_DEPARTMENT_PERMISSION` exists, **or** `canTeachOutsideDepartment` is set). `ANYONE` = any other
+   real, schedulable teacher with no qualification match for this subject. All three need a permission to be
+   assigned; `QUALIFIED` does not. Placeholders are **never** in this list, at any tier.
+3. **A `CrossDepartmentPermission` row is what makes a person `OTHER_DEPARTMENT` for a subject**, so granting
+   one and assigning the class are one act from the client's point of view. That is why the assign route
+   below takes `grantPermission` and writes both in one transaction.
+
+## 1. `GET /api/v1/teaching-load/:schoolId/:schoolYearId/cover-candidates`
+
+Query: **`subjectId` and `sectionId` are both REQUIRED** (`400 INVALID_PARAM` if either is missing or
+non-numeric). `sectionId` is required because `hoursAfter` must be the class's real weekly minutes — without
+it the number would be a guess. `?includeOverCap=true|false` is **not** a parameter; over-cap rows are always
+present.
+
+```jsonc
+{
+  "schoolId": 1,
+  "schoolYearId": 2,
+  "subject":   { "id": 11, "code": "MAPEH", "name": "Physical Education" },
+  "section":   { "id": 305, "name": "8 - Rizal", "displayOrder": 8, "programType": null },
+  "weeklyMinutes": 240,                    // exact integer minutes this class adds per week
+  "candidates": [ /* CoverCandidate, best first */ ],
+  "counts": { "QUALIFIED": 6, "OTHER_DEPARTMENT": 3, "ANYONE": 11, "total": 20 }
+}
+```
+
+`CoverCandidate` — the first nine keys are the packet's verbatim list and are guaranteed present on every row:
+
+```jsonc
+{
+  "facultyId": 46,
+  "name": "Maria Reyes",                   // display name, already assembled
+  "department": "Science",                 // string | null
+  "tier": "OTHER_DEPARTMENT",              // "QUALIFIED" | "OTHER_DEPARTMENT" | "ANYONE"
+  "hoursNow": 18,                          // current weekly teaching hours, 1 decimal max
+  "hoursAfter": 22,                        // hoursNow + this class
+  "cap": 30,                               // effective weekly teaching cap, hours
+  "overCapAfter": false,
+  "reason": "She is in Science. Allow her to teach MAPEH once to cover this class.",
+
+  // below: extras I am guaranteeing so you never derive them
+  "specialization": "Biology",
+  "isPlaceholder": false,                  // always false in this list
+  "hasRoom": true,                         // !overCapAfter
+  "needsPermission": true,                 // true for OTHER_DEPARTMENT + ANYONE unless already permitted
+  "permissionGranted": false,              // a cross_department_permissions row exists for (faculty, subject)
+  "canTeachOutsideDepartment": false,      // the blanket teacher-level flag
+  "qualificationAuthority": "OUTSIDE_DEPARTMENT_OVERRIDE" | null,
+  "version": 7                             // that teacher's FacultySubject/row version, for your write
+}
+```
+
+`hoursNow` / `cap` maths is **not** yours to re-derive: `cap` is `effectiveWeeklyCapMinutes` from
+`teaching-load-capacity.service.ts` (the ONE capacity contract) and `hoursNow` is the same canonical
+concurrent-weekly rollup the auto-fill capacity ledger uses, including the rotation-family peak rule. Round to
+at most 1 decimal at the edge; the client displays `hoursNow → hoursAfter of cap`.
+
+**Ranking (do not re-sort; render in this order):** `tier` (QUALIFIED → OTHER_DEPARTMENT → ANYONE) →
+`hasRoom` (true first) → `hoursAfter` ascending → `name` ascending. Never a placeholder.
+
+## 2. `POST /api/v1/teaching-load/:schoolId/:schoolYearId/cover-assignments` (the single Assign action)
+
+Body:
+
+```jsonc
+{ "facultyId": 46, "subjectId": 11, "sectionId": 305, "grantPermission": false }
+```
+
+`grantPermission` is optional and defaults to `false`.
+
+* **409 `NEEDS_PERMISSION`** — the teacher is `OTHER_DEPARTMENT`/`ANYONE` with no permission and
+  `grantPermission !== true`. Body (all fields present, this is your prompt's data):
+
+  ```jsonc
+  { "code": "NEEDS_PERMISSION",
+    "facultyId": 46, "facultyName": "Maria Reyes", "department": "Science",
+    "subjectId": 11, "subjectCode": "MAPEH", "subjectName": "Physical Education",
+    "canTeachOutsideDepartment": false }
+  ```
+  You show "Allow Maria Reyes to teach MAPEH?  She is in Science." → **retry the identical body with
+  `grantPermission: true`**. That retry writes the permission row **and** the ownership in one transaction.
+* **200** — `{ "facultyId": 46, "subjectId": 11, "sectionId": 305, "permissionCreated": true|false,
+  "assignmentVersion": 8, "weeklyMinutes": 240 }`. Use `assignmentVersion` to refresh that teacher's card.
+* Other codes on this route: `409 VERSION_CONFLICT` (stale `version` — you did not send one; a conflict here
+  means a concurrent save, so re-read `cover-candidates`), `400 OUTSIDE_CANONICAL_DEMAND` (the section does not
+  actually need this subject — do not offer it), `409 SECTION_ALREADY_OWNED`, `400 SCHOOL_SCOPE_MISMATCH`.
+
+**Do NOT reuse `PUT /faculty-assignments/:facultyId` for this.** That route replaces a teacher's *entire*
+load behind a version CAS. The cover window is one class; use the route above.
+
+## 3. `GET /api/v1/teaching-load/:schoolId/:schoolYearId/cover-open-classes` — powers your Sections filter, your Subjects coverage counts, and the staffing figures
+
+The Codex audit's BLOCKING finding is that placeholders are counted as **staffed** ("Needs staffing" shows 0
+while the header says 72). This read is the fix; without it you cannot compute the honest count. Query:
+`?subjectId=<n>` optional (omit for all subjects), `?gradeLevel=<7..10>` optional.
+
+```jsonc
+{ "schoolId": 1, "schoolYearId": 2,
+  "counts": { "total": 72, "unowned": 22, "placeholderOwned": 50 },
+  "classes": [ {
+      "subjectId": 11, "subjectCode": "MAPEH", "subjectName": "Physical Education",
+      "sectionId": 305, "sectionName": "8 - Rizal", "gradeLevel": 8,
+      "weeklyMinutes": 240,
+      "weeklyHoursPerWeek": 4,
+      // null when nobody owns it at all:
+      "heldByFacultyId": 88, "heldByName": "— TO BE HIRED, MAPEH —", "heldByIsPlaceholder": true
+  } ] }
+```
+
+**The counting rule you must implement:** a class is OPEN if `heldByIsPlaceholder === true` **or**
+`heldByFacultyId === null`. `counts.unowned + counts.placeholderOwned === counts.total`. A placeholder-owned
+class is never "staffed" and never "full coverage" anywhere in your UI — this read is what makes that
+provable instead of a client guess.
+
+## 4. Subject permissions (the "Subjects they may also teach" list)
+
+Officer-only (`teaching-load:manage`). `schoolId` is required on all three; the teacher must belong to that
+school or it is `400 SCHOOL_SCOPE_MISMATCH`, and the subject must belong to it too.
+
+* **`GET /api/v1/faculty/:facultyId/subject-permissions?schoolId=<n>`**
+  → `{ "schoolId": 1, "facultyId": 46, "canTeachOutsideDepartment": false,
+      "subjects": [ { "subjectId": 11, "code": "MAPEH", "name": "Physical Education",
+                      "ownerDepartment": "Education", "grantedAt": "2026-09-29T10:00:00.000Z" } ] }`
+  Sort by subject code. This is what the teacher-profile list renders, and it is the same list Subjects'
+  "Review coverage" edits.
+* **`POST /api/v1/faculty/:facultyId/subject-permissions`** body `{ "schoolId": 1, "subjectId": 11 }`
+  → **200** (not 201, it is idempotent) `{ "facultyId": 46, "subjectId": 11, "created": true|false }`.
+  `created: false` means the row already existed — that is success, not an error.
+* **`DELETE /api/v1/faculty/:facultyId/subject-permissions/:subjectId?schoolId=<n>`** — **`subjectId` in the
+  path, `schoolId` in the query, NO request body.** → **200** `{ "removed": true|false }`. Deleting an absent
+  permission is a 200 with `removed: false`; never a 404.
+
+All three write an `audit_logs` row and invalidate the qualification policy cache for the school, so a
+permission you grant is effective on the very next `cover-candidates` read.
+
+## 5. `canTeachOutsideDepartment` — already exists, no new route
+
+`PUT /api/v1/faculty/:facultyId` and `POST /api/v1/faculty` already accept it. A8 c4 adds the **missing test**
+proving it works for a **real** (non-placeholder) teacher, because the only existing UI proof is the
+Create-placeholder dialog. **Do not build a new toggle endpoint**; build the switch on the existing teacher
+profile edit against `PUT /api/v1/faculty/:facultyId`.
+
+## 6. What I am NOT changing (so you do not wait on it)
+
+The auto-fill / "Suggest assignments" placeholder rule and the Sections status filter are already ordered
+correctly in `teaching-load-automation.service.ts` (the real-faculty pass runs before the saved-placeholder
+pool, line ~3100). I am proving that with tests and adding the **one** missing guarantee: a placeholder is
+never proposed while any real teacher has room, **and** the `ANYONE` tier becomes reachable in the real pass
+so the fallback stops at "any real teacher" rather than "to be hired". Your client work does not wait on that —
+render the three groups from `tier` and the Add-a-to-be-hired row is always the last element.
