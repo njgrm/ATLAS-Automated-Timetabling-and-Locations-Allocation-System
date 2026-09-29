@@ -92,7 +92,10 @@ export function TeachingLoadStaffingFigure({
 	const coverClassSubjectEntry = outage.coverClass.target
 		? outage.shortage.entries.find((entry) => entry.subjectId === outage.coverClass.target?.subjectId) ?? null
 		: null;
-	const label = buildStaffingFigureLabel(outage.staffingFigures);
+	// A6-TL-DEMAND-SOURCE-C01: when the server could not derive canonical demand
+	// there is no measurement and no honest "every class has a teacher" claim.
+	const demandReady = outage.demandReady !== false;
+	const label = buildStaffingFigureLabel({ ...outage.staffingFigures, demandReady });
 	// A subject with no named class is not a row a scheduler can act on, so it
 	// does not appear at all. `buildSubjectShortage` only creates an entry when
 	// its count is above zero, so this filter is the guard against a future entry
@@ -152,7 +155,7 @@ export function TeachingLoadStaffingFigure({
 						</DialogTitle>
 						<DialogDescription className="text-xs">
 							{entries.length === 0
-								? `${label.figure}. Every class has a teacher.`
+								? (demandReady ? `${label.figure}. Every class has a teacher.` : `${label.figure}.`)
 								: `${label.figure}. ${total} ${total === 1 ? 'class needs' : 'classes need'} one.`}
 						</DialogDescription>
 					</DialogHeader>
@@ -161,7 +164,7 @@ export function TeachingLoadStaffingFigure({
 					<div className="min-h-0 flex-1 overflow-y-auto">
 						{entries.length === 0 ? (
 							<p className="px-1 py-6 text-sm text-muted-foreground" data-testid="teaching-load-shortage-window-empty">
-								Nothing is waiting for a teacher.
+								{demandReady ? 'Nothing is waiting for a teacher.' : 'ATLAS cannot check which classes need a teacher right now.'}
 							</p>
 						) : (
 							<ul className="divide-y divide-border/40" data-testid="teaching-load-shortage-window-list">

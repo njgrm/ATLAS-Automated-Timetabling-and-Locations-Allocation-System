@@ -110,10 +110,23 @@ export function buildCompletedSectionIds(input: {
 	savedOwnershipMap: Record<string, FacultyOwnershipState>;
 	pendingOwnershipMap: Record<string, FacultyOwnershipState>;
 	activeFacultyIds: Set<number>;
+	/**
+	 * A6-TL-DEMAND-SOURCE-C01 — the server's canonical demand pair universe. When
+	 * present the tick uses the SAME pairs readiness reads; the shared predicate
+	 * is the degraded fallback for a pre-A6 cached payload.
+	 */
+	canonicalPairs?: ReadonlyArray<{ subjectId: number; sectionId: number }>;
 }): Set<number> {
+	const canonicalPairSet = input.canonicalPairs && input.canonicalPairs.length > 0
+		? new Set(input.canonicalPairs.map((pair) => `${pair.subjectId}:${pair.sectionId}`))
+		: null;
 	const completed = new Set<number>();
 	for (const section of input.sections) {
-		const applicableSubjects = input.subjects.filter((subject) => isSectionSubjectApplicable(subject, section));
+		const applicableSubjects = input.subjects.filter((subject) => (
+			canonicalPairSet
+				? canonicalPairSet.has(`${subject.id}:${section.id}`)
+				: isSectionSubjectApplicable(subject, section)
+		));
 		if (applicableSubjects.length === 0) continue;
 		const allStaffed = applicableSubjects.every((subject) => {
 			const key = `${subject.id}:${section.id}`;

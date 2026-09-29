@@ -123,6 +123,9 @@ export function useTeachingLoadOutage(params: UseTeachingLoadOutageParams) {
 		}),
 		[params.coverageTotals],
 	);
+	// A6-TL-DEMAND-SOURCE-C01: the server's canonical-demand readiness. When false
+	// the header renders "cannot check", never a percentage.
+	const demandReady = params.coverageTotals?.teachingLoadDemandReady ?? true;
 
 	const shortage = useMemo(
 		() => buildSubjectShortage({
@@ -132,6 +135,8 @@ export function useTeachingLoadOutage(params: UseTeachingLoadOutageParams) {
 			pendingOwnershipMap: params.pendingOwnershipMap,
 			placeholderFacultyIds: params.placeholderFacultyIds,
 			activeFacultyIds: params.activeFacultyIds,
+			// A6-TL-DEMAND-SOURCE-C01: the ONE demand universe readiness reads.
+			canonicalPairs: params.coverageTotals?.teachingLoadDemandPairs,
 		}),
 		[
 			params.subjects,
@@ -140,6 +145,7 @@ export function useTeachingLoadOutage(params: UseTeachingLoadOutageParams) {
 			params.pendingOwnershipMap,
 			params.placeholderFacultyIds,
 			params.activeFacultyIds,
+			params.coverageTotals?.teachingLoadDemandPairs,
 		],
 	);
 
@@ -215,6 +221,8 @@ export function useTeachingLoadOutage(params: UseTeachingLoadOutageParams) {
 
 	return {
 		staffingFigures,
+		/** A6-TL-DEMAND-SOURCE-C01: false when the server could not derive canonical demand. */
+		demandReady,
 		shortage,
 		shortageLine,
 		/** Whether the source is CONFIRMED. Qualifies the claim; never gates it. */

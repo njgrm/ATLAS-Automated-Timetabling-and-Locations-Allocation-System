@@ -21,6 +21,7 @@ import {
   type NormalizedAssignmentScope,
 } from './faculty-assignment-scope.service.js';
 import { getEffectiveWorkloadPolicy } from './scheduling-policy.service.js';
+import { resolveTeachingLoadDemandPairs, type DerivedDemandBlocker } from './derived-demand.service.js';
 import { computeWorkload } from './workload-policy.service.js';
 import { readTeachingLoadCycleSource, refreshTeachingLoadCycle } from './teaching-load-cycle.service.js';
 
@@ -332,6 +333,19 @@ export interface TeachingLoadCoverageTotals {
   totalPairs: number;
   unassignedPairs: number;
   rawUnassignedPairs: number;
+  /**
+   * A6-TL-DEMAND-SOURCE-C01 — whether `totalPairs` came from the canonical
+   * derived-demand pair universe readiness reads. `false` means the active
+   * year's demand authority is unavailable: the coverage counts are
+   * fail-closed zeros and NO percentage may be derived from them.
+   */
+  teachingLoadDemandReady?: boolean;
+  /** The canonical derived-demand revision the universe came from, or null. */
+  teachingLoadDemandRevision?: string | null;
+  /** The canonical `subjectId:sectionId` pairs (sectionId = SectionMirror.externalId). */
+  teachingLoadDemandPairs?: Array<{ subjectId: number; sectionId: number }>;
+  /** Typed blockers when canonical demand was unavailable (fail-closed). */
+  teachingLoadDemandBlockers?: DerivedDemandBlocker[];
 }
 
 export interface TeachingLoadIntegrityDiagnosticRow {
@@ -1794,10 +1808,26 @@ export async function getActiveSubjectCoverageSummary(
 ): Promise<ActiveSubjectCoverageSummary> {
   const context = await loadCoverageContext(schoolId, schoolYearId, authToken);
 
+  // A6-TL-DEMAND-SOURCE-C01 — key the suggestion candidate set off the SAME
+  // canonical pairs readiness reads, so every pair readiness requires becomes a
+  // candidate row. When the canonical authority is unavailable the legacy
+  // predicate remains a degraded fallback (the summary surfaces not-ready).
+  const demandResolution = await resolveTeachingLoadDemandPairs(schoolId, schoolYearId);
+  const canonicalSectionsBySubject = new Map<number, number[]>();
+  if (demandResolution.ok) {
+    for (const pair of demandResolution.pairs) {
+      const list = canonicalSectionsBySubject.get(pair.subjectId) ?? [];
+      list.push(pair.sectionId);
+      canonicalSectionsBySubject.set(pair.subjectId, list);
+    }
+  }
+
   const sectionById = new Map(context.sections.map((s) => [s.id, s]));
 
   const rows: ActiveSubjectCoverageRow[] = context.subjects.map((subject) => {
-    const relevantSectionIds = getRelevantSectionIdsForSubject(subject, context.sections);
+    const relevantSectionIds = demandResolution.ok
+      ? (canonicalSectionsBySubject.get(subject.id) ?? []).filter((sectionId) => sectionById.has(sectionId))
+      : getRelevantSectionIdsForSubject(subject, context.sections);
     const relevantSectionSet = new Set(relevantSectionIds);
     const subjectOwnership = context.ownerships.filter((entry) => entry.subjectId === subject.id && relevantSectionSet.has(entry.sectionId));
     const ownedSectionIds = new Set(subjectOwnership.map((entry) => entry.sectionId));
@@ -1945,10 +1975,21 @@ export async function getSectionAssignedClassesIndex(
   for (const section of sectionScope) {
     expectedSubjectIdsBySection.set(section.id, new Set<number>());
   }
-  for (const subject of subjects) {
-    const relevantSectionIds = getRelevantSectionIdsForSubject(subject, sectionScope);
-    for (const sectionId of relevantSectionIds) {
-      expectedSubjectIdsBySection.get(sectionId)?.add(subject.id);
+  // A6-TL-DEMAND-SOURCE-C01 — the class list's expected subject universe is the
+  // canonical demand pair set when available: the same source readiness reads.
+  const classListDemand = await resolveTeachingLoadDemandPairs(schoolId, schoolYearId);
+  if (classListDemand.ok) {
+    const allowedSubjectIds = new Set(subjectIds);
+    for (const pair of classListDemand.pairs) {
+      if (!allowedSubjectIds.has(pair.subjectId)) continue;
+      expectedSubjectIdsBySection.get(pair.sectionId)?.add(pair.subjectId);
+    }
+  } else {
+    for (const subject of subjects) {
+      const relevantSectionIds = getRelevantSectionIdsForSubject(subject, sectionScope);
+      for (const sectionId of relevantSectionIds) {
+        expectedSubjectIdsBySection.get(sectionId)?.add(subject.id);
+      }
     }
   }
 
@@ -5768,18 +5809,37 @@ export async function getAssignmentSummary(
     specializationByFacultySubjectId.set(row.facultySubjectId, specializationMap);
   }
 
+  // A6-TL-DEMAND-SOURCE-C01 — the ONE pair universe. Teaching Load must read the
+  // SAME canonical derived-demand pairs that `buildDerivedDemand` gives
+  // generation readiness. The old walk re-derived a second universe from the
+  // SectionMirror `displayOrder`, while canonical demand reads the EnrollPro
+  // grade NAME (`resolveSectionGradeLevel`). Wherever the two disagree, Teaching
+  // Load silently dropped a pair readiness required — the live "100% staffed
+  // while readiness saw 4 AP gaps" defect.
+  const demandResolution = await resolveTeachingLoadDemandPairs(schoolId, schoolYearId);
+  // A historical (non-active) year has no canonical current-year demand by
+  // design, so the legacy annual-ownership universe remains its authority and is
+  // NOT a divergence. The ACTIVE year's unavailable demand authority fails
+  // closed instead (empty universe + `teachingLoadDemandReady:false`).
+  const demandIsHistoricalRead = !demandResolution.ok
+    && demandResolution.blockers.some((entry) => entry.code === 'INACTIVE_HISTORICAL_YEAR');
   const teachablePairSet = new Set<string>();
-  for (const subject of activeSubjects) {
-    for (const section of currentYearSectionScope) {
-      if (!gradeLevelMatches(subject.gradeLevels, section.gradeLevel)) {
-        continue;
+  const teachingLoadDemandPairs: Array<{ subjectId: number; sectionId: number }> = [];
+  if (demandResolution.ok) {
+    for (const pair of demandResolution.pairs) {
+      teachablePairSet.add(`${pair.subjectId}:${pair.sectionId}`);
+      teachingLoadDemandPairs.push({ subjectId: pair.subjectId, sectionId: pair.sectionId });
+    }
+  } else if (demandIsHistoricalRead) {
+    for (const subject of activeSubjects) {
+      for (const section of currentYearSectionScope) {
+        if (!gradeLevelMatches(subject.gradeLevels, section.gradeLevel)) continue;
+        if (!isProgramScopeCompatible(subject.programScopes, section.programType)) continue;
+        teachablePairSet.add(`${subject.id}:${section.id}`);
       }
-      if (!isProgramScopeCompatible(subject.programScopes, section.programType)) {
-        continue;
-      }
-      teachablePairSet.add(`${subject.id}:${section.id}`);
     }
   }
+  const teachingLoadDemandReady = demandResolution.ok || demandIsHistoricalRead;
 
   const activeSchedulingFacultyIdSet = new Set(
     faculty.filter((member) => member.isActiveForScheduling).map((member) => member.id),
@@ -6223,6 +6283,10 @@ export async function getAssignmentSummary(
     totalPairs: teachablePairSet.size,
     unassignedPairs: Math.max(0, teachablePairSet.size - assignedPairCount),
     rawUnassignedPairs: Math.max(0, teachablePairSet.size - rawAssignedPairCount),
+    teachingLoadDemandReady,
+    teachingLoadDemandRevision: demandResolution.ok ? demandResolution.revision : null,
+    teachingLoadDemandPairs: demandResolution.ok ? teachingLoadDemandPairs : undefined,
+    teachingLoadDemandBlockers: demandResolution.ok ? undefined : demandResolution.blockers,
   };
 
   const integrityDiagnostics: TeachingLoadIntegrityDiagnostics = {

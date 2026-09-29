@@ -532,6 +532,93 @@ export function toDerivedDemandPairIdentities(result: DerivedDemandSuccess): Der
 }
 
 /**
+ * A6-TL-DEMAND-SOURCE-C01 — the compact, consumer-agnostic shape of the
+ * canonical Teaching Load demand pair. `sectionId` is the `SectionMirror.externalId`
+ * namespace, which is also the `SubjectSectionOwnership.sectionId` namespace, so
+ * every consumer (Teaching Load summary/coverage, readiness, the suggestion
+ * candidate set) can key the SAME pair identities.
+ *
+ * The grade here is the canonical `resolveSectionGradeLevel` (EnrollPro grade
+ * NAME) — deliberately NOT the mirror `displayOrder`. Teaching Load must not
+ * re-derive a second universe from presentation ordering.
+ */
+export interface TeachingLoadDemandPair {
+	subjectId: number;
+	subjectCode: string;
+	sectionMirrorId: number;
+	/** `SectionMirror.externalId`; matches `SubjectSectionOwnership.sectionId`. */
+	sectionId: number;
+	sectionExternalId: number;
+	gradeLevel: number;
+	programType: string;
+}
+
+/**
+ * Pure flattening of the canonical derived-demand pair set into the compact
+ * Teaching Load shape. No I/O; the parity target is `result.teachingLoadPairs`.
+ */
+export function toTeachingLoadDemandPairs(result: DerivedDemandSuccess): TeachingLoadDemandPair[] {
+	return result.teachingLoadPairs
+		.map((pair) => ({
+			subjectId: pair.subjectId,
+			subjectCode: pair.subjectCode,
+			sectionMirrorId: pair.sectionMirrorId,
+			sectionId: pair.sectionExternalId,
+			sectionExternalId: pair.sectionExternalId,
+			gradeLevel: pair.gradeLevel,
+			programType: pair.programType,
+		}))
+		.sort((a, b) => `${String(a.sectionId).padStart(10, '0')}:${String(a.subjectId).padStart(10, '0')}`
+			.localeCompare(`${String(b.sectionId).padStart(10, '0')}:${String(b.subjectId).padStart(10, '0')}`));
+}
+
+export type TeachingLoadDemandPairsResult =
+	| { ok: true; revision: string; totalPairs: number; pairs: TeachingLoadDemandPair[] }
+	| { ok: false; blockers: DerivedDemandBlocker[] };
+
+const DERIVED_DEMAND_BLOCKER_CODES = new Set<DerivedDemandBlockerCode>([
+	'ACTIVE_YEAR_UNAVAILABLE',
+	'ACTIVE_YEAR_AMBIGUOUS',
+	'INACTIVE_HISTORICAL_YEAR',
+	'TERM_STRUCTURE_UNAVAILABLE',
+	'TERM_STRUCTURE_EMPTY',
+	'ROTATION_FAMILY_MISSING',
+	'ROTATION_ORDER_MISSING',
+	'ROTATION_ORDER_OUT_OF_RANGE',
+	'ROTATION_ORDER_DUPLICATE',
+	'ROTATION_INCOMPLETE',
+]);
+
+/**
+ * A6-TL-DEMAND-SOURCE-C01 — ONE read-only accessor for the canonical Teaching
+ * Load demand pair universe. It wraps `buildDerivedDemand` and never writes and
+ * never opens a route.
+ *
+ * Fail-closed contract: every failure — a typed derivation blocker OR a thrown
+ * service error (e.g. the requested year is not the sole active year) — is
+ * returned as `{ ok: false, blockers }`, never a partial or invented pair set.
+ * Callers decide how to surface not-ready; none may fabricate a percentage.
+ */
+export async function resolveTeachingLoadDemandPairs(
+	schoolId: number,
+	schoolYearId: number,
+	dependencies: DerivedDemandDependencies = {},
+): Promise<TeachingLoadDemandPairsResult> {
+	try {
+		const derived = await buildDerivedDemand(schoolId, schoolYearId, dependencies);
+		if (!derived.ok) return { ok: false, blockers: derived.blockers };
+		return { ok: true, revision: derived.revision, totalPairs: derived.totalPairs, pairs: toTeachingLoadDemandPairs(derived) };
+	} catch (error) {
+		const rawCode = (error as { code?: unknown })?.code;
+		const code: DerivedDemandBlockerCode = typeof rawCode === 'string' && DERIVED_DEMAND_BLOCKER_CODES.has(rawCode as DerivedDemandBlockerCode)
+			? (rawCode as DerivedDemandBlockerCode)
+			: 'ACTIVE_YEAR_UNAVAILABLE';
+		const message = error instanceof Error ? error.message : String(error);
+		return { ok: false, blockers: [blocker(code, message)] };
+	}
+}
+
+/**
  * GEN-C02R1 Finding F4: exact per-order-term demand projection.
  *
  * Unlike the collapsed scheduler override, this projection preserves EACH

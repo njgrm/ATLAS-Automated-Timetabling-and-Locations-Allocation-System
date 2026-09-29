@@ -110,6 +110,29 @@ function normalizeCoverageTotals(value: unknown): TeachingLoadCoverageTotals | u
 	const rawAssignedPairs = toNumber(candidate.rawAssignedPairs, assignedPairs);
 	const unassignedPairs = toNumber(candidate.unassignedPairs, Math.max(0, totalPairs - assignedPairs));
 	const rawUnassignedPairs = toNumber(candidate.rawUnassignedPairs, Math.max(0, totalPairs - rawAssignedPairs));
+	// A6-TL-DEMAND-SOURCE-C01: preserve the canonical-demand readiness the server
+	// computed so the header never derives a percentage when it is not ready. A
+	// pre-A6 cached payload has no flag → treated ready (its own legacy figures).
+	const teachingLoadDemandReady = candidate.teachingLoadDemandReady === false ? false : true;
+	const teachingLoadDemandRevision = typeof candidate.teachingLoadDemandRevision === 'string'
+		? candidate.teachingLoadDemandRevision
+		: candidate.teachingLoadDemandRevision === null
+			? null
+			: undefined;
+	const rawPairs = (candidate as { teachingLoadDemandPairs?: unknown }).teachingLoadDemandPairs;
+	const teachingLoadDemandPairs = Array.isArray(rawPairs)
+		? rawPairs
+			.map((pair) => pair as { subjectId?: unknown; sectionId?: unknown })
+			.filter((pair) => typeof pair?.subjectId === 'number' && typeof pair?.sectionId === 'number')
+			.map((pair) => ({ subjectId: pair.subjectId as number, sectionId: pair.sectionId as number }))
+		: undefined;
+	const rawBlockers = (candidate as { teachingLoadDemandBlockers?: unknown }).teachingLoadDemandBlockers;
+	const teachingLoadDemandBlockers = Array.isArray(rawBlockers)
+		? rawBlockers
+			.map((entry) => entry as { code?: unknown; message?: unknown })
+			.filter((entry) => typeof entry?.code === 'string')
+			.map((entry) => ({ code: entry.code as string, message: typeof entry.message === 'string' ? entry.message : '' }))
+		: undefined;
 	return {
 		assignedPairs,
 		activeAssignedPairs,
@@ -119,6 +142,10 @@ function normalizeCoverageTotals(value: unknown): TeachingLoadCoverageTotals | u
 		totalPairs,
 		unassignedPairs,
 		rawUnassignedPairs,
+		teachingLoadDemandReady,
+		teachingLoadDemandRevision,
+		teachingLoadDemandPairs,
+		teachingLoadDemandBlockers,
 	};
 }
 
