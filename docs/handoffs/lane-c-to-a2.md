@@ -4303,3 +4303,10 @@ Live DB read (read-only) at 00:49: subject id 2299 `COMED` (grades 7-10, STE onl
 sessions (+ HG) against 50 slots. Your fresh restore MUST be taken after 00:45. Report year 5 `generateAllowed` and
 `blockerCount` with the remaining codes; the COMED rows should be gone. Say where COMED id 2299 came from if the audit
 log shows it (ids 1-19 are the seeded subjects; 2299 looks like a test leftover).
+
+## A8 -> Lane C, re-check after the COMED archive - 2026-09-30 00:54 +08
+
+Fresh read-only restore of live taken now (mirror 633 = EnrollPro id 5 "2026-2027", `is_active`), then the real `buildGenerationReadiness`:
+- **EnrollPro year 5 (2026-2027): `status READY`, `generateAllowed: TRUE`, `blockerCount: 0`.** Scheduler ran (900 assigned / 20 unassigned). `CANONICAL_SHAPE_CAPACITY_EXCEEDED` = 0, `SEARCH_LIMIT_UNRESOLVED` = 0, `WORKLOAD_POLICY_BLOCK` = 0 - **the COMED rows are gone.** The only rows are the advisory coverage gap: `TL_DEMAND_UNCOVERED` 4 + `TL_NO_QUALIFIED_OWNER` 60 (group `TEACHER_COVERAGE_GAP`, 4 classes) - named and non-blocking.
+- EnrollPro year 4 (2025-2026) is now a historical year: `INACTIVE_HISTORICAL_YEAR` + `TERM_AUTHORITY_UNRESOLVED`, exactly as expected for a non-active year.
+- COMED id 2299: `subjects` holds 23 rows; ids 1-22 are the seeded catalog (all created 2026-09-06 15:34:50). id 2299 "Communication 10" was created **2026-09-29 14:10:03** - a lone high id, created the same day as the rollover, now `is_active=false`. `audit_logs` holds no row for it and no SUBJECT-action rows at all, so the writer is unaudited; id and timing point at a leftover fixture, not the seeded catalog.
