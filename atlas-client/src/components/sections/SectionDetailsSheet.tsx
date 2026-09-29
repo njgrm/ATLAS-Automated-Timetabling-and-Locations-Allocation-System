@@ -12,12 +12,12 @@ import {
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import {
-	Sheet,
-	SheetContent,
-	SheetDescription,
-	SheetHeader,
-	SheetTitle,
-} from '@/ui/sheet';
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+} from '@/ui/dialog';
 import { Skeleton } from '@/ui/skeleton';
 import atlasApi from '@/lib/api';
 import { toast } from 'sonner';
@@ -152,18 +152,27 @@ export function SectionDetailsSheet({
 		}
 	}, [open, fetchDetails]);
 
+	/* A9 c4 (2026-09-30) — the section details surface is a CENTRED DIALOG, not a
+	 * right-side drawer. Operator (section.docx item 1): *"currently it is a drawer. Make
+	 * this as a modal at the center of the page."* Operator decision #10 fixes the width:
+	 * a NORMAL centred width of about 42rem (`max-w-2xl`), never near full screen, with
+	 * both side gutters visible at 1366x768 and an internal scroller for long content
+	 * (`max-h-[85vh]` + the primitive's own `overflow-y-auto`). `resizable={false}` is
+	 * deliberate: decision #10 makes resizing optional, and visible drag handles capped at
+	 * a fixed width would be an affordance that does nothing. The props/API and every fact
+	 * on screen are unchanged. */
 	return (
-		<Sheet open={open} onOpenChange={onOpenChange}>
-			<SheetContent className="w-full overflow-y-auto sm:max-w-xl">
-				<SheetHeader className="pb-6 border-b">
-					<SheetTitle className="flex items-center gap-2 text-xl font-bold">
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent resizable={false} className="w-full max-w-2xl">
+				<DialogHeader className="pb-6 border-b">
+					<DialogTitle className="flex items-center gap-2 text-xl font-bold">
 						<Users className="size-5 text-primary" />
 						{sectionName ?? 'Section details'}
-					</SheetTitle>
-					<SheetDescription>
+					</DialogTitle>
+					<DialogDescription>
 						Class coverage, teacher assignments, and home-room context for this section.
-					</SheetDescription>
-				</SheetHeader>
+					</DialogDescription>
+				</DialogHeader>
 
 				<div className="py-6 space-y-8">
 					{loading ? (
@@ -346,7 +355,7 @@ export function SectionDetailsSheet({
 						</div>
 					)}
 				</div>
-			</SheetContent>
-		</Sheet>
+			</DialogContent>
+		</Dialog>
 	);
 }
