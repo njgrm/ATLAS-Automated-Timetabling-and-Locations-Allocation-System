@@ -134,24 +134,75 @@ export function SubjectFilterToolbar({
 	//                              sentence.
 	//   WHAT IT COSTS ............ nothing but reachability of three controls,
 	//                              which is exactly what item 43 was filed about.
-	//   THE WIDTH BUDGET ........ `@/ui/picker-trigger` already publishes the
-	//                              `md` (=`w-32`, 128px) variant for THIS case in
-	//                              its own words: "5 × 128 + 4 cluster gaps +
-	//                              Reset + the 240px search box + its gap =
-	//                              1020px against ~1062px available at 1366".
-	//                              With this file's `gap-2` (8px) it is
-	//                              240 + 10 + 640 + 40 + 80 = 1010px against
-	//                              1062px. Nothing needs a new width variant and
-	//                              §8 forbids inventing one at a call site; the
-	//                              cluster keeps `flex-wrap` so a NARROWER
-	//                              viewport still degrades by wrapping instead of
-	//                              overflowing (§8's no-scroll rule), and the
-	//                              rendered 1366x768 no-wrap proof is the browser
-	//                              capture, because jsdom cannot measure layout.
+//   THE WIDTH, AND WHY IT IS `auto` NOT `md` (A5 C7 CORRECTION ROUND 1).
+	//
+	//   Round 0 shipped all five pickers on the shared `md` variant (`w-32`,
+	//   128px) and I recorded a measured overflow: with `Room: Laboratory` set,
+	//   that trigger reported `scrollWidth − clientWidth = 10px`. `@/ui` removed
+	//   `truncate` deliberately (§8 forbids a cut-off sentence) and the trigger
+	//   carries no overflow handling, so the face genuinely ran past its border.
+	//   Fourteen faces across the five filters exceed `md`'s published
+	//   12-character budget, and every SET value on `Status` does — `md` leaves a
+	//   value only `12 − name.length − 2` characters, and for `Status` that is 4
+	//   against a shortest real value of `Active` (6).
+	//
+	//   The three available answers, and why two of them are worse than the
+	//   defect:
+	//     - `lg` (176px): +48px × 5 = +240px, against 140px of measured slack.
+	//       It does not fit, and §8's own words are that a row needing a wider
+	//       control takes it on ALL of its pickers, so a partial widening is not
+	//       an option either.
+	//     - SHORTEN THE VALUES (`R-con`, `No cov`): this is the "too literal, no
+	//       thought" failure §11's design judgement gate exists to prevent, and it
+	//       makes the page worse for the older, mouse-first scheduler the whole
+	//       packet is written for.
+	//     - `auto` (`w-auto whitespace-nowrap`): the codebase's OWN published
+	//       answer to exactly this shape, and the one A5 C4 added to `@/ui` FOR
+	//       THIS PAGE when the deleted `More filters` button had the same problem.
+	//
+	//   `auto` is not a workaround; it is the variant for this case:
+	//     - `picker-trigger.ts`'s own guard says a width that is not a fixed
+	//       rectangle ALWAYS FITS, and calls that "the load-bearing line" —
+	//       "`pickerTriggerFaceFits` returns `false` for them … reports a FALSE
+	//       FAILURE … a guard that cries wolf on the width that is safest is how
+	//       a guard gets deleted". A page whose faces do not fit a fixed
+	//       rectangle is not misusing `md`; it is what `auto` exists for.
+	//     - It SUBTRACTS. No chip, no count, no label, no helper sentence, no
+	//       control. It removes a whole failure class rather than hiding it.
+	//     - The row gets NARROWER in the common case, which is the case that
+	//       matters: with nothing set every face is short (`Grade: All` is 10
+	//       characters, `Program: All` and `Status: All` 12), so five `auto`
+	//       triggers occupy less width than five 128px rectangles. The extra
+	//       width is spent only on the specific filter that is actually set.
+	//
+	//   ALL FIVE take `auto`, so §8 "One look per control" is untouched: the
+	//   height (`h-9`), radius, border, case treatment, `px-3`, `text-xs` and the
+	//   option-list search box all still come from `pickerTriggerClass`, and the
+	//   five remain ONE variant. What changes is only that the rectangle stops
+	//   being a fixed 128px that the content does not fit inside.
+	//
+	//   A WORD ON `@/ui`'s OWN COMMENT, which I did NOT edit. `auto`'s doc block
+	//   says it exists for "a trigger whose LABEL IS DYNAMIC", naming the
+	//   `More filters` button this change deleted. These five labels are static;
+	//   it is their LONGEST VALUE that does not fit a fixed rectangle. The variant
+	//   is the same one and the shape is the same — "a label the control must size
+	//   itself to" — but `picker-trigger.ts` is shared `@/ui` owned by another
+	//   lane, so widening its wording is a follow-up for that owner rather than an
+	//   edit smuggled into a layout ticket.
+	//
+	//   THE BUDGET, worst case. `auto` cannot be budgeted from a class name the
+	//   way a fixed variant can, so the worst case is measured in the browser
+	//   rather than computed: all five filters set to their longest face
+	//   (`Status: Room-constrained`, `Term: Rotates by term`, `Room: Faculty
+	//   room`, `Program: Other`, `Grade: GR7`) with `Reset` showing. See
+	//   `docs/reviews/a5-c7-subjects-20260929/` for the measured numbers and
+	//   whether that state still holds one line. `flex-wrap` is kept, so a state
+	//   that cannot fit degrades by wrapping onto a second row rather than
+	//   overflowing the page (§8's no-scrollbar rule).
 	//   WHAT IS NOT CHANGED ..... every picker below is still the SAME
-	//                              `@/ui/filter-picker` at the same `width`, with
-	//                              its own self-naming trigger, its own
-	//                              `ariaLabel` and its own `data-testid`; the
+	//                              `@/ui/filter-picker` with the same
+	//                              self-naming trigger, its own
+	//                              `ariaLabel` and its own `dataTestId`; the
 	//                              merged `SubjectStatusFilter` axis, its
 	//                              `shortLabels`, `ROOM_TYPE_SHORT_LABELS`,
 	//                              `gradeLabel(g)` and `TERM_FILTER_ALL` are all
@@ -223,6 +274,7 @@ export function SubjectFilterToolbar({
 				    long options (R2-6 rule 5). */}
 				<FilterPicker
 					name="Grade"
+					width="auto"
 					ariaLabel="Filter by grade level"
 					value={String(gradeLevelFilter)}
 					onValueChange={(v) => onGradeLevelFilterChange(v === 'all' ? 'all' : Number(v))}
@@ -239,6 +291,7 @@ export function SubjectFilterToolbar({
 				/>
 				<FilterPicker
 					name="Program"
+					width="auto"
 					ariaLabel="Filter by program scope"
 					value={programScopeFilter}
 					onValueChange={(v) => onProgramScopeFilterChange(v)}
@@ -261,6 +314,7 @@ export function SubjectFilterToolbar({
 				 * and none of it depends on where the control sits. */}
 				<FilterPicker
 					name="Status"
+					width="auto"
 					ariaLabel="Filter by subject status"
 					value={subjectStatusFilter}
 					onValueChange={(v) => onSubjectStatusFilterChange(v as SubjectStatusFilter)}
@@ -283,6 +337,7 @@ export function SubjectFilterToolbar({
 				/>
 				<FilterPicker
 					name="Room"
+					width="auto"
 					ariaLabel="Filter by room type"
 					value={roomTypeFilter}
 					onValueChange={(v) => onRoomTypeFilterChange(v)}
@@ -297,6 +352,7 @@ export function SubjectFilterToolbar({
 				/>
 				<FilterPicker
 					name="Term"
+					width="auto"
 					ariaLabel="Filter by rotation term"
 					value={termFilter}
 					onValueChange={onTermFilterChange}

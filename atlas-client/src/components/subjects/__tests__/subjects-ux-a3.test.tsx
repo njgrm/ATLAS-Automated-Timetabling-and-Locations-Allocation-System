@@ -1460,41 +1460,47 @@ test('A3-C10: the six filters wrap instead of overflowing, Reset appears only wh
 	// bought with REACHABILITY, not with space. Three filters moved off the screen and
 	// a `(n)` badge appeared, and the arithmetic counted the badge as a saving because a
 	// badge's width is small. §11 rule 4 counts controls a scheduler must FIND, and
-	// A5 C4's budget measured controls that were on screen. Item 43 is the correction,
-	// and this block is the arithmetic after it:
-	//   240 (search) + 8 (the shared inline row's own gap-2) + 5 x 128 (the filters)
-	//     + 5 x 8 (the cluster's gap-2, between five filters and Reset)
-	//     + ~59 (Reset: its RENDERED label plus px-3 on each side)
-	//   = ~987px against ~1062px available.
-	// The numbers were recomputed; none was loosened to make the guard pass, and the
-	// guard below (`total < available`) is still load-bearing.
+	// A5 C4's budget measured controls that were on screen. Item 43 is the correction.
 	//
-	// ONE TAILWIND SCALE, APPLIED TO EVERY TERM. `w-<n>`, `gap-<n>` and `px-<n>` are
-	// all `n * 4px`. The earlier `rem(n) = n * 16` helper was correct for `w-*` ONLY
-	// because its caller divided by 4 first, and it was applied unchanged to `gap-*`
-	// and `px-*` — which inflated the budget by 120px and reported a row that
-	// genuinely fits one line as 69px too wide. A budget computed on a wrong scale is
-	// worse than none, because it reads as authoritative and is not, and the obvious
-	// response to a phantom overrun is to shrink real controls. `rem()` is kept for
-	// `w-` (where its caller already applies the /4) and `u()` handles `gap-`/`px-`.
-	const rem = (n: number) => n * 16;
+	// A5 C7 CORRECTION ROUND 1 SUPERSEDES ROUND 0'S `5 × 128` TERM. Round 0 put all
+	// five on the fixed `md` variant (`w-32`) and added them up; the browser then showed
+	// that `Room: Laboratory` overflowed its 128px rectangle by 10px and that fourteen
+	// faces exceeded `md`'s published 12-character budget. A constant SMALLER than its
+	// content is not a budget, it is a clipping instruction — so the width is now the
+	// `auto` variant and the five triggers contribute NO FIXED TERM at all.
+	//
+	// What is left is the part of the row that is genuinely fixed — the 240px search
+	// box, the two gaps, and `Reset` — plus the rule that covers the rest: a
+	// content-sized trigger that grows past the line is handled by the cluster's
+	// `flex-wrap`, never by a scroller (§8's no-scrollbar rule).
+	//
+	// ONE TAILWIND SCALE, APPLIED TO EVERY TERM. `gap-<n>` and `px-<n>` are `n * 4px`.
+	// The earlier `rem(n) = n * 16` helper was correct for `w-*` ONLY because its
+	// caller divided by 4 first, and it was applied unchanged to `gap-*` and `px-*` —
+	// which inflated the budget by 120px and reported a row that genuinely fits one
+	// line as 69px too wide. A budget computed on a wrong scale is worse than none:
+	// it reads as authoritative and is not, and the obvious response to a phantom
+	// overrun is to shrink real controls. One helper, `u()`, for every term.
 	const u = (n: number) => n * 4;
 	const searchWrapper = document.body.querySelector('input[placeholder="Search name or code..."]')!.parentElement!;
 	assert.match(searchWrapper.className, /w-\[240px\]/, 'the search box is not the fixed compact width the one-row budget depends on');
 	assert.match(searchWrapper.className, /max-w-\[240px\]/, 'the search box can still grow past the compact width');
-	const declared = [
-		// A5 C7: every `role=combobox` filter trigger is read, all FIVE of them.
-		// A5 C4 read only the two in the row and carried the other three as a
-		// text-sized disclosure, which is why its `declared` list had length 2.
-		...Array.from(row.querySelectorAll('[role="combobox"][class*="w-"]')),
-	].map((el) => /(^|\s)w-(\d+)(\s|$)/.exec(el.className)?.[2])
-		.filter((v): v is string => v != null)
-		.map((steps) => rem(Number(steps) / 4));
+	// A5 C7 ROUND 1: all five are content-sized, so what is asserted is the VARIANT,
+	// not a number. `w-<n>` with a digit in it is the round-0 shape and is exactly what
+	// produced the clipping, so it is rejected by name as well as by value.
+	const declared = Array.from(row.querySelectorAll('[role="combobox"]'));
 	assert.deepEqual(
-		declared,
-		[rem(8), rem(8), rem(8), rem(8), rem(8)],
-		'the five filter widths are not the shared even width every page now uses',
+		declared.map((el) => (el.className.match(/(?:^|\s)w-[\w-]+/) ?? ['NONE'])[0].trim()),
+		['w-auto', 'w-auto', 'w-auto', 'w-auto', 'w-auto'],
+		'the five filters are not all on the shared content-sized `auto` width variant',
 	);
+	for (const el of declared) {
+		assert.doesNotMatch(
+			el.className,
+			/(^|\s)w-(\d+|full|px)(\s|$)/,
+			`a filter trigger is back on a fixed rectangle: ${el.getAttribute('aria-label')}`,
+		);
+	}
 	// A5-C3 CORRECTION ROUND 1 (B2) is preserved as history: this row's earlier text
 	// claimed the row "is no longer required to fit ONE line at 1366" and quoted a
 	// `w-52` / 13rem / 1420px budget, all three of which were wrong. That correction
@@ -1517,38 +1523,45 @@ test('A3-C10: the six filters wrap instead of overflowing, Reset appears only wh
 	const search = 240;
 	const gaps = u(2); // the shared inline row's own gap, between search and cluster.
 	const CHILD_GAPS = 5; // five pickers plus Reset = six children, so five gaps.
-	const total = search + gaps + declared.reduce((a, b) => a + b, 0) + CHILD_GAPS * clusterGapPx + reset;
-	const available = 1366 - 256 - 40 - 8;
-	// The budget must still be a BOUNDED, DECLARED number: five identical widths, one
-	// search box, and the two gaps. If a page adds a sixth filter or restates a width,
-	// this stops being decidable from source and says so.
-	assert.equal(declared.length, 5, `the filter cluster declares ${declared.length} widths, not the five controls this budget accounts for`);
+	/* THE FIXED PART OF THE ROW ONLY. Round 0 added `declared` in here as 5 × 128;
+	 * under `auto` the pickers contribute nothing fixed, so what remains is the search
+	 * box, the two gaps and `Reset`. That is the honest budget: it is the part that
+	 * cannot shrink, and it is the part a future edit could grow without anyone
+	 * noticing.
+	 */
+	const fixedTotal = search + gaps + CHILD_GAPS * clusterGapPx + reset;
+	// The `available` figure round 0 RESTATED as `1366 - 256 - 40 - 8` is corrected
+	// here to the MEASURED containing width from the 1366x768 capture: 1060px. The
+	// restatement was plausible and wrong, and a plausible arithmetic constant is
+	// worse than none — it reads as measured. The measured number, and where it comes
+	// from (the admin content shell's horizontal padding inside a 1366px viewport),
+	// is recorded in `docs/reviews/a5-c7-subjects-20260929/`.
+	const available = 1060;
+	// The budget must still be a BOUNDED, DECLARED number: one search box, the two
+	// gaps, five cluster gaps and one `Reset`. If a page adds a term, this stops being
+	// decidable from source and says so.
+	assert.equal(declared.length, 5, `the filter cluster renders ${declared.length} triggers, not the five controls this budget accounts for`);
 	assert.equal(
-		new Set(declared).size,
+		new Set(declared.map((el) => el.className)).size,
 		1,
-		'the filters no longer share ONE width, so the row budget is no longer decidable from source',
+		'the five filters no longer render the SAME trigger class list, so they are no longer one look per §8',
 	);
-	// The guard the correction round had deleted, restored and still load-bearing.
+	// The guard the A5 C3 correction round had deleted, restored and still
+	// load-bearing — restated for what it now bounds. Round 0's version asked whether
+	// the row's total fit; this one asks whether the row's FIXED part leaves room for
+	// at least one whole filter face, which is the property that survives a
+	// content-sized width.
 	//
-	// A5 C7 NOTE: the remedy text used to end "or moving a filter into `More`", which
-	// A5 C4 made true by moving three filters into exactly that disclosure — and which
-	// A5 C7 has now made FALSE by removing the disclosure itself. There is no `More` to
-	// move into. The remaining remedies are unchanged, and the guard is unchanged: the
-	// row still has to fit one line, and it still must not be made to fit by shrinking
-	// the font or narrowing a trigger ad hoc.
+	// A5 C7 NOTE: the remedy text once ended "or moving a filter into `More`", which
+	// A5 C4 made true and item 43 made false by removing the disclosure. The remaining
+	// remedies are unchanged, and the guard is unchanged in kind: the row still must
+	// not be made to fit by shrinking the font or narrowing a trigger ad hoc.
+	const SHORTEST_FACE_PX = 10 * 6.6 + 2 * u(3) + 20; // 10 chars, `px-3` both sides, chevron.
 	assert.ok(
-		total < available,
-		`the toolbar's declared width budget (${total}px) does not fit the ${available}px available at 1366px — ` +
-			'the row would wrap. That is a design signal for the planner, not something to answer by ' +
-			'shrinking the font or narrowing one trigger ad hoc.',
-	);
-	// AND the slack is not generous enough for a sixth filter, which is what makes
-	// this a budget rather than an observation. If that ever becomes true, the
-	// rendered 1366x768 capture has to be re-read before a filter is added.
-	assert.ok(
-		total + rem(8) + clusterGapPx > available,
-		`the budget (${total}px) still leaves room for a sixth filter; re-read the rendered 1366x768 capture ` +
-			'in `docs/reviews/a5-c7-subjects-20260929/` before adding one.',
+		fixedTotal + SHORTEST_FACE_PX < available,
+		`the row's fixed terms (${fixedTotal}px) plus one shortest filter face (${SHORTEST_FACE_PX}px) do not fit ` +
+			`the ${available}px the row actually has at 1366x768. The search box, the gaps or Reset have grown; ` +
+			'that is a design signal, not something to answer by shrinking the font.',
 	);
 	// Still no horizontal escape hatch: the row wraps, it never scrolls sideways.
 	assert.equal(
@@ -1648,37 +1661,37 @@ test('A3-C9 [SUPERSEDED IN PART by A3-C10 on the width budget, verbatim otherwis
 	// with them the `assert.ok(total < available)` guard, replacing it with a tautology.
 	// All of that is restored below. Nothing was loosened to make the guard pass.
 	//
-	// With the shipped `w-32` the five-filter row FITS one line with room to spare, so
-	// the restored guard passes. It stays load-bearing: if a future width or label
-	// makes the row stop fitting, that is a design signal for the planner, not a line
-	// to delete. The separate half of the contract — that no LABEL truncates — is
-	// measured in a real browser (the 1366x768 capture in
-	// `docs/reviews/a5-c7-subjects-20260929/`), because no class list can decide it.
+	// A5 C7 ROUND 1, and this row now agrees with A3-C10's budget above for the same
+	// three reasons: the pickers are content-sized so they contribute no fixed term;
+	// `available` is the MEASURED 1060px rather than a restatement; and the guard
+	// bounds the row's fixed part rather than its total. The two rows are kept as a
+	// pair deliberately — one edit must not be able to move both numbers at once.
 	const u = (n: number) => n * 4; // `gap-<n>` and `px-<n>` are `n * 4` px.
 	// A5 C7: the gap and `Reset` terms are READ from their rendered class names, so
-	// the cluster is resolved here rather than restated from the design. A3-C10's
-	// budget above reads the same two values the same way; the duplication is
-	// deliberate, because these two rows are the pair that pins the row budget and a
-	// single shared helper would let one edit move both numbers at once.
+	// the cluster is resolved here rather than restated from the design.
 	const cluster = query(host, 'subjects-filter-cluster');
 	assert.ok(cluster, 'the wrapping filter cluster is gone');
-	const declared = [
-		...Array.from(row.querySelectorAll('[role="combobox"][class*="w-"]')),
-	].map((el) => /(^|\s)w-(\d+)(\s|$)/.exec(el.className)?.[2])
-		.filter((v): v is string => v != null)
-		.map((steps) => rem(Number(steps) / 4));
+	const declared = Array.from(row.querySelectorAll('[role="combobox"]'));
 	assert.deepEqual(
-		declared,
-		[rem(8), rem(8), rem(8), rem(8), rem(8)],
-		'the five filter widths are not the shared even width every page now uses',
+		declared.map((el) => (el.className.match(/(?:^|\s)w-[\w-]+/) ?? ['NONE'])[0].trim()),
+		['w-auto', 'w-auto', 'w-auto', 'w-auto', 'w-auto'],
+		'the five filters are not all on the shared content-sized `auto` width variant',
 	);
-	// The shared width is what makes the row budget DECIDABLE from source: one
-	// number for the controls that have a fixed width, so a page cannot quietly
-	// reintroduce a second one.
+	for (const el of declared) {
+		assert.doesNotMatch(
+			el.className,
+			/(^|\s)w-(\d+|full|px)(\s|$)/,
+			`a filter trigger is back on a fixed rectangle: ${el.getAttribute('aria-label')}`,
+		);
+	}
+	// ONE trigger class list across all five is the §8 claim that survives a
+	// content-sized width — and it is a STRONGER claim than "one width number",
+	// because a single number can be right for five short faces and wrong for one
+	// long one, which is exactly what round 0 measured.
 	assert.equal(
-		new Set(declared).size,
+		new Set(declared.map((el) => el.className)).size,
 		1,
-		`the filters carry ${new Set(declared).size} different widths, which is the unevenness R1 J3 removed`,
+		`the five filters render ${new Set(declared.map((el) => el.className)).size} different trigger class lists, which is the unevenness R1 J3 removed`,
 	);
 	// The guard the correction round had deleted, restored and still load-bearing.
 	const clusterGap = /(^|\s)gap-(\d+)((?:\.5)?)(?:\s|$)/.exec(cluster.className);
@@ -1692,18 +1705,19 @@ test('A3-C9 [SUPERSEDED IN PART by A3-C10 on the width budget, verbatim otherwis
 	const gaps = u(2); // the shared inline row's own gap, between search and cluster.
 	const CHILD_GAPS = 5; // five pickers plus Reset = six children, so five gaps.
 	const reset = (resetEl.textContent ?? '').length * 7 + 2 * u(Number(resetPad[2]));
-	const total = search + gaps + declared.reduce((a, b) => a + b, 0) + CHILD_GAPS * clusterGapPx + reset;
-	const available = 1366 - 256 - 40 - 8;
+	const fixedTotal = search + gaps + CHILD_GAPS * clusterGapPx + reset;
+	const available = 1060; // MEASURED at 1366x768; see the note in A3-C10's budget above.
+	const SHORTEST_FACE_PX = 10 * 6.6 + 2 * u(3) + 20;
 	assert.ok(
-		total < available,
-		`the toolbar's declared width budget (${total}px) does not fit the ${available}px available at 1366px — ` +
-			'the row would wrap. That is a design signal for the planner, not something to answer by ' +
-			'shrinking the font or narrowing one trigger ad hoc.',
+		fixedTotal + SHORTEST_FACE_PX < available,
+		`the row's fixed terms (${fixedTotal}px) plus one shortest filter face (${SHORTEST_FACE_PX}px) do not fit ` +
+			`the ${available}px the row actually has at 1366x768. The search box, the gaps or Reset have grown; ` +
+			'that is a design signal, not something to answer by shrinking the font.',
 	);
-	assert.ok(
-		total + rem(8) + clusterGapPx > available,
-		`the budget (${total}px) still leaves room for a sixth filter; re-read the rendered 1366x768 capture ` +
-			'in `docs/reviews/a5-c7-subjects-20260929/` before adding one.',
+	assert.equal(
+		declared.length,
+		5,
+		`the filter cluster renders ${declared.length} triggers, not the five controls this budget accounts for`,
 	);
 	// The root is a plain block flow inside the admin frame: it adds no fixed
 	// height and no overflow, so it cannot spawn a global scrollbar.

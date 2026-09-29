@@ -667,34 +667,28 @@ test('A5-9.1/41: the search box is the fixed compact width, and every select car
 	//   ['h-9', 'text-xs', 'px-3', 'rounded-xl', 'border', 'border-slate-200',
 	//    'bg-white', 'hover:bg-slate-50', 'transition-colors']
 	// AFTER, each trigger carries the shared variant — `h-9` (the one height token,
-	// also on the search box), `w-32` (the one even width), `text-xs`, `px-3`, and
-	// the case normalisation — and the radius/border/background come from
-	// `@/ui/button variant="outline"`, which is the Section and Teacher pickers'
-	 // look, the reference the operator named. The assertion is still per-trigger,
-	 // still on the RENDERED class list, and a page that restated any of these
-	 // would fail here.
+	// also on the search box), the `auto` WIDTH variant (see the correction note
+	// below), `text-xs`, `px-3`, and the case normalisation — and the radius/border/
+	// background come from `@/ui/button variant="outline"`, which is the Section and
+	// Teacher pickers' look, the reference the operator named. The assertion is still
+	// per-trigger, still on the RENDERED class list, and a page that restated any of
+	// these would fail here.
 	//
-	// A5 C4, RE-POINTED AND STRENGTHENED. This used to read the two or more
-	// triggers in the cluster and `assert.ok(triggers.length >= 4)`. Three of the
-	// five now sit behind the disclosure, so the row's own length check could only
-	// ever see two — and §8's "one look per control" is decided by the look, not by
-	// the row a control happens to sit in. So the same per-trigger assertions now
-	// run over ALL FIVE, with the disclosure open: the shared height, width, type
-	// size, padding and case are proven identical for the visible two AND the
-	// hidden three. That is a stronger gate than the one it replaces, not a weaker
-	// one.
+	// A5 C7 CORRECTION ROUND 1: the width is `w-auto`, not `w-32`. Round 0 asserted
+	// `w-32` and I measured that it clipped — `Room: Laboratory` overflowed its 128px
+	// rectangle by 10px, and fourteen faces exceeded `md`'s published 12-character
+	// budget. `picker-trigger.ts` says a width that is not a fixed rectangle "ALWAYS
+	// FITS", so `auto` is the variant for a page whose longest face does not fit a
+	// fixed one. §8 is untouched: all five take the SAME variant, and the height,
+	// border, radius, case and option-list search behaviour all still come from the
+	// shared builder.
 	const rowTriggers = clusterTriggers();
 
 	// Grades use the shared compact DepEd form, not `Grade 7`.
 	//
-	// A5 C4 ORDER NOTE — this check runs BEFORE the disclosure is opened, and that
-	// ordering is load-bearing rather than cosmetic. `openSelect` begins by
-	// dispatching `Escape` to close whatever is open; with a disclosure mounted
-	// that also tears down its `DismissableLayer` and `hideOthers`, and whether the
-	// next `pointerdown` lands before or after that teardown is the exact race this
-	// file already documented for `openFilter` (see the A3-C10 Room/Program
-	// comment). Grade is a row control that needs no disclosure, so it is read
-	// from the untouched toolbar and the row stays deterministic.
+	// ORDER NOTE — unchanged from round 0: this check runs BEFORE the rest, because
+	// `openSelect` begins by dispatching `Escape` to close whatever is open. Grade is
+	// a row control like every other here, and the row is deterministic.
 	const options = await openSelect(document.body.querySelector('[aria-label="Filter by grade level: All grades"]'));
 	const labels = options.map((o) => (o.textContent ?? '').trim());
 	assert.equal(labels[0], 'All grades', 'the grade filter has no "All grades" reset option');
@@ -712,8 +706,11 @@ test('A5-9.1/41: the search box is the fixed compact width, and every select car
 	await ensureMoreFiltersOpen();
 	const triggers = allVisibleTriggers();
 	assert.equal(triggers.length, 5, `expected 5 offered filters, found ${triggers.length}`);
+	// The per-trigger look check over all five. A5 C7 CORRECTION ROUND 1: the width token
+	// is `w-auto` rather than round 0's `w-32` — see the note above for why a fixed
+	// rectangle smaller than the content is a clipping instruction, not a budget.
 	for (const trigger of triggers) {
-		for (const token of ['h-9', 'w-32', 'text-xs', 'px-3', 'normal-case']) {
+		for (const token of ['h-9', 'w-auto', 'whitespace-nowrap', 'text-xs', 'px-3', 'normal-case']) {
 			assert.ok(hasClass(trigger, token), `a select trigger is missing the shared "${token}": ${trigger.getAttribute('aria-label')}`);
 		}
 		// The page-local chrome string is gone, not renamed: `rounded-xl` +
@@ -721,9 +718,17 @@ test('A5-9.1/41: the search box is the fixed compact width, and every select car
 		for (const gone of ['rounded-xl', 'border-slate-200', 'bg-white']) {
 			assert.equal(hasClass(trigger, gone), false, `a select trigger still carries the page-local override "${gone}"`);
 		}
+		// And none is back on a FIXED width, which is the round-0 defect this round
+		// corrects: a trigger with a `w-<n>` can clip a face it does not fit.
+		assert.doesNotMatch(
+			trigger.className,
+			/(^|\s)w-(\d+|full|px)(\s|$)/,
+			`a select trigger is back on a fixed rectangle: ${trigger.getAttribute('aria-label')}`,
+		);
 	}
-	// All five share ONE width, which is what R1 J3 asks for and what makes the
-	// 1366 width budget decidable from source.
+	// All five share ONE width VARIANT, which is what §8's "one look per control"
+	// asks for and what makes the row's width a function of what is selected rather
+	// than of a constant that can be too small.
 	const widths = new Set(triggers.map((t) => (t.className.match(/(?:^|\s)w-[\w-]+/) ?? ['NONE'])[0].trim()));
 	assert.equal(widths.size, 1, `the five filters carry ${widths.size} different widths: ${[...widths].join(' | ')}`);
 	// A5 C7: all five are in the row with no interaction. A5 C4's `assert.equal(

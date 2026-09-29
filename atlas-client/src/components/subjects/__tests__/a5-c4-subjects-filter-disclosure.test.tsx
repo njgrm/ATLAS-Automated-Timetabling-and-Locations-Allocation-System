@@ -18,6 +18,45 @@
  * MAP below, with the property it protected named, and a replacement row that
  * asserts what now holds. The map is the record; the rows below it are the evidence.
  *
+ * ## A5 C7 CORRECTION ROUND 1 — the five pickers are `auto`, not `md`
+ *
+ * Round 0 put all five on the shared `md` variant (`w-32`, 128px) and I recorded a
+ * measured overflow: `Room: Laboratory` reported `scrollWidth − clientWidth = 10px`,
+ * and fourteen faces exceeded `md`'s published 12-character budget — every SET
+ * `Status` value among them, because `md` leaves a value only `12 − name.length − 2`
+ * characters and the shortest real status value is `Active` (6).
+ *
+ * I marked that NON_BLOCKING and asked for a decision. The decision was `auto`
+ * (`w-auto whitespace-nowrap`) — the variant A5 C4 had added to `@/ui` FOR THIS PAGE
+ * for the `More filters` button this change deleted, and whose published guard says a
+ * width that is not a fixed rectangle "ALWAYS FITS". So the three rows below were
+ * re-aimed. **Nothing is removed from the map**; the round-0 entries stay, and each
+ * carries what superseded it:
+ *
+ *   A5-C7-2a … 2h   unchanged. Item 43's structure is untouched — a width is not a
+ *                  filter value, and no option list, `shortLabels` map, `ariaLabel` or
+ *                  `dataTestId` moved.
+ *   A5-C7-2i  "one even width, `w-32`, and not `auto`"
+ *     SUPERSEDED. The round-0 comment here called `auto` "exactly what a fixed-row
+ *     filter must not use" and read the source-decidable budget as the goal. That
+ *     was the error: a constant width is decidable from source only when it is big
+ *     enough, and 128px was not. `auto` keeps §8 intact (one variant, same height,
+ *     border, radius, case, option-list search box) and stops clipping.
+ *     Now asserts `w-auto` + `whitespace-nowrap`, and that no trigger is on a fixed
+ *     rectangle.
+ *   A5-C7-2j  "fourteen faces exceed `md`; asserted as an exact inventory"
+ *     SUPERSEDED, and this is the substantive correction. An inventory says "these
+ *     clip and we accept it"; under `auto` NONE clip. The fourteen names are carried
+ *     forward as `FACES_ROUND_0_FOUND_CLIPPING` — asserted still-offered (so a value
+ *     cannot be deleted to make the row pass) and used as the LONG-FACE sentinel via
+ *     `md`'s budget, so a newly-lengthened face is still caught.
+ *   A5-C7-2k  "five × 128px declared widths add up to less than 1062px available"
+ *     SUPERSEDED. `auto` has no `w-<n>` to read, so the row is budgeted by what stays
+ *     FIXED (the 240px search box, the gaps, `Reset`) plus a bound on the worst case.
+ *     Also corrects round 0's `available`: `1366 − 256 − 40 − 8 = 1062px` was a
+ *     plausible restatement, not a measurement, and the 1366x768 capture puts the real
+ *     containing width at 1060px. A plausible arithmetic constant is worse than none.
+ *
  * ## THE SUPERSEDED MAP — one line per A5 C4 row, all still decided
  *
  *   A5-C4-2a  "Grade + Program visible, Status/Room/Term NOT in the row"
@@ -646,11 +685,9 @@ test('A5-C7-2i F2: all five pickers are the SHARED `@/ui` trigger, and no call s
 	// control". The rule is stated twice in `@/ui`:
 	//   - `picker-trigger.ts`: "Call sites pass a `width`; they never pass a class string."
 	//   - `filter-picker.tsx`: "A page names a `variant`; it never writes a width class."
+	// `auto` is the width every one of these five names.
 	const { pickerTriggerClass } = await import('@/ui/picker-trigger');
-	// `md` is the width every one of these five names. It is the one `@/ui` documents
-	// as derived for THIS row: "5 × 128 + 4 cluster gaps + Reset + the 240px search
-	// box + its gap = 1020px against ~1062px available at 1366".
-	const variantTokens = pickerTriggerClass('md').split(/\s+/).filter(Boolean);
+	const variantTokens = pickerTriggerClass('auto').split(/\s+/).filter(Boolean);
 
 	const seen = await interactiveSnapshot(toolbarFor(), async () => {}, () =>
 		clusterComboboxes().map((t) => ({ cls: t.className, label: t.getAttribute('aria-label') })),
@@ -687,12 +724,32 @@ test('A5-C7-2i F2: all five pickers are the SHARED `@/ui` trigger, and no call s
 				);
 			}
 		}
-		// (3) ONE width, and it is a real declared width — not `auto`, not `full`.
-		// `auto` was A5 C4's disclosure width and is exactly what a fixed-row filter
-		// must not use: it is how the width budget stopped being decidable from
-		// source, and this is where that regressed before.
+		// (3) ONE width variant, and it is `w-auto`.
+		//
+		// A5 C7 CORRECTION ROUND 1 SUPERSEDES the round-0 assertion, which was
+		// `assert.deepEqual(widths, ['w-32'], …)` and whose comment argued `auto` is
+		// "exactly what a fixed-row filter must not use". That argument was wrong, and
+		// the reason it is recorded rather than deleted is the shape of the mistake:
+		// it read "a fixed row needs a fixed rectangle" and treated content-sizing as a
+		// loss of the source-decidable budget. The truth is the reverse — the budget was
+		// decidable from source ONLY because the width was a constant, and a constant
+		// that is smaller than the content is not a budget, it is a clipping
+		// instruction. Round 0 measured `Room: Laboratory` at
+		// `scrollWidth − clientWidth = 10px` and fourteen faces exceeded `md`'s
+		// 12-character budget, every SET `Status` value among them.
+		//
+		// `w-auto` is the replacement and it is a named VARIANT, not a class string:
+		// `pickerTriggerClass('auto')` composes it, and `picker-trigger.ts` states the
+		// rule a call site obeys — "Call sites pass a `width`; they never pass a class
+		// string."
 		const widths = renderedTokens.filter((t) => /^w-/.test(t));
-		assert.deepEqual(widths, ['w-32'], `${label} declares ${JSON.stringify(widths)} rather than the shared \`w-32\``);
+		assert.deepEqual(widths, ['w-auto'], `${label} declares ${JSON.stringify(widths)} rather than the shared \`w-auto\``);
+		// `whitespace-nowrap` rides with `auto` and is the other half of "not clipped":
+		// a content-sized trigger that can wrap mid-label reads as two facts.
+		assert.ok(
+			renderedTokens.includes('whitespace-nowrap'),
+			`${label} is content-sized but can wrap mid-label: "${cls}"`,
+		);
 	}
 
 	// (4) THE SOURCE DOES NOT HAND-WRITE CHROME. A rendered class list cannot tell
@@ -749,7 +806,7 @@ test('A5-C7-2i F2: all five pickers are the SHARED `@/ui` trigger, and no call s
 	assert.doesNotMatch(code, /moreFilters/, 'a `moreFilters*` identifier survives the removal of the disclosure');
 });
 
-test('A5-C7-2j F2: every face a filter composes is measured against the shared rectangle, and the known overflows are NAMED', async () => {
+test('A5-C7-2j F2: NO face clips — every value each filter can take fits its own content-sized trigger', async () => {
 	// REPLACES A5-C4-2j ("the DYNAMIC disclosure label is never ellipsised, truncated
 	// or clipped"). That row is superseded because the row has no dynamic label any
 	// more.
@@ -764,6 +821,31 @@ test('A5-C7-2j F2: every face a filter composes is measured against the shared r
 	//
 	// So this row asks `@/ui`'s own question, over every value each of the five filters
 	// can actually take — not a hand-written count.
+	// WHAT ROUND 0 DID WITH THIS ROW, recorded because the SHAPE of the mistake is the
+	// useful part. Round 0 kept this row and filled it with an INVENTORY of fourteen
+	// faces that exceeded the shared `md` variant's 12-character budget, and asserted
+	// that inventory as an exact set so it could not rot. The reasoning was defensible
+	// and the conclusion was wrong: it treated clipping as the price of a
+	// source-decidable budget. `picker-trigger.ts` says the opposite in its own words
+	// — a width that is not a fixed rectangle "ALWAYS FITS", returning `false` there
+	// "reports a FALSE FAILURE", and "a guard that cries wolf on the width that is
+	// safest is how a guard gets deleted". Round 0 read that guard, saw `true`, and
+	// treated it as the absence of an answer rather than as the answer.
+	//
+	// SO THE INVENTORY IS GONE AND WHAT REPLACES IT IS STRONGER. An inventory says
+	// "these fourteen clip and we accept it". The assertion below says NONE clips, and
+	// enumerates the full set of faces that must be checked to keep that true. A
+	// clipping face is now red whether it is one of the old fourteen or a new one:
+	// there is no list to keep current, because the list WAS the loophole.
+	//
+	// The fourteen names are NOT forgotten — they are carried forward below as
+	// `FACES_ROUND_0_FOUND_CLIPPING` and asserted still-offered, which is the additive
+	// half of the correction.
+	//
+	// `w-auto` is a NAMED VARIANT on all five call sites, never a class string:
+	// `picker-trigger.ts` states "Call sites pass a `width`; they never pass a class
+	// string", and `filter-picker.tsx` states "A page names a `variant`; it never
+	// writes a width class".
 	const { pickerTriggerFaceFits, PICKER_TRIGGER_FACE_BUDGET_CHARS } = await import('@/ui/picker-trigger');
 	const { GRADE_OPTIONS, PROGRAM_SCOPE_OPTIONS, ALL_ROOM_TYPES } = await import('@/lib/subject-constants');
 	const { gradeLabel } = await import('@/lib/grade-labels');
@@ -774,49 +856,17 @@ test('A5-C7-2j F2: every face a filter composes is measured against the shared r
 	   silently clipped. */
 	const { ROOM_TYPE_SHORT_LABELS: ROOM_SHORT } = await import('../SubjectFilterToolbar');
 
-	/* THE INVENTORY OF FACES THAT DO NOT FIT `md`, as measured on the BASE commit.
+	/* THE FOURTEEN FACES ROUND 0 MEASURED AS CLIPPING, carried forward as FACES THAT
+	 * MUST STAY CLEAN rather than as tolerated overflows.
 	 *
-	 * Asserted as an EXACT set, not as a comment, and the reason matters more than the
-	 * numbers: `AGENTS.md` §11 publishes `pickerTriggerFaceFits` precisely so this
-	 * question can be answered, and A5 C3 (which introduced the shared `w-32`) only
-	 * ever asked it of the UNSET face (`Grade: All`). It was never asked of a face
-	 * with a real value on it, which is the face a scheduler reads after they have
-	 * chosen something.
-	 *
-	 * WHAT THIS IS. `md` is 128px: `px-3` on each side and a `ChevronsUpDown` leave
-	 * ~84px of text, i.e. 12 characters at `@/ui`'s own conservative 6.6px advance.
-	 * `/subjects`' five pickers compose `<name>: <value>`, and `md`'s budget leaves the
-	 * VALUE only `12 - name.length - 2` characters. For `Status` (6) that is 4 — and
-	 * the shortest real status value is `Active` (6). So every SET status value is
-	 * over budget, and the same is true of most Room and Term values.
-	 *
-	 * WHY IT IS NOT FIXED IN THIS SLICE, and why the honest answer is a planner
-	 * decision rather than a smaller version:
-	 *   - Widening one picker breaks §8 "one look per control" — §8's own words are
-	 *     that a row needing a wider control takes it on ALL of its pickers — and
-	 *     `lg` (176px) costs 240px across five, far more than the ~76px of slack the
-	 *     one-row budget has at 1366.
-	 *   - Shortening the values to fit is the "too literal" failure §11's design gate
-	 *     was written against: `Room-constrained` becomes `R-con` and `Status: No
-	 *     coverage` becomes `Status: No cov`, which is worse for the older,
-	 *     mouse-first scheduler the whole packet is written for.
-	 *   - Item 43's own instruction is "reuse whatever the Grade/Program pickers
-	 *     already do; do not invent a variant".
-	 *
-	 * WHAT A5 C7 DID CHANGE ABOUT IT, and it must not be glossed: on the BASE these
-	 * overflows were behind a `More filters` disclosure and only visible once someone
-	 * opened it; item 43 puts all five permanently in the row, so a SET Status/Room/
-	 * Term filter now shows its overflow without any interaction. The defect is
-	 * identical and pre-existing; its VISIBILITY is what this slice raises, and the
-	 * rendered 1366x768 capture in `docs/reviews/a5-c7-subjects-20260929/` is where a
-	 * reviewer can see it.
-	 *
-	 * WHY AN EXACT ASSERTION. A new overflow is red. A FIX to one of these is red
-	 * here too — which is the moment its name should be deleted from this list, in a
-	 * commit that says so. A defect recorded only in prose stops protecting itself the
-	 * first time somebody edits this file.
+	 * This is what makes the correction additive instead of subtractive. The names are
+	 * still written down, and now they are the set the row keeps CLIP-FREE, so a later
+	 * edit that re-widens one of them — a longer `ROOM_TYPE_SHORT_LABELS` entry, a
+	 * longer `shortLabels` value, a longer filter NAME — fails HERE BY NAME instead of
+	 * being invisible. That is exactly what round 0's inventory could not do: it
+	 * recorded which faces clip and would have accepted a new one appearing.
 	 */
-	const KNOWN_OVERFLOWING_FACES: string[] = [
+	const FACES_ROUND_0_FOUND_CLIPPING = [
 		'Program: Other',
 		'Room: Classroom',
 		'Room: Computer lab',
@@ -832,13 +882,16 @@ test('A5-C7-2j F2: every face a filter composes is measured against the shared r
 		'Term: No term set',
 		'Term: Rotates by term',
 	];
-	const overBudget: string[] = [];
 
-	assert.equal(PICKER_TRIGGER_FACE_BUDGET_CHARS.md, 12, 'the shared `md` character budget changed; re-check this row');	assert.equal(
+	assert.equal(
 		Object.keys(ROOM_SHORT).length,
 		ALL_ROOM_TYPES.length,
 		'the toolbar\'s short room labels and the shared room-type catalogue have drifted apart',
 	);
+	// `md`'s budget is used below as the LONG-FACE SENTINEL, so it is pinned here. If
+	// `@/ui` changes it, the sentinel moves and this row must be re-read by a human,
+	// not silently re-baselined.
+	assert.equal(PICKER_TRIGGER_FACE_BUDGET_CHARS.md, 12, 'the shared `md` character budget changed; re-check this row');
 
 	// Every (name, value) pair each picker can compose.
 	//
@@ -859,44 +912,82 @@ test('A5-C7-2j F2: every face a filter composes is measured against the shared r
 		{ picker: 'Room', name: 'Room', values: ['All', ...ALL_ROOM_TYPES.map((t) => ROOM_SHORT[t] ?? String(t))] },
 		{ picker: 'Term', name: 'Term', values: ['All', 'Term 1', 'Term 2', 'Rotates by term', 'No term set'] },
 	];
+	/* AND NO NEW LONG FACE HAS APPEARED — CHECKED AGAINST `md`'s BUDGET AS A SENTINEL.
+	 *
+	 * `auto` fits every face by construction, so `pickerTriggerFaceFits` can no longer
+	 * tell a long face from a short one. Round 0's fourteen were not "the faces that
+	 * did not fit" — they were the faces that did not fit a FIXED RECTANGLE. So `md`'s
+	 * budget is the right sentinel here, not as a requirement (nothing has to fit it
+	 * any more) but as a THRESHOLD for what counts as a long face worth naming.
+	 *
+	 * `newlyLong` is therefore "exceeds `md`'s budget AND was not already in
+	 * `FACES_ROUND_0_FOUND_CLIPPING`" — a value someone lengthened since round 0. It
+	 * must be empty, and when it is not, the fix is to ADD the face to
+	 * `FACES_ROUND_0_FOUND_CLIPPING` with the measurement that found it. That is how
+	 * the inventory keeps tracking new risk instead of tolerating it silently, which
+	 * is the one thing round 0's version could not do.
+	 */
+	const newlyLong: string[] = [];
 	for (const { picker, name, values } of faces) {
 		for (const value of values) {
-			if (KNOWN_OVERFLOWING_FACES.includes(`${name}: ${value}`)) {
-				overBudget.push(`${name}: ${value}`);
-				continue;
-			}
+			const face = `${name}: ${value}`;
+			// THE CONTRACT UNDER TEST. `auto` answers `true` unconditionally, and that
+			// IS the point of the guard's load-bearing line — so this assertion can only
+			// catch a change to `pickerTriggerFaceFits` itself. It is kept deliberately
+			// small and labelled that way, because a reader who mistakes it for the
+			// no-clipping proof would be wrong: the rendered checks below and the
+			// 1366x768 capture are what decide that, since jsdom performs no layout.
 			assert.ok(
-				pickerTriggerFaceFits('md', name, value),
-				`the ${picker} picker can compose "${name}: ${value}", which does not fit the shared ` +
-					`\`md\` trigger's ${PICKER_TRIGGER_FACE_BUDGET_CHARS.md}-character budget. A5 C7 must shorten ` +
-					'that value — it must NOT widen the trigger, because the one-row budget at 1366 is already spent.',
+				pickerTriggerFaceFits('auto', name, value),
+				`the ${picker} picker composes "${face}", which the shared \`auto\` variant reports as NOT fitting. A ` +
+					'content-sized trigger is supposed to fit every face it composes; if this is red, ' +
+					'`pickerTriggerFaceFits` has changed its published contract for the unbounded widths and ' +
+					'`picker-trigger.ts` must be re-read before anything else.',
 			);
+			const wouldClipARectangle = !pickerTriggerFaceFits('md', name, value);
+			if (wouldClipARectangle && !FACES_ROUND_0_FOUND_CLIPPING.includes(face)) newlyLong.push(face);
 		}
 	}
-
-	/* THE INVENTORY IS ASSERTED, NOT ASSERTED-AROUND. See `KNOWN_OVERFLOWING_FACES`
-	 * above for when these were measured, why none is fixed in this slice, what A5 C7
-	 * changed about their VISIBILITY, and why the set is an exact assertion rather
-	 * than a comment.
-	 */
-	/* COMPARED AS SETS, not as sequences. `overBudget` is discovered in PICKER order
-	 * (Grade, Program, Status, Room, Term) because that is the order the loops walk,
-	 * while `KNOWN_OVERFLOWING_FACES` is written in ALPHABETICAL order because that
-	 * is the order a reader scans for a name in. Pinning one order over the other
-	 * would make a purely cosmetic reordering of this list a red gate, which is how
-	 * evidence rows end up being "fixed" by reshuffling instead of by deciding.
-	 */
 	assert.deepEqual(
-		[...overBudget].sort(),
-		[...KNOWN_OVERFLOWING_FACES].sort(),
-		'the set of faces that exceed the shared `md` budget changed. If a face was FIXED, delete it from ' +
-			'`KNOWN_OVERFLOWING_FACES` and say so. If one was ADDED, the row is wider than its rectangle and ' +
-			'the control must be shortened rather than the trigger widened.',
+		newlyLong,
+		[],
+		`these faces exceed \`md\`'s ${PICKER_TRIGGER_FACE_BUDGET_CHARS.md}-character budget but are not in ` +
+			`\`FACES_ROUND_0_FOUND_CLIPPING\`: ${newlyLong.join(' | ')}. Under \`auto\` nothing clips, so this row ` +
+			'cannot see the length itself — it is the inventory that has to be extended. Add the face with the ' +
+			'measurement that found it, so the record stays complete.',
 	);
 
-	// The SHORT end, asserted on the RENDERED row, so a variant sized to the longest
-	// case cannot leave the common one (`X: All`) looking padded or clipped. Every
-	// filter set to its longest value at once — the row's true worst case.
+	/* EVERY ONE OF ROUND 0'S FOURTEEN IS STILL OFFERED. A value that stops existing is
+	 * a BEHAVIOUR change, and this row must not be able to hide one behind a width
+	 * change: "no face clips" is trivially satisfiable by deleting the values that
+	 * clipped. Each name is resolved against the same option lists the pickers render,
+	 * so removing `Status: Room-constrained` is red here rather than silently
+	 * improving the row.
+	 */
+	for (const face of FACES_ROUND_0_FOUND_CLIPPING) {
+		const sep = face.indexOf(': ');
+		const name = face.slice(0, sep);
+		const value = face.slice(sep + 2);
+		const entry = faces.find((f) => f.name === name);
+		assert.ok(
+			entry && entry.values.includes(value),
+			`the face "${face}" is no longer offered by the ${name} picker. Removing an option is a behaviour ` +
+				'change and must not be hidden by a width change; if the option really was removed, say so here.',
+		);
+	}
+
+	/* ON THE RENDERED ROW, with every filter set to its LONGEST value at once — the
+	 * row's true worst case.
+	 *
+	 * LAYOUT HONESTY, because this is the half that actually decides "not clipped" and
+	 * jsdom cannot do it: jsdom performs NO LAYOUT, so `scrollWidth - clientWidth` is
+	 * always 0/0 here and asserting it would decide nothing. What is asserted below is
+	 * the class-and-text half — the faces are composed in full, they carry no clipping
+	 * class, and each trigger is content-sized — and the PIXEL half
+	 * (`scrollWidth <= clientWidth` on every one of the five, in the unset state and
+	 * with a long value set) is the 1366x768 browser capture in
+	 * `docs/reviews/a5-c7-subjects-20260929/`.
+	 */
 	await render(toolbarFor({
 		roomTypeFilter: 'LABORATORY',
 		subjectStatusFilter: 'room-constrained',
@@ -910,18 +1001,41 @@ test('A5-C7-2j F2: every face a filter composes is measured against the shared r
 		assert.ok(text, 'a trigger in the row rendered no text at all');
 		assert.doesNotMatch(text, /…|\.\.\./, `a filter face is cut off: "${text}"`);
 		assert.doesNotMatch(el.className, /(^|\s)truncate(\s|$)/, `a filter trigger is a truncation clip: "${el.className}"`);
+		assert.doesNotMatch(el.className, /text-ellipsis|line-clamp/, `a filter trigger carries a line clamp: "${el.className}"`);
 		// Every one still SHOWS ITS OWN NAME. A clipped face that also lost the name
 		// would read as a bare value, which is the operator's original "two filters
 		// read only `All…`" defect.
 		assert.match(text, /^[A-Za-z]+: /, `a filter face lost its own name: "${text}"`);
+		// Content-sized, and non-wrapping: `w-auto` makes the rectangle the face, and
+		// `whitespace-nowrap` (which rides with the variant) stops it breaking mid-label.
+		assert.match(el.className, /(^|\s)w-auto(\s|$)/, `a filter trigger is not content-sized: "${el.className}"`);
+		assert.match(el.className, /(^|\s)whitespace-nowrap(\s|$)/, `a content-sized filter trigger can wrap mid-label: "${el.className}"`);
+		// And it is NOT a fixed rectangle any more — that is the correction. A `w-*`
+		// with a number in it is what produced the round-0 overflow.
+		assert.doesNotMatch(el.className, /(^|\s)w-(\d+|full)(\s|$)/, `a filter trigger is back on a fixed rectangle: "${el.className}"`);
 	}
 	// The longest of them is named here so a future widening of a value is caught with
-	// a specific face rather than a generic one.
+	// a specific face rather than a generic one. This is the face that measured 10px
+	// of overflow under round 0's `md`.
 	assert.equal(
 		triggerText(byTestId('subjects-status-filter')),
 		'Status: Room-constrained',
 		'the longest status face does not read as the toolbar composes it',
 	);
+	// The UNSET face is the row's COMMON case — the state a scheduler sees before they
+	// have chosen anything, and the state in which `auto` must be NARROWEST — so it is
+	// asserted too. A control that only looks right once something is selected is not
+	// fit for purpose, and `Status: All` is the face round 0's budget was built on.
+	await unmount();
+	await render(toolbarFor());
+	for (const el of clusterComboboxes()) {
+		assert.match(
+			triggerText(el),
+			/^[A-Za-z]+: All$/,
+			`an unset filter face is not the short common form: "${triggerText(el)}"`,
+		);
+		assert.match(el.className, /(^|\s)w-auto(\s|$)/, `an unset filter trigger is not content-sized: "${el.className}"`);
+	}
 	await unmount();
 });
 
@@ -998,43 +1112,53 @@ test('A5-C7-2h c3-slice-B B2: no control claims `All` for a list that offers no 
 	await unmount();
 });
 
-test('A5-C7-2k: the row is ONE cluster whose declared widths fit 1366 in a single line', async () => {
-	// NEW IN A5 C7, and it replaces no A5 C4 row — A5 C4's budget was a two-filter
-	// arithmetic plus a disclosure label, and it is superseded by this one rather than
-	// deleted (this file's SUPERSEDED MAP records that).
+test('A5-C7-2k: the row is ONE content-sized cluster: nothing fixed to overflow, and nothing fixed so wide it cannot fit', async () => {
+	// NEW IN A5 C7 round 0 and still load-bearing in round 1, with its SUBJECT changed.
 	//
-	// LAYOUT HONESTY, stated up front: jsdom has NO LAYOUT ENGINE. What this row
-	// decides is the CLASS CONTRACT that actually rendered plus arithmetic over the
-	// Tailwind width classes those elements carry, read from the DOM rather than
-	// restated from the design. It is NOT a measured pixel result and is not dressed
-	// up as one. The rendered 1366x768 no-wrap proof is the browser capture in
-	// `docs/reviews/a5-c7-subjects-20260929/`.
+	// WHAT CHANGED AND WHY THE SHAPE OF THE ROW CHANGED WITH IT. Round 0 budgeted five
+	// FIXED `w-32` rectangles: 5 × 128 + the cluster's gaps + `Reset` + the search box
+	// and its gap, against a `1366 - 256 - 40 - 8 = 1062px` estimate of what 1366
+	// leaves. That `available` figure was WRONG, and the 1366x768 browser capture
+	// proved it: the real containing width is 1060px measured, and the round-0 note
+	// reported "140px of slack" from a 1052px denominator that the page never had.
+	// The lesson is recorded because a plausible arithmetic constant is worse than no
+	// arithmetic: it reads as measured and is not. The real containing width and where
+	// it comes from are now MEASURED in the capture rather than restated here.
 	//
-	// The numbers below come from `@/ui/picker-trigger`'s own published arithmetic for
-	// this exact case: "5 × 128 + 4 cluster gaps + Reset + the 240px search box + its
-	// gap = 1020px against ~1062px available at 1366", with this toolbar's `gap-2`
-	// (8px) rather than C4's `gap-2.5` (10px) making it 1010px.
+	// ROUND 1 CHANGES WHAT IS BUDGETED. Under `auto` a trigger's width IS its face, so
+	// there is no `w-<n>` to read from the class list and no fixed term to add up: the
+	// row's width is a function of which filters are SET, and the only honest budget
+	// is a bound on the worst case. That bound is measured in a browser, so what this
+	// row decides is the parts a class list CAN decide:
+	//
+	//   1. all five triggers are content-sized (`w-auto` + `whitespace-nowrap`), so no
+	//      face can clip — this is the correction, and `2j` asserts the face half;
+	//   2. the row still has NO fixed-width escape hatch and NO scroll region, so a
+	//      state that cannot fit degrades by WRAPPING (§8's no-scrollbar rule) rather
+	//      than by hiding the overflow behind a scroller;
+	//   3. the cluster still wraps, so a narrower viewport degrades the same way;
+	//   4. the fixed terms that remain — the search box's 240px, the gaps, `Reset` —
+	//      are read from their rendered class names, not restated, because those are
+	//      the terms that would still blow the row out on their own.
+	//
+	// LAYOUT HONESTY, stated up front: jsdom has NO LAYOUT ENGINE, so this row is NOT
+	// the "one line at 1366" proof and does not pretend to be. The measured no-wrap and
+	// no-clip numbers, in the unset state and with long values set, are the 1366x768
+	// browser capture in `docs/reviews/a5-c7-subjects-20260929/`.
 	/* ONE Tailwind size scale, applied to EVERY term below.
-	   `w-<n>`, `gap-<n>` and `px-<n>` all share the same formula: `n / 4` rem, so
-	   `n * 4` px. `w-32` = 128px, `gap-2` = 8px, `px-3` = 12px.
+	   `gap-<n>` and `px-<n>` are `n * 4` px: `gap-2` = 8px, `px-3` = 12px.
 
-	   The first version of this row used a `rem(n)` helper — `n * 16` — which is
-	   correct for `w-*` ONLY because the caller divided by 4 first, and which it
-	   applied UNCHANGED to `gap-*` and `px-*`. That inflated the budget by 120px and
-	   reported a row that genuinely fits one line as 69px too wide. A budget computed
-	   on a wrong scale is worse than no budget: it is a number that reads as
-	   authoritative and is not, and the obvious response to it would have been to
-	   shrink real controls to satisfy a phantom. Hence ONE helper, named for what it
-	   computes, used for every term. */
+	   Round 0 used a `rem(n)` helper — `n * 16` — which is correct for `w-*` ONLY
+	   because the caller divided by 4 first, and which it applied UNCHANGED to `gap-*`
+	   and `px-*`. That inflated the budget by 120px and reported a row that genuinely
+	   fits one line as 69px too wide. A budget computed on a wrong scale is worse than
+	   none, because it reads as authoritative and is not, and the obvious response to a
+	   phantom overrun is to shrink real controls. One helper, used everywhere. */
 	const u = (n: number) => n * 4;
 	const SEARCH_PX = 240;
 	/* The gap between the search box's wrapper and the cluster is the shared
 	   `admin-inline-filter-row`'s own `gap-2`, not this file's. */
 	const SEARCH_GAP_PX = u(2);
-	/* `1366 - 256 (page padding / sidebar) - 40 (card padding) - 8 (card border)`.
-	   The same `available` the A3-C10 and A5 C4 budgets used, so the three are
-	   comparable rather than each picking a flattering denominator. */
-	const AVAILABLE_PX = 1366 - 256 - 40 - 8;
 
 	const host = await render(toolbarFor({ hasActiveFilters: true }));
 
@@ -1052,65 +1176,87 @@ test('A5-C7-2k: the row is ONE cluster whose declared widths fit 1366 in a singl
 		'a SECOND always-visible filter row rendered; the header is one row, not two',
 	);
 
-	// The widths are READ from the rendered class names, so editing a trigger's width
-	// without editing this arithmetic is caught.
-	const declared = clusterComboboxes()
-		.map((t) => /(^|\s)w-(\d+)(\s|$)/.exec(t.className)?.[2])
-		.filter((v): v is string => v != null)
-		.map((steps) => u(Number(steps)));
-	assert.equal(declared.length, 5, `the row declares ${declared.length} widths, not one per filter`);
-	assert.equal(new Set(declared).size, 1, `the row carries ${new Set(declared).size} different widths — §8's unevenness`);
-	assert.deepEqual(declared, [u(32), u(32), u(32), u(32), u(32)], 'the five filters are not all the shared `w-32`');
+	// (1) ALL FIVE ARE CONTENT-SIZED, so none of them can clip a face. Read from the
+	// rendered class list, so an edit that puts one back on a fixed rectangle is
+	// caught here by name rather than in a screenshot months later.
+	const triggers = clusterComboboxes();
+	assert.equal(triggers.length, 5, `the row renders ${triggers.length} triggers, not the five filters`);
+	for (const trigger of triggers) {
+		const label = trigger.getAttribute('aria-label');
+		const cls = trigger.className;
+		assert.match(cls, /(^|\s)w-auto(\s|$)/, `${label} is not content-sized: "${cls}"`);
+		assert.match(cls, /(^|\s)whitespace-nowrap(\s|$)/, `${label} is content-sized but can wrap mid-label: "${cls}"`);
+		assert.doesNotMatch(cls, /(^|\s)w-(\d+|full|px)(\s|$)/, `${label} is back on a fixed rectangle: "${cls}"`);
+		// `shrink-0` still comes with the variant, so the table cannot squeeze a
+		// trigger below its own face and reintroduce the clipping `auto` removed.
+		assert.match(cls, /(^|\s)shrink-0(\s|$)/, `${label} lost \`shrink-0\`, so its face can be squeezed: "${cls}"`);
+		// One width class each, so no competing declaration can decide it.
+		assert.equal(
+			(cls.match(/(?:^|\s)w-[\w-]+/g) ?? []).length,
+			1,
+			`${label} carries more than one width class, so its width is ambiguous: "${cls}"`,
+		);
+	}
 
-	// The search box's fixed width, because the budget depends on it.
+	// The search box's fixed width, because it is a FIXED term in the budget and the
+	// other four fixed terms are measured below.
 	const searchWrapper = document.body.querySelector('input[placeholder="Search name or code..."]')!.parentElement!;
-	assert.match(searchWrapper.className, /w-\[240px\]/, 'the search box is not the fixed compact width the budget depends on');
+	assert.match(searchWrapper.className, /w-\[240px\]/, 'the search box is not the fixed compact width the row depends on');
 	assert.match(searchWrapper.className, /max-w-\[240px\]/, 'the search box can still grow past the compact width');
 
-	// `Reset` is in the cluster while a filter is set, so it is IN the budget. Its
-	// width is taken from its RENDERED label plus the shared trigger's `px-3`, the
-	// same method A5 C4 used for the disclosure's label rather than inventing a number.
+	// `Reset` is in the cluster while a filter is set. Its width is content too, but
+	// it is measured from its rendered label so the FIXED part of the row is a number
+	// rather than an assumption — the method A5 C4 used for the disclosure's label.
 	const resetEl = query(host, 'subjects-reset-filters');
-	assert.ok(resetEl, 'Reset is not in the row while a filter is set');
-	const resetGapMatch = /(^|\s)px-(\d+)(\s|$)/.exec(resetEl.className);
-	assert.ok(resetGapMatch, `Reset declares no \`px-*\`, so the budget below is not decidable: ${resetEl.className}`);
-	const resetPx = (resetEl.textContent ?? '').length * 7 + 2 * u(Number(resetGapMatch[2]));
+	assert.ok(resetEl, 'Reset is not in the row while a filter is active');
+	const resetPad = /(^|\s)px-(\d+)(\s|$)/.exec(resetEl.className);
+	assert.ok(resetPad, `Reset declares no \`px-*\`, so the fixed terms are not decidable: ${resetEl.className}`);
+	const resetPx = (resetEl.textContent ?? '').length * 7 + 2 * u(Number(resetPad[2]));
 
 	// The cluster's own gap, READ from the class name rather than restated.
-	const clusterGapMatch = /(^|\s)gap-(\d+)((?:\.5)?)(?:\s|$)/.exec(clusterEl.className);
-	assert.ok(clusterGapMatch, `the cluster declares no \`gap-*\`, so the budget below is not decidable: ${clusterEl.className}`);
-	const clusterGapPx = u(Number(clusterGapMatch[2])) * (clusterGapMatch[3] ? 1.5 : 1);
+	const clusterGap = /(^|\s)gap-(\d+)((?:\.5)?)(?:\s|$)/.exec(clusterEl.className);
+	assert.ok(clusterGap, `the cluster declares no \`gap-*\`, so the budget is not decidable: ${clusterEl.className}`);
+	const clusterGapPx = u(Number(clusterGap[2])) * (clusterGap[3] ? 1.5 : 1);
 
-	// Six children in the cluster with `Reset` present: five pickers + Reset, so FIVE
-	// gaps between them.
-	const CHILD_GAPS = 5;
-	const total =
-		SEARCH_PX + SEARCH_GAP_PX + declared.reduce((a, b) => a + b, 0) + CHILD_GAPS * clusterGapPx + resetPx;
-
+	/* (2) THE FIXED TERMS STILL BOUND THE ROW, and they are the terms that would blow
+	 * it out on their own: the 240px search box, the shared row's gap, five cluster
+	 * gaps (five pickers plus `Reset` = six children) and `Reset` itself. The FIVE
+	 * PICKERS DELIBERATELY CONTRIBUTE NOTHING HERE, and that is the point of round 1:
+	 * under `md` they were five 128px rectangles that had to be added up and could
+	 * overrun; under `auto` they are whatever the operator has actually chosen, and
+	 * the cluster's `flex-wrap` is what handles the case where that is too much.
+	 */
+	const FIXED_TOTAL = SEARCH_PX + SEARCH_GAP_PX + 5 * clusterGapPx + resetPx;
 	assert.ok(
-		total < AVAILABLE_PX,
-		`the toolbar's declared width budget (${total}px) does not fit the ${AVAILABLE_PX}px available at 1366px — ` +
-			'the row WOULD WRAP, and item 43\'s whole point is that it does not. That is a design signal for the ' +
-			'planner, not something to answer by shrinking the font or narrowing one trigger ad hoc.',
+		FIXED_TOTAL > 0 && SEARCH_PX > 0 && resetPx > 0 && clusterGapPx > 0,
+		'a fixed term of the row measured zero, so the budget below would decide nothing',
 	);
-	// AND the slack is real, not rounding: adding a SIXTH `w-32` filter and its gap
-	// would not fit either, which is what makes this a budget rather than an
-	// observation. If a future change makes the row this comfortable, re-read the
-	// rendered 1366x768 capture before adding one.
-	const SIXTH_FILTER_PX = u(32) + clusterGapPx;
+	/* The bound is a REAL one, and it is the number that matters: even with all five
+	 * pickers contributing NOTHING, the fixed part of the row must leave room for at
+	 * least one whole filter face. `picker-trigger.ts`'s own conservative 6.6px
+	 * advance gives the shortest real face (`Grade: All`, 10 characters) as 66px, plus
+	 * `px-3` either side and the chevron — 110px. If the fixed terms ever ate the
+	 * whole row, no filter could be shown at all, and that is decidable from source.
+	 */
+	const SHORTEST_FACE_PX = 10 * 6.6 + 2 * u(3) + 20; // 10 chars, `px-3` both sides, chevron.
+	const MEASURED_CONTAINING_WIDTH_PX = 1060; // see the 1366x768 capture; see the note at the top of this row.
 	assert.ok(
-		total + SIXTH_FILTER_PX > AVAILABLE_PX,
-		`the budget (${total}px) still leaves room for a sixth filter; if that ever becomes true, re-read the ` +
-			'rendered 1366x768 capture in `docs/reviews/a5-c7-subjects-20260929/` before adding one.',
+		FIXED_TOTAL + SHORTEST_FACE_PX < MEASURED_CONTAINING_WIDTH_PX,
+		`the row's fixed terms (${FIXED_TOTAL}px) plus one shortest filter face (${SHORTEST_FACE_PX}px) do not fit ` +
+			`the ${MEASURED_CONTAINING_WIDTH_PX}px the row actually has at 1366x768. The search box, the gaps and ` +
+			'Reset have grown; that is a design signal, not something to answer by shrinking the font.',
 	);
 
-	// The cluster still WRAPS. `flex-wrap` is not decoration: it is what keeps a
-	// narrower viewport from overflowing the row horizontally and spawning a page
-	// scrollbar (§8's no-scroll rule). The one-line promise at 1366 is a BUDGET
-	// result; the wrap is the behaviour that budget is protecting.
+	// (3) THE CLUSTER STILL WRAPS. `flex-wrap` is not decoration: it is what keeps a
+	// narrow viewport — or the all-five-set worst case, which is wider than `md` ever
+	// was — from overflowing the row horizontally and spawning a page scrollbar
+	// (§8's no-scroll rule). The one-line promise at 1366 in the common state is a
+	// MEASURED browser result; the wrap is the behaviour that promise rests on when
+	// the state is wider than one line.
 	assert.ok(clusterEl.className.includes('flex-wrap'), 'the cluster does not wrap, so a narrow viewport overflows instead');
 	assert.ok(clusterEl.className.includes('min-w-0'), 'the cluster cannot shrink, so it overflows instead of wrapping');
-	// No horizontal escape hatch anywhere: the fix is to FIT, never to scroll sideways.
+	// No horizontal escape hatch anywhere: the row wraps or it fits, it never scrolls
+	// sideways and it never hides a filter behind a scroller.
 	const toolbar = query(host, 'admin-search-filter-toolbar')!;
 	for (const [name, el] of [['the row', query(host, 'admin-inline-filter-row')!], ['the cluster', clusterEl], ['the toolbar', toolbar]] as const) {
 		assert.equal(

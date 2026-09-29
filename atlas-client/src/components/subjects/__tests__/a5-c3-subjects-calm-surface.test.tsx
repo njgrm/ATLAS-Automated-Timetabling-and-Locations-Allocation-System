@@ -357,13 +357,23 @@ test('A5-C3-A1a: every trigger shows its own name and a short value, and the acc
 	assert.equal(inRow, 5, `expected all 5 filters directly in the row, found ${inRow}`);
 });
 
-test('A5-C3-A1b: the five triggers are ONE even width, and the search input shares the height token (R1 J3)', async () => {
-	// A5 C7: this is back to the ORIGINAL A5 C3 shape — a CLOSED render, all five
-	// triggers read at once — because item 43 removed the disclosure that forced the
-	// A5 C4 detour through `openMoreFilters`. What A5 C4 asserted is SUPERSEDED
-	// VERBATIM in the comment it left, and nothing is weakened: the same five
-	// per-trigger properties are still checked, now on the row a scheduler actually
-	// looks at rather than on two visible plus three behind a button.
+test('A5-C3-A1b: the five triggers carry ONE width variant, and the search input shares the height token (R1 J3)', async () => {
+	// A5 C7: back to the ORIGINAL A5 C3 shape — a CLOSED render, all five triggers
+	// read at once — because item 43 removed the disclosure that forced the A5 C4
+	// detour through `openMoreFilters`. What A5 C4 asserted is SUPERSEDED VERBATIM in
+	// the comment it left, and nothing is weakened: the same five per-trigger
+	// properties are still checked, now on the row a scheduler actually looks at.
+	//
+	// A5 C7 CORRECTION ROUND 1 — "ONE EVEN WIDTH" BECAME "ONE WIDTH VARIANT", and the
+	// distinction is the whole correction. Round 0 pinned all five to `w-32` and
+	// measured that it clipped: `Room: Laboratory` overflowed its 128px rectangle by
+	// 10px and fourteen faces exceeded `md`'s 12-character budget. The width is now
+	// the `auto` variant, so the five are no longer the SAME NUMBER — they are the
+	// same VARIANT, which is what §8 "One look per control" actually asks for. The
+	// assertions below are unchanged and still green: the shared height, the shared
+	// type size, one width declaration each, and the search box on the same height
+	// token. A variant is the stronger claim here, because a fixed number is only
+	// "one look" right up until the content outgrows it.
 	const seen = await interactiveSnapshot(toolbarFor(), assertAllFiveInRowWithNoInteraction, (host) => {
 		const triggers = allTriggers();
 		const search = host.querySelector('input[placeholder^="Search name"]') as HTMLElement | null;
@@ -376,7 +386,12 @@ test('A5-C3-A1b: the five triggers are ONE even width, and the search input shar
 		};
 	});
 	assert.equal(seen.widths.length, 5, `expected 5 triggers, found ${seen.widths.length}`);
-	assert.equal(new Set(seen.widths).size, 1, `the five filters carry ${new Set(seen.widths).size} different widths: ${seen.widths.join(' | ')}`);
+	assert.equal(new Set(seen.widths).size, 1, `the five filters carry ${new Set(seen.widths).size} different width variants: ${seen.widths.join(' | ')}`);
+	// A5 C7 CORRECTION ROUND 1: the ONE variant is `w-auto`, content-sized. Round 0
+	// asserted the same property with `w-32` and the row clipped; this is the width
+	// half of that correction, and `picker-trigger.ts` publishes it as the answer for a
+	// page whose longest face does not fit a fixed rectangle.
+	assert.deepEqual([...new Set(seen.widths)], ['w-auto'], `the five filters are not all on the shared \`auto\` variant: ${seen.widths.join(' | ')}`);
 	assert.match(seen.widths[0] ?? '', /^w-/, `a trigger has no real width class: ${seen.classes[0]}`);
 	/* Exactly one width class each, so the old `w-40 / w-24 / w-28 / w-36 / w-28` cannot come
 	 * back as a second, unmerged declaration. */
