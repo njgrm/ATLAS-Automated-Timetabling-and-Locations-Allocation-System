@@ -381,9 +381,16 @@ test('A9C8-F3: the grammar slip "1 building have no rooms" is corrected where it
 	assert.match(SERVER_SUMMARY_CODE, /building\$\{teachingBuildingsWithoutRooms\.length === 1 \? ' has' : 's have'\} no rooms/);
 	assert.doesNotMatch(HOOK_CODE, /teachingBuildingsWithoutRooms\.length !== 1 \? 's' : ''\} have no rooms/);
 	assert.doesNotMatch(SERVER_SUMMARY_CODE, /teachingBuildingsWithoutRooms\.length !== 1 \? 's' : ''\} have no rooms/);
-	// The plural is untouched: "2 buildings have no rooms" was already right.
-	assert.equal(`${2} building${2 === 1 ? ' has' : 's have'} no rooms`, '2 buildings have no rooms');
-	assert.equal(`${1} building${1 === 1 ? ' has' : 's have'} no rooms`, '1 building has no rooms');
+	// The plural is untouched: "2 buildings have no rooms" was already right. The count is
+	// held in a variable so `tsc` sees a `number` rather than two literal types with no
+	// overlap, which is what a literal comparison here would be.
+	for (const count of [1, 2, 3]) {
+		assert.equal(
+			`${count} building${count === 1 ? ' has' : 's have'} no rooms`,
+			count === 1 ? '1 building has no rooms' : `${count} buildings have no rooms`,
+			'the verb must agree with the number, at 1 and above it',
+		);
+	}
 });
 
 /* ───────────────────────── F4: the problems region counts one thing ───────────────────────── */

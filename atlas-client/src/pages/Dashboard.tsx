@@ -34,6 +34,8 @@ interface StatTile {
 	icon: typeof BookOpen;
 	tone: StatTone;
 	warn?: boolean;
+	/** A9 c8 (F1) — the read is still in flight: no tick, no warning colour, no claim. */
+	pending?: boolean;
 	href: string;
 	actionLabel: string;
 }
@@ -512,12 +514,12 @@ export default function Dashboard() {
 	const teachingRooms = teachingRoomTotals(buildings);
 
 	const stats: StatTile[] = [
-		{ label: 'Sections', value: loading ? '\u2026' : unread(domainAvailability.sections) || sectionCount === null ? '\u2014' : `${sectionCount}`, footer: reading ? readingLabel : unread(domainAvailability.sections) || sectionCount === null ? 'Enrollment unavailable' : activeSchoolYearLabel ? `S.Y. ${activeSchoolYearLabel}` : 'Active school year', icon: GraduationCap, tone: 'violet', warn: !reading && (unread(domainAvailability.sections) || sectionCount === null), href: '/sections', actionLabel: 'Check sections' },
-		{ label: 'Subjects', value: loading ? '\u2026' : unread(domainAvailability.subjects) ? '\u2014' : `${subjectCount ?? 0}`, footer: reading ? readingLabel : unread(domainAvailability.subjects) ? 'Unavailable' : 'Subject catalog loaded', icon: BookOpen, tone: 'brand', warn: !reading && unread(domainAvailability.subjects), href: '/subjects', actionLabel: 'Review subjects' },
-		{ label: 'Teachers', value: loading ? '\u2026' : unread(domainAvailability.faculty) ? '\u2014' : `${facultyCount ?? 0}`, footer: reading ? readingLabel : unread(domainAvailability.faculty) ? 'Unavailable' : 'Synced from EnrollPro', icon: UserCheck, tone: 'sky', warn: !reading && unread(domainAvailability.faculty), href: '/teachers', actionLabel: 'Review teachers' },
+		{ label: 'Sections', value: loading ? '\u2026' : unread(domainAvailability.sections) || sectionCount === null ? '\u2014' : `${sectionCount}`, footer: reading ? readingLabel : unread(domainAvailability.sections) || sectionCount === null ? 'Enrollment unavailable' : activeSchoolYearLabel ? `S.Y. ${activeSchoolYearLabel}` : 'Active school year', icon: GraduationCap, tone: 'violet', warn: !reading && (unread(domainAvailability.sections) || sectionCount === null), pending: reading, href: '/sections', actionLabel: 'Check sections' },
+		{ label: 'Subjects', value: loading ? '\u2026' : unread(domainAvailability.subjects) ? '\u2014' : `${subjectCount ?? 0}`, footer: reading ? readingLabel : unread(domainAvailability.subjects) ? 'Unavailable' : 'Subject catalog loaded', icon: BookOpen, tone: 'brand', warn: !reading && unread(domainAvailability.subjects), pending: reading, href: '/subjects', actionLabel: 'Review subjects' },
+		{ label: 'Teachers', value: loading ? '\u2026' : unread(domainAvailability.faculty) ? '\u2014' : `${facultyCount ?? 0}`, footer: reading ? readingLabel : unread(domainAvailability.faculty) ? 'Unavailable' : 'Synced from EnrollPro', icon: UserCheck, tone: 'sky', warn: !reading && unread(domainAvailability.faculty), pending: reading, href: '/teachers', actionLabel: 'Review teachers' },
 		// The room tile prints the Campus page's OWN figure and words. It is not a new
 		// control and not a new panel: same tile, same label, same link, one honest fraction.
-		{ label: 'Teaching Rooms', value: loading ? '\u2026' : unread(domainAvailability.campus) ? '\u2014' : teachingRoomsFigure(teachingRooms), footer: reading ? readingLabel : unread(domainAvailability.campus) ? 'Unavailable' : teachingRoomsStatusLine(teachingRooms), icon: Building2, tone: unread(domainAvailability.campus) || (teachingRooms.ready < teachingRooms.teaching && !reading) ? 'amber' : 'brand', warn: !reading && (unread(domainAvailability.campus) || teachingRooms.ready < teachingRooms.teaching), href: '/map', actionLabel: 'Check rooms' },
+		{ label: 'Teaching Rooms', value: loading ? '\u2026' : unread(domainAvailability.campus) ? '\u2014' : teachingRoomsFigure(teachingRooms), footer: reading ? readingLabel : unread(domainAvailability.campus) ? 'Unavailable' : teachingRoomsStatusLine(teachingRooms), icon: Building2, tone: unread(domainAvailability.campus) || (teachingRooms.ready < teachingRooms.teaching && !reading) ? 'amber' : 'brand', warn: !reading && (unread(domainAvailability.campus) || teachingRooms.ready < teachingRooms.teaching), pending: reading, href: '/map', actionLabel: 'Check rooms' },
 	];
 
 	// UX-C01 — derived-demand authority, in operator order: EnrollPro structure,
@@ -788,19 +790,28 @@ export default function Dashboard() {
 												</div>
 											</div>
 											<div className='mt-auto pt-4 space-y-2 text-sm'>
-												<div className='flex items-center gap-1.5'>
-													{stat.warn ? (
-														<>
-															<AlertTriangle className='w-4 h-4 text-amber-500' />
-															<span className='font-medium text-amber-600'>{stat.footer}</span>
-														</>
-													) : (
-														<>
-															<CheckCircle2 className={`w-4 h-4 ${tone.footer}`} />
-															<span className={`font-medium ${tone.footer}`}>{stat.footer}</span>
-														</>
-													)}
-												</div>
+												{/* A9 c8 (F1) — while the read is in flight the footer claims NOTHING. A
+												    green tick beside "Checking source" asserts the data is good and an
+												    amber triangle asserts it is bad; the data has not arrived. The four
+												    tiles must not also answer in four different colours for one status
+												    (§8 one status per fact): neutral grey, no icon, same words on all. */}
+												{stat.pending ? (
+													<span className='font-medium text-muted-foreground'>{stat.footer}</span>
+												) : (
+													<div className='flex items-center gap-1.5'>
+														{stat.warn ? (
+															<>
+																<AlertTriangle className='w-4 h-4 text-amber-500' />
+																<span className='font-medium text-amber-600'>{stat.footer}</span>
+															</>
+														) : (
+															<>
+																<CheckCircle2 className={`w-4 h-4 ${tone.footer}`} />
+																<span className={`font-medium ${tone.footer}`}>{stat.footer}</span>
+															</>
+														)}
+													</div>
+												)}
 												<span className='inline-flex items-center gap-1 text-xs font-semibold text-primary'>
 													{stat.actionLabel}
 													<ChevronRight className='w-3.5 h-3.5' />
