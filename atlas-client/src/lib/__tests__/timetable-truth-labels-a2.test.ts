@@ -427,8 +427,9 @@ test('#56 the dialog title, its first line and its button are ONE verb, and the 
 
 	// The published case: the FIRST line is the reassurance, so a scheduler can
 	// tell a new draft from a dated change to the schedule in use.
+	// A7 c12b (row 8) SUPERSEDED the verb: `Build a new draft?` is `Generate a draft?`.
 	assert.ok(
-		published.startsWith('Build a new draft?'),
+		published.startsWith('Generate a draft?'),
 		`the published dialog asks about a draft: ${published.slice(0, 120)}`,
 	);
 	const afterTitle = published.replace(buildNewDraftDialogTitle(true), '').trim();
@@ -543,8 +544,10 @@ test('#41 runStateSentence names the run and whether it is Draft or Published', 
 	);
 	assert.equal(
 		runStateSentence({ isPreGeneration: true, hasRun: false, runId: null, isPublished: false }),
-		'No schedule made yet.',
-		'U5: the planner says what is missing, in three words',
+		'Draft · nothing placed yet',
+		// A7 c12b (row 10) SUPERSEDED `No schedule made yet.`; the property is
+		// unchanged — the pre-generation line names the draft and claims no run.
+		'U5: the planner names the draft state and claims no run',
 	);
 	assert.equal(
 		runStateSentence({ isPreGeneration: false, hasRun: false, runId: null, isPublished: false }),
@@ -644,10 +647,13 @@ test('#51 the sub-nav tab names a SECTION, not the state of the run on screen', 
 	);
 	const tab = markup.match(/data-testid="timetable-sub-nav-draft"[^>]*>([^<]*)</);
 	assert.ok(tab, 'the tab renders its label');
+	// A7 c12b (decision 8, row 1) SUPERSEDED the label `Planning`: the CORRECTION is
+	// explicit — "The draft should never be 'planning', it should be 'draft'." The
+	// route and the section identity are unchanged; only the word moved.
 	assert.equal(
 		tab![1].trim(),
-		'Planning',
-		'it no longer reads as the state of the run on screen',
+		'Draft',
+		'the tab reads the one vocabulary word `Draft`',
 	);
 });
 
@@ -959,9 +965,10 @@ test('A2 C5 4a: "Locked classes kept" is a tri-state, never an unmeasured 0', ()
 });
 
 test('#56 one verb for "generate" on a published schedule', () => {
-	assert.equal(BUILD_NEW_DRAFT_LABEL, 'Build a new draft', 'the single verb, used for menu, title and button');
+	// A7 c12b (row 8) SUPERSEDED the verb: `Build a new draft` is `Generate a draft`.
+	assert.equal(BUILD_NEW_DRAFT_LABEL, 'Generate a draft', 'the single verb, used for menu, title and button');
 	assert.equal(PUBLISHED_SCHEDULE_STAYS_IN_USE, 'Your published schedule stays in use.', 'the first line is present');
-	assert.equal(buildNewDraftDialogTitle(true), 'Build a new draft?', 'the published dialog asks about the same thing');
+	assert.equal(buildNewDraftDialogTitle(true), 'Generate a draft?', 'the published dialog asks about the same thing');
 	assert.equal(buildNewDraftDialogTitle(false), BUILD_NEW_DRAFT_LABEL, 'and the draft dialog uses the same verb, not a second one');
 	// The ambiguity being removed: four different verbs for one action.
 	for (const superseded of ['New version', 'Build a new version', 'Generate updated schedule?', 'Generate schedule']) {

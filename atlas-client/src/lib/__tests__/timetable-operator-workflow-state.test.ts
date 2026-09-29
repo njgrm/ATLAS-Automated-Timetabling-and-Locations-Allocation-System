@@ -190,7 +190,9 @@ test('the hidden generation bypasses are superseded by the visible, gated action
 
 test('readiness chip never reports generated counts without a run', () => {
 	const labelText = readinessLabel(headerContext());
-	assert.match(labelText, /No SY 2029-2030 timetable yet/);
+	// A7 c12b (row 13) SUPERSEDED the sentence: `No SY 2029-2030 timetable yet` is
+	// now `No draft yet for SY 2029-2030`. The claim is unchanged.
+	assert.match(labelText, /No draft yet for SY 2029-2030/);
 	assert.doesNotMatch(labelText, /\d+ blocker|\d+ unresolved|\d+ warning/);
 });
 
@@ -513,7 +515,13 @@ test('TTX-01 no-run center has no write CTA and defers to the header action', ()
 		assert.doesNotMatch(file, /Start Pre-Generation Draft/, `${name} does not name its own primary verb`);
 		assert.doesNotMatch(file, /handleStartNewPreGenerationDraft\(\)/, `${name} never dispatches a draft itself`);
 	}
-	assert.match(paneSurface, /primary action above/, 'the empty centre still defers to the header primary action');
+	// A7 c12b (row 12) SUPERSEDED the empty-centre sentence: `No timetable yet. Use
+	// the primary action above to begin.` is `No draft yet. Generate one to begin.`
+	// The property — the empty centre defers to the header primary and dispatches
+	// nothing itself — is unchanged. Superseded literal retained:
+	//   assert.match(paneSurface, /primary action above/);
+	assert.match(paneSurface, /No draft yet\. Generate one to begin\./,
+		'the empty centre names the draft and defers to the one word Generate');
 	assert.match(center, /<CenterWorkspacePaneSurface \{\.\.\.props\}/, 'the panel renders the pane surface that does');
 });
 
@@ -554,19 +562,27 @@ test('TTX-05 run-dependent More items are disabled with an accessible reason', (
 	// C04: the More menu was extracted into SimpleMoreMenuContent.
 	const header = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
 	assert.match(header, /runToolsAvailable/);
-	assert.equal((header.match(/disabled=\{!runToolsAvailable\}/g) ?? []).length, 4);
+	// A7 c12b (decision 8 / CORRECTION item 1) DELETED the `Expert tools` group and
+	// with it the `Review issues` run-dependent row, so the count drops from four to
+	// three. Superseded assertion retained:
+	//   assert.equal((header.match(/disabled=\{!runToolsAvailable\}/g) ?? []).length, 4);
+	assert.equal((header.match(/disabled=\{!runToolsAvailable\}/g) ?? []).length, 3);
 	assert.match(header, /timetable-more-place-unresolved/);
 	assert.match(header, /timetable-more-swap-sessions/);
-	assert.match(header, /timetable-more-review-issues/);
+	assert.doesNotMatch(header, /timetable-more-review-issues/,
+		'SUPERSEDED: the Review issues row is retired with the Expert tools group');
 	assert.match(header, /teacher-departure-trigger/);
 	assert.match(header, /Unavailable: no generated run yet/);
 });
 
 test('TTX-06 empty entity selector is disabled with a reason', () => {
-	const helpers = source('src/components/timetable/simple/SimpleHeaderHelpers.tsx');
-	assert.match(helpers, /entityOptionsAvailable/);
-	assert.match(helpers, /disabled=\{!entityOptionsAvailable\}/);
-	assert.match(helpers, /No schedule options are available yet/);
+	// A7 c12b: the row-2 pickers moved to `SimpleSchedulePickers.tsx` so
+	// `SimpleHeaderHelpers.tsx` stays under the 1000-line cap; the property is
+	// unchanged.
+	const pickers = source('src/components/timetable/simple/SimpleSchedulePickers.tsx');
+	assert.match(pickers, /entityOptionsAvailable/);
+	assert.match(pickers, /disabled=\{!entityOptionsAvailable\}/);
+	assert.match(pickers, /No schedule options are available yet/);
 	const select = source('src/ui/searchable-select.tsx');
 	assert.match(select, /disabled\?: boolean/);
 });
@@ -619,9 +635,11 @@ test('TTX-08 tutorial trigger has an accessible name and 44px mobile target', ()
 		'the accessible name a scheduler actually reads is spelled this way',
 	);
 	assert.match(tutorial, /min-h-11/);
-	const helpers = source('src/components/timetable/simple/SimpleHeaderHelpers.tsx');
+	// A7 c12b: the schedule-sheet trigger moved to `SimpleSchedulePickers.tsx` with
+	// the rest of the row-2 pickers. The property is unchanged.
+	const pickers = source('src/components/timetable/simple/SimpleSchedulePickers.tsx');
 	assert.match(
-		helpers,
+		pickers,
 		/data-testid="timetable-simple-schedule-sheet-trigger"[\s\S]{0,80}min-h-11 min-w-11|min-h-11 min-w-11[\s\S]{0,200}data-testid="timetable-simple-schedule-sheet-trigger"/,
 	);
 });

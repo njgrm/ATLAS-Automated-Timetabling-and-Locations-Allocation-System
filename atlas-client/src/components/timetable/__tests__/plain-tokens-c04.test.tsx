@@ -400,7 +400,9 @@ test('J2 P3 the publish checklist keeps the run number as a quiet suffix', async
 		onPlaceUnresolved: () => {},
 	} as never));
 	const rendered = text();
-	assert.match(rendered, /Generated schedule · run 318/);
+	// A7 c12b (row 16) SUPERSEDED the anchor's plain phrase: `Generated schedule`
+	// is now `Draft`. The claim is unchanged — the run number stays a quiet suffix.
+	assert.match(rendered, /Draft · run 318/);
 	assert.doesNotMatch(rendered, /Run #/, 'the old `Run #id` label is gone');
 	assertNoEngineTokens(rendered, 'P3 publish checklist', RIGHT_PANEL_NAMES);
 });

@@ -186,7 +186,9 @@ test('R8C the two header gates pair their full reason with a ≤ 6-word short fo
 	assert.equal(blocked.generation.shortReason, 'Setup inputs are not ready');
 	const noRun = deriveTimetableCapabilities(base());
 	assert.equal(noRun.gates.publication.enabled, false);
-	assert.equal(noRun.gates.publication.shortReason, 'No generated schedule to publish');
+	// A7 c12b (row 21) SUPERSEDED the short form: `No generated schedule to publish`
+	// is `No draft to publish` (still ≤ 6 words).
+	assert.equal(noRun.gates.publication.shortReason, 'No draft to publish');
 });
 
 test('R8D an ALLOWED gate carries no reason and no short form', () => {

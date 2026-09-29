@@ -130,8 +130,9 @@ test('J2 P4: every ManualEditType member reads as what the edit did', () => {
 
 test('J2 P3: a run anchor pairs a plain phrase or a date with the run number as a quiet suffix', () => {
 	assert.equal(runAnchorLabel(318, 'Sep 26, 08:05 PM'), 'Sep 26, 08:05 PM · run 318');
-	assert.equal(runAnchorLabel(318), 'Generated schedule · run 318');
-	assert.equal(runAnchorLabel(318, '   '), 'Generated schedule · run 318', 'a blank anchor is not an anchor');
+	// A7 c12b (row 16) SUPERSEDED the plain phrase: `Generated schedule` is `Draft`.
+	assert.equal(runAnchorLabel(318), 'Draft · run 318');
+	assert.equal(runAnchorLabel(318, '   '), 'Draft · run 318', 'a blank anchor is not an anchor');
 	// The number survives, because it is the one id a scheduler can quote …
 	assert.match(runAnchorLabel(318), /run 318/);
 	// … but it is never the label on its own, and it is never a `#id`.

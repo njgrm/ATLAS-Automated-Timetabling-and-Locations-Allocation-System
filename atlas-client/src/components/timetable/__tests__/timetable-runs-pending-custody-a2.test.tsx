@@ -140,7 +140,10 @@ function occurrences(haystack: string, needle: string): number {
 	return haystack.split(needle).length - 1;
 }
 
-const EMPTY_CLAIM = 'No generation runs yet for this school year.';
+// A7 c12b (row 14) SUPERSEDED the empty-state copy: `No generation runs yet for
+// this school year.` is now `No drafts yet for this school year.` The claim — the
+// settled-empty response is announced exactly once — is unchanged.
+const EMPTY_CLAIM = 'No drafts yet for this school year.';
 const OLD_DUPLICATE_CLAIM = 'No runs to review';
 
 test('A2-6 item 6: an outstanding run request announces no empty state', async () => {
