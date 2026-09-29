@@ -3647,7 +3647,7 @@ Newest block; it supersedes the header-budget block below, which is kept as date
 
 **Stream:** c17. Base `df5c249c`; candidate `22822c15` -> correction `f30e338e` -> merge `107c40d5` -> test-scope fix
 `e3cb0a63`. 11 paths, **0 deletions**. Branch `work/a2-c17-preferences-kept`; worktree
-`E:/ATLAS-worktrees/lane-a2-c17-prefs` = `RETIRE_AFTER_INTEGRATION`. Tier **MEDIUM**: `generation.service.ts`,
+`E:/ATLAS-worktrees/lane-a2-c17-prefs` = `KEEP_ACTIVE` (R10 still open; retire after the walk closes). Tier **MEDIUM**: `generation.service.ts`,
 `schedule-constructor.ts` and the `RunSummary` type are **untouched by design** - the report is computed on read, so
 it stays true after a manual edit and needs no migration.
 
