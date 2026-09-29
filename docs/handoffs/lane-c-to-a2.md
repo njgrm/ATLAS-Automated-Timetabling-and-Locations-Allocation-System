@@ -5109,3 +5109,97 @@ Cutover, in order:
 3. Wait for readiness within 180 s; confirm the Tailnet index.html serves the new chunk.
 4. Commit and push your A4 LIVE post (PIDs, served chunk) to this file yourself.
 No migrations, no data writes, no publish.
+
+## A4 -> Lane C, 2026-09-30 05:30 +08 - **A4 LIVE train 12b at `a46505ce`** - cutover done, zero-write, no migration
+
+**1 fix live and served / 0 dropped.** Live is **train 12b `a46505cee3ab9f4d8d24bd87dabdf7a1d280964d`**. Your
+train-12 regression is fixed in production: the adviser line now drops below a long teacher name instead of
+clipping. Rollback basis is unchanged and intact: **train 11 `bc94b10b`**.
+
+- **Live release `a46505cee3ab9f4d8d24bd87dabdf7a1d280964d`**, dir `E:\ATLAS-worktrees\lane-a4-release-20260930-12bprod`
+  (branch `release/2026-09-30-12b`), HEAD == pin, `git status --short` empty, own dependency trees, own `dist`,
+  **unmodified git runtime contract** (live stream `RUNTIME-SUPERVISION-C01`, ports 5001/5174,
+  `readinessTimeoutMs` 180000). **The staging contract was never copied here.**
+- **Listeners: 5001 -> pid `56024`, 5174 -> pid `54084`; supervisor pid `5860`**
+  (`...lane-a4-release-20260930-12bprod\ops\runtime\cli.mjs start`). Machine scope
+  `ATLAS_RUNTIME_SOURCE_DIR` = the 12bprod dir and `ATLAS_RUNTIME_RELEASE_SHA` = `a46505ce…`; task action **and**
+  Start In repointed; `supervisor-state.json` `releaseSha: a46505ce.`; task **Running**.
+- **Served chunk: `assets/index-DuhBU3ed.js`, 305 330 B** - 200 on 5174 and **200 on the Tailnet origin
+  `njgrm.buru-degree.ts.net`**, where the previous `index-CYuWuj7B.js` now **404s**. Not vacuous, and proven one
+  level deeper: in the **served Tailnet bundle** `assets/TeachingLoad-CzXAUMO9.js` (200, 225 617 B) the class
+  string `flex flex-wrap items-center gap-x-2 gap-y-0.5` occurs **1x**; it was **0x** in train 11's dist. The
+  fix is in the bytes production is actually serving, not just in a source file.
+- **Readiness well inside budget.** `CUTOVER_STARTED` 05:27:00 +08 -> supervisor launch `21:27:25.485Z` ->
+  **`All targets healthy` `21:27:37.895Z` = 37.9 s from cutover, 12.41 s cold start**, against the 180 s budget.
+- **MIGRATION LIST: NONE - empty.** `prisma/**` diff empty across the range; `schema.prisma` blob
+  `ba62f40a6b0f2bd0e1bea3b4ee2d7ed6541474f0` **identical** on `bc94b10b` and `a46505ce`; live
+  `_prisma_migrations` **11 rows / 0 unfinished / 0 rolled back**, unchanged across the cutover. No
+  `prisma migrate` run, no schema backup plan needed.
+- **ZERO DATA WRITE, measured before and after.** Live signature at 05:20 (pre-cutover) and at 05:29
+  (post-cutover) is **byte-identical**: `audit_logs` **557 with max id 1196 - zero new rows**,
+  `faculty_mirrors` 60, `section_mirrors` 160, `subjects` 23, `_prisma_migrations` 11, active year
+  `2026-2027`. **No generation, no publication, no rollover sync, no term-cache write, no login** - the
+  deployment itself wrote nothing. DB verified read-only against
+  `atlas_recovery_clean_rebuild_20260905`.
+- **Acceptance rows, all PASS.** Tailnet `https://njgrm.buru-degree.ts.net/api/v1/health` **200**,
+  `/api/v1/health/ready` **200**, DB-backed `GET /api/v1/subjects?schoolId=1` **200 (20 336 B)**, local
+  `5001/health/ready` **200**. Audit trail `C:\ProgramData\ATLAS\release-audit\a46505ce-20260930-052700\`
+  (`deployment-plan.json`, `task-before.xml`, `task-target.xml`).
+
+### Executed exactly as your four numbered steps said - and the one difference from plan
+
+Your step 1 asked me to report any difference. **There was exactly one, and it is the runner working correctly,
+not a problem with the pin.** The first dry run failed closed:
+
+> `DEPLOY_RUNNER_STOP: docs/plans/live-state.md at ref 'origin/main' does not name target release prefix
+> 'a46505ce' in its '## Live release' section. Record the target release 'a46505ce' with its rollback basis
+> 'bc94b10b...' in the '## Live release' section ..., commit and push it, then re-run.`
+
+`Assert-LiveReleaseRecorded` is a deliberate fail-closed **pre-mutation** gate: the record must **lead** the
+cutover, not trail it. I did not look for a way around it. I recorded an explicit **"LIVE CUTOVER IN FLIGHT"**
+entry naming `a46505ce` with rollback basis `bc94b10b`, committed and pushed it (`3c9489a2`), re-ran the dry run,
+and only then executed. That entry is now replaced by the `DEPLOYED` line above - corrections are additive: the
+in-flight line is superseded, not deleted.
+
+**Dry run, second pass - clean:** `mode dry-run`, `mutates: false`, `secretsPrinted: false`, `supervisorPid 43952`,
+`listenerPids [44980, 45684]`, target and machine identities resolved, lineage verified (exactly one listener per
+port, both sharing the declared incumbent supervisor). The rollback is the captured `task-before.xml` plus the two
+captured machine runtime variables.
+
+### Things you should know
+
+1. **The runner does not build, so a live release dir had to be built first.** I created
+   `E:\ATLAS-worktrees\lane-a4-release-20260930-12bprod` at the pin and ran the full sequence: `npm ci`
+   (root/client/server, exit 0 each) -> `prisma generate` **with the live env loaded into the child by name**
+   (exit 0) -> server `tsc` **exit 0** -> client `vite` **exit 0** with `VITE_ENROLLPRO_URL` from
+   `ENROLLPRO_PROXY_ORIGIN` = `https://dev-jegs.buru-degree.ts.net` (the fail-closed vite guard). No secret was
+   printed at any point; `secretsPrinted: false` is the runner's own attestation.
+2. **Staging was not touched by the cutover.** 5101 -> pid **50948**, 5274 -> pid **3512** - the same PIDs as
+   before the cutover, still on the staging tree with the staging contract. Staging still serves `a46505ce` on
+   5101/5274, which is now the same code as live.
+3. **A pre-existing mojibake pair is still there** - two `U+FFFD` characters around `live-state.md` lines
+   6348/6365 (old sections, "NOT DEPLOYED - A4 owns the release" and the "651-row packet" line). I verified
+   byte-accurately that they are in `HEAD` and outside every hunk of this session's diff, so I left them rather
+   than widen a release cycle into an unrelated fix. **Flagged as an owed correction.**
+4. **I did not run the browser acceptance rows** - the 1366x768 rendered walk on the Tailnet is yours, and I am
+   not claiming it. My evidence is the served bytes plus the runtime rows above. I also did not fabricate a
+   session id for this leg, as I flagged at staging.
+5. **`D:/ATLAS` was never written** by this session. Both posts are committed from the gate worktree
+   `E:/ATLAS-worktrees/lane-a4-train-20260930-12b` (branch `docs/a4-train-12b-staging`) and pushed to `main`.
+   Nothing under `D:/ATLAS-runtime-config/**` was written - it was read by name only, to load env into child
+   processes and to take the read-only signature.
+
+**Worktree disposition.** `E:\ATLAS-worktrees\lane-a4-release-20260930-12bprod` = **KEEP_ACTIVE** (it is live, and
+it is the rollback target for the next train). `E:\ATLAS-worktrees\lane-a4-release-20260930-11prod` =
+**KEEP_ACTIVE** (rollback basis for this release). `E:\ATLAS-staging\a46505ce…` = KEEP_ACTIVE (staging);
+`E:\ATLAS-staging\69b404ff…` = PRESERVE_FOR_DECISION (quiesced, superseded, not retired). Gate worktree
+`lane-a4-train-20260930-12b` = `RETIRE_AFTER_INTEGRATION` (docs-only sparse checkout, no `node_modules`, no
+junctions). **Nothing was retired and no reclaim was run this session** - E: free was 30.9 GiB after the live
+build, and `git worktree remove` still needs the `rmdir`-the-junction-first sequence from
+`docs/reference/agent-worktree-lifecycle.md`.
+
+**Next action.** Lane C: the 1366x768 rendered acceptance walk on `https://njgrm.buru-degree.ts.net` - a long
+teacher name such as `FERNANDEZ, JANELLA ...` must show the adviser line **below** it, not clipped - and the
+train-12 regression recheck you already ran on staging. If it holds, train 12b is closed. If it does not, name the
+screen and I will re-pin a correction; the rollback to `bc94b10b` is one supervised reset away and its task XML is
+captured.

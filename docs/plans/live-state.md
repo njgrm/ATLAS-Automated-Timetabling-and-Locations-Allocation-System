@@ -585,14 +585,31 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
-- **- LIVE CUTOVER IN FLIGHT (recorded before the mutation, per the fail-closed `Assert-LiveReleaseRecorded` gate):
-  target `a46505cee3ab9f4d8d24bd87dabdf7a1d280964d` @ `E:\ATLAS-worktrees\lane-a4-release-20260930-12bprod`
-  (branch `release/2026-09-30-12b`), rollback basis `bc94b10bd3294e59c7f1081e8a159840c6ee76a1` @
-  `E:\ATLAS-worktrees\lane-a4-release-20260930-11prod`, both `KEEP_ACTIVE`. Train 12b, authorized by Lane C GO
-  2026-09-30 05:18 +08. **No migrations** (`prisma/**` diff empty, `schema.prisma` blob `ba62f40a…` identical on
-  both pins, live `_prisma_migrations` 11 / 0 unfinished / 0 rolled back), **no data writes, no publish**. This
-  entry is replaced by the `DEPLOYED` line below once the cutover returns healthy; until then the live release is
-  still `bc94b10b`.**
+- **- LIVE: `a46505cee3ab9f4d8d24bd87dabdf7a1d280964d` @ DEPLOYED TO PRODUCTION 2026-09-30 05:27 +08 by Lane A4 on
+  Lane C GO 2026-09-30 05:18 +08 (post `c2832345`). Train 12b.** Rollback basis
+  **`bc94b10bd3294e59c7f1081e8a159840c6ee76a1`** @ `E:\ATLAS-worktrees\lane-a4-release-20260930-11prod`, both
+  `KEEP_ACTIVE`; one-step supervised reset, task XML captured pre-cutover. Live dir
+  `E:\ATLAS-worktrees\lane-a4-release-20260930-12bprod` (branch `release/2026-09-30-12b`), HEAD == pin,
+  `status --short` empty, own dependency trees, own dist, **unmodified git runtime contract** (live stream,
+  5001/5174, `readinessTimeoutMs` 180000). Listeners **5001 -> pid 56024**, **5174 -> pid 54084**, supervisor
+  **5860**; machine scope `ATLAS_RUNTIME_SOURCE_DIR` / `ATLAS_RUNTIME_RELEASE_SHA`, task action **and** Start In all
+  repointed, `supervisor-state.json` `releaseSha: a46505ce.`, task **Running**. Served chunk
+  **`index-DuhBU3ed.js` (305 330 B)**, 200 on 5174 and 200 on the Tailnet origin `njgrm.buru-degree.ts.net`, where
+  the previous `index-CYuWuj7B.js` now **404s**. Cold start **12.41 s** (supervisor launch `21:27:25.485Z` ->
+  `All targets healthy` `21:27:37.895Z`), **37.9 s** from `CUTOVER_STARTED` — inside the 180 s budget.
+  **No migration** (`prisma/**` diff empty, `schema.prisma` blob `ba62f40a…` identical on both pins, live
+  `_prisma_migrations` **11 / 0 unfinished / 0 rolled back**), **no data write** (live signature **byte-identical**
+  to the 05:20 pre-cutover baseline: `audit_logs` **557, max id 1196 — zero new rows**, `faculty_mirrors` 60,
+  `section_mirrors` 160, `subjects` 23, migrations 11, active year `2026-2027`), **no publish, no generation, no
+  rollover sync**. Acceptance: Tailnet health **200**, ready **200**, DB-backed
+  `GET /api/v1/subjects?schoolId=1` **200 (20 336 B)**, local ready **200**. Audit
+  `C:\ProgramData\ATLAS\release-audit\a46505ce-20260930-052700\`. The hotfix is the Lane C train-12 regression fix —
+  in the **served Tailnet bundle** `assets/TeachingLoad-CzXAUMO9.js` the class string
+  `flex flex-wrap items-center gap-x-2 gap-y-0.5` occurs **1x** (it was **0x** in train 11's dist), so the adviser
+  line now drops below a long teacher name. Content: **1 product file**
+  (`atlas-client/src/components/faculty-assignments/TeacherGridMode.tsx`); manifests and lockfile unchanged.
+  **Staging was not touched by this cutover** — 5101 -> pid 50948, 5274 -> pid 3512, unchanged, still serving
+  `a46505ce` on the staging contract. Evidence: `docs/handoffs/lane-c-to-a2.md`, "A4 LIVE train 12b".
 - **- LIVE: `bc94b10bd3294e59c7f1081e8a159840c6ee76a1` @ DEPLOYED TO PRODUCTION 2026-09-30 00:29 +08 by Lane A4 on Lane C GO (session `ses_f124d3556ffeD2leYFPJ6zt4RN`). Rollback basis `8d98628d` (dir `E:\ATLAS-worktrees\lane-a4-hotfix-tl-prod`), KEEP_ACTIVE. Train 11 RE-PIN.** Live dir `E:\ATLAS-worktrees\lane-a4-release-20260930-11prod` (branch `release/2026-09-30-11-repin`), listeners 5001 to **44980** and 5174 to **45684**, machine scope + task action + Start In all repointed, served chunk `index-CYuWuj7B.js`. Cold start **12.1 s** supervisor launch to all targets healthy. No migration, no deployment-caused data write.
 - **— LIVE: `8d98628d3829977db7dabffbbd720f8f4fc86a2b` @ DEPLOYED TO PRODUCTION 2026-09-29 22:40 +08 by Lane A4 —
   operator-approved **retry** of the second hotfix. Rollback basis `9462d82d`.** This is the same code as the failed
