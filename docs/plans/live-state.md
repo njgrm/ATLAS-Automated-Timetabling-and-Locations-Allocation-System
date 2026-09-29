@@ -4794,6 +4794,58 @@ Rule from now: live browser QA never saves Subjects/setup/policy; mutation rows 
 - **Next action (single):** A4 includes `d4120d50` in the next train; Lane C's existing rendered rows for
   `/admin/year-setup` now cover the link as well.
 
+### A7 c4 — year setup carries forward BY DEFAULT: INTEGRATED and PUSHED at `363fc53b` (2026-09-29)
+
+- **0 fixes live and seen / 3 integrated, not on production / 0 dropped** (c1–c4). **NOT deployed — A4 owns every
+  deploy.** Source `3bdc9569` + correction `e2ae857b` + follow-up `2af66151`, merge `363fc53b` on `origin/main`
+  `82cdbb47` (27 commits from A2/A3/A5/A6/A8 landed underneath; **13 of my 14 paths were disjoint**, the one
+  overlap was a `atlas-client/package.json` script union, 104 test scripts, no product or test resolution).
+- **The operator's words, which drove every decision:** *"setting that up is a real hassle. It shouldn't reset …
+  policies and grade shifts shouldn't [reset] unless stated otherwise."* Until now one button handed them an EMPTY
+  year — every grade's start/finish time and every flag ceremony re-entered, one year at a time.
+- **The default lives on the SERVER, not on a checkbox, and that is the whole point of the change.**
+  `resolveYearSetupCarryOptions` treats anything that is not literally `false` as KEEP, so a stale client, a direct
+  API caller, `resetDummyYearAndApplyRollover`, `applyTestYearRecovery`, `archiveAndSyncActiveYear` and the automation
+  path all keep. They cannot turn it off by omission. **The carry runs immediately BEFORE `getOrCreatePolicy`**,
+  which CREATES a defaults row for the new year — a carry after it would find a non-empty target, copy nothing, and
+  reset the year silently, which is the exact defect being fixed.
+- **Two plain switches above the ONE primary action, in the operator's own words** (`Keep last year's scheduling
+  rules` / `Keep last year's grade time windows and flag ceremonies`, byte-identical to the packet). The plain card's
+  `rollover-automation-line` is removed **from that mount only** — the switches make the pre-press state visible, so
+  it said the same thing twice. The other five `RolloverGuidanceCard` mounts are unchanged.
+- **Two reviews, and the first one earned its keep.** Round 1 returned **`CORRECTION_REQUIRED` 35/36** with one
+  **BLOCKING**: the server **did not compile** — a TS2345 in my own new test file meant `npm run build` exited 2, so
+  the candidate could not have been built, let alone deployed, while the suite was 13/13 green. Also closed: the
+  extraction had silently changed two **Cancel** buttons on the five mounts other lanes own, and had dropped this
+  file's UTF-8 BOM. Round 2 (bounded, §11) returned **`ACCEPT_READY` 15/15, 0 blocked, 0 unperformed**.
+- **Merged-tree gates:** server `tsc` **0** and `npm run build` **0** · `test:a7-year-setup-carryover` **13/13**
+  (disposable `atlas_restore_drill_*`, residue 0) · `test:a7-year-setup-carry-switches` **11/11** ·
+  `test:a7-year-setup-plain-words` 17/17 · `test:archive-school-year-a7c2` 13/13 · `test:past-year-id-space-c2` 5/5 ·
+  `test:ux-guardrails` 31/31 · `test:client-quality` 34/34 · `test:dup-read-callers` 75/75 · client `tsc` at exactly
+  the **1 pre-existing A2** `TS2367` (`timetable-truth-labels-a2.test.ts:523`, blob identical at `d0cda4ee`, needs
+  its own owner) · all 13 disjoint paths byte-identical to the reviewed candidate.
+- **⚠ The 1366×768 rendered row is UNPERFORMED, not passed.** `NEEDS_SESSION(opencode/playwright-profile)`: the
+  loopback preview redirected `/admin/year-setup` to `/login` with empty localStorage, empty sessionStorage and no
+  cookies, and the page is admin-gated. jsdom does no layout. **Lane C owns that row after A4 deploys**, on
+  `https://njgrm.buru-degree.ts.net`, asserting the origin. It is a deployment-acceptance clause under §11/§12, not
+  a source row, and I am not calling it closed.
+- **Two rows I am routing, not deciding.** The switches are **per-apply, not persisted** (no per-school settings
+  table; a later rollover starts from keep again, which is the operator's stated default) — persistence is a
+  follow-up. And the switches render only above the rollover-sync primary: on the archive-shaped start and the
+  ordered-terms save the default still keeps, so the failure direction is never a silent reset, but an operator who
+  wants an empty year there is not served.
+- **`E:` is still below the §3 warn line (≈22 GiB) — A4's retention reclaim is owed before the train that carries
+  `363fc53b`.** I started no build and installed nothing further. `RolloverGuidanceCard.tsx` is **935** physical
+  lines (was 1008, over the cap before this packet) after extracting the three confirmation dialogs.
+- **Lane C: once this is live, stop running `copy-year-setup-shift-windows-events.mjs` after every rollover.** Its
+  CLI is unchanged and it stays the manual fallback until then.
+- **Worktree:** `E:/ATLAS-worktrees/lane-a7-school-year-setup` = `RETIRE_AFTER_INTEGRATION`, left for A4. Branches
+  `work/a7-year-carryover-c4` and `integration/a7-c4-20260929` resolve; no branch deleted. Zero residue: clean
+  status, no stash created, no drill database left behind (the 4 stashes in the list predate this cycle and belong to
+  other lanes).
+- **Next action (single):** A4 includes `363fc53b` in the next train and runs the `/admin/year-setup` browser smoke;
+  Lane C takes the 1366×768 rendered row and the older-scheduler walk on that train.
+
 ## 2026-09-29 00:18 — year 2022-2023 per-year setup copied (operator approved)
 Script `atlas-server/src/scripts/copy-year-setup-shift-windows-events.mjs --school 1 --from 10 --to 1 --apply`: +20
 grade_shift_windows, +2 policy_special_events into mirror 1 (were 0). Re-dry-run: targetExisting 20/2, toInsert 0.
