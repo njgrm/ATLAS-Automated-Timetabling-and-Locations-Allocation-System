@@ -151,7 +151,15 @@ test('DTC01-S1 surface 2 null control: an unresolved HARD count is not done and 
 		softViolationCount: null,
 	});
 	assert.equal(item.done, false, 'an unavailable count must never read as clean');
-	assert.match(item.hint ?? '', /unavailable/i);
+	// A7 C6 COPY RE-BASELINE (additive — the row and its intent are kept).
+	// OLD PIN: /unavailable/i. NEW SENTENCE: "ATLAS could not count the problems
+	// that must be fixed. Open the timetable to check."
+	// The intent was never the word "unavailable" — it was "an unresolved count
+	// must SAY SO, and say what to do". Both halves are now asserted, and the
+	// second half is a stronger claim than the old pin made.
+	assert.match(item.hint ?? '', /could not count the problems that must be fixed/i, 'the step must say what could not be established');
+	assert.match(item.hint ?? '', /Open the timetable to check/i, 'and it must say what the scheduler does about it');
+	assert.doesNotMatch(item.hint ?? '', /^0$|\bno problems\b/i, 'and it must never read as a clean run');
 });
 
 test('DTC01-S1 surface 3 (header tile): 0 HARD / 335 SOFT renders no blocker claim', () => {
@@ -161,8 +169,14 @@ test('DTC01-S1 surface 3 (header tile): 0 HARD / 335 SOFT renders no blocker cla
 		softViolationCount: 335,
 	} as never));
 	assert.doesNotMatch(html, /blocker/i);
-	assert.match(html, /No hard violations/);
-	assert.match(html, /335 warning/i);
+	// A7 C6 COPY RE-BASELINE (additive).
+	// OLD: "No hard violations". NEW: "No problems must be fixed".
+	// OLD SOFT WORDING: "335 warnings acknowledged".
+	// NEW: "335 preferences the draft could not meet" — the packet's own plain
+	// wording, and a MORE truthful one: a SOFT violation is an unmet preference,
+	// not a defect in the timetable. The count itself is still asserted.
+	assert.match(html, /No problems must be fixed/);
+	assert.match(html, /335 preferences the draft could not meet/i, 'the acknowledged SOFT total must still be rendered as a figure, in plain words');
 });
 
 test('DTC01-S1 surface 3: a non-zero run-wide HARD count is labelled run-wide', () => {
@@ -171,7 +185,15 @@ test('DTC01-S1 surface 3: a non-zero run-wide HARD count is labelled run-wide', 
 		hardViolationCount: 3,
 		softViolationCount: 335,
 	} as never));
-	assert.match(html, /3 run-wide review blockers/);
+	// A7 C6 COPY RE-BASELINE (additive) + A7 C6 SOURCE FIX.
+	// OLD PIN: /3 run-wide review blockers/ — which asserted the COUNT and the
+	// RUN-WIDE SCOPE. The first plain-words pass dropped "run-wide" and lost the
+	// scope, so the SOURCE was corrected to say "across the whole timetable"
+	// rather than the pin being weakened. Both halves are asserted below, and a
+	// term-scoped claim is now explicitly rejected.
+	assert.match(html, />3\b/, 'the run-wide HARD count must still be rendered');
+	assert.match(html, /across the whole timetable/i, 'the figure must still declare that it covers the whole timetable, not one term');
+	assert.doesNotMatch(html, /this term|selected term/i, 'it must never be presented as a term-scoped figure');
 });
 
 test('DTC01-S1 surface 3 null control: an unresolved HARD count never renders 0 or "No blockers"', () => {
@@ -181,18 +203,29 @@ test('DTC01-S1 surface 3 null control: an unresolved HARD count never renders 0 
 		softViolationCount: null,
 	} as never));
 	assert.doesNotMatch(html, /No blockers/i);
-	assert.doesNotMatch(html, /No hard violations/i);
-	assert.match(html, /unavailable/i);
+	assert.doesNotMatch(html, /No problems must be fixed/i);
+	// A7 C6 COPY RE-BASELINE (additive).
+	// OLD PIN: /unavailable/i. NEW: "ATLAS could not count the problems that must
+	// be fixed. Open the timetable to check." — the packet requires the row to say
+	// what is unavailable AND what to check, so both are asserted.
+	assert.match(html, /could not count the problems that must be fixed/i);
+	assert.match(html, /Open the timetable to check/i);
+	assert.doesNotMatch(html, />0</, 'an unresolved count must never render a zero figure');
 });
 
 test('DTC01-S1 surface 4 (term popover): the hard row is run-wide, absent at 0, explicit when unavailable', () => {
 	const zero = renderToStaticMarkup(createElement(ActiveTermHardViolationsRow as never, { count: 0 } as never));
-	assert.equal(zero, '', 'a zero hard count renders no figure at all (no non-zero "Hard violations")');
+	assert.equal(zero, '', 'a zero hard count renders no figure at all (no non-zero problem row)');
 	const blocked = renderToStaticMarkup(createElement(ActiveTermHardViolationsRow as never, { count: 4 } as never));
-	assert.match(blocked, /Hard violations \(run-wide\)/);
+	// A7 C6 COPY RE-BASELINE (additive) + A7 C6 SOURCE FIX.
+	// OLD PIN: /Hard violations \(run-wide\)/. NEW: "Problems that must be fixed in
+	// the whole timetable" — plain words that still declare the scope.
+	assert.match(blocked, /in the whole timetable/i, 'the row must still declare that it covers the whole timetable');
 	assert.match(blocked, />4</);
 	const unavailable = renderToStaticMarkup(createElement(ActiveTermHardViolationsRow as never, { count: null } as never));
-	assert.match(unavailable, /Unavailable/);
+	// OLD PIN: /Unavailable/. NEW: "Could not count them" — the plain-words form of
+	// the same truth (an unresolved count is never a zero).
+	assert.match(unavailable, /Could not count them/i);
 	assert.doesNotMatch(unavailable, />0</);
 });
 

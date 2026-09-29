@@ -8,13 +8,14 @@ import {
 	Lightbulb,
 	Scale,
 	Send,
+	Settings,
 	ShieldAlert,
 	Zap,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { PageHeader } from '@/components/app-shell/PageHeader';
-import { Badge } from '@/ui/badge';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/ui/accordion';
 import { Button } from '@/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/ui/card';
 import { ScrollArea } from '@/ui/scroll-area';
@@ -37,24 +38,24 @@ const SECTIONS = [
 	},
 	{
 		icon: ShieldAlert,
-		title: 'Hard vs Soft Constraints',
+		title: 'Two Kinds of Problem',
 		color: 'text-red-600 bg-red-50',
 		span: 'col-span-1',
 		items: [
-			{ term: 'Hard constraints (red)', desc: 'Must never be broken. Examples: a teacher cannot be in two rooms at the same time, a room cannot hold two classes at once. If any hard constraint is violated, the schedule cannot be published.' },
-			{ term: 'Soft constraints (amber)', desc: 'Strongly preferred but can be bent when needed. Examples: teacher prefers mornings, teacher teaches too many consecutive hours. Soft violations are shown as warnings. You can still publish.' },
+			{ term: 'Must be fixed (red)', desc: 'These stop the timetable being published. For example, a teacher cannot be in two rooms at the same time, or a room cannot hold two classes at once.' },
+			{ term: 'Preferences it could not meet (amber)', desc: 'Things it was asked to respect but could not all fit together — a teacher prefers mornings, a teacher asked not to teach too many hours in a row. These are warnings. You can still publish.' },
 		],
-		callout: 'Think of hard constraints as "the law" and soft constraints as "best practice." Both matter, but only hard violations block publication.',
+		callout: 'Red problems must be fixed. Amber warnings do not have to be — only red stops publication.',
 	},
 	{
 		icon: Scale,
-		title: 'How Scoring & Tradeoffs Work',
+		title: 'What the Generator Balances',
 		color: 'text-violet-600 bg-violet-50',
 		span: 'col-span-1',
 		items: [
-			{ term: 'Constraint weights', desc: 'Each soft constraint has a configurable weight (0–100). Higher weight = more important. The generator tries to minimize the total score of all soft violations.' },
-			{ term: 'Tradeoffs', desc: "Sometimes satisfying one teacher's preference means violating another. The generator picks the combination with the lowest overall soft-violation score." },
-			{ term: 'Policy tuning', desc: 'You can adjust weights in the Scheduling Policy pane. Increasing a weight makes the generator try harder to satisfy that constraint, even at the expense of others.' },
+			{ term: 'Preferences it could not meet', desc: 'When two preferences cannot both be satisfied, the generator keeps the one it was told matters more. The ones it could not meet are counted and shown to you as warnings — you can still publish the timetable.' },
+			{ term: 'Tradeoffs', desc: "Sometimes satisfying one teacher's preference means not satisfying another's. The generator picks the combination that leaves the fewest unmet preferences." },
+			{ term: 'Changing how it decides', desc: 'If the generator keeps leaving the wrong preferences unmet, you can tell it which preferences matter more. That setting is under Advanced below.' },
 		],
 	},
 	{
@@ -72,15 +73,15 @@ const SECTIONS = [
 	},
 	{
 		icon: Eye,
-		title: 'Manual Edits: Preview vs Commit',
+		title: 'Checking a Change Before You Keep It',
 		color: 'text-emerald-600 bg-emerald-50',
 		span: 'col-span-1',
 		items: [
-			{ term: 'Preview', desc: 'Before any change takes effect, the system shows you exactly what will happen — new violations, resolved violations, and affected classes. Nothing changes until you confirm.' },
-			{ term: 'Commit', desc: "When you confirm, the edit is applied to the draft. If it introduces soft violations, you'll be warned and can still proceed. Hard violation edits are blocked." },
-			{ term: 'Undo', desc: "Every commit is reversible — use the Undo button or edit history to roll back changes one at a time." },
+			{ term: 'See it first', desc: 'Before any change takes effect, the system shows you exactly what will happen — new problems, fixed problems, and affected classes. Nothing changes until you confirm.' },
+			{ term: 'Apply this change', desc: "When you confirm, the change is applied to the draft. If it leaves preferences unmet you'll be told and can still proceed. Changes that would create a hard problem are blocked." },
+			{ term: 'Take it back', desc: 'Every applied change can be undone one at a time, with the Undo button or the change history.' },
 		],
-		callout: 'Edits never auto-save or auto-publish. You stay in control.',
+		callout: 'Changes never save or publish on their own. You stay in control.',
 	},
 	{
 		icon: Send,
@@ -88,9 +89,30 @@ const SECTIONS = [
 		color: 'text-primary bg-primary/10',
 		span: 'col-span-1',
 		items: [
-			{ term: 'Zero hard violations', desc: 'The Publish button is disabled until every hard violation is resolved. You can see the count in the header.' },
-			{ term: 'Soft acknowledgement', desc: "If soft violations remain, you'll be asked to acknowledge them before publishing." },
+			{ term: 'No problems left', desc: 'The Publish button stays disabled until every hard problem is resolved. You can see how many are left in the header.' },
+			{ term: 'Accepting what could not be met', desc: "If any preferences were left unmet, you'll be asked to accept them before publishing." },
 			{ term: 'After publish', desc: 'Published schedules become visible to teachers and students. Teachers receive push notifications for any changes that affect their classes.' },
+		],
+	},
+];
+
+/**
+ * A7 C6 — technical tuning, folded away. "Constraint weights (0–100)" is the
+ * single most technical thing on this page and the older-user audit named it as
+ * the worst item: it reads as a tuning panel, not as help. It is still here in
+ * full, one click away, for whoever does tune.
+ *
+ * It uses the shared `@/ui/accordion` primitive — NOT a raw `<details>` (§8).
+ */
+const ADVANCED_SECTIONS = [
+	{
+		icon: Scale,
+		title: 'Constraint weights',
+		color: 'text-violet-600 bg-violet-50',
+		items: [
+			{ term: 'What a weight is', desc: 'Each soft constraint has a weight from 0 to 100. A higher weight means the generator tries harder to satisfy it, even if that means some other preference goes unmet.' },
+			{ term: 'How the total is read', desc: 'The generator tries to minimise the combined score of all soft violations across the whole timetable. A lower total means more preferences were met.' },
+			{ term: 'Where to change them', desc: 'Weights are edited in the Scheduling Policy pane. Raise a weight when the generator keeps leaving that particular preference unmet.' },
 		],
 	},
 ];
@@ -248,37 +270,86 @@ export default function HowItWorks() {
 									</motion.div>
 								))}
 
-								{/* Glossary row */}
-								<motion.div variants={itemVariants} className="col-span-1 xl:col-span-2">
-									<Card className="shadow-sm">
-										<CardHeader className="pb-2 border-b border-border mb-3">
-											<CardTitle className="flex items-center gap-2 text-sm">
-												<div className="flex size-7 items-center justify-center rounded-md text-muted-foreground bg-muted">
-													<BookOpen className="size-4" />
+						{/* Glossary row */}
+						<motion.div variants={itemVariants} className="col-span-1 xl:col-span-2">
+							<Card className="shadow-sm">
+								<CardHeader className="pb-2 border-b border-border mb-3">
+									<CardTitle className="flex items-center gap-2 text-sm">
+										<div className="flex size-7 items-center justify-center rounded-md text-muted-foreground bg-muted">
+											<BookOpen className="size-4" />
+										</div>
+										Words You May See
+									</CardTitle>
+								</CardHeader>
+								<CardContent className="pb-4">
+									<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 text-xs">
+										{[
+											['Draft', 'A timetable that has been made but not yet published.'],
+											['Run', 'One attempt at making the timetable automatically.'],
+											['Problem', 'Something in the timetable that breaks a rule or leaves a preference unmet.'],
+											['Unassigned', 'A lesson the generator could not place anywhere. You place these yourself.'],
+											['See it first', 'A what-if check that shows the impact of a change before you apply it.'],
+											['Apply this change', 'Keeping a change and putting it into the draft.'],
+										].map(([term, desc]) => (
+											<div key={term} className="flex flex-col gap-1 border-l-2 border-primary/20 pl-3 py-1">
+												<span className="text-[0.6875rem] font-bold tracking-wide uppercase text-foreground">{term}</span>
+												<span className="text-muted-foreground font-medium leading-normal">{desc}</span>
+											</div>
+										))}
+									</div>
+								</CardContent>
+							</Card>
+						</motion.div>
+
+						{/* A7 C6 — the technical tuning fold. The shared @/ui accordion,
+						    never a raw <details> (§8). Closed by default: an older
+						    user reads the whole page without ever meeting a weight. */}
+						<motion.div variants={itemVariants} className="col-span-1 xl:col-span-2">
+							<Card className="shadow-sm">
+								<Accordion type="single" collapsible>
+									<AccordionItem value="advanced">
+										<AccordionTrigger className="px-6 py-4 text-sm font-bold text-foreground">
+											<span className="flex items-center gap-2">
+												<div className="flex size-7 items-center justify-center rounded-md bg-muted text-muted-foreground">
+													<Settings className="size-4" />
 												</div>
-												Quick Glossary
-											</CardTitle>
-										</CardHeader>
-										<CardContent className="pb-4">
-											<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 text-xs">
-												{[
-													['Draft', 'A schedule that has been generated but not yet published.'],
-													['Run', 'A single execution of the schedule generation algorithm.'],
-													['Violation', 'A constraint that is broken by the current schedule.'],
-													['Follow-up', 'A flag you place on an entry to remind yourself to review it.'],
-													['Preview', 'A what-if check that shows the impact of an edit before applying it.'],
-													['Commit', 'Applying an edit to the draft permanently.'],
-												].map(([term, desc]) => (
-													<div key={term} className="flex flex-col gap-1 border-l-2 border-primary/20 pl-3 py-1">
-														<span className="text-[0.6875rem] font-bold tracking-wide uppercase text-foreground">{term}</span>
-														<span className="text-muted-foreground font-medium leading-normal">{desc}</span>
+												Advanced
+											</span>
+										</AccordionTrigger>
+										<AccordionContent className="px-6 pb-4">
+											<p className="text-xs text-muted-foreground mb-4">Only needed if the generator keeps leaving the wrong preferences unmet.</p>
+											<div className="grid gap-4">
+												{ADVANCED_SECTIONS.map((section) => (
+													<div key={section.title}>
+														<CardTitle className="flex items-center gap-2 text-sm mb-3">
+															<div className={`flex size-7 items-center justify-center rounded-md ${section.color}`}>
+																<section.icon className="size-4" />
+															</div>
+															{section.title}
+														</CardTitle>
+														<div className="grid gap-4">
+															{section.items.map((item) => (
+																<div key={item.term} className="flex gap-3 items-start">
+																	<div className="shrink-0 mt-1">
+																		<div className="size-1.5 rounded-full bg-muted-foreground/30" />
+																	</div>
+																	<div>
+																		<span className="text-xs font-semibold text-foreground">{item.term}</span>
+																		<p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{item.desc}</p>
+																	</div>
+																</div>
+															))}
+														</div>
 													</div>
 												))}
 											</div>
-										</CardContent>
-									</Card>
-								</motion.div>
-							</div>
+										</AccordionContent>
+									</AccordionItem>
+								</Accordion>
+							</Card>
+						</motion.div>
+					</div>
+
 						</motion.div>
 					</AnimatePresence>
 				</div>
