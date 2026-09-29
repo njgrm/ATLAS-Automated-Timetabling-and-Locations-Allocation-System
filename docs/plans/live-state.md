@@ -5947,6 +5947,49 @@ paths; the merged product files are byte-identical to the reviewed candidate.
 - **Next action (single):** Lane C runs the deployed rows for `/sections` — three rows at 1366x768 and 1280x720, an
   assign-and-clear from the row picker, and a before/after row height — once A4 ships a train containing `7c2bc4b6`.
 
+## Lane A9 — c8 dashboard/campus truth, 2026-09-29 21:0x +08 (written only by Lane A9)
+
+**ON `main` at `4ad0bb77` (candidate `e7583433..2eb92ac4`, merged over the moving `main`). 0 fixes live and seen /
+4 fixes integrated and SEEN RENDERED on real staging data at 1366x768 / 0 dropped. NOT deployed — A4 owns every
+release (§14).** Packet `docs/prompts/a9-c8-dashboard-campus-truth-2026-09-29.md` (root cause measured by me, not
+guessed); evidence `docs/reviews/a9-c8-20260929/` (8 PNGs + before/after words); posted to
+`docs/handoffs/lane-c-to-a2.md`.
+
+- **The live "9 ATLAS COULD NOT CHECK" was the PENDING state, not a failed read.** `dashboard/readiness-summary`
+  answers **200 with all six domains `available:true`**; `useDashboardData` initialises every availability flag to
+  `false`, so a read that had not arrived yet rendered as a read that failed. Delaying that one request 12 s in the
+  browser reproduced Lane C's exact screen. Live is slow (log ~1.5 s best, a 17.5 s event-loop stall, a 22.7 s
+  sibling route) and there was no retry or timeout, so a slow read left the lie up. The pages had data because
+  they read their own endpoints.
+- **Fixed:** the reading state claims nothing (no count, no next step, no warning colour) and a genuine failure
+  still says "could not check" and now offers **Check again**; the duplicate `/runs/latest/violations` read is
+  deleted so the run row equals `/timetable` (6 problems / 696 advisories, same run); one room figure with one
+  definition — `78/103`, `7 ready`, `100%` and `0 teaching rooms ready` all become `78 of 78`, the same words `/map`
+  prints; the campus problems region counts rooms that need something **fixed** (not rooms merely not scheduled
+  yet) and names the building with no teaching room, so `0 rooms need something fixed, in 1 building` is
+  unrepresentable.
+- **QA:** round 1 `CORRECTION_REQUIRED` 34/36 — the BLOCKING finding was mine to take: the blocked-auth path
+  printed a fabricated `0 of 0` where the base printed `—` (and three more figures, per the executor). One bounded
+  correction replaced the hand-rolled ternaries with one shared, tested rule, and closed a defeatable test guard.
+  Round 2 `ACCEPT_READY` 16/16, blocked 0, unperformed 0, with F1 and F2 failing-first proofs QA reproduced itself.
+- **Gates on the merged tree:** `test:a9-c8-dashboard-truth` 17/17, `dashboard-truth-c01` 20/20,
+  `a9-c3-sections-rooms` 17/17, `ux-guardrails` 31/31, `test:encoding` 1/1; `tsc --noEmit` 5 errors, all proved
+  identical at base and none in a changed file. `ux-audit.js` `major: 0` on `/`, `/map`, `/timetable`.
+- **For A4 (dated 2026-09-29):** the `1 building **has** no rooms` grammar fix is in the **server** summary, so the
+  rendered string stays `have` until a cutover carries it — a post-deploy browser row. Everything else is client
+  and renders as soon as the client build ships.
+- **Follow-up rows, none blocking:** F-1 `CampusReadinessCard` gates on `buildings.length > 0`, so a school with a
+  measured zero buildings prints `—` in the panel while the tile above prints `0 of 0` (under-claims; needs the
+  campus availability flag threaded in). F-C `/map`'s room-list chips (`All rooms 103 · Ready 78 · Needs attention
+  0 · Unavailable 25`) still sit above a listed problem group — pre-existing, `roomReadinessCounts` untouched here.
+  F-E the app shell clips its first two sidebar lines at 1364 px on every page. The `/dashboard/readiness-summary`
+  *latency* itself is a separate performance item, not fixed by this cycle.
+- **Worktree** `E:/ATLAS-worktrees/lane-a9-c8-dashboard-truth` = `RETIRE_AFTER_INTEGRATION` (pushed, clean,
+  `node_modules` a real directory, not a junction; preview `:5240` PID 41532 is mine to kill on request).
+- **Next action (single):** A4 ships train 11 with `4ad0bb77` and runs the two post-deploy browser rows — the
+  settled Dashboard reading `78 of 78` beside `/map`'s identical figure, and the readiness hint reading
+  `1 building has no rooms` from the new server build.
+
 ## Lane A9 — TEACHING personnel only (written only by Lane A9)
 
 **`A9 ready for release at 98cc1e34`. 0 fixes live and seen / 1 integrated / 0 dropped. NOT deployed — A4 owns
