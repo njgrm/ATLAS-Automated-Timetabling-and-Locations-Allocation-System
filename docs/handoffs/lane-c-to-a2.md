@@ -5463,3 +5463,40 @@ S2 (Subjects coverage badge is plain text, not a button), S1 (ownership note ren
 codes) and T7 (temporary-teacher form: no specialization, optional names), then A3 teacher-one (the merged Teacher
 Profile + Review load dialog on `/faculty`). Record the verdict here. If any screen regresses, name it and I
 re-pin a correction; the rollback to `8f19430b` is one supervised reset with the task XML captured.
+
+---
+
+## A7 -> Lane C, 2026-09-30 07:15 +08 - **CLIPPING FIXED on `main` at `ec800f34`** (candidate `d61f4837`, QA `ACCEPT_READY` 12/12/0/0)
+
+**One thing, one candidate.** Codex's 05:55 walk of train 13 staging, Class Schedule, Term 1, Draft Run 350, section
+**GR7 - Luna** found text cut with an ellipsis, which the operator treats as a release blocker. The rule now holds:
+**no text on the Class Schedule is cut with an ellipsis; it wraps.** Client-only - 5 commits, 5 items, no server,
+prisma, migration, deploy or live write.
+
+- **Range:** base `607f2363` -> candidate `d61f4837` -> merged `main` `ec800f34` (merge over `b1293808`; clean
+  auto-union, the only overlap was `atlas-client/package.json` - a disjoint script union, `test:a5-docx1` from main
+  plus our `test:a7-c13-clip`; product/test bytes byte-identical to the reviewed candidate).
+- **What changed, item by item.** (1) `SimpleChangeNotice` - the change-notice sentence no longer carries
+  `lg:truncate lg:whitespace-nowrap`; `Teaching Load and Teacher availability changed...` wraps instead of
+  `Teaching Load and Te...`. (2) `TimetableGrid` - the ceremony/flag-homeroom cell label, the blocked-overlap label
+  and the `Move here` cue wrap (`Flag Ceremony / Homeroom` renders in full). (3) `ClassProgramMatrixView` and
+  `TimetableCellOverflowSheet` - subject and `room · teacher` / `section · teacher · room` detail lines wrap; the
+  table grid cell was ALREADY fixed by `110cadd0`, verified, not re-touched. (4) `TimetableTaskDrawer` - both step
+  spans wrap, so `Confirm blockers are clear` is complete, not `Confirm blockers are c...`. (5) `Review warnings` now
+  opens the rail on the **Warning** filter (the blocker-group path keeps must-fix), and an empty FILTERED list names
+  the active filter, the hidden count and one "Show ..." action instead of the bare `No matching warnings`/
+  `No matching violations` that disagreed with the chip's `Warning (236)`.
+- **Tests + QA.** New `test:a7-c13-clip` (2 files, 7 tests) + one added `ux-audit-findings-c01` row; failing-first
+  reproduced on base by QA (1 pass / 6 fail -> 7/7). Fresh QA `ses_f109fe178ffe...` **12/12 passed, 0 blocked,
+  0 unperformed**. Merged-tree gates: typecheck 5 errors (identical on base, none in a touched file); the six
+  preservation suites byte-equal to base (`ux-audit-findings` 23/20/3; `a7-c12-calm-header` 28/28; `a2-c11-s2-header`
+  16/12/4; `a2-c12-header-rows` 7/2/5; `a2-header-budget` 29/27/2; `ux-tooltip-a7c10` 4/3/1); `git diff --check`
+  clean. Decision 12 honoured: failing-first test + QA round + lands on main, no staging walk; the live train is A4's.
+- **What Lane C should see at 1366x768** on the Class Schedule: the drift sentence wraps to a second line at the top;
+  a Monday flag/homeroom period shows the full ceremony name; a class cell shows the full teacher / room line; the
+  publish drawer's step 1 reads "Confirm blockers are clear"; and tapping **Review warnings** lists the warnings its
+  count promises.
+- **Zero-mutation.** No live write, deploy, publish, generation, migration, or supervisor/port/env/database action.
+  `D:/ATLAS` never written. Candidate worktree `E:\ATLAS-worktrees\lane-a7-c13-clip` and integration worktree
+  `E:\ATLAS-worktrees\lane-a7-c13-integration` = RETIRE_AFTER_INTEGRATION (node_modules junctions `rmdir`'d first).
+  No HIGH action is unlocked by this merge.
