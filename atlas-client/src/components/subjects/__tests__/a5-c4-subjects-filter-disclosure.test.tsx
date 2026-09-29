@@ -121,6 +121,36 @@ async function unmount(): Promise<void> {
 	hostEl = null;
 }
 
+/**
+ * A5 C4 CORRECTION ROUND 1 (F2): `render`, plus an INTERACTION before the read.
+ *
+ * The disclosure is opened by a pointer sequence, which must happen while the tree IS
+ * mounted; the assertions must happen after it is unmounted, or a throw while React is
+ * still mounted leaves the runner unable to reach an idle event loop and the failure
+ * surfaces as a bare `test failed` with no message. This helper is the seam between
+ * the two: the interaction runs inside, the read returns PLAIN DATA, and the caller
+ * asserts after the tree is gone.
+ */
+async function interactiveSnapshot<T>(
+	node: React.ReactNode,
+	interact: () => Promise<void>,
+	read: (host: HTMLElement) => T,
+): Promise<T> {
+	const host = document.createElement('div');
+	document.body.appendChild(host);
+	const root: Root = createRoot(host);
+	await act(async () => { root.render(node); });
+	let value: T;
+	try {
+		await interact();
+		value = read(host);
+	} finally {
+		await act(async () => { root.unmount(); });
+		host.remove();
+	}
+	return value;
+}
+
 /** A real pointer sequence, the way a mouse opens a control. */
 async function press(target: Element | null): Promise<void> {
 	assert.ok(target, 'the element to press is not in the document');
@@ -360,6 +390,158 @@ test('A5-C4-2f: nothing in the visible row or the disclosure is truncated, and E
 		'Escape did not close the disclosure; a keyboard user is trapped in it',
 	);
 	await unmount();
+});
+
+test('A5-C4-2i F2: the disclosure is the SHARED picker trigger, not a hand-written look', async () => {
+	// QA F2, BLOCKING, and it is the REJECT_UX: AGENTS.md §8 axis 4, "one look per
+	// control". The disclosure shipped as a raw `<Button>` carrying a page-local class
+	// string - `h-9`, `shrink-0`, `px-3`, `text-xs`, `font-normal`, `normal-case` -
+	// that OMITTED the shared variant's `tracking-normal` and `min-w-0`. It sits in the
+	// same row as three real `@/ui/filter-picker` triggers, and it is the one control
+	// whose label is DYNAMIC (`More filters (n)`), so the two controls a scheduler
+	// compares side by side were the two most likely to differ.
+	//
+	// The shared token forbids this in writing: `picker-trigger.ts` "Call sites pass a
+	// `width`; they never pass a class string", and `filter-picker.tsx` "A page names a
+	// variant; it never writes a width class".
+	//
+	// THIS ROW IS THE DISCRIMINATOR, and it is written so the F2 defect cannot come
+	// back in a slightly different spelling: it forbids each of the six hand-written
+	// properties BY NAME on the rendered trigger, rather than comparing the disclosure's
+	// class list to the pickers' (which a future edit could satisfy by changing both).
+	const seen = await interactiveSnapshot(toolbarFor(), () => press(moreFiltersButton()), () => {
+		const disclosure = moreFiltersButton();
+		return { cls: disclosure?.className ?? '', text: triggerText(disclosure) };
+	});
+	const { pickerTriggerClass } = await import('@/ui/picker-trigger');
+	const variantTokens = pickerTriggerClass('auto').split(/\s+/).filter(Boolean);
+	const renderedTokens = seen.cls.split(/\s+/).filter(Boolean);
+
+	// (1) THE VARIANT LANDED, IN FULL. Every token the shared builder emits is on the
+	// rendered trigger. A call site that used the builder for only part of its look
+	// (or an older builder) is red here.
+	for (const token of variantTokens) {
+		assert.ok(
+			renderedTokens.includes(token),
+			`the disclosure is missing a token the shared variant carries: "${token}" is not in "${seen.cls}"`,
+		);
+	}
+	// (2) NOTHING IN THE LOOK FAMILIES COMES FROM ANYWHERE BUT THE VARIANT.
+	//
+	// This is the discriminating half, and it is stated precisely because a naive
+	// version of it is wrong: the RENDERED list legitimately contains `h-9`, `px-3`,
+	// `text-xs`, `font-normal`, `normal-case` and `tracking-normal`, because the shared
+	// variant supplies them. A test that merely forbade those tokens would be red on a
+	// correct implementation. So the question asked is not "is the token present" but
+	// "is every value of this property family one the VARIANT supplies" - which is
+	// exactly what a hand-written override would break, because `cn` would then carry a
+	// second, unshared value into the same family.
+	for (const family of [/^h-/, /^px-/, /^text-(?:xs|sm|base|lg|xl)$/, /^font-/, /^normal-case$/, /^tracking-/]) {
+		const rendered = renderedTokens.filter((t) => family.test(t)).sort();
+		const supplied = variantTokens.filter((t) => family.test(t)).sort();
+		for (const token of rendered) {
+			assert.ok(
+				supplied.includes(token),
+				`the disclosure carries "${token}", a look property the shared variant does NOT supply - ` +
+					`so a hand-written override is reaching the row. Rendered family: ${rendered.join(' ') || '(none)'}; ` +
+					`shared variant supplies: ${supplied.join(' ') || '(none)'}. AGENTS.md 8: a page names a variant.`,
+			);
+		}
+	}
+	// (3) THE SOURCE DOES NOT HAND-WRITE IT. The rendered list cannot tell "the variant
+	// emitted h-9" from "a call site typed h-9 and the variant agreed", so the call site
+	// itself is read. This is what makes the row discriminate against the F2 defect
+	// exactly, rather than against a look that happens to differ today.
+	const { readFileSync } = await import('node:fs');
+	const { resolve: resolvePath } = await import('node:path');
+	const toolbarSource = readFileSync(
+		resolvePath(import.meta.dirname, '../SubjectFilterToolbar.tsx'),
+		'utf8',
+	);
+	const callSite = toolbarSource.match(/data-testid="subjects-more-filters"[\s\S]{0,600}?className=\{([^}]*)\}/);
+	assert.ok(callSite, 'the disclosure trigger was not found in SubjectFilterToolbar.tsx');
+	const callSiteClass = (callSite[1] ?? '').replace(/^\s*cn\(|\)\s*$/g, '');
+	assert.match(
+		callSiteClass,
+		/pickerTriggerClass\(/,
+		`the disclosure does not build its look with pickerTriggerClass: "${callSiteClass}"`,
+	);
+	for (const handWritten of [
+		/(^|[\s(])h-[\w[]/,
+		/(^|[\s(])px-[\w[]/,
+		/(^|[\s(])text-(?:xs|sm|base|lg|xl)(\s|['"`)]|$)/,
+		/(^|[\s(])font-[\w[]/,
+		/(^|[\s(])normal-case(\s|['"`)]|$)/,
+		/(^|[\s(])tracking-[\w[]/,
+	]) {
+		assert.doesNotMatch(
+			callSiteClass,
+			handWritten,
+			`the disclosure hand-writes a look property the shared variant owns (${handWritten}): "${callSiteClass}". ` +
+				'AGENTS.md 8: a page names a variant, it never writes the chrome.',
+		);
+	}
+	// A content-sized label is why the variant exists; a fixed rectangle would clip it.
+	assert.doesNotMatch(
+		seen.cls,
+		/(^|\s)w-(28|32|full)(\s|$)/,
+		`the disclosure has a fixed rectangle, which is what clips a dynamic label: "${seen.cls}"`,
+	);
+});
+
+test('A5-C4-2j F2: the DYNAMIC disclosure label is never ellipsised, truncated or clipped', async () => {
+	// QA also flagged that the existing 2f truncation assertion iterates
+	// `[role="combobox"]`, and the disclosure is NOT a combobox - so the one control whose
+	// label CHANGES LENGTH had no truncation coverage at all. This row covers it with
+	// several filters set, which is the longest label the disclosure can ever produce.
+	//
+	// LAYOUT HONESTY, stated because jsdom has no layout engine: this asserts the CLASS
+	// CONTRACT actually rendered plus the FULL label present in the DOM. It is not a
+	// measured pixel result, and a rendered 1366x768 row remains Lane C's to take.
+	const longest = await interactiveSnapshot(
+		toolbarFor({ roomTypeFilter: 'LABORATORY', subjectStatusFilter: 'active', termFilter: '1', hasActiveFilters: true }),
+		() => press(moreFiltersButton()),
+		() => {
+			const disclosure = moreFiltersButton();
+			return { cls: disclosure?.className ?? '', text: triggerText(disclosure) };
+		},
+	);
+	assert.equal(
+		longest.text,
+		'More filters (3)',
+		`the disclosure does not read its full count: "${longest.text}"`,
+	);
+	// No ellipsis character and no truncation marker in the label itself.
+	assert.doesNotMatch(longest.text, /…|\.\.\./, `the disclosure label is cut off: "${longest.text}"`);
+	assert.doesNotMatch(longest.cls, /(^|\s)truncate(\s|$)/, `the disclosure is a truncation clip: "${longest.cls}"`);
+	assert.doesNotMatch(longest.cls, /text-ellipsis|line-clamp/, `the disclosure carries a line clamp: "${longest.cls}"`);
+	// Nor a fixed width, which is the other way a longer label gets cut.
+	assert.doesNotMatch(
+		longest.cls,
+		/(^|\s)w-(\d+|fixed|px)/,
+		`the disclosure declares a fixed width, so a longer label is clipped rather than growing: "${longest.cls}"`,
+	);
+	// The shared variant's `whitespace-nowrap` keeps the label on ONE line, which is the
+	// other half of "not clipped": a label that wraps mid-count reads as two facts.
+	assert.match(
+		longest.cls,
+		/(^|\s)whitespace-nowrap(\s|$)/,
+		`the disclosure can wrap mid-label: "${longest.cls}"`,
+	);
+
+	// AND the same checks on the SHORTEST label, so a variant that sized to the longest
+	// case cannot leave the common one looking padded or clipped.
+	const shortest = await interactiveSnapshot(
+		toolbarFor(),
+		() => press(moreFiltersButton()),
+		() => {
+			const disclosure = moreFiltersButton();
+			return { cls: disclosure?.className ?? '', text: triggerText(disclosure) };
+		},
+	);
+	assert.equal(shortest.text, 'More filters', `the unset disclosure label changed: "${shortest.text}"`);
+	assert.doesNotMatch(shortest.text, /…|\.\.\./, 'the shortest label is cut off');
+	assert.match(shortest.cls, /(^|\s)w-auto(\s|$)/, `the unset disclosure is not content-sized: "${shortest.cls}"`);
 });
 
 test('A5-C4-2g c3-slice-B B1: the disclosure adds NO selection path of its own, so the disabled-option guard is still the only one', async () => {

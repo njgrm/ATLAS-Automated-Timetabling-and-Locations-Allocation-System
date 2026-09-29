@@ -1,7 +1,7 @@
 import { ALL_ROOM_TYPES, GRADE_OPTIONS, PROGRAM_SCOPE_OPTIONS, ROOM_TYPE_LABELS } from '@/lib/subject-constants';
 import { Button } from '@/ui/button';
 import { FilterPicker } from '@/ui/filter-picker';
-import { PICKER_CONTROL_HEIGHT_CLASS } from '@/ui/picker-trigger';
+import { PICKER_CONTROL_HEIGHT_CLASS, pickerTriggerClass } from '@/ui/picker-trigger';
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import { AdminSearchFilterToolbar } from '@/components/admin-workspace/AdminWorkspace';
 import { TERM_FILTER_ALL, type TermFilterOption } from './subject-term-filter';
@@ -253,7 +253,7 @@ export function SubjectFilterToolbar({
 							   come from the primitive, so the control is keyboard
 							   reachable and announces itself as a disclosure without
 							   this file restating that. */
-							className={cn(PICKER_CONTROL_HEIGHT_CLASS, 'shrink-0 gap-1.5 whitespace-nowrap px-3 text-xs font-normal normal-case')}
+							className={cn(pickerTriggerClass('auto'), 'gap-1.5')}
 						>
 							<SlidersHorizontal className="size-3.5" aria-hidden="true" />
 							{moreFiltersLabel}

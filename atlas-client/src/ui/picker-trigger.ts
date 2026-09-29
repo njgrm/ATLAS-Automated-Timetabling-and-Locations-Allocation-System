@@ -44,11 +44,30 @@ export const PICKER_CONTROL_HEIGHT_CLASS = 'h-9';
  *   NOT fit, and inventing a fourth width to force it is exactly what R3 §1 forbids.
  * - `fill` — for a control that must occupy a layout slot (a grid cell, a flex child) rather
  *   than claim a fixed width of its own.
+ * - `auto` — A5 C4 CORRECTION ROUND 1 (F2, 2026-09-29). For a trigger whose LABEL IS
+ *   DYNAMIC, so a fixed rectangle would either clip it or leave a gap beside it. The one
+ *   such control today is `/subjects`' `More filters` disclosure, which reads `More
+ *   filters` or `More filters (2)` depending on how many filters are set — a label whose
+ *   width is not known until runtime.
+ *
+ *   WHY A VARIANT AND NOT A CALL-SITE `w-auto`. `AGENTS.md` §8: *"if it truly needs a new
+ *   variant, add the variant to `@/ui` so every page gets it"*, and `pickerTriggerClass`'s
+ *   own contract here says *"Call sites pass a `width`; they never pass a class string."* The
+ *   F2 finding was precisely a call site hand-restating `h-9`, `shrink-0`, `px-3`, `text-xs`,
+ *   `font-normal` and `normal-case` — and omitting `tracking-normal` and `min-w-0`, which is
+ *   how the one control with a DYNAMIC label came to letter-space differently from the
+ *   fixed-label pickers beside it. A variant declared here carries the whole shared look by
+ *   construction, so that class of drift is not expressible.
+ *
+ *   `whitespace-nowrap` belongs in the variant rather than at the call site for the same
+ *   reason: it is part of "a trigger with a content-sized label must not wrap mid-label", and
+ *   a page that could add or omit it would be able to break the label in two directions.
  */
 export const PICKER_TRIGGER_WIDTH_CLASS = {
 	sm: 'w-28',
 	md: 'w-32',
 	fill: 'w-full',
+	auto: 'w-auto whitespace-nowrap',
 } as const;
 
 export type PickerTriggerWidth = keyof typeof PICKER_TRIGGER_WIDTH_CLASS;
