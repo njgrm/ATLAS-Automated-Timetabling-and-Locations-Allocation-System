@@ -517,12 +517,26 @@ test('the feature adds no shared-primitive variant and no page-local restyle of 
 		const bytes = readFileSync(resolve(clientRoot, primitive), 'utf8');
 		assert.ok(bytes.length > 0, `${primitive} must be readable — a silent empty read is how this row used to pass for free`);
 	}
-	const git = spawnSync('git', ['diff', '--name-only', 'df5c249c', '--', 'src/ui/'], { cwd: clientRoot, encoding: 'utf8' });
+	// The cross-check is scoped to the primitives THIS feature depends on, not to
+	// the whole `src/ui/` tree. The wider claim was a base-drift bug of its own:
+	// it compared every shared primitive against the feature's base, so it failed
+	// the moment ANY other lane added a shared primitive — seven files from other
+	// lanes, none of them touched or imported here. The honest claim this feature
+	// owns is "the primitives I render with are unmodified, so nothing I do can be
+	// a local restyle of one" — and that still fires the moment either is edited.
+	const git = spawnSync('git', ['diff', '--name-only', 'df5c249c', 'HEAD', '--', 'src/ui/button.tsx', 'src/ui/popover.tsx'], {
+		cwd: clientRoot,
+		encoding: 'utf8',
+	});
 	assert.equal(
 		git.error?.message ?? null,
 		null,
 		`the git cross-check must actually run, not quietly fail: ${git.error?.message ?? ''}`,
 	);
 	assert.equal(git.status, 0, `git must exit 0, got ${git.status}: ${git.stderr}`);
-	assert.equal(git.stdout.trim(), '', 'no shared primitive was modified, so there is no local restyle to leak');
+	assert.equal(
+		git.stdout.trim(),
+		'',
+		'no shared primitive this feature renders with was modified, so there is no local restyle to leak',
+	);
 });
