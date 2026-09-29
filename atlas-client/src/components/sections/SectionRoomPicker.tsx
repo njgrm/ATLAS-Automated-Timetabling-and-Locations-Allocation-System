@@ -601,9 +601,47 @@ export function SectionRoomPicker({
 					 *
 					 * A9 C7 R1: that class is the FALLBACK ceiling, and it is kept
 					 * byte-for-byte. Where a measurement is available the inline
-					 * `maxHeight` below wins over it — see popoverMaxHeightPx for the
-					 * circularity that makes the variable alone unable to do this. */
-				style={{ maxHeight: openMaxHeight ?? undefined }}
+					 * cap below wins over it — see popoverMaxHeightPx for the
+					 * circularity that makes the variable alone unable to do this.
+					 *
+					 * A9 C7 R3 — WHY THE INLINE CAP IS A `height` AND NOT ONLY A
+					 * `maxHeight`. R1 replaced this body's definite `h-100` with a
+					 * MAXIMUM, and a maximum is not a height: it leaves the
+					 * container's height indefinite FOR ITS CHILDREN, so `flex-1` on
+					 * the ScrollArea root has nothing to resolve against, the root
+					 * takes its full content height, and the viewport inside it
+					 * never becomes smaller than the 79 options. Measured on real
+					 * staging data (planner, 2026-09-29, preview :5262, 79 options):
+					 *
+					 *   popover body     400px   (248px / 209px on lower rows — the cap works)
+					 *   ScrollArea root  160px   (clips)
+					 *   scroll viewport  clientHeight 5448  scrollHeight 5448  scrollTop 0
+					 *
+					 * `clientHeight === scrollHeight` is the whole story: the viewport
+					 * is as tall as every option, so it has nothing to scroll and the
+					 * root's `overflow-hidden` simply cuts it off. The operator saw
+					 * "Unassigned" plus one or two rooms of 78 and could not reach
+					 * the rest. One experiment on the same page and build settled it:
+					 * setting `height: 400px` inline on the open popover dropped the
+					 * viewport from `clientHeight 5448` to `160` and it then accepted
+					 * `scrollTop = 500`.
+					 *
+					 * So the measured number is applied as BOTH a `height` and a
+					 * `maxHeight`. The definite height is what lets the flex column
+					 * resolve `flex-1`, collapse the viewport to the space that is
+					 * actually there, and scroll (§8: the list scrolls, the page never
+					 * does). The `maxHeight` is kept alongside it so the value can
+					 * never exceed the space below the trigger even if a later change
+					 * makes the height something other than the cap. A top row keeps
+					 * the same 400px list it has always had; a low row gets its
+					 * measured 248px with the list scrolling inside it.
+					 *
+					 * Do not "simplify" this back to a `maxHeight`: row 01 in
+					 * `a3-room-picker-rows-01-02.test.tsx` asserts
+					 * `viewport.clientHeight < viewport.scrollHeight`, which is the
+					 * one property that separates a scrolling list from a clipped
+					 * one, and it is exactly what a maximum breaks. */
+				style={{ height: openMaxHeight ?? undefined, maxHeight: openMaxHeight ?? undefined }}
 				side="bottom"
 					align="start"
 					sideOffset={4}

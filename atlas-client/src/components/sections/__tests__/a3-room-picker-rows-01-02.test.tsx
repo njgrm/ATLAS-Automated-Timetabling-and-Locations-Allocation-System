@@ -222,6 +222,57 @@ test('row 01 control: scrolling inside the picker cannot scroll the page behind 
 	const options = dom.window.document.querySelectorAll('[role="option"]');
 	assert.ok(options.length > 20, `the fixture must overflow the picker, got ${options.length} options`);
 
+	/* A9 C7 R3 — THE ASSERTION THIS ROW WAS MISSING, and the one that separates a
+	 * SCROLLING list from a CLIPPED one. Everything above proves a scroll region
+	 * EXISTS and that the root clips; none of it proves the viewport is smaller
+	 * than its content, which is the only thing that makes it scroll. That gap is
+	 * why R1 passed every suite.
+	 *
+	 * R1 replaced the body's definite `h-100` with a `max-h-[…]` MAXIMUM, and a
+	 * maximum is not a height: it leaves the container's height indefinite for its
+	 * children, so `flex-1` on the ScrollArea root has nothing to resolve against,
+	 * the root takes its full content height and the viewport never shrinks.
+	 * Measured on real staging data (planner, 2026-09-29, preview :5262, 79
+	 * options): ScrollArea root 160px, scroll viewport `clientHeight 5448
+	 * scrollHeight 5448`. The operator saw "Unassigned" plus one or two rooms out
+	 * of 78 and could not reach the rest.
+	 *
+	 * jsdom lays nothing out, so `clientHeight` and `scrollHeight` are both 0 and
+	 * the relation cannot be READ off the DOM here. It can still be DECIDED, by
+	 * installing the two outcomes the browser actually produces and asking which
+	 * one the element has been given the means to reach. The model is the two
+	 * measured cases, not a guess:
+	 *
+	 *   DEFINITE body height  → the flex column resolves `flex-1`, the viewport is
+	 *     what is left after the shrink-0 chrome, and it SCROLLS. Measured: a
+	 *     400px body left 160px for the list (`5448 → 160`, and it then accepted
+	 *     `scrollTop = 500`).
+	 *   MAXIMUM only          → the height is indefinite for the children, the
+	 *     root takes its full content height, the viewport equals its scroll
+	 *     height and CANNOT scroll. Measured: `clientHeight 5448  scrollHeight
+	 *     5448`, root clipping at 160px.
+	 *
+	 * 160px of list in a 400px body is also the measured chrome figure (the search
+	 * header and the map footer are `shrink-0`), and the content is the 40-option
+	 * fixture at the committed `OPTION_ROW_CLASS` `h-16` = 64px each. */
+	const viewport = viewports[0] as HTMLElement;
+	const CONTENT_H = options.length * 64; // h-16, the committed option height
+	const CHROME_H = 400 - 160; // the measured 400px body → 160px of list
+	Object.defineProperty(viewport, 'clientHeight', {
+		configurable: true,
+		get: () => (body.style.height === '' ? CONTENT_H : Math.max(0, Number.parseFloat(body.style.height) - CHROME_H)),
+	});
+	Object.defineProperty(viewport, 'scrollHeight', { configurable: true, get: () => CONTENT_H });
+	try {
+		assert.ok(
+			viewport.clientHeight < viewport.scrollHeight,
+			`THE list must be SCROLLABLE, not clipped: clientHeight ${viewport.clientHeight} must be < scrollHeight ${viewport.scrollHeight}. Equal heights mean the viewport is as tall as all ${options.length} options and the operator cannot reach the rest.`,
+		);
+	} finally {
+		delete (viewport as unknown as Record<string, unknown>).clientHeight;
+		delete (viewport as unknown as Record<string, unknown>).scrollHeight;
+	}
+
 	// And the document behind the picker is not itself turned into a scroll
 	// region by opening it (AGENTS.md §8: no page-level scrollbar).
 	assert.equal(
@@ -546,5 +597,94 @@ test('R2 control: opening the picker never scrolls an ancestor, and reveals the 
 	} finally {
 		dom.window.Element.prototype.scrollIntoView = realScrollIntoView;
 		dom.window.HTMLInputElement.prototype.focus = realFocus;
+	}
+});
+
+/* ─── A9 C7 R3: a MAXIMUM is not a height, and the difference is the whole list ─── */
+
+test('R3 control: the measured cap is applied as a DEFINITE height, not only a max-height', () => {
+	// THE REGRESSION, measured on real staging data (planner, 2026-09-29, preview
+	// :5262, 79 options / 78 staging rooms):
+	//
+	//   popover body     400px   (248px / 209px on lower rows — R1's cap works)
+	//   ScrollArea root  160px   (clips)
+	//   scroll viewport  clientHeight 5448  scrollHeight 5448  scrollTop 0
+	//
+	// `clientHeight === scrollHeight`: the viewport is as tall as all 79 options,
+	// so it has nothing to scroll, and the root's `overflow-hidden` simply cuts it
+	// off. The operator saw "Unassigned" plus one or two rooms and could not reach
+	// the other 76 except through the search box.
+	//
+	// The cause is R1's own change, and the mechanism is worth stating exactly: the
+	// body went from `h-100` (a definite height) to `max-h-[min(25rem,var(…))]`
+	// (a maximum). With a definite height the flex column resolves `flex-1` on the
+	// ScrollArea root against a known size, so the viewport collapses to the space
+	// that is actually there and scrolls. With only a maximum the container's
+	// height is INDEFINITE for its children, the root takes its full content
+	// height, and the viewport never shrinks. One experiment on the same page and
+	// build settled it: setting `height: 400px` inline on the open popover dropped
+	// the viewport from `clientHeight 5448` to `160`, and it then accepted
+	// `scrollTop = 500`.
+	//
+	// So the measured number must be a `height` as well as a `max-height`, and
+	// that is what this row pins: a `max-height` alone is the regression, and it
+	// passes every other assertion in the file — which is why R1 went green.
+	// The trigger rect and window are the ones the R1 control already models, so
+	// the number here is the same one a real row produces: 148px below a 768px
+	// viewport from a trigger bottom at 600. The stubs go on BEFORE the open,
+	// because the cap is measured in the open handler — stubbing afterwards would
+	// measure nothing and the row would pass vacuously.
+	const realRect = dom.window.HTMLElement.prototype.getBoundingClientRect;
+	const realInnerHeight = dom.window.innerHeight;
+	dom.window.HTMLElement.prototype.getBoundingClientRect = function rectStub(this: HTMLElement) {
+		if (this.getAttribute('role') === 'combobox') {
+			return { width: 160, height: 36, top: 564, left: 0, right: 160, bottom: 600, x: 0, y: 564, toJSON: () => ({}) } as DOMRect;
+		}
+		return realRect.call(this);
+	} as typeof realRect;
+	Object.defineProperty(dom.window, 'innerHeight', { value: 768, configurable: true, writable: true });
+
+	try {
+		const host = renderPicker();
+		openPopover(host);
+		const measured = dom.window.document.querySelector<HTMLElement>('[data-testid="room-picker-popover-content"]');
+		assert.ok(measured, 'precondition: the popover is open under the stubbed geometry');
+
+		// A `height`, not only a `max-height`. The message names the mechanism so
+		// whoever reads the failure knows it is the list that becomes unreachable.
+		assert.notEqual(
+			measured!.style.height,
+			'',
+			`THE fix: the measured cap must be a DEFINITE inline height, not only a max-height; got height=${JSON.stringify(measured!.style.height)} maxHeight=${JSON.stringify(measured!.style.maxHeight)}`,
+		);
+		assert.equal(
+			measured!.style.height,
+			measured!.style.maxHeight,
+			'the definite height and the max-height must be the same measured number',
+		);
+		assert.equal(
+			measured!.style.height,
+			'148px',
+			`the height must be the measured space below the trigger; got ${JSON.stringify(measured!.style.height)}`,
+		);
+		// And it is a HEIGHT, so the flex column can resolve `flex-1` and the
+		// viewport can be smaller than its content — the row-01 assertion above is
+		// the consequence, this is the cause.
+		assert.ok(
+			Number.parseFloat(measured!.style.height) <= POPOVER_MAX_PX,
+			'the definite height must never exceed the 400px ceiling',
+		);
+
+		// The committed class string is still the no-measurement fallback and is
+		// still the only bound a harness without layout has. It must not be deleted
+		// as dead code now that the inline value is the primary bound.
+		assert.match(
+			measured!.className,
+			/max-h-\[min\(25rem,var\(--radix-popover-content-available-height\)\)\]/,
+			'the committed class cap must remain as the fallback',
+		);
+	} finally {
+		dom.window.HTMLElement.prototype.getBoundingClientRect = realRect;
+		Object.defineProperty(dom.window, 'innerHeight', { value: realInnerHeight, configurable: true, writable: true });
 	}
 });
