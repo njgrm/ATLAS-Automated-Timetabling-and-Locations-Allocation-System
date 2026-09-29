@@ -662,9 +662,6 @@ export default function Faculty() {
 		onDeleteTemporary: setConfirmDeleteTarget,
 	});
 
-	/** `X` for `Create temporary teacher (Teacher X)`, from the real roster count. */
-	const nextTeacherNumber = (rosterStats?.totalCount ?? faculty.length) + 1;
-
 	const applyAttentionFilter = useCallback((filter: TeacherAttentionFilter) => {
 		setAttentionFilter(filter);
 		// Phase 3.3: "All teachers" only clears the attention filter. It no
@@ -738,7 +735,6 @@ return (
 			stats={teacherStats}
 			primaryActions={(
 				<FacultyRosterActions
-					nextTeacherNumber={nextTeacherNumber}
 					onCreateTemporary={openCreateTemporary}
 					onRefreshRoster={handleSync}
 					syncing={syncing}
@@ -930,7 +926,8 @@ return (
 
 			{/* Delete Confirmation Dialog */}
 			<Dialog open={confirmDeleteTarget !== null} onOpenChange={(open) => !open && setConfirmDeleteTarget(null)}>
-				<DialogContent className="sm:max-w-md">
+				{/* A5 item 23.2: a destructive CONFIRMATION — forced compact. */}
+				<DialogContent resizable={false} className="sm:max-w-md">
 					<DialogHeader>
 						<DialogTitle className="text-lg font-bold text-red-600">Delete Temporary Teacher</DialogTitle>
 						<DialogDescription>

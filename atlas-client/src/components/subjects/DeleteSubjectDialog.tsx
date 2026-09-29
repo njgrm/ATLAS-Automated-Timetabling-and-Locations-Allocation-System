@@ -152,7 +152,9 @@ export function DeleteSubjectDialog({ target, onClose, onDeleted, onEnsureSchool
 
 	return (
 		<Dialog open={target !== null} onOpenChange={(open) => { if (!open && !loading) onClose(); }}>
-			<DialogContent className="max-w-md">
+			{/* A5 item 23.2: a destructive CONFIRMATION, so it is forced compact
+			    rather than picking up the primitive's data/form resize default. */}
+			<DialogContent resizable={false} className="max-w-md">
 
 				{/* Phase 1: Simple confirmation */}
 				{phase.id === 'confirm' && (

@@ -102,6 +102,17 @@ export function FacultyWorkloadModal({
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<DialogContent
+				/*
+				 * A5 item 23.2 — the dialog behind the `Assign teaching load` row
+				 * action (`components/faculty/FacultyRowActions.tsx`) is a DATA
+				 * surface: a weekly-load table the scheduler reads across, so it takes
+				 * the shared dialog's default `resizable` handling rather than a
+				 * local one. The only bounds kept here are the ones that are this
+				 * surface's own (`sm:max-w-2xl`, its own height cap, its own
+				 * `overflow-hidden` + internal scroll). The clamps and the drag
+				 * handles come from `@/ui/dialog`.
+				 */
+				resizable
 				className="sm:max-w-2xl max-h-[85svh] overflow-hidden flex flex-col p-0"
 				data-testid="faculty-workload-modal"
 			>

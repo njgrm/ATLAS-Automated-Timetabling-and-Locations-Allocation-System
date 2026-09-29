@@ -193,7 +193,9 @@ export function ReconciliationDialog({
 }) {
 	return (
 		<Dialog open={Boolean(state)} onOpenChange={(open) => { if (!open) onClose(); }}>
-			<DialogContent>
+			{/* A5 item 23.2: `ReconciliationDialogState` is a CONFIRMATION shape
+			    (title/description/details + a primary action) — forced compact. */}
+			<DialogContent resizable={false}>
 				<DialogHeader>
 					<DialogTitle>{state?.title}</DialogTitle>
 					<DialogDescription>{state?.description}</DialogDescription>

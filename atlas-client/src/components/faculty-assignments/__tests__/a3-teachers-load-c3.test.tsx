@@ -568,8 +568,16 @@ test('F23-1 the teacher profile is a centred, internally scrollable dialog', () 
 	const content = dom.window.document.querySelector('[data-testid="faculty-profile-dialog"]') as HTMLElement | null;
 	assert.ok(content, 'the profile must render a dialog, not a side sheet');
 	const cls = content!.getAttribute('class') ?? '';
-	assert.match(cls, /left-\[50%\]/, 'it must be horizontally centred');
-	assert.match(cls, /top-\[50%\]/, 'it must be vertically centred');
+	// A5 ITEM 23.2 — centring moved from the `left-[50%] top-[50%]` translate to
+	// the shared primitive's FLEX PARENT. Same outcome (the card is centred), a
+	// different mechanism: a transform computed for one size fights a box the
+	// scheduler is resizing, so the translate anchor is the thing that had to go.
+	const centringWrapper = content!.parentElement;
+	assert.ok(centringWrapper, 'the profile card must be centred by a wrapper element');
+	assert.equal(centringWrapper!.getAttribute('data-dialog-centering'), 'flex');
+	assert.match(centringWrapper!.getAttribute('class') ?? '', /\bflex\b/);
+	assert.doesNotMatch(cls, /left-\[50%\]/, 'the translate centring anchor is back');
+	assert.doesNotMatch(cls, /top-\[50%\]/, 'the translate centring anchor is back');
 	/*
 	 * FIX 23.1 (operator, 2026-09-28) — WHERE the internal scroll lives changed.
 	 *
@@ -580,11 +588,18 @@ test('F23-1 the teacher profile is a centred, internally scrollable dialog', () 
 	 * (`overflow-hidden`) and the BODY inside it scrolls
 	 * (`min-h-0 flex-1 overflow-y-auto`).
 	 *
-	 * The CLAIM this row exists to defend is unchanged and is now asserted in
-	 * its new form: the profile scrolls INTERNALLY, never the page, and there is
-	 * exactly one scroll region on the surface.
+	 * A5 item 23.2 replaced the browser's native corner grip with the shared
+	 * primitive's two visible drag handles, which removes the grip/scroll
+	 * competition entirely — but the CLAIM this row exists to defend is
+	 * unchanged and is still asserted: the profile scrolls INTERNALLY, never the
+	 * page, and there is exactly one scroll region on the surface.
 	 */
-	assert.match(cls, /\boverflow-hidden\b/, 'the card must clip, so a resize handle can exist');
+	assert.match(cls, /\boverflow-hidden\b/, 'the card must clip, so a drag handle can reach the edge');
+	assert.equal(
+		content!.querySelectorAll('[data-testid="dialog-resize-handle"]').length,
+		2,
+		'the card must render the shared left and right drag handles',
+	);
 	const internalScrollers = Array.from(content!.querySelectorAll('*'))
 		.filter((el) => /\boverflow-y-auto\b/.test(el.getAttribute('class') ?? ''));
 	assert.equal(internalScrollers.length, 1, `the dialog must contain exactly one internal scroll region, found ${internalScrollers.length}`);
@@ -1619,7 +1634,6 @@ test('F24-c10-1r the menu labels are the ORIGINAL requested copy and carry no ra
 		createElement(FacultyRosterActions as any, {
 			onCreateTemporary: () => {},
 			onRefreshRoster: () => {}, syncing: false, isOnline: true, refreshing: false,
-			nextTeacherNumber: 42,
 		}),
 	);
 	const labels = buttonsIn(host).map((b) => ({
@@ -1629,8 +1643,9 @@ test('F24-c10-1r the menu labels are the ORIGINAL requested copy and carry no ra
 	}));
 	const texts = labels.map((l) => l.text);
 
-	// `Create Temporary` -> `Create temporary teacher (Teacher X)`, X substituted.
-	assert.ok(texts.includes('Create temporary teacher (Teacher 42)'), `expected the original create copy, got ${JSON.stringify(texts)}`);
+	// `Create Temporary` -> `Create temporary teacher (Teacher X)`. Fix 24.2:
+	// `X` is a LITERAL capital X, never the next roster number.
+	assert.ok(texts.includes('Create temporary teacher (Teacher X)'), `expected the original create copy, got ${JSON.stringify(texts)}`);
 	// `Refresh teacher roster` -> `Refresh teacher list` -> `Update teacher list`.
 	// Fix 24.1 relabels the EXISTING roster sync function; it does not add or
 	// replace a workflow, so the SAME button and the SAME `onRefreshRoster` are
@@ -1644,7 +1659,7 @@ test('F24-c10-1r the menu labels are the ORIGINAL requested copy and carry no ra
 
 	// The superseded "shorter is better" claim is inverted: the restored labels
 	// are LONGER than the narrowed ones they replace.
-	assert.ok(temporaryTeacherActionLabel(42).length > 'Add temporary'.length);
+	assert.ok(temporaryTeacherActionLabel().length > 'Add temporary'.length);
 
 	// The nowrap half of the superseded control survives: nothing can wrap.
 	for (const label of labels) {
@@ -1674,7 +1689,6 @@ test('F24-c10-2r the row actions stay nowrap with the longest realistic faculty 
 		createElement(FacultyRosterActions as any, {
 			onCreateTemporary: () => {},
 			onRefreshRoster: () => {}, syncing: false, isOnline: true, refreshing: false,
-			nextTeacherNumber: 7,
 		}),
 	);
 	const primaryAction = createElement(
@@ -1683,7 +1697,6 @@ test('F24-c10-2r the row actions stay nowrap with the longest realistic faculty 
 		createElement(FacultyRosterActions as any, {
 			onCreateTemporary: () => {},
 			onRefreshRoster: () => {}, syncing: false, isOnline: true, refreshing: false,
-			nextTeacherNumber: 7,
 		}),
 	);
 
@@ -1724,6 +1737,14 @@ test('F24-c10-2r the row actions stay nowrap with the longest realistic faculty 
 	for (const b of buttonsIn(identityRow!)) {
 		assert.match(b.getAttribute('class') ?? '', /\bwhitespace-nowrap\b/, `"${(b.textContent ?? '').trim()}" must be nowrap`);
 	}
-	assert.match(identityRow!.textContent ?? '', /Create temporary teacher \(Teacher 7\)/, 'the restored create label must render in the row');
+	assert.match(identityRow!.textContent ?? '', /Create temporary teacher \(Teacher X\)/, 'the restored create label must render in the row');
+	// Fix 24.2: the parenthetical is a LITERAL capital X. This row is the control
+	// that would have caught the number coming back — a rendered row must never
+	// contain a teacher number, whatever the roster size.
+	assert.doesNotMatch(
+		identityRow!.textContent ?? '',
+		/Create temporary teacher \(Teacher \d+\)/,
+		'a teacher number was interpolated into the label again',
+	);
 	assert.doesNotMatch(identityRow!.textContent ?? '', /undefined/, 'no control may render an undefined teacher number');
 });

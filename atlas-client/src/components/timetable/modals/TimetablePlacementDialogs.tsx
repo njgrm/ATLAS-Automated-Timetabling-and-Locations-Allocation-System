@@ -415,6 +415,11 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 		<>
 			<Dialog open={showAssignmentPicker} onOpenChange={(open) => { if (!open) closeGeneratedPlacement(); }}>
 				<DialogContent
+					/* A5 item 23.2: a PRE-APPLY REVIEW — the operator reads a
+					 * generated placement and then accepts or discards it, so it is
+					 * confirmation-shaped. Forced non-resizable; its own review width
+					 * is unchanged. */
+					resizable={false}
 					className="w-[calc(100vw-2rem)] max-w-xl gap-0 overflow-hidden p-0"
 					data-testid="generated-placement-review-dialog"
 					onOpenAutoFocus={focusCancelButton(generatedPlacementCancelRef)}
@@ -514,6 +519,14 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 
 			<Dialog open={showPreGenConfirm} onOpenChange={(open) => { if (!open) closePlacement(); }}>
 				<DialogContent
+					/*
+					 * A5 item 23.2: a CONFIRMATION ("Place this class?"), so it is
+					 * forced non-resizable — it must never become a draggable 95vw
+					 * panel. Its existing `max-w-xl` is this surface's own review width
+					 * and is left alone; `resizable={false}` overrides the primitive's
+					 * data/form default without restyling the dialog.
+					 */
+					resizable={false}
 					className="w-[calc(100vw-2rem)] max-w-xl flex flex-col gap-0 overflow-hidden p-0 max-h-[90vh]"
 					data-testid="draft-placement-review-dialog"
 					onOpenAutoFocus={focusCancelButton(draftPlacementCancelRef)}
@@ -678,6 +691,9 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 
 			<Dialog open={Boolean(regularSwapPending)} onOpenChange={(open) => { if (!open) closeGeneratedSwap(); }}>
 				<DialogContent
+					/* A5 item 23.2: a CONFIRMATION ("Swap class times") — forced
+					 * non-resizable; its own review width is unchanged. */
+					resizable={false}
 					className="w-[calc(100vw-2rem)] max-w-xl flex flex-col gap-0 overflow-hidden p-0 max-h-[85vh] sm:max-h-[90vh]"
 					data-testid="generated-swap-review-dialog"
 					onOpenAutoFocus={focusCancelButton(generatedSwapCancelRef)}
