@@ -9,10 +9,25 @@
  * Teaching Load writes they sit beside, and the client has one role model.
  *
  * Actor-school authority is `assertRequestSchoolScope` on every route, so a
- * cross-school read or write is rejected before any service dispatch.
+ * cross-school read or write is rejected before any service dispatch: `403
+ * CROSS_SCHOOL_DENIED` for a cross-school ACTOR, and — separately, inside the
+ * service — `400 SCHOOL_SCOPE_MISMATCH` for a teacher or subject in the BODY that
+ * belongs to another school. A row that simply does not exist in the caller's own
+ * school is `400 FACULTY_NOT_FOUND` / `400 SUBJECT_NOT_FOUND` / `400
+ * SECTION_NOT_FOUND`; these are three different questions and never share a code.
  *
- * Every response shape is the FIXED CONTRACT (docs/handoffs/lane-c-to-a2.md,
- * commit 6c5987ed). Nothing here reshapes a field.
+ * THE CONTRACT (docs/handoffs/lane-c-to-a2.md, commit 6c5987ed and its two
+ * corrections) fixes every route path, field name, response key, error code and
+ * status this router returns, and this router adds no field of its own. What the
+ * SERVICE does behind it is stated honestly rather than denied: `teaching-load-
+ * cover.service.ts` DERIVES values the client could not have computed — `hoursNow`
+ * / `hoursAfter` / `cap` from the one capacity contract, the `tier` from the one
+ * persisted-only qualification resolver, `weeklyMinutes` from canonical derived
+ * demand, `hasRoom` from the cap comparison, and the `NEEDS_PERMISSION` prompt
+ * body — and rounds hours to at most one decimal per the contract's own
+ * edge-rounding rule. It never renames, drops or invents a contract field. If a
+ * derived value looks wrong, the fix is in the shared service it came from, not
+ * in a private reshape here: a client is already coding against this contract.
  */
 
 import { Router } from 'express';

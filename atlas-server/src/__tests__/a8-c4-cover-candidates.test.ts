@@ -14,12 +14,16 @@
  *     against the SAME auto-fill capacity ledger the automation service uses;
  *  3. the 409 NEEDS_PERMISSION body, then `grantPermission: true` writing the
  *     permission AND the ownership together or not at all;
- *  4. a placeholder is never a candidate, in either surface;
- *  5. `cover-open-classes`: unowned + placeholderOwned === total, and a
- *     placeholder-owned class is OPEN;
+ *  4. a placeholder is never a candidate, in either surface; the placeholder
+ *     switch and the unqualified-real-teacher switch are INDEPENDENT (4b/4f/4g);
+ *  5. `cover-open-classes`: unowned + placeholderOwned === total, a
+ *     placeholder-owned class is OPEN, and a DANGLING owner reference is OPEN
+ *     too rather than silently staffed (5c);
  *  6. permission idempotency: re-grant `created:false`, delete-absent
  *     `removed:false`;
- *  7. scope: another school's teacher / subject / year fails closed;
+ *  7. scope: another school's teacher / subject / year fails closed, and the
+ *     three distinct 400s (SCOPE_MISMATCH vs NOT_FOUND vs OUTSIDE_DEMAND) are
+ *     told apart by a differential pair (7a / 7d);
  *  8. `allowPlaceholders: false` makes the saved-placeholder pool unreachable.
  *
  * Run: npx tsx --test src/__tests__/a8-c4-cover-candidates.test.ts
@@ -913,23 +917,78 @@ test('4a. a qualified placeholder with free hours never appears in cover-candida
 	assert.equal(response.counts.total, 1, 'the placeholder is not counted either');
 });
 
-test('4b. autoFill: the saved-placeholder pool is unreachable while ANY real teacher has room', async () => {
-	// Ana (SCI) is unqualified for MAPEH — tier null — but she HAS room. A8 c4
-	// makes the ANYONE tier reachable, so the placeholder pool must never open.
-	const world = isolatedWorld({
+/**
+ * The ANYONE-vs-placeholder world used by 4b / 4f / 4g: Ana is a REAL teacher
+ * who is unqualified for the single canonical MAPEH pair and HAS room, and a
+ * qualified to-be-hired record also exists. One factory so the three tests differ
+ * only in the options they pass.
+ */
+function anyoneWorld(): World {
+	return isolatedWorld({
 		faculty: [
 			faculty(101, 'SCI', { maxHours: 30 }),
 			faculty(900, 'MAPEH', { placeholder: true, maxHours: 30 }),
 		],
 		facultySubjects: [facultySubjectRow(700, 900, MAPEH)],
 	});
-	const result = await withWorld(world, () => autoFill(SCHOOL, YEAR, undefined, { previewOnly: true }));
+}
+
+test('4b. autoFill (allowUnqualifiedRealFaculty): the placeholder pool is unreachable while ANY admitted real teacher has room', async () => {
+	// Ana (SCI) is unqualified for MAPEH — tier null — but she HAS room. With the
+	// caller opting in, the ANYONE tier is reachable, so the placeholder pool must
+	// never open.
+	const result = await withWorld(anyoneWorld(), () => autoFill(SCHOOL, YEAR, undefined, {
+		previewOnly: true,
+		allowUnqualifiedRealFaculty: true,
+	}));
 	const rows = result.suggestedRows ?? [];
 
 	assert.equal(rows.some((row) => row.assignmentType === 'PLACEHOLDER_TEACHER'), false,
 		'a placeholder must not be proposed while a real teacher has room');
 	assert.equal(rows.some((row) => row.assignmentType === 'REAL_TEACHER' && row.facultyId === 101), true,
 		'the ANYONE-tier real teacher takes it instead');
+	assert.equal(result.stillNeedRealTeacher, 0);
+});
+
+test('4f. the DEFAULT bulk path refuses an unqualified real teacher (A8 c4 correction F2)', async () => {
+	// Same world as 4b, no option. `allowUnqualifiedRealFaculty` defaults to
+	// `false` on the suggestion path, so the unqualified teacher is NOT proposed
+	// and the placeholder pool — the honest last resort — opens instead. This is
+	// what keeps every persisted `REAL_TEACHER` insert qualification-valid.
+	const result = await withWorld(anyoneWorld(), () => autoFill(SCHOOL, YEAR, undefined, { previewOnly: true }));
+	const rows = result.suggestedRows ?? [];
+
+	assert.equal(rows.some((row) => row.assignmentType === 'REAL_TEACHER' && row.facultyId === 101), false,
+		'an unqualified real teacher is never a persisted insert on the default path');
+	assert.equal(rows.some((row) => row.assignmentType === 'PLACEHOLDER_TEACHER'), true,
+		'the qualified to-be-hired record closes the class instead');
+	// Discriminating control: the SAME world DOES reach the ANYONE teacher when
+	// the caller asks, so 4f is about the default and not about the fixture.
+	const optedIn = await withWorld(anyoneWorld(), () => autoFill(SCHOOL, YEAR, undefined, {
+		previewOnly: true,
+		allowUnqualifiedRealFaculty: true,
+	}));
+	assert.equal(
+		(optedIn.suggestedRows ?? []).some((row) => row.assignmentType === 'PLACEHOLDER_TEACHER'),
+		false,
+		'the same fixture reaches the ANYONE teacher when the caller asks',
+	);
+});
+
+test('4g. the two operator decisions are independent (placeholder:false + unqualified:true)', async () => {
+	// "Never hire a to-be-hired" and "an unqualified teacher is acceptable" are
+	// separate judgements. Welding them (A8 c4's original bug) made this world
+	// leave the class uncovered; the decoupled switches take Ana.
+	const result = await withWorld(anyoneWorld(), () => autoFill(SCHOOL, YEAR, undefined, {
+		previewOnly: true,
+		allowPlaceholders: false,
+		allowUnqualifiedRealFaculty: true,
+	}));
+	const rows = result.suggestedRows ?? [];
+	assert.equal(rows.some((row) => row.assignmentType === 'PLACEHOLDER_TEACHER'), false,
+		'no placeholder may appear');
+	assert.equal(rows.some((row) => row.assignmentType === 'REAL_TEACHER' && row.facultyId === 101), true,
+		'the unqualified real teacher takes it: the two switches no longer disagree');
 	assert.equal(result.stillNeedRealTeacher, 0);
 });
 
@@ -1106,8 +1165,18 @@ test('6d. a granted permission is effective on the very next cover-candidates re
 		schoolId: SCHOOL, facultyId: 102, subjectId: FILI, actorId: ACTOR, schoolYearId: YEAR,
 	}));
 
-	// A NEW policy cache would be required for the tier to change, so this also
-	// proves the write invalidated it.
+	// What is actually proved here, stated honestly (A8 c4 correction F3):
+	// `listCoverCandidates` resolves its tiers through
+	// `evaluateTeachingLoadReceiverQualification` → `loadPersistedQualification
+	// Authority`, which reads the persisted policy FRESH on every call. It is not
+	// a cached-snapshot consumer, so `invalidatePolicyCache(schoolId)` is not what
+	// makes this row green — deleting that call leaves this test passing, and this
+	// test does NOT claim otherwise. The invalidation is what the CACHED-snapshot
+	// consumers of the same policy need; deleting it is covered by the
+	// qualification-evaluator's own suite, not here.
+	//
+	// What IS proved: the grant is effective on the very next cover-candidates
+	// read, which is the client-visible behaviour the contract promises.
 	const after = await withWorld(world, () => listCoverCandidates({
 		schoolId: SCHOOL, schoolYearId: YEAR, subjectId: FILI, sectionId: SECTION_FILI_A,
 	}));
@@ -1119,7 +1188,11 @@ test('6d. a granted permission is effective on the very next cover-candidates re
 
 // ─── 7. Scope: another school / another year fails closed ───────────────────
 
-test('7a. a teacher, subject or section from another school is refused', async () => {
+test('7a. another school\'s teacher or subject is 400 SCHOOL_SCOPE_MISMATCH, with zero writes', async () => {
+	// A8 c4 correction (F1). The contract's §2 `SCHOOL_SCOPE_MISMATCH` was
+	// unreachable on this route: a foreign teacher answered `FACULTY_NOT_FOUND`
+	// and a foreign subject answered `OUTSIDE_CANONICAL_DEMAND`, so "not found"
+	// told the client to look in the wrong place.
 	const world = buildWorld({
 		faculty: [
 			faculty(102, 'SCI', { schoolId: OTHER_SCHOOL }),
@@ -1131,19 +1204,93 @@ test('7a. a teacher, subject or section from another school is refused', async (
 		],
 	});
 
-	const foreignSubject = await withWorld(world, () => catchError(() => listCoverCandidates({
-		schoolId: SCHOOL, schoolYearId: YEAR, subjectId: MATH, sectionId: SECTION_FILI_A,
-	})));
-	assert.equal(foreignSubject.statusCode, 400);
-	assert.equal(foreignSubject.code, 'SUBJECT_NOT_FOUND');
-
 	const foreignFaculty = await withWorld(world, () => catchError(() => createCoverAssignment({
 		schoolId: SCHOOL, schoolYearId: YEAR, facultyId: 102, subjectId: FILI, sectionId: SECTION_FILI_A,
 		grantPermission: true, actorId: ACTOR,
 	})));
 	assert.equal(foreignFaculty.statusCode, 400);
-	assert.equal(foreignFaculty.code, 'FACULTY_NOT_FOUND');
+	assert.equal(foreignFaculty.code, 'SCHOOL_SCOPE_MISMATCH');
+
+	// Same route, same shape, the SUBJECT of another school.
+	const foreignSubject = await withWorld(world, () => catchError(() => createCoverAssignment({
+		schoolId: SCHOOL, schoolYearId: YEAR, facultyId: 101, subjectId: MATH, sectionId: SECTION_FILI_A,
+		grantPermission: true, actorId: ACTOR,
+	})));
+	assert.equal(foreignSubject.statusCode, 400);
+	assert.equal(foreignSubject.code, 'SCHOOL_SCOPE_MISMATCH');
+
+	// ZERO writes: no permission, no ownership, no FacultySubject, no audit row.
 	assert.deepEqual(world.permissions, [], 'and nothing was written for another school');
+	assert.deepEqual(world.ownerships, []);
+	assert.deepEqual(world.facultySubjects, []);
+	assert.deepEqual(world.auditLog, []);
+
+	// The READ surfaces keep "no such row in your school": the client only ever
+	// passes its own school's ids there, and the code is documented as exactly
+	// that (contract §1 names no scope code for this read).
+	const readError = await withWorld(world, () => catchError(() => listCoverCandidates({
+		schoolId: SCHOOL, schoolYearId: YEAR, subjectId: MATH, sectionId: SECTION_FILI_A,
+	})));
+	assert.equal(readError.code, 'SUBJECT_NOT_FOUND');
+});
+
+test('7d. a genuinely absent id in MY school is NOT a scope violation (F1 differential)', async () => {
+	// The other half of F1: `FACULTY_NOT_FOUND` / `SUBJECT_NOT_FOUND` must still
+	// mean "no such row in your school". Both answers are 400; only the CODE
+	// separates "wrong school" from "no such row", which is the whole point.
+	const world = buildWorld({ faculty: [faculty(101, 'FILI')] });
+
+	const absentFaculty = await withWorld(world, () => catchError(() => createCoverAssignment({
+		schoolId: SCHOOL, schoolYearId: YEAR, facultyId: 424242, subjectId: FILI, sectionId: SECTION_FILI_A,
+		grantPermission: true, actorId: ACTOR,
+	})));
+	assert.equal(absentFaculty.statusCode, 400);
+	assert.equal(absentFaculty.code, 'FACULTY_NOT_FOUND',
+		'an id that exists nowhere is missing, not out of scope');
+
+	const absentSubject = await withWorld(world, () => catchError(() => createCoverAssignment({
+		schoolId: SCHOOL, schoolYearId: YEAR, facultyId: 101, subjectId: 434343, sectionId: SECTION_FILI_A,
+		grantPermission: true, actorId: ACTOR,
+	})));
+	assert.equal(absentSubject.statusCode, 400);
+	assert.equal(absentSubject.code, 'SUBJECT_NOT_FOUND');
+
+	assert.deepEqual(world.permissions, []);
+	assert.deepEqual(world.ownerships, []);
+	assert.deepEqual(world.facultySubjects, []);
+	assert.deepEqual(world.auditLog, []);
+});
+
+test('5c. an ownership row naming a teacher who no longer exists is OPEN, not staffed (F7)', async () => {
+	// A dangling owner reference used to fall through as "owned by a real
+	// teacher" and vanish from `classes[]`, silently under-reporting the
+	// staffing need. It is reported as OPEN and UNOWNED, which is what the
+	// client's own rule (`heldByFacultyId === null`) then agrees with.
+	const mapeh = subject(MAPEH, 'MAPEH', 'MAPEH', [7]);
+	const world = isolatedWorld({
+		faculty: [faculty(101, 'MAPEH', { maxHours: 30 })],
+		facultySubjects: [facultySubjectRow(700, 101, MAPEH)],
+		ownerships: [
+			// facultyId 777 has no FacultyMirror row at all.
+			{ ...ownershipRow(1, 777, mapeh, SECTION_OPEN_OWNED), id: 1 },
+		],
+	});
+
+	const response = await withWorld(world, () => listCoverOpenClasses({ schoolId: SCHOOL, schoolYearId: YEAR }));
+	const row = response.classes.find((entry) => entry.sectionId === SECTION_OPEN_OWNED);
+
+	assert.ok(row, 'a class no live teacher holds must be listed as OPEN');
+	assert.equal(row!.heldByFacultyId, null);
+	assert.equal(row!.heldByName, null);
+	assert.equal(row!.heldByIsPlaceholder, false, 'nobody holds it — it is not a placeholder either');
+	assert.equal(
+		response.counts.unowned + response.counts.placeholderOwned,
+		response.counts.total,
+		'the counting invariant still holds',
+	);
+	assert.equal(response.counts.total, 3, 'all three grade-7 MAPEH classes are OPEN');
+	assert.equal(response.counts.unowned, 3, 'two genuinely unowned plus the dangling one');
+	assert.equal(response.counts.placeholderOwned, 0);
 });
 
 test('7b. a section belonging to another year is refused', async () => {

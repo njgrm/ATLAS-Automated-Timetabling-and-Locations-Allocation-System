@@ -273,7 +273,8 @@ test('A8 c4 mounted cover + permission routes: auth, actor-school scope, strict 
 	assert.deepEqual(deleteAbsent.payload, { removed: false }, 'deleting an absent permission is 200 {removed:false}, never 404');
 });
 
-test('A8 c4: canTeachOutsideDepartment works for a REAL teacher through the existing PATCH /faculty/:id', async (t) => {	dispatch.length = 0;
+test('A8 c4: canTeachOutsideDepartment works for a REAL teacher through the existing PATCH /faculty/:id', async (t) => {
+	dispatch.length = 0;
 	facultyRow = {
 		id: 46, schoolId: SCHOOL_ID, firstName: 'Maria', lastName: 'Reyes',
 		department: 'SCI', canTeachOutsideDepartment: false, isPlaceholder: false,

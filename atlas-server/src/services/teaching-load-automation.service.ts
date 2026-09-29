@@ -153,16 +153,34 @@ interface AutoFillOptions {
 	 */
 	client?: unknown;
 	/**
-	 * A8 c4 item 3: when `false`, the SAVED-placeholder pool is never consulted
-	 * and an unqualified real teacher is never proposed, so a caller can require
-	 * real teachers only ("no to-be-hired, ever"). Defaults to `true` so every
-	 * existing caller keeps the placeholder fallback it has today.
+	 * A8 c4 item 3: when `false`, the SAVED-placeholder pool is never consulted,
+	 * so a caller can require real teachers only ("no to-be-hired, ever").
+	 * Defaults to `true` so every existing caller keeps the placeholder fallback
+	 * it has today.
 	 *
 	 * This option does not change ORDER. A placeholder is reachable only once the
 	 * real pass has run and found nobody with room — see the ordering invariant on
 	 * the placeholder pool below.
 	 */
 	allowPlaceholders?: boolean;
+	/**
+	 * A8 c4 correction (F2): when `true`, a real teacher with NO qualification
+	 * match for a subject is offered at `ANYONE_REAL_FACULTY_TIER`, ranked after
+	 * every QUALIFIED and OTHER_DEPARTMENT candidate.
+	 *
+	 * THIS IS A SEPARATE DECISION FROM `allowPlaceholders`. "Never hire a
+	 * to-be-hired" and "an unqualified teacher is acceptable" are independent
+	 * operator judgements, and A8 c4 had welded them together.
+	 *
+	 * It defaults to `false` because a `REAL_TEACHER` row becomes a PERSISTED
+	 * `SubjectSectionOwnership` insert, and the reviewed suggestion-apply path
+	 * (the only writer) requires every insert receiver to be qualification-valid.
+	 * Opting in makes an insert that the apply path refuses with a typed reason
+	 * and zero writes — the cover surface (`cover-candidates` /
+	 * `cover-assignments`) is a separate implementation and is unaffected either
+	 * way, so its three tiers never shrink.
+	 */
+	allowUnqualifiedRealFaculty?: boolean;
 }
 
 export interface StaffingTruthBucket {
@@ -195,7 +213,14 @@ export interface SuggestedRowPreview {
 	facultyName: string;
 	/**
 	 * - `KEPT_EXISTING` — an ownership row the plan preserves unchanged.
-	 * - `REAL_TEACHER` — a new assignment to a real, qualified teacher.
+	 * - `REAL_TEACHER` — a new assignment to a real (non-placeholder) teacher. On
+	 *   the DEFAULT path that teacher is also QUALIFIED for the subject: a
+	 *   `REAL_TEACHER` row becomes a persisted `SubjectSectionOwnership` insert,
+	 *   and the reviewed suggestion apply re-validates every insert receiver and
+	 *   refuses an unqualified one. A caller that passes
+	 *   `allowUnqualifiedRealFaculty: true` can still PREVIEW an unqualified
+	 *   `REAL_TEACHER` row; that plan is refused at apply time with a typed reason
+	 *   and zero writes, so the persisted set is qualification-valid.
 	 * - `PLACEHOLDER_TEACHER` — TL-SHORTAGE-C02 item 3: a new assignment to a
 	 *   SAVED `isPlaceholder` teacher who holds the subject qualification. This
 	 *   is a PERSISTED insert, unlike a substitute.
@@ -1908,10 +1933,12 @@ function findBestCandidateForMode(
 	 * A8 c4 item 3: when `allowUnqualified` is true, a real teacher with NO
 	 * qualification match for this subject becomes a candidate at
 	 * `ANYONE_REAL_FACULTY_TIER` — ranked after every QUALIFIED and
-	 * OTHER_DEPARTMENT candidate — so the coverage fallback stops at "any real
+	 * OTHER_DEPARTMENT candidate — so the coverage fallback can stop at "any real
 	 * teacher" instead of dropping straight to a to-be-hired placeholder.
 	 *
-	 * It is OFF unless the caller asks, so every existing caller is byte-identical.
+	 * It is OFF unless the caller asks. `autoFill` asks only when
+	 * `allowUnqualifiedRealFaculty: true`, and it defaults to `false` (QA F2),
+	 * so a `REAL_TEACHER` row on the default path is qualification-valid.
 	 */
 	candidateReach?: { allowUnqualified?: boolean },
 ): {
@@ -1978,6 +2005,10 @@ function findBestCandidateForMode(
 			});
 			continue;
 		}
+		// `reachableAsAnyone` above is the ONLY way an unqualified teacher reaches
+		// this list, and the caller sets it explicitly. Ranking it last (tier 4)
+		// keeps every qualified candidate ahead of it without changing any
+		// qualified candidate's own tier.
 		const rankTier = qualification.tier ?? ANYONE_REAL_FACULTY_TIER;
 		const ledger = capacityLedgersByFaculty.get(member.id) ?? createEmptyCapacityLedger();
 		const used = capacityUsed.get(member.id) ?? 0;
@@ -2052,9 +2083,9 @@ function findBestCandidateForMode(
 			});
 		}
 
-candidates.push({
-			faculty: member,
-			tier: rankTier,
+		candidates.push({
+				faculty: member,
+				tier: rankTier,
 				projectedUsedMinutes: used + deltaMinutes,
 				subjectAssignedCount: subjectAssignmentCountByFacultyId?.get(member.id) ?? 0,
 				rotationLaneAssignedCount: rotationLaneAssignmentCountByFacultyId?.get(member.id) ?? 0,
@@ -2618,12 +2649,18 @@ export async function autoFill(
 	const previewOnly = options?.previewOnly ?? false;
 	const staffingOnly = options?.staffingOnly === true;
 	const coverageMode = options?.coverageMode ?? DEFAULT_COVERAGE_MODE;
-	// A8 c4 item 3. Defaults preserve every existing caller exactly: the
-	// placeholder pool stays available (`true`), and the ANYONE tier is reachable
-	// only when placeholders are reachable at all — "real teachers only" is one
-	// switch, not two that can disagree.
+	// A8 c4 item 3, corrected by QA (F2). TWO independent operator decisions,
+	// deliberately NOT welded together:
+	//   `allowPlaceholders`          — may a to-be-hired record take the class?
+	//   `allowUnqualifiedRealFaculty` — may a real but UNQUALIFIED teacher take it?
+	// The placeholder pool stays available by default (`true`, so every existing
+	// caller is unchanged). The unqualified-real-teacher tier defaults to `false`
+	// because a `REAL_TEACHER` row is a PERSISTED insert and the reviewed
+	// suggestion-apply path is qualification-valid by construction. The cover
+	// surface does not read this option: `teaching-load-cover.service.ts` resolves
+	// its own tiers, so `cover-candidates` keeps offering `ANYONE`.
 	const allowPlaceholders = options?.allowPlaceholders !== false;
-	const allowUnqualifiedRealFaculty = allowPlaceholders;
+	const allowUnqualifiedRealFaculty = options?.allowUnqualifiedRealFaculty === true;
 	const realCoverageMode = resolveRealCoverageMode(coverageMode);
 
 	// Canonical derived demand is the sole current-year pair authority. A typed
@@ -3198,9 +3235,10 @@ export async function autoFill(
 	 * ordering and qualification rules:
 	 *
 	 *  - consulted ONLY after the real-teacher pass below has run, so a real
-	 *    qualified teacher is never displaced. A8 c4 strengthened this: the real
-	 *    pass now also offers the `ANYONE` tier, so a placeholder is unreachable
-	 *    while ANY real teacher has room, not merely while a QUALIFIED one does;
+	 *    teacher with room is never displaced. A8 c4 strengthened this: when the
+	 *    caller also passes `allowUnqualifiedRealFaculty: true`, the real pass
+	 *    offers the `ANYONE` tier, so a placeholder is unreachable while ANY real
+	 *    teacher has room, not merely while a QUALIFIED one does;
 	 *  - never consulted at all when the caller passes `allowPlaceholders: false`;
 	 *  - only for a subject the placeholder holds a persisted `facultySubject`
 	 *    qualification row for in this school year;
@@ -3334,12 +3372,13 @@ export async function autoFill(
 			if (!candidate) {
 				// A8 c4 item 3 ORDER INVARIANT: the saved-placeholder pool is
 				// reachable ONLY when (a) the caller permits placeholders at all and
-				// (b) the real pass above — which now also offers the `ANYONE` tier,
-				// any real teacher with room — returned nobody. A placeholder is
-				// therefore never proposed while ANY real teacher has room, which is
-				// the operator's "absolute last resort" rule. This branch is the
-				// proof site: `selection.faculty === null` means the real pass,
-				// placeholders included in ranking, found no room.
+				// (b) the real pass above — which, with
+				// `allowUnqualifiedRealFaculty`, also offers the `ANYONE` tier —
+				// returned nobody. A placeholder is therefore never proposed while
+				// ANY real teacher the caller admits has room, which is the
+				// operator's "absolute last resort" rule. This branch is the proof
+				// site: `selection.faculty === null` means the real pass, placeholders
+				// included in ranking, found no room.
 				const placeholder = allowPlaceholders ? tryAssignPlaceholder(pair) : null;
 				if (placeholder) {
 					placeholderAssignedFacultyIds.add(placeholder.id);

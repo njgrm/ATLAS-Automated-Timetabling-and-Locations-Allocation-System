@@ -178,7 +178,7 @@ async function readSubject(schoolId: number, subjectId: number, client?: Db): Pr
 		},
 	});
 	if (!subject) {
-		throw new CoverContractError(400, 'SUBJECT_NOT_FOUND', 'That subject does not belong to this school.');
+		throw new CoverContractError(400, 'SUBJECT_NOT_FOUND', 'No subject with that id in this school.');
 	}
 	return {
 		id: subject.id,
@@ -216,6 +216,32 @@ async function readSection(schoolId: number, schoolYearId: number, sectionId: nu
 		programType: section.programType ?? null,
 		gradeLevel: section.displayOrder,
 	};
+}
+
+/**
+ * A8 c4 correction (F1) — the CONTRACT §2 code that used to be unreachable on the
+ * assign route.
+ *
+ * `assertRequestSchoolScope` already rejects a cross-school ACTOR with `403
+ * CROSS_SCHOOL_DENIED` before the service is reached. This is the OTHER question:
+ * the ids INSIDE the body that name a row in ANOTHER school. Contract §2 says that
+ * is `400 SCHOOL_SCOPE_MISMATCH`, so `FACULTY_NOT_FOUND` / `SUBJECT_NOT_FOUND` can
+ * finally mean what the contract says they mean — "no such row in YOUR school".
+ *
+ * The probe is a single id-only read and it never reports anything about the
+ * foreign row beyond the fact of its existence.
+ */
+async function assertRowInSchool(
+	model: 'subject' | 'facultyMirror',
+	rowId: number,
+	schoolId: number,
+	label: string,
+	client: Db,
+): Promise<void> {
+	const row = await client[model].findFirst({ where: { id: rowId }, select: { id: true, schoolId: true } });
+	if (row && row.schoolId !== schoolId) {
+		throw new CoverContractError(400, 'SCHOOL_SCOPE_MISMATCH', `That ${label} belongs to another school.`);
+	}
 }
 
 type CoverSubject = Awaited<ReturnType<typeof readSubject>>;
@@ -589,13 +615,22 @@ export async function listCoverOpenClasses(input: {
 		const heldByFacultyId = ownerByPair.get(`${pair.subjectId}:${pair.sectionExternalId}`) ?? null;
 		const holder = heldByFacultyId == null ? null : holderById.get(heldByFacultyId) ?? null;
 		const heldByIsPlaceholder = holder ? holder.isPlaceholder === true : false;
+		// A8 c4 (F7, defensive): an ownership row whose `facultyId` resolves to NO
+		// `FacultyMirror` row — the mirror was deleted or is outside this school —
+		// names nobody. It used to fall through as "owned by a real teacher" and
+		// vanish from `classes[]`, which silently under-reports the staffing need.
+		// A class no live teacher holds is OPEN, and it is reported honestly as
+		// unowned (`heldByFacultyId: null`) so the client's own counting rule
+		// (`heldByIsPlaceholder === true || heldByFacultyId === null`) agrees with
+		// this server and `unowned + placeholderOwned === total` still holds.
+		const danglingOwner = heldByFacultyId != null && holder == null;
 		// THE counting rule: a class is OPEN when nobody owns it OR a placeholder
 		// owns it. A class owned by a real teacher is NOT open, so it is not in
 		// this list at all — that is what makes `unowned + placeholderOwned ===
 		// total` true by construction rather than by a client subtraction.
-		const isOpen = heldByFacultyId == null || heldByIsPlaceholder;
+		const isOpen = danglingOwner || heldByFacultyId == null || heldByIsPlaceholder;
 		if (!isOpen) continue;
-		if (heldByFacultyId == null) unowned += 1;
+		if (danglingOwner || heldByFacultyId == null) unowned += 1;
 		else placeholderOwned += 1;
 		classes.push({
 			subjectId: pair.subjectId,
@@ -606,8 +641,8 @@ export async function listCoverOpenClasses(input: {
 			gradeLevel: pair.gradeLevel,
 			weeklyMinutes: pair.weeklyMinutes,
 			weeklyHoursPerWeek: toHours(pair.weeklyMinutes),
-			heldByFacultyId,
-			heldByName: holder ? displayName(holder) : null,
+			heldByFacultyId: danglingOwner ? null : heldByFacultyId,
+			heldByName: danglingOwner || holder == null ? null : displayName(holder),
 			heldByIsPlaceholder,
 		});
 	}
@@ -777,6 +812,18 @@ export async function createCoverAssignment(input: {
 }): Promise<CoverAssignmentResult> {
 	const { schoolId, schoolYearId, facultyId, subjectId, sectionId, grantPermission } = input;
 
+	const actor = db();
+	// A8 c4 correction (F1): SCOPE before EXISTENCE, and both before canonical
+	// demand, so each answer means exactly one thing:
+	//   another school's row  -> 400 SCHOOL_SCOPE_MISMATCH (contract §2)
+	//   no such row in mine   -> 400 SUBJECT_NOT_FOUND / FACULTY_NOT_FOUND
+	//   real pair, not demand -> 400 OUTSIDE_CANONICAL_DEMAND
+	// `assertRequestSchoolScope` has already answered the cross-school ACTOR with
+	// `403 CROSS_SCHOOL_DENIED`; this is the different question about the body.
+	await assertRowInSchool('subject', subjectId, schoolId, 'subject', actor);
+	await assertRowInSchool('facultyMirror', facultyId, schoolId, 'teacher', actor);
+	const subject = await readSubject(schoolId, subjectId, actor);
+
 	const demand = await resolveSuggestionDerivedDemand(schoolId, schoolYearId);
 	const pair = demand.teachingLoadPairs.find(
 		(entry) => entry.subjectId === subjectId && entry.sectionExternalId === sectionId,
@@ -790,8 +837,6 @@ export async function createCoverAssignment(input: {
 	}
 	const weeklyMinutes = Math.max(0, Math.round(pair.weeklyMinutes));
 
-	const actor = db();
-	const subject = await readSubject(schoolId, subjectId, actor);
 	const section = await readSection(schoolId, schoolYearId, sectionId, actor);
 	const faculty = await actor.facultyMirror.findFirst({
 		where: { id: facultyId, schoolId, isStale: false, isActiveForScheduling: true },
@@ -806,7 +851,9 @@ export async function createCoverAssignment(input: {
 		},
 	});
 	if (!faculty) {
-		throw new CoverContractError(400, 'FACULTY_NOT_FOUND', 'That teacher does not belong to this school.');
+		// "No such ACTIVE, non-stale teacher in THIS school." A teacher of another
+		// school was already refused above as `SCHOOL_SCOPE_MISMATCH`.
+		throw new CoverContractError(400, 'FACULTY_NOT_FOUND', 'No active teacher with that id in this school.');
 	}
 	if (faculty.isPlaceholder === true) {
 		throw new CoverContractError(400, 'PLACEHOLDER_NOT_ASSIGNABLE', 'A to-be-hired placeholder cannot take this class.');

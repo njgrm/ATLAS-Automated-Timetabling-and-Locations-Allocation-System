@@ -306,12 +306,12 @@ function rowsOfType(result: AutoFillResult, type: string) {
  * A8 c4: a REAL teacher who is unqualified for the subject under test AND has no
  * room (a 1h contract cannot take a 4h class).
  *
- * A8 c4 made the `ANYONE` tier reachable inside the real pass, so the placeholder
- * pool is now unreachable while ANY real teacher has room — the operator's
- * "absolute last resort" rule. Fixtures whose subject under test is
- * "the placeholder closes this shortage" therefore must not also contain a real
- * teacher with room: they use this helper so their stated premise stays TRUE and
- * every original assertion is unchanged.
+ * The premise these tests state is "no qualified real teacher WITH ROOM", not "no
+ * qualified real teacher at all": when the bulk caller opts into the `ANYONE`
+ * tier (`allowUnqualifiedRealFaculty`), an unqualified real teacher WITH room
+ * outranks the placeholder pool. Fixtures whose subject under test is "the
+ * placeholder closes this shortage" therefore use this helper so their stated
+ * premise stays TRUE and every original assertion is unchanged.
  */
 function facultyWithoutRoom(id: number, department: string): Row {
 	return faculty(id, department, { maxHours: 1 });
@@ -666,7 +666,7 @@ test('item 3: a placeholder assignment is a PERSISTED insert, unlike a substitut
 	assert.equal(inserts.filter((insert) => insert.facultyId == null).length, 0);
 });
 
-test('item 3: with no qualified real teacher at all, a qualified placeholder closes the whole shortage', async () => {
+test('item 3: with no qualified real teacher WITH ROOM, a qualified placeholder closes the whole shortage', async () => {
 	// The Codex scenario: a saved placeholder left at no load. It must now be
 	// assignable so the shortage is actually closeable from Teaching Load.
 	// A8 c4: the only real teacher here has NO ROOM, so "no real teacher can
