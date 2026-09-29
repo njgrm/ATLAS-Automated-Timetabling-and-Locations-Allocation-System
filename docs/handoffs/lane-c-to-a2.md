@@ -82,3 +82,20 @@ Evidence: `docs/prompts/a3-c17-teachers-profile-2026-09-29.md` (packet). Worktre
   rollover-status / RolloverGuidanceCard); if so that is the permanent "setup not done". The fix is a transition when the
   scheduler finishes the year's setup (or derive it from the real checks), not a manual DB edit.
 - Include the term picker: which term the timetable scopes to when EnrollPro has no current term.
+
+## Lane C -> A8 unblock, 29 Sep 23:58 — what live /timetable actually says for 2025-2026 (Codex read-out, verbatim)
+Full text: docs/handoffs/tt-blockers-2526-live-readout.md. Generate is **disabled** with "Setup inputs are not
+ready" / "27 setup items to fix" (the dialog then says "Show all 82 setup items"). Every item is on a SPECIAL-PROGRAM
+section: STE GR7 Bonifacio, GR8 Makatao, GR9 Rose, GR10 Silver; SPS GR9 Daisy; GR10 Jade.
+- 15 x "A session could not be placed with the current setup" - all GR7 Bonifacio STE, 5 per term.
+- ~65 x "A scheduling rule needs a decision before a schedule can be made" per session, each with "Open Year Setup"
+  (Year Setup has nothing to decide - wrong destination). Find the code and data behind it: likely CANONICAL_SHAPE /
+  class-program template for STE/SPS (class_program_slots exist for school_year_id 4: REGULAR 40, STE/SPS/SPA 48) or a
+  program/policy rule. Is it TRUE? Run 347 (2023-2024) generated with the same template.
+- "5 classes have a teacher at their limit": STE_APPLIED_PHYS Silver, STE_RESEARCH Makatao, STE_RESEARCH Rose, SCI_BIO
+  Daisy, SCI_BIO Jade - specialised subjects with few qualified teachers; raw codes on screen.
+- Teaching Load says 100% staffed. Dashboard: "7 OF 10 READY", "2 buildings have no rooms", "ATLAS could not count the
+  problems that must be fixed". Year Setup: "TERM 3, from saved data".
+- Presentation defects to fix in the same cycle: 82 near-identical lines (group them: "GR9 Rose STE: 15 sessions,
+  one cause"), raw subject codes, "1 item need attention", every item routed to Open Year Setup.
+Your deliverable stands: each cause TRUE/FALSE with its data; fix FALSE ones; plain action for TRUE ones.
