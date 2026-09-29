@@ -5645,6 +5645,48 @@ candidate through it (A5 = `atlas-client/**`, A9 = `atlas-server/**` — disjoin
 - **Next action (single):** A4 merges `98cc1e34` into the next release train; Lane C then runs `Sync now` in
   reconcile mode with the operator and takes the three release-acceptance rows above.
 
+## Lane A9 — c5 past-year Teaching Load, 2026-09-29 15:30 +08 (written only by Lane A9)
+
+**ON `main` at `c9215f17` (merge `29ff5d83`, candidate `c4e083ac`). 0 fixes live and seen / 1 integrated and SEEN
+RENDERED on real staging data / 0 dropped. NOT deployed — A4 owns every release (§14).** Packet
+`docs/prompts/a9-c5-tl-history-2026-09-29.md`; source evidence
+`docs/reviews/codex-live-tl-history-3216d383/report.md` (3/2/2/2, REJECT_UX).
+
+- **The defect, measured not assumed.** 2022-2023 (`schoolYearId` 1) is genuinely past and **not** archived, 82
+  preserved `facultySubject` rows. The list filtered `isArchived: true` and the read answered
+  `409 HISTORY_YEAR_NOT_ARCHIVED`, so the one year an older scheduler wants was unreachable — and School Year
+  Setup's per-year **Open teaching load** link already pointed at it. Now every PAST year is offered, most recent
+  first, classified from the label's leading year against the active year (never from an id); the active year
+  still 409s (`HISTORY_YEAR_IS_CURRENT`), a future year still 409s, an unparseable label is never offered. Zero
+  writes; auth and actor-school scope byte-identical.
+- **The three questions, answered in the browser at 1366x768** (origin asserted, real staging data, candidate API
+  + preview, staging QA login): Grade `Grade 8` + Subject `MAPEH` → `No one taught MAPEH in Grade 8 in
+  2022-2023.` + one-click `Grade 7` → `GARCIA, ISABELLA JOY · 34.8 hours/week · 10 classes`. **The packet's
+  suggested sentence was FALSE and was not written**: Suggest/auto-fill comes from canonical derived demand, not
+  from last year. The page says the true thing instead — keep the year as history in School Year Setup, then
+  *Start from last year* (that panel's source list is archived years only, which is exactly why 2022-2023 is not
+  in it yet).
+- **Seen rendered, not asserted:** 20 collapsed rows instead of 42 expanded cards, `hours/week · classes` on
+  every row, one read-only line instead of the two-line amber banner, one inline totals line instead of three
+  badges, no subject code anywhere in the default view or the Subject dropdown (`TLE Exploratory - Agriculture
+  and Fishery Arts`, not `TLE_AFA_EXP`), no `5 subject s`, no `Department not recorded`. Reachability 1 click from
+  Teaching Load (a visible control, left-aligned, explanation in a Tooltip) plus the existing School Year Setup
+  row, which now lands on a working page.
+- **QA: `CORRECTION_REQUIRED` 10/11** — rows 1-9, 11 pass including the design gate; the one BLOCKING was a
+  **test-integrity** defect, not behaviour: the new server fake ignored `where.isArchived`, so reverting the fix
+  still passed. Fixed in `c4e083ac` (test-only) and proven both ways — the old filter now raises an
+  `AssertionError`. Two correction rounds preceded it, each from rendered evidence, not from reading source.
+- **Staging DB was re-streamed mid-cycle** (audit rows 514 → 500 and a new 47-row year-2 group appeared between
+  two of my own readings, before and after neither of my runs). `facultySubject` per year was byte-identical
+  inside every window. **Not this lane's change and not a data incident** — noted so nobody re-derives a baseline
+  across the seam.
+- **Worktree:** `E:/ATLAS-worktrees/lane-a9-tl-history` = `RETIRE_AFTER_INTEGRATION`; branch
+  `feat/a9-tl-history` pushed, no branch deleted. Preview/API/relay PIDs stopped by exact PID; 5199/5291/5297
+  clear; every scratch file deleted.
+- **Next action (single, and it is A4's):** A4 includes `c9215f17` in the next train; Lane C takes the live
+  `https://njgrm.buru-degree.ts.net` row for `/teaching-load/history` (2022-2023 offered, the three questions,
+  no raw codes) at 1366x768.
+
 ## Lane A8 — Teaching Load shortage, server truth (written only by Lane A8)
 
 **`A8 ready for release at 195b52fe` (accepted candidate `39b2dcc7`). 0 fixes live and seen / 6 server items
