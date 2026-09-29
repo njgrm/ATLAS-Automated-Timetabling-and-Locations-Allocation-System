@@ -31,7 +31,7 @@ alignment, any disclosure ("More filters" must not exist), legend lines.
 - **MAJOR = NO_GO**: any `mojibake`, any `moreFilters`, any `overflowing`, `pageScrollsSideways`, text under 12px,
   a dialog footer covering content, a control cut off, a clickable that looks like plain text on a primary path, a page
   worse than the live build.
-- **Baseline:** a MAJOR that is identical on the live build is recorded as KNOWN (owner named) and does not block on its own; a MAJOR that is new, or on a page/component the train changed, is NO_GO. The walk compares against the previous walk's report to tell the two apart.
+- **Baseline (operator ruling 2026-09-29 19:45):** the test is *caused or worsened by this train*, compared on the same screen as live. A MAJOR identical on live (or on code the train did not change, even if live could not show it) is KNOWN: owner named, not blocking. A MAJOR the train introduced or made worse is NO_GO. To tell them apart, check `git diff <live>..<pin>` for the component that renders it. The walk compares against the previous walk's report to tell the two apart.
 - **MINOR** (listed, owner named, not blocking): text 12-13px, isolated `truncated` items with a tooltip, targets 32-39px.
 - Line 1: `pass x/y · MAJOR n · MINOR n · viewport WxH · verdict GO|NO_GO`.
 
