@@ -3,11 +3,10 @@ import {
 	CalendarDays,
 	User,
 	Briefcase,
-	Clock,
 	CheckCircle2,
 	AlertTriangle,
 	ChevronRight,
-	ClipboardList,
+	ExternalLink,
 	Star
 } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -42,8 +41,11 @@ import {
 } from '@/components/faculty/teacherNameDisplay';
 import { resolveSectionGradeNumber } from '@/lib/schedule-review-helpers';
 import { countSubjectGroups } from '@/lib/rotation-subject-count';
-import { deriveLoadStatus, STANDARD_WEEKLY_TEACHING_HOURS } from '@/lib/faculty-assignment-helpers';
+import { STANDARD_WEEKLY_TEACHING_HOURS } from '@/lib/faculty-assignment-helpers';
 import { departmentLabel } from '@/lib/deped-glossary';
+import { buildTeacherWorkloadView } from '@/components/faculty/teacherWorkloadProfile';
+import { StackedWorkloadBar } from '@/components/faculty-assignments/StackedWorkloadBar';
+import type { FacultyRowRepairIntent } from '@/components/faculty/FacultyRowActions';
 
 /**
  * Weekly hours as a NUMBER at one decimal — the precision the per-section badge
@@ -119,6 +121,14 @@ interface FacultyProfileSheetProps {
 	onOpenChange: (open: boolean) => void;
 	sourceFreshness: string;
 	/**
+	 * A3 teacher-one (2026-09-30) — the row's repair intent this dialog was
+	 * opened with. The footer's `Edit in Teaching Load` link reproduces the exact
+	 * `facultyId` + `task=` pair the old row link and the deleted workload modal
+	 * both produced, so A6's routing receives the same intent. Null when the
+	 * caller supplied none (e.g. the assigned-classes cell opens without one).
+	 */
+	intent?: FacultyRowRepairIntent | null;
+	/**
 	 * Fix 25. When this dialog is opened as the in-page "Review teachers"
 	 * surface, the primary action is a repair route rather than a second
 	 * profile view. `onReviewLoad` is optional so an unmigrated caller keeps
@@ -149,6 +159,7 @@ export function FacultyProfileSheet({
 	open,
 	onOpenChange,
 	sourceFreshness,
+	intent,
 	onReviewLoad,
 	reviewLabel = 'Review teaching load',
 	permissions,
@@ -193,31 +204,39 @@ export function FacultyProfileSheet({
 	 */
 	const isPlaceholder = isPlaceholderSentinelName(faculty);
 
-	const weeklyHours = faculty.policyCreditedHours ?? 0;
-	const maxHours = faculty.maxHoursPerWeek;
-	const loadPercent = Math.round((weeklyHours / Math.max(maxHours, 1)) * 100);
-	const loadStatus = deriveLoadStatus(weeklyHours, maxHours);
-	
-	const loadState = !faculty.isActiveForScheduling
-		? 'Excluded'
-		: weeklyHours === 0 || subjectCount === 0
-		? 'No teaching load'
-		: loadStatus.label;
-	const loadColor =
-		loadState === 'No teaching load' || loadState === 'Excluded' ? 'bg-muted text-muted-foreground'
-		: loadStatus.status === 'over-cap' ? 'bg-rose-100 text-rose-700'
-		: loadStatus.status === 'overload-allowed' ? 'bg-orange-100 text-orange-700'
-		: loadStatus.status === 'below-standard' ? 'bg-amber-100 text-amber-700'
-		: 'bg-emerald-100 text-emerald-700';
-
-	const loadProgressColor = 
-		loadStatus.status === 'over-cap' ? 'bg-rose-500'
-		: loadStatus.status === 'overload-allowed' ? 'bg-orange-500'
-		: loadStatus.status === 'below-standard' ? 'bg-amber-500'
-		: loadState === 'No teaching load' || loadState === 'Excluded' ? 'bg-slate-300'
-		: 'bg-emerald-500';
-
 	const deptColor = getDepartmentColor(faculty.department);
+
+	/*
+	 * A3 teacher-one (2026-09-30) — THE REVIEW-LOAD FIGURES, ON TOP.
+	 *
+	 * These are the SAME numbers the deleted workload modal showed, read
+	 * through the same `buildTeacherWorkloadView` projection, so the merged
+	 * dialog cannot drift from what the modal used to render. `actualTeachingHours`,
+	 * the standard, the adviser/other-duty credit and the remaining room all come
+	 * from the roster summary; nothing is recomputed from a second authority.
+	 *
+	 * When the school year has no persisted workload policy the projection reports
+	 * a null standard, and the ONE fallback is the shared 30h policy constant —
+	 * never an invented per-teacher number.
+	 */
+	const workload = buildTeacherWorkloadView(faculty);
+	const loadProfile = workload.loadProfile;
+	if (!loadProfile) return null;
+	const teachingStandardHours = workload.teachingStandardHours ?? STANDARD_WEEKLY_TEACHING_HOURS;
+	const loadGuidance =
+		loadProfile.status === 'over-cap'
+			? `This teacher is above their ${faculty.maxHoursPerWeek}h weekly maximum. Move some of their classes to another teacher before making the schedule.`
+			: loadProfile.status === 'overload-allowed'
+			? `This teacher is above the ${teachingStandardHours}h standard but within their ${faculty.maxHoursPerWeek}h maximum. Check that the department head has agreed.`
+			: loadProfile.status === 'below-standard'
+			? `This teacher can take more classes (up to the ${teachingStandardHours}h standard).`
+			: 'This teacher is at the standard load. Nothing to do.';
+	/**
+	 * A3 teacher-one §3. The footer link's ONE form, carrying this teacher and the
+	 * intent's `task=` — the exact route the deleted modal's deep link used, and
+	 * the exact route the old row link produced. A6 owns this routing.
+	 */
+	const deepLink = `/teaching-load?facultyId=${faculty.id}${intent ? `&task=${intent.task}` : ''}`;
 
 	// Fix 25: when the parent supplies a handler the primary action stays in
 	// place (no navigation, so the roster keeps its filters/scroll/selection).
@@ -278,7 +297,7 @@ export function FacultyProfileSheet({
 				 * card's own, larger, floor.
 				 */
 				resizable
-				className="flex h-[70vh] min-h-[min(400px,90vh)] min-w-[min(500px,95vw)] w-[min(56rem,95vw)] max-w-[95vw] max-h-[90vh] flex-col gap-0 overflow-hidden p-0"
+				className="flex h-[70vh] min-h-[min(400px,90vh)] min-w-[min(500px,95vw)] w-[min(42rem,95vw)] max-w-[95vw] max-h-[90vh] flex-col gap-0 overflow-hidden p-0"
 				data-testid="faculty-profile-dialog"
 			>
 				<DialogHeader className="px-6 pt-6 pb-6 border-b">
@@ -292,7 +311,7 @@ export function FacultyProfileSheet({
 							<div className="flex flex-wrap items-center gap-2">
 								{/* Fix 22 (c10 re-issue): canonical `Last, First`, UPPERCASE for
 							    display. The stored name is unchanged. */}
-								<DialogTitle className="text-xl font-bold truncate">
+								<DialogTitle className="text-xl font-bold truncate" data-testid="faculty-profile-title">
 									{formatFacultyDisplayName(faculty)}
 								</DialogTitle>
 								{faculty.isClassAdviser && (
@@ -384,6 +403,47 @@ export function FacultyProfileSheet({
 				    scroll), and `px-6 pt-6` keeps content off the card edge now
 				    that the card itself is a clipping box. */}
 				<div className="min-h-0 flex-1 overflow-y-auto px-6 pt-6 space-y-8">
+					{/*
+					 * A3 teacher-one §2 — LOAD FIGURES ON TOP (Review load).
+					 *
+					 * Every figure here comes from the ONE shared projection
+					 * (`buildTeacherWorkloadView`), which is the same source the
+					 * deleted workload modal rendered, so the merged dialog
+					 * and the numbers it replaced cannot disagree. The load bar is
+					 * the shared `StackedWorkloadBar`, so this surface and the
+					 * Teaching Load inspector draw a load the same way (§8).
+					 */}
+					<div className="space-y-3 rounded-xl border border-border bg-muted/5 p-4" data-testid="teacher-load-summary">
+						<div className="flex flex-wrap items-center justify-between gap-2">
+							<h4 className="text-sm font-semibold text-muted-foreground">Review load</h4>
+							<span className="text-sm font-semibold tabular-nums" data-testid="workload-headline">
+								{loadProfile.actualTeachingHours}h a week · {teachingStandardHours}h standard
+							</span>
+						</div>
+						<StackedWorkloadBar
+							teachingHours={loadProfile.actualTeachingHours}
+							creditHours={loadProfile.equivalentHours}
+							maxHours={faculty.maxHoursPerWeek}
+							standardHours={teachingStandardHours}
+							showLegend={false}
+						/>
+						{loadProfile.equivalentHours > 0 && (
+							<div className="flex items-center justify-between text-sm">
+								<span className="text-muted-foreground">Adviser and other duties (credit)</span>
+								<span className="font-semibold tabular-nums">+{loadProfile.equivalentHours.toFixed(1)}h</span>
+							</div>
+						)}
+						<div className="flex items-center justify-between text-sm">
+							<span className="text-muted-foreground">Room for more classes</span>
+							<span className="font-bold tabular-nums text-emerald-600" data-testid="workload-remaining">
+								{loadProfile.remainingHours.toFixed(1)}h
+							</span>
+						</div>
+						<p className="text-sm text-muted-foreground" data-testid="workload-guidance">{loadGuidance}</p>
+					</div>
+
+					<Separator className="opacity-50" />
+
 					{/* Identity Section */}
 					<div className="space-y-4">
 						<h4 className="text-sm font-semibold text-muted-foreground">Roster identity</h4>
@@ -407,67 +467,31 @@ export function FacultyProfileSheet({
 
 					<Separator className="opacity-50" />
 
-					{/* Workload Section */}
-					<div className="space-y-4">
-						<h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Current weekly hours</h4>
-
-						<div className={`p-4 rounded-xl border flex flex-col gap-3 ${loadColor} bg-opacity-30 border-current border-opacity-10 shadow-sm`}>
-							<div className="flex items-center justify-between">
-								<div className="flex items-center gap-2">
-									<Clock className="size-4 opacity-70" />
-									<span className="text-sm font-bold">Total weekly hours</span>
-								</div>
-								<span className="text-lg font-bold tracking-tight">{weeklyHours}h <span className="text-xs font-normal opacity-70">/ {maxHours}h max</span></span>
-							</div>
-
-							<div className="h-2 w-full bg-black/5 rounded-full overflow-hidden">
-								<div
-									className={`h-full ${loadProgressColor} transition-all`}
-									style={{ width: `${Math.min(100, loadPercent)}%` }}
-								/>
-							</div>
-
-							<div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider">
-								<span>{loadPercent}% of the weekly maximum</span>
-								<span>{loadState}</span>
-							</div>
-							<div className="mt-2 space-y-1.5 border-t border-current/10 pt-3">
-								<div className="flex justify-between items-center text-xs font-bold opacity-80 uppercase tracking-wider">
-									<span>Class instruction</span>
-									<span>{faculty.sectionTeachingHours || 0}h</span>
-								</div>
-								{faculty.isClassAdviser && faculty.advisoryEquivalentHours > 0 && (
-									<div className="flex justify-between items-center text-xs font-bold opacity-80 uppercase tracking-wider">
-										<span>Class advising</span>
-										<span>{faculty.advisoryEquivalentHours}h</span>
-									</div>
-								)}
-								{faculty.ancillaryMinutesPerWeek > 0 && (
-									<div className="flex justify-between items-center text-xs font-bold opacity-80 uppercase tracking-wider">
-										<span>Ancillary tasks</span>
-										<span>{Math.round(faculty.ancillaryMinutesPerWeek / 6) / 10}h</span>
-									</div>
-								)}
-							</div>
-							{/* Phase 3.6: the 40h cap is now described as the absolute
-								maximum before ATLAS cannot generate -- plain DepEd
-								language instead of the old engineering term. */}
-							<p className="text-xs font-bold opacity-70 uppercase tracking-wider">The standard is {STANDARD_WEEKLY_TEACHING_HOURS}h. The {maxHours}h maximum is the absolute limit before ATLAS cannot generate the timetable.</p>
+					{/*
+					 * A3 teacher-one §2 — the profile's own "Current weekly hours"
+					 * card is GONE. Every figure it carried (the total, the
+					 * percentage bar, class instruction, advising, ancillary and the
+					 * standard/maximum sentence) is now the compact Review-load
+					 * block at the TOP of this dialog, read from the one shared
+					 * projection; repeating them beside it would be the §8 duplicate
+					 * the packet forbids.
+					 *
+					 * The Subjects / Sections stat cards STAY: they are a roster
+					 * census, not a load figure, and A5-RSC-4 (rotation-aware subject
+					 * counting) reads them here.
+					 */}
+					<div className="grid grid-cols-2 gap-4">
+						<div className="p-3 rounded-xl border bg-muted/20 flex flex-col gap-1">
+							<p className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
+								<BookOpen className="size-3 opacity-50" /> Subjects
+							</p>
+							<p className="text-2xl font-bold">{subjectCount}</p>
 						</div>
-
-						<div className="grid grid-cols-2 gap-4 pt-2">
-							<div className="p-3 rounded-xl border bg-muted/20 flex flex-col gap-1">
-								<p className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
-									<BookOpen className="size-3 opacity-50" /> Subjects
-								</p>
-								<p className="text-2xl font-bold">{subjectCount}</p>
-							</div>
-							<div className="p-3 rounded-xl border bg-muted/20 flex flex-col gap-1">
-								<p className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
-									<CalendarDays className="size-3 opacity-50" /> Sections
-								</p>
-								<p className="text-2xl font-bold">{sectionCount}</p>
-							</div>
+						<div className="p-3 rounded-xl border bg-muted/20 flex flex-col gap-1">
+							<p className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
+								<CalendarDays className="size-3 opacity-50" /> Sections
+							</p>
+							<p className="text-2xl font-bold">{sectionCount}</p>
 						</div>
 					</div>
 
@@ -668,11 +692,23 @@ export function FacultyProfileSheet({
 						<p className="text-xs leading-5 text-muted-foreground">Roster source: {sourceFreshness}. Refresh the teacher roster if this does not match the latest EnrollPro record.</p>
 					</div>
 
-					{/* Secondary Actions */}
+					{/*
+					 * A3 teacher-one §3 — the footer is EXACTLY TWO controls.
+					 * `Edit in Teaching Load` is the same deep link the deleted
+					 * workload modal carried (same route, same params, same label),
+					 * and `Close` replaces the old `Close profile`. The former
+					 * full-width primary button is gone: it duplicated this link.
+					 * There is no `More detail` control anywhere in this dialog.
+					 */}
 					<div className="pt-4 pb-8 flex flex-col gap-2">
-						{reviewAction('default', 'w-full h-10 gap-2 font-bold shadow-md uppercase tracking-wide text-xs', <ClipboardList className="size-4" />)}
-						<Button variant="secondary" className="h-10 text-muted-foreground font-bold uppercase tracking-wide text-xs" onClick={() => onOpenChange(false)}>
-							Close profile
+						<Button asChild variant="outline" className="h-10 gap-2 font-bold uppercase tracking-wide text-xs">
+							<Link to={deepLink} data-testid="faculty-profile-deep-link">
+								<ExternalLink className="size-4" />
+								Edit in Teaching Load
+							</Link>
+						</Button>
+						<Button variant="secondary" className="h-10 text-muted-foreground font-bold uppercase tracking-wide text-xs" onClick={() => onOpenChange(false)} data-testid="faculty-profile-close">
+							Close
 						</Button>
 					</div>
 				</div>

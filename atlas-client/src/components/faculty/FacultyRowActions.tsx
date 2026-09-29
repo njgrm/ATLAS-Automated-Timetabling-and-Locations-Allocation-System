@@ -22,7 +22,7 @@
  * FIX 22 — every `aria-label` in this file uses the shared uppercase display
  * formatter, so the accessible name matches the visible name (WCAG 2.5.3).
  */
-import { BookOpenCheck, Eye, Pencil, Trash2 } from 'lucide-react';
+import { BookOpenCheck, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { getFacultyLoadPresentation } from '@/components/faculty/FacultyRow';
 import { formatFacultyDisplayName } from '@/components/faculty/teacherNameDisplay';
@@ -78,14 +78,12 @@ export function getTeacherRepairIntent(teacher: FacultySummary): FacultyRowRepai
 type UseFacultyRowActionsArgs = {
 	/** Fix 25: opens the in-page workload modal. Receives the click so the page can capture the roster scroll offset. */
 	onReviewLoad: (teacher: FacultySummary, event: React.MouseEvent<HTMLElement>) => void;
-	onOpenProfile: (teacher: FacultySummary) => void;
 	onEditTemporary: (teacher: FacultySummary) => void;
 	onDeleteTemporary: (teacher: FacultySummary) => void;
 };
 
 export function useFacultyRowActions({
 	onReviewLoad,
-	onOpenProfile,
 	onEditTemporary,
 	onDeleteTemporary,
 }: UseFacultyRowActionsArgs) {
@@ -110,19 +108,6 @@ export function useFacultyRowActions({
 				</Button>
 			);
 		},
-		inlineSecondary: (teacher: FacultySummary) => (
-			<Button
-				variant="outline"
-				size="sm"
-				className="h-8 gap-1.5 px-2.5 text-xs font-bold"
-				onClick={() => onOpenProfile(teacher)}
-				aria-label={`View profile for ${formatFacultyDisplayName(teacher)}`}
-				data-testid="teacher-row-profile-action"
-			>
-				<Eye className="size-3.5" />
-				Profile
-			</Button>
-		),
 		secondary: (teacher: FacultySummary) => {
 			const actions: { label: string; icon: React.ReactNode; onSelect: () => void }[] = [];
 			if (teacher.isPlaceholder) {

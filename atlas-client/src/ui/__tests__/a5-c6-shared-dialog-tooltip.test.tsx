@@ -685,7 +685,19 @@ test('A5-23.2-C6 AUDIT: every confirm/alert dialog opts out, so none can become 
 	// takes the resizable default, and none carries its own `style={{ resize }}`.
 	const DATA_DIALOG_FILES: Record<string, string> = {
 		'components/subjects/SubjectCoverageSheet.tsx': 'Subject coverage',
-		'components/faculty/FacultyWorkloadModal.tsx': 'Assign teaching load',
+		/*
+		 * A3 teacher-one (2026-09-30) — SUPERSEDED ENTRY, RECORDED HERE.
+		 *
+		 * The deleted Review-load modal ('Assign teaching load') was one of the
+		 * five named targets. That dialog is merged INTO
+		 * `FacultyProfileSheet.tsx` (operator decision 9: Teacher Profile and
+		 * Review load are ONE dialog), which is still listed below and still
+		 * asserts the shared resizable contract — now for the merged surface. The
+		 * control is not removed; it is carried by the survivor's own entry.
+		 * The deleted path cannot stay in this map because `SRC_CODE` reads the
+		 * file, so the supersession is recorded as this comment and the assertion
+		 * that used to run on the deleted file runs on the survivor instead.
+		 */
 		'components/faculty/FacultyProfileSheet.tsx': 'Teacher profile',
 		'components/sections/SectionRoomMapModal.tsx': 'Assign Home Room',
 		'components/faculty/CreatePlaceholderDialog.tsx': 'Create temporary teacher',
