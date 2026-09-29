@@ -49,3 +49,10 @@ exit and reviews trends after every 3 rows; each process change is logged below 
   - The Playwright MCP now uses `--isolated`, one headless browser per run, so there is no shared-profile lock.
   - monitor.sh checks every 10 min, not 15. It now alarms on any tool call that has been running for more than 20 min in any session (hungtool.cjs, which reads :4097).
 - **Metric:** hung-call minutes per night. Target: under 30.
+
+## 08:10: E: reclaim (Lane C)
+- E: had 21 GiB free, below the 25 GiB warn line again after train 6 built.
+- Removed 15 worktrees. Each was merged into `origin/main`, had 0 tracked changes, and had 0 junctions (checked to depth 3). Removal was non-forced `git worktree remove`, then prune.
+- E: now has 33 GiB free.
+- Kept: 13 merged worktrees that contain junctions, which could share dependencies with a release; the release dirs `-4prod`, `-5` and `-6`; and all active lanes.
+- Live and staging ready: 200.
