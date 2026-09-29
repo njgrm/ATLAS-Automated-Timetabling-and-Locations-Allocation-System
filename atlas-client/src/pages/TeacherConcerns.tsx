@@ -258,27 +258,50 @@ export default function TeacherConcerns() {
 		const isCurrent = () => seq === loadSeqRef.current && isCurrentEpoch(token, epoch);
 		setLoadingConcern(true);
 		setConcernError(null);
-		const [record, runInputState] = await Promise.all([
-			fetchFacultyAvailability({ schoolId: actorSchoolId, schoolYearId, facultyId: selectedFacultyId }),
-			fetchLatestRunInputState(actorSchoolId, schoolYearId).catch(() => null),
-		]);
-		if (!isCurrent()) return;
-		setAvailability(record);
-		setInputState(runInputState);
-
-		/*
-		 * The room read is SEPARATE and is never allowed to masquerade as "no
-		 * timetable". `fetchConcernRoomState` maps only `NO_ACTIVE_DRAFT` to null;
-		 * anything else is a real failure and is shown as one, because a silent
-		 * catch here would render an outage as a calm, reassuring absence.
-		 */
 		try {
-			setRoomState(await fetchConcernRoomState({ schoolId: actorSchoolId, schoolYearId, facultyId: selectedFacultyId }));
-			setRoomError(null);
-		} catch {
+			const [record, runInputState] = await Promise.all([
+				fetchFacultyAvailability({ schoolId: actorSchoolId, schoolYearId, facultyId: selectedFacultyId }),
+				fetchLatestRunInputState(actorSchoolId, schoolYearId).catch(() => null),
+			]);
 			if (!isCurrent()) return;
-			setRoomState(null);
-			setRoomError('Could not read this teacher’s rooms just now. Reload to try again — nothing was changed.');
+			setAvailability(record);
+			setInputState(runInputState);
+
+			/*
+			 * The room read is SEPARATE and is never allowed to masquerade as "no
+			 * timetable". `fetchConcernRoomState` maps only `NO_ACTIVE_DRAFT` to null;
+			 * anything else is a real failure and is shown as one, because a silent
+			 * catch here would render an outage as a calm, reassuring absence.
+			 */
+			try {
+				setRoomState(await fetchConcernRoomState({ schoolId: actorSchoolId, schoolYearId, facultyId: selectedFacultyId }));
+				setRoomError(null);
+			} catch {
+				if (!isCurrent()) return;
+				setRoomState(null);
+				setRoomError('Could not read this teacher’s rooms just now. Reload to try again — nothing was changed.');
+			}
+		} finally {
+			/*
+			 * A3 p1 — THE LOADING FLAG WAS NEVER CLEARED, so this page dead-ended a
+			 * second way, independently of the inverted predicate.
+			 *
+			 * `setLoadingConcern(true)` had no counterpart. The render gate is
+			 * `loadingConcern && availability == null`, so the skeleton was only ever
+			 * escaped by an EXISTING record. A teacher with no availability record
+			 * yet — which is `{"availability": null}`, the normal state for any
+			 * teacher a scheduler is about to write for the first time — left the
+			 * page on a permanent skeleton: no grid, no "Anything else", no Save,
+			 * and no sentence, because none of them were rendered at all.
+			 *
+			 * That is the same user-visible class as the outage this packet was
+			 * written for, and it made the packet's own requirement unreachable:
+			 * the disabled-Save reason could never appear for exactly the teacher
+			 * who most needs to fill the form in. Clearing the flag in `finally`
+			 * ends it for every outcome, and the `isCurrent()` guard keeps a
+			 * superseded read from clearing a NEWER load's flag.
+			 */
+			if (isCurrent()) setLoadingConcern(false);
 		}
 	}, [actorSchoolId, schoolYearId, selectedFacultyId]);
 
