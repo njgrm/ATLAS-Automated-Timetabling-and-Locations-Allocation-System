@@ -5803,6 +5803,46 @@ RENDERED on real staging data / 0 dropped. NOT deployed — A4 owns every releas
 - **Next action (single):** A4 puts `0c3cf139` in the next train and runs the 2023-2024 staging rows — Generate
   enabled with the 50 gaps, the panel at ~3 lines, the run naming the gaps, and publication still refused.
 
+## Lane A8 — c4 "Cover a class" server (written only by Lane A8)
+
+**Server source for the cover flow is complete and independent-reviewed. NOT deployed, NOT seen rendered — A4
+owns every release (§14).** Worktree `E:/ATLAS-worktrees/lane-a8-c4-cover` (**`PRESERVE_FOR_DECISION`**), branch
+`work/a8-c4-cover-candidates`, base `5f181110`. **A6 c10 is coding against the contract NOW** — see the pinned
+section "A8 c4 (server) → A6 c10 (client): THE FIXED COVER CONTRACT" in `docs/handoffs/lane-c-to-a2.md`
+(`6c5987ed` + CORRECTION 1 `01fd64b3` + CORRECTION 2 `fbee9bdb`).
+
+**Delivered:** `POST/DELETE/GET /api/v1/faculty/:facultyId/subject-permissions` (officer-only, audit-logged,
+idempotent, cache-invalidated); `GET /api/v1/teaching-load/:schoolId/:schoolYearId/cover-candidates`
+(QUALIFIED → OTHER_DEPARTMENT → ANYONE, never a placeholder, over-cap rows present and flagged);
+`GET .../cover-open-classes` (a placeholder-owned class is **OPEN** — this is the server half of the Codex
+audit's "placeholders are counted as staffed" MAJOR); `POST .../cover-assignments` (one Serializable tx; 409
+`NEEDS_PERMISSION` then `grantPermission: true` writes the permission **and** the ownership together).
+No migration, no schema change, **no client file touched**.
+
+**Gates:** `tsc` 0 · `test:cover-candidates` 41/41 · teacherx-truth 20/20 · cap-rule 12/12 · placeholder-hire
+52/52 · ownership-drift 5/5 · one-load-definition 7/7 · grade-preference 12/12 · availability 12/12 ·
+DB-backed suggestion suites: `apply-parity` / `authority` / `authority-c03` **PASS** on a disposable
+`atlas_restore_drill_20260929_a8c4` (dropped, residue 0). QA round 1 `CORRECTION_REQUIRED` 13/14; round 2
+`44/46, blocked 0` with both BLOCKING findings closed by discriminating mutants.
+
+**Dated follow-ups (each needs a named owner; none blocks A6 c10):**
+- **2026-09-29 — `npm run test:server-suite` is intermittently red at 508/509** on
+  `src/__tests__/notification-inbox.test.ts:209` ("a dead durable listener never breaks the publish path"),
+  ~1 run in 3. **Not A8 c4's**: the file imports only the two notification services and appears **nowhere** in
+  this range. Owning lane A7. Proof it is not mine: `git diff origin/main...HEAD` contains no notification path.
+- **2026-09-29 — `teaching-load-suggestion-derived-demand-c03r2.test.ts` fails identically at BASE `5f181110`**
+  (`TypeError … 'findMany'` at `autoFill`'s `db().facultyGradePreference.findMany`). Proven by running it at base
+  in a scratch worktree, and independently re-proven statically by QA. It is **absent** from the `KNOWN_RED`
+  array in `atlas-server/scripts/run-db-suite.mjs`, which is currently **empty** and carries an orphaned comment
+  about a `department-authority-gates` entry that is not there. **Gate owner (Lane C / A4) to add both.**
+- **2026-09-29 — AUTH GAP, out of my range, routed: `faculty.router.ts` `PATCH /:id` has no
+  `requirePrivilegedRole`**, so any authenticated user can flip the blanket `canTeachOutsideDepartment` — which
+  is strictly broader authority than the officer-only `subject-permissions` surface A6's switch sits beside.
+  A one-line guard, but it is an **auth-boundary change and needs its own packet**; I did not touch it.
+
+**Next action (single):** A4 picks up the candidate for the next train and runs the **D-row browser proof** —
+the cover window itself is A6 c10's rendered evidence, not mine. Nothing else is owed by A8 c4.
+
 ## Lane A8 — Teaching Load shortage, server truth (written only by Lane A8)
 
 **`A8 ready for release at 195b52fe` (accepted candidate `39b2dcc7`). 0 fixes live and seen / 6 server items
