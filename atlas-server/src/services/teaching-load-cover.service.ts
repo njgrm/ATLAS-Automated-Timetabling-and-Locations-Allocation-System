@@ -272,16 +272,19 @@ async function readFacultySubjectVersions(
 	schoolYearId: number,
 	facultyIds: number[],
 	client?: Db,
-): Promise<Map<number, number>> {
+): Promise<Map<string, number>> {
 	const actor = client ?? db();
-	const versions = new Map<number, number>();
+	const versions = new Map<string, number>();
 	if (facultyIds.length === 0) return versions;
 	const rows = await actor.facultySubject.findMany({
 		where: { schoolId, schoolYearId, facultyId: { in: facultyIds } },
-		select: { facultyId: true, version: true },
+		select: { facultyId: true, subjectId: true, version: true },
 	});
-	for (const row of rows as Array<{ facultyId: number; version: number }>) {
-		versions.set(row.facultyId, row.version ?? 1);
+	for (const row of rows as Array<{ facultyId: number; subjectId: number; version: number }>) {
+		// Keyed by BOTH ids: `version` is the FacultySubject row for THIS subject,
+		// which is the row the cover write bumps. A teacher's version in some other
+		// subject must never be reported as this class's version.
+		versions.set(`${row.facultyId}:${row.subjectId}`, row.version ?? 1);
 	}
 	return versions;
 }
@@ -466,7 +469,7 @@ export async function listCoverCandidates(input: {
 			permissionGranted,
 			canTeachOutsideDepartment: member.canTeachOutsideDepartment === true,
 			qualificationAuthority: qualification.authority ?? null,
-			version: versions.get(member.id) ?? 1,
+			version: versions.get(`${member.id}:${subject.id}`) ?? 1,
 		};
 		row.reason = reasonFor({
 			tier,
