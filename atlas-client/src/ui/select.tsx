@@ -3,6 +3,34 @@ import * as SelectPrimitive from '@radix-ui/react-select';
 import { Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+/**
+ * AGENTS.md §8 "One look per control" — the ONE picker chrome, in `@/ui`.
+ *
+ * The operator's 2026-09-29 ruling: "Subject dropdowns look different from the
+ * Section and Teacher dropdowns", and the fix is not a per-page override but a
+ * single shared look. §8 is explicit that a page may not keep a local
+ * `className` override that changes a primitive's look, so the string lives HERE,
+ * next to the primitive, and every page adopts it by importing it.
+ *
+ * IT IS TEACHING LOAD'S `CONTROL_CHROME`, VERBATIM and in that order:
+ * `atlas-client/src/components/faculty-assignments/TeachingLoadFilterBar.tsx:65`
+ * (`h-9 rounded-xl border border-border/60 bg-background px-2.5 text-xs
+ * transition-colors hover:bg-muted/40`). That bar is the reference control the
+ * operator named, so the shared constant starts from its exact classes rather
+ * than from a fresh design. A5 owns the cross-page picker sweep and A6 owns the
+ * Teaching Load header; both adopt THIS constant, which is the handoff.
+ *
+ * WHY A STRING AND NOT A COMPONENT: the pickers differ in WIDTH and in whether
+ * they are a Radix `Select` or the one searchable combobox, and §8 also requires
+ * the same SEARCH BEHAVIOUR for the same control — so a wrapper component would
+ * have to paper over three real differences. `cn()`/tailwind-merge resolves each
+ * conflicting group (height, radius, border colour, padding, text size) in favour
+ * of the class passed last, which is exactly what `SelectTrigger` already does
+ * for its own base classes.
+ */
+export const SELECT_TRIGGER_PICKER_CLASS =
+	'h-9 rounded-xl border border-border/60 bg-background px-2.5 text-xs transition-colors hover:bg-muted/40';
+
 const Select = SelectPrimitive.Root;
 const SelectGroup = SelectPrimitive.Group;
 const SelectValue = SelectPrimitive.Value;

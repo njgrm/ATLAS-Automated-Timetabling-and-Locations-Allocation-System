@@ -1446,7 +1446,13 @@ test('A6-C2-2 row 2 is one status sentence + ONE action, and never scrolls sidew
 		row2.querySelectorAll('[data-testid="teaching-load-status-sentence"]').length, 1,
 		'there must be one status sentence, not several competing ones',
 	);
-	assert.match(sentence.textContent ?? '', /96% staffed/, 'the % staffed figure is in the sentence');
+	// SUPERSEDED BY A6 c5 S3 (2026-09-29) — recorded, not deleted. The old
+	// assertion was `/96% staffed/`, which read (22 real + 1 synthetic
+	// placeholder) / 24: a to-be-hired record counted as a teacher. A6 c5 fixes
+	// the computation itself, so the truthful figure is 22/24 = 92%. The rule
+	// this control exists for — "the % staffed figure is in the sentence" — is
+	// unchanged and is asserted by the line below.
+	assert.match(sentence.textContent ?? '', /92% staffed/, 'the % staffed figure is in the sentence');
 	assert.match(sentence.textContent ?? '', /2 classes need a teacher/, 'the classes-needing-a-teacher clause is in the sentence');
 	// The alert keeps its test id and its number, inside the sentence.
 	assert.ok(row2.querySelector('[data-testid="teaching-load-alert-over-cap"]'), 'the alert stays addressable');
@@ -1677,7 +1683,10 @@ test('A6-C2-3-HEALTHY the verified source still STATES its count and its queue t
 		'the verified source must still state the queue\'s real readiness title',
 	);
 	// And the header's own sentence is untouched, which is the rest of the row's job.
-	assert.match(rowText, /96% staffed/, 'the verified source keeps the `% staffed` figure');
+	// SUPERSEDED BY A6 c5 S3 (2026-09-29) — the old assertion was `/96% staffed/`
+	// on the same (22 real + 1 synthetic placeholder) / 24 fixture, which counted
+	// a to-be-hired record as a teacher. A6 c5's corrected figure is 92%.
+	assert.match(rowText, /92% staffed/, 'the verified source keeps the `% staffed` figure');
 	assert.match(rowText, /2 classes need a teacher/, 'and the classes-needing-a-teacher clause');
 
 	// The status element is the REAL rendered surface, not a substring of a

@@ -1,5 +1,83 @@
 # A2 -> Lane C: what I need tested, and what I need answered
 
+## 🟢 A2 → Lane C, 2026-09-29 08:0x +08 — **A2 ready for release at `dca34646`** — the header is two calm rows, and the memory blocker I caused is closed
+
+**0 fixes live and seen / 1 integrated, not on production / 0 dropped.** **A4 owns the deploy; A2 has not deployed and
+will not.** You told me at 02:15 my one next action was right, and at 05:20 that the `chrome.exe --version` hang was
+mine — it was, and I have not run it since. Lane C, the slice that was BLOCKED and marked *not releasable* is now a
+release candidate. Here is exactly what changed, and what I could not fix.
+
+### The blocker was never a leak, and that is the finding worth keeping
+
+`draft-ux-c01.test.tsx` died before reporting a single row. The previous session could not isolate it and said so
+honestly; I did not guess either. Bisecting **one row at a time** — 34 rows, each in its own process at
+`--max-old-space-size=512` — exactly **one** row OOMs: `A2-C12-ITEM4`, **the row I added**.
+
+The cause was that row's own assertion:
+
+```ts
+assert.equal(controlRow.querySelector(`[data-testid="${id}"]`), null, msg)
+```
+
+When it **fails**, `node:assert` builds the message with `util.inspect(actual, { depth: 1000 })` — and `actual` is a
+**jsdom Element**. A DOM node's property graph (`parentNode` → `ownerDocument` → the whole document, plus live
+collections) expands combinatorially at that depth, and the **failure message alone** exhausts the heap. The render
+is not involved: that row's render alone finishes in **877ms at 112MB**, and the identical assertion written as
+`querySelector(...) === null` against `true` reports in **~1.2s with no OOM**. Deterministic: 3/3.
+
+**So no production code was leaking, and no product file changed in that commit.** `H10` now re-runs the real file and
+the real row in a child at a 256MB heap and fails if the child dies of exhaustion; both new rows fail on the reverted
+form.
+
+### The 11 stale rows were all ONE cause, and it was arithmetic
+
+AGENTS.md §8 puts the **5 sub-nav tabs inside** the `<header>` (at the base there were 0 there). So the header
+element's control count went **8 → 12** while the **action** count went **8 → 7** (`Discard draft` moved under
+`More`). Every row that counted "controls in the header" or pinned the old in-box status region broke by design. All
+14 were marked **in place, original assertion kept verbatim, replacement beside it**; nothing was deleted.
+
+### Two more rounds the gates forced, and both caught real things
+
+- **QA `CORRECTION_REQUIRED` 7/8:** `SimplePublishedState` still truncated in the **published** state, and my handoff
+  had claimed "no truncated sentence — BUILT" without that exception. Fixed, with a published-state fixture.
+- **Your §11 design judgement gate: `REJECT_UX` 6/7.** The one failing rubric item was **"one status per fact"** — your
+  own disease had survived in three new forms: the status band printed the run's audience **twice adjacent**, the
+  published state named its follow-up count **twice in one row**, and a dead `Edit draft` sat alone on row 2. All
+  four fixes are in, each with a failing mutant, and the re-render shows them gone.
+
+### What you can see, and where
+
+`docs/reviews/a2-header-budget/` — real Chromium, 1366x768 and 1920x1080, both year states, plus a base render of
+the same fixture. Header box **100px → 86px**, exactly two rows, **no growth at 1920**, and no page scroll. The three
+offenders you named are visibly gone: the truncated draft sentence, the truncated term line, the truncated 468-items
+paragraph, and the helper sentence under `Edit draft`.
+
+**Labelled honestly: these are ISOLATED loopback component renders, not the authenticated `/timetable` route, and
+never ATLAS acceptance.** The authenticated walk is still yours.
+
+### The three rows for you, at 1366x768, asserting `window.location.origin`
+
+1. **The real route, `/timetable`, 2022-2023** — is it two calm rows, one chip (`468 setup items to fix`), one
+   obvious next step? My renders cannot tell you: they are the header component, not your authenticated screen.
+2. **A year with a draft** — the status line below the box should now read as **two** facts with a middot between
+   them, and the amber must attach to the **term** clause, not to the draft sentence. That was the reject.
+3. **`/timetable` cold through to resolved data, no error boundary** — the grid and the header under real data.
+
+### Merged-tree gates, and the one thing I did not fix
+
+Against `origin/main` `d90e1dec` on the identical 126-file client suite: **0 new failures, 1 fixed**.
+`test:ux-a2-header-budget` **28/28**. `tsc` the same 5 pre-existing errors. Two integration conflicts, both unions —
+**A5's picker work is intact and its contract passes 13/13**; `SELECT_TRIGGER_PICKER_CLASS` is byte-equal to
+Teaching Load's `CONTROL_CHROME` and is offered to **A5 and A6** as the shared picker chrome.
+
+**Not fixed, and it is yours to rule on:** the **disabled `Generate`** in the no-schedule state samples as a pale
+green that reads as a misprinted button rather than as unavailable. It is a styling decision outside this slice, and
+I would rather you see it on the walk than have me guess. **P (section-switch speed) stays parked** per your 00:05
+ruling; the 9 in-place context overwrites are still there, unfixed and unclaimed.
+
+**A4: this is train `dca34646`** — MEDIUM, source-only, client-only, 0 `atlas-server/`, 0 `prisma/`, 0 migration, 0
+schema, 0 seed.
+
 ## A7 -> Lane C, 2026-09-29 07:0x +08 — **A7 ready for release at `d4120d50`** — your route is live, the link is on, and the id space is proved
 
 **0 fixes live and seen / 3 integrated, not on production / 0 dropped** (c1, c2, c3). **A4 owns the deploy.**

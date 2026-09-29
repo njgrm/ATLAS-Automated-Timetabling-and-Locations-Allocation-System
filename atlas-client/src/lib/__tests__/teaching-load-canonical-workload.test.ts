@@ -321,6 +321,7 @@ const TL_POLICY_FREE_FILES = [
 	'../../hooks/useTeachingLoadUI.ts',
 	'../../hooks/useTeachingLoadData.ts',
 	'../../hooks/useTeachingLoadRouteIntent.ts',
+	'../../hooks/useCoverShortage.ts',
 	'../../pages/TeachingLoad.tsx',
 	'../../components/faculty-assignments/TeacherGridMode.tsx',
 	'../../components/faculty-assignments/WorkloadInspector.tsx',

@@ -32,6 +32,23 @@ type TeachingLoadRepairQueueProps = {
 	isReadOnly: boolean;
 	saving: boolean;
 	onPrimaryAction: (item: TeachingLoadRepairQueueItem) => void;
+	/**
+	 * A6 c5 §1 — the page's shortage line is showing on row 2.
+	 *
+	 * It exists to suppress ONE thing: the `FALLBACK_ITEM`. That fallback is what
+	 * this component renders when the queue has no items, and it claims
+	 * `Teaching Load looks ready · Ready for review`. During an outage — when
+	 * `useTeachingLoadRepairQueue` has deliberately removed the `missing-load`
+	 * row and therefore may return an EMPTY list — that fallback printed a
+	 * readiness claim directly beneath a line reading `MAPEH: 9 classes need a
+	 * teacher`. A queue that contradicts the line above it is worse than no queue
+	 * at all, so during a shortage the component renders nothing and the line is
+	 * the whole claim.
+	 *
+	 * Omitted or `false` keeps the fallback EXACTLY as it was, so every committed
+	 * control that mounts this component without the new prop is untouched.
+	 */
+	hasShortageLine?: boolean;
 };
 
 function taskTone(kind: TeachingLoadRepairTaskKind) {
@@ -110,7 +127,12 @@ export function TeachingLoadRepairQueue({
 	isReadOnly,
 	saving,
 	onPrimaryAction,
+	hasShortageLine = false,
 }: TeachingLoadRepairQueueProps) {
+	// A6 c5: an empty queue during a shortage renders NOTHING. See
+	// `hasShortageLine` for why the fallback had to be suppressed rather than
+	// reworded.
+	if (hasShortageLine && items.length === 0) return null;
 	const currentItem = items.find((item) => item.id === activeItemId) ?? items[0] ?? FALLBACK_ITEM;
 	const CurrentIcon = currentItem.kind === 'review-ready' ? CheckCircle2 : AlertTriangle;
 	const actionDisabled = saving || isReadOnly || Boolean(currentItem.disabledReason);

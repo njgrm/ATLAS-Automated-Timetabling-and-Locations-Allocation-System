@@ -25,6 +25,7 @@ import {
 	candidateRejectionsForResult,
 } from '@/lib/teaching-load-suggestion-diagnostics';
 import { TeachingLoadCandidateDiagnostics } from '@/components/faculty-assignments/TeachingLoadCandidateDiagnostics';
+import { PLACEHOLDER_TRUTH_LABEL } from '@/components/faculty-assignments/teachingLoadOutage';
 import {
 	NO_DEMAND_DESCRIPTION,
 	stillNeedRealTeacherNote,
@@ -92,6 +93,14 @@ function SuggestedRowsPreviewList({ rows }: { rows: Array<{ subjectCode: string;
 					{visibleRows.map((row, idx) => {
 						const config = ASSIGNMENT_TYPE_CONFIG[row.assignmentType] ?? ASSIGNMENT_TYPE_CONFIG.REAL_TEACHER;
 						const TypeIcon = config.icon;
+						// A6 c5 §3, surface 3 of 3. A `TEMPORARY_SUBSTITUTE` row
+						// used to render an EMPTY Teacher cell plus a violet chip —
+						// two signals, neither of which said the person does not
+						// exist. The cell now says the packet's own sentence, which
+						// is the same constant the roster row and the sections grid
+						// use, so the three surfaces cannot drift into three
+						// different silences.
+						const isPlaceholderRow = row.assignmentType === 'TEMPORARY_SUBSTITUTE';
 						return (
 							<div key={idx} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 px-3 py-2 text-xs border-b border-border/20 last:border-b-0 hover:bg-muted/20 transition-colors">
 								<Tooltip>
@@ -106,12 +115,26 @@ function SuggestedRowsPreviewList({ rows }: { rows: Array<{ subjectCode: string;
 									</TooltipTrigger>
 									<TooltipContent side="top">{row.sectionName}</TooltipContent>
 								</Tooltip>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<div className="text-muted-foreground truncate">{row.facultyName}</div>
-									</TooltipTrigger>
-									<TooltipContent side="top">{row.facultyName}</TooltipContent>
-								</Tooltip>
+								<div className="min-w-0">
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<div className={`truncate ${isPlaceholderRow ? 'font-semibold text-muted-foreground' : 'text-muted-foreground'}`}>
+												{isPlaceholderRow ? PLACEHOLDER_TRUTH_LABEL : row.facultyName}
+											</div>
+										</TooltipTrigger>
+										<TooltipContent side="top">
+											{isPlaceholderRow ? PLACEHOLDER_TRUTH_LABEL : row.facultyName}
+										</TooltipContent>
+									</Tooltip>
+									{isPlaceholderRow && (
+										<p
+											data-testid="teaching-load-suggestion-row-placeholder"
+											className="sr-only"
+										>
+											{PLACEHOLDER_TRUTH_LABEL}
+										</p>
+									)}
+								</div>
 								<div className={`flex items-center gap-1 shrink-0 rounded-md border px-1.5 py-0.5 text-xs font-bold uppercase ${config.className}`}>
 									<TypeIcon className="size-3" />
 									<span className="hidden sm:inline">{config.label}</span>

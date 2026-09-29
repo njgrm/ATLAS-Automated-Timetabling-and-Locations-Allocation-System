@@ -10,8 +10,9 @@ import { SimpleDriftBanner } from '../../components/timetable/simple/SimpleDrift
 import { SimpleMoreMenuContent } from '../../components/timetable/simple/SimpleMoreMenuContent';
 import { chooseRecommendedTask, simpleTutorialSteps, useSimpleTasks } from '../../components/timetable/simple/SimpleHeaderHelpers';
 import { TimetableSimpleHeader } from '../../components/timetable/TimetableSimpleHeader';
+import { setupItemsToFixLabel } from '../../components/timetable/simple/SimpleSetupSharedControls';
 import type { ScheduleReviewWorkspaceHeaderContext } from '../../components/timetable/buildScheduleReviewWorkspaceContexts';
-import { deriveTimetableCapabilities } from '../timetable-capabilities';
+import { deriveTimetableCapabilities, describeSetupState } from '../timetable-capabilities';
 import { deriveGenerationReadinessState } from '../timetable-generation-readiness';
 import { summarizeGenerationReadiness } from '../timetable-generation-readiness';
 import type { DraftReport, GenerationInputComparison } from '../../types';
@@ -583,10 +584,85 @@ test('the empty-state copy and the no-run tutorial agree with the rendered prima
 	assert.equal(actionStep.targetTestId, 'timetable-simple-generate-action');
 	// The tutorial targets the exact testid that the empty state renders.
 	assert.match(markup, new RegExp(`data-testid="${actionStep.targetTestId}"`));
-	// The raw engine diagnostic stays behind the tooltip: the operator sentence is
-	// rendered, and the technical reason is not leaked into it.
-	const operatorMatch = markup.match(/data-testid="timetable-curriculum-readiness-message"[^>]*>([^<]*)</);
-	assert.ok(operatorMatch, 'the operator readiness sentence must render');
-	assert.match(operatorMatch[1], /Setup needs attention before ATLAS can generate a timetable\./);
-	assert.doesNotMatch(operatorMatch[1], /SEARCH_LIMIT_UNRESOLVED/);
+	// SUPERSEDED 2026-09-29 (authority: AGENTS.md §8 "Header budget", the A2
+	// header-budget range) — these four assertions pinned the operator copy to the
+	// `timetable-curriculum-readiness-message` paragraph, a capped long
+	// `generationBlockedOperatorSentence` that the operator's screenshot showed cut
+	// off with an ellipsis. §8 now says the header is two calm rows with ONE
+	// status chip, and that the long explanation becomes a short link; the header
+	// filters that message id out of the band on purpose. The two claims they
+	// carried are UNCHANGED and are re-asserted on the surfaces that now hold them
+	// in the new row below: the operator-visible copy is plain words with no engine
+	// code, and the raw engine diagnostic still exists and is still reachable.
+	// Retained verbatim, per AGENTS.md §16.
+	// const operatorMatch = markup.match(/data-testid="timetable-curriculum-readiness-message"[^>]*>([^<]*)</);
+	// assert.ok(operatorMatch, 'the operator readiness sentence must render');
+	// assert.match(operatorMatch[1], /Setup needs attention before ATLAS can generate a timetable\./);
+	// assert.doesNotMatch(operatorMatch[1], /SEARCH_LIMIT_UNRESOLVED/);
+});
+
+test('the operator-visible readiness copy is plain words and the engine diagnostic is still reachable', () => {
+	// RENDERED row, restated 2026-09-29 (executor A2) — every claim about what the
+	// operator SEES is asserted on the rendered markup. The one claim that cannot
+	// be is the tooltip's content: a `@/ui` Tooltip portals its content and
+	// renders it only while it is open, so it is not in static markup and asserting
+	// it there would assert nothing. That half is a SOURCE claim, and it is the
+	// half that stops this row from passing because the information was deleted.
+	const readiness = blockedReadiness('SEARCH_LIMIT_UNRESOLVED', 'ALGORITHM_LIMIT');
+	const markup = renderHeader({ schoolYearId: 9, curriculumReadiness: readiness });
+
+	// 1 — the chip's visible label is the REAL count for this fixture. The expected
+	// string is derived from the fixture and the production helper, never invented
+	// here, so this asserts agreement between the render and the live count. The
+	// read is narrowed exactly as the header narrows it, so a non-blocked fixture
+	// would assert 0 rather than reach for a `diagnostic` that is not there.
+	const blockerCount = readiness.state === 'blocked' ? readiness.diagnostic.blockers.length : 0;
+	const labelMatch = markup.match(/data-testid="timetable-simple-setup-items-label"[^>]*>([^<]*)</);
+	assert.ok(labelMatch, 'the setup-blocked chip must render its short label');
+	assert.equal(labelMatch[1], setupItemsToFixLabel(blockerCount));
+	assert.match(
+		markup,
+		new RegExp(`data-setup-blocker-count="${blockerCount}"`),
+		'the chip reports the live blocker count it was given',
+	);
+	// the id the header deliberately filtered out must not have crept back
+	assert.doesNotMatch(markup, /data-testid="timetable-curriculum-readiness-message"/);
+
+	// 2 — NO engine code reaches the operator-visible copy: not in the visible
+	// label, and not in the chip's accessible name either.
+	const ariaMatch = markup.match(/data-testid="timetable-simple-readiness-chip"[^>]*aria-label="([^"]*)"/);
+	assert.ok(ariaMatch, 'the readiness chip must carry an accessible name');
+	assert.equal(ariaMatch[1], `${setupItemsToFixLabel(blockerCount)}: open the list of what to fix`);
+	for (const [what, text] of [['the visible label', labelMatch[1]], ['the chip aria-label', ariaMatch[1]]] as const) {
+		assert.doesNotMatch(text, /SEARCH_LIMIT_UNRESOLVED|ALGORITHM_LIMIT/, `${what} must not carry this fixture's engine codes`);
+		assert.doesNotMatch(text, /\b[a-z]+(?:_[a-z]+)+\b/, `${what} must not carry snake_case engine codes`);
+	}
+
+	// 3 — THE INFORMATION WAS NOT DELETED. The raw engine diagnostic for this
+	// fixture still exists, still names the blocker, and is still handed to the
+	// chip control that discloses it through the `@/ui` Tooltip.
+	const diagnostic = describeSetupState(readiness).message;
+	assert.match(
+		diagnostic,
+		/SEARCH_LIMIT_UNRESOLVED/,
+		'the raw engine diagnostic still exists and still names the code',
+	);
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	assert.match(
+		header,
+		/diagnostic=\{setupBlockedDiagnostic\}/,
+		'the header hands the raw diagnostic to the chip control',
+	);
+	assert.match(
+		header,
+		/headerMessages\.filter\(\(message\) => message\.id !== 'timetable-curriculum-readiness-message'\)/,
+		'and the old paragraph is filtered out of the band on purpose, not lost',
+	);
+	const actions = source('src/components/timetable/simple/SimpleHeaderActions.tsx');
+	assert.match(actions, /if \(!diagnostic\) return button;/, 'every other state renders the control unchanged');
+	assert.match(
+		actions,
+		/<TooltipContent[^>]*>[\s\S]*?<span className="mt-1 block">\{diagnostic\}<\/span>[\s\S]*?<\/TooltipContent>/,
+		'the diagnostic is the Tooltip content, so it is reachable on the control itself',
+	);
 });
