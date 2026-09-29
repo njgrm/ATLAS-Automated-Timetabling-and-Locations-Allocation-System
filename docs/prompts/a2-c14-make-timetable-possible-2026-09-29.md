@@ -37,3 +37,12 @@ The demo story ends in a generated timetable, reviewed and printed. Today that i
 ## Rules
 - Shell calls are force-killed at 20 min: run builds, suites and generation measurements detached and poll.
 - Previews only via `scripts/dev/start-preview.ps1`; stop only processes you started.
+
+## Addendum 11:15 — clue from A3 c13's close
+A3 pressed Teacher Concerns' Re-check on staging: 0 writes, term still unresolved. A3's reading: clearing it is the
+**term-cache apply** (see `docs/handoffs/term-cache-catchup-apply-packet-c01.md` and the rr-term-cache handoffs), a
+HIGH action. If that is the root cause: run it on staging first with the HIGH review, then on live with a backup and
+Lane C's go, and make sure the product can trigger it itself (a scheduler must never be stuck here). Staging also
+returns `404 NO_RUNS` for room requests (no draft run yet), which your generate fix unblocks.
+Also yours: `test:timetable-ux-rehaul` is 33/35 on main (two rows assert `<SimpleDriftBanner` in a file that no
+longer has it) — make it green, name which side was wrong.
