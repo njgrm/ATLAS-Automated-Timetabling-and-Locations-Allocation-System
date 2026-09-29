@@ -250,12 +250,25 @@ const BASE_UNVERIFIED: Record<string, string> = {
 	cached: 'Unverified \u2014 EnrollPro is not reachable, so this figure is withheld.',
 };
 
-/** The four plain sentences item 1.4 asks for, byte-for-byte. */
+/**
+ * The four plain sentences item 1.4 asks for, byte-for-byte.
+ *
+ * A6 c11 (2026-09-29) SUPERSEDED the `cached` ENTRY ONLY — the prior value is
+ * kept above this table's comment history in the same file and was
+ * `These numbers come from the last saved roster, not the current one.`
+ * It repeated, in a second vocabulary, the fact `TeachingLoadStaffingFigure`
+ * already prints in one place with its date (`From the saved roster (29 Sept)`),
+ * so a scheduler read it twice on one header. The replacement keeps the OTHER
+ * half of the claim — that the figures have not been CHECKED against what is on
+ * the roster now — which the grey line never says. The `offline`, `refreshing`
+ * and `none` entries name their own causes and are untouched: three different
+ * failures, and blanking them would have been a second lie.
+ */
 const PLAIN_UNVERIFIED: Record<string, string> = {
 	offline: 'ATLAS is offline, so these numbers cannot be checked.',
 	refreshing: 'ATLAS is checking the live roster now, so these numbers are not confirmed yet.',
 	none: 'No live Teaching Load source is available, so these numbers cannot be checked.',
-	cached: 'These numbers come from the last saved roster, not the current one.',
+	cached: 'These numbers have not been checked against the current roster.',
 };
 
 const UNVERIFIED_STATES: Array<{ key: string; input: { dataSource: any; isOnline: boolean } }> = [
@@ -995,6 +1008,28 @@ test('A6C6-5 MUTANT ROW: the four withheld statuses are plain sentences with no 
 	assert.equal(teachingLoadUnverifiedReason({ dataSource: 'live', isOnline: false } as never), 'ATLAS is offline');
 	assert.equal(teachingLoadUnverifiedReason({ dataSource: 'refreshing', isOnline: true } as never), 'ATLAS is checking EnrollPro now');
 	assert.equal(teachingLoadUnverifiedReason({ dataSource: 'none', isOnline: true } as never), 'no live Teaching Load source is available');
+
+	// A6 c11 — THE REPLACEMENT INVARIANT, and it is stronger than the table entry
+	// it replaces. The `cached` sentence must not restate the fact the figure's
+	// grey line already states (`From the saved roster (29 Sept)`), because on one
+	// header a scheduler was reading the saved-roster fact twice, in two
+	// vocabularies, and the duplicate carried no date.
+	assert.doesNotMatch(
+		produced.cached,
+		/saved roster/i,
+		'A6 c11: the withheld sentence must not repeat the figure\'s grey saved-roster line',
+	);
+	assert.match(
+		produced.cached,
+		/not been checked against the current roster/i,
+		'A6 c11: it must say the half of the claim the grey line does not — that the figures are unchecked',
+	);
+	// The other three states are untouched, and this is what keeps that true: a
+	// fix that blanked them would have been a second lie, so their causes are
+	// asserted here rather than assumed.
+	assert.match(produced.offline, /ATLAS is offline/, 'A6 c11: the offline sentence still names what is down');
+	assert.match(produced.refreshing, /checking the live roster now/, 'A6 c11: the refreshing sentence still names the check in progress');
+	assert.match(produced.none, /No live Teaching Load source is available/, 'A6 c11: the none sentence still names the missing source');
 });
 
 /* ═══════════════ A6C6-6 — ITEM 5: plain lead, technical detail behind hover ═══════ */

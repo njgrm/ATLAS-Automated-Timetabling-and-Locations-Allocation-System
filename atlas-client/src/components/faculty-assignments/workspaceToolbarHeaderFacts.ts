@@ -116,14 +116,44 @@ export function buildTeachingLoadPrimaryAction(input: {
  * State-driven alert chip: surfaces only when something needs attention.
  * Priority: above-weekly-maximum classes (generation blocker) > excess teaching
  * load (actual teaching above the standard) > temporary teacher placeholders.
+ *
+ * A6 c11 — THIS IS A FIGURE, NOT A CONTROL, AND THE TYPE SAYS SO.
+ *
+ * The model used to carry `onClick` and `disabled`, which is what
+ * `docs/prompts/cover-class-flow-2026-09-29.md` calls "a `<span>` whose onClick
+ * is dropped": `WorkspaceToolbar` rendered a bare `<span className="… font-bold
+ * text-destructive">· {label}</span>`, so the model promised an action the
+ * surface silently discarded and a scheduler pressing the chip got nothing. A
+ * model that claims a capability no render honours is worse than either honest
+ * shape, because every future surface inherits the lie.
+ *
+ * THE TWO HONEST SHAPES WERE AVAILABLE AND ONE OF THEM WAS RULED OUT. The chip
+ * could have become a real `@/ui/button` — but row 2 holds exactly ONE action,
+ * the repair queue's `Review staff workload`, and
+ * `a6-teaching-load-surface` `A6-C2-2` asserts `row2Buttons.length === 1`. A
+ * second button there breaks the header's "one primary action" budget that A6 C2
+ * (Major 1) was written to establish, and the operator's own review found that
+ * budget cramped. So the chip is PLAIN TEXT and the model no longer claims an
+ * action.
+ *
+ * Nothing is lost by the subtraction, and that is the reason it is safe: each of
+ * these three facts already has a control on the same row. The repair queue in
+ * `stateLineSlot` prints one `over-cap` item per teacher above the maximum and
+ * one `placeholder` item per to-be-hired record, each with its own action and
+ * its own review. This chip was always a DUPLICATE of those rows — the same
+ * reason A6 c5 removed it beside a shortage line — so it is a summary of work
+ * that is already actionable one row below, not a front door of its own.
  */
 export type TeachingLoadAlertChip = {
 	key: string;
 	label: string;
 	tone: 'danger' | 'warning';
+	/**
+	 * What the figure MEANS. It must not promise an action the surface does not
+	 * perform, and it must not say "open the filtered list", because nothing here
+	 * opens a list.
+	 */
 	tooltip: string;
-	onClick: () => void;
-	disabled: boolean;
 	testId: string;
 };
 
@@ -132,18 +162,14 @@ export function buildTeachingLoadAlertChip(input: {
 	excessTeachingCount: number;
 	policyReady: boolean;
 	syntheticPlaceholderPairs: number;
-	onShowExcessTeachingLoad: () => void;
-	onShowTemporarySubstitutes: () => void;
 }): TeachingLoadAlertChip | null {
-	const { overCapCount, excessTeachingCount, policyReady, syntheticPlaceholderPairs, onShowExcessTeachingLoad, onShowTemporarySubstitutes } = input;
+	const { overCapCount, excessTeachingCount, policyReady, syntheticPlaceholderPairs } = input;
 	if (overCapCount > 0) {
 		return {
 			key: 'overcap',
 			label: `Above weekly max: ${overCapCount}`,
 			tone: 'danger',
-			tooltip: 'Active teachers above the weekly maximum. Review the filtered teacher list and move classes before generating.',
-			onClick: onShowExcessTeachingLoad,
-			disabled: false,
+			tooltip: 'Active teachers above the weekly maximum. Each one is listed with a fix beside this chip. Move classes before generating.',
 			testId: 'teaching-load-alert-over-cap',
 		};
 	}
@@ -153,8 +179,6 @@ export function buildTeachingLoadAlertChip(input: {
 			label: `Excess teaching load: ${excessTeachingCount}`,
 			tone: 'warning',
 			tooltip: 'Active teachers with actual teaching above the standard. Advisory credit never counts toward this figure.',
-			onClick: onShowExcessTeachingLoad,
-			disabled: false,
 			testId: 'teaching-load-alert-excess',
 		};
 	}
@@ -163,9 +187,7 @@ export function buildTeachingLoadAlertChip(input: {
 			key: 'teacherx',
 			label: `Temporary substitutes: ${syntheticPlaceholderPairs}`,
 			tone: 'warning',
-			tooltip: 'Temporary substitutes are filling load rows. Open the filtered teacher list to replace them before generating.',
-			onClick: onShowTemporarySubstitutes,
-			disabled: false,
+			tooltip: 'To-be-hired records are filling load rows, so those classes have no real teacher yet. Replace them before generating.',
 			testId: 'teaching-load-alert-teacher-x',
 		};
 	}
