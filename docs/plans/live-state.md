@@ -453,6 +453,21 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **— CUTOVER TARGET, recorded 2026-09-29 ahead of the cutover by Lane A4 (AGENTS.md §13 — a pin is a commit, not a
+  description). Required by `deploy-runner.ps1` `Assert-LiveReleaseRecorded`, which fails closed without it. Target
+  release `e75d6b8f` (full `e75d6b8f5a430578c551e4177d7cc6f065db697c`), rollback basis `3216d383` (full
+  `3216d383ce033a3447067255bbe554910fb78595`, the incumbent).** `origin/main` has moved past the pin (it is an
+  **ancestor** of main, direction FORWARD) and the pin is **not** reopened: a pinned release waits for the next train,
+  and main moving does not change what ships. Target tree `E:\ATLAS-staging\e75d6b8f5a430578c551e4177d7cc6f065db697c`
+  (HEAD == pin, `environmentProof.sourceDir` == pin, own dependency trees), currently serving staging on 5101/5274 and
+  verified built. Train 9 = **140 paths** vs `3216d383` (75 client, 4 server, 54 docs), **0 `prisma/`** @ no migration
+  (11 before and after). Staging leg ran first at the SAME pin (`STAGING_DEPLOYED` 159.3 s, `SNAPSHOT_REFRESHED`, live
+  signature `1138|499|11` unchanged) and Lane C's Codex staging walk returned **5/8 with no real blocker** — the single
+  BLOCKER row is the true, dismissible rollover notice 2022-2023 -> 2023-2024, the false 2029-2030 banner A7 c7 fixed is
+  gone, and the other two FAILs are UX items routed to train 10. Rollback is a one-step supervised reset to
+  `E:\ATLAS-worktrees\lane-a4-release-20260929-8prod` @ `3216d383`, verified clean, both `dist`s present, 0 reparse
+  points, **currently serving live**.
+
 - **— LIVE: `3216d383ce033a3447067255bbe554910fb78595` @ DEPLOYED TO PRODUCTION 2026-09-29 11:21 +08 by Lane A4
   (train 8) on Lane C GO. Rollback basis `e9ddda71` (the incumbent).**
 
