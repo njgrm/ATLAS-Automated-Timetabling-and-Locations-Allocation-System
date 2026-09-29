@@ -234,10 +234,56 @@ type SectionInfo = {
 type SubjectSummary = {
 	code: string;
 	name: string;
+	/**
+	 * A3 c16: what the roster prints. The NAME leads. This is a separate field from
+	 * `code` on purpose: `code` is still the React key and still the "No sections yet"
+	 * filter, and those are identifiers, not labels.
+	 */
+	displayName: string;
+	/** A3 c16: the code, and only when it says something the name does not. */
+	codeDetail: string;
 	sectionCount: number;
 	gradeRange: string;
 	sections: SectionInfo[];
 };
+
+/**
+ * A3 c16 (D2) - the plain subject name, and never a bare identifier.
+ *
+ * The roster cell used to read `STE_APPLIED_PHYS 1` and `SUBJ#12` while the name
+ * ("Applied Physics") sat unread on the same record. A scheduler recognises a subject
+ * by its name, so the name leads. The code is the fallback for a record whose name is
+ * blank, and a row with no subject record at all says so in words instead of printing
+ * an internal id.
+ *
+ * Modelled here rather than in JSX so "no code leads a cell" is a testable table:
+ * if someone reintroduces a code at a render site, these helpers still hold.
+ */
+export function facultySubjectDisplayName(
+	subject: { code?: string | null; name?: string | null } | null | undefined,
+): string {
+	const name = subject?.name?.trim();
+	if (name) return name;
+	const code = subject?.code?.trim();
+	if (code) return code;
+	return 'Unknown subject';
+}
+
+/**
+ * A3 c16 (D2) - the muted detail under a subject, following
+ * `tlHistorySubjectCodeDetail` in `src/lib/teaching-load-history-plain.ts`.
+ *
+ * A code is acceptable as a secondary detail under a name that leads, and nowhere
+ * else. Returning `''` when the label already IS the code is what makes "the code
+ * appears once" true by construction; the view renders nothing when this is empty.
+ */
+export function facultySubjectCodeDetail(
+	subject: { code?: string | null; name?: string | null } | null | undefined,
+): string {
+	const code = subject?.code?.trim();
+	if (!code) return '';
+	return code.toLowerCase() === facultySubjectDisplayName(subject).trim().toLowerCase() ? '' : code;
+}
 
 function buildSubjectSummaries(assignments: FacultyAssignmentRecord[]): SubjectSummary[] {
 	return assignments
@@ -256,8 +302,13 @@ function buildSubjectSummaries(assignments: FacultyAssignmentRecord[]): SubjectS
 				? `GR${gradeNums[0]}`
 				: `GR${gradeNums[0]}–GR${gradeNums[gradeNums.length - 1]}`;
 			return {
+				// A3 c16: `code` is the identity (React key, "No sections yet" filter),
+				// not the label. A missing subject record keeps a synthetic key but must
+				// never be printed.
 				code: a.subject?.code ?? `SUBJ#${a.subjectId}`,
 				name: a.subject?.name ?? '',
+				displayName: facultySubjectDisplayName(a.subject),
+				codeDetail: facultySubjectCodeDetail(a.subject),
 				sectionCount: a.sections.length,
 				gradeRange,
 				sections: sectionInfos,
@@ -287,8 +338,13 @@ function AssignmentBreakdownPopover({ assignments }: { assignments: FacultyAssig
 					{summaries.map((s) => (
 						<div key={s.code} className="flex items-center justify-between gap-2">
 							<div className="flex items-center gap-1.5 min-w-0">
-								<Badge variant="outline" className="h-4 shrink-0 px-1 text-[0.6rem] font-bold">{s.code}</Badge>
-								{s.gradeRange && <span className="text-muted-foreground">{s.gradeRange}</span>}
+								{/* A3 c16: the name leads in plain type. It was a code chip
+								 * (`h-4 text-[0.6rem]`), which made a 9.6px internal token the
+								 * loudest thing in the row; the name reads as a name and the code,
+								 * when it adds something, is a muted detail beside it. */}
+								<span className="min-w-0 font-medium">{s.displayName}</span>
+								{s.codeDetail && <span className="shrink-0 text-muted-foreground">{s.codeDetail}</span>}
+								{s.gradeRange && <span className="shrink-0 text-muted-foreground">{s.gradeRange}</span>}
 							</div>
 							<span className="shrink-0 font-semibold tabular-nums">{s.sectionCount} section{s.sectionCount === 1 ? '' : 's'}</span>
 						</div>
@@ -300,9 +356,9 @@ function AssignmentBreakdownPopover({ assignments }: { assignments: FacultyAssig
 						<div className="flex flex-wrap">
 							{assignments
 								.filter((a) => a.sections.length === 0 && a.subject?.code)
-								.map((a) => (
-									<Badge key={a.id} variant="outline" className="mr-1 mt-1 h-4 px-1 text-[0.6rem] font-bold">{a.subject.code}</Badge>
-								))}
+							.map((a) => (
+								<Badge key={a.id} variant="outline" className="mr-1 mt-1 h-4 px-1 text-[0.6rem] font-bold">{facultySubjectDisplayName(a.subject)}</Badge>
+							))}
 						</div>
 					</div>
 				)}
@@ -532,7 +588,7 @@ export function FacultyAssignedClassesCell({ faculty, onClick }: { faculty: Facu
 		return <span className="text-xs text-muted-foreground">No classes assigned</span>;
 	}
 
-	// Single subject: show code + section names
+	// Single subject: show the subject NAME + section names (A3 c16: was the code)
 	if (summaries.length === 1) {
 		const s = summaries[0];
 		const shownSections = s.sections.slice(0, 2);
@@ -540,7 +596,7 @@ export function FacultyAssignedClassesCell({ faculty, onClick }: { faculty: Facu
 
 		return (
 			<Wrapper {...wrapperProps}>
-				<span className="font-semibold">{s.code}</span>
+				<span className="font-semibold">{s.displayName}</span>
 				{' · '}
 				<span className="text-muted-foreground">{s.sectionCount} section{s.sectionCount === 1 ? '' : 's'}</span>
 				{s.sections.length > 0 && (
@@ -571,8 +627,8 @@ export function FacultyAssignedClassesCell({ faculty, onClick }: { faculty: Facu
 			<div>
 				{shown.map((s, i) => (
 					<span key={s.code}>
-						{i > 0 && <span className="text-muted-foreground">, </span>}
-						<span className="font-semibold">{s.code}</span>
+					{i > 0 && <span className="text-muted-foreground">, </span>}
+					<span className="font-semibold">{s.displayName}</span>
 						{' '}{s.sectionCount}
 					</span>
 				))}
@@ -691,7 +747,7 @@ export function FacultyMobileCard({
 				>
 					{summaries.length === 1
 						? <>
-							<span><span className="font-semibold text-foreground">{summaries[0].code}</span> · {summaries[0].sectionCount} section{summaries[0].sectionCount === 1 ? '' : 's'}</span>
+							<span><span className="font-semibold text-foreground">{summaries[0].displayName}</span> · {summaries[0].sectionCount} section{summaries[0].sectionCount === 1 ? '' : 's'}</span>
 							{summaries[0].sections.length > 0 && (
 								<div className="mt-0.5">
 									{summaries[0].sections.slice(0, 2).map((sec, i) => (
@@ -705,7 +761,7 @@ export function FacultyMobileCard({
 							)}
 						</>
 						: <>
-							<span>{summaries.slice(0, 2).map((s) => `${s.code} ${s.sectionCount}`).join(', ')}{summaries.length > 2 ? ` +${summaries.length - 2} more` : ''}</span>
+							<span>{summaries.slice(0, 2).map((s) => `${s.displayName} ${s.sectionCount}`).join(', ')}{summaries.length > 2 ? ` +${summaries.length - 2} more` : ''}</span>
 							{summaries[0].sections.length > 0 && (
 								<div className="mt-0.5">
 									<span className="text-foreground/70">Sections: </span>
