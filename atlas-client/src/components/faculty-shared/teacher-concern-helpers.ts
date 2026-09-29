@@ -7,6 +7,9 @@
  * the explicit regenerate/revision destinations.
  */
 import { describeRunInputDrift, type RunInputDrift } from '@/components/timetable/timetableDriftRouting';
+import { describeSavedTermSource, describeSchoolYearSource, describeUnresolvedTermReason } from '@/lib/enrollpro-public-settings';
+import type { ActiveTermAuthorityResolution } from '@/lib/active-term-authority';
+import { resolveVerifiedActiveTermIndex } from '@/lib/timetable-data/timetablePrefetch';
 import type { FacultyAvailabilityRecord, GenerationInputComparison } from '@/types';
 
 export const CONCERN_NOTES_HEADING = 'Notes for the scheduler';
@@ -260,6 +263,16 @@ export type ConcernSaveCounts = {
  * THE CONFIRMATION — one plain sentence naming what was saved, the way the
  * brief asks ("Saved John's availability, 2 room needs and 3 notes"). Only the
  * parts that were really written are named; a count is never invented.
+ *
+ * A3 p1 — THE RECEIPT MUST BE TRUE ABOUT THE NEXT TIMETABLE. Save carries
+ * availability through save -> submit -> review, and generation reads only
+ * `status: 'REVIEWED'` (faculty-availability.service.ts:346), so a successful
+ * save DOES change what the next timetable uses and now says so. Two cases must
+ * NOT claim it:
+ *   - nothing was written (no windows, no room needs, no note): there is no
+ *     record for the next timetable to use, so the sentence says that instead;
+ *   - the server saved but could not bind (`bindFailure`): the refusal is real
+ *     information and is stated after the save, exactly as before.
  */
 export function describeSavedConcern(counts: ConcernSaveCounts): string {
 	const { teacherName, availabilityWindows, roomNeeds, hasNote, bindFailure } = counts;
@@ -268,11 +281,30 @@ export function describeSavedConcern(counts: ConcernSaveCounts): string {
 	if (roomNeeds > 0) parts.push(`${roomNeeds === 1 ? '1 room need' : `${roomNeeds} room needs`}`);
 	if (hasNote) parts.push('your note');
 
-	const what = parts.length > 0 ? parts.join(', ') : 'nothing yet';
-	const head = `Saved ${teacherName}: ${what}.`;
-	if (!bindFailure) return head;
-	// The save succeeded and the refusal is real information, so both are said.
-	return `${head} ATLAS could not yet make it count for building the timetable: ${bindFailure}`;
+	/*
+	 * A3 p1 correction round 1, N6 — THE EMPTY CASE IS STILL A REAL SAVE.
+	 *
+	 * Observed on staging: saving an untouched form PUT -> submit -> review and
+	 * the server returned a stored `status: "REVIEWED"` record with `slots: []`
+	 * and `notes: null`. The header chip therefore reads "Saved" and it is
+	 * telling the truth. So this receipt must agree that a record now exists,
+	 * while still refusing to claim the next timetable will use it: a record
+	 * with no slots adds no exclusion, so nothing about the timetable changes.
+	 *
+	 * Round 1 of this correction asserted the opposite ("Nothing to save for X
+	 * yet."), which is what QA caught: it printed a false claim directly beside a
+	 * true one. Corrected here, at the cause, rather than by silencing the chip.
+	 */
+	if (parts.length === 0) {
+		return `Saved an empty set of preferences for ${teacherName}: there was nothing to record, so the next timetable is unchanged.`;
+	}
+
+	const head = `Saved ${teacherName}: ${parts.join(', ')}.`;
+	if (bindFailure) {
+		// The save succeeded and the refusal is real information, so both are said.
+		return `${head} ATLAS could not yet make it count for building the timetable: ${bindFailure}`;
+	}
+	return `${head} ATLAS will use this when it builds the next timetable.`;
 }
 
 /**
@@ -294,4 +326,182 @@ export function concernSaveStateTone(input: { selected: boolean; saved: boolean;
 	if (!input.selected) return 'outline';
 	if (input.bindFailure) return 'warning';
 	return input.saved ? 'success' : 'outline';
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * A3 p1 — WHY SAVE IS OFF, AND THE TERM BINDING.
+ *
+ * THE DEFECT THIS EXISTS TO END
+ * =============================
+ * On staging, Teacher Preferences rendered a healthy teacher's grid with Save
+ * and "Anything else" disabled and NO reason anywhere on the page. Only
+ * `termUnresolved` explained itself, and the one case that actually happened
+ * (`schoolYearId == null` from a discarded term read) was exactly the case that
+ * said nothing. A disabled control with no reason is the defect AGENTS §8 calls
+ * a dead end.
+ *
+ * THE INVARIANT, which is the whole point
+ * ======================================
+ * `reason` is non-null if and only if `writesDisabled`. One function computes
+ * both, so the flag the button reads and the sentence the operator reads can
+ * never disagree, and the pairing is decidable without a browser.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Where the page is in resolving the active school year + verified ordered term.
+ * `PENDING` covers the window between "effect started" and "resolution landed",
+ * which is the window a discarded read leaves behind.
+ */
+export type ConcernYearResolution = 'PENDING' | 'RESOLVED' | 'FAILED';
+
+export type ConcernSaveAvailabilityInput = {
+	actorSchoolId: number | null;
+	schoolYearId: number | null;
+	activeTermIndex: number | null;
+	selectedFacultyId: number | null;
+	yearResolution: ConcernYearResolution;
+	/*
+	 * DELIBERATELY NOT AN INPUT (A3 p1 correction round 1, B1 + B2).
+	 *
+	 * The page's `unresolvedTermReason` is the shared DETAILED string, and it used
+	 * to be concatenated into the Save-row sentence. That printed one sentence
+	 * twice on one screen and leaked `EnrollPro reported ${code}` into the row.
+	 * The card owns that string; this row owns the consequence. Passing it here
+	 * at all is the trap, so the field is gone rather than merely unused.
+	 *
+	 * The absence is what keeps B1 and B2 fixed, and its guard is the TYPE, not
+	 * a test row. A3P1-B3/B4 call `resolveConcernSaveAvailability` with
+	 * page-shaped inputs and never supply this value, so they cannot observe its
+	 * absence: QA applied the re-adding mutation and both files still passed
+	 * 24/24. What actually holds is that re-passing the field from the page is a
+	 * COMPILE error (TS2353, unknown property on `ConcernSaveAvailabilityInput`),
+	 * and `a5-c2a-term-truth` C4 pins the absence in source text so a future
+	 * lane cannot add the field and wire it in without a red row.
+	 */
+};
+
+export type ConcernSaveAvailability = {
+	writesDisabled: boolean;
+	/** Non-null EXACTLY when `writesDisabled` is true. */
+	reason: string | null;
+};
+
+const NO_SCHOOL_REASON = 'Your signed-in session has no school yet, so there is nothing to save.';
+const YEAR_PENDING_REASON = 'Checking which school year and term are active, so Save is not ready yet.';
+const YEAR_FAILED_REASON = 'The active school year could not be read, so there is nothing to save yet.';
+const YEAR_MISSING_REASON = 'No active school year is set for your school, so there is nothing to save yet.';
+const NO_TEACHER_REASON = 'Choose a teacher first, then Save.';
+
+/**
+ * The Save row's sentence for the unresolved-term case, and ONLY that sentence.
+ *
+ * A3 p1 correction round 1, B1 + B2. This used to be built by concatenating the
+ * page's shared `unresolvedTermReason` onto a tail. That was wrong twice:
+ *
+ *   B1 — `unresolvedTermReason` is the SAME string the "Active ordered term
+ *        unresolved" card renders (`TeacherConcerns.tsx`), and the two
+ *        conditions coincide exactly, so one sentence appeared TWICE on one
+ *        screen. Deleting the card's trailing line did not fix it; the
+ *        duplicated string was the shared one, not that line.
+ *   B2 — `describeUnresolvedTermReason` has a code branch that emits
+ *        "EnrollPro reported ${code} and …", so the Save row could read
+ *        "EnrollPro reported TERM_AUTHORITY_STALE and …". A raw enum in a
+ *        sentence meant for an older, mouse-first scheduler.
+ *
+ * So the two surfaces now own DIFFERENT jobs and never share a string: the card
+ * owns the detail (it keeps the EnrollPro explanation verbatim, which belongs
+ * with the "Re-check the active term" action), and this row owns the
+ * CONSEQUENCE for the button. It is short and code-free by construction, because
+ * it is a fixed sentence rather than a derived one - so there is no code path
+ * that can leak an enum into it, and nothing it can say can duplicate the card.
+ *
+ * Short is also the right length here: the Save row is sticky and stays visible
+ * when the card above has been scrolled out of view, so it must stand alone.
+ */
+const TERM_CONSEQUENCE_REASON = 'Save is off until ATLAS verifies an active term.';
+
+/**
+ * The ONE SOURCE OF TRUTH for "may this page write, and if not, why not".
+ *
+ * PRECEDENCE (which sentence wins when several apply — a precedence, not an
+ * intersection): school scope, then the active school year (with a read in
+ * flight named as its own case), then the ordered term, then the teacher. The
+ * first thing missing is the first thing worth saying, so the operator is sent
+ * to the earliest blocker rather than the nearest.
+ */
+export function resolveConcernSaveAvailability(input: ConcernSaveAvailabilityInput): ConcernSaveAvailability {
+	const { actorSchoolId, schoolYearId, activeTermIndex, selectedFacultyId, yearResolution } = input;
+	if (actorSchoolId == null) return { writesDisabled: true, reason: NO_SCHOOL_REASON };
+	if (schoolYearId == null) {
+		if (yearResolution === 'PENDING') return { writesDisabled: true, reason: YEAR_PENDING_REASON };
+		if (yearResolution === 'FAILED') return { writesDisabled: true, reason: YEAR_FAILED_REASON };
+		// RESOLVED with no year id, or a discarded read with no newer run. Both
+		// are real states, and neither may be silent — that was the defect.
+		return { writesDisabled: true, reason: YEAR_MISSING_REASON };
+	}
+	if (activeTermIndex == null) return { writesDisabled: true, reason: TERM_CONSEQUENCE_REASON };
+	if (selectedFacultyId == null) return { writesDisabled: true, reason: NO_TEACHER_REASON };
+	return { writesDisabled: false, reason: null };
+}
+
+/**
+ * Did this save actually record anything the timetable can use?
+ *
+ * A3 p1 correction round 1, N6. This is the branch selector between the two
+ * truthful outcomes, and it is deliberately NOT the same question as "did the
+ * save happen".
+ *
+ * STAGING PROVED THE DISTINCTION. An empty save is still a real write: the page
+ * PUT -> submit -> review and the server returned a stored record with
+ * `status: "REVIEWED"`, `slots: []` and `notes: null`. So the header chip
+ * truthfully reads "Saved" — a record exists — and the sentence beside it must
+ * not claim nothing happened.
+ *
+ * Round 1 of this correction got that backwards: it silenced the chip's typed
+ * outcome on an empty save to make the two agree, which left the LIE in place
+ * ("Nothing to save for X yet." beside a record that had just been created) and
+ * quietly weakened the N2 typed-state contract to do it. The chip was never the
+ * thing that was wrong. The receipt is corrected here instead, and the typed
+ * outcome is left intact.
+ *
+ * What an empty record must NOT do is claim the next timetable will use it: a
+ * record with no slots adds no exclusion, so the next timetable is unchanged.
+ */
+export function concernSaveRecordedAnything(counts: ConcernSaveCounts): boolean {
+	return counts.availabilityWindows > 0 || counts.roomNeeds > 0 || counts.hasNote;
+}
+
+export type ConcernTermBinding = {
+	schoolYearId: number;
+	schoolYearNotice: string | null;
+	activeTermIndex: number | null;
+	savedTermNotice: string | null;
+	unresolvedTermReason: string | null;
+};
+
+/**
+ * Turn a resolver answer into the page's term state — the binding the A3 p1
+ * outage skipped entirely, because the inverted predicate made every resolution
+ * `null` and `if (resolution == null) return;` left `schoolYearId` null forever.
+ *
+ * Returns `null` for a discarded read, which is the resolver's ONLY null case
+ * (`active-term-authority.ts`: `null` means `isStaleRead()` was true). A caller
+ * may therefore leave its own state alone on `null` without risking a dead end:
+ * a newer effect run or an unmount owns that state. `a3p1-teacher-prefs-stale-
+ * read-polarity.test.ts` proves both halves of that claim.
+ *
+ * Extracted so the mapping is decidable without a browser and so the call site
+ * cannot silently drift from the tested contract again.
+ */
+export function bindConcernTermResolution(resolution: ActiveTermAuthorityResolution | null): ConcernTermBinding | null {
+	if (resolution == null) return null;
+	const context = resolution.context;
+	const resolvedTerm = resolveVerifiedActiveTermIndex(context.activeTerm);
+	return {
+		schoolYearId: context.activeSchoolYearId,
+		schoolYearNotice: describeSchoolYearSource(context),
+		activeTermIndex: resolvedTerm,
+		savedTermNotice: describeSavedTermSource(context.activeTerm),
+		unresolvedTermReason: resolvedTerm == null ? describeUnresolvedTermReason(context.activeTerm) : null,
+	};
 }

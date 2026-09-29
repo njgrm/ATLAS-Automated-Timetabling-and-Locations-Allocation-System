@@ -31,7 +31,7 @@
     "test:a8-sse-stream-lifecycle": "tsx --test src/__tests__/a8-sse-stream-lifecycle.test.ts",
     "test:published-swap-term": "tsx --test src/__tests__/published-swap-term-guard-c04.test.ts",
     "test:published-load-transfer": "tsx --test src/__tests__/published-teaching-load-transfer-c05.test.ts",
-    "test:faculty-availability": "tsx --test src/__tests__/faculty-availability-s1.test.ts",
+    "test:faculty-availability": "tsx --test src/__tests__/faculty-availability-s1.test.ts src/__tests__/a3p1-availability-generation-binding.test.ts",
     "test:active-term-live-resolution": "tsx --test src/__tests__/active-term-live-resolution-c01.test.ts",
     "test:a5-c2a-term-truth": "tsx --test src/__tests__/a5-c2a-active-term-resolver.test.ts",
     "test:a5-c2a-term-truth-readwrite": "tsx --test src/__tests__/a5-c2a-active-term-resolver.test.ts",
