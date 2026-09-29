@@ -4241,6 +4241,31 @@ Both blobs byte-identical at base and HEAD; **owned by the A2/header lane**, not
 staging/live after a verified active term exists. Worktree `E:/ATLAS-worktrees/lane-a3-c13-concerns` =
 `RETIRE_AFTER_INTEGRATION`.
 
+## Lane A3 - 2026-09-29 c16: "no codes on screen" (on `main`; NOT deployed)
+
+**Integrated at `3c6d819b`; product tip `27bf0e02`.** Lane C packet `docs/prompts/truth-fixes-2026-09-29.md`,
+section A3 c16. Handoff + evidence: `docs/reviews/a3-c16-codes-20260929/handoff.md`. **NOT deployed** —
+A4 owns the release, and nothing here is a live-row claim.
+
+- **Seen rendered on real staging data** (loopback preview :5241 -> staging :5101, 1366x768, asserted origin,
+  `/__dev/staging-login`): `/teachers` **0 raw codes across 50 roster cells**; `/audit` section-coverage
+  cards now name their subjects and title/body agree; `/timetable` 0 raw tokens. `ux-audit` major on
+  `/teachers` is **7, unchanged from Lane C's own baseline** for that page (all pre-existing).
+- **Gates:** `test:a3-c16-no-codes` **16/16**, `test:a3-c10-teacher-surface` 21/21, `test:a6-teachers` 13/13,
+  `test:a7-year-setup-plain-words` 17/17, `test:plain-language-j2j3-c01` 18/18, `test:encoding` 1/1.
+  `test:a3-c4-copy` 18/14/**1**/3 and `test:ux-audit-findings` 22/21/**1** at my tip: both pre-existing,
+  reproduced on base by QA. **`test:client-suite` is red at base (43) and at the candidate (42), with
+  no candidate-only failure** — do not read those numbers as this lane's debt.
+- **Two independent QA rounds, both `CORRECTION_REQUIRED`; B1 and B2 closed; no third round** (two-round
+  rule). Round 2's open items are corrected in `27bf0e02` and the residue is numbered in the handoff.
+- **Next action for A3: `docs/prompts/a3-prefs-save-2026-09-29.md` is on `main` (`7d894255`) and is a
+  DEMO BLOCKER** — Teacher Preferences cannot be saved. Not started.
+- **Blocking nothing, but the roster's real defect is a column width, not a code:** the "Assigned classes"
+  column is **158.6px** (126.6px of text) in a 1111px table whose `Actions` column is 319px, and a
+  subject name does not fit 126.6px (`Mathematics - 8 sections` = 25 chars). The column definitions are
+  in `pages/Faculty.tsx`, **A6 c10's in-flight file**, so A3 did not touch them. Owner: A6 or whoever
+  next holds the roster table; it needs its own before/after screenshots.
+
 ## Lane A3 - current lane (written only by Planner A3)
 
 ### Live release `d11304e8` is DEPLOYED; browser acceptance is INCOMPLETE and BLOCKED
@@ -5802,6 +5827,46 @@ RENDERED on real staging data / 0 dropped. NOT deployed — A4 owns every releas
   (branch pushed and merged; A4 owns junction-safe reclamation, §14).
 - **Next action (single):** A4 puts `0c3cf139` in the next train and runs the 2023-2024 staging rows — Generate
   enabled with the 50 gaps, the panel at ~3 lines, the run naming the gaps, and publication still refused.
+
+## Lane A8 — c4 "Cover a class" server (written only by Lane A8)
+
+**Server source for the cover flow is complete and independent-reviewed. NOT deployed, NOT seen rendered — A4
+owns every release (§14).** Worktree `E:/ATLAS-worktrees/lane-a8-c4-cover` (**`PRESERVE_FOR_DECISION`**), branch
+`work/a8-c4-cover-candidates`, base `5f181110`. **A6 c10 is coding against the contract NOW** — see the pinned
+section "A8 c4 (server) → A6 c10 (client): THE FIXED COVER CONTRACT" in `docs/handoffs/lane-c-to-a2.md`
+(`6c5987ed` + CORRECTION 1 `01fd64b3` + CORRECTION 2 `fbee9bdb`).
+
+**Delivered:** `POST/DELETE/GET /api/v1/faculty/:facultyId/subject-permissions` (officer-only, audit-logged,
+idempotent, cache-invalidated); `GET /api/v1/teaching-load/:schoolId/:schoolYearId/cover-candidates`
+(QUALIFIED → OTHER_DEPARTMENT → ANYONE, never a placeholder, over-cap rows present and flagged);
+`GET .../cover-open-classes` (a placeholder-owned class is **OPEN** — this is the server half of the Codex
+audit's "placeholders are counted as staffed" MAJOR); `POST .../cover-assignments` (one Serializable tx; 409
+`NEEDS_PERMISSION` then `grantPermission: true` writes the permission **and** the ownership together).
+No migration, no schema change, **no client file touched**.
+
+**Gates:** `tsc` 0 · `test:cover-candidates` 41/41 · teacherx-truth 20/20 · cap-rule 12/12 · placeholder-hire
+52/52 · ownership-drift 5/5 · one-load-definition 7/7 · grade-preference 12/12 · availability 12/12 ·
+DB-backed suggestion suites: `apply-parity` / `authority` / `authority-c03` **PASS** on a disposable
+`atlas_restore_drill_20260929_a8c4` (dropped, residue 0). QA round 1 `CORRECTION_REQUIRED` 13/14; round 2
+`44/46, blocked 0` with both BLOCKING findings closed by discriminating mutants.
+
+**Dated follow-ups (each needs a named owner; none blocks A6 c10):**
+- **2026-09-29 — `npm run test:server-suite` is intermittently red at 508/509** on
+  `src/__tests__/notification-inbox.test.ts:209` ("a dead durable listener never breaks the publish path"),
+  ~1 run in 3. **Not A8 c4's**: the file imports only the two notification services and appears **nowhere** in
+  this range. Owning lane A7. Proof it is not mine: `git diff origin/main...HEAD` contains no notification path.
+- **2026-09-29 — `teaching-load-suggestion-derived-demand-c03r2.test.ts` fails identically at BASE `5f181110`**
+  (`TypeError … 'findMany'` at `autoFill`'s `db().facultyGradePreference.findMany`). Proven by running it at base
+  in a scratch worktree, and independently re-proven statically by QA. It is **absent** from the `KNOWN_RED`
+  array in `atlas-server/scripts/run-db-suite.mjs`, which is currently **empty** and carries an orphaned comment
+  about a `department-authority-gates` entry that is not there. **Gate owner (Lane C / A4) to add both.**
+- **2026-09-29 — AUTH GAP, out of my range, routed: `faculty.router.ts` `PATCH /:id` has no
+  `requirePrivilegedRole`**, so any authenticated user can flip the blanket `canTeachOutsideDepartment` — which
+  is strictly broader authority than the officer-only `subject-permissions` surface A6's switch sits beside.
+  A one-line guard, but it is an **auth-boundary change and needs its own packet**; I did not touch it.
+
+**Next action (single):** A4 picks up the candidate for the next train and runs the **D-row browser proof** —
+the cover window itself is A6 c10's rendered evidence, not mine. Nothing else is owed by A8 c4.
 
 ## Lane A8 — Teaching Load shortage, server truth (written only by Lane A8)
 

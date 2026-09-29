@@ -273,11 +273,26 @@ function proposalClient(initial: ProposalState, failAudit = false) {
 					},
 				},
 				facultyMirror: {
-					findMany: async () => [{ id: 11 }],
+					// A8 c4 F2: apply now re-validates INSERT receivers against the
+					// persisted-only qualification policy, so this fixture carries the
+					// receiver and subject fields that evaluation reads.
+					findMany: async () => [{
+						id: 11, firstName: 'Teacher', lastName: 'One', department: 'MATH',
+						specialization: null, canTeachOutsideDepartment: false,
+					}],
 					updateMany: async () => { draft.facultyVersion += 1; return { count: 1 }; },
 				},
-				subject: { findMany: async () => [{ id: 21 }] },
-				sectionMirror: { findMany: async () => [{ externalId: 31, displayOrder: 7 }] },
+				subject: {
+					findMany: async () => [{
+						id: 21, code: 'MATH', name: 'Mathematics', ownerDepartment: 'MATH',
+						requiredFeatures: [], allowedSpecializations: [], programScopes: ['REGULAR'],
+					}],
+				},
+				sectionMirror: { findMany: async () => [{ externalId: 31, displayOrder: 7, programType: 'REGULAR' }] },
+				departmentAlias: { findMany: async () => [] },
+				departmentLabel: { findMany: async () => [] },
+				subjectOwnerPrefix: { findMany: async () => [] },
+				crossDepartmentPermission: { findMany: async () => [] },
 				facultySubject: {
 					findUnique: async () => null,
 					create: async ({ data }: any) => {

@@ -31,6 +31,19 @@ export interface UnplacedSessionResult {
 	reason: string;
 }
 
+/**
+ * A3 c16: the subject NAME leads, and the code is dropped entirely when it adds
+ * nothing. Both summary rows used to read `{subjectCode} - {subjectName}`, which
+ * is the reverse of every other subject surface in the product and printed the
+ * code even when the name was the code again. There is no muted detail here: the
+ * row is a single line, and a second token on it is noise, not information.
+ */
+function quickPlaceSubjectLabel(row: { subjectCode?: string | null; subjectName?: string | null }): string {
+	const name = row.subjectName?.trim();
+	if (name) return name;
+	return row.subjectCode?.trim() || 'Unknown subject';
+}
+
 interface QuickPlaceSummaryModalProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
@@ -97,7 +110,7 @@ export function QuickPlaceSummaryModal({
 										>
 											<div className="flex justify-between items-start gap-2">
 												<span className="font-semibold text-xs text-gray-900 leading-tight">
-													{p.subjectCode} - {p.subjectName}
+													{quickPlaceSubjectLabel(p)}
 												</span>
 												<Badge variant="outline" className="shrink-0 border-emerald-200 bg-emerald-50/50 py-0 text-xs font-semibold uppercase text-emerald-800">
 													Session {p.session}
@@ -132,7 +145,7 @@ export function QuickPlaceSummaryModal({
 										>
 											<div className="flex justify-between items-start gap-2">
 												<span className="font-semibold text-xs text-gray-900 leading-tight">
-													{u.subjectCode} - {u.subjectName}
+													{quickPlaceSubjectLabel(u)}
 												</span>
 												<Badge variant="outline" className="shrink-0 border-amber-200 bg-amber-50/50 py-0 text-xs font-semibold uppercase text-amber-800">
 													Session {u.session}

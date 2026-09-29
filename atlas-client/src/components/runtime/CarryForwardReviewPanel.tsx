@@ -3,6 +3,7 @@ import { Archive, ArrowRight, Info, Loader2, PlayCircle, ShieldCheck } from 'luc
 
 import atlasApi from '@/lib/api';
 import { BELOW_STANDARD_LABEL } from '@/lib/teaching-load-labels';
+import { departmentLabel } from '@/lib/deped-glossary';
 import type { ArchivedYearSummary } from '@/lib/settings';
 import {
 	CARRY_FORWARD_APPLY_BLOCKED_MESSAGE,
@@ -241,10 +242,13 @@ export function CarryForwardReviewPanel({ schoolId, activeSchoolYearId, archived
 							<p className="mt-1 text-muted-foreground">{preview.adviserCoverage.satisfied} satisfied · {preview.adviserCoverage.unsatisfied} not yet satisfied</p>
 							<p className="mt-2 font-semibold text-slate-800">By department</p>
 							<ul className="mt-1 space-y-1 text-muted-foreground">
-								{preview.perDepartment.map((entry) => (
-									<li key={entry.department} data-testid={`carry-forward-department-${entry.department}`}>
-										{entry.department}: {entry.carry} would be copied · {entry.skipped} would not be copied
-									</li>
+								{/* A3 c16: the group label was the raw department code. The
+							    committed DepEd glossary resolves it and falls back to the raw
+							    value for an unknown code, so nothing is hidden. */}
+							{preview.perDepartment.map((entry) => (
+								<li key={entry.department} data-testid={`carry-forward-department-${entry.department}`}>
+									{departmentLabel(entry.department)}: {entry.carry} would be copied · {entry.skipped} would not be copied
+								</li>
 								))}
 							</ul>
 						</div>
