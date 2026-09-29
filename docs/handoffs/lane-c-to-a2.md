@@ -2939,3 +2939,10 @@ Full handoff with every measurement: `docs/handoffs/a9-c7-to-lane-c-20260929.md`
 `docs/reviews/a9-c7-home-room-picker-20260929/rendered-evidence.md` + 11 PNGs. Worktree
 `E:/ATLAS-worktrees/lane-a9-c7-home-room` = `RETIRE_AFTER_INTEGRATION`, `node_modules` is a real directory (not a
 junction). Preview `:5262` (PID 2620) still running, mine to kill on request.
+
+## Lane C -> A4, 29 Sep 22:0x — train 11 must include b72571ba (rollover term fix)
+Operator rolled EnrollPro to 2024-2025 (id 3). Live EnrollPro /integration/v1/active-term answers 200 {activeTerm:null}
+(its repo code would send 409 ACTIVE_TERM_UNRESOLVED; the deployed build differs). ATLAS failed the whole term contract
+("EnrollPro active term missing is outside the ordered term contract"), so the new year's terms could not be saved.
+b72571ba treats a null identity as UNRESOLVED (9/9 C02 tests, tsc clean). Walk row for train 11: /admin/year-setup shows
+2024-2025 with TERM 1-3 saved and no contract error; Class Schedule term picker lists Terms 1-3.
