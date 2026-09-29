@@ -1281,10 +1281,37 @@ export function buildUnionDisplaySlots(contracts: TimetableShapeContract[] | und
 	});
 }
 
+/**
+ * A8-G1: which candidate ordering the constructor uses. See
+ * `ConstructorInput.spreadOrdering` — `LEGACY_SOFT_PENALTY` is a test-only seam
+ * that reconstructs the pre-change comparator so the proof harness can measure
+ * both sides over identical inputs.
+ */
+export type SpreadOrdering = 'DAY_COUNT_FIRST' | 'LEGACY_SOFT_PENALTY';
+
 export interface ConstructorInput {
 	schoolId: number;
 	schoolYearId: number;
 	roomingStrategy?: 'UNIVERSAL' | 'HOME_ROOM_FIRST';
+	/**
+	 * A8-G1 TEST SEAM — not a product setting, and it has no user-facing control.
+	 *
+	 * `DAY_COUNT_FIRST` (the default, and the only value production ever passes)
+	 * is the accepted behaviour: the dominant `dayUseCount` sort key with the
+	 * legacy day penalty removed.
+	 *
+	 * `LEGACY_SOFT_PENALTY` reconstructs the PRE-CHANGE comparator exactly — the
+	 * `+2.5` SECTION / `+1.5` COHORT soft day penalty restored, and `score` back
+	 * ahead of the day use. It exists for ONE reason: the packet's rule-3
+	 * before/after row can only be sound if both sides are produced by the same
+	 * code path over the same inputs with one variable changed. Measuring the
+	 * "before" from a saved run instead compares a 3-term expansion against a
+	 * single week, which is what made the first proof attempt unreadable.
+	 *
+	 * It is a branch over an already-accepted behaviour, not a new behaviour: no
+	 * guard, counter, accumulator or report changes between the two modes.
+	 */
+	spreadOrdering?: SpreadOrdering;
 	sectionsByGrade: SectionsByGrade[];
 	subjects: SubjectInput[];
 	cohorts?: InstructionalCohortInput[];
@@ -1992,6 +2019,11 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	// also covers every direct `constructBaseline` caller.
 	const policy = resolveConstructorPolicy(rawPolicy) ?? rawPolicy;
 	const useHomeRoomPriority = input.roomingStrategy === 'HOME_ROOM_FIRST';
+	// A8-G1: production is always DAY_COUNT_FIRST. The legacy branch exists only
+	// so the proof harness can measure the pre-change comparator over the same
+	// inputs in the same process; see `ConstructorInput.spreadOrdering`.
+	const spreadOrdering: SpreadOrdering = input.spreadOrdering ?? 'DAY_COUNT_FIRST';
+	const useLegacyDayPenalty = spreadOrdering === 'LEGACY_SOFT_PENALTY';
 
 	// Build period slots dynamically from the active policy day shape.
 	const PERIOD_SLOTS = buildUnionClassPeriodSlots(timetableShapes);
@@ -2798,12 +2830,17 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					if (isIntervalBlockedByDayScopedEvent(dayScopedEventWindows, day, canonicalSlot.startTime, canonicalSlot.endTime)) continue;
 
 					// A8-G1: the former `+2.5` SECTION / `+1.5` COHORT day penalty is
-					// DELETED, not left in place. `dayUseCount` is the FIRST sort key
-					// and strictly dominates `score`, so a day this pair has used can
-					// never outrank an unused day on room quality — which was exactly
-					// the defect (a used day with a free home room tied an unused day
-					// with a busy one at 3.0, and Monday won the tie-break).
+					// DELETED from the production path, not left in place.
+					// `dayUseCount` is the FIRST sort key and strictly dominates
+					// `score`, so a day this pair has used can never outrank an
+					// unused day on room quality — which was exactly the defect (a
+					// used day with a free home room tied an unused day with a busy
+					// one at 3.0, and Monday won the tie-break). It is reinstated
+					// ONLY under the test seam, to reconstruct the old comparator.
 					let score = 1;
+					if (useLegacyDayPenalty && (daysUsedForPair.get(day) ?? 0) > 0) {
+						score += item.entryKind === 'COHORT' ? 1.5 : 2.5;
+					}
 					if (preferredHomeRoom != null) {
 						if (roomOcc.isOccupied(preferredHomeRoom.id, day, canonicalSlot.startTime, canonicalSlot.endTime)) score += 2;
 						else score -= 0.5;
@@ -2818,8 +2855,12 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					if (isIntervalBlockedByDayScopedEvent(dayScopedEventWindows, day, slot.startTime, slot.endTime)) continue;
 
 					// A8-G1: see the canonical branch above — the day penalty is dead
-					// code under the dominant `dayUseCount` key and is not applied.
+					// code under the dominant `dayUseCount` key and is not applied,
+					// except under the legacy test seam.
 					let score = 1;
+					if (useLegacyDayPenalty && (daysUsedForPair.get(day) ?? 0) > 0) {
+						score += item.entryKind === 'COHORT' ? 1.5 : 2.5;
+					}
 					if (preferredHomeRoom != null) {
 						if (roomOcc.isOccupied(preferredHomeRoom.id, day, slot.startTime, slot.endTime)) score += 2;
 						else score -= 0.5;
@@ -2844,7 +2885,10 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		//    `getQualifiedFacultyIds(..., sessionTermIndex)` are untouched, so no
 		//    teacher, section or room overlap can appear.
 		possibleSlots.sort((a, b) => {
-			if (a.dayUseCount !== b.dayUseCount) return a.dayUseCount - b.dayUseCount;
+			// The dominant spread key, first. Under the legacy test seam it is
+			// dropped, which puts `score` (carrying the reinstated day penalty)
+			// back in front and reproduces the pre-change ordering exactly.
+			if (!useLegacyDayPenalty && a.dayUseCount !== b.dayUseCount) return a.dayUseCount - b.dayUseCount;
 			if (a.score !== b.score) return a.score - b.score;
 			const dayDiff = DAYS.indexOf(a.day as typeof DAYS[number]) - DAYS.indexOf(b.day as typeof DAYS[number]);
 			if (dayDiff !== 0) return dayDiff;
