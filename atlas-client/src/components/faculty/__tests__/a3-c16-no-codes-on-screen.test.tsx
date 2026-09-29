@@ -83,6 +83,7 @@ const {
 	FacultyMobileCard,
 	facultySubjectDisplayName,
 	facultySubjectCodeDetail,
+	pickInlineSubjects,
 } = await import('@/components/faculty/FacultyRow');
 
 const roots: any[] = [];
@@ -444,4 +445,59 @@ test('A3-c16-9 two LONG subject names subtract the second name instead of wrappi
 	const popoverText = openPopover(host);
 	assert.match(popoverText, /Special Program in Sports: Specialization/, 'the dropped name must remain in the popover breakdown');
 	assert.match(popoverText, /Filipino/, 'every subject must remain in the popover breakdown');
+});
+
+/**
+ * A3 c16 (D3) - the budget itself.
+ *
+ * The first version of this rule summed only the two NAMES, which ignored the
+ * `", "`, the two section counts and the ` +N more` overflow that the same line
+ * also emits. These rows measure the composed LINE, and they are the direct
+ * control the earlier revision had none of. The 40-character ceiling is the
+ * measured 259px inner text column of the cell in 12px text at 1366x768; JSDOM
+ * performs no layout, so what is proven here is the rule and the ceiling, not
+ * the pixels.
+ */
+const summary = (name: string, sectionCount: number) => ({ displayName: name, sectionCount }) as any;
+
+test('A3-c16-10 the budget counts the WHOLE composed line, not just the two names', () => {
+	// 21 + 41 characters of name, plus ", ", both counts and the overflow: 71.
+	// The name-only version of this rule (budget 38, names only) would have read
+	// 62 and still dropped the second name, but a pair that fits the NAMES budget
+	// while overflowing the LINE is exactly the case it got wrong.
+	const two = pickInlineSubjects([
+		summary('Developmental Reading 1', 1),
+		summary('Filipino', 1),
+	]);
+	// 22 + 1 + 2 + 8 + 1 = the composed line is 34 characters, so BOTH stay inline.
+	assert.equal(two.shown.length, 2, `a 34-character line fits; got ${JSON.stringify(two)}`);
+	assert.equal(two.remaining, 0);
+	// One character more, PLUS a third subject so the overflow suffix is actually
+	// emitted: the composed line becomes 44 characters, which the 259px cell cannot
+	// hold - even though the two NAMES alone (30) would have passed a name-only
+	// budget. That is the case the first version of the rule got wrong.
+	const justOver = pickInlineSubjects([
+		summary('Developmental Reading 12', 1),
+		summary('Filipino', 1),
+		summary('ESP', 1),
+	]);
+	assert.equal(justOver.shown.length, 1, `a 44-character line must drop to one name; got ${JSON.stringify(justOver)}`);
+	assert.equal(justOver.remaining, 2, 'both hidden subjects must be reported; nothing is lost');
+});
+
+test('A3-c16-11 the rule can never emit an empty cell, a +0 more, or lose a count', () => {
+	// Empty input. The component short-circuits this to "No classes assigned"
+	// before the picker runs, and the picker stays total anyway.
+	assert.deepEqual(pickInlineSubjects([]), { shown: [], remaining: 0 });
+
+	// One subject never fabricates an overflow.
+	assert.deepEqual(pickInlineSubjects([summary('Mathematics', 8)]), { shown: [summary('Mathematics', 8)], remaining: 0 });
+
+	// Nine subjects: whatever is hidden, `shown + remaining` is always all of them,
+	// so no teacher's subject can vanish from the accounting.
+	const many = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot', 'Golf', 'Hotel', 'India'].map((n) => summary(n, 3));
+	const picked = pickInlineSubjects(many);
+	assert.equal(picked.shown.length + picked.remaining, many.length, `every subject must stay accounted for; got ${JSON.stringify(picked)}`);
+	assert.ok(picked.shown.length >= 1, 'at least one subject is always shown');
+	assert.ok(!(picked.remaining > 0 && picked.shown.length === 0), 'a +N more must never stand alone');
 });

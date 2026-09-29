@@ -286,36 +286,48 @@ export function facultySubjectCodeDetail(
 }
 
 /**
- * A3 c16 (D3) - how many subject NAMES fit inline before the cell stops being one line.
+ * A3 c16 (D3) - the width the "Assigned classes" cell can hold on ONE line.
  *
- * Showing names instead of codes made this cell better (`AP` -> `Araling Panlipunan`) and
- * worse in one case: a teacher on two long special-program subjects read
+ * Showing names instead of codes made this cell better (`AP` -> `Araling Panlipunan`)
+ * and worse in one case: a teacher on two long special-program subjects read
  * `Special Program in the Arts: Specialization 2, Special Program in Sports: Specialization 2
  * +1 more` across three lines, in a row visibly taller than its neighbours, with two
  * near-identical 40-character titles. That is the "too literal" outcome - the packet said
  * show names, so names were shown even where two of them do not fit.
  *
- * The "Assigned classes" column measured 291px at 1366x768 in 14px text, which is about 40
- * characters on one line. Two entries plus the ", " separator and the two counts therefore
- * get a combined budget of 38 characters of NAME text; a second name that would break the
- * line is dropped and reported through the existing `+N more`, and the full per-subject
- * breakdown stays one click away in `AssignmentBreakdownPopover`. This is a subtraction, and
- * it never adds a word, a clamp or an ellipsis.
+ * Measured in the browser on real staging data at 1366x768, over all 40 roster rows: the
+ * `<td>` is 291px including padding, so its inner text column is 259px. In the cell's 12px
+ * text that holds about 40 characters, and 40 is used rather than a rounder number so the
+ * rule stays conservative.
+ *
+ * The "Assigned classes" popover beside the cell is the full breakdown with every subject
+ * and its count, so dropping the second name loses nothing. This is a subtraction, and it
+ * never adds a word, a clamp or an ellipsis.
  */
-const INLINE_SUBJECT_LABEL_BUDGET = 38;
+const INLINE_SUBJECT_LINE_BUDGET = 40;
+
+/** The exact text the two-subject branch renders, so the budget measures the LINE and not just the names. */
+function inlineSubjectLine(entries: { displayName: string; sectionCount: number }[], remaining: number): string {
+	const head = entries.map((s) => `${s.displayName} ${s.sectionCount}`).join(', ');
+	return remaining > 0 ? `${head} +${remaining} more` : head;
+}
 
 /**
  * A3 c16 (D3) - the subjects shown inline, and the count hidden behind `+N more`.
  *
- * At least one is always shown, so a teacher is never left with an empty cell.
+ * The composed line is measured, not the two names: the separator, both section counts and
+ * the ` +N more` overflow all occupy the same 40 characters. At least one subject is always
+ * shown, so a teacher is never left with an empty cell, and a `+N more` is only emitted when
+ * it is non-zero.
  */
 export function pickInlineSubjects(summaries: SubjectSummary[]): { shown: SubjectSummary[]; remaining: number } {
 	const first = summaries[0];
 	if (!first) return { shown: [], remaining: 0 };
 	const second = summaries[1];
 	if (!second) return { shown: [first], remaining: 0 };
-	const combined = first.displayName.length + second.displayName.length;
-	if (combined <= INLINE_SUBJECT_LABEL_BUDGET) return { shown: [first, second], remaining: summaries.length - 2 };
+	if (inlineSubjectLine([first, second], summaries.length - 2).length <= INLINE_SUBJECT_LINE_BUDGET) {
+		return { shown: [first, second], remaining: summaries.length - 2 };
+	}
 	return { shown: [first], remaining: summaries.length - 1 };
 }
 
@@ -652,8 +664,7 @@ export function FacultyAssignedClassesCell({ faculty, onClick }: { faculty: Facu
 
 	// Multiple subjects: show what fits on one line + overflow, with first section as discriminator
 	const { shown, remaining } = pickInlineSubjects(summaries);
-	const firstSections = summaries[0]?.sections.slice(0, 2) ?? [];
-	const firstRemaining = (summaries[0]?.sections.length ?? 0) - firstSections.length;
+	const firstSections = summaries[0]?.sections.slice(0, 2) ?? [];	const firstRemaining = (summaries[0]?.sections.length ?? 0) - firstSections.length;
 
 	return (
 		<Wrapper {...wrapperProps}>
@@ -797,7 +808,7 @@ export function FacultyMobileCard({
 							)}
 						</>
 						: <>
-								<span>{inline.shown.map((s) => `${s.displayName} ${s.sectionCount}`).join(', ')}{inline.remaining > 0 ? ` +${inline.remaining} more` : ''}</span>
+								<span>{inlineSubjectLine(inline.shown, inline.remaining)}</span>
 								{summaries[0].sections.length > 0 && (
 									<div className="mt-0.5">
 										<span className="text-foreground/70">Sections: </span>
