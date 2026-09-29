@@ -110,6 +110,18 @@ export interface AtlasRuntimeContext {
 	schoolId: number;
 	activeSchoolYearId: number;
 	activeSchoolYearLabel: string | null;
+	/**
+	 * A7-C7: the elected year resolved in the EnrollPro id space, with the facts
+	 * a client needs before it may call a year change a rollover. Optional on the
+	 * wire so an older server build still parses; callers must treat a missing
+	 * value as "not known" rather than as "not archived".
+	 */
+	activeSchoolYear?: {
+		enrollProSchoolYearId: number;
+		yearLabel: string | null;
+		isActive: boolean;
+		isArchived: boolean;
+	};
 	source: 'atlas-persisted' | 'enrollpro-verified';
 	stale: boolean;
 	resolvedAt: string;
@@ -118,6 +130,10 @@ export interface AtlasRuntimeContext {
 		schoolYearId: number;
 		timestamp: string;
 		source: string;
+		/** A7-C7: the id space `schoolYearId` is expressed in. */
+		idSpace?: 'enrollpro' | 'atlas-surrogate';
+		enrollProSchoolYearId?: number | null;
+		enrollProArchived?: boolean | null;
 	}>;
 	upstream: {
 		reachable: boolean;

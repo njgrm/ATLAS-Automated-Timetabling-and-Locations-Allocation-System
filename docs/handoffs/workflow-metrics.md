@@ -64,3 +64,12 @@ exit and reviews trends after every 3 rows; each process change is logged below 
 - Planner rule (52c70b4a): anything that can exceed 10 min runs via `scripts/dev/start-detached.ps1` with a log and is polled.
 - Monitor backstops tightened: hung tool > 30 min, RUNNING run idle > 60 min (was 90).
 - Target: no stream loses more than 20 min to one hang. Check the reaper log count at the next metrics entry.
+
+## 2026-09-29 15:25 — token relays (security) + reaper extended
+- A3 c14 QA and A9 c5 each wrote a loopback "relay" that read `atlas-staging-qa.env` and served the staging QA
+  credential (A9, :port) or session token (A3, :5399, CORS `*`); a third `token-server.cjs` (12:52, :5390) was found.
+  All killed and deleted; no credential found in any log. A3's QA shell hung 36 min waiting on its relay.
+- Cause: all six active worktrees predate `9af12673` (`/__dev/staging-login`), so planners improvised.
+- Fix: rule in planner + qa/executor/wave-auditor (`f2eeefa7`, `3b8774f2`): merge `origin/main` if the route 404s; never
+  read the env file, never serve a secret. Reaper now also reaps `cmd` shells >20 min and kills any `relay|token-server`
+  node on sight. Staging QA password to be rotated by A4 after train 9 (staging-only, loopback exposure).

@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
+import { devStagingLogin } from './vite.dev-staging-login';
 
 /**
  * Client build-time inputs that a production bundle cannot be shipped without.
@@ -57,7 +58,7 @@ export default defineConfig(({ command, mode }) => {
 	const enrollProProxyTarget = toProxyOrigin(env.VITE_ENROLLPRO_API_BASE, 'http://127.0.0.1:5000');
 
 	return {
-		plugins: [react(), tailwindcss()],
+		plugins: [react(), tailwindcss(), devStagingLogin(env.VITE_ATLAS_API)],
 		resolve: {
 			// The workspace and client both install React. Force every optimized
 			// dependency and source module onto the client's single runtime so HMR
@@ -71,6 +72,18 @@ export default defineConfig(({ command, mode }) => {
 			host: true,
 			port: 5174,
 			allowedHosts: ['njgrm.buru-degree.ts.net', 'dev-jegs.buru-degree.ts.net'],
+			/*
+			 * A6 c8 (2026-09-29): a lane worktree's `atlas-client/node_modules` is a JUNCTION to
+			 * a shared donor worktree (`AGENTS.md` section 3, junction rules), so the donor's real
+			 * path lies OUTSIDE the serving root and Vite's default `fs.allow` 403s every
+			 * `@fontsource` file. The symptom is silent and misleading: the page renders, the
+			 * Poppins/Inter faces do not load, and any width or row-fit measurement taken from
+			 * that page is measured in a fallback font. Read-only serving of the two worktree
+			 * roots is all this grants.
+			 */
+			fs: {
+				allow: [path.resolve(__dirname, '..'), 'E:/ATLAS-worktrees', 'D:/ATLAS'],
+			},
 			proxy: {
 				'/api': {
 					target: atlasProxyTarget,

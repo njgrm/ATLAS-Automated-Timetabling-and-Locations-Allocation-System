@@ -105,14 +105,17 @@ are non-empty or decision-relevant. Do not repeat evidence already pinned in the
 named artifact.
 
 **Real staging data in previews (2026-09-29).** Browser proof must use real staging data, not fixtures. Start the
-preview with `scripts/dev/start-preview.ps1` on a port in 5200–5299 (it points at the staging API `:5101`), then sign
-in on the preview's `/login` with the STAGING-ONLY QA login from `D:\ATLAS-runtime-config\atlas-staging-qa.env`
-(`ATLAS_STAGING_QA_IDENTIFIER` / `ATLAS_STAGING_QA_PASSWORD`). Read the file inside the tool call; never print,
-log, commit or echo the password. Use it only on 127.0.0.1/localhost preview origins backed by `:5101`; never on
-live (`:5001`, `:5174`, the Tailnet origin without `:8443`). If login fails, run
-`node scripts/dev/ensure-staging-qa-account.cjs` once (staging is re-streamed from live on each deploy).
+preview with `scripts/dev/start-preview.ps1` on a port in 5200–5299 (it points at the staging API `:5101/api/v1`), then
+open **`http://127.0.0.1:<port>/__dev/staging-login`** in the browser: the dev server signs in to STAGING server-side
+and redirects to `/`. **Never open, read, cat or navigate to `D:\ATLAS-runtime-config\atlas-staging-qa.env`** — a
+browser tool echoed the password into a transcript on 2026-09-29 and it had to be rotated. If the login page says
+it failed, run `node scripts/dev/ensure-staging-qa-account.cjs` once (staging is re-streamed from live on each deploy).
+Never use any of this against live (`:5001`, `:5174`, the Tailnet origin without `:8443`).
+**If `/__dev/staging-login` 404s, your worktree predates it: `git merge origin/main` (or cherry-pick `9af12673` and `aa2dcfdf`) and restart the preview. No other route.** Never write a script that reads that env file, never serve a password or token on any port ("relay", "token server"), never paste them into a form: on 2026-09-29 A3 c14 QA and A9 c5 each ran such a relay (one with CORS `*`); the reaper now kills them on sight and the lane is marked BLOCKED.
 
 **Clickable must look clickable (operator, 2026-09-29, recurring).** Anything that opens, filters or acts must look
 like a button or link: a visible shape (border or fill), a verb or a chevron in the label, pointer cursor, hover and
 focus states. A number or chip that is clickable but looks like a read-only metric is a defect; QA fails it on the
 render. Conversely, read-only figures must not look pressable.
+
+**Never lose uncommitted work (2026-09-29, A6 c9 lost ~90 min).** Commit a `wip(...)` checkpoint to your work branch at least every 30 minutes and before any long step, and push the branch; an executor that nears its step limit commits first. Never `git checkout --`, `git reset --hard`, `git clean` or revert files with uncommitted changes: first `git stash push -u -m <why>` or commit them to a `backup/<lane>-<time>` branch. Never write a patch or measure file encoding through a PowerShell pipeline (`>`, `Set-Content`, `git show | ...` mangle UTF-16/CRLF/non-ASCII); use `git diff --output=<file>`, `git stash`, and `git status`/`git diff` as the authority.

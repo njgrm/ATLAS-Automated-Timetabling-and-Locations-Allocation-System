@@ -115,6 +115,12 @@ function fakeRuntimeContext(): RuntimeContextResult {
 		schoolId: SAND,
 		activeSchoolYearId: YEAR,
 		activeSchoolYearLabel: '2030-2031',
+		activeSchoolYear: {
+			enrollProSchoolYearId: YEAR,
+			yearLabel: '2030-2031',
+			isActive: true,
+			isArchived: false,
+		},
 		source: 'enrollpro-verified',
 		stale: false,
 		resolvedAt: new Date().toISOString(),

@@ -1192,7 +1192,7 @@ test.skip('F14-1 SUPERSEDED by fix 39: the three primary filters sit on ONE alwa
  * skip. Every assertion in its body is carried by `F14-1b` or by a row named in
  * §3 of the packet; nothing that was true here is now unasserted.
  */
-test('F14-1 INVERTED by fix 39, SUPERSEDED by A6 c6: ALL SEVEN controls sit on the one always-visible row', { skip: 'SUPERSEDED 2026-09-29 by A6 c6 items 1 and 3. Replaced by F14-1b below: the two OPTIONAL inclusion switches moved into a popover on the SAME row, whose trigger states the on-count, because Lane C item 1 gave them two plain sentences and at ~555px they forced the always-visible row past 1366. The one row, the fixed 240px non-elastic search, the four daily filters reachable without a disclosure, the switch ids, and the order of what remains are all re-asserted in F14-1b.' }, () => {
+test('F14-1 INVERTED by fix 39, SUPERSEDED by A6 c6 then RESTORED IN ITS CLAIM by A6 c8 item 39: ALL SEVEN controls sit on the one always-visible row', { skip: 'SUPERSEDED 2026-09-29 by A6 c6 items 1 and 3, and its CONTRACT RESTORED 2026-09-29 by A6 c8 item 39 — this row stays skipped, deliberately, and the reason is recorded here rather than left to be rediscovered. A6 c6 moved the two OPTIONAL inclusion switches into a popover on the SAME row, whose trigger stated the on-count, which is what made this row\'s own claim collide with the product and be retired. A6 c8 item 39 REVERSED that: the operator asked for the `More filters` disclosure to be removed from the DOM entirely and for both switches to be direct toggles on the one continuous row, so the SEVEN-control claim this row makes is the shipped contract again. It is still not re-enabled, for a reason that has nothing to do with the contract: its ORDER assertion selects every `[aria-label]` element and reads `el.getAttribute(\'aria-label\')?.split(\':\')[0] ?? \`#${el.id}\``, and each switch now carries an `aria-label` of its own (the full sentence), so the original selector would return the two sentences where it expected the two ids — the assertion is wrong in FORM, not in claim. The live replacement is `F14-1c`, which asserts the same seven-control order with a selector that cannot collide, and `a6-teaching-load-surface` `A6-39-1` / `A6-39-1c` assert it again from that file. The one row, the fixed 240px non-elastic search, the four daily filters reachable without a disclosure, the switch ids and their labels, and the no-second-row claim are ALL still asserted, in F14-1c and F14-1b.' }, () => {
 	const host = render(
 		createElement(TeachingLoadFilterBar as any, {
 			searchQuery: '', onSearchQueryChange: () => {},
@@ -1286,14 +1286,24 @@ test('F14-1 INVERTED by fix 39, SUPERSEDED by A6 c6: ALL SEVEN controls sit on t
 	}
 });
 
-test('F14-1b THE REPLACEMENT for the superseded F14-1 (A6 c6 items 1 and 3, 2026-09-29): one row, five named controls + `More filters`, both switches inside it', () => {
+test('F14-1b SUPERSEDED IN WHOLE by A6 c8 item 39 (2026-09-29). RETAINED, NOT DELETED, and still EXECUTING. REPLACED BY `F14-1c`', () => {
+	// ── SUPERSEDED IN WHOLE, 2026-09-29 (A6 c8 item 39). RETAINED, NOT DELETED. ──
+	// A6 c6 items 1 and 3 moved the two OPTIONAL inclusion switches into a
+	// `More filters` popover on the same row, and this row carried that contract.
+	// The operator reversed the decision — the disclosure leaves the DOM entirely
+	// and both switches are direct toggles on the one row — so every claim here about
+	// the trigger and about the switches being inside it is reversed.
+	//
+	// NOT SKIPPED, deliberately: per `AGENTS.md` §16 a correction is ADDITIVE, so
+	// every assertion that is now false is left visible as a comment with its
+	// original wording, and every assertion that is still true still runs. The
+	// replacement is `F14-1c`.
+	//
 	// The rule fix 39 established, unchanged: the filters a scheduler uses DAILY
 	// must be reachable WITHOUT a disclosure, and there must be no second row.
-	// The one change is which controls count as daily, and it is a subtraction
-	// rather than a regression: the two OPTIONAL inclusion switches cost ~555px of
-	// a ~1326px row and narrow the roster to a special case, so they moved into a
-	// popover on the SAME row whose trigger STATES how many are on. Status,
-	// Department, Load and Sort are all still one click away and still in order.
+	// A6 c6 weakened the first half of it for the two optional switches; A6 c8
+	// restores it. Status, Department, Load and Sort are still one click away and
+	// still in order.
 	const host = render(
 		createElement(TeachingLoadFilterBar as any, {
 			searchQuery: '', onSearchQueryChange: () => {},
@@ -1324,7 +1334,7 @@ test('F14-1b THE REPLACEMENT for the superseded F14-1 (A6 c6 items 1 and 3, 2026
 	assert.equal(
 		host.querySelectorAll('[data-testid="teaching-load-secondary-filters"]').length,
 		0,
-		'fix 39 removed the second row and it must stay removed: `More filters` is a popover on the SAME row',
+		'fix 39 removed the second row and it must stay removed: the two switches are back on the SAME row, not in a band',
 	);
 
 	// 1 — search, fixed at the operator's 240px, and still NOT elastic.
@@ -1342,52 +1352,155 @@ test('F14-1b THE REPLACEMENT for the superseded F14-1 (A6 c6 items 1 and 3, 2026
 		assert.ok(primary.querySelector(`[aria-label^="${name}"]`), `${name} must be on the primary row, not behind a disclosure`);
 	}
 	// The ORDER assertion the superseded row made, carried over for the five
-	// controls that remain, plus the new trigger. Read as DOM order, so a re-order
-	// fails here rather than being inferred from class names.
-	// A5 C3 slice B, update not delete: the shared primitive composes
-	// `: <selected value>` onto `ariaLabel`, so the raw attribute reads
-	// `Filter by status: All status`; the name is normalised back to its page-owned
-	// half before comparing, and the `More filters` trigger is addressed by its test
-	// id because its accessible name states the ON-COUNT and so differs per state.
+	// controls that were on the row, plus the trigger A6 c6 added. SUPERSEDED,
+	// RETAINED VERBATIM: the trigger is gone, and the two switch ids are on the row
+	// again, so the row's order is all SEVEN. `F14-1c` asserts that.
+	//
+	//   const ordered = Array.from(
+	//     primary.querySelectorAll('input[aria-label="Search teachers"], [aria-label^="Filter by"], [aria-label^="Sort teachers"], [data-testid="teaching-load-more-filters"]'),
+	//   ).map((el) => el.getAttribute('data-testid') ?? el.getAttribute('aria-label')?.split(':')[0]);
+	//   assert.deepEqual(ordered, [
+	//     'Search teachers', 'Filter by status', 'Filter by department',
+	//     'Filter by load', 'Sort teachers', 'teaching-load-more-filters',
+	//   ], 'the five named controls must appear in the operator\'s order, then `More filters`');
+	// WHAT SURVIVES, and still runs: the five named controls are first, in order.
 	const ordered = Array.from(
-		primary.querySelectorAll('input[aria-label="Search teachers"], [aria-label^="Filter by"], [aria-label^="Sort teachers"], [data-testid="teaching-load-more-filters"]'),
-	).map((el) => el.getAttribute('data-testid') ?? el.getAttribute('aria-label')?.split(':')[0]);
+		primary.querySelectorAll('input[aria-label="Search teachers"], [aria-label^="Filter by"], [aria-label^="Sort teachers"]'),
+	).map((el) => el.getAttribute('aria-label')?.split(':')[0]);
 	assert.deepEqual(ordered, [
 		'Search teachers',
 		'Filter by status',
 		'Filter by department',
 		'Filter by load',
 		'Sort teachers',
-		'teaching-load-more-filters',
-	], 'the five named controls must appear in the operator\'s order, then `More filters`');
+	], 'the five named controls must appear in the operator\'s order, first on the one row');
 
 	// THE TWO OPTIONAL SWITCHES ARE INSIDE IT, WITH THEIR IDS UNCHANGED — so the
 	// label->id wiring the superseded row asserted still holds, read from the
 	// surface a scheduler actually reaches it on.
-	const trigger = primary.querySelector('[data-testid="teaching-load-more-filters"]') as HTMLButtonElement;
-	assert.ok(trigger, 'the `More filters` trigger must render');
-	assert.equal((trigger.textContent ?? '').trim(), 'More filters (1 on)', 'the trigger must state how many inclusion switches are on');
-	assert.equal(
-		primary.querySelectorAll('#show-outside-dept, #show-unmapped-specialization').length,
-		0,
-		'neither switch may remain on the always-visible row',
-	);
-	press(trigger);
-	const panel = dom.window.document.querySelector('[data-testid="teaching-load-more-filters-panel"]');
-	assert.ok(panel, 'the `More filters` popover must mount');
+	// SUPERSEDED IN WHOLE, RETAINED VERBATIM: the disclosure is gone, so both
+	// switches are on the ONE row with no trigger to press.
+	//
+	//   const trigger = primary.querySelector('[data-testid="teaching-load-more-filters"]') as HTMLButtonElement;
+	//   assert.ok(trigger, 'the `More filters` trigger must render');
+	//   assert.equal((trigger.textContent ?? '').trim(), 'More filters (1 on)', 'the trigger must state how many inclusion switches are on');
+	//   assert.equal(
+	//     primary.querySelectorAll('#show-outside-dept, #show-unmapped-specialization').length,
+	//     0,
+	//     'neither switch may remain on the always-visible row',
+	//   );
+	//   press(trigger);
+	//   const panel = dom.window.document.querySelector('[data-testid="teaching-load-more-filters-panel"]');
+	//   assert.ok(panel, 'the `More filters` popover must mount');
+	//   for (const id of ['show-outside-dept', 'show-unmapped-specialization']) {
+	//     assert.ok(panel!.querySelector(`#${id}`), `switch ${id} must keep its id and be reachable from \`More filters\``);
+	//   }
+	//   assert.equal(
+	//     (textOf(panel!.querySelector('label[for="show-outside-dept"]'))),
+	//     'Show teachers outside their subject area',
+	//     'and its label reads as a plain sentence, replacing the superseded `Cross-Dept`',
+	//   );
+	//   assert.equal(
+	//     (textOf(panel!.querySelector('label[for="show-unmapped-specialization"]'))),
+	//     'Show teachers with no matched subject',
+	//     'and its sibling label too, replacing the superseded `Unmapped Specialization`',
+	//   );
 	for (const id of ['show-outside-dept', 'show-unmapped-specialization']) {
-		assert.ok(panel!.querySelector(`#${id}`), `switch ${id} must keep its id and be reachable from \`More filters\``);
+		assert.ok(primary.querySelector(`[id="${id}"]`), `switch ${id} must keep its id and be ON the one row`);
+		assert.ok(primary.querySelector(`label[for="${id}"]`), `switch ${id} must keep its label on the one row`);
+	}
+});
+
+test('F14-1c THE REPLACEMENT for the superseded F14-1b (A6 c8 item 39, 2026-09-29): ONE row, all SEVEN controls, no `More filters` control anywhere', () => {
+	// The rule fix 39 established, in its ORIGINAL and now restored form: ONE
+	// continuous `flex flex-wrap items-center gap-2` row carrying every control in a
+	// named order, with no `More filters` button and no second row. This row
+	// discriminates in BOTH directions — it fails if a control moves behind a
+	// disclosure again, and it fails if a disclosure is re-added at all.
+	const host = render(
+		createElement(TeachingLoadFilterBar as any, {
+			searchQuery: '', onSearchQueryChange: () => {},
+			filterStatus: 'all', onFilterStatusChange: () => {},
+			statusFacetCounts: { all: 5, 'teaching-assigned': 3, 'no-teaching': 1, 'adviser-only': 1, excess: 0 },
+			loadFilter: 'all', loadFacetCounts: { excess: 0, 'at-standard': 2, 'below-standard': 3 },
+			onLoadFilterChange: () => {},
+			departmentFilter: 'all', onDepartmentFilterChange: () => {},
+			departmentOptions: [{ value: 'all', label: 'All departments', count: 5 }],
+			filterAnnouncement: '', onClearTeachingLoadFilters: () => {},
+			sortOrder: 'load-desc', onSortOrderChange: () => {},
+			showFilters: false, onToggleFilters: () => {},
+			showOutsideDept: true, onToggleOutsideDept: () => {},
+			showUnmappedSpecialization: false, onShowUnmappedSpecializationChange: () => {},
+			policyReady: true,
+		}),
+	);
+
+	const primary = host.querySelector('[data-testid="teaching-load-primary-filters"]')!;
+	assert.ok(primary, 'the always-visible filter row must exist');
+	for (const token of ['flex', 'flex-wrap', 'items-center', 'gap-2']) {
+		assert.ok(
+			primary.getAttribute('class')?.split(/\s+/).includes(token),
+			`the one row must carry \`${token}\``,
+		);
+	}
+
+	// THE ORDER IS THE OPERATOR'S, all SEVEN, read as DOM order so a re-order fails
+	// here rather than being inferred from class names. The switches are addressed by
+	// id, and by the ATTRIBUTE form because this file mounts several bars in one
+	// process, where a bare `#id` selector can resolve to another mount.
+	const ordered = Array.from(
+		primary.querySelectorAll(
+			'input[aria-label="Search teachers"], [aria-label^="Filter by"], [aria-label^="Sort teachers"], [id="show-outside-dept"], [id="show-unmapped-specialization"]',
+		),
+	).map((el) => (el.id ? `#${el.id}` : el.getAttribute('aria-label')?.split(':')[0]));
+	assert.deepEqual(ordered, [
+		'Search teachers',
+		'Filter by status',
+		'Filter by department',
+		'Filter by load',
+		'Sort teachers',
+		'#show-outside-dept',
+		'#show-unmapped-specialization',
+	], 'the seven controls must appear in the operator\'s order on the one row');
+
+	// THE DISCLOSURE IS GONE, IN BOTH FORMS: no second row, and no button whose
+	// face, accessible name or test id says `More filters`.
+	assert.equal(
+		host.querySelector('[data-testid="teaching-load-secondary-filters"]'),
+		null,
+		'fix 39 removed the second row entirely',
+	);
+	for (const button of buttonsIn(host)) {
+		assert.doesNotMatch(
+			(button.textContent ?? '').trim(),
+			/More filters/,
+			'the `More filters` disclosure button must be removed',
+		);
+		assert.doesNotMatch(
+			button.getAttribute('aria-label') ?? '',
+			/More filters/,
+			'and no control may state `More filters` in its accessible name instead',
+		);
 	}
 	assert.equal(
-		(textOf(panel!.querySelector('label[for="show-outside-dept"]'))),
-		'Show teachers outside their subject area',
-		'and its label reads as a plain sentence, replacing the superseded `Cross-Dept`',
+		dom.window.document.querySelectorAll('[data-testid="teaching-load-more-filters"]').length,
+		0,
+		'the trigger element itself must be absent, not merely unlabelled',
 	);
 	assert.equal(
-		(textOf(panel!.querySelector('label[for="show-unmapped-specialization"]'))),
-		'Show teachers with no matched subject',
-		'and its sibling label too, replacing the superseded `Unmapped Specialization`',
+		dom.window.document.querySelectorAll('[data-testid="teaching-load-more-filters-panel"]').length,
+		0,
+		'and so must its panel',
 	);
+
+	// BOTH SWITCHES, WITH THEIR LABELS, ON THAT ROW — reachable with no click on
+	// anything else. This is the claim A6 c6 reversed and the operator restored.
+	for (const id of ['show-outside-dept', 'show-unmapped-specialization']) {
+		const control = primary.querySelector(`[id="${id}"]`);
+		assert.ok(control, `${id} must be on the one row, not behind a disclosure`);
+		assert.equal(control!.getAttribute('role'), 'switch', `${id} must still be a real switch`);
+		assert.ok(primary.querySelector(`label[for="${id}"]`), `${id} must keep its label on the one row`);
+	}
 });
 
 test('F14-2 the filter bar adds NO scroll container (no-scroll architecture intact)', () => {

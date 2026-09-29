@@ -112,24 +112,68 @@ type RuntimeContextSource = 'atlas-persisted' | 'enrollpro-verified';
 type RuntimeDriftStatus = 'aligned' | 'atlas-stale' | 'enrollpro-unreachable' | 'mapping-conflict';
 type RuntimeDriftAction = 'NONE' | 'RUN_ROLLOVER_SYNC' | 'REVIEW_MAPPING_CONFLICT' | 'RETRY_ENROLLPRO' | 'RESET_DUMMY_YEAR' | 'RUN_ARCHIVE_AND_SYNC';
 
+/**
+ * A7-C7 — WHICH ID SPACE a piece of evidence is expressed in.
+ *
+ * `activeSchoolYearId` is an ENROLLPRO id. The mirror row is the only
+ * authority that can speak that language: it is the same authority
+ * `school-year-authority.service.ts` already uses to decide whether a
+ * `schoolYearId` names a real, non-archived year for a school.
+ *
+ * The five ATLAS tables carry an ATLAS-side surrogate with no foreign key, so
+ * the same integer can mean different years in the two spaces, and NOTHING in
+ * the schema lets one be translated into the other — the numbers agree only by
+ * coincidence. Every evidence row therefore names its space, and only
+ * `enrollpro` rows may win the active-year election.
+ */
+type RuntimeYearIdSpace = 'enrollpro' | 'atlas-surrogate';
+
 export type RuntimeContextEvidence = {
 	type: RuntimeContextEvidenceType;
 	schoolYearId: number;
 	timestamp: string;
 	source: string;
+	/** A7-C7: the id space `schoolYearId` is expressed in. */
+	idSpace: RuntimeYearIdSpace;
+	/**
+	 * A7-C7, DIAGNOSTIC ONLY — never consulted by the election. For an
+	 * `atlas-surrogate` row: the mirror's EnrollPro id for the same integer, or
+	 * `null` when no mirrored year carries it; and whether that mirrored year is
+	 * archived. An operator can see that ATLAS id 1 and EnrollPro id 1 are being
+	 * read as different years, which is the whole defect.
+	 */
+	enrollProSchoolYearId: number | null;
+	enrollProArchived: boolean | null;
 };
 
 export type RuntimeYearEvidence = {
+	/** An EnrollPro id when `idSpace` is `enrollpro`; otherwise diagnostic only. */
 	yearId: number;
 	timestamp: Date;
 	type: RuntimeContextEvidenceType;
 	source: string;
+	idSpace: RuntimeYearIdSpace;
+	enrollProSchoolYearId: number | null;
+	enrollProArchived: boolean | null;
 };
 
 export type RuntimeContextResult = {
 	schoolId: number;
 	activeSchoolYearId: number;
 	activeSchoolYearLabel: string | null;
+	/**
+	 * A7-C7: the elected year resolved in the EnrollPro id space, with the two
+	 * facts a client needs before it may call a year change a rollover — is this
+	 * the live year, and is it archived. The election can only ever return a
+	 * mirrored, non-archived year, so `isArchived` is `false` here; it is
+	 * published so the client never has to infer it.
+	 */
+	activeSchoolYear: {
+		enrollProSchoolYearId: number;
+		yearLabel: string | null;
+		isActive: boolean;
+		isArchived: boolean;
+	};
 	source: RuntimeContextSource;
 	stale: boolean;
 	resolvedAt: string;
@@ -199,11 +243,19 @@ function calculateEvidenceScore(evidence: RuntimeYearEvidence, nowMs: number): n
 }
 
 function rankRuntimeYears(evidence: RuntimeYearEvidence[]): YearScore[] {
-	if (evidence.length === 0) return [];
+	// A7-C7: ONLY EnrollPro-space evidence may win the election. An ATLAS-side
+	// surrogate cannot be placed in the EnrollPro id space, and summing its
+	// weights against the mirror's single 120 is exactly what let it take the
+	// election and be returned in the EnrollPro id slot (live: a surrogate scoring
+	// section-mirror + section-snapshot + faculty-snapshot + scheduling-policy
+	// outweighed the mirror and painted an archived year as the active one while
+	// EnrollPro was still on the previous year).
+	const eligible = evidence.filter((item) => item.idSpace === 'enrollpro');
+	if (eligible.length === 0) return [];
 
 	const nowMs = Date.now();
 	const grouped = new Map<number, RuntimeYearEvidence[]>();
-	for (const item of evidence) {
+	for (const item of eligible) {
 		const entries = grouped.get(item.yearId);
 		if (entries) {
 			entries.push(item);
@@ -248,10 +300,38 @@ export function pickBestRuntimeYear(
 	evidence: RuntimeYearEvidence[],
 	excludedYearIds?: Set<number>,
 ): RuntimeYearEvidence | null {
+	// A7-C7: the id-space restriction is applied inside `rankRuntimeYears`, so
+	// this export cannot be used to elect an ATLAS-side surrogate either.
 	const eligible = excludedYearIds && excludedYearIds.size > 0
 		? evidence.filter((item) => !excludedYearIds.has(item.yearId))
 		: evidence;
 	return rankRuntimeYears(eligible)[0]?.representative ?? null;
+}
+
+type EnrollProYearRow = {
+	enrollProSchoolYearId: number;
+	yearLabel: string;
+	isActive: boolean;
+	isArchived: boolean;
+};
+
+/**
+ * A7-C7 — describe how one ATLAS-side school-year value relates to the
+ * EnrollPro space, for the diagnostic evidence list ONLY.
+ *
+ * ATLAS has no `SchoolYear` table: every `schoolYearId` column is an ATLAS-side
+ * surrogate. Nothing relates one to an EnrollPro id except the integer itself,
+ * so this is a LOOKUP, not a translation, and the election must not treat an
+ * agreement as an identity — the live defect is precisely a case where ATLAS id
+ * 1 and EnrollPro id 1 are both present and mean different years.
+ */
+function describeAtlasSchoolYear(
+	atlasSchoolYearId: number,
+	rowsByEnrollProId: Map<number, EnrollProYearRow>,
+): { enrollProSchoolYearId: number | null; enrollProArchived: boolean | null } {
+	const row = rowsByEnrollProId.get(atlasSchoolYearId);
+	if (!row) return { enrollProSchoolYearId: null, enrollProArchived: null };
+	return { enrollProSchoolYearId: row.enrollProSchoolYearId, enrollProArchived: row.isArchived };
 }
 
 function buildActiveYearDrift(input: {
@@ -332,7 +412,7 @@ export async function resolveRuntimeContext(
 	authToken?: string,
 	options?: ResolveRuntimeContextOptions,
 ): Promise<RuntimeContextResult | null> {
-	const [schoolYearMirror, policy, mirror, sectionSnapshot, facultySnapshot, generationRun] = await Promise.all([
+	const [schoolYearMirror, mirrorYears, policy, mirror, sectionSnapshot, facultySnapshot, generationRun] = await Promise.all([
 		db().enrollProSchoolYearMirror.findFirst({
 			where: { schoolId, isActive: true },
 			orderBy: [{ lastSyncedAt: 'desc' }, { updatedAt: 'desc' }],
@@ -349,6 +429,13 @@ export async function resolveRuntimeContext(
 				termContractCache: true,
 				termContractCachedAt: true,
 			},
+		}),
+		// A7-C7: the school's whole set of mirrored EnrollPro years, in ONE read.
+		// It is the label source, the like-for-like archived set, and the
+		// diagnostic that shows which mirrored year shares an ATLAS id.
+		db().enrollProSchoolYearMirror.findMany({
+			where: { schoolId },
+			select: { enrollProSchoolYearId: true, yearLabel: true, isActive: true, isArchived: true },
 		}),
 		db().schedulingPolicy.findFirst({
 			where: { schoolId },
@@ -377,73 +464,108 @@ export async function resolveRuntimeContext(
 		}),
 	]);
 
+	// A7-C7 — the EnrollPro id-space index, read once. It labels each ATLAS-side
+	// value with the mirrored year that happens to share its integer (so the
+	// collision is visible to an operator), it is the label source, and it is the
+	// like-for-like archived set — no comparison between two id spaces remains.
+	const mirrorRows: EnrollProYearRow[] = mirrorYears;
+	const rowsByEnrollProId = new Map<number, EnrollProYearRow>(
+		mirrorRows.map((row) => [row.enrollProSchoolYearId, row]),
+	);
+
+	// RR-09A (A7-C7, like-for-like): archived years are historical scope — weaker
+	// than any live evidence. They never participate in the active-year election,
+	// even when their artifacts are newer than the live year's. The set is now
+	// EnrollPro ids and is only ever tested against EnrollPro ids, so it can no
+	// longer remove an ATLAS surrogate by integer coincidence.
+	const archivedYearIds = new Set(
+		mirrorRows.filter((row) => row.isArchived).map((row) => row.enrollProSchoolYearId),
+	);
+
 	const evidence: RuntimeYearEvidence[] = [];
+	const pushAtlasEvidence = (input: {
+		type: RuntimeContextEvidenceType;
+		source: string;
+		atlasSchoolYearId: number;
+		timestamp: Date;
+	}) => {
+		const described = describeAtlasSchoolYear(input.atlasSchoolYearId, rowsByEnrollProId);
+		evidence.push({
+			yearId: input.atlasSchoolYearId,
+			timestamp: input.timestamp,
+			type: input.type,
+			source: input.source,
+			idSpace: 'atlas-surrogate',
+			enrollProSchoolYearId: described.enrollProSchoolYearId,
+			enrollProArchived: described.enrollProArchived,
+		});
+	};
+
 	if (schoolYearMirror) {
 		evidence.push({
 			yearId: schoolYearMirror.enrollProSchoolYearId,
 			timestamp: schoolYearMirror.lastSyncedAt ?? schoolYearMirror.lastVerifiedAt ?? new Date(0),
 			type: 'school-year-mirror',
 			source: 'atlas.enrollpro_school_year_mirror',
+			idSpace: 'enrollpro',
+			enrollProSchoolYearId: schoolYearMirror.enrollProSchoolYearId,
+			enrollProArchived: rowsByEnrollProId.get(schoolYearMirror.enrollProSchoolYearId)?.isArchived ?? false,
 		});
 	}
 	if (policy) {
-		evidence.push({
-			yearId: policy.schoolYearId,
+		pushAtlasEvidence({
+			atlasSchoolYearId: policy.schoolYearId,
 			timestamp: policy.updatedAt,
 			type: 'scheduling-policy',
 			source: 'atlas.scheduling_policy',
 		});
 	}
 	if (mirror) {
-		evidence.push({
-			yearId: mirror.schoolYearId,
+		pushAtlasEvidence({
+			atlasSchoolYearId: mirror.schoolYearId,
 			timestamp: mirror.lastSyncedAt,
 			type: 'section-mirror',
 			source: 'atlas.section_mirror',
 		});
 	}
 	if (sectionSnapshot) {
-		evidence.push({
-			yearId: sectionSnapshot.schoolYearId,
+		pushAtlasEvidence({
+			atlasSchoolYearId: sectionSnapshot.schoolYearId,
 			timestamp: sectionSnapshot.fetchedAt,
 			type: 'section-snapshot',
 			source: `atlas.section_snapshot:${sectionSnapshot.source}`,
 		});
 	}
 	if (facultySnapshot) {
-		evidence.push({
-			yearId: facultySnapshot.schoolYearId,
+		pushAtlasEvidence({
+			atlasSchoolYearId: facultySnapshot.schoolYearId,
 			timestamp: facultySnapshot.fetchedAt,
 			type: 'faculty-snapshot',
 			source: `atlas.faculty_snapshot:${facultySnapshot.source}`,
 		});
 	}
 	if (generationRun) {
-		evidence.push({
-			yearId: generationRun.schoolYearId,
+		pushAtlasEvidence({
+			atlasSchoolYearId: generationRun.schoolYearId,
 			timestamp: generationRun.createdAt,
 			type: 'generation-run',
 			source: 'atlas.generation_run',
 		});
 	}
 
-	// RR-09A: archived years are historical scope — weaker than any live
-	// evidence. They never participate in the active-year election, even when
-	// their artifacts are newer than the live year's.
-	const archivedYearIds = new Set(
-		(await db().enrollProSchoolYearMirror.findMany({
-			where: { schoolId, isArchived: true },
-			select: { enrollProSchoolYearId: true },
-		})).map((mirror) => mirror.enrollProSchoolYearId),
-	);
 	if (archivedYearIds.size > 0) {
 		for (let i = evidence.length - 1; i >= 0; i -= 1) {
-			if (archivedYearIds.has(evidence[i].yearId)) {
+			if (evidence[i].idSpace === 'enrollpro' && archivedYearIds.has(evidence[i].yearId)) {
 				evidence.splice(i, 1);
 			}
 		}
 	}
 
+	// A7-C7: the only EnrollPro-space evidence is the mirror row, so no context
+	// means this school has no active mirrored EnrollPro year. Fail closed rather
+	// than reporting an ATLAS surrogate in the EnrollPro id slot (the route maps
+	// this to the existing 404 NO_RUNTIME_CONTEXT, and the dashboard's own null
+	// handling is unchanged).
 	const rankedYears = rankRuntimeYears(evidence);
 	let selectedRank = rankedYears[0] ?? null;
 	if (!selectedRank) return null;
@@ -574,6 +696,11 @@ export async function resolveRuntimeContext(
 			mappingConflict = conflicts.length > 0;
 			conflictCodes = conflicts.map((conflict) => conflict.code);
 
+			// A7-C7: `rankedYears` holds EnrollPro ids only, so this lookup and the
+			// `upstreamMatched` comparison below are like-for-like. A live EnrollPro
+			// id with no mirrored year of its own simply does not compete, and the
+			// drift block below then reports `atlas-stale` with RUN_ROLLOVER_SYNC —
+			// the truthful "EnrollPro moved, sync the new year" instruction.
 			const upstreamRank = rankedYears.find((entry) => entry.yearId === upstreamYear.id) ?? null;
 			if (upstreamRank && selectedRank) {
 				const strongerSignal = upstreamRank.strongestWeight > selectedRank.strongestWeight;
@@ -636,8 +763,12 @@ export async function resolveRuntimeContext(
 	}
 
 	const stale = Date.now() - selected.timestamp.getTime() > CONTEXT_STALE_THRESHOLD_MS;
-	if (!activeSchoolYearLabel && schoolYearMirror?.enrollProSchoolYearId === selected.yearId) {
-		activeSchoolYearLabel = schoolYearMirror.yearLabel;
+	if (!activeSchoolYearLabel) {
+		// A7-C7: like-for-like label lookup. The elected id is an EnrollPro id, so
+		// it is matched against the mirror's own ids — including a mirrored year
+		// that is not the active row, which the old active-mirror-only check could
+		// not label.
+		activeSchoolYearLabel = rowsByEnrollProId.get(selected.yearId)?.yearLabel ?? null;
 	}
 
 	let publishedResetBlocked = false;
@@ -678,6 +809,12 @@ export async function resolveRuntimeContext(
 		schoolId,
 		activeSchoolYearId: selected.yearId,
 		activeSchoolYearLabel,
+		activeSchoolYear: {
+			enrollProSchoolYearId: selected.yearId,
+			yearLabel: activeSchoolYearLabel,
+			isActive: rowsByEnrollProId.get(selected.yearId)?.isActive ?? false,
+			isArchived: archivedYearIds.has(selected.yearId),
+		},
 		source,
 		stale,
 		resolvedAt: new Date().toISOString(),
@@ -688,6 +825,9 @@ export async function resolveRuntimeContext(
 				schoolYearId: item.yearId,
 				timestamp: item.timestamp.toISOString(),
 				source: item.source,
+				idSpace: item.idSpace,
+				enrollProSchoolYearId: item.enrollProSchoolYearId,
+				enrollProArchived: item.enrollProArchived,
 			})),
 		upstream: {
 			reachable: upstreamReachable,

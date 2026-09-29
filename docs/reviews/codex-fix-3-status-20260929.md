@@ -1,0 +1,13 @@
+fix-3 · LIVE 2 · PENDING DEPLOY 1 · IN PROGRESS 0 · PARTLY 0 · NOT STARTED 1 · CONFLICT 2
+
+42 — CONFLICT. Live 3216d383 still renders “Next step Last saved data — Assign teachers to open classes” plus the “Review subject coverage” button at /teaching-load?view=allocation; the 14:15 A6-c9 packet supersedes the requested retained next-step strip: it removes both amber/saved-data banners and the strip, replacing them with one clickable staffing figure. A6-c9 is uncommitted in E:/ATLAS-worktrees/lane-a6-c9-staffing-pct (TeachingLoad.tsx and new TeachingLoadStaffingFigure.tsx); left: follow the newer packet, not the old strip requirement.
+
+43 — NOT STARTED. Live /subjects has “More filters” and the expanded “REFINE THE SUBJECTS SHOWN” popover with Status, Room, and Term; origin/main e75d6b8f retains it at atlas-client/src/components/subjects/SubjectFilterToolbar.tsx:155,244-273. No listed planner diff touches this toolbar; left: remove the disclosure and render Status/Room/Term inline.
+
+44 — LIVE. Live /subjects displays the ACTION header with the rows; 3216d383 already contains the sticky table header and sticky right Action cell (atlas-client/src/components/subjects/SubjectCatalogBody.tsx:162,176; 48a8d411 is ancestor of 3216d383). Left: none.
+
+45 — CONFLICT. The newer A3-c13 direction is one consolidated Teacher Concerns page, so renaming it Teacher Preferences conflicts: sidebar navigation.ts:86; page title TeacherConcerns.tsx:496; breadcrumb navigation.ts:163; route App.tsx:277; retired redirects App.tsx:273,325 and navigation.ts:208-209; internal links ScheduleReviewWorkspaceHeader.tsx:691, SimpleMoreMenuContent.tsx:407, timetableDriftRouting.ts:89; dashboard cards: none (Dashboard.tsx:514 says it is deliberately absent). Live sidebar also reads “Teacher Concerns” at /faculty/concerns; left: retain the one-page direction unless the operator replaces it.
+
+46 — LIVE. Live /sections opens assigned Aguinaldo’s “G7 Room 104” picker downward below the trigger, above table rows, with the menu portalled; source uses PopoverContent align="start" (atlas-client/src/components/sections/SectionRoomPicker.tsx:370,387) and Portal (atlas-client/src/ui/popover.tsx:14-25). Left: none.
+
+47 — PENDING DEPLOY. origin/main e75d6b8f includes 86665f48, which refactors the modal to a flex column with an independent min-h-0 overflow-auto body and external DialogFooter (atlas-client/src/components/sections/HomeRoomAutoAssignDialog.tsx:317,329,439); it differs from live 3216d383 by 300 insertions/173 deletions. Live still shows “Auto-assign home rooms” with its list behind the footer at the top of the scroll; left: deploy 86665f48/main and recheck last-row clearance.

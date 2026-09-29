@@ -53,3 +53,7 @@ coordination footer or repeat executor evidence that you did not independently
 verify.
 
 **Never write in `D:\ATLAS`** (the operator's checkout). Work, mutation tests, screenshots and temp files go only in your packet's `E:/ATLAS-worktrees/lane-*` worktree or `$env:TEMP`. A mutant applied to `D:\ATLAS` was found there on 2026-09-29 (14:02). Restore every mutant before you finish.
+
+**Staging sign-in (2026-09-29):** only `http://127.0.0.1:<port>/__dev/staging-login` on a 5200–5299 preview. If it 404s, merge `origin/main` into the worktree (it needs `9af12673`). Never read `D:\ATLAS-runtime-config\atlas-staging-qa.env`, never serve a password or token on any port, never type them into a form. The reaper kills token relays on sight.
+
+**Never lose uncommitted work (2026-09-29, A6 c9 lost ~90 min).** Commit a `wip(...)` checkpoint to your work branch at least every 30 minutes and before any long step, and push the branch; an executor that nears its step limit commits first. Never `git checkout --`, `git reset --hard`, `git clean` or revert files with uncommitted changes: first `git stash push -u -m <why>` or commit them to a `backup/<lane>-<time>` branch. Never write a patch or measure file encoding through a PowerShell pipeline (`>`, `Set-Content`, `git show | ...` mangle UTF-16/CRLF/non-ASCII); use `git diff --output=<file>`, `git stash`, and `git status`/`git diff` as the authority.

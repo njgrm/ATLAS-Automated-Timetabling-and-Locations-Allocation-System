@@ -80,7 +80,7 @@ test('a verified transition only fires when an earlier year existed and changed'
 	const first = evaluateRolloverTransition({
 		schoolId: 7,
 		previous: { id: null, label: null },
-		next: { id: 20, label: 'SY 2026-2027' },
+		next: { id: 20, label: 'SY 2026-2027', archived: false, serverVerifiedActive: true },
 	});
 	assert.equal(first.changed, false, 'first verified read must not show a false rollover notice');
 	assert.equal(first.notice, null);
@@ -88,7 +88,7 @@ test('a verified transition only fires when an earlier year existed and changed'
 	const duplicate = evaluateRolloverTransition({
 		schoolId: 7,
 		previous: { id: 20, label: 'SY 2026-2027' },
-		next: { id: 20, label: 'SY 2026-2027' },
+		next: { id: 20, label: 'SY 2026-2027', archived: false, serverVerifiedActive: true },
 	});
 	assert.equal(duplicate.changed, false, 'a duplicate event does not rebind the route');
 });
@@ -97,7 +97,7 @@ test('a real year change produces a school-scoped notice naming both years', () 
 	const transition = evaluateRolloverTransition({
 		schoolId: 9,
 		previous: { id: 19, label: 'SY 2025-2026' },
-		next: { id: 20, label: 'SY 2026-2027' },
+		next: { id: 20, label: 'SY 2026-2027', archived: false, serverVerifiedActive: true },
 	});
 	assert.equal(transition.changed, true);
 	assert.ok(transition.notice);
@@ -112,19 +112,19 @@ test('sensitivity: without recording the verified year, a stale duplicate looks 
 	// advanced an in-memory "verified year" ref, so a repeated event could be
 	// mistaken for a fresh transition and trigger another refresh/remount.
 	const stalePrevious = { id: null, label: null };
-	const first = evaluateRolloverTransition({ schoolId: 7, previous: stalePrevious, next: { id: 20, label: 'A' } });
-	const second = evaluateRolloverTransition({ schoolId: 7, previous: stalePrevious, next: { id: 20, label: 'A' } });
+	const first = evaluateRolloverTransition({ schoolId: 7, previous: stalePrevious, next: { id: 20, label: 'A', archived: false, serverVerifiedActive: true } });
+	const second = evaluateRolloverTransition({ schoolId: 7, previous: stalePrevious, next: { id: 20, label: 'A', archived: false, serverVerifiedActive: true } });
 	assert.equal(first.changed, false);
 	assert.equal(second.changed, false, 'no fabricated transition when no prior verified year exists');
 	// Once the ref advances, the same duplicate is correctly a no-op.
 	const advanced = { id: 20, label: 'A' };
 	assert.equal(
-		evaluateRolloverTransition({ schoolId: 7, previous: advanced, next: { id: 20, label: 'A' } }).changed,
+		evaluateRolloverTransition({ schoolId: 7, previous: advanced, next: { id: 20, label: 'A', archived: false, serverVerifiedActive: true } }).changed,
 		false,
 	);
 	// And a genuinely new year does fire exactly once.
 	assert.equal(
-		evaluateRolloverTransition({ schoolId: 7, previous: advanced, next: { id: 21, label: 'B' } }).changed,
+		evaluateRolloverTransition({ schoolId: 7, previous: advanced, next: { id: 21, label: 'B', archived: false, serverVerifiedActive: true } }).changed,
 		true,
 	);
 });
