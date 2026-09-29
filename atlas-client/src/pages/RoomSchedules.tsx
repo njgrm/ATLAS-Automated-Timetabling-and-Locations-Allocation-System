@@ -1,64 +1,76 @@
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
 	AlertTriangle,
 	CalendarX,
+	ChevronDown,
 	DoorOpen,
-	Info,
+	Download,
+	FileSpreadsheet,
 	Layers3,
+	MoreHorizontal,
+	Printer,
 	RefreshCw,
 	ServerOff,
 	Users,
-	Wrench,
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
-import { UNVERIFIED_TERM_BODY, UNVERIFIED_TERM_TITLE } from '@/lib/room-schedule-term-copy';
-import { useActorSchoolScope } from '@/lib/actor-scope-session';import { pivotDraftToView } from '@/lib/schedule-pivot';
+import { UNVERIFIED_TERM_BODY } from '@/lib/room-schedule-term-copy';
+import { useActorSchoolScope } from '@/lib/actor-scope-session';
+import { pivotDraftToView } from '@/lib/schedule-pivot';
+import { buildScheduleSourceSentence, formatScheduleMadeOn } from '@/lib/schedule-source-sentence';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
-import { Input } from '@/ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
 import { SearchableSelect } from '@/ui/searchable-select';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { pickerTriggerClass } from '@/ui/picker-trigger';
 import { Skeleton } from '@/ui/skeleton';
+import { TooltipProvider } from '@/ui/tooltip';
 import { ConflictInspectorSheet, type ConflictInspectorData } from '@/components/ConflictInspectorSheet';
 import { OccupancyTemplatePreview } from '@/components/room-schedules/OccupancyTemplatePreview';
+import { ScheduleSourceBand } from '@/components/room-schedules/ScheduleSourceBand';
 import { ScheduleTimetableGrid } from '@/components/room-schedules/ScheduleTimetableGrid';
 import { ScheduleMobileCards } from '@/components/room-schedules/ScheduleMobileCards';
 import { exportScheduleToCsv } from '@/components/room-schedules/schedule-export';
 import { SchedulerPrintDialog } from '@/components/timetable/simple/SchedulerPrintDialog';
-import { MAX_ACADEMIC_TERM_INDEX, academicTermDisplayLabel, isTermIndexWithinTerms, isVerifiedOrderedActiveTerm, type AcademicTermOption, type OrderedAcademicTerm } from '@/lib/academic-term';
-import { SmartHelpTrigger, SmartSourceStatusChip } from '@/components/smart/SmartPageShell';
-import type { Building, Room, Subject, FacultyMirror, RoomScheduleView, SectionSummaryResponse, DraftReport } from '@/types';
+import { academicTermDisplayLabel, isTermIndexWithinTerms, isVerifiedOrderedActiveTerm, type AcademicTermOption, type OrderedAcademicTerm } from '@/lib/academic-term';
+import { SmartSourceStatusChip } from '@/components/smart/SmartPageShell';
+import type { Building, Room, Subject, FacultyMirror, RoomScheduleView, SectionSummaryResponse, DraftReport, GenerationRun } from '@/types';
 import type { ViewMode, SectionInfo } from '@/components/room-schedules/schedule-types';
 
-const MODE_COPY: Record<ViewMode, { label: string; description: string; emptyTitle: string; emptyBody: string; icon: typeof DoorOpen }> = {
+const MODE_COPY: Record<ViewMode, { label: string; emptyTitle: string; emptyBody: string; icon: typeof DoorOpen }> = {
 	rooms: {
 		label: 'Rooms',
-		description: 'Inspect room use and conflicts',
 		emptyTitle: 'Choose a room',
-		emptyBody: 'Pick a teaching room to see how the latest schedule uses that space and whether any conflicts need review.',
+		emptyBody: 'Pick a room to see its week, in plain words: which class meets there, with which teacher.',
 		icon: DoorOpen,
 	},
 	teachers: {
 		label: 'Teachers',
-		description: 'Inspect teacher daily load',
 		emptyTitle: 'Choose a teacher',
-		emptyBody: 'Pick a teacher to review daily teaching blocks, room movement, and possible schedule conflicts.',
+		emptyBody: 'Pick a teacher to see where they teach each day and in which room.',
 		icon: Users,
 	},
 	sections: {
 		label: 'Sections',
-		description: 'Inspect section timetable',
 		emptyTitle: 'Choose a section',
-		emptyBody: 'Pick a section to review the student-facing timetable before review or publish decisions.',
+		emptyBody: 'Pick a section to see the week its students follow.',
 		icon: Layers3,
 	},
 };
 
-type SourceMode = 'latest' | 'run';
+const VIEW_MODES: ViewMode[] = ['rooms', 'teachers', 'sections'];
+
+/** How many past timetables the dated disclosure may offer. */
+const OLDER_RUN_LIMIT = 12;
 
 type FetchState =
 	| { status: 'idle' }
@@ -67,10 +79,38 @@ type FetchState =
 	| { status: 'empty'; message: string }
 	| { status: 'error'; message: string };
 
+/**
+ * A5 C5 (2026-09-29) — the page.
+ *
+ * The operator reported Room Schedules as confusing, and the cause was not the grid: the page
+ * asked a scheduler to speak a database's language before it would show them a week. A
+ * `Generation run ID` number box with a `Use a whole number above 0.` error, a Latest/Run toggle
+ * inside a `Tools` popover, a `How to browse schedules` panel, a *second* term picker used only by
+ * a download, and a stat banner ending `Run #412 · COMPLETED` were all on the way to one week.
+ *
+ * THE CONTRACT, in the operator's three questions. Rooms is the default mode, so "what is in Room
+ * 101 on Tuesday" is ONE click; "where is this teacher" and "what is this section's week" are TWO
+ * (switch, pick). The timetable on screen is always the latest usable one for the active term,
+ * chosen automatically and named in one quiet sentence in words.
+ *
+ * WHY THE RUN ID IS GONE RATHER THAN MOVED. It is not a thing a scheduler types or reads. It is
+ * carried in `pinnedRunId` only where a request genuinely needs it, and a *dated* disclosure
+ * ("Show an older timetable") keeps history reachable without a key on screen.
+ *
+ * SUBTRACT FIRST (`AGENTS.md` §8). Deleted, not reworded: the `How to browse` panel, the whole
+ * `Tools` popover, the run-id input and its error, the separate download-term picker, the
+ * full-width `Export CSV` button, the `Occupancy`/`Refresh` buttons in the filter row, the
+ * `Schedules` eyebrow, the `Showing {term}` chip (it restated the term picker — two controls for
+ * one fact) and the `12 rooms available.` sentence under the picker. `Refresh`, `Export this view
+ * as CSV`, the official Word/Excel download and the room occupancy sheet moved behind `More`.
+ *
+ * §8 "One look per control": both pickers wear `pickerTriggerClass` from `@/ui/picker-trigger`,
+ * the A5 c4 shared chrome, replacing this page's own
+ * `triggerClassName="h-10 text-sm w-full rounded-xl bg-white shadow-sm"`.
+ */
 export default function RoomSchedules() {
 	const [searchParams] = useSearchParams();
 	const queryRoomId = searchParams.get('roomId');
-	const querySource = searchParams.get('source');
 
 	const [rooms, setRooms] = useState<(Room & { buildingName: string })[]>([]);
 	const [facultyList, setFacultyList] = useState<FacultyMirror[]>([]);
@@ -87,29 +127,28 @@ export default function RoomSchedules() {
 	const [selectedRoomId, setSelectedRoomId] = useState<string>('');
 	const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
 	const [selectedSectionId, setSelectedSectionId] = useState<string>('');
-	const [sourceMode, setSourceMode] = useState<SourceMode>((querySource === 'latest' || querySource === 'run') ? querySource : 'latest');
-	const [runIdInput, setRunIdInput] = useState('');
 	const [presentationMode, setPresentationMode] = useState<'schedule' | 'occupancy'>('schedule');
 	const [templateVariant, setTemplateVariant] = useState<'11x6' | '13x6'>('11x6');
-	// C05 T7/M11 — official room program download term selection. `all` is
-	// unresolved and keeps the official control disabled with zero dispatch.
-	const [exportTerm, setExportTerm] = useState<string>('all');
 	const [downloadSchedulesOpen, setDownloadSchedulesOpen] = useState(false);
 
-	// ROOM-SCHEDULES-TERM-C01 — the ONE selected term for every on-screen view.
-	//
-	// The three view tabs (Rooms / Teachers / Sections) all render a WEEKLY grid,
-	// and a weekly grid built from three merged terms shows the same class three
-	// times in one slot. The grid then counts that as a room conflict, so the
-	// page reported 10 conflicts for a room that had none. Term scope is
-	// therefore an invariant of the view, not a display filter.
-	//
-	// `orderedTerms` and `activeTermIndex` come from the ONE existing authority
-	// (`resolveActiveSchoolYearContext` + `isVerifiedOrderedActiveTerm`). There
-	// is deliberately no "All terms" option here: that is correct for a filter
-	// over a list (`buildAcademicTermOptions`) and is precisely the merge this
-	// view must not perform. `viewTerm` is null until a term is VERIFIED, and
-	// null means "prove the term", never "fall back to Term 1".
+	/**
+	 * A5 C5 — the ONLY place a run id exists in this page, and it is never rendered. `null` means
+	 * "the latest usable timetable", the default; a number means a scheduler chose a *date* from
+	 * the disclosure below. It travels into the fetch and the print/download request, the one
+	 * request that genuinely needs it.
+	 */
+	const [pinnedRunId, setPinnedRunId] = useState<number | null>(null);
+	/** Completed timetables, newest first, labelled by DATE for the older-timetable disclosure. */
+	const [pastRuns, setPastRuns] = useState<{ id: number; madeOn: string | null }[]>([]);
+
+	// ROOM-SCHEDULES-TERM-C01 — the ONE selected term for every on-screen view. A weekly grid built
+	// from three merged terms shows the same class three times in one slot, and the grid then
+	// counts that as a room conflict: the page reported 10 conflicts for a room that had none. Term
+	// scope is an invariant of the view, not a display filter. `orderedTerms` and the active index
+	// come from the ONE existing authority (`resolveActiveSchoolYearContext` +
+	// `isVerifiedOrderedActiveTerm`), so this surface cannot develop a second opinion. There is
+	// deliberately no "All terms" option: null `viewTerm` means "prove the term", never "fall
+	// back to Term 1".
 	const [orderedTerms, setOrderedTerms] = useState<OrderedAcademicTerm[] | null>(null);
 	const [verifiedActiveTermIndex, setVerifiedActiveTermIndex] = useState<number | null>(null);
 	const [viewTerm, setViewTerm] = useState<number | null>(null);
@@ -120,33 +159,27 @@ export default function RoomSchedules() {
 		const ordered = orderedTerms && orderedTerms.length > 0
 			? [...orderedTerms].sort((a, b) => a.order - b.order)
 			: [];
-		// Labels come from the shared authority; the option LIST is built here
-		// because the shared builder's leading "All terms" entry is forbidden in
-		// a schedule view.
+		// The shared builder's leading "All terms" entry is forbidden in a schedule view, so the
+		// option LIST is built here; the labels still come from the shared authority.
 		return ordered
 			.filter((term) => isTermIndexWithinTerms(term.order, ordered))
 			.map((term) => ({ value: String(term.order), label: academicTermDisplayLabel(ordered, term.order) }));
 	}, [orderedTerms]);
 
-	const selectedTermLabel = useMemo(() => {
-		if (viewTerm == null) return null;
-		return academicTermDisplayLabel(orderedTerms, viewTerm);
-	}, [orderedTerms, viewTerm]);
-
 	const [state, setState] = useState<FetchState>({ status: 'idle' });
 	const [conflictData, setConflictData] = useState<ConflictInspectorData | null>(null);
-
-	const sectionNameMap = useMemo(() => {
-		const m = new Map<number, string>();
-		for (const [id, info] of sectionMap) m.set(id, info.name);
-		return m;
-	}, [sectionMap]);
 
 	const roomMap = useMemo(() => {
 		const m = new Map<number, string>();
 		for (const r of rooms) m.set(r.id, r.name);
 		return m;
 	}, [rooms]);
+
+	const sectionNameMap = useMemo(() => {
+		const m = new Map<number, string>();
+		for (const [id, info] of sectionMap) m.set(id, info.name);
+		return m;
+	}, [sectionMap]);
 
 	const selectedEntityId =
 		viewMode === 'rooms' ? selectedRoomId
@@ -179,30 +212,43 @@ export default function RoomSchedules() {
 					atlasApi.get<{ faculty: FacultyMirror[] }>(`/faculty?schoolId=${scopedSchoolId}`).catch(() => ({ data: { faculty: [] as FacultyMirror[] } })),
 				]);
 
-			setSchoolYearId(activeSchoolYearId);
-			setSchoolYearLabel(yearContext.activeSchoolYearLabel ?? null);
+				setSchoolYearId(activeSchoolYearId);
+				setSchoolYearLabel(yearContext.activeSchoolYearLabel ?? null);
 
-			// ROOM-SCHEDULES-TERM-C01 — capture the term authority that was
-			// already being fetched and discarded. `isVerifiedOrderedActiveTerm`
-			// is the same predicate the main workspace uses, so this surface
-			// cannot develop a second opinion about what "the active term" is.
-			const activeTerm = yearContext.activeTerm ?? null;
-			if (isVerifiedOrderedActiveTerm(activeTerm)) {
-				const terms = activeTerm?.orderedTerms ?? [];
-				setOrderedTerms(terms.length > 0 ? terms : null);
-				setVerifiedActiveTermIndex(activeTerm?.termIndex ?? null);
-				setViewTerm((current) => (
-					current != null && isTermIndexWithinTerms(current, terms) ? current : activeTerm?.termIndex ?? null
-				));
-			} else {
-				// Unresolved authority. Clear the selection rather than defaulting:
-				// the view must not read, and must not claim, a term it cannot prove.
-				setOrderedTerms(null);
-				setVerifiedActiveTermIndex(null);
-				setViewTerm(null);
-			}
+				// ROOM-SCHEDULES-TERM-C01 — capture the term authority that was already being
+				// fetched and discarded, through the SAME predicate the main workspace uses, so
+				// this surface cannot develop a second opinion about "the active term".
+				const activeTerm = yearContext.activeTerm ?? null;
+				if (isVerifiedOrderedActiveTerm(activeTerm)) {
+					const terms = activeTerm?.orderedTerms ?? [];
+					setOrderedTerms(terms.length > 0 ? terms : null);
+					setVerifiedActiveTermIndex(activeTerm?.termIndex ?? null);
+					setViewTerm((current) => (
+						current != null && isTermIndexWithinTerms(current, terms) ? current : activeTerm?.termIndex ?? null
+					));
+				} else {
+					// Unresolved authority. Clear rather than default: the view must not read,
+					// and must not claim, a term it cannot prove.
+					setOrderedTerms(null);
+					setVerifiedActiveTermIndex(null);
+					setViewTerm(null);
+				}
 
 				if (activeSchoolYearId) {
+					// A5 C5 — the DATED history behind "Show an older timetable". Best-effort: the
+					// default (latest) needs no history, so a failure here must not affect the
+					// page. Only COMPLETED runs are offered; an unfinished run is not a timetable.
+					atlasApi.get<{ runs: GenerationRun[] }>(
+						`/generation/${scopedSchoolId}/${activeSchoolYearId}/runs?limit=${OLDER_RUN_LIMIT}`,
+					).then((r) => {
+						setPastRuns((r.data.runs ?? [])
+							.filter((run) => run.status === 'COMPLETED')
+							.map((run) => ({
+								id: run.id,
+								madeOn: formatScheduleMadeOn(run.finishedAt ?? run.createdAt ?? null),
+							})));
+					}).catch(() => { /* the disclosure is optional; the default view is not */ });
+
 					atlasApi.get<SectionSummaryResponse>(`/sections/summary/${activeSchoolYearId}?schoolId=${scopedSchoolId}`)
 						.then((r) => {
 							const secMap = new Map<number, SectionInfo>();
@@ -253,16 +299,6 @@ export default function RoomSchedules() {
 		})();
 	}, [actorSchoolId]);
 
-	const [debouncedRunId, setDebouncedRunId] = useState('');
-	const debounceTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-	useEffect(() => {
-		debounceTimer.current = setTimeout(() => setDebouncedRunId(runIdInput), 300);
-		return () => clearTimeout(debounceTimer.current);
-	}, [runIdInput]);
-
-	const isRunIdValid = sourceMode === 'latest' || (sourceMode === 'run' && /^[1-9]\d*$/.test(debouncedRunId));
-	const runIdHasValidationError = sourceMode === 'run' && runIdInput.trim().length > 0 && !/^[1-9]\d*$/.test(runIdInput.trim());
-	const runIdMissing = sourceMode === 'run' && runIdInput.trim().length === 0;
 	const selectedModeCopy = MODE_COPY[viewMode];
 	const SelectedModeIcon = selectedModeCopy.icon;
 
@@ -274,26 +310,23 @@ export default function RoomSchedules() {
 		}
 		const scopedSchoolId = actorSchoolId;
 
-		// ROOM-SCHEDULES-TERM-C01 — fail closed BEFORE any request. An unverified
-		// term is unresolved authority: this surface must neither read an all-term
-		// draft nor silently adopt Term 1. The message is an operator action, not
-		// an error code, and it never claims the schedule is empty.
+		// ROOM-SCHEDULES-TERM-C01 — fail closed BEFORE any request. An unverified term is
+		// unresolved authority: this surface must neither read an all-term draft nor silently
+		// adopt Term 1. The message is an operator action, and it never claims the schedule is empty.
 		if (viewTerm == null) {
 			setState({ status: 'empty', message: UNVERIFIED_TERM_BODY });
 			return;
 		}
 		const selectedTermForView = viewTerm;
 
-		if (sourceMode === 'run' && !/^[1-9]\d*$/.test(debouncedRunId)) {
-			setState({ status: 'empty', message: 'Enter a valid Run ID to view this source.' });
-			return;
-		}
-
 		setState({ status: 'loading' });
 		try {
 			if (viewMode === 'rooms') {
-				const params = new URLSearchParams({ source: sourceMode });
-				if (sourceMode === 'run') params.set('runId', debouncedRunId);
+				// A5 C5: `source` is `latest` unless a DATED older timetable was chosen. There is no
+			// third option, and no way to reach one by typing a number.
+			const params = new URLSearchParams(pinnedRunId == null
+				? { source: 'latest' }
+				: { source: 'run', runId: String(pinnedRunId) });
 				// ROOM-SCHEDULES-TERM-C01 — send the ONE selected term. The server
 				// endpoint already accepts an explicit termIndex and fails closed
 				// with 501 TERM_FILTER_NOT_READY rather than merging; it was only
@@ -305,9 +338,9 @@ export default function RoomSchedules() {
 				);
 				setState({ status: 'ok', data });
 			} else {
-				const url = sourceMode === 'latest'
+				const url = pinnedRunId == null
 					? `/generation/${scopedSchoolId}/${schoolYearId}/runs/latest/timetable`
-					: `/generation/${scopedSchoolId}/${schoolYearId}/runs/${debouncedRunId}/timetable`;
+					: `/generation/${scopedSchoolId}/${schoolYearId}/runs/${pinnedRunId}/timetable`;
 
 				const { data: report } = await atlasApi.get<DraftReport>(url);
 
@@ -331,9 +364,8 @@ export default function RoomSchedules() {
 
 				const result = pivotDraftToView(report, viewMode, entityId, entity, selectedTermForView, subjectMap);
 				if (!result.ok) {
-					// Fail closed for the same reason the server refuses: an entry
-					// with no term identity cannot be placed in one term, and
-					// merging is what this whole change exists to stop.
+					// Fail closed for the same reason the server refuses: an entry with no term
+					// identity cannot be placed in one term, and merging is what this exists to stop.
 					setState({
 						status: 'empty',
 						message: 'Some sessions in this draft have no verified term, so they cannot be shown for one term. Regenerate the draft, then retry.',
@@ -352,18 +384,12 @@ export default function RoomSchedules() {
 				setState({ status: 'error', message: msg });
 			}
 		}
-	}, [actorSchoolId, viewMode, selectedEntityId, schoolYearId, sourceMode, debouncedRunId, facultyList, sectionList, subjectMap, viewTerm]);
+	}, [actorSchoolId, viewMode, selectedEntityId, schoolYearId, pinnedRunId, facultyList, sectionList, subjectMap, viewTerm]);
 
 	useEffect(() => {
 		if (!selectedEntityId || !schoolYearId) return;
-		if (sourceMode === 'run' && !/^[1-9]\d*$/.test(debouncedRunId)) {
-			if (debouncedRunId !== '') {
-				setState({ status: 'empty', message: 'Enter a valid Run ID to view this source.' });
-			}
-			return;
-		}
-		fetchSchedule();
-	}, [selectedEntityId, schoolYearId, sourceMode, debouncedRunId, fetchSchedule]);
+		void fetchSchedule();
+	}, [selectedEntityId, schoolYearId, pinnedRunId, fetchSchedule]);
 
 	useEffect(() => {
 		if (!selectedEntityId) {
@@ -416,19 +442,12 @@ export default function RoomSchedules() {
 			.map(([label, items]) => ({ label, items }));
 	}, [sectionList]);
 
+	/** The one picker: its option list, and the name of what it lists. */
 	const activeSelector = useMemo(() => {
-		if (viewMode === 'rooms') return { groups: roomGroups, placeholder: 'Select room…' };
-		if (viewMode === 'teachers') return { groups: teacherGroups, placeholder: 'Select teacher…' };
-		return { groups: sectionGroups, placeholder: 'Select section…' };
+		if (viewMode === 'rooms') return { groups: roomGroups, placeholder: 'Choose a room', noun: 'room' };
+		if (viewMode === 'teachers') return { groups: teacherGroups, placeholder: 'Choose a teacher', noun: 'teacher' };
+		return { groups: sectionGroups, placeholder: 'Choose a section', noun: 'section' };
 	}, [viewMode, roomGroups, teacherGroups, sectionGroups]);
-	const activeSelectorCount = activeSelector.groups.reduce((count, group) => count + group.items.length, 0);
-	const selectorStatus = roomsLoading
-		? 'Loading schedule references.'
-		: lookupError
-			? 'Schedule references are unavailable right now.'
-			: activeSelectorCount === 0
-				? `No ${selectedModeCopy.label.toLowerCase()} are available yet.`
-				: `${activeSelectorCount} ${selectedModeCopy.label.toLowerCase()} available.`;
 
 	const selectedName = useMemo(() => {
 		if (viewMode === 'rooms') {
@@ -442,10 +461,27 @@ export default function RoomSchedules() {
 		const s = sectionList.find((x) => String(x.id) === selectedEntityId);
 		return s?.name ?? 'section';
 	}, [viewMode, selectedEntityId, rooms, facultyList, sectionList]);
+
 	const handleExport = useCallback(() => {
 		if (state.status !== 'ok') return;
 		exportScheduleToCsv(state.data, viewMode, selectedName, subjectMap, facultyMap, sectionMap, roomMap);
 	}, [state, viewMode, selectedName, subjectMap, facultyMap, sectionMap, roomMap]);
+
+	/**
+	 * A5 C5 — the ONE quiet line naming the timetable on screen. It reads the date the loaded view
+	 * itself carries (`source.generatedAt`, set by both the server's room read and
+	 * `pivotDraftToView`), so it always describes what is rendered rather than what was intended.
+	 * There is deliberately no run id in this string, and no code path that could add one.
+	 */
+	const sourceSentence = useMemo(() => {
+		if (state.status !== 'ok') return null;
+		return buildScheduleSourceSentence({
+			madeAt: state.data.source.generatedAt,
+			termIndex: viewTerm,
+			orderedTerms,
+			isOlder: pinnedRunId != null,
+		});
+	}, [state, viewTerm, orderedTerms, pinnedRunId]);
 
 	const conflictHandler = useCallback((day: string, dayLabel: string, startTime: string, endTime: string, entries: Parameters<NonNullable<Parameters<typeof ScheduleTimetableGrid>[0]['onConflictClick']>>[4]) => {
 		if (state.status !== 'ok') return;
@@ -458,254 +494,176 @@ export default function RoomSchedules() {
 			roomId: viewMode === 'rooms' ? Number(selectedEntityId) : 0,
 			runId: state.data.source.runId ?? 0,
 			runStatus: state.data.source.status,
+			sourceMadeOn: formatScheduleMadeOn(state.data.source.generatedAt),
 			entries,
 		});
 	}, [state, viewMode, selectedEntityId]);
 
 	return (
+		<TooltipProvider delayDuration={200}>
 		<div className="flex h-[calc(100svh-3.5rem)] flex-col bg-primary/5">
+			{/* §8 HEADER BUDGET — row 1: title, ONE status chip, the primary action, `More`.
+			    Row 2: the three questions, the one name picker, the term control when the year
+			    warrants one, and the quiet line naming the timetable. Nothing else. */}
 			<div className="shrink-0 px-3 pt-2 lg:px-5">
-				<header className="flex flex-col gap-1.5 rounded-xl border border-primary/10 bg-white px-3 py-2 shadow-soft sm:flex-row sm:items-center sm:justify-between">
-					<div className="min-w-0">
-						<div className="flex flex-wrap items-center gap-2">
-							<span className="text-[0.65rem] font-medium text-muted-foreground uppercase tracking-wider">
-								Schedules
-							</span>
-						<SmartSourceStatusChip
-							label={state.status === 'ok' ? 'Ready to review' : roomsLoading ? 'Loading names' : 'Choose schedule'}
-							tone={state.status === 'ok' ? 'live' : roomsLoading ? 'checking' : 'neutral'}
-							testId="schedules-readiness-chip"
-						/>
-						{/* ROOM-SCHEDULES-TERM-C01 — the term the grid on this page
-						    actually shows. It is stated, not implied, because the
-						    grid is single-term and an operator comparing it with
-						    another term's output needs to know which one this is. */}
-						<span
-							className="rounded-md border border-primary/20 bg-primary/5 px-1.5 py-0.5 text-[0.65rem] font-medium text-primary"
-							data-testid="schedules-selected-term"
+				<div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/10 bg-white px-3 py-2 shadow-soft">
+					<h1 className="text-base font-bold text-foreground">Schedules</h1>
+					<SmartSourceStatusChip
+						label={state.status === 'ok' ? 'Ready' : roomsLoading ? 'Loading names' : 'Choose a name'}
+						tone={state.status === 'ok' ? 'live' : roomsLoading ? 'checking' : 'neutral'}
+						testId="schedules-readiness-chip"
+					/>
+					<div className="ml-auto flex items-center gap-1.5">
+						<Button
+							type="button"
+							variant="default"
+							size="sm"
+							className="h-9 gap-1.5"
+							disabled={state.status !== 'ok'}
+							onClick={() => window.print()}
+							data-testid="schedules-print-current"
 						>
-							{viewTerm != null && selectedTermLabel ? `Showing ${selectedTermLabel}` : UNVERIFIED_TERM_TITLE}
-						</span>
-						</div>
-					</div>
-					<div className="flex flex-wrap items-center justify-end gap-2">
-						<SmartHelpTrigger
-							title="How to browse schedules"
-							description="Use this page to inspect the latest generated schedule by room, teacher, or section."
-							steps={[
-								{ title: 'Choose a view', body: 'Pick Rooms, Teachers, or Sections depending on what you need to inspect.', target: 'View buttons' },
-								{ title: 'Pick one schedule', body: 'Use the searchable selector to choose the exact room, teacher, or section.', target: 'Schedule selector' },
-								{ title: 'Review conflicts', body: 'Conflict badges explain which classes need attention.', target: 'Conflict labels' },
-								{ title: 'Use expert tools only when needed', body: 'Run ID and occupancy preview are for troubleshooting.', target: 'Expert tools' },
-							]}
-						/>
-						<Popover>
-							<PopoverTrigger asChild>
-								<Button type="button" variant="outline" size="sm" className="h-10 gap-2 bg-white" data-testid="schedules-tools-trigger">
-									<Wrench className="size-4" />
-									<span className="hidden sm:inline">Tools</span>
+							<Printer className="size-3.5" />
+							Print this schedule
+						</Button>
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button type="button" variant="outline" size="sm" className="h-9 gap-1.5" data-testid="schedules-more-trigger">
+									<MoreHorizontal className="size-3.5" />
+									More
+									<ChevronDown className="size-3" />
 								</Button>
-							</PopoverTrigger>
-							<PopoverContent align="end" className="w-80 space-y-3 p-4">
-								<div>
-									<p className="text-sm font-semibold text-slate-900">Inspect a specific generation run</p>
-									<p className="mt-1 text-xs leading-relaxed text-slate-500">Keep Latest selected for normal work. Use a Run ID only when troubleshooting a known historical run.</p>
-								</div>
-								<div className="flex gap-2">
-									<Button type="button" onClick={() => setSourceMode('latest')} variant={sourceMode === 'latest' ? 'default' : 'outline'} size="sm">Latest</Button>
-									<Button type="button" onClick={() => setSourceMode('run')} variant={sourceMode === 'run' ? 'default' : 'outline'} size="sm">Run ID</Button>
-								</div>
-								{sourceMode === 'run' && (
-									<div className="space-y-1.5">
-										<Input
-											type="number"
-											min={1}
-											placeholder="Run ID"
-											value={runIdInput}
-											onChange={(event) => setRunIdInput(event.target.value)}
-											aria-label="Generation run ID"
-											aria-invalid={runIdHasValidationError}
-										/>
-										{runIdHasValidationError && <p className="text-xs font-medium text-destructive">Use a whole number above 0.</p>}
-									</div>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end" className="w-64">
+								<DropdownMenuItem onSelect={() => { void fetchSchedule(); }} data-testid="schedules-more-refresh">
+									<RefreshCw className="size-4" />
+									Refresh
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									onSelect={() => handleExport()}
+									disabled={state.status !== 'ok'}
+									data-testid="schedules-more-export-csv"
+								>
+									<FileSpreadsheet className="size-4" />
+									Export this view as CSV
+								</DropdownMenuItem>
+								<DropdownMenuItem onSelect={() => setDownloadSchedulesOpen(true)} data-testid="schedules-more-download">
+									<Download className="size-4" />
+									Download official Word or Excel schedules
+								</DropdownMenuItem>
+								{viewMode === 'rooms' && (
+									<>
+										<DropdownMenuSeparator />
+										<DropdownMenuItem
+											onSelect={() => setPresentationMode(presentationMode === 'occupancy' ? 'schedule' : 'occupancy')}
+											data-testid="schedules-more-occupancy"
+										>
+											<DoorOpen className="size-4" />
+											{presentationMode === 'occupancy' ? 'Back to the week grid' : 'Room occupancy sheet'}
+										</DropdownMenuItem>
+									</>
 								)}
-							</PopoverContent>
-						</Popover>
+							</DropdownMenuContent>
+						</DropdownMenu>
 					</div>
-				</header>
+				</div>
 
-				<div className="mt-1.5 flex gap-1.5 overflow-x-auto pb-0.5">
-					{(['rooms', 'teachers', 'sections'] as ViewMode[]).map((mode) => {
-						const copy = MODE_COPY[mode];
-						const Icon = copy.icon;
+				<div className="mt-1.5 flex flex-wrap items-center gap-2" data-testid="schedule-browser-selector">
+					<span className="text-xs font-medium text-muted-foreground">Show:</span>
+					{VIEW_MODES.map((mode) => {
+						const Icon = MODE_COPY[mode].icon;
 						return (
 							<Button
 								key={mode}
 								type="button"
 								variant={viewMode === mode ? 'default' : 'outline'}
+								size="sm"
+								aria-pressed={viewMode === mode}
 								onClick={() => {
 									setViewMode(mode);
 									if (mode !== 'rooms' || presentationMode === 'occupancy') setPresentationMode('schedule');
 								}}
-								className={`h-10 shrink-0 justify-start gap-2 rounded-lg px-3 text-left shadow-sm ${viewMode === mode ? '' : 'border-primary/10 bg-white text-slate-700 hover:border-primary/30'}`}
+								className="h-9 gap-1.5"
+								data-testid={`schedule-mode-${mode}`}
 							>
-								<Icon className="size-4 shrink-0" />
-								<span className="min-w-0">
-									<span className="block text-xs font-bold">{copy.label}</span>
-								</span>
+								<Icon className="size-3.5" />
+								{MODE_COPY[mode].label}
 							</Button>
 						);
 					})}
-				</div>
-			</div>
-
-			<div className="shrink-0 px-3 pt-2 pb-2 flex flex-col gap-2 lg:px-5">
-				<div className="flex flex-wrap items-center gap-2">
-					<div className="min-w-0 flex-1" style={{ minWidth: 'clamp(160px, 40vw, 100%)' }} data-testid="schedule-browser-selector">
+					<div className="min-w-40 flex-1">
 						{roomsLoading ? (
-							<Skeleton className="h-10 w-full rounded-xl" />
+							<Skeleton className="h-9 w-full rounded-lg" />
 						) : (
 							<SearchableSelect
 								value={selectedEntityId}
 								onValueChange={setSelectedEntityId}
 								groups={activeSelector.groups}
 								placeholder={activeSelector.placeholder}
-								triggerClassName="h-10 text-sm w-full rounded-xl bg-white shadow-sm"
+								ariaLabel={`Schedule for ${activeSelector.noun}`}
+								// A5 c4 shared picker chrome; the page's previous
+								// `h-10 text-sm w-full rounded-xl bg-white shadow-sm` restated it locally.
+								triggerClassName={pickerTriggerClass('fill')}
+								triggerTestId="schedules-entity-picker"
 							/>
 						)}
-						<p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
-							<Info className="size-3 text-primary" />
-							{selectorStatus}
-						</p>
 					</div>
-
-					<div className="flex items-center gap-1.5 shrink-0">
-						{/* ROOM-SCHEDULES-TERM-C01 — the VIEW term selector, which is a
-						    different control from the download-term selector further
-						    down. The download selector may offer "All terms" because a
-						    file is allowed to cover the year; the on-screen weekly grid
-						    may not, so this control is built without that option. */}
-						<div className="shrink-0">
-							<Select
-								value={viewTerm != null ? String(viewTerm) : undefined}
-								onValueChange={(value) => {
-									const parsed = Number(value);
-									if (isTermIndexWithinTerms(parsed, orderedTerms)) setViewTerm(parsed);
-								}}
-								disabled={!termVerified}
-							>
-								<SelectTrigger className="h-10 w-[9.5rem] shrink-0 rounded-xl bg-white text-xs shadow-sm" aria-label="Schedule view term" data-testid="schedules-view-term">
-									<SelectValue placeholder="Term" />
-								</SelectTrigger>
-								<SelectContent>
-									{viewTermOptions.map((option) => (
-										<SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
-						<Button type="button" variant="outline" size="sm" onClick={() => setDownloadSchedulesOpen(true)} className="h-10 shrink-0 shadow-sm text-xs" data-testid="schedules-open-download">
-							Download schedules
-						</Button>
-						{viewMode === 'rooms' && (
-							<Button
-								variant={presentationMode === 'occupancy' ? 'default' : 'outline'}
-								size="sm"
-								className="h-10 px-3 text-xs"
-								onClick={() => setPresentationMode(presentationMode === 'occupancy' ? 'schedule' : 'occupancy')}
-							>
-								{presentationMode === 'occupancy' ? 'Schedule' : 'Occupancy'}
-							</Button>
-						)}
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={fetchSchedule}
-							disabled={!selectedEntityId || state.status === 'loading' || !isRunIdValid || runIdHasValidationError || runIdMissing}
-							className="h-10 shrink-0 shadow-sm"
-						>
-							<RefreshCw className={`mr-1 size-3.5 ${state.status === 'loading' ? 'animate-spin' : ''}`} />
-							Refresh
-						</Button>
-					</div>
-				</div>
-				<Button
-					variant="default"
-					size="sm"
-					onClick={handleExport}
-					disabled={state.status !== 'ok'}
-					className="h-10 w-full shrink-0 shadow-sm text-xs"
-					data-testid="schedules-export-current-view"
-				>
-					Export CSV
-				</Button>
-				<div className="flex w-full shrink-0 items-center gap-2 sm:w-auto">
-					<Select value={exportTerm} onValueChange={setExportTerm}>
-						<SelectTrigger
-							className="h-10 w-28 text-xs"
-							aria-label="Schedule download term"
-							data-testid="schedules-download-term"
-						>
-							<SelectValue placeholder="Term" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">Choose one term</SelectItem>
-							{Array.from({ length: MAX_ACADEMIC_TERM_INDEX }, (_, index) => index + 1).map((term) => (
-								<SelectItem key={term} value={String(term)}>{`Term ${term}`}</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+					<ScheduleSourceBand
+						termOptions={viewTermOptions}
+						orderedTerms={orderedTerms}
+						viewTerm={viewTerm}
+						termVerified={termVerified}
+						onTermChange={(value) => {
+							const parsed = Number(value);
+							if (isTermIndexWithinTerms(parsed, orderedTerms)) setViewTerm(parsed);
+						}}
+						sentence={sourceSentence}
+						pastRuns={pastRuns}
+						pinnedRunId={pinnedRunId}
+						onPinnedChange={setPinnedRunId}
+					/>
 				</div>
 			</div>
 
-			{state.status === 'ok' && (
-				<div className="shrink-0 px-3 lg:px-5 pb-1">
-					<div className="flex items-center gap-3 text-sm bg-card border border-border rounded-lg px-3 py-1.5 shadow-sm overflow-x-auto whitespace-nowrap scrollbar-none">
+			{viewMode === 'rooms' && presentationMode === 'occupancy' && (
+				<div className="flex shrink-0 items-center gap-1.5 px-3 pt-2 lg:px-5">
+					<Button variant={templateVariant === '11x6' ? 'default' : 'outline'} size="sm" className="h-9 px-3 text-xs" onClick={() => setTemplateVariant('11x6')}>11x6</Button>
+					<Button variant={templateVariant === '13x6' ? 'default' : 'outline'} size="sm" className="h-9 px-3 text-xs" onClick={() => setTemplateVariant('13x6')}>13x6</Button>
+				</div>
+			)}
+
+			{state.status === 'ok' && presentationMode === 'schedule' && (
+				<div className="shrink-0 px-3 pt-2 lg:px-5">
+					<div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-3 py-1.5 text-sm">
 						<span className="font-semibold text-foreground">
-							Utilization: <span className="text-muted-foreground font-normal">{state.data.summary.utilizationPercent}%</span>
+							Utilization: <span className="font-normal text-muted-foreground">{state.data.summary.utilizationPercent}%</span>
 						</span>
-						<span className="text-border/60">•</span>
-						<span className="font-semibold text-foreground">
-							Occupied: <span className="text-muted-foreground font-normal">{state.data.summary.occupiedMinutes}/{state.data.summary.availableMinutes} min</span>
+						<span className="text-xs text-muted-foreground">
+							Occupied: <span className="font-normal text-muted-foreground">{state.data.summary.occupiedMinutes} of {state.data.summary.availableMinutes} min</span>
 						</span>
-						<span className="text-border/60">•</span>
 						{state.data.summary.conflictCount > 0 ? (
 							<Badge variant="destructive" className="text-xs">
 								<AlertTriangle className="mr-1 size-3" />
 								{state.data.summary.conflictCount} conflict{state.data.summary.conflictCount !== 1 ? 's' : ''}
 							</Badge>
 						) : (
-							<span className="font-semibold text-foreground">
-								Conflicts: <span className="text-green-600 font-normal">0</span>
-							</span>
+							<span className="text-xs text-muted-foreground">Conflicts: <span className="font-semibold text-green-700">0</span></span>
 						)}
-						<span className="text-border/60">•</span>
-						<span className="text-muted-foreground text-xs">
-							Run #{state.data.source.runId} · {state.data.source.status}
-						</span>
 					</div>
 				</div>
 			)}
+
 			<SchedulerPrintDialog
 				open={downloadSchedulesOpen}
 				onOpenChange={setDownloadSchedulesOpen}
 				schoolId={actorSchoolId ?? 0}
 				schoolYearId={schoolYearId}
 				runId={state.status === 'ok' ? state.data.source.runId : null}
-				termIndex={exportTerm === 'all' ? 'all' : Number(exportTerm)}
+				termIndex={viewTerm ?? 'all'}
 				yearLabel={schoolYearLabel}
 				viewMode={viewMode === 'rooms' ? 'room' : viewMode === 'teachers' ? 'faculty' : 'section'}
 				entityFilter={selectedEntityId}
 			/>
-
-			{viewMode === 'rooms' && presentationMode === 'occupancy' && (
-				<div className="shrink-0 px-3 lg:px-5 pb-1">
-					<div className="flex items-center gap-1.5">
-						<Button variant={templateVariant === '11x6' ? 'default' : 'outline'} size="sm" className="h-10 px-3 text-xs" onClick={() => setTemplateVariant('11x6')}>11x6</Button>
-						<Button variant={templateVariant === '13x6' ? 'default' : 'outline'} size="sm" className="h-10 px-3 text-xs" onClick={() => setTemplateVariant('13x6')}>13x6</Button>
-					</div>
-				</div>
-			)}
 
 			<div className="flex-1 min-h-0 overflow-auto px-4 pb-4 pt-2 lg:px-5">
 				{state.status === 'idle' && (
@@ -714,12 +672,11 @@ export default function RoomSchedules() {
 							<div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
 								<SelectedModeIcon className="size-7" />
 							</div>
-							<p className="text-base font-bold text-slate-900">{lookupError ? 'Schedule references unavailable' : selectedModeCopy.emptyTitle}</p>
-							<p className="mt-2 text-sm leading-relaxed text-slate-500">
-								{lookupError ? 'ATLAS could not load the active school year or reference lists. Refresh when the connection is stable.' : selectedModeCopy.emptyBody}
-							</p>
-							<p className="mt-3 text-xs text-slate-400">
-								{lookupError ? 'The page will keep actions disabled until references load.' : 'Use the selector above, then keep Latest selected unless you are checking a known Run ID.'}
+							<p className="text-base font-bold text-foreground">{lookupError ? 'Names could not be loaded' : selectedModeCopy.emptyTitle}</p>
+							<p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+								{lookupError
+									? 'ATLAS could not load the active school year or the name lists. Refresh when the connection is stable.'
+									: selectedModeCopy.emptyBody}
 							</p>
 						</div>
 					</div>
@@ -727,7 +684,7 @@ export default function RoomSchedules() {
 
 				{state.status === 'loading' && (
 					<div className="space-y-1 pt-2">
-						<Skeleton className="h-10 w-full rounded" />
+						<Skeleton className="h-9 w-full rounded" />
 						{Array.from({ length: 8 }).map((_, i) => (
 							<Skeleton key={i} className="h-14 w-full rounded" />
 						))}
@@ -735,16 +692,17 @@ export default function RoomSchedules() {
 				)}
 
 				{state.status === 'empty' && (
-					<div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-muted-foreground shadow-soft">
+					<div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-border bg-white p-8 text-center text-muted-foreground shadow-soft">
 						<div className="max-w-md">
-							<CalendarX className="mx-auto mb-3 size-10 text-slate-300" />
-							<p className="text-base font-bold text-slate-900">Schedule not available</p>
-							<p className="mt-2 text-sm leading-relaxed text-slate-500">{state.message}</p>
-							<p className="mt-3 text-xs text-slate-400">
-								{sourceMode === 'run'
-									? 'Check the Run ID or switch back to Latest.'
-									: 'Generate a timetable first, then return here to browse rooms, teachers, and sections.'}
-							</p>
+							<CalendarX className="mx-auto mb-3 size-10 text-muted-foreground/60" />
+							{/* A5 C5 — the empty state says what happened and gives ONE next step with a
+							    link. The old third paragraph said "generate a timetable first" with no
+							    way to act on it, and added a second, contradictory run-id hint. */}
+							<p className="text-base font-bold text-foreground">No timetable to show yet</p>
+							<p className="mt-2 text-sm leading-relaxed text-muted-foreground">{state.message}</p>
+							<Button variant="outline" size="sm" className="mt-4" asChild data-testid="schedules-empty-timetable-link">
+								<Link to="/timetable">Build one on the Timetable page</Link>
+							</Button>
 						</div>
 					</div>
 				)}
@@ -753,10 +711,10 @@ export default function RoomSchedules() {
 					<div className="flex h-full items-center justify-center rounded-2xl border border-destructive/20 bg-white p-8 text-center text-destructive shadow-soft">
 						<div className="max-w-md">
 							<ServerOff className="mx-auto mb-3 size-10 opacity-60" />
-							<p className="text-base font-bold">Schedule source unavailable</p>
-							<p className="mt-2 text-sm leading-relaxed text-destructive/80">{state.message}</p>
-							<Button variant="outline" size="sm" className="mt-4" onClick={fetchSchedule}>
-								<RefreshCw className="mr-1.5 size-3.5" /> Retry
+							<p className="text-base font-bold">The schedule could not be loaded</p>
+							<p className="mt-2 text-sm leading-relaxed opacity-80">{state.message}</p>
+							<Button variant="outline" size="sm" className="mt-4" onClick={() => { void fetchSchedule(); }}>
+								<RefreshCw className="mr-1.5 size-3.5" /> Try again
 							</Button>
 						</div>
 					</div>
@@ -810,5 +768,6 @@ export default function RoomSchedules() {
 				sectionMap={sectionNameMap}
 			/>
 		</div>
+		</TooltipProvider>
 	);
 }

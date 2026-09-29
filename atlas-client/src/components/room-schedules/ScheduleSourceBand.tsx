@@ -1,0 +1,128 @@
+/**
+ * A5 C5 (2026-09-29) — "which timetable am I looking at, and when was it made?".
+ *
+ * ONE unit with ONE owner. Three things that used to be three unrelated controls on
+ * `pages/RoomSchedules.tsx` are one question, and a scheduler should be able to read the whole
+ * answer in one glance at the tail of the page's second row:
+ *
+ *  - a term control, shown ONLY when the active school year really has terms that differ (the
+ *    packet's "at most one term control"). It scopes the grid AND the official download, which is
+ *    how the page's second, download-only term picker was deleted rather than moved.
+ *  - the quiet line that names the timetable in words — `Showing the timetable made on 29 Sept`.
+ *    Never a run id.
+ *  - a DATED disclosure, `Show an older timetable`, listing dates. It is the packet's answer to
+ *    "if an older timetable must stay reachable, put it behind a small link listing dates, not
+ *    ids": the date is what a scheduler recognises, and the run id travels internally from the
+ *    `onPinnedChange` callback to the fetch and the print request, never to the DOM.
+ *
+ * The term explainer lives in a `Tooltip` rather than the page's old `How to browse schedules`
+ * panel: it is operator knowledge (ROOMS-SCHEDULES-TERM-C01 — a weekly grid merged across all three
+ * terms shows the same class three times in one slot and invents conflicts), and it is needed
+ * only by someone who is about to change the term.
+ */
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { Button } from '@/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
+import { pickerTriggerClass } from '@/ui/picker-trigger';
+import type { AcademicTermOption, OrderedAcademicTerm } from '@/lib/academic-term';
+
+export type DatedTimetable = { id: number; madeOn: string | null };
+
+export function ScheduleSourceBand({
+	termOptions,
+	orderedTerms,
+	viewTerm,
+	termVerified,
+	onTermChange,
+	sentence,
+	pastRuns,
+	pinnedRunId,
+	onPinnedChange,
+}: {
+	termOptions: AcademicTermOption[];
+	orderedTerms: OrderedAcademicTerm[] | null;
+	viewTerm: number | null;
+	termVerified: boolean;
+	onTermChange: (value: string) => void;
+	sentence: string | null;
+	pastRuns: DatedTimetable[];
+	pinnedRunId: number | null;
+	onPinnedChange: (runId: number | null) => void;
+}) {
+	// A year with one term gets NO control. A scheduler reading one term of one year is not being
+	// asked a question, and a control with one option is a control that teaches nothing.
+	const termControlWarranted = termOptions.length > 1;
+
+	return (
+		<div className="ml-auto flex shrink-0 items-center gap-2" data-testid="schedules-source-band">
+			{termControlWarranted && (
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<div>
+							<Select
+								value={viewTerm != null ? String(viewTerm) : undefined}
+								onValueChange={onTermChange}
+								disabled={!termVerified}
+							>
+								<SelectTrigger
+									className={pickerTriggerClass('sm')}
+									aria-label="Schedule term"
+									data-testid="schedules-view-term"
+								>
+									<SelectValue placeholder="Term" />
+								</SelectTrigger>
+								<SelectContent>
+									{termOptions.map((option) => (
+										<SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+					</TooltipTrigger>
+					<TooltipContent side="bottom" className="max-w-xs text-xs">
+						One term at a time. A week built from all three terms would show the same class
+						three times in one slot and report conflicts that do not exist.
+					</TooltipContent>
+				</Tooltip>
+			)}
+			{sentence && (
+				<span
+					className="whitespace-nowrap text-xs text-muted-foreground"
+					data-testid="schedules-source-line"
+				>
+					{sentence}
+				</span>
+			)}
+			{pastRuns.length > 1 && (
+				<Popover>
+					<PopoverTrigger asChild>
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="h-9 gap-1 px-2 text-xs"
+							data-testid="schedules-older-trigger"
+						>
+							Show an older timetable
+						</Button>
+					</PopoverTrigger>
+					<PopoverContent align="end" className="w-72 p-1">
+						{pastRuns.map((run) => (
+							<Button
+								key={run.id}
+								type="button"
+								variant={pinnedRunId === run.id ? 'secondary' : 'ghost'}
+								className="h-auto w-full justify-start py-2 text-left text-xs"
+								onClick={() => onPinnedChange(pinnedRunId === run.id ? null : run.id)}
+								data-testid="schedules-older-option"
+							>
+								{run.madeOn ?? 'Date not recorded'}
+							</Button>
+						))}
+					</PopoverContent>
+				</Popover>
+			)}
+		</div>
+	);
+}
