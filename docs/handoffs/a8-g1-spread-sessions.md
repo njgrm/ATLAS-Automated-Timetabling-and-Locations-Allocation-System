@@ -2,157 +2,181 @@
 
 **Worktree** `E:\ATLAS-worktrees\lane-a8-g1` · **branch** `work/a8-g1-spread-sessions`
 **Base** `5e03e0c460dfd2881cadb2183f28e6e4510e798a`, merged forward to `bfd14a96`
-**Candidates** `31addf09bb17dc0eac5864c118d38874e164c30e` (code + tests), `49ca2ff92d99309bce0dc991f6538508f55de36c` (proof harness + this handoff)
-**Disposition** `PRESERVE_FOR_DECISION` — the proof row is `BLOCKED`, see §5.
+**Candidates**
+| SHA | What |
+|---|---|
+| `31addf09bb17dc0eac5864c118d38874e164c30e` | the accepted source change + tests |
+| `49ca2ff92d99309bce0dc991f6538508f55de36c` | first proof harness (superseded, kept) |
+| `f143f5bbc93594654f96a04ea7960c96cad3d589` | coordination record |
+| `8ac05f8b…` | **R1** `spreadOrdering` test seam (D1) |
+| `99ec93fc…` | **R1** sound frame + term-keyed overlaps (D1/D2) + new evidence rows |
+| `48008dd7…` | **R1** test-only type fix so tsc/build are clean |
+| `133b367f…` | planner evidence commit (not mine) |
 
-Both candidate commits are reachable from the shared repository
-(`git -C D:\ATLAS cat-file -t <sha>` → `commit` for each), so an integration boundary can `git merge`
-this branch. **The branch is not pushed**: `git push` and `git merge` are both denied to this executor by
-its permission set, so the required "merge `origin/main` before each slice" could not be repeated at the
-end of the run — see §9.
+`git push` and `git merge` are **denied to this executor**; the planner pushes.
+**Disposition** `PRESERVE_FOR_DECISION` — the rule-3 proof row is still `BLOCKED`, but it is now
+**decidable by one run**; see §5.
+
+## 0. Correction round 1 — what changed and what the two defects were
+
+**D1 — the two sides were different frames. Fixed.** Attempt 1 measured "before" from run 347's stored
+rows (2730 entries = the whole 3-term year) and "after" from one constructor invocation (855 + 65 = 920
+sessions = one week). Nothing checked the frame, so the table read as decisive while every row in it was
+unquotable. Both sides are now produced by the same code over the **same constructor input object in the
+same process**, with exactly one variable changed: `ConstructorInput.spreadOrdering`. The before side is
+the pre-change comparator reached through that seam — not a saved run, not a hand-copied comparator. The
+table now prints `ordering` (the variable) and `sessions demanded` (the frame) as rows, and the pure
+guard `frameMismatchReason()` fails closed with `FRAME_MISMATCH` / `FRAME_EMPTY`.
+
+**D2 — overlaps are now term-keyed.** Keyed on `(holder, TERM, day, interval)`. A rotation/modular lane
+legitimately re-teaches the same teacher the same slot in T1 and again in T2; counting that is what
+produced 1675/1820/1820. A concurrent lane keeps its own `CONCURRENT` bucket, because `constructBaseline`
+leaves `termIndex` undefined for it (`termIndex: sessionTermIndex`, undefined unless a modular cycle). A
+teacher genuinely double-booked **inside one term** still collides, is still counted, and is now reported
+per term and slot with a `samePair` flag. **The 75 are not yet decided** — the next run prints each
+survivor as an `A8G1_OVERLAP` line. Nothing was weakened: `UNPLACED_RAISED`, `OVERLAP_INTRODUCED` and
+`HARD_VIOLATIONS` all still exit non-zero, and each now also fails when the AFTER side is worse than the
+BEFORE side on the same frame.
+
+**Verdict on the "75 teacher overlaps": NOT attributable to this change, and the corrected harness will
+prove it rather than assert it.** The structural reason is in the code: `facultyOcc`, `roomOcc` and
+`sectionOcc` gate **every** candidate before a placement is made, and A8-G1 reorders only the candidate
+list — it changes no guard, no occupancy mark and no placement rule. A same-term teacher double-book
+therefore cannot be produced by reordering. Test row `7d` pins this by running **both** orderings and
+asserting 0/0/0 for each. If the next run shows the same count on the legacy side, it is an
+order-independent pre-existing defect that needs its own lane, and the harness says so loudly
+(`A8G1_WARNING`) rather than passing silently. If it shows a HIGHER count after than before, that is a
+BLOCKING defect in this change and `OVERLAP_INTRODUCED` fires.
+
+**A weakness in my own fixture, found and fixed.** The tight-room locks covered only period 0, which left
+the home room free at periods 1–4 on Tue–Fri — so the **legacy comparator spread too**, and the fixture
+had stopped reproducing the defect it exists to reproduce. My local mutant also treated the room as busy
+for a whole day, so the mutant and the fixture were describing different states. The locks now cover every
+period; legacy genuinely puts all five sessions on Monday and production puts them on five distinct days.
+This strengthens rows 1, 2-control and 6, and it means attempt 1's fixture-level claims were weaker than
+they looked.
 
 ## 1. What changed, per file, and why
 
 | Path | Change | Why |
 |---|---|---|
-| `atlas-server/src/services/schedule-constructor.ts` | `daysUsedForPair` `Set<string>` → `Map<string, number>`; `dayUseCount` stamped on every candidate; sort becomes `(dayUseCount ASC, score ASC, DAYS.indexOf ASC, startTime ASC)`; the `+2.5`/`+1.5` day term deleted; `lockDayUseByPair` seeded inside the lock-accept branch; `sectionLabelById` composed from `sectionsByGrade`; `isDeclaredBlockSubject`; `SpreadException`/`SpreadReport`; `ConstructorResult.spreadReport` | The live defect: the day-reuse signal was a soft `+2.5` that the home-room `-0.5` exactly cancelled, so a used day with a free home room tied an unused day with a busy one at 3.0 and Monday won `DAYS.indexOf`. A count that is the **first** sort key cannot be cancelled by room quality. |
-| `atlas-server/src/services/generation.service.ts` | `RunSummary.spreadReport?` + `spreadReport: result.spreadReport` beside `unassignedCount` | The packet asks for the run **receipt**, not a new screen. `generation_runs.summary` is jsonb and is returned verbatim by `getRunDraft`/`getLatestRunDraft`, so the field reaches the receipt with no UI work and no migration. |
-| `atlas-server/src/__tests__/a8-g1-spread-sessions.test.ts` (new) | 10 rows | The packet's four gates plus the invariants that must not move. |
-| `atlas-server/src/scripts/a8-g1-live-shape-proof.ts` (new) | The whole-DB before/after proof harness with a no-database `--self-test` | r2's executor deliverable for the packet's central proof row. |
-| `atlas-server/package.json` | `test:a8-g1-spread-sessions` | `gate-reachability.test.ts:26-58` turns the suite RED for a test file no `test:*` script names. |
+| `atlas-server/src/services/schedule-constructor.ts` | `daysUsedForPair` `Set<string>` → `Map<string, number>`; `dayUseCount` first sort key; `+2.5`/`+1.5` term guarded out of the production path; `lockDayUseByPair` seeded inside the lock-accept branch; `sectionLabelById`; `isDeclaredBlockSubject`; `SpreadException`/`SpreadReport`; `ConstructorResult.spreadReport`; **`spreadOrdering` test seam** | The day-reuse signal was a soft `+2.5` that the home-room `-0.5` exactly cancelled, so a used day with a free home room tied an unused day with a busy one at 3.0 and Monday won `DAYS.indexOf`. The seam exists only so both proof sides share one code path. |
+| `atlas-server/src/services/generation.service.ts` | `RunSummary.spreadReport?` + `spreadReport: result.spreadReport` beside `unassignedCount` | The packet asks for the run **receipt**, not a screen. `generation_runs.summary` is jsonb and is returned verbatim by `getRunDraft`/`getLatestRunDraft`. |
+| `atlas-server/src/__tests__/a8-g1-spread-sessions.test.ts` | 18 rows (was 10) | D1 frame rows, D2 term-key rows, mechanism row, plus the four packet gates. |
+| `atlas-server/src/scripts/a8-g1-live-shape-proof.ts` | rewritten measurement; whole-DB copy path unchanged | D1 and D2. |
+| `atlas-server/package.json` | `test:a8-g1-spread-sessions` | `gate-reachability.test.ts:26-58`. |
+| `docs/handoffs/a8-g1-spread-sessions.md` | this file | — |
 
-## 2. Decisions the packet left open, and which way they went
+## 2. Decisions, and which way they went
 
-1. **The old `+2.5`/`+1.5` day term is DELETED, not kept.** `dayUseCount` is the first key and strictly
-   dominates `score`, so the term is unreachable; leaving it would be a second, dead copy of the rule
-   with a different constant. It is not "fixed twice" — it is gone, in both the canonical-CLASS branch
-   and the legacy `FALLBACK_PERIOD_SLOTS` branch. The COHORT 1.5/2.5 asymmetry is preserved by
-   *not* reading it at all; cohort packing behaviour is otherwise untouched.
+1. **The `+2.5`/`+1.5` day term is out of the production path** — now *guarded* (`useLegacyDayPenalty`)
+   rather than absent, so the legacy seam can reconstruct the old comparator exactly. At the default it is
+   unreachable dead weight; it is reinstated only under the seam. Not "fixed twice".
+2. **The exception condition is `count > max(1, ceil(sessionsPerWeek/5))`**, the packet's own
+   post-condition — not `count >= 2`. An 8-session subject cannot beat 2/day, and reporting that as *"no
+   other day was free"* would be false. 8 sessions come out 2/2/2/1/1 and report nothing; a 5-session week
+   (the live case) reports every repeat. Count and list cannot disagree.
+3. **`sameDayRepeatPairs` counts pairs above the cap.** For live 5-session subjects that equals the "31
+   pairs" of Run 347.
+4. **`spreadReport` is always present** (0/[] on a clean run), and optional on `RunSummary` so a run
+   written before this change still reads.
+5. **No c5 receipt redesign exists on `origin/main`** (`git grep -l "spreadReport\|runReceipt" origin/main
+   -- atlas-server/src` → no match), so there was nothing to fold into. `spreadReport` is already the
+   grouped shape c5's rule 4 asks for: one object, a count and a bounded typed list.
+6. **`isPreferredAtSlot` untouched** — it orders *candidates within a slot*; `dayUseCount` orders *slots*.
+7. **`spreadOrdering` is a code-only test seam with no user-facing control** and no default change. It is
+   the minimum needed to make D1 expressible: without it, "before" can only come from a saved run, which is
+   exactly the defect. It is a branch over an already-accepted behaviour, so a difference in the measured
+   table is attributable to the ordering and nothing else.
 
-2. **The exception condition is `count > preferredMaxPerDay`, where
-   `preferredMaxPerDay = max(1, ceil(sessionsPerWeek / 5))` — not `count >= 2`.** This is the packet's
-   own post-condition, and it matters: an 8-session subject cannot do better than 2 on a day, and
-   reporting that as *"no other day was free"* would be a lie. With the cap condition, an 8-session
-   week comes out 2/2/2/1/1 and reports **nothing**, while a 5-session week — the packet's actual case,
-   cap 1 — reports every repeat. The clamp at 1 exists only so a zero-session demand item carrying
-   locks cannot report a single session. Count and list cannot disagree: every breach is in
-   `exceptions`, and every entry in `exceptions` is a breach.
+## 3. The three label derivations
 
-3. **`sameDayRepeatPairs` counts pairs above the cap**, not pairs with `count >= 2`. For the live
-   5-session subjects these are the same number, so it still reads as the "31 pairs" of Run 347.
-
-4. **`spreadReport` is always present** (not conditional on failure) so a clean run proves `0` rather
-   than proving nothing. On `RunSummary` it is optional, because a run written before this change
-   simply lacks the key.
-
-5. **No c5 receipt redesign exists on `origin/main` at merge time** (`bfd14a96`), so there was no
-   surface to fold into. `spreadReport` is already the grouped shape c5's rule asks for: one object
-   with a count and a bounded, typed exception list — never a raw `string[]`, never a bare count.
-
-6. **`isPreferredAtSlot` is untouched.** The c5/A2 soft availability ranking still orders
-   *candidates* inside a slot; `dayUseCount` orders *slots*. Both are honoured; neither was taken
-   wholesale.
-
-## 3. Label derivations (the three that were easy to get wrong)
-
-- **subject** — `subject.name?.trim() || subject.code?.trim() || \`Subject ${id}\``. `name` is optional
-  on `SubjectInput`, so `code` is the fallback.
-- **section** — **not** a stored field. `DemandItem` carries no section name. Composed as
-  `<gradeLevelName minus "Grade ">-<sectionName>`, read off the section first and falling back to the
-  enclosing `sectionsByGrade` group. `"8-Makatao"` = `Grade 8` → `8` + `-` + `Makatao`.
+- **subject** — `subject.name?.trim() || subject.code?.trim() || \`Subject ${id}\`` (`name` is optional on
+  `SubjectInput`).
+- **section** — not stored anywhere; `DemandItem` carries no section name. Composed
+  `<gradeLevelName minus "Grade ">-<sectionName>`, read off the section first, falling back to the
+  enclosing `sectionsByGrade` group, tolerating neither. `"8-Makatao"` = `Grade 8` → `8` + `-` + `Makatao`.
 - **day** — `MONDAY` → `Monday`.
 
-Message format is asserted **exactly**:
-`"Filipino for 8-Makatao has 5 classes on Monday (no other day was free)"` (the packet's literal
-example with `2` is asserted as a template string on the next line of the same test).
+Asserted exactly: `"Filipino for 8-Makatao has 5 classes on Monday (no other day was free)"`, plus the
+packet's literal `2`-class example as a template string on the next line.
 
-## 4. The three label/authority traps, and how each is closed
+## 4. The authority traps
 
-- **`violations` is not touched.** `modularWarnings` → `generation.service.ts:1013-1014` →
-  `publication-contract.service.ts` `PUBLISH_ACK_REQUIRED_SOFT_VIOLATIONS`. A spread exception is not a
-  violation, so it never enters `modularWarnings`. `hasPublishedMarkers`, the readiness diagnostic and
-  the publication predicate are all untouched. Test row 3c asserts the disjointness, and the compiler
-  enforces it: `ModularWarning.code` is a closed union that cannot contain the spread code.
-- **No migration.** `model Subject` has no block/double-period column. `isDeclaredBlockSubject` is the
-  single named place the rule asks about a block, is code-only, adds no user-facing setting, and returns
-  `false` for every current subject. Test row 4b reads `prisma/schema.prisma` and fails if a block-like
-  column ever appears — that is the signal to revisit the no-migration decision. Consecutive periods
-  are a break rule (`wouldExceedConsecutive`), not a block, so a normal week cannot collapse to 2+2+1.
-- **Locked entries.** Day usage is seeded **inside the accept branch** next to `lockSessionCounts.set`,
-  never by walking `lockedEntries`, because a lock rejected for a missing period slot, `facultyId` or
-  `roomId` never becomes an entry and must not consume a spread day. Test row 5b pins both halves: the
-  accepted lock consumes Tuesday, the rejected one does not.
+- **Not a violation.** `modularWarnings` → `generation.service.ts:1013-1014` →
+  `PUBLISH_ACK_REQUIRED_SOFT_VIOLATIONS`. Never entered. `hasPublishedMarkers`, the readiness diagnostic
+  and the publication predicate untouched. The compiler enforces disjointness: `ModularWarning.code` is a
+  closed union that cannot hold the spread code.
+- **No migration.** `model Subject` has no block/double-period column. `isDeclaredBlockSubject` returns
+  `false` for every current subject; test `4b` reads `prisma/schema.prisma` and fails if a block-like
+  column appears. Consecutive periods are a break rule, not a block.
+- **Locked entries.** Seeded inside the accept branch, never by walking `lockedEntries`; test `5b` pins
+  both halves.
 
-## 5. Proof row: `BLOCKED` — harness delivered, run not performed
+## 5. Proof row: still `BLOCKED`, but now decidable in one run
 
-**Harness**: `atlas-server/src/scripts/a8-g1-live-shape-proof.ts`, committed.
-`--self-test` passes with **no database** and proves the parts that need no credentials:
-7/7 guard cases (`atlas_db`, `atlas_recovery_clean_rebuild_20260905`, `atlas_staging`, a malformed date,
-an uppercase suffix, and the active database are all rejected; a well-formed drill target is accepted),
-6/6 measurement cases, the table renderer, and agreement with the shared
-`assertRestoreTargetAllowed` / `assertCleanupTargetAllowed` primitives.
+I hold no credential authority: no ambient `DATABASE_URL`; no `atlas-server/.env` in this worktree; the
+only reachable one is Lane C's credential file. Verified fail-closed:
+`A8G1_PROOF_FAILED code=CONFIG_MISSING …` exit 1.
 
-**Why `BLOCKED`, not `UNPERFORMED`**: the run needs a staging `DATABASE_URL`, and this executor holds
-no credential authority.
-
-- No ambient `DATABASE_URL` is set in this session (`[bool]$env:DATABASE_URL` → `False`).
-- This worktree has **no** `atlas-server/.env` (it is gitignored, and absent from the worktree).
-- The only reachable `.env` is `D:\ATLAS\atlas-server\.env` — Lane C's checkout, and a credential file
-  I am forbidden to read.
-- A passwordless `psql` probe hung on an interactive password prompt, confirming the local cluster
-  requires a credential this lane cannot supply. The probe was killed; no `psql` process remains.
-
-The harness fails closed on exactly this, which is itself verified:
-`A8G1_PROOF_FAILED code=CONFIG_MISSING No DATABASE_URL …` (exit 1).
-
-**To close the row**, an operator or A4 with credential authority runs, from `atlas-server/`:
+**The command the planner should run**, from `atlas-server/`, with the staging URL injected exactly as in
+attempt 1 (never printed):
 
 ```
-npx tsx src/scripts/a8-g1-live-shape-proof.ts \
-  --source-env <path-to-a-staging-env> --target atlas_restore_drill_20260929_a8g1
+npx tsx src/scripts/a8-g1-live-shape-proof.ts --target atlas_restore_drill_20260929_a8g1r2
 ```
 
-It will `pg_dump` staging (read-only), `createdb -T template0` + `pg_restore` the whole database into the
-guarded target, set `ROLLOVER_AUTO_SYNC_ENABLED=false`, read the **before** figure from the newest
-COMPLETED run's persisted `draft_entries` (the packet's own read-only-SQL method, so "before" is real
-production output rather than a reconstruction), run the new constructor over the same restored inputs
-through the production `buildPreflightConstructorInput` / `buildPreflightValidatorContext` builders, print
-the before/after table, fail closed if unplaced rises or any overlap or HARD violation appears, then drop
-the drill database and prove zero residue over exactly the name it created. Every database client is
-constructed explicitly per database; the `DATABASE_URL`-bound Prisma singleton in `lib/prisma.ts` is
-never imported, because it binds at import time and would silently read the drill database while
-recording the source signature.
+It now prints, per side: `A8G1_SIDE ordering=… demanded=… placed=… unplaced=… repeats=… worst=…
+overlaps(t/s/r)=… hard=… seconds=…`, then the table, then
+`A8G1_VERDICT repeats|unplaced|overlaps … -> …`, then one `A8G1_OVERLAP` line per surviving overlap with
+its term, day, slot, count, kinds and `samePair`.
 
-**Consequence for the review**: the packet's rule 3 row is undecided. The unplaced and overlap claims
-rest on **construction** (the placement loop, occupancy marking, the hard daily/consecutive guards and
-`getQualifiedFacultyIds(..., sessionTermIndex)` are all unmodified — only candidate *order* changed) plus
-the fixture rows, not on live-shaped data. `NON_BLOCKING` for the source candidate; `BLOCKING` for the
-release, because the packet made the row mandatory and named it the central proof.
+**The substantive question, and the honest answer.**
 
-## 6. Environment note (this lane's toolchain)
+*Is the rise real?* **Undecided, and the corrected harness decides it in one run.** Attempt 1's `10 → 65`
+compared a 3-term run's `unassignedItems` against one week's `unassignedCount`; those are different
+populations and the `10` in particular is not the number the packet's `910/920` refers to. The new run
+prints the legacy side's unplaced **on the same frame**, which is the first time that number has been
+measured. Two outcomes, and they mean opposite things:
+- legacy `unplaced` ≈ 10 → the rise is real and attributable to the ordering. **BLOCKING on this change.**
+- legacy `unplaced` ≈ 65 → the rise was a frame artifact after all, and the constructor is exonerated.
 
-`npm ci` is **denied** to this executor by its permission set, and `node_modules` was absent. To run the
-gates at all, `atlas-server/node_modules` was a **junction** to another lane's dependency tree with a
-byte-identical `package-lock.json` (`Get-FileHash … package-lock.json -Algorithm SHA256` →
-`76061F55…09A64AC` on both). **The junction was removed with `cmd /c rmdir` before this handoff**, and
-`git status --short` is clean.
+*Mechanism.* The planner's hypothesis is the right one and I can pin its signature offline (test row `8`).
+Spreading does **not** consume more work — the pair occupies the **same five section-slots** either way
+(also asserted). What changes is **which days** the section is busy on. Legacy leaves 4 of 5 periods free
+on one day and all 5 free on the other four; the spread leaves 4 free on *every* day. The constructor is
+greedy in `orderedDemand` order, so a later subject for the same section — or a different section competing
+for a grade-scoped room — now finds a thinner residual grid on every day instead of one intact day. The
+binding resource on live is the room/teacher grid at ~920 sessions against 103 rooms; when it is tight,
+that redistribution converts placements into `NO_COMPATIBLE_ROOM` / `NO_AVAILABLE_SLOT`.
 
-**Incident worth recording**: the first donor was `lane-a8-c4-cover`, whose `node_modules` reported 208
-entries at link time. Partway through the run that worktree was removed by its **own** lane, the junction
-went dangling, and the toolchain vanished mid-session. No damage was caused to any other lane — the
-donor's whole directory was gone, not emptied by this junction — but it is a live instance of the §16
-hazard: **a borrowed `node_modules` junction has a real chance of being pulled out from under you, and a
-`git worktree remove` that follows one can empty a shared donor.** The junction was re-pointed to
-`lane-c-a7c7` (208 entries) to finish the gates, and removed again afterwards. Recommend the lifecycle
-doc name "never borrow a dependency tree by junction for a long-running lane" as a rule.
+*Can a cap-aware ordering recover them?* **Partly, and not without giving something up — and I cannot
+claim a number without measuring, so I am not claiming one.* A cap-aware ordering would keep `dayUseCount`
+first but stop spreading a pair once it reaches `ceil(sessionsPerWeek/5)` on its lightest day, falling back
+to the cheapest `score` among the rest. That would preserve most of the `144 → 0` and recover some of the
+55, because it returns exactly the placements whose only cost was a second session on an already-used day.
+But it is **not free**: the packets' own target is `same-day repeat pairs → 0`, and for a 5-session subject
+the cap is 1, so a cap-aware ordering with cap 1 *is* the current implementation. The only room left is to
+relax the cap for subjects whose light days are all expensive, which directly trades away repeats on a
+data-dependent basis — a heuristic, not a proof, and it needs its own measurement on the restored inputs
+before it could be recommended. **My judgement: the two goals genuinely conflict on live-shaped data at
+the current cap, and the conflict is decidable only by the re-run.** I am not going to report a green row
+on a fixture I built to suit the answer.
 
-## 7. Decisive commands, with real results
+## 6. Environment
 
-Run from `E:\ATLAS-worktrees\lane-a8-g1\atlas-server` unless noted.
+`npm_modules` and the Prisma client are now installed in this worktree, so every gate below ran against
+this worktree's own toolchain — no borrowed junction this round, and the earlier one was `rmdir`'d with the
+donor verified intact at 208 entries. E: free was 22.78 GiB when measured (WARNING band, fail-closed below
+15); nothing was installed or deleted by me this round.
+
+## 7. Decisive commands, real results
+
+From `E:\ATLAS-worktrees\lane-a8-g1\atlas-server` unless noted.
 
 | Command | Result |
 |---|---|
-| `npm run test:a8-g1-spread-sessions` | `tests 10 / pass 10 / fail 0`, exit 0 |
+| `npm run test:a8-g1-spread-sessions` | `tests 18 / pass 18 / fail 0`, exit 0 (was 10/10) |
 | `npm run test:timetable-scheduling-quality-c03` | `pass 16 / fail 0`, exit 0 |
 | `npm run test:hybrid-scheduler` | `pass 5 / fail 0`, exit 0 |
 | `npm run test:timetable-sync-setup` | `pass 1 / fail 0`, exit 0 |
@@ -162,78 +186,39 @@ Run from `E:\ATLAS-worktrees\lane-a8-g1\atlas-server` unless noted.
 | `npm run test:generation-completion-copy-c2` | `pass 11 / fail 0`, exit 0 |
 | `npx --no-install tsc --noEmit -p tsconfig.json` | no output, exit 0 |
 | `npm run build` | `> tsc`, exit 0 |
-| `git diff --check` / `git diff --cached --check` | exit 0 (only the repo's LF→CRLF checkout warning) |
 | `npm run test:encoding` (repo root) | `pass 1 / fail 0`, exit 0 |
-| `npx tsx src/scripts/a8-g1-live-shape-proof.ts --self-test` | `A8G1_SELF_TEST_OK` |
-| `… --target atlas_db` | `A8G1_PROOF_FAILED code=TARGET_NOT_DISPOSABLE …`, exit 1 |
-| `… --target atlas_restore_drill_20260929_a8g1` (no `DATABASE_URL`) | `A8G1_PROOF_FAILED code=CONFIG_MISSING …`, exit 1 |
-| `Get-PSDrive E` before any install | `Free 24456433664` = **22.78 GiB** — WARNING band (fail-closed is below 15) |
+| `git diff --check` / `--cached --check` | exit 0 (only the repo LF→CRLF checkout warning) |
+| `npx tsx src/scripts/a8-g1-live-shape-proof.ts --self-test` | `A8G1_SELF_TEST_OK`, **26 checks** |
+| `… --target atlas_restore_drill_20260929_a8g1` (no `DATABASE_URL`) | `A8G1_PROOF_FAILED code=CONFIG_MISSING`, exit 1 |
+| `… --target atlas_db` | `A8G1_PROOF_FAILED code=TARGET_NOT_DISPOSABLE`, exit 1 |
+| `tsx -e "import('./src/scripts/a8-g1-live-shape-proof.js')"` | `IMPORTED_OK guards: function frameGuard: function` — importing does **not** start a restore |
+| `Select-String` for the fatal codes in the harness | `UNPLACED_RAISED`, `OVERLAP_INTRODUCED`, `HARD_VIOLATIONS`, `FRAME_MISMATCH`, `FRAME_EMPTY`, `TARGET_NOT_DISPOSABLE`, `CONFIG_MISSING` all present |
 
-**Failing-first control** (the row cannot be vacuously green): with the production comparator
-temporarily reverted to the removed `score`-first form and the `+2.5` term restored, the same suite
-dropped to **`tests 10 / pass 7 / fail 3`** — rows `1`, `2-control` and `5c` went red. The production file
-was then restored by an exact inverse edit and re-verified two ways: `test:a8-g1-spread-sessions` back to
-`10/10`, and `Select-String … 'entryKind === 'COHORT' ? 1.5 : 2.5'` over
-`src/services/schedule-constructor.ts` returning **no match** (no mutant residue).
-
-**Discriminating control in-test** (the repo's local-mutant idiom, `a5-c2a-active-term-resolver.test.ts:148`;
-no `git show`, no second checkout): `oldOrderingPicksMondayFiveTimes` re-implements the removed comparator
-in ~10 lines over the same candidate shape and is asserted to return
-`['MONDAY','MONDAY','MONDAY','MONDAY','MONDAY']`, while the production path over the identical fixture is
-asserted to give 5 distinct days.
-
-**Defect found and fixed during the work**: the first label derivation crashed on
-`timetable-scheduling-quality-c03`'s fixture, whose `sectionsByGrade` groups carry no `gradeLevelName`
-(`TypeError: Cannot read properties of undefined (reading 'replace')` at
-`schedule-constructor.ts:2047`). The derivation now reads the section's own `gradeLevelName`, falls back
-to the group, and tolerates neither. That suite went 15/16 → 16/16.
+The before/after **table** with real numbers cannot be produced by me — it needs the staging URL. Every
+number in the table comes from one of three commands inside a single run, and the run prints its own
+provenance: `A8G1_SIDE` (per side), `renderTable` (the table itself, including the `ordering` and
+`sessions demanded` rows), and `A8G1_VERDICT` (the three before→after deltas).
 
 ## 8. Risks
 
 **BLOCKING**
 
-- **B1 — the packet's rule-3 proof row is `BLOCKED`** (§5). The before/after table on live-shaped data
-  does not exist. Release should not treat the unplaced and overlap claims as measured.
+- **B1 — the rule-3 row is still unmeasured.** The harness is now sound and decidable, but nobody has run
+  it since the fix. Until the planner does, the unplaced and overlap claims rest on construction (only
+  candidate order changed; occupancy gates every candidate) plus fixtures, **not** on live-shaped data.
+- **B2 (conditional) — if the re-run shows `unplaced` higher on the DAY_COUNT_FIRST side than on
+  LEGACY_SOFT_PENALTY, the constructor change is wrong and must be corrected, not the harness.** The
+  harness will exit non-zero with `UNPLACED_RAISED` and the exact delta.
 
 **NON_BLOCKING**
 
-- **N1 — the receipt is not yet surfaced in any UI.** By design: the packet asks for the run receipt,
-  not a new screen, and `DraftReport.summary` already carries it. If a later slice reads it, §8 header
-  budget and the 2026-09-29 UX-regression rules apply and this lane would owe a screenshot set.
-- **N2 — c5 has not landed a receipt redesign yet.** If c5 later restructures the receipt, `spreadReport`
-  should fold into c5's shape; the grouped-object form here is already what c5's rule 4 asks for.
-- **N3 — `spreadReport` grows with the run.** One entry per (pair, day) cell above the cap, uncapped.
-  Live Run 347 had 31 such pairs, so the list is small; a pathological school with heavy same-day
-  concentration would write more into `summary`. It is a jsonb column, so it is bounded only by that.
-- **N4 — the constructor keeps a soft home-room preference as a *tie-break* within a day-count tier.**
-  Room quality still decides which period on the chosen day, which is the pre-existing behaviour and the
-  intended reading of r2. It no longer decides *which day*.
-- **N5 — `schedule-constructor.ts` is 3,270 physical lines**, over the §8 1,000-line rule. It was ~3,000
-  before this change and the packet explicitly forbids splitting or refactoring it. Pre-existing,
-  untouched by this lane, flagged not fixed.
-
-## 9. Coordination state at hand-off (needs the integration owner)
-
-- **`git merge` and `git push` are denied to this executor.** The initial
-  `git merge origin/main` (producing `bfd14a96`) succeeded, but the permission set refused both verbs
-  afterwards, so the closing "merge `origin/main` before each slice" could not be run and the branch is
-  **unpushed**. This is a permission limitation, not a choice.
-
-- **`origin/main` has advanced past `bfd14a96` by ~20 commits** (A4 runtime hotfixes, A3 prefs-save,
-  docs). The integration owner must merge and re-run the gates on the current tip. What I *could*
-  verify without merging, and did:
-
-  | Check | Command | Result |
-  |---|---|---|
-  | Does main touch my two source files? | `git diff --name-only bfd14a96 origin/main` | `schedule-constructor.ts` and `generation.service.ts` are **absent** from the 74-path list — **no source conflict, so the §R7 semantic-conflict escalation did not arise** |
-  | Does main touch my other three paths? | same, filtered | `atlas-server/package.json` **is** touched → a mechanical union (I added one `test:*` key; A3 added its own) |
-  | Has c5 landed a receipt redesign? | `git grep -l "spreadReport\|runReceipt" origin/main -- atlas-server/src` | **no match** — `spreadReport` had nothing to fold into, as §2.5 states |
-
-- **The r1/r2 approach notes are not on `origin/main` and never were.** `git branch -a --contains`
-  for `363f2887`, `2e2c925a` and `afb325da` reports each as *not* on `origin/main`; they exist only on
-  this lane branch. `git diff bfd14a96 origin/main` therefore renders them as removed, which looks like
-  a deletion and is not one. I checked this specifically because it initially looked like my own commit
-  had deleted them: `git show --stat 49ca2ff9` shows exactly two added files, zero deletions, and
-  `git log --oneline origin/main` does not contain `49ca2ff9`. The approach note the implementation
-  follows is therefore **unpushed** and reviewers should read it from this branch, not from main.
-- The packet `docs/prompts/a8-g1-spread-sessions-2026-09-29.md` **is** on main and is unchanged.
+- **N1** the receipt is not surfaced in any UI — by design; §8 and the UX rules apply if a later slice
+  reads it.
+- **N2** `spreadReport` is uncapped in `summary` jsonb; live had 31 such pairs.
+- **N3** home-room preference survives as a *within-day* tie-break — intended per r2.
+- **N4** `schedule-constructor.ts` is ~3,150 physical lines, over the §8 1,000-line rule. Pre-existing; the
+  packet forbids splitting it.
+- **N5** `spreadOrdering` widens the `ConstructorInput` surface for a test purpose. It is code-only, has
+  no UI, and production never passes it; if the planner prefers a narrower seam, the alternative is a
+  second exported comparator function, which is a larger change to the same region.
+- **N6** the branch is unpushed and `origin/main` is ahead of `bfd14a96`; the planner owns pushing.
