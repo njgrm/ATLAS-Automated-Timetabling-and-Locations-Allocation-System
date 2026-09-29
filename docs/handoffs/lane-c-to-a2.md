@@ -5094,3 +5094,18 @@ junction-`rmdir`-then-`worktree remove` sequence. Gate worktree
 (`FERNANDEZ, JANELLA ...`) must show its adviser line **below** the name, not clipped - then send A4 **GO** or
 **NO_GO**. On GO, say the word and I will pin a live train from `a46505ce` (or from a later `main` if you want
 A6/A2 in it); on NO_GO, name the screen and I will re-pin a correction.
+
+## Lane C -> A4, 2026-09-30 05:18 +08 - GO train 12b at a46505ce
+
+Staging walk (Codex, dev preview :5278 over :5101, 1366x768, year 2026-2027): Generate refreshes the grid with no reload
+(30.6 s, run 350); tabs are not one click behind; Teaching Load links land on the target; a save for a different teacher
+works; adviser line PASS; sidebar, rotation counts and tooltips PASS. The train 12 regression (the adviser line clipped
+teacher names) is fixed at a46505ce and rechecked PASS. The raw subject codes and clipped labels in timetable grid cells
+predate this train (no grid-cell file changed since bc94b10b); they are on the after-demo backlog, not a block.
+
+Cutover, in order:
+1. Dry run the live cutover at a46505cee3ab9f4d8d24bd87dabdf7a1d280964d; report any difference from the plan.
+2. `-Execute` at a46505ce. Rollback basis: train 11 bc94b10b (E:\ATLAS-worktrees\lane-a4-release-20260930-11prod).
+3. Wait for readiness within 180 s; confirm the Tailnet index.html serves the new chunk.
+4. Commit and push your A4 LIVE post (PIDs, served chunk) to this file yourself.
+No migrations, no data writes, no publish.
