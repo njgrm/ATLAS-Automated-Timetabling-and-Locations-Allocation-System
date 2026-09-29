@@ -305,3 +305,145 @@ test('D5. C15-NEG — the grade name alone carries the scope; the raw id alone c
 		await setMirrorGradeFields('Grade 7', 7);
 	}
 });
+
+/**
+ * Seed the minimum COMPLETED + PUBLISHED generation run the published read
+ * path accepts, and return its run id.
+ *
+ * THIS IS A TEST FIXTURE, NOT A PUBLICATION ACTION. It runs only inside a
+ * guarded disposable `atlas_restore_drill_*` database created and dropped by
+ * `scripts/run-db-suite.mjs`, which fails closed on any other database name. No
+ * live publication, no `atlas_live`, no shared `atlas_staging`. The rows are
+ * written with the same shape `published-immutability-c08.test.ts` produces
+ * through the real `publishSchedule` entry point: one COMPLETED run whose
+ * `summary.isPublished` is true and whose `summary.publication` binds it to an
+ * `INITIAL_PUBLICATION` revision with `sourceRevisionId: null`.
+ */
+async function seedPublishedRun() {
+	const publishedAt = new Date('2026-09-01T00:00:00.000Z');
+	const draftEntries = [{
+		entryId: 'c15-e1',
+		facultyId: fixture.facultyId,
+		roomId: fixture.roomId,
+		subjectId: fixture.subjectIdByCode.MATH,
+		sectionId: fixture.sectionExternalId,
+		day: 'MONDAY',
+		startTime: '07:00',
+		endTime: '08:00',
+		durationMinutes: 60,
+	}];
+	const run = await prisma.generationRun.create({
+		data: {
+			schoolId: fixture.schoolId,
+			schoolYearId: fixture.schoolYearId,
+			status: 'COMPLETED',
+			runType: 'FULL',
+			triggeredBy: 9_411,
+			finishedAt: publishedAt,
+			summary: { isPublished: true, publishedAt: publishedAt.toISOString() },
+			violations: [],
+			unassignedItems: [],
+			draftEntries,
+			version: 1,
+		},
+	});
+	const revision = await prisma.publishedScheduleRevision.create({
+		data: {
+			schoolId: fixture.schoolId,
+			schoolYearId: fixture.schoolYearId,
+			sourceRunId: run.id,
+			// The schema's `PublishedRevisionStatus` enum is DRAFT | SCHEDULED |
+			// SUPERSEDED — the publication BASE revision the read path selects is
+			// a SCHEDULED one (`published-immutability-c08.test.ts` creates the
+			// same and then rewrites it through the real `publishSchedule`).
+			status: 'SCHEDULED',
+			reason: 'INITIAL_PUBLICATION',
+			sourceRevisionId: null,
+			effectiveDate: publishedAt,
+			changeSet: { entries: [] },
+			previousValues: {},
+			newValues: {},
+			// REQUIRED, and three fields deep. The read path re-validates the
+			// publication binding at `published-schedule.service.ts:496` and
+			// fails closed with PUBLISHED_REVISION_INVALID unless ALL of these
+			// hold together: `sourceRevisionId === null`, `reason ===
+			// 'INITIAL_PUBLICATION'`, `metadata.publicationBase === true`, and
+			// `metadata.sourceRunVersion` equal to the run's FROZEN
+			// `summary.publication.sourceRunVersion` (set just below). Missing
+			// the version is the second time this fixture failed closed.
+			metadata: { publicationBase: true, sourceRunVersion: 1 },
+		},
+	});
+	// The run's publication binding must point at that revision.
+	await prisma.generationRun.update({
+		where: { id: run.id },
+		data: { summary: { isPublished: true, publishedAt: publishedAt.toISOString(), publication: { revisionId: revision.id, sourceRunVersion: 1 } } },
+	});
+	return run.id;
+}
+
+test('D4. S3 — the published payload carries the REAL grade when the EnrollPro id is 1', { skip: SKIP }, async () => {
+	// The mirror row is the measured 2026-09-28 shape: id 1, name 'Grade 7'.
+	await setMirrorGradeFields('Grade 7', 7);
+	const mirror = await prisma.sectionMirror.findFirstOrThrow({
+		where: { schoolId: fixture.schoolId, schoolYearId: fixture.schoolYearId },
+	});
+	assert.equal(mirror.gradeLevelId, 1, 'the fixture row really is the re-minted EnrollPro id 1');
+	assert.equal(mirror.gradeLevelName, 'Grade 7');
+
+	const runId = await seedPublishedRun();
+	try {
+		const { getPublishedSchedulePayload } = await import('../services/published-schedule.service.js');
+		const payload = await getPublishedSchedulePayload(fixture.schoolId, fixture.schoolYearId, { requestedDate: publishedAtForTest });
+
+		// The published payload exposes its section identity per ENTRY, at
+		// `entries[].section` — that is the `SectionReference` this correction
+		// changed, and the exact value the public schedule serves.
+		type PublishedEntry = { section: { atlasId: number | null; name: string; gradeLevel: number | null; gradeLevelName: string | null } };
+		const entries = (payload as { entries?: PublishedEntry[] }).entries ?? [];
+		assert.equal(entries.length, 1, 'the published payload must carry its entries');
+		const section = entries[0].section;
+
+		// THE S3 ASSERTION. The published grade is the real grade, 7 — reached
+		// through `gradeNumberOf(section)`, which reads `gradeLevelName` first
+		// and then the `displayOrder` column this change added to the Prisma
+		// select. It is never the EnrollPro id.
+		assert.equal(section.atlasId, mirror.id, 'the published entry must reference the seeded section');
+		assert.equal(section.gradeLevel, 7, 'the published section grade must be 7, not the EnrollPro id 1');
+		assert.notEqual(section.gradeLevel, mirror.gradeLevelId, 'the published grade must never be the EnrollPro id');
+		assert.equal(section.gradeLevelName, 'Grade 7', 'the published row must still carry its grade name');
+	} finally {
+		await prisma.publishedScheduleRevision.deleteMany({ where: { sourceRunId: runId } });
+		await prisma.generationRun.deleteMany({ where: { id: runId } });
+	}
+});
+
+test('D4b. S3 negative — an id-only section publishes NO grade, not grade 1', { skip: SKIP }, async () => {
+	await setMirrorGradeFields('', 0);
+	const runId = await seedPublishedRun();
+	try {
+		const { getPublishedSchedulePayload } = await import('../services/published-schedule.service.js');
+		const payload = await getPublishedSchedulePayload(fixture.schoolId, fixture.schoolYearId, { requestedDate: publishedAtForTest });
+		type PublishedEntry = { section: { atlasId: number | null; gradeLevel: number | null } };
+		const entries = (payload as { entries?: PublishedEntry[] }).entries ?? [];
+		assert.equal(entries.length, 1, 'the published payload must still carry its entries');
+		assert.equal(entries[0].section.atlasId, await mirrorIdForTest(), 'the published entry must still reference the seeded section');
+		assert.equal(entries[0].section.gradeLevel, null, 'a section naming no real grade must publish no grade, never 1');
+	} finally {
+		await prisma.publishedScheduleRevision.deleteMany({ where: { sourceRunId: runId } });
+		await prisma.generationRun.deleteMany({ where: { id: runId } });
+		await setMirrorGradeFields('Grade 7', 7);
+	}
+});
+
+/** The publication instant the fixture is stamped with, for the day-window read. */
+const publishedAtForTest = new Date('2026-09-01T00:00:00.000Z');
+
+/** The seeded section's ATLAS id, read fresh so no test depends on another's value. */
+async function mirrorIdForTest(): Promise<number> {
+	const row = await prisma.sectionMirror.findFirstOrThrow({
+		where: { schoolId: fixture.schoolId, schoolYearId: fixture.schoolYearId },
+		select: { id: true },
+	});
+	return row.id as number;
+}
