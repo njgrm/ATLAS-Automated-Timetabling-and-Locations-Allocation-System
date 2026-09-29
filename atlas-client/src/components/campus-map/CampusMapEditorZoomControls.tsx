@@ -1,65 +1,18 @@
-import { Minus, Plus, RotateCcw } from 'lucide-react';
-
-import { Button } from '@/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
-
 /**
- * A9 c4 — the campus-map editor's VIEW cluster: zoom in, zoom out, and reset.
+ * A9 m1 — the editor's view cluster, now the SHARED one.
  *
- * Extracted from `CampusMapEditor.tsx` because that file reached the AGENTS.md §8
- * 1000-physical-line cap while the fit view was being added, and this block is a
- * self-contained control — the same shape as its neighbour
- * `BuildingGradeScopeControl.tsx` in this folder.
+ * This file used to declare its own three buttons. It now re-exports
+ * `CampusMapZoomControls`, which is the same component every read-only viewer
+ * uses, so this import path and every existing caller still resolve and there is
+ * exactly ONE zoom cluster in the product.
  *
- * It is deliberately DUMB: it owns no zoom arithmetic and no view state, so the
- * one place that decides what a zoom means stays `campusEditorCanvas.ts` and the
- * one place that owns the operator's zoom and pan stays the editor. Three
- * callbacks, three buttons, and the same `variant`/`size` as every other icon
- * control in the editor toolbar (AGENTS.md §8, one look per control).
- *
- * RESET is the control worth reading: A9 c4 item 36 changed what it means. It
- * used to return the canvas to 100%, and at the 1366px default 100% is the view
- * that painted a building under the inspector. It now returns to the FIT — the
- * whole campus inside the free area — which is what "reset the view" means to an
- * operator who cannot see the whole campus.
+ * The shared cluster adds two things the editor's copy did not have, both required
+ * by the packet:
+ *   - the percentage in WORDS ("75%"), as a live `role="status"`, so a scheduler
+ *     can see the zoom level without inferring it from the size of the map;
+ *   - the range `0.25`–`4` instead of `0.4`–`2.5`. The old lower bound IS the
+ *     reported defect: "we can't zoom out and lock the map in place, causing the
+ *     map to be cut off". `zoom` is therefore a REQUIRED prop — the component
+ *     cannot render a percentage it does not have.
  */
-export function CampusMapEditorZoomControls({
-	onZoomIn,
-	onZoomOut,
-	onReset,
-}: {
-	onZoomIn: () => void;
-	onZoomOut: () => void;
-	onReset: () => void;
-}) {
-	return (
-		<TooltipProvider>
-			<div className="inline-flex items-center gap-1">
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Button variant="outline" size="icon-xs" onClick={onZoomIn} aria-label="Zoom in">
-							<Plus className="size-3.5" />
-						</Button>
-					</TooltipTrigger>
-					<TooltipContent>Zoom in</TooltipContent>
-				</Tooltip>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Button variant="outline" size="icon-xs" onClick={onZoomOut} aria-label="Zoom out">
-							<Minus className="size-3.5" />
-						</Button>
-					</TooltipTrigger>
-					<TooltipContent>Zoom out</TooltipContent>
-				</Tooltip>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Button variant="outline" size="icon-xs" onClick={onReset} aria-label="Reset view">
-							<RotateCcw className="size-3.5" />
-						</Button>
-					</TooltipTrigger>
-					<TooltipContent>Reset view</TooltipContent>
-				</Tooltip>
-			</div>
-		</TooltipProvider>
-	);
-}
+export { CampusMapZoomControls as CampusMapEditorZoomControls } from '@/components/campus-map/CampusMapZoomControls';

@@ -1,13 +1,11 @@
 import Konva from 'konva';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Group, Layer, Line, Rect, Stage, Text, Transformer } from 'react-konva';
-import { DoorOpen, ImageOff, MousePointer2, Redo2, Save, Square, Undo2, Upload } from 'lucide-react';
+import { Save, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
 import type { Building } from '@/types';
-import { Button } from '@/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import {
 	CALM_BUILDING_COLORS,
 	MAP_DEFAULT_STROKE,
@@ -15,10 +13,32 @@ import {
 	MAP_TRANSFORMER_STROKE,
 	getPrimaryCanvasColor,
 } from '@/components/campus-map/campusMapPalette';
-// A9 c4 — the view cluster, extracted because this file reached the AGENTS.md §8
-// 1000-line cap while the fit view was added. Dumb by design: it holds no zoom
-// arithmetic and no view state.
-import { CampusMapEditorZoomControls } from '@/components/campus-map/CampusMapEditorZoomControls';
+// A9 m1 — the toolbar row, extracted so this file stays under the AGENTS.md §8
+// 1000-line cap. Its layout note is in that file's header.
+import { CampusMapEditorToolbar } from '@/components/campus-map/CampusMapEditorToolbar';
+// A9 m1 — the Background step and the ONE background layer, both extracted. This
+// file held the two fixed 920x580 background rects, whose independent X/Y pattern
+// scales were the stretch.
+import { CampusMapBackgroundLayer, useCampusImage, viewerPlacement } from '@/components/campus-map/CampusMapBackgroundLayer';
+import { CampusMapBackgroundStep } from '@/components/campus-map/CampusMapBackgroundStep';
+// A9 m1 — the Background step's state and its seven edits.
+import { useCampusMapBackground } from '@/components/campus-map/useCampusMapBackground';
+// A9 m1 — the framing contract, as pure functions. Nothing in this file decides
+// what "fit" means; it asks `backgroundWorld` for a world and `fitViewTransform`
+// for a transform.
+import {
+	backgroundWorld,
+	type CampusMapPlacement,
+	clampPlacement,
+	defaultPlacement,
+	fillPlacement,
+	fitViewTransform,
+	movePlacement,
+	nextBackgroundZoom,
+	scalePlacement,
+	zoomLabel,
+} from '@/components/campus-map/campusMapBackground';
+import { saveCampusBackground } from '@/lib/campus-background-api';
 // A3 c11 fix 36 — every number the canvas decision needs, as pure functions, in
 // one place with the geometry contract that explains them. See the module header
 // for the 1366px arithmetic that reproduces the operator's clip.
@@ -29,9 +49,7 @@ import {
 	canvasWorkArea,
 	clampBuildingToCanvas,
 	campusEditorCanvasSize,
-	campusEditorViewTransform,
 	drawRectFromPointer,
-	nextZoomScale,
 	smartLabelRotation,
 	transformOrigin,
 } from '@/components/campus-map/campusEditorCanvas';
@@ -42,6 +60,10 @@ type CampusMapEditorProps = {
 	schoolId: number;
 	buildings: EditorBuilding[];
 	campusImageUrl: string | null;
+	/** A9 m1 — the stored background placement, or null for a school whose photo
+	 *  predates the Background step. `null` normalises to "fit whole image,
+	 *  locked", which is the pre-existing framing. */
+	campusMapPlacement?: unknown;
 	onBuildingsChange: (buildings: EditorBuilding[]) => void;
 	selectedBuildingId: number | null;
 	onSelect: (id: number | null) => void;
@@ -52,6 +74,9 @@ type CampusMapEditorProps = {
 	onPushHistory: () => void;
 	onUndo: () => void;
 	onRedo: () => void;
+	/** A9 m1 — the plain-words receipt line, rendered under the toolbar where the
+	 *  save happened. The page that shows it is the page the action was taken on. */
+	backgroundReceipt?: string | null;
 };
 
 type Tool = 'select' | 'add';
@@ -64,6 +89,7 @@ export function CampusMapEditor({
 	schoolId,
 	buildings,
 	campusImageUrl,
+	campusMapPlacement,
 	onBuildingsChange,
 	selectedBuildingId,
 	onSelect,
@@ -73,16 +99,22 @@ export function CampusMapEditor({
 	onPushHistory,
 	onUndo,
 	onRedo,
+	backgroundReceipt,
 }: CampusMapEditorProps) {
 	// A9 c4, fix 36 — the operator's two numbers, not one. `zoom` and `pan` are
 	// the USER's; the stage's own size is the coordinate space they act on. The
-	// default is therefore the FIT view (see `campusEditorViewTransform`), and
-	// reset returns to the fit rather than to 100%.
+	// default is therefore the FIT view (see `fitViewTransform`), and reset
+	// returns to the fit rather than to 100%.
 	const [zoom, setZoom] = useState(1);
 	const [pan, setPan] = useState({ x: 0, y: 0 });
 	const [tool, setTool] = useState<Tool>('select');
 	const [saving, setSaving] = useState(false);
-	const [campusImage, setCampusImage] = useState<HTMLImageElement | null>(null);
+	// A9 m1 — the background. Its state and its seven edits live in
+	// `useCampusMapBackground` below; what is left here is the drawing. While the
+	// photo is LOCKED, or while Move is off, the photo node is not draggable AT
+	// ALL, so a drag can only ever reach a building — "dragging moves buildings
+	// only and never the photo" is a property of the tree, not of a handler that
+	// has to remember to undo a move.
 	const [hoveredBuildingId, setHoveredBuildingId] = useState<number | null>(null);
 	// A3 c11 fix 36 — the canvas size is MEASURED, from the page's scroll region
 	// (see `campusEditorCanvas.ts` for the 1366px arithmetic). Measuring the
@@ -97,20 +129,61 @@ export function CampusMapEditor({
 	);
 	const { width: CANVAS_WIDTH, height: CANVAS_HEIGHT } = canvas;
 
+	// THE PHOTO, decoded once, through the shared loader every viewer uses.
+	const campusImage = useCampusImage(campusImageUrl);
+
+	// The world as the editor's own measurements make it: the work area, grown for
+	// the buildings. Nothing about the photo yet.
+	const baseWorld = useMemo(() => ({ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }), [CANVAS_WIDTH, CANVAS_HEIGHT]);
+
+	// The placement AS STORED, repaired against the photo that actually loaded. A
+	// replacement upload has different pixels, so `normalisePlacement` refits rather
+	// than stretching the old framing onto a new file, and a school with no stored
+	// placement at all gets the fit-whole, centred, LOCKED default. That is the
+	// "existing schools are unchanged" guarantee, and it is arithmetic rather than
+	// a migration.
+	const storedPlacement = useMemo(
+		() => viewerPlacement(campusMapPlacement, campusImage, baseWorld),
+		[campusMapPlacement, campusImage, baseWorld],
+	);
+
+	// A9 m1 — the Background step's state and its seven edits live in a hook,
+	// extracted for the AGENTS.md §8 line cap and because the edits are one
+	// cohesive unit. It is fed the STORED placement and the BASE world; the world
+	// below then grows to hold whatever the photo has become.
+	const background = useCampusMapBackground({
+		schoolId,
+		placement: storedPlacement,
+		world: baseWorld,
+		image: campusImage,
+		onSaved,
+	});
+
+	// THE DRAWN PLACEMENT, and THE WORLD THAT GROWS TO HOLD IT. This is the whole
+	// fix for "the map is cut off": the world is no longer a fixed 920x580 box, it
+	// is the union of the measured work area, every building, and the photo's own
+	// rectangle — so a 3:1 panorama or a 2:3 plan has somewhere to live and the
+	// view transform fits whatever it finds.
+	const placement = campusImage ? clampPlacement(background.edited ?? storedPlacement, baseWorld) : null;
+	const world = useMemo(
+		() => (placement ? backgroundWorld(placement, buildings, baseWorld) : baseWorld),
+		[placement, buildings, baseWorld],
+	);
+
 	// A9 c4, fix 36 — the view the stage is PAINTED through: the measured work
-	// area is the free area, the stage's own size is the content space, and the
+	// area is the free area, the world's own size is the content space, and the
 	// result is the fit × the operator's zoom, centred, with the operator's pan
-	// clamped. The stage's `width`/`height` and every building's stored `x`/`y`
-	// are untouched, so the A3 c11 size and containment contract is unchanged.
+	// clamped. A9 m1 moved the arithmetic into `fitViewTransform`, so the editor
+	// and every read-only viewer cannot disagree about the framing.
 	const fitBox = useMemo(
 		() => ({ freeWidth: containerSize.width, freeHeight: containerSize.height }),
 		[containerSize.width, containerSize.height],
 	);
-	const canvasSpace = useMemo(() => ({ canvasWidth: CANVAS_WIDTH, canvasHeight: CANVAS_HEIGHT }), [CANVAS_WIDTH, CANVAS_HEIGHT]);
 	const view = useMemo(
-		() => campusEditorViewTransform({ free: fitBox, canvas: canvasSpace, zoom, pan }),
-		[fitBox, canvasSpace, zoom, pan],
+		() => fitViewTransform({ content: world, box: fitBox, zoom, pan }),
+		[world, fitBox, zoom, pan],
 	);
+
 
 	useEffect(() => {
 		const host = canvasHostRef.current;
@@ -173,18 +246,9 @@ export function CampusMapEditor({
 	// Alignment guide state
 	const [guides, setGuides] = useState<{ x?: number; y?: number }[]>([]);
 
-	// Load campus background image
-	useEffect(() => {
-		if (!campusImageUrl) {
-			setCampusImage(null);
-			return;
-		}
-		const img = new window.Image();
-		img.crossOrigin = 'anonymous';
-		img.src = campusImageUrl;
-		img.onload = () => setCampusImage(img);
-		img.onerror = () => setCampusImage(null);
-	}, [campusImageUrl]);
+	// A9 m1 — the campus background image is loaded by the shared `useCampusImage`
+	// hook above, so this file holds no image-loading state of its own and the
+	// editor cannot drift from a viewer on when a photo counts as ready.
 
 	// Attach transformer to selected building
 	useEffect(() => {
@@ -278,10 +342,12 @@ export function CampusMapEditor({
 		if (drawRect.width < MIN_WIDTH || drawRect.height < MIN_HEIGHT) return;
 
 		// A3 c11 fix 36, option 3 — a drawn building is CONTAINED by the same clamp.
+		// A9 m1: the clamp is now against the GROWN world, not the measured work
+		// area, so a building can be drawn anywhere the photo reaches.
 		const placed = clampBuildingToCanvas(
 			{ x: drawRect.x, y: drawRect.y, width: drawRect.width, height: drawRect.height },
-			CANVAS_WIDTH,
-			CANVAS_HEIGHT,
+			world.width,
+			world.height,
 		);
 
 		const newBuilding: EditorBuilding = {
@@ -306,7 +372,7 @@ export function CampusMapEditor({
 			onSelect(newBuilding.id);
 			setTool('select');
 		},
-		[isDrawing, drawRect, buildings, onBuildingsChange, onSelect, CANVAS_WIDTH, CANVAS_HEIGHT],
+		[isDrawing, drawRect, buildings, onBuildingsChange, onSelect, world.width, world.height],
 	);
 
 	const handleDragEnd = useCallback(
@@ -322,8 +388,8 @@ export function CampusMapEditor({
 			const dragged = buildings.find((b) => b.id === buildingId);
 			const contained = clampBuildingToCanvas(
 				{ x: snappedX, y: snappedY, width: dragged?.width ?? node.width(), height: dragged?.height ?? node.height() },
-				CANVAS_WIDTH,
-				CANVAS_HEIGHT,
+				world.width,
+				world.height,
 			);
 			snappedX = contained.x;
 			snappedY = contained.y;
@@ -340,7 +406,7 @@ export function CampusMapEditor({
 			setDimTooltip(null);
 			setGuides([]);
 		},
-		[buildings, onBuildingsChange, onPushHistory, CANVAS_WIDTH, CANVAS_HEIGHT],
+		[buildings, onBuildingsChange, onPushHistory, world.width, world.height],
 	);
 
 	const handleDragMove = useCallback(
@@ -395,7 +461,7 @@ export function CampusMapEditor({
 			// Reset scale to 1 and apply computed dimensions to prevent drift
 			// A3 c11 fix 36, option 3 — a resize/rotate keeps the opposite anchor
 			// fixed AND stays inside the canvas, by the same single clamp.
-			const contained = clampBuildingToCanvas({ x: snappedX, y: snappedY, width: newWidth, height: newHeight }, CANVAS_WIDTH, CANVAS_HEIGHT);
+			const contained = clampBuildingToCanvas({ x: snappedX, y: snappedY, width: newWidth, height: newHeight }, world.width, world.height);
 			snappedX = contained.x;
 			snappedY = contained.y;
 
@@ -426,7 +492,7 @@ export function CampusMapEditor({
 			);
 			setDimTooltip(null);
 		},
-		[buildings, onBuildingsChange, onPushHistory, CANVAS_WIDTH, CANVAS_HEIGHT],
+		[buildings, onBuildingsChange, onPushHistory, world.width, world.height],
 	);
 
 	const handleTransform = useCallback(
@@ -517,7 +583,12 @@ export function CampusMapEditor({
 			await atlasApi.post(`/map/schools/${schoolId}/campus-image`, formData, {
 				headers: { 'Content-Type': 'multipart/form-data' },
 			});
-			toast.success('Campus image updated.');
+			// A NEW photo invalidates the stored framing: it was measured against a
+			// different file's ratio. Clearing the local edit makes the editor
+			// refit from the stored value, and `normalisePlacement` will refit anyway
+			// because the recorded image size will not match the new upload.
+			background.reset();
+			toast.success('Campus image updated. It now fits the map area with its real shape.');
 			onSaved();
 		} catch (err) {
 			toast.error('Failed to update campus image.');
@@ -528,6 +599,7 @@ export function CampusMapEditor({
 	const handleImageRemove = useCallback(async () => {
 		try {
 			await atlasApi.delete(`/map/schools/${schoolId}/campus-image`);
+			background.reset();
 			toast.success('Campus photo removed.');
 			onSaved();
 		} catch (err) {
@@ -551,167 +623,89 @@ export function CampusMapEditor({
 
 	return (
 		<div className="flex flex-col gap-2">
-			{/* Task-grouped toolbar */}
-			<div className="flex flex-wrap items-center gap-2">
-				<TooltipProvider>
-					{/* Group: Select / Draw */}
-					<div className="inline-flex rounded-md border border-border bg-card p-0.5" role="tablist" aria-label="Map mode">
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Button
-									variant={tool === 'select' ? 'default' : 'ghost'}
-									size="sm"
-									onClick={() => setTool('select')}
-									aria-pressed={tool === 'select'}
-									aria-label="Select buildings"
-									className="h-8"
-								>
-									<MousePointer2 className="size-3.5" /> Select
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent>Select and edit buildings</TooltipContent>
-						</Tooltip>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Button
-									variant={tool === 'add' ? 'default' : 'ghost'}
-									size="sm"
-									onClick={() => setTool('add')}
-									aria-pressed={tool === 'add'}
-									aria-label="Draw building"
-									className="h-8"
-								>
-									<Square className="size-3.5" /> Draw building
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent>Draw a new building rectangle</TooltipContent>
-						</Tooltip>
-					</div>
+			{/* ROW 1: the toolbar. A9 m1 extracted it to its own file so this one
+			    stays under the AGENTS.md §8 1000-line cap while the Background
+			    step below becomes a second row. Its layout note — what stayed, what
+			    went, and what moved behind a Tooltip — is in that file's header,
+			    because the operator's 2026-09-29 ruling was that "too literal"
+			    changes with no subtraction are what got rejected. */}
+			<CampusMapEditorToolbar
+				tool={tool}
+				onToolChange={setTool}
+				zoom={zoom}
+				onZoomChange={(next) => {
+					// A9 c4, fix 36 — reset returns to the FIT view, not to 100%: at
+					// the 1366px default 100% is the view that put a building under
+					// the panel. A9 m1 widened the range to 0.25-4.
+					if (next === 1) setPan({ x: 0, y: 0 });
+					setZoom(next);
+				}}
 
-					{/* Group: view. `zoom` is the operator's multiplier ON TOP of the
-					    fit, so zoom in starts from "the whole campus" rather than
-					    from a canvas that was already too big for its box. The
-					    cluster itself is extracted; see its file for why reset is
-					    the fit and not 100%. */}
-					<CampusMapEditorZoomControls
-						onZoomIn={() => setZoom((z) => nextZoomScale(z, 0.15))}
-						onZoomOut={() => setZoom((z) => nextZoomScale(z, -0.15))}
-						onReset={() => {
-							// A9 c4, fix 36 — reset returns to the FIT view, not to
-							// 100%: at the 1366px default 100% is the view that put a
-							// building under the panel.
-							setZoom(1);
-							setPan({ x: 0, y: 0 });
-						}}
-					/>
+				roomsSummary={selectedBuilding ? { teaching: selectedTeachingRoomCount, total: selectedRoomCount } : null}
+				campusImageUrl={campusImageUrl}
+				onImageUpload={handleImageUpload}
+				onImageRemove={handleImageRemove}
+				canUndo={historyStack.length > 0}
+				canRedo={redoStack.length > 0}
+				onUndo={onUndo}
+				onRedo={onRedo}
+				saveState={saveState}
+				saveStateLabel={saveStateLabel}
+				canSave={hasDirty && !saving}
+				onSave={handleSave}
+			/>
 
-					{/* Group: Rooms */}
-					<div className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2 text-[0.7rem] font-semibold text-slate-600" aria-label="Rooms summary">
-						<DoorOpen className="size-3.5 text-primary" />
-						<span>Rooms</span>
-						<span className="text-muted-foreground">
-							{selectedBuilding ? `${selectedTeachingRoomCount}/${selectedRoomCount} teaching` : 'Select building'}
-						</span>
-					</div>
+			{/* ── A9 m1, ROW 2: the Background step, and the receipt.
+			    THIS IS THE LAYOUT DECISION, so it is written down where a reviewer
+			    will meet it. The toolbar above is already one dense row at the
+			    1366px default (mode, zoom, rooms, photo, history, save state,
+			    save), and §8's header budget plus the subtract-first rule both say
+			    the answer to "one more group" is a second calm row rather than
+			    cramming a ninth cluster into the first. So:
 
-					{/* Group: campus photo */}
-					<div className="inline-flex items-center gap-1">
-						<label className="cursor-pointer">
-							<Button variant="outline" size="sm" asChild aria-label="Upload campus photo">
-								<span>
-									<Upload className="size-3.5" /> Campus photo
-								</span>
-							</Button>
-							<input
-								type="file"
-								accept="image/png,image/jpeg,image/webp"
-								className="hidden"
-								onChange={handleImageUpload}
-							/>
-						</label>
-						{campusImageUrl && (
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<Button
-										variant="ghost"
-										size="icon-xs"
-										className="text-muted-foreground hover:text-destructive"
-										onClick={handleImageRemove}
-										aria-label="Remove campus photo"
-									>
-										<ImageOff className="size-3.5" />
-									</Button>
-								</TooltipTrigger>
-								<TooltipContent>Remove campus photo</TooltipContent>
-							</Tooltip>
-						)}
-					</div>
+			      STAYS — every existing group, unchanged, on row 1.
+			      GOES   — nothing. Nothing on row 1 was removed, because the
+			              packet did not ask for a subtraction and every item
+			              there earns its place. The subtraction is in WORD COUNT:
+			              the step below carries no caption, no helper sentence and
+			              no "More" menu, and the only sentence it renders when there
+			              is no photo is eight words.
+			      MOVES BEHIND A TOOLTIP — every explanation. "Fit whole image"
+			              and "Fill the area" say what they do in their own labels,
+			              so their tooltips add only WHY.
 
-					{/* Group: History */}
-					<div className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-card px-1">
-						<span className="px-1 text-[0.65rem] font-semibold text-muted-foreground">History</span>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Button
-									variant="outline"
-									size="icon-xs"
-									disabled={historyStack.length === 0}
-									onClick={onUndo}
-									aria-label="Undo"
-								>
-									<Undo2 className="size-3.5" />
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent>Undo</TooltipContent>
-						</Tooltip>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Button
-									variant="outline"
-									size="icon-xs"
-									disabled={redoStack.length === 0}
-									onClick={onRedo}
-									aria-label="Redo"
-								>
-									<Redo2 className="size-3.5" />
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent>Redo</TooltipContent>
-						</Tooltip>
-					</div>
+			    The step renders as a group with no chevron and no collapsed state:
+			    a disclosure is explicitly forbidden, and an operator who has to
+			    click to find out whether the background can be moved has already
+			    lost. */}
+			<CampusMapBackgroundStep
+				placement={placement}
+				moving={background.moving}
+				saving={background.saving}
+				onToggleMoving={background.toggleMoving}
+				onBigger={background.bigger}
+				onSmaller={background.smaller}
+				onFitWholeImage={background.fitWholeImage}
+				onFillTheArea={background.fillTheArea}
+				onReset={background.resetBackground}
+				onToggleLock={background.toggleLock}
+				onSave={background.save}
+			/>
 
-					<div className="flex-1" />
-
-					<div className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-card px-2" aria-label="Save state">
-						<span className="text-[0.65rem] font-semibold text-muted-foreground">Save</span>
-						<span
-							role="status"
-							aria-live="polite"
-							className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[0.7rem] font-medium ${saveStateClass}`}
-						>
-							<span className={`size-1.5 rounded-full ${
-								saveState === 'saved' ? 'bg-emerald-500' : saveState === 'saving' ? 'bg-sky-500 animate-pulse' : 'bg-amber-500'
-							}`} />
-							{saveStateLabel}
-						</span>
-					</div>
-
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								size="sm"
-								disabled={!hasDirty || saving}
-								onClick={handleSave}
-								aria-label="Save campus map changes"
-							>
-								<Save className="size-3.5" />
-								{saving ? 'Saving...' : 'Save changes'}
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>Save building changes</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
-			</div>
+			{/* THE RECEIPT, on the page where the save happened. The packet's exact
+			    sentence first, then what was not done and the next step, because a
+			    receipt that only says "done" leaves the scheduler guessing whether
+			    their buildings moved. */}
+			{(background.receipt ?? backgroundReceipt) && (
+				<p
+					role="status"
+					aria-live="polite"
+					data-testid="campus-background-receipt"
+					className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-sm font-medium text-emerald-800"
+				>
+					{background.receipt ?? backgroundReceipt}
+				</p>
+			)}
 
 			{/* Canvas. The Stage is sized from the MEASURED work area by
 			    `campusEditorCanvasSize`, so the ground spans the workspace to the
@@ -728,61 +722,59 @@ export function CampusMapEditor({
 				ref={canvasHostRef}
 				className={`w-max overflow-hidden rounded-lg border border-border bg-muted/30 ${tool === 'add' ? 'cursor-crosshair' : ''}`}
 			>
-				<Stage
-					ref={stageRef}
-					width={CANVAS_WIDTH}
-					height={CANVAS_HEIGHT}
-					draggable={tool === 'select'}
-					x={view.x}
-					y={view.y}
-					scaleX={view.scale}
-					scaleY={view.scale}
-					onDragEnd={(e) => {
-						if (e.target === stageRef.current) {
-							// Konva hands back the stage's own translated position,
-							// which is the centring offset PLUS the operator's pan.
-							setPan({ x: e.target.x() - view.x, y: e.target.y() - view.y });
-						}
-					}}
-					dragBoundFunc={(next) => {
-						// Bounded DURING the drag, not snapped back after it, so the
-						// clamped pan is felt rather than corrected.
-						const bounded = campusEditorViewTransform({
-							free: fitBox,
-							canvas: canvasSpace,
-							zoom,
-							pan: { x: next.x - view.x, y: next.y - view.y },
-						});
-						return { x: bounded.x, y: bounded.y };
-					}}
-					onClick={handleStageClick}
-					onMouseDown={handleStageMouseDown}
-					onMouseMove={handleStageMouseMove}
-					onMouseUp={handleStageMouseUp}
-				onWheel={(event) => {
-					event.evt.preventDefault();
-					setZoom((current) => nextZoomScale(current, event.evt.deltaY < 0 ? 0.1 : -0.1));
+			<Stage
+				ref={stageRef}
+				width={world.width}
+				height={world.height}
+				draggable={tool === 'select' && !background.moving}
+				x={view.x}
+				y={view.y}
+				scaleX={view.scale}
+				scaleY={view.scale}
+				onDragEnd={(e) => {
+					if (e.target === stageRef.current) {
+						// Konva hands back the stage's own translated position,
+						// which is the centring offset PLUS the operator's pan.
+						setPan({ x: e.target.x() - view.x, y: e.target.y() - view.y });
+					}
 				}}
-				>
-					<Layer>
-						{/* Campus photo layer */}
-						{campusImage ? (
-							<>
-								<Rect name="bg" x={0} y={0} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} fill="#f5f5f4" />
-								<Rect
-									name="bg"
-									x={0}
-									y={0}
-									width={CANVAS_WIDTH}
-									height={CANVAS_HEIGHT}
-									fillPatternImage={campusImage}
-									fillPatternScaleX={CANVAS_WIDTH / campusImage.width}
-									fillPatternScaleY={CANVAS_HEIGHT / campusImage.height}
-								/>
-							</>
-						) : (
-							<Rect name="bg" x={0} y={0} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} fill="hsl(40 30% 95%)" cornerRadius={8} />
-						)}
+				dragBoundFunc={(next) => {
+					// Bounded DURING the drag, not snapped back after it, so the
+					// clamped pan is felt rather than corrected.
+					const bounded = fitViewTransform({ content: world, box: fitBox, zoom, pan: { x: next.x - view.x, y: next.y - view.y } });
+					return { x: bounded.x, y: bounded.y };
+				}}
+				onClick={handleStageClick}
+				onMouseDown={handleStageMouseDown}
+				onMouseMove={handleStageMouseMove}
+				onMouseUp={handleStageMouseUp}
+			onWheel={(event) => {
+				event.evt.preventDefault();
+				setZoom((current) => nextBackgroundZoom(current, event.evt.deltaY < 0 ? 0.1 : -0.1));
+			}}
+			>
+				<Layer>
+					{/* THE BACKGROUND, through the one shared layer. This replaces the
+					    two fixed `CANVAS_WIDTH x CANVAS_HEIGHT` rects whose independent
+					    `fillPatternScaleX` / `fillPatternScaleY` stretched any photo
+					    that was not 1.59:1. The stage is not draggable while the photo
+					    is being moved, so a drag in Move mode reaches the photo and
+					    nothing else. */}
+					<CampusMapBackgroundLayer
+						image={campusImage}
+						placement={placement ?? defaultPlacement(null, world)}
+						world={world}
+						draggable={Boolean(placement) && background.moving && placement?.locked === false}
+						onDragEnd={(next) => {
+							// Konva reports the node's position in the LAYER's
+							// coordinates, which IS the world — the same space a
+							// building's stored `x`/`y` lives in, so the value is
+							// directly comparable and no division by the view scale
+							// is needed or wanted.
+							background.moveTo(next);
+						}}
+					/>
+
 
 						{/* Buildings */}
 						{buildings.map((b) => {
@@ -929,12 +921,13 @@ export function CampusMapEditor({
 							padding={4}
 						/>
 
-						{/* Alignment guides */}
+						{/* Alignment guides. A9 m1: they span the GROWN world, so a guide
+						    still reaches across a photo that made the canvas taller. */}
 						{guides.map((g, i) =>
 							g.x !== undefined ? (
-								<Line key={`gv-${i}`} points={[g.x, 0, g.x, CANVAS_HEIGHT]} stroke={primaryCanvasColor || MAP_TRANSFORMER_STROKE} strokeWidth={1} dash={[4, 4]} opacity={0.6} />
+								<Line key={`gv-${i}`} points={[g.x, 0, g.x, world.height]} stroke={primaryCanvasColor || MAP_TRANSFORMER_STROKE} strokeWidth={1} dash={[4, 4]} opacity={0.6} />
 							) : g.y !== undefined ? (
-								<Line key={`gh-${i}`} points={[0, g.y, CANVAS_WIDTH, g.y]} stroke={primaryCanvasColor || MAP_TRANSFORMER_STROKE} strokeWidth={1} dash={[4, 4]} opacity={0.6} />
+								<Line key={`gh-${i}`} points={[0, g.y, world.width, g.y]} stroke={primaryCanvasColor || MAP_TRANSFORMER_STROKE} strokeWidth={1} dash={[4, 4]} opacity={0.6} />
 							) : null,
 						)}
 
