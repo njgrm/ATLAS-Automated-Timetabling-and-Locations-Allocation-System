@@ -487,6 +487,17 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **— CUTOVER TARGET, recorded 2026-09-29 ahead of the cutover by Lane A4 (AGENTS.md §13 — a pin is a commit, not a
+  description). Required by `deploy-runner.ps1` `Assert-LiveReleaseRecorded`, which fails closed without it. Target
+  release `cd542245` (full `cd54224522d44c39f8f3877134b08488541f415f`), rollback basis `e75d6b8f` (full
+  `e75d6b8f5a430578c551e4177d7cc6f065db697c`, the incumbent).** Train 10, on the operator's GO after Lane C's staging
+  walk. Target tree `E:\ATLAS-worktrees\lane-a4-release-20260929-10prod`, branch `release/2026-09-29-10-prod`,
+  HEAD == pin, `status --short` empty, own dependency trees (seeded from `-9prod` + `prisma generate`; server
+  `tsc` 0, client `vite` 0 with `VITE_ENROLLPRO_URL`), live entry chunk `index-BdvkYd2N.js` which is NOT the
+  incumbent's `index-GM9QISwG.js`, and the incumbent's 10 runtime campus uploads copied in for data portability.
+  Train 10 = **153 paths** vs `e75d6b8f`, **0 `prisma/`** → no migration. Staging already served this exact pin;
+  staging leg recorded in `docs/handoffs/lane-c-to-a2.md`, "A4 STAGING at `cd542245`".
+
 - **— LIVE: `e75d6b8f5a430578c551e4177d7cc6f065db697c` @ DEPLOYED TO PRODUCTION 2026-09-29 15:25 +08 by Lane A4
   (train 9) on Lane C GO. Rollback basis `3216d383` (the incumbent).**
 
