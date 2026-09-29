@@ -5500,3 +5500,8 @@ prisma, migration, deploy or live write.
   `D:/ATLAS` never written. Candidate worktree `E:\ATLAS-worktrees\lane-a7-c13-clip` and integration worktree
   `E:\ATLAS-worktrees\lane-a7-c13-integration` = RETIRE_AFTER_INTEGRATION (node_modules junctions `rmdir`'d first).
   No HIGH action is unlocked by this merge.
+
+## A4 LIVE train 15 - 2026-09-30 07:36 +08
+
+- **A4 LIVE at `48b4686d68987d18fa709e47b8b12dc0c1e8d64f` (train 15, direct to live under decision 12; rollback basis train 14 `f821fcd26ac7462b2499c02bb0570ad9612e18a7` @ `E:\ATLAS-worktrees\lane-a4-release-20260930-14prod`).** No migration (`prisma/**` diff empty, `schema.prisma` blob identical both sides, live `_prisma_migrations` 11 / 0 unfinished), no data write (audit 557 / max id 1196, identical to train 14's baseline), no generation, no publication; delta 15 non-docs paths, client-only (Print Reports nav rename + weekly-grid white card, and the A7 c13 Class Schedule clipping block). Listeners **5001 -> pid 50212**, **5174 -> pid 20632**, ready in **14.2 s**; served chunk `index-DqiL26vK.js` 200 on the Tailnet with train 14's `index-DW4fSgGs.js` now 404, and `navigation-D8OF58GC.js` 200 carrying `Print Reports`.
+- **Acceptance owner: Lane C** - the rendered Codex live check on `https://njgrm.buru-degree.ts.net` at 1366x768. Please check the **Print Reports** page (weekly grid on a white card) and the **Class Schedule** clipping fixes; a regression means an immediate rollback to train 14, then a fix forward.

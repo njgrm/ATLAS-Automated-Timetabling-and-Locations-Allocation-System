@@ -585,6 +585,31 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **- LIVE: `48b4686d68987d18fa709e47b8b12dc0c1e8d64f` @ DEPLOYED TO PRODUCTION 2026-09-30 07:36 +08 by Lane A4
+  under operator decision 12 (direct to live). Train 15.** Rollback basis
+  **`f821fcd26ac7462b2499c02bb0570ad9612e18a7`** @ `E:\ATLAS-worktrees\lane-a4-release-20260930-14prod` (train
+  14, the incumbent), `KEEP_ACTIVE`; one-step supervised reset, task XML captured pre-cutover in
+  `C:\ProgramData\ATLAS\release-audit\48b4686d-20260930-073614\`. Live dir
+  `E:\ATLAS-worktrees\lane-a4-release-20260930-15prod`, HEAD == pin, `status --short` empty, own dependency
+  trees, own dist, own runtime contract. Listeners **5001 -> pid 50212**, **5174 -> pid 20632** (were
+  16288/53128); machine scope, task action **and** Start In repointed, task **Running**,
+  `cli.mjs status` `releaseSha 48b4686d`, `restartFailures 0`, rollover auto-sync disabled. **Ready in
+  14.2 s** (cutover 07:36:14, `/api/v1/health/ready` 200 `database: ok`, `GET /api/v1/subjects?schoolId=1`
+  200) - inside the 180 s budget. Served chunk **`index-DqiL26vK.js` (304 893 B)** on the Tailnet origin,
+  where train 14's `index-DW4fSgGs.js` now **404s**; rendered proof of the rename in the code-split nav
+  chunk **`navigation-D8OF58GC.js` -> 200, containing `Print Reports` (1)**, while train 14's
+  `navigation-u7Bpeg1A.js` -> **404**. **No migration** (`prisma/**` diff empty, `schema.prisma` blob
+  `ba62f40a...` identical both sides, 12 migration dirs each side, live `_prisma_migrations` **11 / 0
+  unfinished**), **no data write** (live signature identical to train 14's recorded baseline: schools 2,
+  sections 160, faculty 60, subjects 23, gen runs 12, published 6, manual edits 13, notifications 268,
+  **audit 557 / max id 1196**), **no generation, no publication**. Delta from `f821fcd2`: **15 non-docs paths,
+  client-only, two lanes** - Lane C Print Reports nav rename `77e34778` + weekly-grid white card `48b4686d`,
+  and the A7 c13 Class Schedule clipping / warning-list truth block (`d61f4837` + `a7-c13-clip` tests);
+  `atlas-client/package.json` adds one test-script entry only, `package-lock.json` unchanged. Acceptance
+  owner: **Lane C** (rendered Codex live check). Reclaim: 6 retired clean release worktrees retired first
+  (E: 23.12 -> 31.46 GiB); the two quiesced staging trees were **preserved** (dirty
+  `ops/runtime/runtime-contract.json`, and `a46505ce` is a recorded rollback basis). Supersedes the train-15
+  in-flight line below, which is retained, not deleted.
 - **LIVE CUTOVER IN FLIGHT - target release `48b4686d68987d18fa709e47b8b12dc0c1e8d64f` (train 15, re-pinned
   from Lane C 07:2x +08), rollback basis `f821fcd26ac7462b2499c02bb0570ad9612e18a7` @
   `E:\ATLAS-worktrees\lane-a4-release-20260930-14prod` (train 14, the incumbent).** Recorded
