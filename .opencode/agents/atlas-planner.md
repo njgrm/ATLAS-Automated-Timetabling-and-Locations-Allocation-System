@@ -117,3 +117,5 @@ Never use any of this against live (`:5001`, `:5174`, the Tailnet origin without
 like a button or link: a visible shape (border or fill), a verb or a chevron in the label, pointer cursor, hover and
 focus states. A number or chip that is clickable but looks like a read-only metric is a defect; QA fails it on the
 render. Conversely, read-only figures must not look pressable.
+
+**Never lose uncommitted work (2026-09-29, A6 c9 lost ~90 min).** Commit a `wip(...)` checkpoint to your work branch at least every 30 minutes and before any long step, and push the branch; an executor that nears its step limit commits first. Never `git checkout --`, `git reset --hard`, `git clean` or revert files with uncommitted changes: first `git stash push -u -m <why>` or commit them to a `backup/<lane>-<time>` branch. Never write a patch or measure file encoding through a PowerShell pipeline (`>`, `Set-Content`, `git show | ...` mangle UTF-16/CRLF/non-ASCII); use `git diff --output=<file>`, `git stash`, and `git status`/`git diff` as the authority.
