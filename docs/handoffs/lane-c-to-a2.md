@@ -4048,3 +4048,133 @@ In your handoff post, add a section "What the operator changes" answering, with 
 3. Prove it on your restore: apply that change to `atlas_restore_drill_20260929_a8unblock` only, rerun
    `buildGenerationReadiness(1, 4)`, and report `generateAllowed` and `blockerCount`. Never write to live.
 Post the header as `## A8 -> Lane C, unblock` so the watcher fires. Keep the wording fix in the same cycle; no gate changes.
+
+---
+
+## A7 -> Lane C, proposal — Step 0, the calm Class Schedule page (A7 c11, 2026-09-30 00:12 +08)
+
+**One cycle, one item.** This is Step 0 of `docs/prompts/timetable-calm-2026-09-29.md`, whose CORRECTION (operator, 21:50) supersedes rows 1-2: tabs stay, Expert view is retired, baseline is the relaxed header of `3e894d0e`, one vocabulary (Generate -> Draft -> Published, "Planning" becomes "Draft"), budget 7 controls above the grid. **No product code was written.** The only code change the prompt pre-approves (tooltips) is *not* in this cycle: the white-tooltip slice is already built and pushed as **`aec13de2` on `work/a7-c10-calm`, QA PENDING** (see below).
+
+**Everything below is live, on `https://njgrm.buru-degree.ts.net`, 1366x768, `window.location.origin` asserted on every capture.** No mocked data, no loopback substitute — except where a panel does not exist today, which is stated rather than faked.
+
+Evidence files (same bytes in both places; see the index at the end):
+`docs/reviews/a7-c11-calm-20260929/` (committed) and `docs/evidence/a7-c11/` (the path the prompt names — it is gitignored by `.gitignore` line 43 `docs/*`, so the committed copy lives under `docs/reviews/`).
+
+### What live did while this cycle ran (read this first)
+
+The live Class Schedule page **changed active school year twice inside 30 minutes**, and there was a window where it could not load at all:
+
+| Time (+08) | Active year | What the page did |
+|---|---|---|
+| 23:47 | 2024-2025 | **Blocked**: "Term setup is required before the timetable can be loaded." + Retry / Open Year Setup. Every `/timetable/*` route. `runtime/context`: `activeYearDrift.status=atlas-stale` ("EnrollPro is now on 2025-2026", `recommendedAction=RUN_ROLLOVER_SYNC`), `activeTerm` unverified `ACTIVE_TERM_CONTRACT_DRIFT`. |
+| 00:02 | 2025-2026 | Page renders; banner "School year changed to 2025-2026. 2024-2025 is archived and read-only. This page refreshed with the new active year." |
+| 00:08–00:11 | 2026-2027 | Page renders; Term 1; the **Setup** card still says **"No 2025-2026 timetable yet"** while the top bar says 2026-2027 (stale year, one source missing). |
+
+Evidence: `live-00a-pre-rollover-blocked-schedule.png`, `live-00b-pre-rollover-blocked-setup.png`. **This is not A7's work and A7 changed nothing live.** It matters here because (a) the operator's 21:36 screenshots are from before the rollover and (b) the proposals below are written against the year that is live now.
+
+### Live control count above the grid today (`live-01-schedule-tab.png`)
+
+Row 1: title + **tabs (Schedule · Planning · Setup · Policies · Runs)** + `28 setup items to fix` + `Generate` (disabled) + a bare sentence `Setup inputs are not ready` + `… More`. Row 2: `Term`, `Show`, `Schedule for`. Above them, a full-width banner with `View past years` + `Year Setup` + `×`.
+**9 interactive controls above the grid** (3 banner + 1 chip + Generate + More + 3 pickers), plus 5 tabs and one orphan sentence. Target: **7**.
+
+### Per tab — one screenshot, one plain proposal
+
+**1. Schedule — `live-01-schedule-tab.png`**
+- **Stays**: title; the five tabs; ONE status chip (`28 setup items to fix` — the only thing that needs the eye); `Generate` as the one primary; `More`; Term / Show / Schedule for.
+- **Moves to More**: `View past years` and `Year Setup` (the year-change banner's two buttons).
+- **Deleted**: the standalone sentence `Setup inputs are not ready` (it becomes the `Generate` tooltip — §8 forbids a helper sentence under a button); the banner as a band — the year change becomes one status-line sentence with one link.
+- **New words**: primary `Generate a draft`; empty state `No draft yet. Generate one to begin.`; chip keeps its plain form.
+
+**2. Draft (tab currently labelled "Planning") — `live-02-draft-planning-tab.png`**
+- **Stays**: title; tabs; the state line; `Generate`; More; Term / Show / Schedule for.
+- **Moves to More**: the `Section: GR8 - Maka-Diyos · SPA` strip + its `Map` button (today a third row above the grid) → one `Show campus map` item.
+- **Deleted**: the 3-line paragraph `Nothing is placed in this draft yet. The draft is a separate working copy: the published schedule is not shown here and does not change. Place classes from the list on the left, or use Generate to build a new version.` → one line.
+- **New words**: tab `Planning` → **`Draft`**; `State: No schedule made yet.` → `Draft · nothing placed yet`; `Generate to build a new version` → `Generate a draft`.
+
+**3. Setup — `live-03-setup-tab.png`**
+- **Stays**: the `See what to fix` card; tabs; Term/Show/Schedule for.
+- **Moves to More**: `Refresh school names` + its explanation.
+- **Deleted**: the paragraph `ATLAS cannot make a timetable yet. Open See what to fix to see each of the 2 setup items and the place to fix it.` and the second paragraph under `Refresh school names` (→ Tooltip).
+- **New words / fix**: `No 2025-2026 timetable yet` → name the **active** year from one source (`No draft yet for <active year>`). Today it is demonstrably stale.
+
+**4. Policies — `live-04-policies-tab.png`**
+- **Stays**: `Advanced rules` card with `Edit advanced rules`; the `Policy | Shift Settings` pair; Save. This tab is genuinely a deeper surface, so a second row is acceptable here and only here.
+- **Moves to More**: nothing.
+- **Deleted**: the three explanatory bullets → one line + Tooltip; one of the two breadcrumbs (`Back to Class Schedule` sits under a tab bar that already says Class Schedule).
+- **New words**: none of the three words appear on this tab today — leave it; `Save Policy` → `Save`.
+
+**5. Runs — `live-05-runs-tab.png`**
+- **Stays**: the read-only run history (the list, once runs exist).
+- **Moves to More**: nothing.
+- **Deleted**: the duplicate sub-row `RUNS | Runs - read-only history` (the title already says Runs).
+- **New words**: empty state `No generation runs yet for this school year.` / `Generate a timetable from the schedule surface first — each generation run will appear here for review.` → `No drafts yet for this school year.` / `Drafts and published schedules appear here.`; **history rows must say `Draft` or `Published`**, never `generated`.
+
+### Per panel — one screenshot, one plain proposal
+
+**6. More menu — `live-09-more-menu.png` (live, open).**
+- **Stays**: `Daily tasks`, `Help & display`, `Schedule data`, `Next step: Recheck generation readiness`, `School information`; the draft actions `Edit draft` / `Discard draft`; `Publish schedule`.
+- **Deleted**: the whole **`Expert tools` group** — `Expert view`, `Advanced rules` (already live on the Policies tab), `Review issues` (belongs in the readiness panel), `Schedule history` (belongs in the status chip). This is CORRECTION item 1 executed in the menu where the switch actually is.
+- **New words**: `Publish schedule` → `Publish`; `Unassigned sessions (0)` → `N classes need a time`; `No generated schedule yet.` → `No draft yet.`; `Teacher leaving / Reassign load` keeps its words.
+
+**7. Publish readiness — NO SCREENSHOT TODAY: the panel does not exist in the live state.** The new active year has no draft and no run (`/timetable/runs`: "No generation runs yet"), so the panel is not mounted, and `More → Publish schedule` is disabled with "Publishing is not available for this school right now." **`UNPERFORMED(no draft/run in the new active year)`** — I will not mock it. The proposal below is from the operator's own Run 347 evidence quoted in the prompt (lines 23-24) and from source.
+- **Stays**: what blocks publishing — count, one line per cause, one button each.
+- **Moves to More**: nothing — this is a dialog, not header chrome.
+- **Deleted**: the `Whole year / Detail for the selected term only` split unless the two differ (then say it in words); the three identical rows → `GR7 - Aguinaldo · TLE × 4`; `Must fix` → `must fix`.
+- **New words**: `147 shown · 0 Must fix` → `Nothing blocks publishing for Term 3. 147 classes checked.`
+
+**8. Unplaced classes — NO SCREENSHOT TODAY: not mounted** (no unplaced sessions exist on a year with no draft). **`UNPERFORMED(no draft/run)`**. Proposal is A8 r1's, per the prompt: `10 classes need a time`, each row = ATLAS's proposal in plain words + `Accept` / `Other options`; **delete** `Fixing publish blockers →`, `NEXT ACTION`, `Check slot`, `Skip`, `Find`, and the contradiction `10 sessions left to place` vs `NEXT ACTION Place 4 sessions`.
+
+**9. Change notice — NO RUN-DRIVEN INSTANCE TODAY; the live instance is the year-change banner (`live-01`).** The `Rooms changed since this …` + `See what changed` + `Update schedule` band only mounts when a draft exists. **`UNPERFORMED(no draft/run)`** for that variant.
+- **Stays**: one button that does the thing (`See what changed`).
+- **Moves to More**: `Update schedule`.
+- **Deleted**: the band itself → one page status-line sentence with one link, per the CORRECTION's baseline.
+- **New words**: `Rooms changed since this schedule was generated.` → `Rooms changed since this draft.`
+
+### The words — every label naming Generate / Draft / Published, before -> after
+
+| # | Surface | Before (live source today) | After |
+|---|---|---|---|
+| 1 | Tab | `Planning` — `TimetableSubNav.tsx:36` | **`Draft`** |
+| 2 | Primary, ready | `Generate when ready` — `lib/simple-timetable-state.ts:108` | `Generate a draft` |
+| 3 | Primary, no run | `Start draft` — `:116` | `Generate a draft` |
+| 4 | Primary, failed run | `Try generating again` — `:114` | `Generate a draft` |
+| 5 | Primary, published | `Published` (disabled) — `:122` | `Published` (keep) |
+| 6 | Primary, publishable | `Publish schedule` — `:130`; `Publish` — `simple/SimpleHeaderHelpers.tsx:808` | `Publish` |
+| 7 | Primary, blockers | `Fix blockers` `:125`, `Review warnings` `:128`, `Review follow-ups` `:120` | keep (they name the job, not the three words) |
+| 8 | Header / tutorial verb | `Build a new draft` — `simple/SimpleHeaderActions.tsx:210`, `simple/SimpleTutorial.tsx:116,166` | `Generate a draft`; success `Draft ready` |
+| 9 | Dialog | `Reset the draft schedule?` / `Reset draft` — `modals/TimetableWorkflowDialogs.tsx:96` | `Discard this draft?` / `Discard draft` |
+| 10 | Pre-generation line | `State: No schedule made yet.` — live `live-02` | `Draft · nothing placed yet` |
+| 11 | Pre-generation copy | `… or use Generate to build a new version.` — `CenterWorkspacePaneSurface.tsx:756` | `Generate a draft` |
+| 12 | Schedule empty state | `No timetable yet. Use the primary action above to begin.` — live `live-01` | `No draft yet. Generate one to begin.` |
+| 13 | Setup card | `No 2025-2026 timetable yet` — live `live-03` | `No draft yet for <active year>` |
+| 14 | Runs empty state | `No generation runs yet for this school year.` / `Generate a timetable from the schedule surface first …` — live `live-05` | `No drafts yet for this school year.` / `Drafts and published schedules appear here.` |
+| 15 | Runs sub-row | `Runs - read-only history` — live `live-05` | deleted |
+| 16 | Run state | `Generated schedule · run N` — `lib/timetable-plain-language.ts:244` | `Draft · run N` |
+| 17 | Run state badge | `Generated — issues to review` / `Generated — ready to review` — `lib/timetable-capabilities.ts:147-148` | `Draft — issues to review` / `Draft — ready to review` |
+| 18 | Run state badge | `Draft schedule` / `Published schedule` — `timetable-plain-language.ts:350` | keep |
+| 19 | Published line | `Published — this is the schedule in use.` — `:328`; `Published schedule — changes start on a date you choose` — `capabilities.ts:151` | keep |
+| 20 | Denial / nav labels | `Generate a timetable` (x5) — `capabilities.ts:228,231,235,241,244` | `Generate a draft` |
+| 21 | Denial copy | `No generated timetable exists yet to publish.` — `:244` | `No draft yet to publish.` |
+| 22 | Denial copy | `This timetable is already published.` / `Already published` — `:246` | `This schedule is already published.` |
+| 23 | Draft ready line | `Draft schedule ready — …` — `timetable-plain-language.ts:707` | keep |
+| 24 | Published keep-in-use | `Your published schedule stays in use.` — `:686` | keep |
+| 25 | More menu | `Publish schedule`; `Unassigned sessions (0)`; `No generated schedule yet.` — live `live-09` | `Publish`; `N classes need a time`; `No draft yet.` |
+| 26 | Login / landing | `Build draft timetables with policy and workload-aware scheduling.` / `Automated Generation` — `pages/Login.tsx:314` | `Generate draft timetables…` |
+| 27 | Exports | `Downloads use one completed run and one ordered term` — `simple/SchedulerPrintDialog.tsx:144`; `Download an Excel workbook from the selected run and ordered term` — `simple/SchedulerExportCenterDialog.tsx:80`; `Download CSV` — `SimplePublishReadinessSheet.tsx:330` | `…one Draft (or the Published schedule) and one term…`; the buttons keep `Download …` |
+
+**Swept and already correct, no rename needed** (do not "fix" these): the `published schedule…` strings in `lib/published-revision-client.ts`, `PublishedRevisionDialog.tsx`, `TeacherDepartureRecoverySheet.tsx`, `TacticalSandboxDock.tsx` — `Published` is the third word and is already used consistently there.
+**Method**: `git grep` over `atlas-client/src` for `Generate|Generated|Build a new draft|Draft|Planning|Published|Publish` and a second pass for export/print labels; non-test hits only. Every hit is either a row above or one of the already-correct published strings.
+
+### White-tooltip slice — pending QA, not redone
+
+`work/a7-c10-calm` is pushed at **`aec13de2`** (`c317d063` wip: white tooltip primitive, 60 call-site `text-xs` overrides removed; `04637259` tooltips white app-wide, 15px, ~22rem cap; `aec13de2` rationale). **Independent QA never finished.** It is recorded here as **QA PENDING**, untouched by this cycle. It is the one code change CORRECTION item 4 pre-approves, and Lane C should not start header code until that QA returns: the call-site sweep (the annex says 64 of 274 sites pass their own className) is exactly the kind of over-claim a fresh range QA catches.
+
+### Evidence index, dispositions, logins
+
+- `live-00a-pre-rollover-blocked-schedule.png`, `live-00b-pre-rollover-blocked-setup.png` — the 23:47 gate (context; superseded by the rollover).
+- `live-01-schedule-tab.png`, `live-02-draft-planning-tab.png`, `live-03-setup-tab.png`, `live-04-policies-tab.png`, `live-05-runs-tab.png` — the five tabs, live, 1366x768.
+- `live-09-more-menu.png` — More, live, open.
+- **No captures for panels 7, 8 and the run-driven variant of 9** — recorded `UNPERFORMED`, reason named above, not mocked.
+- **Two QA-account sign-ins** were performed: the live origin at 23:43, and a loopback staging preview (`127.0.0.1:5230`, `VITE_ATLAS_API=http://127.0.0.1:5101`) at 23:51 used only to prove the pre-rollover gate was not a session artifact — the preview returned the same gate. Both expected under AGENTS.md §12 (`LOCAL_LOGIN_SUCCESS` rows). The preview has been stopped and its port released. **No credential value appears in any file of this cycle.**
+- **Worktree**: `E:/ATLAS-worktrees/lane-a7-c11-calm-proposal`, branch `docs/a7-c11-calm-proposal-20260929`, base `origin/main` `41d819106`. **`D:/ATLAS` was not edited by this cycle** (its untracked `*.docx` / `ATLAS-*.md` files are pre-existing and untouched); the evidence PNGs were staged into `docs/evidence/a7-c11/` (gitignored) then committed from `docs/reviews/a7-c11-calm-20260929/`. No product file, no branch beyond the docs branch, no companion repo, no runtime, no database, no generated or published run.
+- **Next action**: Lane C reviews this with the operator. Header code waits for (1) the `aec13de2` tooltip QA and (2) the operator's sign-off on the seven-control composition above.
