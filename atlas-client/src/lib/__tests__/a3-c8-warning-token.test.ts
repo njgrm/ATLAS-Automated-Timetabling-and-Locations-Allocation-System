@@ -382,18 +382,40 @@ test('repo-wide remaining raw amber/yellow count is pinned (files and lines; der
 	// and only the line literal moves. No exemption was added, no scope was widened, and no
 	// other constant was touched.
 	// ── RE-PINNED 2026-09-29 by stream `a9-c3` (packet A9 c3: Sections + Campus) ──────────
-	//   files  68 -> 68   (unchanged)
-	//   lines 230 -> 226
+	//   files  69 (at base 955d2e7a) -> 68 (at the candidate)
+	//   lines 230 (the base PIN) -> 226, and the base COUNT was 231
+	// A9-C3r (2026-09-29, review correction). THE FIRST VERSION OF THIS RE-PIN JUSTIFICATION
+	// WAS WRONG ON BOTH CLAUSES, and the error matters more than the arithmetic. It read
+	// "files 68 -> 68 (unchanged)" and "no file emptied, so the file pin is unmoved", asserting
+	// that no file left the corpus. A reviewer measured the corpus with this file's own
+	// `remainingFiles()` walk and the candidate is correct while that reasoning is not:
+	//   - the base corpus at 955d2e7a holds 69 files, not 68, so this gate was ALREADY RED at
+	//     base and A9-C3 turned it green — the file pin did not "stay" at 68, the count moved
+	//     to it;
+	//   - `components/sections/SectionsHomeRoomActions.tsx` DID empty out of the file list
+	//     (1 -> 0), because the `N needs rooms` amber Popover/Badge it carried is gone.
+	// Both readings were confirmed independently before this correction: a separate
+	// `git ls-files` + `git show 955d2e7a` walk also returns 69 -> 68 with that one file
+	// emptying. Nothing about the PIN VALUES is wrong — 68 files and 226 lines are the
+	// candidate's true counts, which is why the suite is green at 14/14. What was wrong was
+	// the story told about HOW they got there, and a pin whose derivation misdescribes the
+	// movement is a pin a later reader cannot check.
+	//
 	// Derivation, measured with THIS file's own detector over the same corpus in the same
 	// working tree as the gate run, and not carried from a handoff: `git diff --name-only
 	// 955d2e7a..HEAD` under the corpus roots reduces to the A9-C3 client files, and the sole
 	// movement is raw amber/yellow LEAVING, in three files, per `countRawWarningLines`:
 	//   components/sections/SectionsHomeRoomActions.tsx   1 -> 0
 	//       the `N needs rooms` amber Popover/Badge chip, replaced by one plain button and
-	//       one save-state line;
+	//       one save-state line. This is the file that EMPTIES, so the file count moves
+	//       69 -> 68 with it; no coverage is lost, because "no longer holding raw amber" is
+	//       the property this gate measures, and the sub-11px/UX coverage for that file
+	//       lives in `a3-sections-map-layout.test.ts`'s `ROOM_SURFACE_OWNED` list, which this
+	//       gate never governed and still contains the file;
 	//   components/sections/SectionRow.tsx                4 -> 3
 	//       the row's unresolved-room icon moved from raw `text-amber-600` to the measured
-	//       `--warning` token family, which is the direction this gate exists to push;
+	//       `--warning` token family, which is the direction this gate exists to push; the
+	//       file REMAINS in the corpus, on its `PROGRAM_BADGE` grade colours;
 	//   components/campus-map/CampusMapOverview.tsx       6 -> 5
 	//       the selected-building status Badge's raw amber pair, gone with the metric Cards
 	//       and the `N need attention` badge the A9-C3 problems region replaced.
@@ -404,13 +426,14 @@ test('repo-wide remaining raw amber/yellow count is pinned (files and lines; der
 	// `String.replace` on a missing needle returns the source unchanged, which had left that
 	// control passing while testing nothing.
 	//
-	// DISCLOSED MEASUREMENT GAP, not chased: this file's aggregate moved 4 lines while the
-	// three per-file deltas above sum to 3. The difference is one line in the BASE reading
-	// between this file's `readdirSync` walk and an independent `git show` walk over
-	// `git ls-files`; the NOW value agrees at 226 either way, and the pin is this file's own
-	// figure, so the pin was moved to what the gate measures rather than to a second
-	// implementation's opinion. Recorded because a pin that silently reconciles two
-	// disagreeing counts is the failure §11 warns about.
+	// DISCLOSED MEASUREMENT GAP, unchanged by this correction and not chased: this file's
+	// aggregate moved 4 lines while the three per-file deltas above sum to 3. The difference
+	// is one line in the BASE reading between this file's `readdirSync` walk and an
+	// independent `git show` walk over `git ls-files`; the NOW value agrees at 226 either way,
+	// and the pin is this file's own figure, so the pin was moved to what the gate measures
+	// rather than to a second implementation's opinion. Recorded because a pin that silently
+	// reconciles two disagreeing counts is the failure §11 warns about. The FILE count is NOT
+	// subject to that gap: 69 -> 68 was measured both ways and agrees.
 	const PINNED_REMAINING_FILES = 68;
 	const PINNED_REMAINING_LINES = 226;
 

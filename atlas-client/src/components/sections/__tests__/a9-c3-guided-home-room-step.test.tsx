@@ -56,7 +56,9 @@ Object.assign(globalThis, {
 	IntersectionObserver: class { observe() {} unobserve() {} disconnect() {} takeRecords() { return []; } },
 	getComputedStyle: dom.window.getComputedStyle.bind(dom.window),
 	requestAnimationFrame: (cb: FrameRequestCallback) => setTimeout(() => cb(Date.now()), 0),
-	cancelAnimationFrame: (id: number) => clearTimeout(id, id),
+	// `clearTimeout` takes ONE argument. A9-C3 first wrote `clearTimeout(id, id)`, copied
+	// from a Node-flavored shim, which is TS2554 in this DOM-typed harness.
+	cancelAnimationFrame: (id: number) => clearTimeout(id),
 	DOMRect: dom.window.DOMRect,
 	IS_REACT_ACT_ENVIRONMENT: true,
 });
@@ -128,7 +130,16 @@ type Root = import('react-dom/client').Root;
 const { MemoryRouter } = await import('react-router-dom');
 const { HomeRoomAutoAssignDialog } = await import('../HomeRoomAutoAssignDialog');
 
-const doc = () => dom.window.document as unknown as HTMLElement;
+/**
+ * The rendered document, typed as the `Document` it actually is.
+ *
+ * A9-C3 first wrote this as `dom.window.document as unknown as HTMLElement`, and the cast
+ * was the defect: it silenced the compiler on the two helper lines below that DO work on a
+ * `Document` (`querySelector`/`querySelectorAll`, via `ParentNode`) while making the three
+ * call sites that need `createElement`/`body` fail to typecheck. Reading the value as what
+ * it is fixes all five errors without an `any` or a suppression.
+ */
+const doc = () => dom.window.document;
 const byTestId = (id: string) => doc().querySelector<HTMLElement>(`[data-testid="${id}"]`);
 const allByTestId = (id: string) => Array.from(doc().querySelectorAll<HTMLElement>(`[data-testid="${id}"]`));
 const dialogText = () => doc().querySelector('[role="dialog"]')?.textContent ?? '';
@@ -149,9 +160,12 @@ async function open(props: Partial<Parameters<typeof HomeRoomAutoAssignDialog>[0
 	// calls — which is how a suite that looks behavioural can quietly stop being one.
 	reset();
 	await act(async () => {
-		host = doc().createElement('div');
-		doc().body.appendChild(host);
-		root = createRoot(host);
+		// A local `const`, because `host` is a nullable module-level binding: reading it back
+		// for `createRoot` would be `HTMLElement | null` and not assignable to `Container`.
+		const container = doc().createElement('div');
+		host = container;
+		doc().body.appendChild(container);
+		root = createRoot(container);
 		root.render(
 			createElement(
 				MemoryRouter,
