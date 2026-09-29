@@ -195,8 +195,16 @@ export function SectionRow({
 			    width is what pushed the table past its panel. Measured on the R4
 			    candidate: `scrollWidth 1105` against a panel of `clientWidth 1070` at
 			    1366x768 (984 at 1280x720), with the row's "More actions" button outside
-			    the visible panel on every row. A width is not a cap; `max-w-[200px]` is.
+			    the visible panel on every row. A width is not a cap; `max-w-[Npx]` is.
 			    It is the SAME number as the header's width, so the two cannot disagree.
+
+			    A9 c2 R1 (2026-09-30): the number moved 200 -> 330. At 200 the operator
+			    still read `Choose home roc` and `G7 Room 405 - G...` at 1366x768
+			    (section.docx item 3): the trigger's chrome (px-3 + chevron + gap) plus the
+			    225-238px room+building string does not fit 200. The column now fits the
+			    full value at 1366x768 and 1280x720 — the row's status line and the shared
+			    trigger both read in full, no ellipsis. The width is taken from the
+			    Section column, which clamps its title to two lines and has the slack.
 
 			    The content inside has to be ABLE to shrink, or a cap just clips it: the
 			    `div` is a flex line, so it also carries `min-w-0`, and the picker
@@ -207,7 +215,7 @@ export function SectionRow({
 			    override. One look per control (AGENTS.md §8): the same component must
 			    look and behave identically on the mobile card and in the guided dialog.
 			    The constraint belongs to the one table column that cannot fit it. */}
-			<td className="w-[200px] min-w-0 max-w-[200px] px-4 py-3">
+			<td className="w-[330px] min-w-0 max-w-[330px] px-4 py-3">
 				{/* A9 C7 (2026-09-29) — THE ROW PICKER IS BACK, ON LANE C's BINDING ADDENDUM.
 				    THE HISTORY, so this cell is not re-litigated a third time. A9 C3
 				    (`86665f48`) removed the inline picker from this table and left a plain

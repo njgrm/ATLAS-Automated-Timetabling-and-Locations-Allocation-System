@@ -883,7 +883,14 @@ export default function Sections() {
 									<SortableSectionHeader field="maxCapacity" label="Capacity" align="right" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} />
 									<SortableSectionHeader field="fill" label="% Full" align="right" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} />
 
-									<th className="w-[200px] min-w-0 px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-xs">Home room</th>
+									{/* A9 c2 R1 (2026-09-30): the home-room column widens from 200 to
+									 * 330 so the full room + building text fits at 1366x768 and
+									 * 1280x720 with NO ellipsis (`Choose home room` and
+									 * `G7 Room 405 · Grade 7 Academic Wing`). The width is taken
+									 * from the Section column, which has slack (its title clamps to
+									 * two lines). The width here is the SAME number the cell in
+									 * `SectionRow.tsx` declares, so the two cannot drift. */}
+									<th className="w-[330px] min-w-0 px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-xs">Home room</th>
 									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-xs">Details</th>
 								</tr>
 							</thead>
