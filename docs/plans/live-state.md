@@ -3502,6 +3502,58 @@ scheduled. This entry exists so the next reclaim does not have to re-derive the 
 
 Do not write in Lane B/C worktrees.
 
+## Lane A3 - current lane (written only by Planner A3)
+
+### 2026-09-29 ~17:25, packet a3-c14-year-setup-calm - **ON `main` at `b1249a7c` (candidate `5b65d78e`). 0 fixes live and seen / 1 integrated, NOT on production / 0 dropped. A4 owns the deploy; A3 has not deployed. Lane C's UX walk on this screen still blocks its release.**
+
+Packet `docs/prompts/a3-c14-year-setup-calm-2026-09-29.md`. Operator: "School Year Setup is still too technical
+and overwhelming; make the default view one sentence and one button, with IT details folded away, and never an
+endless Checking message." MEDIUM, client-only, 6 paths, **no `prisma/`**, no auth change, no server change.
+Ownership respected: **A7 c7** kept the banner and year-list logic; A3 c14 changed page layout and words only.
+
+- **THE DEFAULT VIEW IS ONE SENTENCE AND ONE FOLD TRIGGER.** On real staging (2023-2024) it now renders
+  "ATLAS is on 2023-2024." and nothing else that competes. `CalmYearSetupDetails.tsx` (new) is one `@/ui` ghost
+  disclosure with `aria-expanded` + `aria-controls`, closed by default, and its panel carries the HTML `hidden`
+  attribute - so the detail is out of the page AND out of the tab order while every existing assertion still finds
+  its node. Nothing was deleted to get there: the drift badges, counts line, server conflict messages, the
+  field-level EnrollPro changes, the standalone read-only preview, the term-authority line, the school-year list,
+  the carry-forward review and the destructive reset all still render, inside the one fold. The card renders that
+  detail INLINE when no fold provider is mounted, so no other mount of `RolloverGuidanceCard` changed.
+- **THE ENDLESS "Checking the school year now..." ENDS.** After 8 s with no status the page says "The school year is
+  taking longer than usual. The school network or EnrollPro may be slow." and offers exactly one "Try again", which
+  re-reads through the page's EXISTING `reloadSignal` - one status read per mount, no second reader. The sign-in
+  check deliberately got NO second deadline: A7-C5's shared resolver already owns that one.
+- **MEASURED ON REAL STAGING at 1366x768, before -> after:** visible words **222 -> 43**, content height
+  **1236px -> 659px**, **no scroll**, fold trigger visible at y=348, 0 visible primary actions, 0 raw codes
+  (`TERM_AUTHORITY_*`, `PERSISTED_*`, `atlas-stale`, `RUN_ROLLOVER_SYNC`, `semanticRevision`, persisted, unverified)
+  even with the fold OPEN. Rendered test: default view **32 words closed / 157 with the fold open**.
+- **SUBTRACTED, not added:** the amber `ADMIN ONLY` chip (the route guard already enforces it), the fold's hint
+  line, the second "Nothing to do. 2023-2024 is ready." sentence, the raw grade-level/program database ids in the
+  reconfigured-sections list, and the "EnrollPro 2023-2024" badge from the default view.
+- **GATES.** `test:a3-c14-year-setup-calm` 6/6 (new, rendered DOM, reachable from a committed script),
+  `test:a7-year-setup-plain-words` 17/17, `test:a7-year-setup-carry-switches` 11/11, `test:ux-guardrails` 31/31,
+  `test:a7-c5-session-deadline` 12/12. `npm run typecheck` 5 errors, all in untouched files (3x TS2307 `playwright`
+  from the incomplete node_modules donor) - **none in any changed file**. QA round 1 `CORRECTION_REQUIRED` 18/17/0/0
+  (one BLOCKING: a duplicate object key in the new test file, TS2783); round 2 `ACCEPT_READY` 11/11/0/0. QA
+  independently reproduced the before/after render, three discriminating mutants, the one-status-read claim, and
+  returned **no REJECT_UX**.
+- **DEPARTURE FROM THE PACKET, RECORDED NOT HIDDEN (QA N1).** The packet asked for "Past years: one short list" in
+  the default view. On real staging that list is five tall drill-year cards (2029-2030 to 2032-2033), so leaving it
+  above the fold overflowed 768 and pushed the fold itself off screen. It is inside the fold now; **A7 c7 owns the
+  list and is making it short, and moving it back above the fold is a one-line change when it is.**
+- **FOLLOW-UPS for Lane C / A7, none blocking.** (1) The slow-check copy cannot distinguish a slow read from a
+  failed one without a new prop through the banner card, which is A7's file; QA's rendered probe found the stacked
+  state does not in fact occur. (2) The card's error line still shows the raw transport message - pre-existing at
+  base, out of c14's scope. (3) The shell header "Active year: 2023-2024" duplicates the page sentence; c14 cut
+  the year being stated three times down to two. (4) `PlainYearSetupCard` now returns a fragment, so on a
+  no-provider mount the detail sits outside `<Card>`; no production mount lacks the provider.
+- **Worktrees:** `E:/ATLAS-worktrees/lane-a3-c14-year-setup` (branch `work/a3-c14-year-setup-calm`, pushed) and
+  `E:/ATLAS-worktrees/lane-a3-c14-integ` (branch `integration/a3-c14-20260929`, merged to `main`). Both are
+  `RETIRE_AFTER_INTEGRATION`. Their `atlas-client/node_modules` are JUNCTIONS to
+  `E:/ATLAS-worktrees/lane-a3-c12-dashboard-map-sections/atlas-client/node_modules` - `cmd /c rmdir` the junction
+  BEFORE any `git worktree remove`, and re-count the donor after.
+- **Next action for A3: none.** A4 owns the deploy; Lane C's UX walk blocks the release of this screen.
+
 ## Lane A2 - current lane (written only by Planner A2)
 
 ### 2026-09-29, packet a2-header-budget-2026-09-29 - **INTEGRATED at `dca34646` on `main`. 0 fixes live and seen / 1 integrated, not on production / 0 dropped. The memory blocker is FIXED and it was not a leak. A4 owns the deploy (AGENTS.md 14); A2 has not deployed.**
