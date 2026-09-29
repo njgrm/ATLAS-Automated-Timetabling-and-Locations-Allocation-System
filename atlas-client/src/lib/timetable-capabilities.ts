@@ -153,8 +153,50 @@ export type TimetableGenerationStopper = {
 	repair: TimetableRepair;
 };
 
-const NONE: TimetableRepair = { kind: 'none', label: null, href: null };
+/**
+ * A8-C5 S2.3 — the ONE decision behind the Generate click.
+ *
+ * It lives here, not in the workspace hook, for the reason S2.1's table lives in
+ * a lib: the click is the whole operator-visible half of "Generate is never
+ * greyed out", and a decision that can only be reached by mounting a 2,400-line
+ * provider hook is a decision nothing can test.
+ *
+ * THE DEFECT THIS REPLACES. The hook read:
+ *   `if (readiness.state !== 'ready') { toast.error(readiness.message); return; }`
+ * So from the moment the gate became enabled in every state, every blocked year
+ * produced a TOAST and no dialog. The operator was told the button was
+ * clickable, clicked it, and was told nothing, with no way forward — the exact
+ * dead end the addendum was written to remove, reached by a different route.
+ *
+ * THE TWO SOURCES, AND WHY. `clickSiteStoppers` is the array the clicked control
+ * itself derived; the headers are the only readers of the complete capability
+ * input on those surfaces, because school-year drift comes from the rollover
+ * status each header already fetches. `fallbackStoppers` is what this workspace
+ * owns, for a caller that passes none. They cannot disagree about WORDING — the
+ * sentences are composed in `deriveTimetableGenerationStoppers` — only about
+ * which causes were visible, and the wired path is the complete one.
+ *
+ * `mayGenerate` is a plain restatement of the readiness state, and it is the
+ * ONLY thing that decides whether the run starts. "Always enabled" never became
+ * "always allowed": a non-ready year opens the dialog and explains itself.
+ */
+export function resolveGenerateTrigger(input: {
+	readinessState: 'loading' | 'ready' | 'blocked' | 'unavailable' | 'failed';
+	clickSiteStoppers?: TimetableGenerationStopper[] | null;
+	fallbackStoppers: TimetableGenerationStopper[];
+}): { stoppers: TimetableGenerationStopper[]; opensDialog: boolean; mayGenerate: boolean } {
+	const fromClickSite = Array.isArray(input.clickSiteStoppers) && input.clickSiteStoppers.length > 0
+		? input.clickSiteStoppers
+		: input.fallbackStoppers;
+	if (input.readinessState !== 'ready') {
+		return { stoppers: fromClickSite, opensDialog: true, mayGenerate: false };
+	}
+	// A ready year clears the list: a cause captured during an earlier blocked visit
+	// must never linger in a dialog that no longer has anything to explain.
+	return { stoppers: [], opensDialog: false, mayGenerate: true };
+}
 
+const NONE: TimetableRepair = { kind: 'none', label: null, href: null };
 function navigate(label: string, href: string): TimetableRepair {
 	return { kind: 'navigate', label, href };
 }

@@ -48,6 +48,7 @@ import type {
 } from '@/types';
 import {
 	deriveTimetableGenerationStoppers,
+	resolveGenerateTrigger,
 	type TimetableGenerationStopper,
 } from '@/lib/timetable-capabilities';
 import { summarizeGenerationReadiness } from '@/lib/timetable-generation-readiness';
@@ -1094,17 +1095,23 @@ export function useScheduleReviewWorkspaceState() {
 	 * fallback cannot see drift; the wired path can.
 	 */
 	const handleTriggerGenerate = useCallback((stoppers?: TimetableGenerationStopper[]) => {
-		setGenerationStoppers(Array.isArray(stoppers) && stoppers.length > 0
-			? stoppers
-			: deriveTimetableGenerationStoppers({
+		const outcome = resolveGenerateTrigger({
+			readinessState: curriculumReadiness.state,
+			clickSiteStoppers: stoppers,
+			fallbackStoppers: deriveTimetableGenerationStoppers({
 				scopeResolved: typeof schoolId === 'number' && Number.isInteger(schoolId) && schoolId > 0
 					&& Number.isInteger(schoolYearId) && (schoolYearId ?? 0) > 0,
 				curriculumState: curriculumReadiness.state,
 				generating,
 				generationDiagnostic: summarizeGenerationReadiness(curriculumReadiness),
 				readinessRepair: curriculumReadiness.state === 'blocked' ? curriculumReadiness.repair : null,
-			}));
-		if (curriculumReadiness.state !== 'ready') {
+			}),
+		});
+		setGenerationStoppers(outcome.stoppers);
+		// A8-C5 S2.3: a year that cannot generate OPENS THE DIALOG, which now names
+		// every cause with a count and a fix button. It is not a toast, and it is not
+		// a button that cannot be pressed.
+		if (outcome.opensDialog) {
 			setShowGenerateConfirm(true);
 			return;
 		}
