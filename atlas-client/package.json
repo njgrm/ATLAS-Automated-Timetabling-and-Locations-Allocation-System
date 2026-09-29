@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "preview": "vite preview --port 5174",
     "test:published-revision": "tsx --test src/lib/__tests__/published-revision-client.test.ts",
-    "test:a8-post-generation-refresh": "tsx --test src/components/timetable/__tests__/a8-post-generation-refresh.test.tsx",
+    "test:a8-post-generation-refresh": "tsx --test --test-force-exit src/components/timetable/__tests__/a8-post-generation-refresh.test.tsx",
     "test:teaching-load-clarity": "tsx --test src/lib/__tests__/teaching-load-clarity-c02.test.ts",
     "test:post-publish-changes": "tsx --test src/lib/__tests__/post-publish-changes-c01.test.ts",
     "test:departure-swap": "tsx --test src/lib/__tests__/departure-swap-demo-c04.test.ts",
