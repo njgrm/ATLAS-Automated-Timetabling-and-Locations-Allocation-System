@@ -4872,6 +4872,72 @@ decidable from source. Worktrees `lane-a3-c10-{s1-sections,s3-tldensity,s4-teach
 
 ## Lane A6 — current lane (written only by Planner A6)
 
+- **`A6 c7 integrated at 03fea9a9` (2026-09-29 ~12:5x +08), candidate `fc7f4424` over base `4244cd3e`, executed the
+  c6 packet's Addendum 11:00** (Lane C's Codex walk of staging train 7, `e9ddda71`). **0 fixes live and seen /
+  4 integrated, 1 of them seen rendered on an isolated loopback / 0 dropped. NOT deployed — A4 owns every release
+  (§14).** Client-only: 7 product paths, all `atlas-client/`, zero `atlas-server/`/`prisma/`/`ops`/lockfile/`.env`/
+  migration/seed. Packet `docs/prompts/a6-c7-shortage-owner-undo-2026-09-29.md` (+ planner correction addendum
+  `7be10a4c`); rendered evidence pinned at `docs/reviews/a6-c7-shortage-owner-undo/`.
+- **Why c5's surface did not render on staging — one name answering two questions.** `useTeachingLoadOutage.ts:124`
+  exported `isLive = !isTeachingLoadSourceDegraded({...}) && shortageLine.visible.length > 0`, a source-freshness
+  predicate AND a visibility predicate in one expression; `TeachingLoadOutageSurface.tsx:46` did
+  `if (!isLive) return <>{children}</>` and `TeachingLoad.tsx:689` never built the slot. Staging was `cached`, so
+  the whole c5 surface — the per-subject line, `Cover these classes` and the cover dialog — was suppressed, leaving
+  only the repair queue's generic `25 classes still need a real teacher.` Split into `figuresVerified` (unchanged
+  predicate) and `hasShortageToShow` (`shortageLine.visible.length > 0`); the surface now renders whenever classes
+  lack a teacher, and the safety c5 wanted is preserved by the cover dialog's **drift re-check at apply** rather than
+  by hiding the button — which is what produced the defect. Recorded in a code comment, not only in the handoff.
+- **The other three, in Lane C's words:** `Set owner` / `Change owner` → **`Assign teacher`** / **`Change teacher`**
+  (strings only; the `…owner…` ids and the timetable's own `Change owner` untouched). One **`Undo`** inside the
+  existing assignment confirmation, shown **only while that row's change is a draft** (`owner.isPending`) and
+  restoring the *saved* owner through the existing swap path — "Undo" on a saved change would be a control that
+  lies. The `Last saved data — ` prefix is **deleted** from every repair-queue title, so the chip reads
+  `Next step · 17 open · Assign teachers to open classes · 17 section-subject pairs need a teacher.` — one line, one
+  status.
+- **Correction round 1 was mine and it was substantive.** Review round 1 returned `CORRECTION_REQUIRED` 10/12 with
+  the rendered row `UNPERFORMED`, and the decisive catch was not the missing picture: the round-1 fix had made the
+  amber pill and the shortage line **siblings**, so a degraded row 2 printed the saved-roster claim **twice** (§8)
+  and, on the budget gate's own `TEXT_XS_ADVANCE_PX = 6.6` basis, had 27.2px of slack against ≥396px of new
+  declared text — the always-wrapped header c6 removed. Ruling: **invert the precedence** so the line takes the
+  slot and the pill returns only when there is no shortage (`hasShortageLine ? line : degradedLead ? pill :
+  sentence`); subtract the duplicate, never shorten a figure, a subject name or the date clause. No capability is
+  lost — c6 §1.5.3 made the header's **primary action** the retry. New row `A6C7-9` decides the composition in all
+  four states; the executor also found and fixed its own defect (its host hard-coded the degraded props, so three
+  "states" were one state compared with itself).
+- **Rendered, before/after, 1366×768, `ISOLATED_LOCAL_BROWSER`** (origin asserted `http://127.0.0.1:5290`, fully
+  mocked `/api/v1`, pinned to staging `:5101`, nothing escaped to a real server; **not** ATLAS acceptance). The
+  **before** (base sources) shows the defect verbatim: the pill alone, no line, no `Cover these classes`, 6 header
+  controls, the `Last saved data —` prefix. The **after** renders `17 classes short: MAPEH 9, English 4, Fil 2 ·
+  12 Sept roster` with `Cover these classes` **enabled** in both `cached` and `live`; row 2 carries **exactly one**
+  claim in all four states; the shortage text node is 330px wide, `scrollWidth` 330, 16px ink — **one line**. The
+  band's 66–67px is the line member plus the 28px slot on a second flex row, a **pre-existing** arrangement present
+  identically in the before capture, not a wrap (QA confirmed by pixel scan, and
+  `before-base-live-shortage.png` is **byte-identical** to `a6c7-live-shortage.png` — the correct expectation, and
+  independent proof the before really was at base).
+- **QA round 2 `ACCEPT_READY` 22/22, blocked 0, unperformed 0**, and it reproduced the round-1 failure signatures
+  from source rather than trusting them. Merged-tree gates: `a6-c7-shortage-undo` 9/0 · `a6-c5-outage` 23/0 ·
+  `a6-c6-calm-tl` 11/0 · `a6-tl-header-budget` 9/0 · `a6-teaching-load` 31/0 · `typecheck` **5 errors, identical to
+  base**, none in `faculty-assignments`. `TeachingLoad.tsx` **999 physical lines** (at the cap by its own count —
+  the next A6 edit there must extract first); `WorkspaceToolbar.tsx` 984.
+- **Owed, dated 2026-09-29, and NOT claimed here** — **Lane C's next staging walk** (and A4's per-screen smoke row
+  for `/teaching-load` after the train that carries `fc7f4424`), with the Tailnet origin asserted: (a) the
+  **Sections view's** `Undo` and its `Assign teacher` / `Change teacher` labels, which have **no** rendered
+  evidence in either round (source rows `A6C7-5`/`A6C7-6` only); (b) a real click through `Cover these classes`
+  with a real session; (c) c6's own still-open row `A6C6-1b` (`Temporary substitutes` heading, no rendered
+  evidence). **Demo 2026-09-30.**
+- **Recorded, deliberately not done here:** the Sections view's all-caps styling (the complaint was the *word*;
+  repainting one button in an uppercase view would create the §8 "one look per control" mismatch), the identical
+  `owner` wording on the timetable page, and c7's second `NON_BLOCKING` from QA — in the degraded shortage state
+  the "not the current one" contrast is hover-only (`Help` step, `Cover these classes` tooltip) while the row shows
+  a dated roster.
+- **Processes:** the executor's preview on `:5277` (PID 37076) was stopped by recorded PID after the run, `:5290`
+  confirmed clear; the integration gates' detached runs stopped with their own PIDs. No runtime, task, env, database
+  or deployment action. **Worktree `E:/ATLAS-worktrees/lane-a6-c7-tl-shortage`: retired in this closure** (its
+  `node_modules` **junction removed first**, then non-forced `worktree remove` + `prune`); the integration boundary
+  `E:/ATLAS-worktrees/lane-a6-c7-integ` follows the same order. **No branch deleted.**
+- **History below: c6 (integrated `a3819321`), c5 (`e2ff35ba`), c3 (`5481dccc`) and earlier.** Kept as written —
+  every claim there was true when written and is dated.
+
 - **`A6 ready for release at a3819321` (2026-09-29 ~11:0x +08, packet c6, Lane C's 06:58 A6 bullet). Candidate
   `fef084b7` + `e6aeb3ed` + `bc97e1d8` over base `a1f0c727` (= `origin/main` at authoring).
   0 fixes live and seen / 6 integrated, seen only on an isolated loopback / 0 dropped.** Packet
