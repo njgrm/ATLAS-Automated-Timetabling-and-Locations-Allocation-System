@@ -1,11 +1,11 @@
 // Fails when product source contains mis-decoded UTF-8 ("mojibake"): an em dash that went through CP437 prints as
 // "ΓÇö", through Windows-1252 as "â€”". 2026-09-29: "Not a problem ΓÇö this teacher…" shipped to live in the Teachers
-// Review load window, and a PowerShell-mangled recovery patch carried it into four more files.
+// Review load window, and lossy re-encodes left U+FFFD ("G��") in SchedulingPolicyPane; and a PowerShell-mangled recovery patch carried it into four more files.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 
-const PATTERNS = ['ΓÇ', 'â€', 'Ã¢', 'Ã©', 'Â·'];
+const PATTERNS = ['ΓÇ', 'â€', 'âš', 'Ã¢', 'Ã©', 'Â·', '�'];
 
 test('no mojibake in client or server source (tests excluded)', () => {
 	const hits = [];
