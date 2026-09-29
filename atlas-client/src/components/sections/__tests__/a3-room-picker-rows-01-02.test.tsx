@@ -409,7 +409,7 @@ test('R2 control: opening the picker never scrolls an ancestor, and reveals the 
 	const realScrollIntoView = dom.window.Element.prototype.scrollIntoView;
 	const realFocus = dom.window.HTMLInputElement.prototype.focus;
 	const scrolled: Element[] = [];
-	const focusArgs: Array<unknown> = [];
+	const focusArgs: Array<{ on: string; arg: FocusOptions | null }> = [];
 
 	// `Element.prototype`, not `HTMLElement.prototype`: the option is a <button>,
 	// and this must catch a call on ANY element, so the recording cannot be
@@ -419,7 +419,7 @@ test('R2 control: opening the picker never scrolls an ancestor, and reveals the 
 		return realScrollIntoView.call(this);
 	} as typeof realScrollIntoView;
 	dom.window.HTMLInputElement.prototype.focus = function recordedFocus(this: HTMLInputElement, arg?: FocusOptions) {
-		focusArgs.push(arg);
+		focusArgs.push({ on: this.getAttribute('aria-label') ?? this.name ?? '(unlabelled)', arg: arg ?? null });
 		return realFocus.call(this);
 	} as typeof realFocus;
 
@@ -526,11 +526,17 @@ test('R2 control: opening the picker never scrolls an ancestor, and reveals the 
 
 		const search = dom.window.document.querySelector('input[aria-label="Search rooms or buildings"]') as HTMLInputElement;
 		assert.ok(search, 'precondition: the search input is mounted');
-		assert.equal(
-			(focusArgs[0] as FocusOptions | undefined)?.preventScroll,
-			true,
-			`THE fix: the search input must be focused with preventScroll; got ${JSON.stringify(focusArgs[0])}`,
-		);
+		// Every recorded focus of the search input, not just the first: an effect
+		// that re-runs must not smuggle a bare `focus()` in behind a correct one.
+		const searchFocuses = focusArgs.filter((f) => f.on === 'Search rooms or buildings');
+		assert.ok(searchFocuses.length > 0, 'the search input must have been focused (Phase 1.4 keeps that behaviour)');
+		for (const f of searchFocuses) {
+			assert.equal(
+				(f.arg as FocusOptions | null)?.preventScroll,
+				true,
+				`THE fix: the search input must be focused with preventScroll; got ${JSON.stringify(f.arg)}`,
+			);
+		}
 		for (const target of scrolled) {
 			assert.ok(
 				(dom.window.document.querySelector('[data-testid="room-picker-popover-content"]') as HTMLElement).contains(target),
