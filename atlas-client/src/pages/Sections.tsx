@@ -108,6 +108,10 @@ export default function Sections() {
 	const [syncError, setSyncError]   = useState(false);
 	const [dataSource, setDataSource] = useState<'live' | 'atlas-mirror' | 'cached' | 'refreshing' | 'none'>('none');
 	const [cacheNotice, setCacheNotice] = useState<string | null>(null);
+	/* A9 c6 (2026-09-30): the plain-words receipt of the last rooms action, on THIS page — the
+	 * page whose data changed (operator decision #5). Distinct from `cacheNotice`, which is the
+	 * source/sync banner; a receipt must be visible while the source is healthy. */
+	const [homeRoomReceipt, setHomeRoomReceipt] = useState<string | null>(null);
 	const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 	const [queuedHomeRoomEdits, setQueuedHomeRoomEdits] = useState<HomeRoomQueueEntry[]>([]);
 	const [syncingQueuedEdits, setSyncingQueuedEdits] = useState(false);
@@ -150,6 +154,7 @@ export default function Sections() {
 		setDetailTarget(null);
 		setMapTarget(null);
 		setAutoAssignOpen(false);
+		setHomeRoomReceipt(null);
 	}, [actorSchoolId]);
 
 	const fetchSections = useCallback(async (options?: { forceRefresh?: boolean }) => {
@@ -810,6 +815,7 @@ export default function Sections() {
 				onAutoAssign={() => setAutoAssignOpen(true)}
 				onSync={handleSync}
 				editStatus={homeRoomEditStatus}
+				receipt={homeRoomReceipt}
 			/>
 
 			<div className="shrink-0 px-4 pt-1 lg:px-5">
@@ -964,7 +970,7 @@ export default function Sections() {
 				roomOccupancy={roomOccupancyMap}
 				canWrite={homeRoomWrite.canWrite}
 				notSavedNotice={homeRoomWrite.notSavedNotice}
-				onNotice={setCacheNotice}
+				onNotice={setHomeRoomReceipt}
 				onApplied={() => void fetchSections({ forceRefresh: true })}
 			/>
 			</>

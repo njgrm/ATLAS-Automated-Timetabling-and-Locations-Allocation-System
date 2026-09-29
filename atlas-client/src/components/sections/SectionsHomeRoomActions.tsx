@@ -60,6 +60,11 @@ type SectionsHomeRoomActionsProps = {
 	onSync: () => void;
 	/** The page's ONE writability contract, rendered as one line beside the action. */
 	editStatus: HomeRoomEditStatus;
+	/**
+	 * A9 c6 — the plain-words receipt of the last rooms action, on the page whose data changed
+	 * (operator decision #5, `docs/plans/codex-walk-standard.md`). `null` until an action runs.
+	 */
+	receipt?: string | null;
 };
 
 /**
@@ -84,6 +89,7 @@ export function SectionsHomeRoomActions({
 	onAutoAssign,
 	onSync,
 	editStatus,
+	receipt,
 }: SectionsHomeRoomActionsProps) {
 	return (
 		<div
@@ -112,6 +118,17 @@ export function SectionsHomeRoomActions({
 				<RefreshCw className={`size-4 ${syncing || syncingQueuedEdits ? 'animate-spin' : ''}`} />
 				{syncing || syncingQueuedEdits ? 'Syncing...' : !isOnline ? 'Offline' : 'Sync sections'}
 			</Button>
+			{/* A9 c6 — the receipt of the last rooms action, on the page whose data changed. It
+			 * takes the full row width so a long plain-words sentence wraps instead of truncating. */}
+			{receipt ? (
+				<p
+					role="status"
+					data-testid="sections-home-room-receipt"
+					className="w-full min-w-0 text-xs font-medium text-muted-foreground"
+				>
+					{receipt}
+				</p>
+			) : null}
 		</div>
 	);
 }

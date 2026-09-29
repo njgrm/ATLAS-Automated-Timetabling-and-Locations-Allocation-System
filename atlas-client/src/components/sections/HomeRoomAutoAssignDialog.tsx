@@ -47,9 +47,10 @@
  * whole batch landed.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2, Undo2 } from 'lucide-react';
 import atlasApi from '@/lib/api';
 import { Button } from '@/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import {
 	Dialog,
 	DialogContent,
@@ -64,10 +65,12 @@ import {
 	MANUAL_CHOICE_NOTE,
 	applyActionLabel,
 	applyFailureSentence,
+	applyReceiptSentence,
 	assignmentReasonPhrase,
 	guidedStepActionLabel,
-	saveOutcomeSentence,
 	skippedReasonPhrase,
+	undoActionLabel,
+	undoReceiptSentence,
 } from '@/lib/home-room-review-copy';
 
 type AutoAssignAssignment = {
@@ -210,6 +213,15 @@ export function HomeRoomAutoAssignDialog({
 	const [applyError, setApplyError] = useState<string | null>(null);
 	const [outcome, setOutcome] = useState<string | null>(null);
 	/**
+	 * A9 c6 — the exact set the last successful apply wrote, so Undo can put exactly those sections
+	 * back to `homeRoomId: null` through the SAME endpoint. `null` until an apply lands, and cleared
+	 * by Undo or by a fresh preview, so a stale undo can never reach a run it did not produce.
+	 */
+	const [lastApplied, setLastApplied] = useState<Array<{ sectionId: number; homeRoomId: number }> | null>(null);
+	const [undoing, setUndoing] = useState(false);
+	const [undoOutcome, setUndoOutcome] = useState<string | null>(null);
+	const [undoError, setUndoError] = useState<string | null>(null);
+	/**
 	 * The scheduler's corrections, keyed by `sectionId`. A key that is PRESENT is a row she
 	 * changed herself, which is why the presence test — not the value — decides what the row
 	 * says about itself. It is reset on every preview, so a closed dialog never resurrects a
@@ -229,6 +241,9 @@ export function HomeRoomAutoAssignDialog({
 		setLoadError(null);
 		setApplyError(null);
 		setOutcome(null);
+		setLastApplied(null);
+		setUndoOutcome(null);
+		setUndoError(null);
 		setManualChoice({});
 		try {
 			// `overwriteExisting: false` is not a preference here, it is the whole point: a
@@ -258,6 +273,9 @@ export function HomeRoomAutoAssignDialog({
 			setLoadError(null);
 			setApplyError(null);
 			setOutcome(null);
+			setLastApplied(null);
+			setUndoOutcome(null);
+			setUndoError(null);
 			setManualChoice({});
 		}
 	}, [open, fetchPreview]);
@@ -276,34 +294,80 @@ export function HomeRoomAutoAssignDialog({
 
 	const manualCount = useMemo(() => rows.filter((row) => row.isManual).length, [rows]);
 
+	/**
+	 * A9 c6 — APPLY SAVES AT ONCE (operator decision #11: no second confirmation after a review
+	 * dialog). One click writes the whole reviewed set in the ONE PUT it already used, then reports
+	 * a plain-words receipt through `onNotice` (the /sections channel) as well as in the dialog.
+	 */
 	const apply = useCallback(async () => {
 		if (!canWrite) return;
 		if (!Number.isInteger(schoolId) || schoolId <= 0 || !Number.isInteger(schoolYearId) || schoolYearId <= 0) return;
 		const assignments = rows
 			.filter((row) => row.roomId != null)
-			.map((row) => ({ sectionId: row.assignment.sectionId, homeRoomId: row.roomId }));
+			.map((row) => ({ sectionId: row.assignment.sectionId, homeRoomId: row.roomId as number }));
 		if (assignments.length === 0) return;
 
 		setApplying(true);
 		setApplyError(null);
 		setOutcome(null);
+		setUndoOutcome(null);
+		setUndoError(null);
 		try {
 			const { data } = await atlasApi.put<{ updated?: number }>(
 				`/sections/home-rooms/${schoolYearId}`,
 				{ schoolId, assignments },
 			);
-			const sentence = saveOutcomeSentence({ requested: assignments.length, updated: Number(data?.updated ?? 0) });
-			setOutcome(sentence);
-			onNotice?.(sentence);
+			const receipt = applyReceiptSentence({
+				requested: assignments.length,
+				updated: Number(data?.updated ?? 0),
+				skipped: result?.skipped ?? [],
+			});
+			setOutcome(receipt);
+			setLastApplied(assignments);
+			onNotice?.(receipt);
 			onApplied();
 		} catch (error) {
 			const sentence = applyFailureSentence(typedFailureReason(error));
 			setApplyError(sentence);
+			setLastApplied(null);
 			onNotice?.(sentence);
 		} finally {
 			setApplying(false);
 		}
-	}, [canWrite, onApplied, onNotice, rows, schoolId, schoolYearId]);
+	}, [canWrite, onApplied, onNotice, result, rows, schoolId, schoolYearId]);
+
+	/**
+	 * A9 c6 — UNDO, one click, through the SAME endpoint. It writes `homeRoomId: null` for exactly
+	 * the sections the last apply assigned (this dialog only ever assigns sections that had no room,
+	 * `overwriteExisting: false`), states what it will do before doing it, cannot double-submit
+	 * (`undoing` disables it in flight), and leaves its OWN receipt.
+	 */
+	const undo = useCallback(async () => {
+		if (!canWrite || undoing || !lastApplied || lastApplied.length === 0) return;
+		if (!Number.isInteger(schoolId) || schoolId <= 0 || !Number.isInteger(schoolYearId) || schoolYearId <= 0) return;
+		const assignments = lastApplied.map((entry) => ({ sectionId: entry.sectionId, homeRoomId: null }));
+		setUndoing(true);
+		setUndoError(null);
+		setUndoOutcome(null);
+		try {
+			const { data } = await atlasApi.put<{ updated?: number }>(
+				`/sections/home-rooms/${schoolYearId}`,
+				{ schoolId, assignments },
+			);
+			const receipt = undoReceiptSentence({ requested: assignments.length, updated: Number(data?.updated ?? 0) });
+			setUndoOutcome(receipt);
+			setOutcome(null);
+			setLastApplied(null);
+			onNotice?.(receipt);
+			onApplied();
+		} catch (error) {
+			const sentence = applyFailureSentence(typedFailureReason(error));
+			setUndoError(sentence);
+			onNotice?.(sentence);
+		} finally {
+			setUndoing(false);
+		}
+	}, [canWrite, lastApplied, onApplied, onNotice, schoolId, schoolYearId, undoing]);
 
 	const handleClose = useCallback(() => {
 		onOpenChange(false);
@@ -357,13 +421,61 @@ export function HomeRoomAutoAssignDialog({
 					) : null}
 
 					{outcome ? (
+						<div className="space-y-2">
+							<div
+								role="status"
+								data-testid="guided-step-outcome"
+								className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
+							>
+								<CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+								<span>{outcome}</span>
+							</div>
+							{/* A9 c6 — ONE-CLICK UNDO, offered while the receipt is on screen. It states
+							 * what it will do in its label and its Tooltip, is disabled in flight, and
+							 * writes through the SAME endpoint as the apply. */}
+							<TooltipProvider delayDuration={200}>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											onClick={undo}
+											disabled={undoing || applying || !canWrite}
+											className="h-8 gap-2 font-bold"
+											data-testid="guided-step-undo-action"
+										>
+											<Undo2 className="size-4" aria-hidden="true" />
+											{undoing ? 'Undoing\u2026' : undoActionLabel(lastApplied?.length ?? 0)}
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent>
+										{`Puts ${(lastApplied?.length ?? 0) === 1 ? 'that section' : 'those sections'} back to having no home room.`}
+									</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+						</div>
+					) : null}
+
+					{undoOutcome ? (
 						<div
 							role="status"
-							data-testid="guided-step-outcome"
+							data-testid="guided-step-undo-outcome"
 							className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
 						>
 							<CheckCircle2 className="mt-0.5 size-4 shrink-0" />
-							<span>{outcome}</span>
+							<span>{undoOutcome}</span>
+						</div>
+					) : null}
+
+					{undoError ? (
+						<div
+							role="alert"
+							data-testid="guided-step-undo-error"
+							className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+						>
+							<AlertCircle className="mt-0.5 size-4 shrink-0" />
+							<span>{undoError}</span>
 						</div>
 					) : null}
 
@@ -460,7 +572,7 @@ export function HomeRoomAutoAssignDialog({
 						<Button
 							size="sm"
 							onClick={apply}
-							disabled={loading || applying || !canWrite || rows.length === 0}
+							disabled={loading || applying || undoing || !canWrite || rows.length === 0}
 							className="font-bold"
 							data-testid="guided-step-apply"
 						>
