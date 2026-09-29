@@ -82,7 +82,7 @@ export default function MobileRoomRequestLayout({
 							<CardContent className='space-y-2 p-4'>
 								<div className='flex items-center justify-between gap-2'>
 									<p className='text-sm font-semibold'>Recent scheduler decisions</p>
-									<Badge variant='outline' className='text-[11px]'>{recentRequests.length}</Badge>
+									<Badge variant='outline' className='text-xs'>{recentRequests.length}</Badge>
 								</div>
 								{recentRequests.slice(0, 3).map((request) => (
 									<div key={`recent-${request.id}`} className='rounded-xl border border-border bg-background px-3 py-2 text-xs'>
@@ -106,7 +106,7 @@ export default function MobileRoomRequestLayout({
 							<CardContent className='space-y-3 p-4'>
 								<div className='flex items-center justify-between gap-2'>
 									<p className='text-sm font-semibold'>Step 1: Pick Your Class</p>
-									<Badge variant='outline' className='text-[11px]'>First action</Badge>
+									<Badge variant='outline' className='text-xs'>First action</Badge>
 								</div>
 								<p className='text-xs text-muted-foreground'>Tap the class you want to move, then press Choose Target.</p>
 								<div className='space-y-2'>

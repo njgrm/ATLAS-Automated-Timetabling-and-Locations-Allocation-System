@@ -202,7 +202,7 @@ export default function HowItWorks() {
 								<Card className="shadow-sm border-border bg-card overflow-hidden">
 									<CardHeader className="pb-3 border-b border-border bg-muted/20">
 										<CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
-											<span className="flex size-5 items-center justify-center rounded bg-primary text-primary-foreground text-[10px] font-extrabold">A</span>
+											<span className="flex size-5 items-center justify-center rounded bg-primary text-primary-foreground text-xs font-extrabold">A</span>
 											The Timetabling Lifecycle
 										</CardTitle>
 									</CardHeader>
@@ -218,7 +218,7 @@ export default function HowItWorks() {
 													{/* Step Details */}
 													<div className="space-y-1">
 														<h4 className="text-xs font-bold text-foreground uppercase tracking-wider">{item.title}</h4>
-														<p className="text-[11px] text-muted-foreground leading-relaxed max-w-40 mx-auto">{item.desc}</p>
+														<p className="text-xs text-muted-foreground leading-relaxed max-w-40 mx-auto">{item.desc}</p>
 													</div>
 												</div>
 											))}

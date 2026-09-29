@@ -76,7 +76,7 @@ export function TeacherLoadReadout({
 	);
 	// 11px, not 10px: fix 10 raised every sub-11px site in this stream to 11px
 	// and the floor is a house rule, not a per-file preference.
-	const labelClass = 'ml-1 text-[11px] font-bold uppercase tracking-tight opacity-80';
+	const labelClass = 'ml-1 text-xs font-bold uppercase tracking-tight opacity-80';
 
 	const explanation = !policyReady || standardHours == null
 		? 'The standard load is not set for this school year, so the percentage cannot be shown.'
@@ -132,7 +132,7 @@ export function TeacherLoadReadout({
 			{isPlaceholder && (
 				<p
 					data-testid="teaching-load-placeholder-note"
-					className="mt-0.5 text-[11px] font-bold leading-tight text-muted-foreground"
+					className="mt-0.5 text-xs font-bold leading-tight text-muted-foreground"
 				>
 					{PLACEHOLDER_TRUTH_LABEL}
 				</p>

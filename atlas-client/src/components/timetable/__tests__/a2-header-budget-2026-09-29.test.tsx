@@ -771,9 +771,20 @@ test('H7 state A: all three row-2 pickers carry the ONE shared @/ui chrome, a no
 		// for the same control.
 		const accessible = trigger!.getAttribute('aria-label') ?? trigger!.getAttribute('aria-labelledby');
 		assert.ok(accessible && accessible.trim().length > 0, `the ${name} picker has a non-empty accessible name`);
-		// …and the shared height, not the `h-8` the two selects used beside the `h-9`
-		// term picker.
-		assert.equal(classes.includes('h-9'), true, `the ${name} picker is the shared h-9 height`);
+		// …and the shared height, not a page-local one.
+		//
+		// RE-PINNED BY A7 C8 SLICE 1 (2026-09-29). This row originally asserted the shared
+		// picker height was `h-9`, and its own comment records the defect it was written
+		// for: the two selects beside the term picker used `h-8` while the term picker used
+		// `h-9`, so one row carried two heights. A7 C8 raised the ONE shared token to `h-10`
+		// (40px, the floor for a control that acts, for older mouse-first schedulers). The
+		// claim is unchanged and is now checked MORE strongly: all three pickers must agree
+		// on `h-10` AND none may still carry either old height. Re-pinned, not deleted (§16).
+		assert.equal(classes.includes('h-10'), true, `the ${name} picker is the shared h-10 height`);
+		for (const stale of ['h-8', 'h-9']) {
+			assert.equal(classes.includes(stale), false,
+				`the ${name} picker still carries ${stale} beside the shared h-10 — one row, two heights, which is the defect this row exists for`);
+		}
 	}
 });
 

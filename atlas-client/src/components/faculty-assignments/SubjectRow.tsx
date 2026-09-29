@@ -597,7 +597,7 @@ export const SubjectRow = memo(({
 												disabled={disabled}
 												onClick={() => handleToggleGrade(gradeLevel, gradeSections)}
 												aria-label={`${selectedInGrade > 0 ? 'Unassign' : 'Assign'} ${gradeLabel(gradeLevel)} (${gradeSections.length} sections)`}
-												className="h-9 px-3 text-[11px] font-bold uppercase text-primary hover:bg-primary/5 border border-primary/20"
+												className="h-9 px-3 text-xs font-bold text-primary hover:bg-primary/5 border border-primary/20"
 											>
 												{selectedInGrade > 0 ? 'Unassign Grade' : 'Assign Grade'}
 											</Button>
@@ -745,7 +745,7 @@ export const SubjectRow = memo(({
 																			{isOwnedByOther && (
 																				<Tooltip>
 																					<TooltipTrigger asChild>
-																						<span className="text-[10px] font-bold tracking-tight text-amber-700 bg-amber-50 border border-amber-200/50 px-1.5 py-0.5 rounded truncate max-w-[180px] cursor-help">
+																						<span className="text-xs font-bold tracking-tight text-amber-700 bg-amber-50 border border-amber-200/50 px-1.5 py-0.5 rounded truncate max-w-[180px] cursor-help">
 																							{owner.facultyName}
 																						</span>
 																					</TooltipTrigger>

@@ -361,7 +361,7 @@ export function TeacherGridMode({
 									<h3 className="text-xs font-semibold text-muted-foreground/60">{dept}</h3>
 								</div>
 								<div className="flex-1 h-px bg-border/30" />
-								<Badge variant="outline" className="text-[10px] font-bold bg-muted/30 text-muted-foreground shadow-none">{members.length}</Badge>
+								<Badge variant="outline" className="text-xs font-bold bg-muted/30 text-muted-foreground shadow-none">{members.length}</Badge>
 							</div>
 							
 							{!isCollapsed && (
