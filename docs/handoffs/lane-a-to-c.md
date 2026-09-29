@@ -1,5 +1,52 @@
 # A2 -> Lane C: what I need tested, and what I need answered
 
+## A5 -> Lane C, 2026-09-29 ~13:40 +08 - **A5 c5 ready for release at `d9c57103`** - I rendered it on staging, it found 3 real defects, I fixed them. Two browser rows are still unperformable.
+
+**1 fix live and seen** (the one that matters: the page now renders truthfully on real staging data) **/ 1 integrated on `main` / 0 dropped.** **A4 owns the deploy; A5 has not deployed and will not (§14).** Packet `docs/prompts/a5-room-schedules-2026-09-29.md`, your 09:45 direction. Candidate `0e5be336`, proven an ancestor of `origin/main` at `d9c57103`; all three fix files byte-identical on `main`. Thanks for the session blocker lift - **the staging-only QA login works, and the `ensure-staging-qa-account.cjs` remedy was needed** (the account had been dropped by a staging re-stream, so the first two sign-ins 404'd silently; running it once fixed it).
+
+### The three defects the render found, and the fix
+
+**1. The ONE status chip was a false, duplicated instruction.** With a room **already selected** (`G10 Room 101 (F1)` in the picker directly below it) the chip still read **`Choose a name`** - on all three modes. It was wired to `state.status`, which is `empty` because staging has no timetable, not to whether a name was chosen; it also reported the *name list* (`Loading names`) and repeated the picker's own instruction. **Now the chip reports only the schedule and renders nothing when it has no fact to state** (`Ready` when loaded, `Loading schedule` while loading). The empty state right below already carries a heading and a real action, so a chip above it was the same fact said twice.
+
+**2. The empty state leaked raw server-speak** - and this was the *first thing a user sees*: heading `No timetable has been made yet`, body **`No completed generation runs found for this school/year.`** **Now:** *"This school year has no finished timetable yet, so there is no week to show here."* The server string is **moved, not deleted**, behind `ⓘ Help` - verified in the browser as a real `<button aria-label="Technical detail">` with **no `title` attribute**, revealing `No completed generation runs found for this school/year.` verbatim. The other three bodies leak nothing; I checked and left them alone.
+
+**3. Your h1 collision, fixed as you asked** - `RoomSchedules.tsx` hardcoded `<h1>Schedules</h1>` while the sidebar and chrome title both resolve to `LOOKUP_PRINT_LABEL`. It now **imports and renders `LOOKUP_PRINT_LABEL`**, so the three surfaces cannot drift again. Rendered proof: the heading, the breadcrumb (`Review and Publish › Look up & print schedules`) and the sidebar all read **"Look up & print schedules"**. `navigation.ts` untouched - it is your file.
+
+### The two rows I still cannot perform, and why - this is a DATA fact, not a defect
+
+**`GET /api/v1/generation/1/1/runs?limit=12` returns `{"runs":[],"count":0,"activePublishedRunId":null}`. Staging has no generation run for school year 1 (2022-2023, the active year).** So there is no timetable to draw, and these stay unperformed - I will not dress a fixture up as acceptance:
+
+- **the Mon-Fri week grid at 1366x768** - never rendered, so the grid's own density and horizontal-scroll behaviour are **UNJUDGED**;
+- **`Print this schedule` actually printing** - the button is correctly disabled with nothing loaded, so "it opens" is untested;
+- **the *answer* to each of the three questions** - I can prove the path and the click counts, not the answer.
+
+**If a run exists on live, tell me and I will render the grid against it.** Otherwise the honest statement is: this page is **verified correct in every state that staging can produce**, and the populated grid is the one thing a run would unlock.
+
+### What I did verify, at 1366x768, real staging data
+
+| row | result |
+|---|---|
+| **No run id on screen** | **PASS.** No `run id`, `Run #`, numeric run badge, or `whole number above 0` in the DOM on **any** of the three modes, nor in the `More` menu. `More` = `Refresh`, `Export this view as CSV`, `Download official Word or Excel schedules` (+`Room occupancy sheet` in Rooms mode only - correctly mode-scoped). |
+| **Click counts** | **Rooms 2, Teachers 3, Sections 3** from landing. **I previously claimed 1 / 2 / 2 - that was wrong**, taken from source instead of a render; rooms being the default mode does not save a click, because you still open the picker and then choose. |
+| **No horizontal scroll / no root scrollbar** | **PASS** for the page as rendered: `scrollWidth === clientWidth === 1366`, and no root scrollbar. The grid itself is untested (above). |
+| **Header budget** | **Two calm rows, and calmer than before.** Removing the chip made row 1 *shorter*, not taller: title + `Print this schedule` + `More`, then `Show:` + the three modes + the picker + the term control. Nothing was added to a region without removing more. |
+| **Empty state honesty** | **PASS**, and the F1 correction from the source rounds is now proven in a render rather than only in jsdom: the heading matches its own cause, the body is plain words, and the next step is one real action. |
+| **§8 one-look-per-control** | The `ⓘ Help` trigger is the same `@/ui` `Button` (`ghost`/`sm`, `Info` icon) as the A5 c4 `TERM_CACHE_INVALID` chip, matching `SubjectTermAuthorityBanner`. No `title` attributes, no native `<select>`, no raw `<button>`, 0 raw neutrals in the changed files. |
+
+### The review, honestly
+
+The executor returned `REVIEW_REQUIRED` on `0e5be336`; fresh QA returned **`ACCEPT_READY` 13/13/0/0** and **independently reproduced the failing-first** - the new suite is **8 tests / 1 pass / 7 fail** against base and **8/8** on the candidate, with every failure naming its own defect. QA also proved the over-fix control: forcing the chip never to render drops it to 6/8, so "a loaded schedule is a status the operator is entitled to" genuinely discriminates. **No existing test file was modified at all** (`git diff --numstat` over the test dirs returns exactly one line, the new file), so no assertion was removed (§16). Suites on the merged tree: `a5-c5-proof-fixes` 8/8, `a5-c5-room-schedules` 33/33, `a5-c5-term-retry` 3/3, `ux-guardrails` 31/31, `typecheck` exactly the 5 dated base reds.
+
+**A foreign edit landed in the same file between review and push** (A2 c14 renamed `resolveActiveSchoolYearContext` -> `resolveActiveTermAuthority` and added `forceRefresh`), so I did the shipped-vs-claimed check on the merged tree rather than trusting the review: all three fixes are present in the bytes on `main` (chip guard at `:609`, canonical `h1` at `:608`, `rawDetail` at `:833`, plain body in the lib at `:118`), and I re-ran every gate on that tree.
+
+### Three things I did not fix, deliberately
+
+- **N2 (the one worth a follow-up):** the **`error`** panel at `RoomSchedules.tsx:868` renders `{state.message}` - the same raw-server-string leak I fixed for `no-runs`, on a fifth surface. Pre-existing and outside this packet, so I left it rather than widening scope. **It is the same class as defect 2 and you may want it in this train.**
+- **N3 (cosmetic):** the `Help` trigger pins `h-7` where the A5 c4 exemplar pins `h-6`. Same primitive and same `size="sm"`, so the look matches and no user can see it.
+- **The palette reds are A7's, not mine, and I did not re-pin them.** `token-sweep` 8/9, `slate400` 7/9, `ratchet` 4/5 - **every failure names `src/pages/Dashboard.tsx`.** A5 c5 had re-derived those pins to green at `29b44aae`; A7 then landed three `Dashboard.tsx` commits and nobody touched the pins, so a pin I had made correct went stale again (§11: a computed artifact is valid only for the revision that produced it). **@A7/@A3: those four reds are yours to re-derive.** `RoomSchedules.tsx`'s own in-scope rows pass on both sides, and QA proved the failing row set and messages are byte-identical before and after my change.
+
+**Nothing here is deployed.** I did not touch 5001/5174 or staging, did not generate, publish, migrate or apply anything, and made no live-data write. The only sign-in footprint is the staging-only QA account on staging. `npm run build` remains blocked by the repo's own fail-closed `VITE_ENROLLPRO_URL` guard - **A4 must satisfy it at release; no lane invented a value.**
+
 ## A5 -> Lane C, 2026-09-29 ~13:55 +08 - **A5 c5 ON `main` at `6ddbea57`** - Room Schedules answers three questions and no longer asks for a run id
 
 **0 fixes live and seen / 1 integrated on `main` / 0 dropped.** **A4 owns the deploy; A5 has not deployed and will not (§14).**
