@@ -699,9 +699,20 @@ test('D3 the one visible primary follows the run: Generate with no run, Publish 
 });
 
 test('D1/D3 exactly one filled primary per state, and it is the run-appropriate one', () => {
+	// SUPERSEDED IN PART (A2 C13, operator 2026-09-29) — the "hard blockers" entry.
+	// The ORIGINAL table read, verbatim:
+	//     ['hard blockers', HARD_BLOCKERS, 1, 'timetable-simple-publish-action'],
+	// i.e. it expected ONE `bg-primary` button in the blocked state. That count was
+	// satisfied by a DISABLED Publish wearing `variant="default"` — a solid green at
+	// the shared base's `disabled:opacity-50`, which the operator reported as "a
+	// pale-green near-miss". `bg-primary` on a control that cannot act was the pin
+	// this candidate exists to remove, so the expectation is corrected to 0 and the
+	// REPLACEMENT assertion is added below: the blocked state still renders exactly
+	// one lifecycle control, it is the run-appropriate one, and it is plainly
+	// unavailable rather than filled. The row is NOT deleted (AGENTS.md §16).
 	const states: Array<[string, Record<string, unknown>, number, string | null]> = [
 		['no run yet', { draft: null, isPreGenerationWorkspace: false }, 1, 'timetable-simple-generate-action'],
-		['hard blockers', HARD_BLOCKERS, 1, 'timetable-simple-publish-action'],
+		['hard blockers', HARD_BLOCKERS, 0, null],
 		['publish-ready clean run', CLEAN_UNPUBLISHED, 1, 'timetable-simple-publish-action'],
 		['published run', PUBLISHED_RUN, 0, null],
 	];
@@ -711,6 +722,16 @@ test('D1/D3 exactly one filled primary per state, and it is the run-appropriate 
 		assert.equal(solid.length, expected, `${name}: filled action count`);
 		if (testId) assert.match(solid[0], new RegExp(`data-testid="${testId}"`), `${name}: the filled primary`);
 	}
+	// THE REPLACEMENT for the superseded entry: a blocked run still offers the
+	// run-appropriate control, and it cannot be mistaken for a live primary.
+	const blockedMarkup = renderHeader(HARD_BLOCKERS);
+	const blockedPublish = blockedMarkup.match(new RegExp('<[^>]*data-testid="timetable-simple-publish-action"[^>]*>'));
+	assert.ok(blockedPublish, 'hard blockers: the run-appropriate Publish control is still rendered');
+	assert.doesNotMatch(blockedPublish[0], /\bbg-primary\b/, 'hard blockers: a control that cannot act is never a filled primary');
+	assert.match(blockedPublish[0], /\bbg-muted\b/, 'hard blockers: it wears the plainly-unavailable treatment');
+	assert.match(blockedPublish[0], /disabled/, 'hard blockers: and it is honestly disabled');
+	assert.match(blockedMarkup, /data-testid="timetable-simple-publish-short-reason"/,
+		'hard blockers: the reason it cannot act is printed on screen beside it');
 });
 
 /* ── Boundaries that must survive the collapse ───────────────────────────── */

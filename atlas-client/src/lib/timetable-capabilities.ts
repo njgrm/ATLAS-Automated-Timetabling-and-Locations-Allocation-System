@@ -185,8 +185,18 @@ export function deriveTimetableCapabilities(input: TimetableCapabilityInput): Ti
 		if (input.driftBlocked) {
 			return denied(
 				input.driftMessage ?? 'The active school year is out of sync with setup.',
-				retry('Retry schedule check'),
-				'School year out of sync with setup',
+				// REVERTED (A2 C13 correction, 2026-09-29). This candidate had changed
+				// the repair to `retry('Retry schedule check')`, which was NOT requested
+				// and is strictly worse: an operator blocked by a drifted school year was
+				// told to re-check the schedule instead of being sent to Year Setup, the
+				// one place drift is actually fixed. `timetable-capabilities.test.ts ::
+				// R1 drift blocks generation and points at Year Setup` caught it. The
+				// repair is restored to base; ONLY the short reason is added.
+				navigate('Open Year Setup', YEAR_SETUP_HREF),
+				// A2 C13 correction: this was 7 words ("School year out of sync with
+				// setup") and the rule is SIX. Caught by `R8C`, which is why the bound is
+				// asserted rather than trusted. The full sentence above keeps the detail.
+				'School year out of sync',
 			);
 		}
 		return allowed();

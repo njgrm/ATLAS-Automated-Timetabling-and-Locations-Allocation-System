@@ -343,9 +343,25 @@ test('C01R C1 an issue state renders the lifecycle primary solid with publish se
 	const warnings = markup.match(new RegExp('<[^>]*data-testid="timetable-simple-warnings-control"[^>]*>'));
 	assert.ok(warnings, 'the next step keeps its affordance on the merged warnings control');
 	assert.match(warnings[0], /data-warnings-dispatch="readiness-sheet"/, 'blockers open the readiness sheet, as Fix blockers did');
-	assert.equal(solidActionButtons(markup).length, 1, 'exactly one filled action in the issue state');
+	// SUPERSEDED IN PART (A2 C13, operator 2026-09-29) — the filled count, and only
+	// the filled count. The ORIGINAL row read, verbatim:
+	//     assert.equal(solidActionButtons(markup).length, 1, 'exactly one filled action in the issue state');
+	// This fixture sets `hardCount: 1` / `blockingHardCount: 1`, so Publish is
+	// DISABLED. Its count of 1 was satisfied by that disabled control wearing
+	// `variant="default"` — a solid `bg-primary` at the shared base's
+	// `disabled:opacity-50`, which reads as a pale-green "nearly ready" primary.
+	// That is the pin this candidate removes, so the count is corrected to 0 and the
+	// replacement below keeps the row's real property: the issue state still offers
+	// its next step, and nothing that cannot act looks like it can.
+	// NOT deleted (AGENTS.md §16).
+	assert.equal(solidActionButtons(markup).length, 0, 'no FILLED action in the issue state — a blocked control is not a primary');
 	const publish = markup.match(new RegExp('<[^>]*data-testid="timetable-simple-publish-action"[^>]*>'));
 	assert.ok(publish, 'the publish control stays reachable');
+	// THE REPLACEMENT for the superseded count.
+	assert.doesNotMatch(publish[0], /\bbg-primary\b/, 'the blocked publish control is not a filled primary');
+	assert.match(publish[0], /\bbg-muted\b/, 'it wears the plainly-unavailable treatment');
+	assert.match(markup, /data-testid="timetable-simple-publish-short-reason"/,
+		'and the reason it cannot act is visible beside it, not hover-only');
 });
 
 test('C01R D3 a published run renders no solid action and the primary dispatches (no chevron menu)', () => {

@@ -922,21 +922,7 @@ test('F2 rendered: the publish task renders the real publish checklist', () => {
 	assert.doesNotMatch(renderedText, /\d+\s+blockers?\b/i, 'no count is labelled with the retired blocker wording, even when the markup splits them across elements');
 	assert.doesNotMatch(renderedText, /\d+\s+classes\b/i, 'the unplaced count is never labelled "classes" (it is sessions) — the same count+label shape as the retired blocker wording');
 	// END SUPERSEDED-IN-PART
-	// SUPERSEDED (A2 HEADER-BUDGET, 2026-09-29) then SUPERSEDED AGAIN (A2 C13,
-	// operator 2026-09-29) — the TESTID, kept in place.
-	// The ORIGINAL row read, verbatim:
-	//     assert.match(markup, /data-testid="timetable-publish-blocked-reason"/);
-	// A2 HEADER-BUDGET removed the visible reason and moved it into a Tooltip,
-	// superseding that testid. A2 C13 has since put a reason back on screen — the
-	// operator overrode the Tooltip-only rule for the header's disabled lifecycle
-	// controls ("put the reason in words beside it") — but the reason is a NEW,
-	// SHORTER claim on a NEW testid, `timetable-simple-publish-short-reason`,
-	// because "the same reason under the button" is not what it now is.
-	// The row is NOT deleted (AGENTS.md §16). What it decided then — that a
-	// disabled Publish explains itself on the real surface, rather than sitting
-	// there as a dead control — is STILL decided, by the assertion below and by
-	// `L5` in `a2-c13-unavailable-generate.test.tsx`.
-	assert.match(markup, /data-testid="timetable-simple-publish-short-reason"/);
+	assert.match(markup, /data-testid="timetable-publish-blocked-reason"/);
 	assert.match(markup, /Publish schedule/);
 });
 

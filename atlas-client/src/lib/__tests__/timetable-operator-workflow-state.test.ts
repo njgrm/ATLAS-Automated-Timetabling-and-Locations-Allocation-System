@@ -597,14 +597,27 @@ test('TTX-08 tutorial trigger has an accessible name and 44px mobile target', ()
 	// accessible name and the 44px touch target are asserted there. The
 	// schedule-sheet trigger it also pins is still in the header helpers.
 	const tutorial = source('src/components/timetable/simple/SimpleTutorial.tsx');
-	// SUPERSEDED (A2 C13, 2026-09-29) — the label only. The ORIGINAL row read:
+	// SUPERSEDED (A2 C13, 2026-09-29) — the LABEL, corrected. The ORIGINAL row read:
 	//     assert.match(tutorial, /aria-label="Open timetable tutorial"/);
-	// The internal name no longer reaches this control; it is now the place-name
-	// constant, so the accessible name is `Open class schedule tutorial`. The
-	// tutorial trigger still exists, is still reachable, and the 44px touch target
-	// asserted on the next line is unchanged. `L6b` pins that the nav item, the
-	// breadcrumb group and the `<h1>` all read the same constant.
-	assert.match(tutorial, new RegExp(`aria-label="Open ${CLASS_SCHEDULE_LABEL.toLowerCase()} tutorial"`));
+	// My first replacement asserted the post-rename LITERAL
+	// `/aria-label="Open class schedule tutorial"/`, which is wrong: the source now
+	// derives the name from the shared constant
+	// (`` aria-label={`Open ${CLASS_SCHEDULE_LABEL.toLowerCase()} tutorial`} ``), so
+	// no assembled string appears in the file. A row marked superseded that still
+	// fails is a false record, so this asserts the SOURCE FORM and keeps the row's
+	// real property: the tutorial trigger is named from the ONE place name, so it
+	// can never drift from the nav, the breadcrumb group and the `<h1>`.
+	assert.match(tutorial, /CLASS_SCHEDULE_LABEL/,
+		'the tutorial trigger is named from the one shared place-name constant');
+	assert.match(tutorial, /aria-label=\{`Open \$\{CLASS_SCHEDULE_LABEL\.toLowerCase\(\)\} tutorial`\}/,
+		'and the accessible name is assembled from it, not from a second literal');
+	assert.doesNotMatch(tutorial, /aria-label="Open timetable tutorial"/,
+		'the internal name no longer reaches this control');
+	assert.equal(
+		`Open ${CLASS_SCHEDULE_LABEL.toLowerCase()} tutorial`,
+		'Open class schedule tutorial',
+		'the accessible name a scheduler actually reads is spelled this way',
+	);
 	assert.match(tutorial, /min-h-11/);
 	const helpers = source('src/components/timetable/simple/SimpleHeaderHelpers.tsx');
 	assert.match(
