@@ -2764,7 +2764,7 @@ commands QA named - no third review round.
 ## A2 c14 INTEGRATED on main at 6124b342 + a9c83536 - 2026-09-29 (Planner A2)
 
 **1 fix integrated, seen 0 times, dropped 1 of 2 items.** Root cause posted 10:50 (deadline 13:00). Term fix on
-main at 14:10. **Not deployed - A4 owns the release (§14). I ran no browser.**
+main at 14:10. **Not deployed - A4 owns the release (ï¿½14). I ran no browser.**
 
 **The root cause was not the one the report implied, and that is the finding.** The active term was not *failing to
 resolve*: TeacherConcerns and AdminYearSetup called esolveActiveSchoolYearContext with erifyUpstream absent, the
@@ -2796,7 +2796,7 @@ SESSION - and the session is not a field on the blocker, because classifyUnassig
 (generation-preflight.service.ts:402-418) discards it into free-text entity. QA executed the real engine: one
 section, one subject, **three unassigned sessions** = 9 engine rows, and every client-side dedup key I tried returned
 **1**. So the count of real problems is not computable client-side at all, and my first candidate would have told a
-scheduler "1 setup item to fix" for three real problems. Two QA rounds returned CORRECTION_REQUIRED; per §11 I took no
+scheduler "1 setup item to fix" for three real problems. Two QA rounds returned CORRECTION_REQUIRED; per ï¿½11 I took no
 third round and dropped it. **A8 c3's new 651-row packet is standing on the same wall.** A truthful count needs
 session promoted to a first-class field on the server blocker - **SERVER/DATA, HIGH tier.** Any "real problem"
 count printed before that is a number we cannot stand behind. This is a follow-up row, not a done item.
@@ -2830,3 +2830,35 @@ a HIGH gate.**
 **Next action for me:** the term-cache apply is A3's HIGH action and I am not touching it. If my fix lands and that
 one verified request still returns erified:false, the root cause is the missing 	ermContractCache row for the
 active mirror and the apply is the whole remedy. Nothing is owed back to me.
+
+## A2 -> Lane C, place - 2026-09-30 04:5x +08 - items 10-11 fixed: one action + visible in the grid
+
+**1 fix integrated (not deployed - A4 owns the train).** Candidate `0e297898` (base `8c8138eb`) merged onto
+`origin/main` `d84c9259` at **`51d7ab28`** (clean auto-union; A6/A8 deltas in the two shared hooks preserved).
+Fresh independent `atlas-qa-ds` over `8c8138eb..0e297898`: **ACCEPT_READY 8/8/0/0** (own-tree failing-first mutant
+on the carried `termIndex`; added a no-room adversarial control; disposable-DB persistence rows).
+
+**Root cause of the invisible placement (item 11): a wrong term/view filter over a non-persisted term identity.**
+The pre-generation grid projected `draftBoard.placements` into entries but **dropped `termIndex`**
+(`useTimetableData.ts` `preGenEntries`), and the grid then filters every entry through `matchesTermScope`, which
+returns false for a missing term under a **numeric** term filter - and the header defaults to the verified active
+term (a number). So a placed class vanished from the grid the moment it was committed, while the left-rail pinned
+list still showed it. The commit also never persisted the term (`parsePlacementBodyValue` ignored `termIndex`;
+`commitPlacement` set none, so the schema default `1` was stored). Fix: carry `termIndex` through the projection
+(new `lib/timetable-draft-entries.ts`) and persist the selected term on commit (validated 1..4 and inside the
+ordered contract, fail closed). Item 10: a clean or soft-warned drop now **commits in one action** and registers
+the existing draft Undo; hard/no-room/no-owner drops still fail closed to the single review dialog.
+
+**Staging reproduction is BLOCKED and I am not dressing it up.** On the staging preview (`:5231`,
+`/__dev/staging-login`) `/timetable` stops at "Term setup is required" (staging active year 2023-2024 has no
+verified term contract); a year-2 commit returns `DERIVED_DEMAND_PROJECTION_INCOMPLETE`; year 5 is
+`INACTIVE_HISTORICAL_YEAR`. The substitute is the candidate's own rendered grid control (real projection + real
+filter + real grid): P1 renders the placed class under Term 2, P2 (mutant, no carried term) disappears, P3 all-term
+shows it. **No live/staging mutation, no deploy, no Tailnet browser row** (my profile has no live session:
+`NEEDS_SESSION(planner/live)`).
+
+**Gates on the merged tree:** client new suite 7/7; server new suite 6/6 (disposable `atlas_restore_drill_*`,
+zero residue); server `tsc` 0; client `tsc` 5 pre-existing errors in untouched files (identical at base);
+`test:timetable-ux-rehaul` 36/36; `test:draft-ux-c01` 33/36 (3 pre-existing drift-banner failures, identical at
+base); `git diff --check` clean. **No header file touched** (A7 owns it). Follow-up (NON_BLOCKING): add the new
+server DB suite to the `test:server-db` list/guard.
