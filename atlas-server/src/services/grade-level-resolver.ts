@@ -141,27 +141,45 @@ export function gradeNumberOf(ref: {
  * `number`: the grade NAME, then the registry learned from the requested year,
  * then the legacy id map. This is the 2026-09-28 hotfix behaviour, UNCHANGED.
  *
- * WHERE THIS DIFFERS FROM `gradeNumberOf`, and why — the difference is
- * deliberate, and a 2026-09-29 correction round learned it the hard way:
- *   - `gradeNumberOf` accepts `displayOrder` as a second source; this function
- *     does NOT. `displayOrder` is the mirror's own grade number on every row
- *     measured on staging (7..10 in every school year), but it is not
- *     universally the grade: `teaching-load-carry-forward-postgres.test.ts`
- *     seeds archived source sections with `displayOrder = 9` against a
- *     `gradeLevelName` of "Grade 7" precisely to prove that carry-forward
- *     identity comes from the name, not the order. Adding the order leg here
- *     turned those two exact carries into three and broke that control.
- *   - `gradeNumberOf` returns `null` for a reference with no usable name or
- *     order. This function must return something, so it falls through to the
- *     registry and then the legacy id map — which is why the legacy map has no
- *     `1 -> 7` entry: an unnamed post-wipe id `1` must stay unresolvable rather
- *     than silently become Grade 7.
- *   - A name outside 7..12 is rejected here too, so a mirror naming a non-JHS
- *     grade can no longer leak through the name leg.
+ * WHY IT DOES NOT READ `displayOrder`, stated without a cause I cannot show.
+ * `gradeNumberOf` reads the order as a second source; this function does not.
+ * The two reasons that ARE established by evidence:
+ *   1. ITS CONSUMERS CANNOT REACH IT. The callers that need a guaranteed
+ *      `number` pass a ref carrying only `{ gradeLevelId, gradeLevelName }` —
+ *      `resolveCarryForwardGrade(gradeLevelId, gradeLevelName)` is the clearest
+ *      example, and it forwards exactly those two fields. An order leg here
+ *      would be unreachable on that path, not merely unused.
+ *   2. IT HAS A REGISTRY LEG THE OTHER DOES NOT. Call sites such as
+ *      `derived-demand.service.ts` pass a school-year registry learned from
+ *      `section_mirrors (grade_level_id, grade_level_name)`, which recovers a
+ *      grade for a row that has no name AND no order. `gradeNumberOf` has no
+ *      registry, so it is the right tool only where a null is representable.
+ *   So: use `gradeNumberOf` wherever a null is representable (a displayed
+ *   badge, a label, a scope key, a nullable payload field), and this function
+ *   where a number is structurally required and the registry is wanted.
  *
- * SO: use `gradeNumberOf` wherever a null is representable (a displayed badge, a
- * label, a scope key, a nullable payload field), and this function where a
- * number is structurally required and the registry/legacy legs are wanted.
+ * AN HONEST CORRECTION, recorded because the earlier version of this comment
+ * asserted a cause that was wrong. A 2026-09-29 correction round first added the
+ * order leg to THIS function, then reverted it, attributing the revert to a
+ * carry-forward control ("two rows are exact carries despite independent
+ * displayOrder values (expected 2, got 3)") that went red in the same run.
+ * That attribution was NOT established. Executing the control afterwards with
+ * the name/order legs forced to their base behaviour reproduced the identical
+ * `2 vs 3` failure, so that control is red independently of this function; and
+ * the control's fixture sets `gradeLevelName: 'Grade 7'` on every row, so the
+ * name leg answers first and `displayOrder = 9` is never consulted. The order
+ * leg was, on the evidence, not what turned those two carries into three. What
+ * actually turned them is not established. The revert is kept because reasons 1
+ * and 2 above stand on their own, not because of that control.
+ *
+ * WHAT THIS FUNCTION DOES NOT DO. It does not return `null` — it returns a
+ * number. For a reference with no usable name and no registry, it falls to the
+ * legacy id map, and `legacyGradeFromInternalId(1)` is `1`. So an unnamed
+ * post-wipe row can and does come back as `1..4` here. Callers that must not
+ * surface a fabricated grade need `gradeNumberOf`, which returns `null` instead.
+ *
+ * A name outside 7..12 is rejected here too, so a mirror naming a non-JHS grade
+ * can no longer leak through the name leg.
  */
 export function resolveSectionGradeLevel(
 	ref: GradeLevelRef,

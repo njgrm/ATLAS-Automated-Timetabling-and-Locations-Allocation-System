@@ -49,8 +49,8 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 
 import { gradeNumberOf, resolveSectionGradeLevel, buildGradeLevelRegistry } from '../services/grade-level-resolver.js';
 import { normalizeEnrollProSectionsResponse } from '../services/section-adapter.js';
@@ -443,41 +443,141 @@ test('C15-GREP-PROOF. no production path reads an EnrollPro grade id as a grade'
 	}
 });
 
-test('C15-GREP-ACCOUNTED. the only remaining `gradeLevel: ... gradeLevelId` lines pass the id INTO the authority', () => {
-	// A repository-wide grep for `gradeLevel: .*gradeLevelId` in production paths
-	// is loose: `.*` also matches a call ARGUMENT list. It returns exactly these
-	// three lines, all in teaching-load-carry-forward, and each hands the id to
-	// `resolveCarryForwardGrade` — the shared authority itself
-	// (`resolveSectionGradeLevel(..., null, 'grade-first')`, name-first). The id
-	// is an INPUT to the authority, never the grade value. They are listed here
-	// so the loose grep proof is reproducible rather than caveated.
-	const source = readSource('atlas-server/src/services/teaching-load-carry-forward.service.ts');
+/**
+ * A REAL repository-wide sweep, walking the production source ON DISK.
+ *
+ * WHY THIS ROW WAS REWRITTEN (A2 c15 correction round 3). The previous version
+ * of this proof called `readSource()` on ONE file and its comment claimed to
+ * describe a repository-wide grep. It could not see past that one file, which
+ * is exactly how a FOURTH private grade resolver
+ * (`teacher-program-export.service.ts::parseGradeNumber`) survived two review
+ * rounds. A gate that certifies a scope it cannot see is worse than no gate, so
+ * this row now enumerates every `.ts`/`.tsx` under `atlas-server/src` and
+ * `atlas-client/src`, excluding `__tests__` and `qa-artifacts`, and asserts
+ * against the FULL hit set. Every remaining hit is named and shape-matched, so
+ * a new one fails here instead of surviving to a reviewer.
+ *
+ * Measured on the current candidate: the loose `gradeLevel: .*gradeLevelId`
+ * pattern returns 3 hits in 1 production file (15 in 4 files if `__tests__` is
+ * included, which is where test fixtures and legacy assertions live).
+ */
+function productionSourceFiles(): string[] {
+	const roots = [
+		resolve(import.meta.dirname, '..', '..', '..', 'atlas-server', 'src'),
+		resolve(import.meta.dirname, '..', '..', '..', 'atlas-client', 'src'),
+	];
+	const out: string[] = [];
+	const walk = (dir: string) => {
+		for (const entry of readdirSync(dir, { withFileTypes: true })) {
+			if (entry.name === '__tests__' || entry.name === 'qa-artifacts') continue;
+			const full = join(dir, entry.name);
+			if (entry.isDirectory()) walk(full);
+			else if (/\.tsx?$/.test(entry.name)) out.push(full);
+		}
+	};
+	for (const root of roots) walk(root);
+	return out;
+}
 
-	// The TIGHT form — the grade value itself is the id — finds nothing anywhere.
-	assert.deepEqual(
-		source.match(/gradeLevel:\s*[\w.]*gradeLevelId\b/g) ?? [],
-		[],
-		'no grade value may be the EnrollPro id',
-	);
+type SourceHit = { file: string; line: number; text: string };
 
-	// The LOOSE form finds exactly these three, no more.
-	const loose = source.split('\n')
-		.filter((line) => /gradeLevel:\s*.*gradeLevelId/.test(line))
-		.map((line) => line.trim().replace(/\s+/g, ' '));
-	assert.equal(loose.length, 3, `the loose grep must return exactly three accounted lines; saw ${loose.length}`);
-	for (const line of loose) {
-		assert.match(
-			line,
-			/gradeLevel: resolveCarryForwardGrade\([\w.]+gradeLevelId, [\w.]+gradeLevelName\),/,
-			`unaccounted loose hit: ${line}`,
+function sweepProductionSources(pattern: RegExp): SourceHit[] {
+	const hits: SourceHit[] = [];
+	for (const file of productionSourceFiles()) {
+		const rel = file.slice(file.indexOf('atlas-')).replace(/\\/g, '/');
+		readFileSync(file, 'utf8').split(/\r?\n/).forEach((text, index) => {
+			if (pattern.test(text)) hits.push({ file: rel, line: index + 1, text: text.trim() });
+		});
+	}
+	return hits;
+}
+
+test('C15-GREP-SWEEP. a real repository-wide sweep finds no id read as a grade', () => {
+	// The four greps the packet named, run over EVERY production file on disk.
+	// Each must be empty repo-wide. These are NOT weakened by the per-file row
+	// above; that row is a subset of this one.
+	const FORBIDDEN: Array<{ name: string; pattern: RegExp }> = [
+		{ name: 'gradeLevelId ??', pattern: /gradeLevelId\s*\?\?/ },
+		// The TIGHT form: the grade VALUE is the id.
+		{ name: 'gradeLevel: <id>', pattern: /gradeLevel:\s*[\w.]*gradeLevelId\b/ },
+		{ name: 'displayOrder ?? ... gradeLevelId', pattern: /displayOrder\s*\?\?\s*[\w.]*gradeLevelId/ },
+		{ name: 'GR${...id}', pattern: /GR\$\{[^}]*[Ii]d/ },
+	];
+	for (const { name, pattern } of FORBIDDEN) {
+		const hits = sweepProductionSources(pattern);
+		assert.deepEqual(
+			hits.map((hit) => `${hit.file}:${hit.line}: ${hit.text}`),
+			[],
+			`repo-wide sweep found ${name}`,
 		);
 	}
-	// Every one of them hands the id AND the name to the authority — never a
-	// bare id, and never a name-less id-only read. (Proved by the per-line shape
-	// match above; the three differ only in which local row they read.)
+
+	// A private local resolver would declare a grade function of its own. The four
+	// this range deleted each had one, and the fourth is the reason this sweep
+	// exists: a NEW `function parseGradeNumber|resolveSectionGradeNumber|
+	// getSectionGradeNumber` anywhere else is a second authority.
+	//
+	// Exactly two declarations are legitimate — the two sanctioned re-exports of
+	// the ONE authority — and they are pinned to their own files, so the check
+	// cannot be satisfied by moving one, duplicating one, or adding a third.
+	const SANCTIONED_DECLARATIONS: Record<string, string[]> = {
+		'atlas-server/src/services/teaching-load-carry-forward.service.ts': ['resolveCarryForwardGrade'],
+		'atlas-client/src/lib/schedule-review-helpers.ts': ['resolveSectionGradeNumber'],
+	};
+	const declared = sweepProductionSources(
+		/^\s*(?:export\s+)?function\s+(parseGradeNumber|resolveSectionGradeNumber|getSectionGradeNumber|resolveCarryForwardGrade)\s*\(/,
+	).map((hit) => ({ ...hit, name: /function\s+(\w+)\s*\(/.exec(hit.text)?.[1] ?? '' }));
+	for (const hit of declared) {
+		assert.deepEqual(
+			SANCTIONED_DECLARATIONS[hit.file] ?? [],
+			[hit.name],
+			`${hit.file}:${hit.line} declares "${hit.name}", which is not a sanctioned re-export of the one authority`,
+		);
+	}
+	assert.equal(declared.length, 2, `exactly two sanctioned grade-authority re-exports must exist; saw ${declared.length}`);
+
+	// Both must actually delegate, so the allowlist cannot be satisfied by a
+	// function that computes a grade its own way.
+	assert.match(
+		readSource('atlas-server/src/services/teaching-load-carry-forward.service.ts'),
+		/return resolveSectionGradeLevel\(\{ gradeLevelId, gradeLevelName \}, null, 'grade-first'\);/,
+		'the server re-export must delegate to the shared authority',
+	);
+	assert.match(
+		readSource('atlas-client/src/lib/schedule-review-helpers.ts'),
+		/export function resolveSectionGradeNumber\(section: ExternalSection\): number \| null \{\s*\n\s*return gradeNumberOf\(section\);/,
+		'the client re-export must delegate to the shared authority',
+	);
+});
+
+test('C15-GREP-ACCOUNTED. every remaining loose `gradeLevel: ... gradeLevelId` hit is accounted for', () => {
+	// The LOOSE form: `.*` also matches a call ARGUMENT list, so a line that
+	// hands the id TO the authority matches even though the grade value is
+	// correct. Measured repo-wide: 3 hits, 1 file.
+	const loose = sweepProductionSources(/gradeLevel:\s*.*gradeLevelId/);
+	assert.equal(
+		loose.length,
+		3,
+		`the loose repo-wide sweep must return exactly three accounted lines; saw ${loose.length}: ${JSON.stringify(loose.map((h) => `${h.file}:${h.line}`))}`,
+	);
+	assert.deepEqual(
+		[...new Set(loose.map((hit) => hit.file))],
+		['atlas-server/src/services/teaching-load-carry-forward.service.ts'],
+		'all three accounted lines must be in teaching-load-carry-forward and nowhere else',
+	);
+	for (const hit of loose) {
+		// Each hands the id AND the name to the shared authority — never a bare
+		// id, never a name-less read.
+		assert.match(
+			hit.text,
+			/gradeLevel: resolveCarryForwardGrade\([\w.]+gradeLevelId, [\w.]+gradeLevelName\),/,
+			`unaccounted loose hit at ${hit.file}:${hit.line}: ${hit.text}`,
+		);
+	}
 
 	// The resolver those three lines call is the shared authority, not a second
 	// one, and it reads the name first.
+	const source = readSource('atlas-server/src/services/teaching-load-carry-forward.service.ts');
 	assert.match(
 		source,
 		/export function resolveCarryForwardGrade\(gradeLevelId: number, gradeLevelName\?: string \| null\): number \{\s*\n\s*return resolveSectionGradeLevel\(\{ gradeLevelId, gradeLevelName \}, null, 'grade-first'\);/,
