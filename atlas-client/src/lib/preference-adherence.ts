@@ -18,6 +18,28 @@
  * or a rewording of the plural.
  */
 
+/** One preference line, as the server rolled it up: a kind plus a part of day. */
+export type PreferenceAdherencePreference = {
+	kind: 'UNAVAILABLE' | 'PREFERRED';
+	/** `Prefers mornings` / `Unavailable Friday afternoon`. Never a raw enum. */
+	label: string;
+	/** Day-windows this line covers — the denominator of the packet's "N of M". */
+	totalCount: number;
+	/** Day-windows honoured. The server guarantees this never exceeds `totalCount`. */
+	metCount: number;
+	/** The underlying stored 15-minute rows. Reported for reference; never in a ratio. */
+	slotCount: number;
+	kept: boolean;
+	/** One short row per day, carrying no ratio. */
+	days: Array<{ day: string; met: boolean; classCount: number }>;
+};
+
+export type PreferenceAdherenceTeacher = {
+	facultyId: number;
+	name: string;
+	preferences: PreferenceAdherencePreference[];
+};
+
 /** The report shape returned by `GET /generation/:s/:y/runs/:r/preference-adherence`. */
 export type PreferenceAdherenceReport = {
 	runId: number;
@@ -29,17 +51,7 @@ export type PreferenceAdherenceReport = {
 		preferredSlots: number;
 		preferredMet: number;
 	};
-	teachers: Array<{
-		facultyId: number;
-		name: string;
-		groups: Array<{
-			kind: 'UNAVAILABLE' | 'PREFERRED';
-			label: string;
-			slotCount: number;
-			kept: boolean;
-			metCount: number;
-		}>;
-	}>;
+	teachers: PreferenceAdherenceTeacher[];
 	notReviewedTeacherCount: number;
 	notReviewedTeacherNames: string[];
 	hasAny: boolean;
@@ -68,16 +80,43 @@ export function preferenceAdherenceLine(totals: PreferenceAdherenceReport['total
 	return `${PREFERENCES_LINE_LEAD} ${segments.join(' · ')}`;
 }
 
-/** "Unavailable Friday afternoon — kept" / "Prefers Tuesday morning — 1 of 2". */
-export function preferenceGroupLine(group: PreferenceAdherenceReport['teachers'][number]['groups'][number]): string {
-	if (group.kind === 'UNAVAILABLE') {
-		return `${group.label} — ${group.kept ? 'kept' : 'not kept'}`;
+/**
+ * The packet's per-teacher line, in its own words:
+ *
+ *   `Unavailable Friday afternoon — kept`      the kept case, no count (the packet)
+ *   `Unavailable Friday afternoon — 1 of 2`    when some of the days were not kept
+ *   `Prefers mornings — 3 of 5`                the rolled-up preferred count
+ *
+ * BOTH SIDES OF EVERY NUMBER COME FROM THE SAME PLACE: the server's day-windows.
+ * A fully-met preferred group still reads as a plain acknowledgement rather than
+ * "5 of 5", because "all of them" is what a scheduler wants to hear and a bare
+ * ratio reads like a score.
+ */
+export function preferenceLine(preference: PreferenceAdherencePreference): string {
+	if (preference.kind === 'UNAVAILABLE' && preference.kept) {
+		return `${preference.label} — kept`;
 	}
-	// A fully-met preferred group reads as a plain acknowledgement; a partial one
-	// names the numbers, because "1 of 2" is the thing the scheduler needs.
-	return group.metCount === group.slotCount
-		? `${group.label} — all ${group.slotCount} ${group.slotCount === 1 ? 'time' : 'times'} met`
-		: `${group.label} — ${group.metCount} of ${group.slotCount}`;
+	if (preference.kind === 'PREFERRED' && preference.metCount === preference.totalCount) {
+		const times = preference.totalCount === 1 ? 'time' : 'times';
+		return `${preference.label} — all ${preference.totalCount} ${times} met`;
+	}
+	return `${preference.label} — ${preference.metCount} of ${preference.totalCount}`;
+}
+
+/**
+ * The per-day detail row. It carries NO ratio on purpose: the line above it already
+ * counts in day-windows, and a second number in a different unit beside it is how
+ * this list came to mix units in the first place. It answers one question per day —
+ * did something land there, or not.
+ *
+ * It does NOT branch on the preference's kind. `days[].met` is one NEUTRAL fact the
+ * server sets identically for both kinds ("a class of this teacher landed in that
+ * day's window"), and the kept/violated polarity is applied once, on the server, in
+ * the line above. Branching here would have been a second place to get the two
+ * readings backwards — which is exactly what happened when the two were unified.
+ */
+export function preferenceDayLine(day: PreferenceAdherencePreference['days'][number]): string {
+	return day.met ? `${day.day} — a class was placed there` : `${day.day} — nothing placed there`;
 }
 
 /**

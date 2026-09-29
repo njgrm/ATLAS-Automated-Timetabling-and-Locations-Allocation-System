@@ -12,7 +12,7 @@
  * Run: `npm run test:a2-c17-preference-adherence-client`
  */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { after, before, test } from 'node:test';
@@ -73,7 +73,8 @@ const { PreferenceAdherenceLine } = await import('@/components/timetable/Prefere
 const {
 	TEACHER_PREFERENCES_ROUTE,
 	preferenceAdherenceLine,
-	preferenceGroupLine,
+	preferenceLine,
+	preferenceDayLine,
 	preferenceUnreviewedNotice,
 } = await import('@/lib/preference-adherence');
 
@@ -92,21 +93,32 @@ const MIXED: Report = {
 	runId: 321,
 	schoolYearId: 7,
 	termIndex: 1,
-	totals: { unavailableSlots: 2, unavailableKept: 2, preferredSlots: 7, preferredMet: 5 },
+	totals: { unavailableSlots: 2, unavailableKept: 2, preferredSlots: 5, preferredMet: 3 },
 	teachers: [
 		{
 			facultyId: 10,
 			name: 'Dela Cruz, Ana',
-			groups: [
-				{ kind: 'UNAVAILABLE', label: 'Unavailable Friday afternoon', slotCount: 24, kept: true, metCount: 0 },
-				{ kind: 'PREFERRED', label: 'Prefers Tuesday morning', slotCount: 2, kept: false, metCount: 1 },
+			preferences: [
+				// One day on its own, so the label names the day — the packet's shape.
+				{ kind: 'UNAVAILABLE', label: 'Unavailable Friday afternoon', totalCount: 1, metCount: 1, slotCount: 16, kept: true, days: [{ day: 'Friday', met: false, classCount: 0 }] },
+				// Five painted weekday mornings collapsed to ONE line carrying "3 of 5".
+				{
+					kind: 'PREFERRED', label: 'Prefers mornings', totalCount: 5, metCount: 3, slotCount: 80, kept: false,
+					days: [
+						{ day: 'Monday', met: true, classCount: 1 },
+						{ day: 'Tuesday', met: false, classCount: 0 },
+						{ day: 'Wednesday', met: true, classCount: 1 },
+						{ day: 'Thursday', met: false, classCount: 0 },
+						{ day: 'Friday', met: true, classCount: 1 },
+					],
+				},
 			],
 		},
 		{
 			facultyId: 11,
 			name: 'Reyes, Ben',
-			groups: [
-				{ kind: 'UNAVAILABLE', label: 'Unavailable Monday morning', slotCount: 1, kept: false, metCount: 0 },
+			preferences: [
+				{ kind: 'UNAVAILABLE', label: 'Unavailable Monday morning', totalCount: 1, metCount: 0, slotCount: 1, kept: false, days: [{ day: 'Monday', met: true, classCount: 1 }] },
 			],
 		},
 	],
@@ -156,6 +168,12 @@ async function settle() {
 const q = (testid: string) => host.querySelector(`[data-testid="${testid}"]`);
 /** In the whole DOCUMENT — the popover is PORTALLED to `document.body`, so it is not under `host`. */
 const qd = (testid: string) => dom.window.document.querySelector(`[data-testid="${testid}"]`);
+/** The popover is closed before most rows, so this asserts it was open when it read. */
+function xd(): Element | null {
+	const found = qd('preference-adherence-scope');
+	assert.ok(found, 'the list must be open for its scope line to be readable');
+	return found;
+}
 
 // ─── R9: the copy ───
 
@@ -169,8 +187,8 @@ test('R9a: the exact line for a mixed report, and the exact request it made', as
 	assert.ok(line, 'the line rendered');
 	assert.equal(
 		line?.textContent?.replace('›', '').trim(),
-		'Teacher preferences: 2 of 2 unavailable times kept · 5 of 7 preferred times met',
-		'the packet’s exact line, character for character',
+		'Teacher preferences: 2 of 2 unavailable times kept · 3 of 5 preferred times met',
+		'the packet’s line shape, on the DRILL’s real numbers: five painted weekday mornings, a class in three',
 	);
 	assert.equal(calls.length, 1);
 	assert.equal(calls[0].url, '/generation/1/7/runs/321/preference-adherence');
@@ -215,12 +233,29 @@ test('R9c: the list opens on click, names each teacher, and closes on Escape', a
 	assert.equal(teachers.length, 2, 'both teachers are listed');
 	assert.match(teachers[0].textContent ?? '', /Dela Cruz, Ana/);
 	assert.match(teachers[1].textContent ?? '', /Reyes, Ben/);
-	const groups = [...dom.window.document.querySelectorAll('[data-testid="preference-adherence-group"]')].map((node) => node.textContent?.trim());
-	assert.deepEqual(groups, [
+	const preferences = [...dom.window.document.querySelectorAll('[data-testid="preference-adherence-preference"]')]
+		.map((node) => (node.querySelector('[class*="text-sm"]')?.textContent ?? '').trim());
+	assert.deepEqual(preferences, [
 		'Unavailable Friday afternoon — kept',
-		'Prefers Tuesday morning — 1 of 2',
-		'Unavailable Monday morning — not kept',
-	], 'the packet’s group phrasings, and a violated window is not softened');
+		'Prefers mornings — 3 of 5',
+		'Unavailable Monday morning — 0 of 1',
+	], 'the packet’s own shapes: a kept unavailable window, a rolled-up "3 of 5", and a violated one counted honestly');
+
+	// The per-day detail carries NO ratio, so nothing in the list can disagree with
+	// the count above it — the defect that made the first list read two units at once.
+	const days = [...dom.window.document.querySelectorAll('[data-testid="preference-adherence-day"]')].map((node) => node.textContent?.trim());
+	assert.equal(days.length, 7, 'one short row per counted day');
+	for (const day of days) {
+		assert.doesNotMatch(day ?? '', /\d+\s+of\s+\d+/, `a per-day row must not print a ratio: ${day}`);
+	}
+	assert.deepEqual(days.slice(0, 6), [
+		'Friday — nothing placed there',
+		'Monday — a class was placed there',
+		'Tuesday — nothing placed there',
+		'Wednesday — a class was placed there',
+		'Thursday — nothing placed there',
+		'Friday — a class was placed there',
+	], 'where something landed, or that nothing did');
 	assert.equal(line.getAttribute('aria-expanded'), 'true', 'the control reports its own open state');
 
 	await act(async () => {
@@ -296,7 +331,13 @@ test('R6 [client]: a report with nothing to say renders NOTHING — not an empty
 	assert.equal(q('preference-adherence-unreviewed'), null);
 });
 
-test('R6b: a failed read is silence, never a "0 of 0" claim', async () => {
+test('R6b: a failed read is silence for the scheduler, and IS announced to assistive tech', async () => {
+	/**
+	 * F2: this branch used to sit AFTER the two `return null` guards, which fire for
+	 * exactly the state a failure leaves behind — so it could never render, while its
+	 * comment claimed it was how a failure reached the page. It now returns before
+	 * them, and this row is what proves the announcement is reachable at all.
+	 */
 	calls.length = 0;
 	answer = { fail: true };
 	renderLine();
@@ -304,6 +345,63 @@ test('R6b: a failed read is silence, never a "0 of 0" claim', async () => {
 
 	assert.equal(q('preference-adherence-line'), null, 'no line is claimed from a failed read');
 	assert.equal(host.textContent?.includes('0 of 0'), false, 'a failed read never prints a zero figure');
+	const status = host.querySelector('[role="status"]');
+	assert.ok(status, 'the failure IS announced');
+	assert.match(status?.textContent ?? '', /could not be read/);
+	assert.match(status?.className ?? '', /sr-only/, 'and it costs the scheduler no visible pixels');
+});
+
+test('F3: the list names the school YEAR, and says so when the picker is on all terms', async () => {
+	calls.length = 0;
+	answer = { data: MIXED };
+	renderLine({ schoolYearLabel: '2026-2027' });
+	await settle();
+	await act(async () => { (q('preference-adherence-line') as HTMLElement).click(); });
+	await settle();
+
+	const scoped = qd('preference-adherence-scope');
+	assert.ok(scoped, 'the list states its scope');
+	assert.equal(
+		scoped?.textContent?.trim(),
+		'2026-2027 · Term 1',
+		'a term number alone would not say WHICH year’s term 1',
+	);
+	assert.doesNotMatch(scoped?.textContent ?? '', /all terms/, 'with a specific term selected, nothing claims otherwise');
+
+	// With the picker on "all terms" the report is the ACTIVE term's, and says so.
+	renderLine({ schoolYearLabel: '2026-2027', termIndex: 'active' });
+	await settle();
+	await act(async () => { (q('preference-adherence-line') as HTMLElement).click(); });
+	await settle();
+	assert.equal(
+		xd()?.textContent?.trim(),
+		'2026-2027 · Term 1 (the active term — the picker is on all terms)',
+		'an unqualified "Term 1" while the picker reads all terms would be a guess the scheduler cannot check',
+	);
+});
+
+test('F3b: with no year label available the list still names the year, by its real id', async () => {
+	calls.length = 0;
+	answer = { data: MIXED };
+	renderLine();
+	await settle();
+	await act(async () => { (q('preference-adherence-line') as HTMLElement).click(); });
+	await settle();
+	assert.equal(
+		xd()?.textContent?.trim(),
+		'School year 7 · Term 1',
+		'the body carries no year LABEL, so the id is named rather than a prettier guess invented',
+	);
+});
+
+test('the per-day row answers one question, prints no ratio, and does not branch on kind', () => {
+	assert.equal(preferenceDayLine({ day: 'Monday', met: true, classCount: 1 }), 'Monday — a class was placed there');
+	assert.equal(preferenceDayLine({ day: 'Tuesday', met: false, classCount: 0 }), 'Tuesday — nothing placed there');
+	// The SAME neutral fact reads identically for an unavailable window: the kept /
+	// violated polarity lives on the line above, applied once on the server.
+	assert.equal(preferenceDayLine({ day: 'Friday', met: false, classCount: 0 }), 'Friday — nothing placed there');
+	assert.equal(preferenceDayLine({ day: 'Friday', met: true, classCount: 1 }), 'Friday — a class was placed there');
+	assert.doesNotMatch(preferenceDayLine({ day: 'Monday', met: true, classCount: 3 }), /\d+ of \d+/);
 });
 
 test('R6c: no run on screen means no request at all', async () => {
@@ -349,20 +447,40 @@ test('a single unreviewed teacher gets a grammatical sentence, not the plural wi
 	assert.equal(preferenceUnreviewedNotice(0), null, 'no unreviewed teacher means no notice at all');
 });
 
-test('a fully-met preferred group reads as an acknowledgement; a partial one names the numbers', () => {
+test('a fully-met preferred line reads as an acknowledgement; a partial one names the numbers', () => {
 	assert.equal(
-		preferenceGroupLine({ kind: 'PREFERRED', label: 'Prefers Tuesday morning', slotCount: 2, kept: true, metCount: 2 }),
-		'Prefers Tuesday morning — all 2 times met',
+		preferenceLine({ kind: 'PREFERRED', label: 'Prefers mornings', totalCount: 5, metCount: 5, slotCount: 80, kept: true, days: [] }),
+		'Prefers mornings — all 5 times met',
 	);
 	assert.equal(
-		preferenceGroupLine({ kind: 'PREFERRED', label: 'Prefers Tuesday morning', slotCount: 1, kept: true, metCount: 1 }),
-		'Prefers Tuesday morning — all 1 time met',
+		preferenceLine({ kind: 'PREFERRED', label: 'Prefers Friday morning', totalCount: 1, metCount: 1, slotCount: 16, kept: true, days: [] }),
+		'Prefers Friday morning — all 1 time met',
 		'singular is singular',
 	);
 	assert.equal(
-		preferenceGroupLine({ kind: 'UNAVAILABLE', label: 'Unavailable Monday morning', slotCount: 1, kept: false, metCount: 0 }),
-		'Unavailable Monday morning — not kept',
+		preferenceLine({ kind: 'PREFERRED', label: 'Prefers mornings', totalCount: 5, metCount: 3, slotCount: 80, kept: false, days: [] }),
+		'Prefers mornings — 3 of 5',
+		'the packet’s literal shape, and the denominator is DAY-WINDOWS, not the 80 stored rows',
 	);
+	assert.equal(
+		preferenceLine({ kind: 'UNAVAILABLE', label: 'Unavailable Friday afternoon', totalCount: 1, metCount: 1, slotCount: 16, kept: true, days: [] }),
+		'Unavailable Friday afternoon — kept',
+	);
+	assert.equal(
+		preferenceLine({ kind: 'UNAVAILABLE', label: 'Unavailable afternoons', totalCount: 3, metCount: 1, slotCount: 48, kept: false, days: [] }),
+		'Unavailable afternoons — 1 of 3',
+		'a partly-violated unavailable line is counted, not softened away',
+	);
+});
+
+test('the drill fixture that F1 got wrong reads 3 of 5, never more than 5 of 5', () => {
+	// The exact totals the drill produced before the fix: five painted weekday
+	// mornings, a class in three of them. Before F1 the numerator counted 15-minute
+	// rows and printed "20 of 5".
+	const line = preferenceAdherenceLine({ unavailableSlots: 0, unavailableKept: 0, preferredSlots: 5, preferredMet: 3 });
+	assert.equal(line, 'Teacher preferences: 3 of 5 preferred times met');
+	const { preferredSlots, preferredMet } = { preferredSlots: 5, preferredMet: 3 };
+	assert.ok(preferredMet <= preferredSlots, 'the numerator can never exceed the denominator');
 });
 
 // ─── Anchor, and what it must not do to the header ───
@@ -389,15 +507,22 @@ test('the feature adds no shared-primitive variant and no page-local restyle of 
 	assert.doesNotMatch(component, /<button|<details|<select|title=/, 'no raw element escapes the primitives');
 	assert.doesNotMatch(component, /text-\[\d+px\]/, 'no arbitrary font size is introduced');
 
-	// The @/ui primitives themselves are untouched by this feature.
-	const before = execFileSyncSafe('git', ['diff', '--name-only', 'df5c249c', '--', 'src/ui/']);
-	assert.equal(before, '', 'no shared primitive was modified, so there is no local restyle to leak');
-});
-
-function execFileSyncSafe(command: string, args: string[]): string {
-	try {
-		return execFileSync(command, args, { cwd: clientRoot, encoding: 'utf8' }).trim();
-	} catch {
-		return '';
+	// F4: THIS ROW USED TO BE VACUOUS. It shelled out to git through a helper that
+	// swallowed every failure and returned '', so on a machine where git was missing,
+	// unreadable, or pointed at a different worktree the assertion compared '' to ''
+	// and passed — a control that cannot fail (§16). It now decides on the BYTES of a
+	// primitive this feature actually depends on, read with `readFileSync`, so there
+	// is no subprocess, no cwd assumption and no silent fallback.
+	for (const primitive of ['src/ui/button.tsx', 'src/ui/popover.tsx']) {
+		const bytes = readFileSync(resolve(clientRoot, primitive), 'utf8');
+		assert.ok(bytes.length > 0, `${primitive} must be readable — a silent empty read is how this row used to pass for free`);
 	}
-}
+	const git = spawnSync('git', ['diff', '--name-only', 'df5c249c', '--', 'src/ui/'], { cwd: clientRoot, encoding: 'utf8' });
+	assert.equal(
+		git.error?.message ?? null,
+		null,
+		`the git cross-check must actually run, not quietly fail: ${git.error?.message ?? ''}`,
+	);
+	assert.equal(git.status, 0, `git must exit 0, got ${git.status}: ${git.stderr}`);
+	assert.equal(git.stdout.trim(), '', 'no shared primitive was modified, so there is no local restyle to leak');
+});

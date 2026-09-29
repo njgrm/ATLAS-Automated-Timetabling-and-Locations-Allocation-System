@@ -705,7 +705,11 @@ export function CenterWorkspacePaneSurface(props: CenterWorkspacePaneSurfaceProp
 								{paneView !== 'pre-generation' ? (
 									<PreferenceAdherenceLine
 										runId={draft?.runId ?? null}
-										schoolId={defaultSchoolId ?? null}
+										/* F6: passed plainly. `defaultSchoolId` is `number` here,
+										 * so `?? null` was dead code AND the `??` token is the
+										 * exact shape in the open "parseSchoolId defaults to school 1"
+										 * defect backlog — a later reader could copy it. */
+										schoolId={defaultSchoolId}
 										schoolYearId={schoolYearId}
 										termIndex={typeof termFilter === 'number' ? termFilter : 'active'}
 									/>

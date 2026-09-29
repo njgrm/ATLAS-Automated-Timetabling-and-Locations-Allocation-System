@@ -265,12 +265,17 @@ test('R8a: a visible run returns 200 with a computed report, and the two unavail
 		['Dela Cruz, Ana'],
 	);
 	assert.deepEqual(
-		result.teachers[0].groups.map((group: any) => group.label),
+		result.teachers[0].preferences.map((preference: any) => preference.label),
 		['Unavailable Monday morning', 'Unavailable Friday afternoon', 'Prefers Tuesday morning'],
 		'labels read in week order and never carry a raw enum',
 	);
+	// The Friday 13:00-15:00 block is stored as TWO fifteen-minute-spanning rows that
+	// touch, so it is ONE window — and the one count on each side of every ratio.
+	assert.equal(result.teachers[0].preferences[1].totalCount, 1);
+	assert.equal(result.teachers[0].preferences[1].slotCount, 2, 'the raw stored rows are still reported');
+	assert.equal(result.totals.unavailableKept <= result.totals.unavailableSlots, true, 'a ratio is a fraction');
 	// A Term-2 class must not have been counted against the Term-1 report.
-	assert.equal(result.teachers[0].groups[2].metCount, 1);
+	assert.equal(result.teachers[0].preferences[2].metCount, 1);
 
 	assert.ok(recorder.calls.length > 0, 'the real data-access path was exercised');
 });

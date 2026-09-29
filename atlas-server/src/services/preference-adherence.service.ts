@@ -21,10 +21,26 @@
  * granularity (`AvailabilityPicker.tsx` `STEP_MINUTES`), so one thing a scheduler
  * asked for — "not Friday afternoon" — is stored as ~24 slot rows. Counting raw
  * rows would render "16 of 16 unavailable times kept", which is noise, not an
- * answer. Contiguous/overlapping slots on one day therefore collapse into ONE
- * `PreferenceAdherenceGroup`, and the totals count GROUPS: one number per thing
- * the scheduler actually asked for. `slotCount` still reports the underlying rows
- * so nothing is hidden.
+ * answer. Contiguous/overlapping slots on one day therefore collapse into one
+ * window, and ONE WINDOW IS THE ONLY UNIT ANYWHERE.
+ *
+ * ── ONE UNIT, OR NO RATIO ──────────────────────────────────────────────────────
+ * The first cut got this half right and the other half wrong: `preferredSlots`
+ * counted collapsed windows while `preferredMet` counted 15-minute slots, so the
+ * drill's own fixture — preferred mornings across five weekdays, which the picker
+ * stores as 80 rows in 5 windows — reported `preferredSlots: 5,
+ * preferredMet: 20` and printed "20 of 5 preferred times met". A ratio whose
+ * numerator exceeds its denominator is a falsehood on the exact line the scheduler
+ * is asked to trust, so the rule is now absolute and mechanical:
+ *
+ *   A REPORTED RATIO'S NUMERATOR CAN NEVER EXCEED ITS DENOMINATOR, AND BOTH
+ *   SIDES OF A RATIO ARE COUNTS OF DAY-WINDOWS.
+ *
+ * `slotCount` still reports the underlying stored rows for anyone who needs the raw
+ * number, and it is deliberately absent from every rendered ratio. The unit-test
+ * that guards this is `a2-c17-preference-adherence-ratio-invariant`, which walks a
+ * set of computed reports and fails on any ratio above 1 — so the next person to
+ * split the units again does not need a human to read two lines side by side.
  *
  * PURE. No database, no clock, no environment. Every unit row drives
  * `computePreferenceAdherence` directly.
@@ -38,31 +54,45 @@ import { loadVerifiedOrderedTermContract } from './academic-term.service.js';
 
 export type PreferenceAdherenceKind = 'UNAVAILABLE' | 'PREFERRED';
 
-export type PreferenceAdherenceGroup = {
+export type PreferenceAdherenceDay = {
+	/** The day in plain words, e.g. `Friday`. Never a raw enum. */
+	day: string;
+	/** True when at least one of this teacher's classes fell in that day's window. */
+	met: boolean;
+	/** How many of this teacher's classes fell in that day's window. */
+	classCount: number;
+};
+
+export type PreferenceAdherencePreference = {
 	kind: PreferenceAdherenceKind;
-	/** Human phrase in the app's own day/period vocabulary. Never a raw enum. */
+	/**
+	 * The ROLLED-UP phrase, in the app's own day/period vocabulary: one day reads
+	 * `Unavailable Friday afternoon`, and the same window across several weekdays
+	 * reads `Prefers mornings`. A teacher who preferred five weekday mornings gets
+	 * ONE line, not five lines of equal weight.
+	 */
 	label: string;
-	/** Slots collapsed into this phrase. */
+	/** Day-windows this line covers. The denominator of the packet's "N of M". */
+	totalCount: number;
+	/** How many of those day-windows were honoured. NEVER greater than `totalCount`. */
+	metCount: number;
+	/** The underlying stored 15-minute rows, for anyone who needs the raw number. NEVER in a ratio. */
 	slotCount: number;
 	/**
-	 * `UNAVAILABLE`: true when no placed class of that teacher overlaps ANY of
-	 * this group's slots. For a `PREFERRED` group this is `metCount ===
-	 * slotCount` — the same statement read as "fully honoured" — so the field is
-	 * never a guess about a value the other field already decides.
+	 * `UNAVAILABLE`: true when no placed class of that teacher overlaps ANY slot of
+	 * ANY of its day-windows. For `PREFERRED` this is `metCount === totalCount` —
+	 * the same statement read as "fully honoured" — so the field is never a guess
+	 * about a value the other fields already decide.
 	 */
 	kept: boolean;
-	/**
-	 * `PREFERRED`: how many of the group's slots received at least one of that
-	 * teacher's classes. For a kept `UNAVAILABLE` group this is necessarily 0
-	 * (that is what "kept" means), so it is a true value, not a placeholder.
-	 */
-	metCount: number;
+	/** One short row per day. Carries NO ratio, so it cannot disagree with the line above it. */
+	days: PreferenceAdherenceDay[];
 };
 
 export type PreferenceAdherenceTeacher = {
 	facultyId: number;
 	name: string;
-	groups: PreferenceAdherenceGroup[];
+	preferences: PreferenceAdherencePreference[];
 };
 
 export type PreferenceAdherenceReport = {
@@ -163,7 +193,7 @@ function dayPartWord(start: number, end: number): string {
 
 type Slot = { day: string; start: number; end: number; startTime: string; endTime: string };
 
-/** Merge overlapping or touching slots on one day into contiguous blocks. */
+/** Merge overlapping or touching slots on one day into contiguous windows. */
 function collapseSlots(slots: Slot[]): Slot[] {
 	const sorted = [...slots].sort((left, right) => left.start - right.start || left.end - right.end);
 	const merged: Slot[] = [];
@@ -181,32 +211,70 @@ function collapseSlots(slots: Slot[]): Slot[] {
 	return merged;
 }
 
-type Block = { day: string; start: number; end: number; startTime: string; endTime: string; slotCount: number };
+/**
+ * ONE day-window. This is the unit every count in this module is denominated in:
+ * one painted block, on one day. `slotCount` is the raw stored-row count and is
+ * reported for reference only — it never appears in a ratio.
+ */
+type Window = {
+	day: string;
+	start: number;
+	end: number;
+	startTime: string;
+	endTime: string;
+	slotCount: number;
+	/** The part-of-day word, or '' for a window the day-part templates do not cover. */
+	part: string;
+};
 
-function blocksOf(slots: Slot[]): Block[] {
+function windowsOf(slots: Slot[]): Window[] {
 	const byDay = new Map<string, Slot[]>();
 	for (const slot of slots) {
 		const list = byDay.get(slot.day) ?? [];
 		list.push(slot);
 		byDay.set(slot.day, list);
 	}
-	const blocks: Block[] = [];
+	const windows: Window[] = [];
 	for (const [day, daySlots] of byDay) {
 		for (const merged of collapseSlots(daySlots)) {
-			blocks.push({ ...merged, slotCount: daySlots.filter((slot) => slot.start >= merged.start && slot.end <= merged.end).length || 1 });
+			const slotCount = daySlots.filter((slot) => slot.start >= merged.start && slot.end <= merged.end).length || 1;
+			windows.push({ ...merged, slotCount, part: dayPartWord(merged.start, merged.end) });
 		}
 	}
-	blocks.sort((left, right) => DAY_ORDER.indexOf(left.day as (typeof DAY_ORDER)[number]) - DAY_ORDER.indexOf(right.day as (typeof DAY_ORDER)[number]) || left.start - right.start);
-	return blocks;
+	windows.sort((left, right) => DAY_ORDER.indexOf(left.day as (typeof DAY_ORDER)[number]) - DAY_ORDER.indexOf(right.day as (typeof DAY_ORDER)[number]) || left.start - right.start);
+	return windows;
 }
 
-function groupLabel(kind: PreferenceAdherenceKind, block: Block): string {
-	const day = dayWord(block.day);
-	const part = dayPartWord(block.start, block.end);
-	const window = part
-		? `${day} ${part}`
-		: `${day} ${formatClock(block.startTime)} to ${formatClock(block.endTime)}`;
-	return kind === 'UNAVAILABLE' ? `Unavailable ${window}` : `Prefers ${window}`;
+/**
+ * The window's own phrase, e.g. "Friday afternoon" or "Wednesday 11:15 AM to 1:00 PM".
+ * This is what the per-day detail rows show.
+ */
+function windowPhrase(window: Window): string {
+	const day = dayWord(window.day);
+	return window.part
+		? `${day} ${window.part}`
+		: `${day} ${formatClock(window.startTime)} to ${formatClock(window.endTime)}`;
+}
+
+/**
+ * The ROLLED-UP label for the windows of one part, in the packet's own words:
+ *
+ *   - a window on its own reads `Unavailable Friday afternoon` (the packet's shape),
+ *   - the same window across weekdays reads `Prefers mornings` (the packet's other
+ *     shape), because naming all five days would be longer and say less.
+ *
+ * A window the day-part templates do not cover keeps its clock range in both
+ * cases, so an unusual window is never dressed up as a named part of day.
+ */
+function rolledUpLabel(kind: PreferenceAdherenceKind, part: string, windows: Window[]): string {
+	const lead = kind === 'UNAVAILABLE' ? 'Unavailable' : 'Prefers';
+	if (part === '' || windows.length === 1) {
+		return `${lead} ${windowPhrase(windows[0])}`;
+	}
+	// "mornings", "afternoons" — the packet's plural. "all day" is already plural in
+	// the only sense that matters here and reads correctly unchanged.
+	const plural = part === 'morning' ? 'mornings' : part === 'afternoon' ? 'afternoons' : part;
+	return `${lead} ${plural}`;
 }
 
 // ─── The one derivation ───
@@ -246,10 +314,10 @@ export function computePreferenceAdherence(input: PreferenceAdherenceInput): Pre
 
 	const teachers: PreferenceAdherenceTeacher[] = [];
 	const notReviewedFacultyIds = new Set<number>();
-	let reviewedSlotCount = 0;
-	let unavailableSlots = 0;
+	let reviewedWindowCount = 0;
+	let unavailableWindows = 0;
 	let unavailableKept = 0;
-	let preferredSlots = 0;
+	let preferredWindows = 0;
 	let preferredMet = 0;
 
 	const reviewedRows = input.availability.filter((row) => inScope(row) && row.status === 'REVIEWED')
@@ -257,7 +325,7 @@ export function computePreferenceAdherence(input: PreferenceAdherenceInput): Pre
 
 	for (const row of reviewedRows) {
 		const entries = entriesByFaculty.get(row.facultyId) ?? [];
-		const groups: PreferenceAdherenceGroup[] = [];
+		const preferences: PreferenceAdherencePreference[] = [];
 
 		for (const kind of ['UNAVAILABLE', 'PREFERRED'] as const) {
 			const slots: Slot[] = [];
@@ -269,36 +337,76 @@ export function computePreferenceAdherence(input: PreferenceAdherenceInput): Pre
 				slots.push({ day: slot.day, start, end, startTime: slot.startTime, endTime: slot.endTime });
 			}
 			if (slots.length === 0) continue;
-			reviewedSlotCount += slots.length;
 
-			for (const block of blocksOf(slots)) {
-				const blockSlots = slots.filter((slot) => slot.day === block.day && slot.start >= block.start && slot.end <= block.end);
-				const overlapping = entries.filter((entry) => blockSlots.some((slot) => intervalsOverlap(
+			/**
+			 * Per day-window, and ONLY per day-window. `met` is a NEUTRAL fact about
+			 * one window — "a class of this teacher landed here" — and never a count
+			 * of the 15-minute rows inside it. That is the whole of F1: the first cut
+			 * incremented the denominator once per window and the numerator once per
+			 * met row, so five painted mornings read "20 of 5".
+			 *
+			 * `met` is deliberately NOT the same as "kept". For PREFERRED, a class
+			 * landing in the window is the preference being met. For UNAVAILABLE it
+			 * is the preference being VIOLATED, so the two readings are opposite and
+			 * the polarity is applied once, below, where the kind is known.
+			 */
+			const windows = windowsOf(slots).map((window) => {
+				const windowSlots = slots.filter((slot) => slot.day === window.day && slot.start >= window.start && slot.end <= window.end);
+				const classCount = entries.filter((entry) => windowSlots.some((slot) => intervalsOverlap(
 					{ day: slot.day, startTime: slot.startTime, endTime: slot.endTime },
 					{ day: entry.day, startTime: entry.startTime, endTime: entry.endTime },
-				)));
+				))).length;
+				return {
+					window,
+					met: classCount > 0,
+					classCount,
+				};
+			});
+			if (windows.length === 0) continue;
+			reviewedWindowCount += windows.length;
+
+			// ONE line per part of day, carrying the count in the packet's shape, with
+			// the per-day detail underneath. A teacher who preferred five weekday
+			// mornings gets one line, not five.
+			const byPart = new Map<string, typeof windows>();
+			for (const entry of windows) {
+				const list = byPart.get(entry.window.part) ?? [];
+				list.push(entry);
+				byPart.set(entry.window.part, list);
+			}
+
+			for (const [part, group] of byPart) {
+				// Both sides of this ratio count DAY-WINDOWS. That is the invariant.
+				const totalCount = group.length;
+				// THE POLARITY, IN ONE PLACE. PREFERRED is honoured when a class landed
+				// there; UNAVAILABLE is kept when NOTHING landed there. Reading the
+				// same boolean both ways is how a "kept" count turned into a "violated"
+				// count, so the inversion is explicit rather than implied.
+				const honouredCount = kind === 'UNAVAILABLE'
+					? group.filter((entry) => !entry.met).length
+					: group.filter((entry) => entry.met).length;
 
 				if (kind === 'UNAVAILABLE') {
-					const kept = overlapping.length === 0;
-					unavailableSlots += 1;
-					if (kept) unavailableKept += 1;
-					groups.push({ kind, label: groupLabel(kind, block), slotCount: blockSlots.length, kept, metCount: 0 });
+					unavailableWindows += totalCount;
+					unavailableKept += honouredCount;
 				} else {
-					const met = new Set<number>();
-					blockSlots.forEach((slot, index) => {
-						if (entries.some((entry) => intervalsOverlap(
-							{ day: slot.day, startTime: slot.startTime, endTime: slot.endTime },
-							{ day: entry.day, startTime: entry.startTime, endTime: entry.endTime },
-						))) met.add(index);
-					});
-					preferredSlots += 1;
-					preferredMet += met.size;
-					groups.push({ kind, label: groupLabel(kind, block), slotCount: blockSlots.length, kept: met.size === blockSlots.length, metCount: met.size });
+					preferredWindows += totalCount;
+					preferredMet += honouredCount;
 				}
+
+				preferences.push({
+					kind,
+					label: rolledUpLabel(kind, part, group.map((entry) => entry.window)),
+					totalCount,
+					metCount: honouredCount,
+					slotCount: group.reduce((sum, entry) => sum + entry.window.slotCount, 0),
+					kept: honouredCount === totalCount,
+					days: group.map((entry) => ({ day: dayWord(entry.window.day), met: entry.met, classCount: entry.classCount })),
+				});
 			}
 		}
 
-		if (groups.length > 0) teachers.push({ facultyId: row.facultyId, name: nameOf(row.facultyId), groups });
+		if (preferences.length > 0) teachers.push({ facultyId: row.facultyId, name: nameOf(row.facultyId), preferences });
 	}
 
 	/**
@@ -330,11 +438,22 @@ export function computePreferenceAdherence(input: PreferenceAdherenceInput): Pre
 		runId: input.runId,
 		schoolYearId: input.schoolYearId,
 		termIndex: input.termIndex,
-		totals: { unavailableSlots, unavailableKept, preferredSlots, preferredMet },
+		/**
+		 * Every field is a count of DAY-WINDOWS. The names are the packet's; the
+		 * unit is one thing, on both sides of every ratio. `unavailableKept` and
+		 * `preferredMet` are each built by counting windows, never by counting the
+		 * 15-minute rows inside them, which is what made "20 of 5" possible.
+		 */
+		totals: {
+			unavailableSlots: unavailableWindows,
+			unavailableKept,
+			preferredSlots: preferredWindows,
+			preferredMet,
+		},
 		teachers,
 		notReviewedTeacherCount: notReviewedTeacherNames.length,
 		notReviewedTeacherNames,
-		hasAny: reviewedSlotCount > 0 || notReviewedTeacherNames.length > 0,
+		hasAny: reviewedWindowCount > 0 || notReviewedTeacherNames.length > 0,
 	};
 }
 
