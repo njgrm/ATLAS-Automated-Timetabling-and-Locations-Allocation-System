@@ -164,7 +164,15 @@ export function backgroundWorld(
 		bottom = Math.max(bottom, finite(building?.y) + positive(building?.height));
 	}
 
-	return { width: Math.ceil(right), height: Math.ceil(bottom) };
+	// NOT rounded to whole pixels, and that is deliberate. Rounding the extent up
+	// by even one pixel breaks the fixed point of "fill the area": a photo whose
+	// drawn width is 824.83px would grow a 825px world, refitting into which
+	// produces a 826px photo, which grows a 827px world — a one-pixel creep on
+	// every render. Keeping the extent exact makes growing-and-refilling exactly
+	// idempotent, which is what lets the editor settle on a framing instead of
+	// drifting. Konva paints a fractional stage without complaint, and the view
+	// transform is already fractional.
+	return { width: Math.max(0, right), height: Math.max(0, bottom) };
 }
 
 /* ── the placements ──────────────────────────────────────────────────────── */
@@ -199,16 +207,27 @@ export function defaultPlacement(
 }
 
 /**
- * "Fill the area" — the same aspect, at the factor that COVERS the world, then
- * centred.
+ * "Fill the area" — the same aspect, at the factor that COVERS the world.
  *
- * `max` of the two ratios, so one axis overflows by construction. That overflow
- * is not a defect: {@link backgroundWorld} grows the world to hold it and the
- * view fits the result, so the scheduler sees the whole photo either way. Filling
- * is for a scheduler who wants no blank margin around the plan, and it is never
- * the default.
+ * `max` of the two ratios, so one axis overflows by construction. That overflow is
+ * not a defect: {@link backgroundWorld} grows the world to hold it and the view
+ * fits the result, so the scheduler sees the whole photo either way. Filling is
+ * for a scheduler who wants no blank margin around the plan, and it is never the
+ * default.
+ *
+ * THE OVERFLOWING AXIS IS PINNED TO THE ORIGIN, and this is load-bearing rather
+ * than cosmetic. Centring a photo that is wider than the world puts it at
+ * `(world.width - width) / 2`, which is NEGATIVE, and the world then grows to
+ * `world.width / 2 + width`; refitting into that larger world centres it further
+ * left and grows the world again — an unbounded loop that would have shipped as a
+ * canvas creeping larger on every render. Pinning the overflowing axis at 0 makes
+ * growing-and-refilling a FIXED POINT: the world becomes exactly the photo's
+ * extent, the next pass produces the same placement, and the render settles. The
+ * contained axis is still centred, so a 3:1 photo filling a 726x520 world is
+ * vertically centred and flush to the left and right edges.
  */
 export function fillPlacement(
+
 	image: CampusMapImageSize | null | undefined,
 	world: CampusMapWorld | null | undefined,
 ): CampusMapPlacement {
@@ -217,11 +236,16 @@ export function fillPlacement(
 	const box = safeWorld(world);
 	const scale = Math.max(box.width / imageWidth, box.height / imageHeight);
 	const width = imageWidth * (Number.isFinite(scale) && scale > 0 ? scale : 0);
+	const height = width / (imageWidth / imageHeight);
 	return {
 		imageWidth,
 		imageHeight,
-		x: (box.width - width) / 2,
-		y: (box.height - width / (imageWidth / imageHeight)) / 2,
+		// `Math.max(0, …)` is a no-op while the image is contained (the centred
+		// value is positive, so max returns it unchanged); it only bites on the axis
+		// that overflows, where it pins the photo to the origin instead of sliding
+		// it half out of the world.
+		x: Math.max(0, (box.width - width) / 2),
+		y: Math.max(0, (box.height - height) / 2),
 		width,
 		locked: true,
 		mode: 'fill',
