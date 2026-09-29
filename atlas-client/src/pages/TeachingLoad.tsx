@@ -31,22 +31,21 @@ import { TeachingLoadModals } from '@/components/faculty-assignments/TeachingLoa
 import { TeachingLoadInspectorTriggers } from '@/components/faculty-assignments/TeachingLoadInspectorTriggers';
 import { TeachingLoadSummarySurface } from '@/components/faculty-assignments/TeachingLoadSummarySurface';
 import { TeachingLoadTruthPanel } from '@/components/faculty-assignments/TeachingLoadTruthPanel';
-import { buildTeachingLoadTruthModel } from '@/lib/teaching-load-authority-truth';
 import {
 	buildCompletedSectionIds,
-	buildCoverageHeadline,
 	buildTeachingLoadWorkspaceState,
 	countTeachersAboveWeeklyMax,
-	previewLoadHoursFor,
-	reviewModalCopy,
-	sectionHoverDeltaMinutesFor,
 } from '@/components/faculty-assignments/teachingLoadWorkspaceMetrics';
+// A6-TL-DEMAND-SOURCE-C01 correction: the page's unpinned pure view-model and
+// its sr-only workflow steps, extracted so the page keeps headroom under the
+// AGENTS.md §8 cap after merging `origin/main`.
+import { useTeachingLoadWorkspaceModel } from '@/components/faculty-assignments/useTeachingLoadWorkspaceModel';
+import { TeachingLoadWorkflowSteps } from '@/components/faculty-assignments/TeachingLoadWorkflowSteps';
 import { useTeachingLoadRepairQueue } from '@/hooks/useTeachingLoadRepairQueue';
 import { useTeachingLoadRouteIntent } from '@/hooks/useTeachingLoadRouteIntent';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
 import type {
 	AutoFillSummaryResult, 
-	Subject,
 	SectionAssignedClassesResult,
 } from '@/types';
 
@@ -412,38 +411,23 @@ export default function TeachingLoad() {
 		toast.info('All Teaching Load draft changes discarded.');
 	}, [data]);
 
-	// A6: the five derivations live in `teachingLoadWorkspaceMetrics.ts`, which
-	// records the extraction; the page still decides WHEN to recompute.
-	const resolveSectionHoverDeltaMinutes = useCallback((subject: Subject, sectionId: number) => {
-		return sectionHoverDeltaMinutesFor(
-			subject,
-			sectionId,
-			data.selected,
-			data.selectedId,
-			ui.policyReady,
-			ui.workloadPolicy,
-			data.effectiveAssignmentsByFaculty,
-			data.subjects,
-			data.sectionMap,
-		);
-	}, [data, ui.policyReady, ui.workloadPolicy]);
-
-	const previewLoadHours = useMemo(() => {
-		return previewLoadHoursFor(ui.loadProfile, ui.hoveredIncomingMinutes);
-	}, [ui.loadProfile, ui.hoveredIncomingMinutes]);
-
-	// Canonical truth surface, derived from the server contracts. A6 c5: declared
-	// ABOVE the shortage hook, which takes it as a parameter — one derivation, two
-	// consumers, so the truth panel and the header cannot disagree about who is a
-	// to-be-hired record.
-	const placeholderFacultyIds = useMemo(
-		() => new Set(data.faculty.filter((member) => member.isPlaceholder).map((member) => member.id)),
-		[data.faculty],
-	);
-
-	const coverageHeadline = useMemo(() => {
-		return buildCoverageHeadline(data.coverageTotals);
-	}, [data.coverageTotals]);
+	// A6-TL-DEMAND-SOURCE-C01 correction: `resolveSectionHoverDeltaMinutes`,
+	// `previewLoadHours`, `placeholderFacultyIds`, `coverageHeadline`,
+	// `truthModel`, `truthUnresolvedReasons`, and the review-modal copy moved
+	// VERBATIM into `useTeachingLoadWorkspaceModel` — the page's unpinned
+	// view-model derivations. The page still decides WHEN to recompute; the hook
+	// keeps each `useMemo` dependency list, and `placeholderFacultyIds` is still
+	// resolved here, before the shortage hook below consumes it.
+	const {
+		resolveSectionHoverDeltaMinutes,
+		previewLoadHours,
+		placeholderFacultyIds,
+		coverageHeadline,
+		truthModel,
+		truthUnresolvedReasons,
+		reviewModalTitle,
+		reviewModalDescription,
+	} = useTeachingLoadWorkspaceModel({ data, ui });
 
 	// A6 c5 §1/§2/§3 — the shortage, its two corrected figures and the cover
 	// dialog's state, from ONE hook. It sits ABOVE the repair queue, which needs
@@ -616,22 +600,11 @@ export default function TeachingLoad() {
 
 	const departmentOptions = ui.departmentFacetOptions;
 
-	const truthModel = useMemo(
-		() => buildTeachingLoadTruthModel({
-			diagnostics: data.authorityDiagnostics,
-			placeholderFacultyIds,
-			workloadPolicyStatus: data.workloadPolicyStatus,
-		}),
-		[data.authorityDiagnostics, data.workloadPolicyStatus, placeholderFacultyIds],
-	);
-	const truthUnresolvedReasons = useMemo(
-		() => (data.authorityDiagnostics?.unresolvedReasons ?? []).map((reason) => ({ code: reason.code, message: reason.message })),
-		[data.authorityDiagnostics],
-	);
-
 	// A6 C2: the ONE inspector node, now an extracted component so this page stays
 	// UNDER the AGENTS.md §8 1000-line ceiling. Shared by the mobile Sheet, the
 	// desktop review modal and the roster's read-only profile dialog.
+	// (`truthModel` / `truthUnresolvedReasons` now come from
+	// `useTeachingLoadWorkspaceModel`.)
 	const activeInspector = (
 		<TeachingLoadInspectorPanel
 			viewMode={ui.viewMode}
@@ -652,13 +625,9 @@ export default function TeachingLoad() {
 		/>
 	);
 
-	// A6: moved to `teachingLoadWorkspaceMetrics.ts` with the other derivations.
-	// Returned as a PAIR so the title and the description can never come from
-	// different branches — see that function's header.
-	const { title: reviewModalTitle, description: reviewModalDescription } = reviewModalCopy(
-		ui.viewMode,
-		data.selected,
-	);
+	// A6: `reviewModalCopy` moved to `teachingLoadWorkspaceMetrics.ts` and is now
+	// applied inside `useTeachingLoadWorkspaceModel`; the title/description pair
+	// still comes from one branch there.
 
 	/*
 	 * A3-C10-S3: the truth summary (42px), the "Next step" repair queue (58px) and
@@ -781,13 +750,7 @@ export default function TeachingLoad() {
 					// snapshot; null while live, so no unproven time is ever printed.
 					savedAtLabel={data.dataSource === 'live' ? null : data.sectionSummary?.fetchedAt ?? null}
 				/>
-					<p className="sr-only" aria-label="Teaching load workflow">
-						<span className="text-foreground">1. Choose a teacher or section</span>
-						<span aria-hidden="true" className="mx-2">→</span>
-						<span className="text-foreground">2. Review the load and coverage</span>
-						<span aria-hidden="true" className="mx-2">→</span>
-						<span className="text-foreground">3. Save your changes</span>
-					</p>
+					<TeachingLoadWorkflowSteps />
 				</div>
 
 				<div className="flex-1 flex min-h-0" data-testid="teaching-load-content-shell">
