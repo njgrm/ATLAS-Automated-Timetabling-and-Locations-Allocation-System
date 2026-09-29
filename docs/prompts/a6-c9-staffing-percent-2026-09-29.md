@@ -55,3 +55,8 @@ Train 9 gate row `R1`: `tl-operator-workspace-c05.test.ts` still asserts `savedO
 `SectionGridMode`, but A6 c7 `951bec35` reintroduced it as a live prop on purpose. Remove `savedOwnershipMap` from that
 dead-prop list in c9 (one line). Also: `TeachingLoad.tsx` is at 999/1000 lines — c9 must not grow it; extract the header
 into its own component.
+
+## Addendum 15:55 — from the train 9 staging walk
+"+4 more short subjects — Open the coverage detail for every class still open." switches the page to the Sections tab
+instead of opening a window. In c9 it must open the who-needs-a-teacher window (the staffing figure's window), as a
+labelled button.
