@@ -44,6 +44,7 @@ import {
 	type DerivedPerTermDemandLine,
 } from './derived-demand.service.js';
 import { normalizePersistedTermStructure } from './derived-demand.service.js';
+import { classifyGenerationBlockers } from './generation-blocker-groups.service.js';
 import type { SectionsByGrade } from './section-adapter.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { DEFAULT_CONSTRAINT_CONFIG, POLICY_DEFAULTS, computeEffectiveWeeklyTeachingMinutes, resolveMaxConsecutiveTeachingMinutesBeforeBreak, resolveWarningFamilyPolicy } from './scheduling-policy.service.js';
@@ -1280,6 +1281,12 @@ async function buildGenerationPreflightWithContext(
 	}
 
 	const sortedBlockers = sortPreflightBlockers(blockers);
+	// A8 DS-GEN — the trigger's refuse/allow decision is the SAME one readiness
+	// already makes: a coverage gap (or an advisory) is not a generation blocker.
+	// The rows stay COMPLETE in `blockers`; only the derived `ok` changes. This is
+	// the ONE advisory classification (`classifyGenerationBlockers`), so the gate
+	// can never drift from the panel's blocker count.
+	const classification = classifyGenerationBlockers(sortedBlockers);
 	const revisions = computePreflightRevisions({
 		derivedDemandRevision: derived?.revision ?? null,
 		termStructureRevision: derived ? derived.termStructure.semanticRevision : null,
@@ -1337,7 +1344,7 @@ async function buildGenerationPreflightWithContext(
 	assembly.revisions.sourceRevision = sha256(buildSourceRevisionPayload(assembly));
 
 	return {
-		ok: sortedBlockers.length === 0,
+		ok: classification.blocking.length === 0,
 		scope: { schoolId, schoolYearId },
 		assembly,
 		blockers: sortedBlockers,
