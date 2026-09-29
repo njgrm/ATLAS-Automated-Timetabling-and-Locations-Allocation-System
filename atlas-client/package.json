@@ -49,6 +49,7 @@
     "test:a9c5-tl-history": "tsx --test src/lib/__tests__/a9c5-tl-history-plain.test.ts",
     "test:a3-sections-map": "tsx --test src/components/sections/__tests__/a3-sections-map-layout.test.ts src/components/sections/__tests__/a3-sections-map-picker-occupant.test.tsx src/components/sections/__tests__/a3-sections-map-home-room-persist.test.tsx src/components/sections/__tests__/a3-room-picker-uniform-rows.test.tsx src/components/sections/__tests__/a3-c10-room-picker-anchor-width-names.test.tsx",
     "test:a3-c4-sections": "tsx --test src/components/sections/__tests__/a3-c4-home-room-truth.test.ts src/components/sections/__tests__/a3-c4-sections-surface.test.tsx",
+    "test:a9-c1-program-badges": "tsx --test src/components/sections/__tests__/a9-c1-program-badges.test.ts",
     "test:a3-c10-teacher-surface": "tsx --test src/components/faculty/__tests__/a3-c10-teacher-surface.test.tsx",
     "test:a6-teachers": "tsx --test src/components/faculty/__tests__/a6-teachers-header-profile.test.tsx",
     "test:a6-teaching-load": "tsx --test src/components/faculty-assignments/__tests__/a6-teaching-load-surface.test.tsx",

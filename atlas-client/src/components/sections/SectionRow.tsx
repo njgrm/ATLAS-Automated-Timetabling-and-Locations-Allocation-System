@@ -19,6 +19,7 @@ import { Link } from 'react-router-dom';
 import { SectionRoomPicker, type RoomOption } from './SectionRoomPicker';
 import { resolveHomeRoom } from './home-room-readiness';
 import { gradeCompact } from '@/lib/deped-glossary';
+import { PROGRAM_SCOPE_OPTIONS } from '@/lib/subject-constants';
 import type { ExternalSection } from '@/types';
 
 /* ─── Constants (matching Sections.tsx) ─── */
@@ -29,15 +30,61 @@ const GRADE_COLORS: Record<string, string> = {
 	'10': 'bg-blue-100/80 text-blue-700',
 };
 
-const PROGRAM_BADGE: Record<string, string> = {
-	STE:   'bg-emerald-50 text-emerald-700 border-emerald-200',
-	SPA:   'bg-purple-50 text-purple-700 border-purple-200',
-	SPS:   'bg-orange-50 text-orange-700 border-orange-200',
-	SPJ:   'bg-sky-50 text-sky-700 border-sky-200',
-	SPFL:  'bg-indigo-50 text-indigo-700 border-indigo-200',
-	SPTVE: 'bg-amber-50 text-amber-700 border-amber-200',
-	OTHER: 'bg-gray-50 text-gray-600 border-gray-200',
+/**
+ * A9 c1 (2026-09-30) — the program badge is a SOLID dark fill with white text, one hue
+ * per program, and a regular section now shows a `BEC` badge instead of a second grey
+ * caption. The operator's `section.docx` item 6 asked for exactly this: the pale
+ * `bg-emerald-50 text-emerald-700` chips read as a second grade badge beside `GR7`.
+ *
+ * The class VALUES are exported so a control reads the same map the row renders and holds
+ * every entry to the 4.5:1 white-on-fill floor from the Tailwind palette that is actually
+ * installed. The seven-hundred step is deliberate: the packet's own illustrative
+ * `bg-emerald-600` measures ~3.8:1 against white, below the 4.5:1 floor the same packet
+ * sets, so every fill is one step darker. `REGULAR` is the persisted value and does not
+ * change; only its operator-facing label reads `BEC`, read from the locked
+ * `PROGRAM_SCOPE_OPTIONS` in `@/lib/subject-constants`.
+ */
+export const PROGRAM_BADGE: Record<string, string> = {
+	REGULAR: 'bg-slate-700 text-white border-slate-800',
+	STE:   'bg-emerald-700 text-white border-emerald-800',
+	SPA:   'bg-purple-700 text-white border-purple-800',
+	SPS:   'bg-orange-700 text-white border-orange-800',
+	SPJ:   'bg-sky-700 text-white border-sky-800',
+	SPFL:  'bg-indigo-700 text-white border-indigo-800',
+	SPTVE: 'bg-amber-700 text-white border-amber-800',
+	OTHER: 'bg-slate-700 text-white border-slate-800',
 };
+
+/** The one fallback, so an unrecognised code is a dark badge rather than an unstyled one. */
+export const PROGRAM_BADGE_FALLBACK = PROGRAM_BADGE.OTHER;
+
+/** The class string for a program code, falling back to `OTHER` for an unknown one. */
+export function programBadgeClass(code: string | null | undefined): string {
+	if (!code) return PROGRAM_BADGE.REGULAR;
+	return PROGRAM_BADGE[code] ?? PROGRAM_BADGE_FALLBACK;
+}
+
+/**
+ * The code a row shows. A special-program section keeps its own code; every other section
+ * shows the regular program, i.e. `REGULAR` — the stored value, never a display invention.
+ */
+export function resolveProgramCode(input: {
+	isSpecialProgram?: boolean | null;
+	programCode?: string | null;
+}): string {
+	return input.isSpecialProgram && input.programCode ? input.programCode : 'REGULAR';
+}
+
+/** The operator-facing label, read from the locked `PROGRAM_SCOPE_OPTIONS`. */
+const PROGRAM_LABEL: Record<string, string> = Object.fromEntries(
+	PROGRAM_SCOPE_OPTIONS.map((option) => [option.value, option.label]),
+);
+
+/** `REGULAR` reads `BEC`, as it does on `/subjects`; an unknown code reads itself. */
+export function programBadgeLabel(code: string | null | undefined): string {
+	if (!code) return PROGRAM_LABEL.REGULAR ?? 'BEC';
+	return PROGRAM_LABEL[code] ?? code;
+}
 
 function gradeKey(name: string) {
 	const m = name.match(/\d+/);
@@ -95,6 +142,10 @@ export function SectionRow({
 	// It is `null` both when there is no id and when the id names no room in the
 	// current options — the same truth to the operator in either case.
 	const selectedRoom = resolveHomeRoom(section, homeRoomOptions);
+	// A9 c1: the code the badge prints — the section's own program for a special
+	// program, `REGULAR` (which reads `BEC`) for every other section. `resolveProgramCode`
+	// owns that choice so the badge and its label cannot disagree.
+	const programCode = resolveProgramCode(section);
 
 	return (
 		<tr className="border-b last:border-0 hover:bg-muted/30 transition-colors group">
@@ -130,17 +181,26 @@ export function SectionRow({
 									{section.name}
 								</span>
 								<div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-									{section.isSpecialProgram && section.programCode && (
+									{section.isSpecialProgram && section.programCode ? (
 										<Badge
 											variant="outline"
-											className={`shrink-0 text-[0.6875rem] leading-tight font-bold border-opacity-50 ${PROGRAM_BADGE[section.programCode] ?? PROGRAM_BADGE.OTHER}`}
+											className={`shrink-0 text-[0.6875rem] leading-tight font-bold ${programBadgeClass(section.programCode)}`}
 										>
 											{section.programCode}
 										</Badge>
+									) : (
+										<Badge
+											variant="outline"
+											className={`shrink-0 text-[0.6875rem] leading-tight font-bold ${programBadgeClass(programCode)}`}
+										>
+											{programBadgeLabel(programCode)}
+										</Badge>
 									)}
-									<span className="text-[0.6875rem] text-muted-foreground uppercase tracking-tight">
-										{section.isSpecialProgram ? section.programName : 'Regular Program'}
-									</span>
+									{section.isSpecialProgram && section.programName ? (
+										<span className="text-xs font-medium text-muted-foreground tracking-tight">
+											{section.programName}
+										</span>
+									) : null}
 								</div>
 							</div>
 							</Button>
