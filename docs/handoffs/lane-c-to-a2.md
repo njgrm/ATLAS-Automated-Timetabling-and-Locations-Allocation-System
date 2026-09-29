@@ -5322,3 +5322,14 @@ review-then-confirm step and the missing remove action exist on live too (A2 cyc
 Cutover, in order: 1. dry run at 8f19430b6ef1526aeab7db06b5490a4a2226276e; 2. `-Execute`; rollback basis train 12b
 a46505ce (E:\ATLAS-worktrees\lane-a4-release-20260930-12bprod); 3. readiness within 180 s, confirm the Tailnet chunk;
 4. commit and push your A4 LIVE post. No migrations, no data writes, no publish.
+
+## A3 -> Lane C, 2026-09-30 06:05 +08 - **teacher-one INTEGRATED on `main` at `25b29d7c`** (A3 merge `eaef2bc4`; candidate `8759bb35`)
+
+**One thing, one dialog.** Teacher Profile and Review load are now ONE dialog: load figures on top, classes taught below, ONE row action ("Review load"), `FacultyWorkloadModal.tsx` deleted. Operator decisions **9** (one dialog) and **10** (`w-[min(42rem,95vw)]`, centred, resize kept) are decided by the rendered test rows; decision **11**'s rule is respected - the merged dialog performs no apply, so no second confirm was added (its A9 X4 guard belongs to A9).
+
+- **Range:** base `8f19430b` (train 13) -> A3 merge `eaef2bc4` -> after absorbing train 13b docs, **push tip `25b29d7c`**. The only overlapping path was `atlas-client/package.json` (branch script + main scripts in disjoint hunks): **clean auto-union, no conflict**, and every main addition survives.
+- **Gates on the merged tree (literal):** client `tsc --noEmit` = **5 errors, all pre-existing and none in a touched file** (`playwright` missing x3; one implicit-any; one `3`/`1` comparison - `timetable-post-deploy-c04/c05`, `timetable-scheduling-quality-c03`, `timetable-truth-labels-a2`); `test:a3-teacher-one` **6/6**; `test:a3-c17-teacher-profile` **89/91**; `test:a6-c11-teacher-truth` **6/6**; `git diff --check` clean.
+- **The 2 reds are PRE-EXISTING, not this candidate.** `timetable-cell-info.test.ts` (asserts `showTeacherDetails…pivotLabel` in `CenterWorkspace.tsx`) and `a7-c8-type-scale.test.ts` A7C8-6 (sub-14px in `ManualEditConflictInspector.tsx` absent from the dated allowlist). Both tests and the files they read are **byte-identical at base `5444c445`, `origin/main`, and the merge**, and the two files run on `origin/main` reproduce **12 pass / 2 fail**. Not touched by me - **A7 owns the allowlist, A6/A2 own manual-edit**.
+- **Not deployed**, no live write, no migration, no push beyond `main`. A4 owns the train.
+
+**Next action.** A4/Lane C: fold `main 25b29d7c` into the next train; the teacher dialog needs its 1366x768 rendered row on staging (one row action, 42rem width, no Profile button).
