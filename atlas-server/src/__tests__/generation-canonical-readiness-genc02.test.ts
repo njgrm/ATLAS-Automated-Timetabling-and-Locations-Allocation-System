@@ -35,6 +35,7 @@ import { runHybridScheduler } from '../services/hybrid-scheduler.js';
 import { getExpectedCanonicalSlots, normalizeInternalGradeId } from '../services/class-program-slot.service.js';
 import { buildGenerationReadiness } from '../services/generation-readiness.service.js';
 import { buildGenerationPreflight, buildPreflightConstructorInput } from '../services/generation-preflight.service.js';
+import { ADVISORY_CODES as ADVISORY_CODES_FOR_TEST } from '../services/generation-blocker-groups.service.js';
 import {
 	buildTimetableOutputProjections,
 	validateTermTeacherResolution,
@@ -181,6 +182,11 @@ interface MockOverrides {
 	noTermCache?: boolean;
 	/** C4: no sole active year -> buildDerivedDemand throws ACTIVE_YEAR_UNAVAILABLE. */
 	noActiveYear?: boolean;
+	/** A8 C3: leave exactly these subject ids unowned (partial coverage). */
+	unownedSubjects?: number[];
+	/** A8 C3: every teacher's own weekly contract is 1 hour -> a real HARD
+	 * `FACULTY_OVERLOAD` whose entities carry no (section, subject) pair. */
+	lowWeeklyCap?: boolean;
 	/** C9: push MATH weekly minutes above canonical CLASS capacity. */
 	hugeMathMinutes?: boolean;
 	/** C6: change presentation ordering only; authoritative grade must not move. */
@@ -230,6 +236,13 @@ function buildMockClient(overrides: MockOverrides = {}) {
 			{ id: 75, externalId: 750, firstName: 'E', lastName: 'Phy', department: 'SCIENCE', maxHoursPerWeek: 30, ancillaryMinutesPerWeek: 0, isActiveForScheduling: true, isStale: false, canTeachOutsideDepartment: true },
 		]
 		: [{ id: 71, externalId: 710, firstName: 'A', lastName: 'Teacher', department: 'REGULAR', maxHoursPerWeek: 30, ancillaryMinutesPerWeek: 0, isActiveForScheduling: true, isStale: false, canTeachOutsideDepartment: true }];
+	// A8 C3: a teacher whose own weekly contract is 1 hour cannot hold the placed
+	// load, so the REAL `constraint-validator` emits a HARD `FACULTY_OVERLOAD`
+	// whose `entities` carry only a `facultyId`. That is the live 2023-2024 shape
+	// ("4 teachers are over 30 hours") and the exact case the ruling makes an
+	// ADVISORY for generation while publication still refuses it.
+	const capHours = overrides.lowWeeklyCap ? 1 : 30;
+	for (const member of faculty) member.maxHoursPerWeek = capHours;
 	const teacherBySubject: Record<number, number> = overrides.distinctTeachers
 		? { 11: 71, 12: 72, 13: 73, 14: 74, 15: 75 }
 		: { 11: 71, 12: 71, 13: 71, 14: 71, 15: 71 };
@@ -237,6 +250,15 @@ function buildMockClient(overrides: MockOverrides = {}) {
 	const ownership = overrides.ownership === false
 		? []
 		: [11, 12, 13, 14, 15].map((subjectId, index) => ({ id: index + 1, subjectId, sectionId: 9001, facultyId: teacherBySubject[subjectId], facultySubjectId: index + 1 }));
+	// A8 C3: the LIVE 2023-2024 shape is PARTIAL coverage (264 required pairs,
+	// 214 owned, 50 missing), not "no Teaching Load at all". `ownership: false`
+	// above is the all-or-nothing shape, which additionally trips
+	// `TEACHING_LOAD_REVIEW_REQUIRED` — a genuine blocker that has no pair to
+	// attribute. The partial shape is what the gap rule must actually handle.
+	const partialOwnership = [11, 12, 13, 14, 15]
+		.filter((subjectId) => overrides.unownedSubjects?.includes(subjectId) !== true)
+		.map((subjectId, index) => ({ id: index + 1, subjectId, sectionId: 9001, facultyId: teacherBySubject[subjectId], facultySubjectId: index + 1 }));
+	const effectiveOwnership = overrides.unownedSubjects ? partialOwnership : ownership;
 
 	const rooms = [{ id: 201, type: 'CLASSROOM', isTeachingSpace: true, isSharedFacility: false, capacity: 50, features: [], buildingId: 301, buildingZoneId: 'Z1', building: { gradeScope: [7] } }];
 	const buildings = [{ id: 301, name: 'Building 1', x: 0, y: 0 }];
@@ -281,7 +303,7 @@ function buildMockClient(overrides: MockOverrides = {}) {
 		lockedSessionAction: { count: async () => 0 },
 		auditLog: { count: async () => 0 },
 		teachingLoadCycle: { findMany: async () => [] },
-		subjectSectionOwnership: { count: async () => ownership.length, findMany: async () => ownership },
+		subjectSectionOwnership: { count: async () => effectiveOwnership.length, findMany: async () => effectiveOwnership },
 		schedulingPolicy: { findUnique: async () => policy },
 		enrollProSchoolYearMirror: {
 			findMany: async () => overrides.noActiveYear ? [] : [{ enrollProSchoolYearId: SCHOOL_YEAR_ID, yearLabel: '2029-2030' }],
@@ -340,7 +362,26 @@ test('3. the readiness dry run executes the real scheduler and performs zero wri
 	assert.equal(readiness.retainedLocks.rejected.length, 0);
 
 	// Readiness must be a server-side decision derived from the dry run.
+	//
+	// A8 C3: this line's INVARIANT is superseded and retained as the record. The
+	// base expression was `blockers.length === 0 && hardCount === 0`, and it was
+	// TRUE only because this fixture is fully staffed (no gaps) and clean. The
+	// candidate gate is `blockerCount === 0 && blockingHardCount === 0` with the
+	// scheduler-ran and zero-write terms, so a raw row count is no longer a gate
+	// — 620 teacher-coverage rows on live 2023-2024 must not stop a run. The
+	// replacement invariant is asserted immediately below, and it is STRICTLY
+	// stronger: it also pins the gap split and the hard = gaps + blocking sum.
 	assert.equal(readiness.generateAllowed, readiness.blockers.length === 0 && readiness.violations.hardCount === 0);
+	assert.equal(
+		readiness.generateAllowed,
+		readiness.blockerCount === 0 && readiness.schedulerExecuted && readiness.violations.blockingHardCount === 0 && readiness.databaseSignature.zeroWrite,
+		'the canonical gate is the blocking count, a scheduler that ran, no blocking hard violation, and a zero-write proof',
+	);
+	assert.equal(
+		readiness.blockerCount + readiness.gapCount,
+		readiness.blockers.length,
+		'every blocker row is either a gap or a blocker, and none is lost',
+	);
 
 	// Positive control: the recorder detects a write when one occurs.
 	await client.create({});
@@ -565,4 +606,178 @@ test('C03R3b mutant: validating the raw compact entries reproduces the false blo
 	assert.equal(readiness.blockers.some((entry) => entry.code === 'ROTATION_TERM_INVALID'), false, 'the resolved consumer must not report ROTATION_TERM_INVALID');
 	assert.equal(readiness.blockers.some((entry) => entry.code === 'TERM_TEACHER_UNRESOLVED'), false, 'the resolved consumer must not report TERM_TEACHER_UNRESOLVED');
 	assert.equal(readiness.generateAllowed, true);
+});
+
+// ─── A8 C3: generate WITH teacher gaps, and group blockers by ROOT CAUSE ──────
+//
+// Live S.Y. 2023-2024 (`docs/prompts/a8-c3-generate-with-gaps-2026-09-29.md`):
+// 620 of the operator's 651 rows were ONE fact at two grains — 50 classes with
+// no Teaching Load owner, reported once per pair and once per session of it.
+// The operator read that as 651 identical problems and could not start.
+//
+// These rows drive the REAL `buildGenerationReadiness` over the SAME mock client
+// the accepted suite already uses, so the only thing that changes between the
+// base result and the candidate result is the rule under test.
+
+test('A8C3.1 a year whose only gap is teacher coverage is GENERATE-ALLOWED, and reports the gap in classes', async () => {
+	// `distinctTeachers` is the accepted clean fixture (C03R3a reports READY);
+	// leaving three of the five pairs unowned is the live 2023-2024 condition
+	// (264 required / 214 owned / 50 missing) and changes nothing else.
+	const { client, writes } = buildMockClient({ distinctTeachers: true, unownedSubjects: [12, 14, 15] });
+	const readiness = await buildGenerationReadiness(SCHOOL_ID, SCHOOL_YEAR_ID, { client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+
+	assert.ok(readiness.teachingLoadCoverage.missingPairs > 0, 'the fixture must really be partially unstaffed');
+	assert.ok(readiness.teachingLoadCoverage.ownedPairs > 0, 'and it must still own some pairs, or it is a different condition');
+	const coverageRows = readiness.blockers.filter((entry) => entry.code === 'TL_DEMAND_UNCOVERED' || entry.code === 'TL_NO_QUALIFIED_OWNER');
+	assert.ok(coverageRows.length > 0, 'the coverage rows must really be reported');
+
+	// A teacher gap is a GAP, not a blocker: generation proceeds and the run will
+	// name the classes. The diagnostic still reports every row, truthfully.
+	assert.equal(readiness.gapCount, coverageRows.length, 'every coverage row is counted as a gap');
+	assert.ok(readiness.gapCount >= readiness.gapClassCount, 'a row count is never smaller than the class count it folds');
+	assert.equal(readiness.gapClassCount, readiness.teachingLoadCoverage.missingPairs, 'the class count equals the uncovered pairs, not the session rows');
+	assert.equal(readiness.blockerCount, readiness.blockers.length - readiness.gapCount, 'the blocking count excludes exactly the gaps');
+	assert.equal(readiness.blockerCount, 0, 'no coverage row blocks generation');
+	assert.equal(readiness.violations.blockingHardCount, 0, 'a gap never lowers the real hard-violation count');
+	assert.equal(readiness.violations.hardCount, readiness.violations.hardGapCount + readiness.violations.blockingHardCount, 'hard = gaps + blocking, always');
+	assert.equal(readiness.status, 'READY');
+	assert.equal(readiness.generateAllowed, true, 'a teacher gap must not stop ATLAS from making a schedule');
+	assert.deepEqual(writes, [], 'the diagnostic stays zero-write with gaps present');
+	assert.equal(readiness.databaseSignature.zeroWrite, true);
+});
+
+test('A8C3.2 the 620 live rows collapse to ONE line that counts classes, and every row is still accounted for', async () => {
+	const { client } = buildMockClient({ distinctTeachers: true, unownedSubjects: [12, 14, 15] });
+	const readiness = await buildGenerationReadiness(SCHOOL_ID, SCHOOL_YEAR_ID, { client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+
+	const coverage = readiness.groups.find((group) => group.cause === 'TEACHER_COVERAGE_GAP');
+	assert.ok(coverage, 'the teacher-coverage root cause must be its own group');
+	assert.equal(coverage.unit, 'classes');
+	assert.equal(coverage.count, readiness.teachingLoadCoverage.missingPairs, 'the headline count is CLASSES');
+	// The raw row count is still on the group, and the group is still the only
+	// headline. (This mock's constructor places an unowned pair rather than
+	// emitting a session-level row, so `sessionCount === count` here; the
+	// 570-rows-into-50-classes fold is proven in `a8-c3-generate-with-gaps.test.ts`
+	// against the real classifier.)
+	assert.ok(coverage.sessionCount >= coverage.count, 'the raw row count is carried on the group, never substituted for the class count');
+	assert.ok(coverage.examples.length <= 5, 'examples are capped');
+	assert.equal(coverage.action.target, '/teaching-load');
+
+	// Nothing is silently dropped: the groups partition the blocker rows exactly.
+	const folded = readiness.groups.reduce((total, group) => total + group.sessionCount, 0);
+	assert.equal(folded, readiness.blockers.length, 'every blocker row belongs to exactly one group');
+
+	// Deterministic: a second identical call produces byte-identical groups.
+	const { client: again } = buildMockClient({ distinctTeachers: true, unownedSubjects: [12, 14, 15] });
+	const repeat = await buildGenerationReadiness(SCHOOL_ID, SCHOOL_YEAR_ID, { client: again, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+	assert.deepEqual(repeat.groups, readiness.groups, 'the grouped diagnostic is reproducible');
+	assert.deepEqual(repeat.gaps, readiness.gaps);
+});
+
+test('A8C3.3 NEGATIVE CONTROL: a gap never lets a run through a real blocker or a dry run that did not happen', async () => {
+	// (a) a real blocker with no link to any unowned pair still blocks. `C9`
+	// pushes MATH above the canonical CLASS capacity: a POLICY_BLOCKER whose
+	// pair IS owned, so the gap rule cannot reach it.
+	const { client } = buildMockClient({ distinctTeachers: true, unownedSubjects: [12, 14, 15], hugeMathMinutes: true });
+	const blocked = await buildGenerationReadiness(SCHOOL_ID, SCHOOL_YEAR_ID, { client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+	assert.ok(blocked.gapCount > 0, 'the coverage gaps are present in this fixture too');
+	assert.ok(blocked.blockers.some((entry) => entry.code === 'CANONICAL_SHAPE_CAPACITY_EXCEEDED'), 'the fixture really carries a real blocker');
+	assert.ok(blocked.blockerCount > 0, 'and it is a BLOCKING one, not a gap');
+	assert.equal(blocked.generateAllowed, false, 'a gap must not substitute for a real blocker');
+	assert.equal(blocked.status, 'BLOCKED');
+
+	// (b) no ordered term authority -> the scheduler never ran, and a gap is no help.
+	const { client: noTerms } = buildMockClient({ distinctTeachers: true, unownedSubjects: [12, 14, 15], noTermCache: true });
+	const unverified = await buildGenerationReadiness(SCHOOL_ID, SCHOOL_YEAR_ID, { client: noTerms, termContract: undefined, enforceShiftWindows: false });
+	assert.equal(unverified.schedulerExecuted, false, 'the dry run did not run');
+	assert.equal(unverified.generateAllowed, false, 'a gap never substitutes for the dry run');
+});
+
+test('A8C3.4 the generation gate is derived from the BLOCKING count, not from the raw row count', async () => {
+	// The BASE expression was `blockers.length === 0`. The candidate must be the
+	// blocking count, and a gap must be visible as a gap rather than as a count.
+	const { client } = buildMockClient({ distinctTeachers: true, unownedSubjects: [12, 14, 15] });
+	const readiness = await buildGenerationReadiness(SCHOOL_ID, SCHOOL_YEAR_ID, { client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+	assert.ok(readiness.gapCount > 0, 'the fixture must really carry gaps');
+	assert.notEqual(readiness.blockerCount, readiness.blockers.length, 'the raw row count and the blocking count differ when gaps exist');
+	assert.equal(readiness.gaps.every((gap) => gap.code === 'TL_DEMAND_UNCOVERED' || gap.code === 'TL_NO_QUALIFIED_OWNER' || gap.code === 'WORKLOAD_POLICY_BLOCK' || gap.code === 'FACULTY_SUBJECT_NOT_QUALIFIED' || gap.code === 'FACULTY_OVERLOAD'), true,
+		'a gap is only ever a coverage row or a provably attributable consequence of one');
+});
+
+test('A8C3.5 the ADVISORY path (ruling): a year whose only findings are unattributable workload advisories is GENERATE-ALLOWED, and each one is still recorded, grouped and named', async () => {
+	// A fully staffed, otherwise clean year where the real `constraint-validator`
+	// emits HARD `FACULTY_OVERLOAD` against teachers whose own weekly contract is
+	// 1 hour. That is the live "4 teachers are over 30 hours" shape, and it is the
+	// case the planner ruled ADVISORY for generation — but never for publication.
+	const { client, writes } = buildMockClient({ distinctTeachers: true, lowWeeklyCap: true });
+	const readiness = await buildGenerationReadiness(SCHOOL_ID, SCHOOL_YEAR_ID, { client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+
+	// The finding is REAL and is reported as such. Nothing is softened away.
+	assert.ok(readiness.violations.hardCount > 0, 'the fixture must really carry hard violations');
+	assert.ok((readiness.violations.hardCodes.FACULTY_OVERLOAD ?? 0) > 0, 'and they must be the real FACULTY_OVERLOAD code');
+	assert.equal(readiness.violations.advisoryHardCount, readiness.violations.hardCount, 'every hard violation here is advisory-class');
+	assert.equal(readiness.violations.hardGapCount, 0, 'and none of them is attributable to an uncovered pair');
+	assert.equal(readiness.violations.blockingHardCount, 0, 'so none of them blocks the gate');
+	assert.equal(
+		readiness.violations.hardCount,
+		readiness.violations.hardGapCount + readiness.violations.advisoryHardCount + readiness.violations.blockingHardCount,
+		'hard = gaps + advisories + blocking, always',
+	);
+
+	// RECORDED, not dropped: the rows are in the payload, in their own class, and
+	// in their own grouped line with a real repair. With a 1-hour contract the
+	// scheduler also refuses sessions outright, so BOTH advisory causes appear.
+	assert.ok(readiness.advisoryCount > 0, 'the advisories are still counted');
+	const advisoryCodes = new Set(readiness.advisories.map((row) => row.code));
+	assert.deepEqual([...advisoryCodes].sort(), ['FACULTY_OVERLOAD', 'WORKLOAD_POLICY_BLOCK'], 'an advisory is only ever an advisory-class code');
+	assert.equal(readiness.blockerCount, 0, 'no advisory is a blocking blocker');
+	const overloadGroup = readiness.groups.find((group) => group.cause === 'FACULTY_OVERLOAD');
+	assert.ok(overloadGroup, 'the overload cause is still a line of its own');
+	assert.equal(overloadGroup.count, readiness.violations.hardCodes.FACULTY_OVERLOAD, 'its line counts the distinct teachers it names, not one sentence');
+	assert.equal(overloadGroup.unit, 'items', 'a teacher finding has no class, so it is counted as an item');
+	assert.equal(overloadGroup.action.target, '/teaching-load');
+	assert.equal(overloadGroup.action.label, 'Review their load');
+	// Every advisory row is still visible in some group: nothing is dropped to
+	// relax the gate.
+	assert.equal(
+		readiness.groups.filter((group) => group.codes.some((code) => ADVISORY_CODES_FOR_TEST.has(code)))
+			.reduce((total, group) => total + group.sessionCount, 0),
+		readiness.advisoryCount,
+		'the advisory rows are fully accounted for in their groups',
+	);
+
+	// The gate: advisories do not stop a reviewable schedule.
+	assert.equal(readiness.schedulerExecuted, true);
+	assert.equal(readiness.databaseSignature.zeroWrite, true);
+	assert.equal(readiness.status, 'READY');
+	assert.equal(readiness.generateAllowed, true, 'an advisory must not stop ATLAS from making a schedule to review');
+	assert.deepEqual(writes, [], 'the diagnostic stays zero-write with advisories present');
+});
+
+test('A8C3.6 NEGATIVE CONTROL for the ruling: advisories do NOT relax anything else', async () => {
+	// (a) a real non-advisory blocker alongside advisories still blocks.
+	const { client } = buildMockClient({ distinctTeachers: true, lowWeeklyCap: true, hugeMathMinutes: true });
+	const blocked = await buildGenerationReadiness(SCHOOL_ID, SCHOOL_YEAR_ID, { client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+	assert.ok(blocked.violations.advisoryHardCount > 0, 'the advisories are present in this fixture too');
+	assert.ok(blocked.blockerCount > 0, 'and a real blocker is present as well');
+	assert.equal(blocked.generateAllowed, false, 'an advisory never substitutes for a real blocker');
+	assert.equal(blocked.status, 'BLOCKED');
+
+	// (b) teacher gaps AND advisories together: still allowed, both reported.
+	const { client: both } = buildMockClient({ distinctTeachers: true, lowWeeklyCap: true, unownedSubjects: [12, 14, 15] });
+	const combined = await buildGenerationReadiness(SCHOOL_ID, SCHOOL_YEAR_ID, { client: both, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+	assert.ok(combined.gapCount > 0 && combined.advisoryCount > 0, 'both populations are reported');
+	assert.equal(combined.blockerCount, 0);
+	assert.equal(combined.generateAllowed, true, 'gaps plus advisories still allow a reviewable run');
+	// The published run summary would still refuse publication: the advisories are
+	// promotable codes, and the unplaced classes are unassigned sessions.
+	assert.ok(combined.groups.some((group) => group.cause === 'TEACHER_COVERAGE_GAP'), 'the coverage line is present');
+	assert.ok(combined.groups.some((group) => group.cause === 'FACULTY_OVERLOAD'), 'the advisory line is present');
+
+	// (c) no ordered term authority -> the dry run never happened; advisories and
+	// gaps together are no help.
+	const { client: noTerms } = buildMockClient({ distinctTeachers: true, lowWeeklyCap: true, unownedSubjects: [12, 14, 15], noTermCache: true });
+	const unverified = await buildGenerationReadiness(SCHOOL_ID, SCHOOL_YEAR_ID, { client: noTerms, termContract: undefined, enforceShiftWindows: false });
+	assert.equal(unverified.schedulerExecuted, false, 'the dry run did not run');
+	assert.equal(unverified.generateAllowed, false, 'a gap or an advisory never substitutes for the dry run');
 });

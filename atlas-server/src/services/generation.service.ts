@@ -250,6 +250,31 @@ export interface RunSummary {
 	 */
 	blockingHardViolationCount?: number;
 	/**
+	 * A8 C3 — the teacher-gap breakdown of this run's PERSISTED unassigned
+	 * sessions, in CLASSES, not session rows.
+	 *
+	 * `teacherGapClasses` is the number of distinct (section, subject) classes
+	 * this run left without a teacher because no qualified owner covers them —
+	 * the fact a scheduler must act on. `timeSlotClasses` is the distinct classes
+	 * the run could not fit into any slot, which is a different problem with a
+	 * different fix. They are reported separately because the old single sentence
+	 * said every unplaced session "needs a time slot", which is FALSE for the
+	 * teacher-gap population.
+	 *
+	 * `teacherGapExamples` names at most five real classes from the same persisted
+	 * rows, so the number and the names can never disagree.
+	 */
+	teacherGapClasses?: number;
+	timeSlotClasses?: number;
+	teacherGapExamples?: string[];
+	/**
+	 * A8 C3 — the workload/qualification advisories this run carries. They do not
+	 * stop a reviewable schedule, they are named in the run result, and they STILL
+	 * REFUSE PUBLICATION: every code counted here is on `PROMOTABLE_CONSTRAINT_CODES`,
+	 * so `blockingHardViolationCount` above is greater than zero while this is.
+	 */
+	policyAdvisoryCount?: number;
+	/**
 	 * A2-WARNING-COUNT-62 (D1): the run's TOTAL SOFT violation count, from the
 	 * same `mergedValidationResult` that produces `hardViolationCount`,
 	 * `blockingHardViolationCount` and `violationCounts` below. This is the
@@ -430,8 +455,7 @@ export function resolveUnassignedViolationCode(item: Pick<UnassignedItem, 'reaso
 	return { code: 'UNASSIGNED_SECTION', severity: 'HARD' };
 }
 
-export type ZoneDistributionByTerm = Array<{
-	termIndex: 1 | 2 | 3 | 4;
+export type ZoneDistributionByTerm = Array<{	termIndex: 1 | 2 | 3 | 4;
 	total: number;
 	byZone: Record<string, { count: number; percent: number; entryIds: string[] }>;
 }>;
@@ -620,13 +644,118 @@ export function buildUnassignedBySubjectGrade(unassignedItems: UnassignedItem[],
  * One noun ("class") and one verb form. No run id, no "session(s)", no
  * "unassigned" — the operator noun is the client noun.
  */
-export function buildGenerationCompletedMessage(unplacedCount: number): string {
+export type TeacherGapBreakdown = {
+	/** Distinct (section, subject) classes with no qualified owner. */
+	teacherGapClasses: number;
+	/** Distinct (section, subject) classes the run could not fit into a slot. */
+	timeSlotClasses: number;
+	/** At most five real class labels, most frequent first then alphabetical. */
+	teacherGapExamples: string[];
+	/**
+	 * A8 C3 — the HARD workload/qualification advisories this run carries. They are
+	 * reported here and they do not stop a reviewable schedule; publication is
+	 * unchanged and refuses the run while any of them remain.
+	 */
+	policyAdvisoryCount: number;
+};
+
+/**
+ * The persisted violation codes the three A8 C3 advisory CLASSES produce. A run
+ * carrying any of them is still refused by the publication predicate, because
+ * every one is on `PROMOTABLE_CONSTRAINT_CODES`.
+ */
+export const POLICY_ADVISORY_VIOLATION_CODES: ReadonlySet<string> = new Set([
+	'FACULTY_OVERLOAD',
+	'FACULTY_SUBJECT_NOT_QUALIFIED',
+	'UNASSIGNED_SECTION',
+	'LACKING_FACULTY',
+]);
+
+/**
+ * A8 C3 — the run's gap/advisory breakdown, derived from the run's OWN persisted
+ * rows: the `unassignedItems` about to be written on the run, and the run's own
+ * merged validation result. It is deliberately NOT computed from the preflight's
+ * guess, because the number a scheduler reads after the run must describe the run
+ * they are looking at.
+ *
+ * A class is a TEACHER GAP when the constructor refused it for want of a
+ * qualified owner — the same predicate the preflight classifies as
+ * `TL_NO_QUALIFIED_OWNER` and the same one `resolveUnassignedViolationCode` turns
+ * into `LACKING_FACULTY`. Everything else unplaced is a time-slot problem, a
+ * different fix. Both are counted in CLASSES, so the 570 session rows of 50
+ * classes read as 50.
+ */
+export function summarizeTeacherGaps(args: {
+	unassignedItems: Array<{ sectionId: number; subjectId: number; reason?: string; roomAssignmentReason?: string }>;
+	violations?: Array<{ code?: string; severity?: string }>;
+	labelFor?: (sectionId: number, subjectId: number) => string | null;
+	maxExamples?: number;
+}): TeacherGapBreakdown {
+	const gapPairs = new Set<string>();
+	const slotPairs = new Set<string>();
+	const gapLabelCounts = new Map<string, number>();
+	const maxExamples = args.maxExamples ?? 5;
+	for (const item of args.unassignedItems) {
+		const key = `${item.sectionId}:${item.subjectId}`;
+		const isTeacherGap = item.reason === 'NO_QUALIFIED_FACULTY' || item.roomAssignmentReason === 'NO_QUALIFIED_FACULTY';
+		if (isTeacherGap) gapPairs.add(key);
+		else slotPairs.add(key);
+		if (!isTeacherGap) continue;
+		const label = args.labelFor?.(item.sectionId, item.subjectId) ?? null;
+		if (label === null) continue;
+		gapLabelCounts.set(label, (gapLabelCounts.get(label) ?? 0) + 1);
+	}
+	const teacherGapExamples = [...gapLabelCounts.entries()]
+		.sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]))
+		.slice(0, maxExamples)
+		.map(([label]) => label);
+	const policyAdvisoryCount = (args.violations ?? []).filter(
+		(violation) => violation.severity === 'HARD' && POLICY_ADVISORY_VIOLATION_CODES.has(String(violation.code)),
+	).length;
+	return {
+		teacherGapClasses: gapPairs.size,
+		timeSlotClasses: slotPairs.size,
+		teacherGapExamples,
+		policyAdvisoryCount,
+	};
+}
+
+export function buildGenerationCompletedMessage(unplacedCount: number): string;
+export function buildGenerationCompletedMessage(input: {
+	unplacedCount: number;
+	teacherGapClasses?: number;
+	timeSlotClasses?: number;
+	policyAdvisories?: number;
+}): string;
+export function buildGenerationCompletedMessage(
+	countOrInput: number | { unplacedCount: number; teacherGapClasses?: number; timeSlotClasses?: number; policyAdvisories?: number },
+): string {
+	// A8 C3 — the object form names the THREE populations a scheduler has to act
+	// on, in CLASS counts taken from the run's OWN persisted rows. The old single
+	// sentence said every unplaced class "needs a time slot", which is false for a
+	// class that has no teacher: on live S.Y. 2023-2024 50 classes had no
+	// Teaching Load owner, and the sentence sent the operator to the wrong screen
+	// for all of them. The advisory clause is the third population — workload and
+	// qualification findings the run carries and that still REFUSE PUBLICATION.
+	const input = typeof countOrInput === 'number' ? { unplacedCount: countOrInput } : countOrInput;
+	const unplacedCount = input.unplacedCount;
+	const teacherGap = Number.isFinite(input.teacherGapClasses) && (input.teacherGapClasses ?? 0) > 0 ? (input.teacherGapClasses as number) : 0;
+	const timeSlot = Number.isFinite(input.timeSlotClasses) && (input.timeSlotClasses ?? 0) > 0 ? (input.timeSlotClasses as number) : 0;
+	const advisories = Number.isFinite(input.policyAdvisories) && (input.policyAdvisories ?? 0) > 0 ? (input.policyAdvisories as number) : 0;
 	if (!Number.isFinite(unplacedCount) || unplacedCount < 0) {
 		return 'New schedule ready.';
 	}
-	if (unplacedCount === 0) {
+	if (unplacedCount === 0 && advisories === 0) {
 		return 'New schedule ready. All classes placed.';
 	}
+	const clauses: string[] = [];
+	if (teacherGap > 0) clauses.push(`${teacherGap} ${teacherGap === 1 ? 'class' : 'classes'} still ${teacherGap === 1 ? 'needs' : 'need'} a teacher`);
+	if (timeSlot > 0) clauses.push(`${timeSlot} ${timeSlot === 1 ? 'class' : 'classes'} still ${timeSlot === 1 ? 'needs' : 'need'} a time slot`);
+	if (advisories > 0) clauses.push(`${advisories} policy ${advisories === 1 ? 'advisory' : 'advisories'} to review before it can be published`);
+	if (clauses.length > 0) {
+		return `New schedule ready. ${clauses.join(' and ')}.`;
+	}
+	// The measured-but-unclassified case keeps the pre-existing wording exactly.
 	const plural = unplacedCount === 1;
 	return `New schedule ready. ${unplacedCount} ${plural ? 'class still needs' : 'classes still need'} a time slot.`;
 }
@@ -934,6 +1063,27 @@ export async function triggerGenerationRun(
 			},
 		};
 		const subjectCodeById = new Map(subjects.map((subject) => [subject.id, subject.code]));
+		// A8 C3 — the teacher-gap breakdown, derived from the SAME rows that are
+		// persisted as this run's `unassignedItems` below, so the number and the
+		// names a scheduler reads after the run describe the run itself. The class
+		// labels come from the section mirror this run already loaded; no extra
+		// read is made for presentation.
+		const runSectionNameById = new Map<number, string>();
+		for (const grade of assembly.sectionsByGrade) {
+			for (const section of grade.sections) {
+				if (typeof section.name === 'string' && section.name.length > 0) runSectionNameById.set(section.id, section.name);
+			}
+		}
+		const teacherGaps = summarizeTeacherGaps({
+			unassignedItems: resolvedUnassignedItems as Array<{ sectionId: number; subjectId: number; reason?: string; roomAssignmentReason?: string }>,
+			violations: mergedValidationResult.violations as unknown as Array<{ code?: string; severity?: string }>,
+			labelFor: (sectionId, subjectId) => {
+				const sectionName = runSectionNameById.get(sectionId);
+				const subjectCode = subjectCodeById.get(subjectId);
+				if (sectionName && subjectCode) return `${subjectCode} ${sectionName}`;
+				return sectionName ?? (subjectCode ?? null);
+			},
+		});
 		const resourceDiagnostics: NonNullable<RunSummary['resourceDiagnostics']> = {
 			qualifiedFacultyCoverageBySubject: buildQualifiedCoverageBySubject(demand, facultySubjects),
 			slotSaturationByInterval: buildSlotSaturation(entriesWithTerms, Math.max(rooms.length, 1)).slice(0, 20),
@@ -957,6 +1107,10 @@ export async function triggerGenerationRun(
 			policyBlockedCount: result.policyBlockedCount,
 			hardViolationCount: mergedValidationResult.violations.filter((v) => v.severity === 'HARD').length,
 			blockingHardViolationCount: mergedValidationResult.violations.filter((v) => v.severity === 'HARD' && isPromotableConstraintCode(v.code)).length,
+			teacherGapClasses: teacherGaps.teacherGapClasses,
+			timeSlotClasses: teacherGaps.timeSlotClasses,
+			teacherGapExamples: teacherGaps.teacherGapExamples.length > 0 ? teacherGaps.teacherGapExamples : undefined,
+			policyAdvisoryCount: teacherGaps.policyAdvisoryCount,
 			// A2-WARNING-COUNT-62 (D1): persisted so the run-wide warning figure
 			// has a server-owned source. Without it the header silently measures a
 			// selected-term subset instead of the run.
@@ -1082,7 +1236,15 @@ export async function triggerGenerationRun(
 			// `summary.unassignedCount` the metadata and the persisted summary
 			// already carry, so the number on screen is the number the server
 			// computed. The noun is "class" to match the client.
-			message: buildGenerationCompletedMessage(summary.unassignedCount),
+			// A8 C3: the object form names the three populations separately, in
+			// CLASS counts derived from this run's own persisted rows. The number
+			// form above is retained for the measured-but-unclassified case.
+			message: buildGenerationCompletedMessage({
+				unplacedCount: summary.unassignedCount,
+				teacherGapClasses: summary.teacherGapClasses,
+				timeSlotClasses: summary.timeSlotClasses,
+				policyAdvisories: summary.policyAdvisoryCount,
+			}),
 			metadata: {
 				runId: run.id,
 				durationMs,
