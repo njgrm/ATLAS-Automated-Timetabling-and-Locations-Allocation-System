@@ -155,11 +155,32 @@ test('row 01 control: scrolling inside the picker cannot scroll the page behind 
 	// document behind it is never handed a scroll.
 	assert.match(bodyClass, /\bflex\b/, 'the popover body must be a flex column');
 	assert.match(bodyClass, /\bflex-col\b/, 'the popover body must be a flex column');
-	const heightToken = /\bh-(\d+)\b/.exec(bodyClass);
-	assert.ok(heightToken, `the popover body must declare a bounded height; got ${bodyClass}`);
-	// Tailwind's h-<n> is 0.25rem, so h-100 is 25rem = 400px. It must fit a
-	// 1366x768 and a 390x844 viewport alike.
-	const bodyHeightPx = Number(heightToken![1]) * 4;
+	// A9 C7 (item 46, 2026-09-29) — the body no longer declares a FIXED height.
+	// It used to be derived from `h-100`:
+	//   const heightToken = /\bh-(\d+)\b/.exec(bodyClass);
+	//   assert.ok(heightToken, `the popover body must declare a bounded height; got ${bodyClass}`);
+	//   const bodyHeightPx = Number(heightToken![1]) * 4;
+	// A fixed 400px body is what Radix had to resolve by COLLISION: a trigger near
+	// the top of the viewport could not fit it below, so the popover was pushed up
+	// over the sticky toolbar. The bound is now a `max-h-` against the space Radix
+	// actually reports, so the body SHRINKS instead of overflowing. The bound is
+	// still bounded, which is the property this row exists to protect.
+	assert.doesNotMatch(
+		bodyClass,
+		/\bh-\d/,
+		`the popover body must not return to a FIXED height; got ${bodyClass}`,
+	);
+	assert.match(
+		bodyClass,
+		/max-h-\[min\(25rem,var\(--radix-popover-content-available-height\)\)\]/,
+		`the body must cap itself at 25rem or the space below the trigger; got ${bodyClass}`,
+	);
+	// 25rem is the old h-100 (0.25rem per unit x 100) in rem, so the ceiling the
+	// list may reach is unchanged at 400px. It must fit a 1366x768 and a 390x844
+	// viewport alike.
+	const capRem = Number(/max-h-\[min\((\d+(?:\.\d+)?)rem/.exec(bodyClass)?.[1] ?? '0');
+	const bodyHeightPx = capRem * 16;
+	assert.equal(bodyHeightPx, 400, `the cap must be the old 400px ceiling in rem; got ${bodyHeightPx}px`);
 	for (const [vw, vh] of [[1366, 768], [390, 844]] as const) {
 		assert.ok(bodyHeightPx <= vh, `the picker must fit a ${vw}x${vh} viewport, got ${bodyHeightPx}px`);
 	}
