@@ -533,6 +533,20 @@ test('A5-C2B-7d: the Subjects row action is pinned in view and the label is one 
 	// The accessible name is unchanged, so nothing is lost to a screen reader.
 	assert.match(row, /aria-label=\{`Review teacher coverage for \$\{subject\.name\}`\}/);
 	// The header cell must be sticky too or the pinned body cell has no heading.
+	//
+	// A5 C4 ITEM 3, RE-POINTED — NOT DELETED. This row read `pages/Subjects.tsx` for
+	// `sticky right-0`; the table shell, its sort headers and its pinned Action column
+	// moved into `SubjectCatalogBody.tsx` as the A5-C4 item-3 extraction. The
+	// assertion is kept and the search is widened to the page AND its catalog body,
+	// with the page half kept separately so the two cannot be confused.
 	const page = readFile('../pages/Subjects.tsx');
-	assert.match(page, /sticky right-0/, 'the Action column header is not pinned with its body cells');
+	const catalogBody = readFile('../components/subjects/SubjectCatalogBody.tsx');
+	assert.match(
+		`${page} ${catalogBody}`,
+		/sticky right-0/,
+		'the Action column header is not pinned with its body cells',
+	);
+	// AND the header is pinned in the body that actually renders the table, which is
+	// the stronger form of the same claim.
+	assert.match(catalogBody, /sticky right-0 z-20 border-l/);
 });

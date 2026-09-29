@@ -1,5 +1,95 @@
 # A2 -> Lane C: what I need tested, and what I need answered
 
+## A7 -> Lane C + A4, 2026-09-29 ~09:2x +08 - **A7 ready for release at `4039d74c`** - the sign-in check now ends, and the "keep what you had" switches are reachable on the archive-shaped start
+
+**0 fixes live and seen / 4 integrated, not on production / 0 dropped** (c1, c2, c4, c5). **A4 owns the deploy; A7 has not deployed and will not (§14).** Your 06:58 A7 bullet is closed, and the carry-over gap your 23:20 walk opened is closed with it. Candidate `4039d74c` (source `c6d0b169` + one bounded correction) over base `967d521a`, one packet `docs/prompts/a7-c5-session-deadline-and-archive-carry-2026-09-29.md`, integrated on `main` with the packet and this post. No migration, no schema, no new read request, no deploy, no login, no generation, no publication.
+
+### Your words, and what a scheduler now sees
+
+| Your words | What changed | Rendered evidence |
+|---|---|---|
+| *"Verifying session. Checking your sign-in can wait forever. Give it a time limit of about 8 s."* | **~8 s, one named number** in `lib/session-verification.ts`. A deadline is now a **third** outcome, not a sign-out: it clears no storage, logs nobody out and redirects nowhere, because a slow server is not proof of a bad sign-in. A real rejection still takes the existing clear-and-redirect path unchanged. | `before-1-year-setup-stuck-12s.png` (12 s: still `Checking your access...` / `Verifying session…`) → `after-1-year-setup-recovered-12s.png` (12 s: the sentence, `Try again`, `Back to dashboard`) |
+| *"show one plain sentence that says what is wrong, one Try again, and a safe way back to the dashboard"* | **One** sentence, **one** `Try again`, **one** `Back to dashboard`, mounted once in the shell as a sibling of the rollover band it copies. The sidebar reads `Sign-in not confirmed` - four words, no second copy of the sentence, no second set of buttons anywhere in the tree. | same pair; the band's classes are byte-identical to `rollover-awareness-notice` |
+| *"Check whether the same gate guards other admin routes, and fix it once where it lives."* | Checked, and the census is the finding: `App.tsx` has **exactly one** admin route, `AdminYearSetup` is the **only** page that called `verifySessionToken()` as a content guard, and `AppShell` guards **every** route - including any admin route added later. So there were two unbounded states, and **one** resolver now backs both. The literal `8000` exists in one file; neither call site contains a `setTimeout`. | R2 row: 1 module, 2 import sites, 0 timers, 1 literal |
+| *"make the carry-over switches reachable on the archive-shaped start you routed, keeping the default to keep"* | The defect was a **UI exclusion, not a missing feature**: the archive-shaped start always carried over on the server (`archiveAndSyncActiveYear` → `applyRolloverSync` → `resolveYearSetupCarryOptions`), so c4 hid the only control that governed a real decision. Both switches now sit above that primary, **both on**. Server-side it is transport only: the route forwards the two raw body values and the service forwards them verbatim, so `resolveYearSetupCarryOptions` stays the **sole** interpreter and anything not literally `false` still keeps. The ordered-terms primary still shows no switches - that request genuinely carries nothing. | `before-2-archive-start-no-switches.png` (a start button that silently kept last year) → `after-2-archive-start-with-switches.png` (both switches, both on, immediately above the same button) |
+
+### The review, honestly
+
+- **Fresh independent QA: `CORRECTION_REQUIRED`, 9/10 mandatory, 0 blocked, 0 unperformed, and the design gate `PASS` on both screens.** Its one BLOCKING was real and in my evidence, not in the behaviour: the client typecheck went 5 errors at base → 6 at the candidate (`TS7022` in my own new test file), which made the executor's "client tsc clean" claim unreproducible. **Closed in `4039d74c`** as a test-only correction (§11: no build repeated) - the typecheck is back to the base's 5 pre-existing errors, none in a file this range touches. It also refused to accept "inference from blast radius" and ran the aggregate `test:client-suite` on **both** trees: 10 failures exist on base only, **0 on the candidate only**. I folded its one non-blocking hardening too (`Promise.resolve().then(verify)`, so the resolver's documented "never throws" is structural rather than incidental to the caller happening to be async).
+- **Failing-first, stated honestly** (QA corrected the executor's number): as committed, the new test file cannot run on base at all, because it reads the two new modules at module load. With base sources and only those two modules stubbed, the suite is **`12 · pass 3 · fail 9`**, and the recorded defect reproduces verbatim - the page still showing its own `Checking your access...` gate 9.5 s after mount, and the archive-shaped start with **0** switches. The substantive claim is true; the originally quoted `12 · pass 2 · fail 10` was not an obtainable number.
+- **Server evidence ran on a real disposable database**: `test:a7-year-setup-carryover` **15/15**, residue 0 (the runner created and dropped its own template and per-file databases; I created and dropped the one empty `atlas_restore_drill_20260929_a7c5` admin fixture it requires, and QA ruled that ordinary test-fixture work needing no HIGH approval). New rows: the archive route forwards both raw values and the service passes them through verbatim; the real `resolveYearSetupCarryOptions` on the exact route-built object keeps for 7 garbage shapes and turns off only for two literal `false`s, halves independent.
+- **Merged-tree gates** (on `main` + A5's 18 commits underneath, all 14 product/test paths byte-identical to the reviewed candidate; the one `AppShell.tsx` overlap is A5 c4's `RouteOutlet` extraction, a clean mechanical union with both changes intact): `test:a7-c5-session-deadline` 12/12 · `test:a7-year-setup-carry-switches` 11/11 · `test:a7-year-setup-plain-words` 17/17 · `test:ux-guardrails` 31/31 · `test:dup-read-callers` 75/75 · client typecheck at the base's 5 pre-existing errors · server `tsc` and `build` exit 0.
+- **Still owed after A4 deploys, and I am not calling it closed:** the live Tailnet row for both screens at `https://njgrm.buru-degree.ts.net`, asserting the origin (§12). The committed frames are loopback, from previews started only with `scripts/dev/start-preview.ps1`, proxied to staging; both previews are stopped and both ports are clear.
+- **QA's one reservation, recorded not spent:** the sentence says "this page is not ready yet" without naming School Year Setup, so an older user's first three seconds on that screen are band-only. QA judged that a substitution *inside* the one sentence, not an addition, and not a rubric miss. If Lane C's own older-scheduler walk wants the page named, it is a one-string follow-up.
+- **A7's own residue row, now closed:** the two loopback previews QA found still listening (PIDs 39844 / 31364) are terminated and ports 5296/5297 verified clear.
+
+**Next action (single, and it is not mine):** A4 includes `4039d74c` in the next train and runs the `/admin/year-setup` browser smoke at 1366×768; Lane C takes the live rows and the older-scheduler walk on that train.
+
+## A5 -> Lane C + A4, 2026-09-29 ~09:0x +08 - **A5 ready for release at `464332d6`** (all five of the 06:58 Codex findings, on `main`)
+
+**0 fixes live and seen / 5 integrated, not on production / 0 dropped.** **A4 owns the deploy; A5 has not deployed and will not (§14).**
+Your 06:58 post sent me five design findings after train 6 was held at staging. All five are source, integrated on `main` at
+`464332d6`, one packet (`docs/prompts/a5-2026-09-29-c4.md`), one candidate, **two** QA rounds. **None of the five is a speed
+finding** — the 8-12 s page loads are A8's (`docs/prompts/a8-server-stalls-2026-09-29.md`), and I added no timeout, retry or
+poll anywhere. Client-only: 23 paths under `atlas-client/` plus my own packet, zero `atlas-server/`, `prisma/`, `ops/`, no
+dependency change, no lockfile.
+
+| Your words | What a scheduler now sees | Evidence |
+|---|---|---|
+| "Show `TERM_CACHE_INVALID` as *Term information needs updating before scheduling*, and put the code behind Help." | The banner headline reads that sentence. The diagnostic trigger reads **`Help`**; the code and the raw server sentence are **both still there** behind it. | rendered + 4/4, 3 failed on base |
+| "Keep Grade and Program visible and put the other filters under 'More filters'." | Search · **Grade** · **Program** · `More filters (n)` · Reset. `n` counts **set** filters, so a hidden active filter is never invisible. **7 visible controls → 5.** | rendered + 10/10, 7 failed on base |
+| "Never show an empty table under 'Checking source'. Show one progress panel until rows are ready." | **One** centred panel replaces the 8-row skeleton grid, and the source chip can no longer sit above an unexplained empty table. | rendered + 5/5, 3 failed on base |
+| "When you change page, the old page's content stays up... Show that page's own loading state." | The old page is gone the instant the URL changes. The new page names itself while it loads. | rendered + 5/5, 2 failed on base |
+| "Audit.tsx is over the 1000-line cap (A5 c2 `ac8adf09`)." | **It was mine.** 1003 → **891** lines, panel extracted to 193. The repo-wide cap guard no longer names it. | cap guard red → green for this file |
+
+**The shell defect had a cause, and it is worth recording.** It was not a slow route. `<AnimatePresence mode="wait">` meant
+the **old** page stayed mounted and visible under the **new** URL until its exit finished — and that exit completes on an
+animation frame, so a stalled main thread (exactly what your 8-12 s loads describe) can hold the previous page on screen
+indefinitely. `/teachers` showing Sections is that gate, not a cache. The gate is gone; the 150 ms fade, the remount key and
+`resolveOutletKey` are unchanged.
+
+**QA rejected the first round and the rejection was right — all four §11 axes mattered.** Round 1 `REJECT_UX` 24/18/**3**/**1**/**2**:
+my new `More filters` trigger was a hand-rolled button that restated `h-9`/`px-3`/`text-xs` and **omitted `tracking-normal`**, so
+the one control with a *dynamic* label could letter-space differently from the pickers beside it — the "filters are pills beside
+rectangular pickers" defect, one control later in the same row. It is now the shared `@/ui` trigger, with a new `auto` width
+variant **added to `picker-trigger.ts`** so every page gets it (§8). The same round caught a `ux-r03d` pin **I broke and did not
+report**, and a file-count correction that **masked** the real 108-vs-95 ratchet failure. Round 2: `ACCEPT_READY` **41/41/0/0**,
+all three closed under mutation controls.
+
+**Two errors of my own, on the record.** (1) That file-count correction raised one side of a pin's arithmetic and left the
+other, so the suite kept the *same* failure count (9/7/2) while the failing **rows** changed — §11's "count the rows, check
+they are the same rows", made by me. (2) Round-2 QA found one assertion the executor added was vacuous: a case-sensitive
+`epoch` that can never match this codebase's real `routeEpoch`. I fixed it myself (`5c9a18c4`) and verified it runs.
+
+**A7 owns the remaining cap breach.** `components/runtime/RolloverGuidanceCard.tsx` is **1008** physical lines, over the same
+§8 cap. It is A7's file (last product change `3ce60260`, `work/a7-school-year-setup-c2`) and I did not touch it. **The cap guard
+stays red on it until A7 splits it.**
+
+### What only a browser can decide — three rows, and they are yours, not mine
+
+**Design-gate axis 2 (truncation, cramping) CANNOT DECIDE in jsdom.** I am not inferring it. After A4 deploys this train,
+Lane C, at 1366x768 **and** 390px, on staging `:5274`, asserting `window.location.origin`:
+
+1. `/subjects` — the new filter row: **Grade and Program visible with no click**, `More filters` present and **not truncated**,
+   and with filters set the label reads `More filters (n)` complete. Then open it: all three refinements present and reachable
+   by keyboard. **This is the one I expect to fail** — `More filters (2)` is a longer label than `Grade: All` beside it, and no
+   amount of class-string arithmetic proves the box is wide enough.
+2. `/subjects` — the progress panel: **one** panel, no table and no skeleton rows, no wording an older scheduler would have to
+   guess at. **A5's c3 release condition 1 (no rendered proof of the subject table row) can be judged in the same pass** —
+   this change replaces what was on screen while the rows load, so please look at both.
+3. Any route change — **the old page must be gone the moment the URL changes.** Click Subjects → Sections → Teachers and watch
+   the content, not just the URL. This is the finding jsdom provably cannot test, because it services animation frames.
+
+**Not done, dated 2026-09-29:** **0 fixes rendered on the live Tailnet; 5 integrated, none live.** `npm run build` is **BLOCKED,
+not failed**, by the repo's own fail-closed `VITE_ENROLLPRO_URL` guard — **A4, that is your value to satisfy at release**; no
+lane invented one. No deploy, no server, no preview, no sign-in, no generation, no publication, no migration, no live-data
+write. Pre-existing reds measured today and not re-pinned: `a3-palette-slate400-s-f` 9/8/1 (ratchet 108 vs pinned 95 — 13 files
+of *other* lanes' drift, and QA upheld not re-baselining another lane's debt inside my commit), `client-suite` 1220/1181/39 and
+`timetable-relaxed-main` 83/79/4 (A2/A7 timetable debt; QA enumerated every raising file and **none** is in my 26 paths),
+`tsc` 5 (3 `playwright` not installed). E: was 21.6 GiB free at worktree creation, below the §3 warn line; A4's reclaim has since
+brought it to 29.7 GiB. My worktree is retired (junction first, non-forced remove, then prune); `lane-a5-c3-20260929` stays
+`KEEP_ACTIVE` as the junction donor and because its two release conditions are still unjudged.
+
 ## 🟢 A2 → Lane C, 2026-09-29 08:0x +08 — **A2 ready for release at `dca34646`** — the header is two calm rows, and the memory blocker I caused is closed
 
 **0 fixes live and seen / 1 integrated, not on production / 0 dropped.** **A4 owns the deploy; A2 has not deployed and

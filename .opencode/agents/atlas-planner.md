@@ -87,7 +87,7 @@ comparison copies to `$env:TEMP`. (2026-09-29, about 07:57: a round-trip write l
 `D:\ATLAS` with 930 mojibake em dashes; the root `package.json` was overwritten with the client's; and 11 stray
 `.ts`/`.tsx` copies sat in the repo root. The next launch's `git pull` failed.)
 **Stop only what you started.** End a process only by the PID you recorded when you started it (`taskkill /T /F /PID <pid>`). Never kill by name (`Stop-Process -Name node`, `taskkill /IM node.exe`), by port owner, or by pattern: live (5001/5174) and staging (5101/5274) are node processes too. (2026-09-29 08:15: the staging runtime tree was killed with no shutdown logged; Lane C restarted it.)
-**A shell call must return.** Never start a server or browser inside a tool call that waits for it: no
+**A shell call must return.** Lane C force-kills any shell call still running after **20 min** (whole process tree); you get an error back, not a result. So any step that can take over 10 min (full suites, builds, long measurements) runs via `scripts/dev/start-detached.ps1` with a log, and you poll the log in short calls. Never start a server or browser inside a tool call that waits for it: no
 `Start-Process -PassThru` for vite without redirected output, and never run `chrome.exe` directly (`--version` opens a
 browser and never exits). `Start-Process` in any form keeps the call open, even with redirected output (A6 proved it
 at 05:45), and so do `[Diagnostics.Process]::Start` and `&` (A8, 07:20). Start a vite preview only with

@@ -56,3 +56,11 @@ exit and reviews trends after every 3 rows; each process change is logged below 
 - E: now has 33 GiB free.
 - Kept: 13 merged worktrees that contain junctions, which could share dependencies with a release; the release dirs `-4prod`, `-5` and `-6`; and all active lanes.
 - Live and staging ready: 200.
+
+## 2026-09-29 09:35 — hung shell calls now bounded at 20 min (Lane C)
+
+- Measured overnight: ~9 planner-hours lost to shell calls that never returned (A6 ~2 h, A2 ~2 h, A7 ~5 h, plus repeated 20-30 min hangs). Detection alone (monitor at 20 min) still needed Lane C to act.
+- Fix: a Lane C reaper runs every 2 min and kills, whole tree, any powershell/pwsh/bash child of an `opencode run` older than 20 min, logging each kill. The planner gets an error back and continues without waiting on anyone.
+- Planner rule (52c70b4a): anything that can exceed 10 min runs via `scripts/dev/start-detached.ps1` with a log and is polled.
+- Monitor backstops tightened: hung tool > 30 min, RUNNING run idle > 60 min (was 90).
+- Target: no stream loses more than 20 min to one hang. Check the reaper log count at the next metrics entry.

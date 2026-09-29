@@ -844,15 +844,31 @@ export async function previewArchiveAndSync(schoolId: number): Promise<ArchiveAn
 	return data;
 }
 
+/**
+ * A7-C5: `options.yearSetupCarry` is sent the same way `applyRolloverSync`
+ * sends it — as the two raw values, never defaulted here. The server's
+ * `resolveYearSetupCarryOptions` is the only interpreter, so an older client, a
+ * direct API caller and a request with the object missing all still KEEP.
+ */
 export async function applyArchiveAndSync(
 	schoolId: number,
-	options?: { reason?: string; acknowledgeReconfiguredSectionIds?: number[] },
+	options?: {
+		reason?: string;
+		acknowledgeReconfiguredSectionIds?: number[];
+		yearSetupCarry?: { keepSchedulingRules?: boolean; keepGradeTimeWindows?: boolean };
+	},
 ): Promise<ArchiveAndSyncApplyResult> {
 	const scopedSchoolId = requirePositiveSchoolId(schoolId, 'apply the archive-and-sync');
 	const { data } = await atlasApi.post<ArchiveAndSyncApplyResult>('/runtime/rollover-archive/apply', {
 		schoolId: scopedSchoolId,
 		reason: options?.reason,
 		acknowledgeReconfiguredSectionIds: options?.acknowledgeReconfiguredSectionIds,
+		yearSetupCarry: options?.yearSetupCarry
+			? {
+				keepSchedulingRules: options.yearSetupCarry.keepSchedulingRules,
+				keepGradeTimeWindows: options.yearSetupCarry.keepGradeTimeWindows,
+			}
+			: undefined,
 	});
 	return data;
 }

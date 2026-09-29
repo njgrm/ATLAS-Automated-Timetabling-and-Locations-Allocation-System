@@ -40,36 +40,17 @@ const AUDIT_DOMAINS = [
 
 type ActiveYearSource = 'atlas-persisted' | 'enrollpro-verified' | 'enrollpro' | 'cache';
 type DataSource = 'live' | 'cached' | 'none';
-type FindingSeverity = 'blocker' | 'warning' | 'info';
+import {
+	AuditFindingsPanel,
+	type Finding,
+	type FindingGroup,
+	type FindingSeverity,
+} from '@/components/audit/AuditFindingsPanel';
 
-type Finding = {
-	id: string;
-	title: string;
-	blockedLabel: string;
-	detail: string;
-	why: string;
-	actionLabel: string;
-	route: string;
-	repairTarget: string;
-	severity: FindingSeverity;
-};
-
-type FindingGroup = {
-	id: string;
-	label: string;
-	description: string;
-	icon: typeof ShieldCheck;
-	findings: Finding[];
-	blockedLabel: string;
-	why: string;
-	primaryActionLabel: string;
-	primaryRoute: string;
-	repairTarget: string;
-	secondaryActionLabel?: string;
-	secondaryRoute?: string;
-	emptyTitle: string;
-	emptyBody: string;
-};
+/* A5 C4 ITEM 5: `Finding`, `FindingGroup` and `FindingSeverity` are declared in the
+   extracted module and RE-EXPORTED here, so this page's public surface is unchanged
+   and every cross-lane suite that reads this file's identifiers keeps finding them. */
+export type { FindingSeverity, Finding, FindingGroup };
 
 /**
  * A3-C8 S1 — the three severity treatments, in the app's semantic tokens.
@@ -901,100 +882,7 @@ export default function Audit() {
 							</div>
 						</div>
 
-						<Tabs defaultValue={defaultGroupId} className="flex min-h-0 flex-col">
-							<TabsList className="flex h-auto w-full flex-wrap justify-start gap-2 bg-muted p-1">
-								{findingGroups.map((group) => {
-									const GroupIcon = group.icon;
-									return (
-										<TabsTrigger key={group.id} value={group.id} className="h-auto gap-2 rounded-xl px-3 py-2 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-											<GroupIcon className="size-4" />
-											<span>{group.label}</span>
-											<Badge variant="secondary" className="h-5 rounded-full px-1.5 text-[10px]">{group.findings.length}</Badge>
-										</TabsTrigger>
-									);
-								})}
-							</TabsList>
-
-							{findingGroups.map((group) => {
-								const visibleFindings = filterFindings(group.findings);
-								return (
-									<TabsContent key={group.id} value={group.id} className="mt-4 focus-visible:ring-0">
-										<div className="rounded-2xl border border-border bg-muted/70">
-											<div className="border-b border-border px-4 py-3">
-												<p className="font-bold text-foreground">{group.label}</p>
-												<p className="text-sm text-muted-foreground">{group.description}</p>
-											</div>
-											<div className="grid gap-3 border-b border-border bg-white px-4 py-4 lg:grid-cols-[1fr_auto] lg:items-center">
-												<div className="grid gap-3 text-sm md:grid-cols-2">
-													<div className="rounded-xl bg-muted px-3 py-2">
-														<p className="text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">What is blocked</p>
-														<p className="mt-1 font-semibold text-foreground">{group.blockedLabel}</p>
-													</div>
-													<div className="rounded-xl bg-muted px-3 py-2">
-														<p className="text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">Why it matters</p>
-														<p className="mt-1 text-slate-600">{group.why}</p>
-													</div>
-												</div>
-												<div className="flex flex-wrap gap-2 lg:justify-end">
-													<Button asChild size="sm" className="h-9 rounded-xl gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90">
-														<Link to={group.primaryRoute} data-repair-target={group.repairTarget}>
-															{group.primaryActionLabel}
-															<ArrowRight className="size-3.5" />
-														</Link>
-													</Button>
-													{group.secondaryActionLabel && group.secondaryRoute ? (
-														<Button asChild variant="outline" size="sm" className="h-9 rounded-xl bg-white">
-															<Link to={group.secondaryRoute} data-repair-target={`${group.repairTarget}-inspect`}>
-																{group.secondaryActionLabel}
-															</Link>
-														</Button>
-													) : null}
-												</div>
-											</div>
-											<ScrollArea className="max-h-[46svh] min-h-72">
-												<div className="divide-y divide-border bg-white">
-													{visibleFindings.length === 0 ? (
-														<div className="px-6 py-16 text-center">
-															<ShieldCheck className="mx-auto mb-3 size-10 text-accent/40" />
-															<p className="font-bold text-foreground">{searchQuery ? 'No matching findings' : group.emptyTitle}</p>
-															<p className="mx-auto mt-1 max-w-lg text-sm text-muted-foreground">{searchQuery ? 'Clear the search to see the full report.' : group.emptyBody}</p>
-														</div>
-													) : (
-														<Accordion type="single" collapsible className="w-full divide-y divide-border">
-															{visibleFindings.map((finding) => (
-																<AccordionItem key={finding.id} value={finding.id} className="border-b last:border-b-0">
-																	<AccordionTrigger className="px-4 py-4 hover:no-underline [&[data-state=open]]:bg-muted/10">
-																		<div className="flex flex-wrap items-center gap-2">
-																			<SeverityBadge severity={finding.severity} />
-																			<span className="font-bold text-foreground text-sm text-left">{finding.title}</span>
-																		</div>
-																	</AccordionTrigger>
-																	<AccordionContent className="px-4 pb-4 pt-1 bg-muted/5">
-																		<div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-																			<div className="space-y-1.5 max-w-2xl">
-																				<p className="text-sm text-slate-600 leading-relaxed">{finding.detail}</p>
-																				<p className="text-xs font-semibold text-slate-600">What is blocked: <span className="font-normal text-muted-foreground">{finding.blockedLabel}</span></p>
-																				<p className="text-xs font-semibold text-slate-600">Why it matters: <span className="font-normal text-muted-foreground">{finding.why}</span></p>
-																			</div>
-																			<Button asChild variant="outline" size="sm" className="h-9 shrink-0 rounded-xl bg-white shadow-sm mt-2 lg:mt-0">
-																				<Link to={finding.route} data-repair-target={finding.repairTarget}>
-																					{finding.actionLabel}
-																					<ArrowRight className="ml-1 size-3.5" />
-																				</Link>
-																			</Button>
-																		</div>
-																	</AccordionContent>
-																</AccordionItem>
-															))}
-														</Accordion>
-													)}
-												</div>
-											</ScrollArea>
-										</div>
-									</TabsContent>
-								);
-							})}
-						</Tabs>
+<AuditFindingsPanel findingGroups={findingGroups} searchQuery={searchQuery} defaultGroupId={defaultGroupId} SeverityBadge={SeverityBadge} />
 					</div>
 				</div>
 			</div>

@@ -165,12 +165,24 @@ const SWEPT: ReadonlyArray<readonly [string, string, number]> = [
 		1,
 	],
 	['src/components/dashboard/CampusReadinessCard.tsx', 'italic text-slate-400', 1],
+	/* A5 C4 ITEM 5 (2026-09-29): the search-icon entry is UNCHANGED and still names
+	 * `src/pages/Audit.tsx`, because the card's search box stayed in the page — BOTH
+	 * its `text-slate-400` and its `text-muted-foreground` half are still there.
+	 * Re-pointing it would have been re-pointing at a premise that is not true, which
+	 * is the difference between a pin that moved because its code moved and one moved
+	 * to look tidy. */
 	[
 		'src/pages/Audit.tsx',
 		'absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400',
 		1,
 	],
-	['src/pages/Audit.tsx', 'text-[0.68rem] font-bold uppercase tracking-wide text-slate-400', 2],
+	/* A5 C4 ITEM 5 (2026-09-29): this ONE entry was re-pointed from
+	 * `src/pages/Audit.tsx` to `src/components/audit/AuditFindingsPanel.tsx`. The
+	 * "What is blocked" / "Why it matters" labels were extracted out of that page to
+	 * bring it under the AGENTS.md §8 line cap, and they carried this class string
+	 * with them. The count is UNCHANGED (2) because the class moved with its code: a
+	 * pin lowered to make it pass would have recorded a sweep that never happened. */
+	['src/components/audit/AuditFindingsPanel.tsx', 'text-[0.68rem] font-bold uppercase tracking-wide text-slate-400', 2],
 	['src/pages/Dashboard.tsx', 'text-xs font-bold uppercase tracking-wider text-slate-400', 1],
 	[
 		'src/pages/Dashboard.tsx',
@@ -191,6 +203,10 @@ const TO_CLASS = 'text-muted-foreground';
 const OWNED_FILES = [
 	'src/components/campus-map/BuildingGradeScopeControl.tsx',
 	'src/components/campus-map/CampusMapOverview.tsx',
+	/* A5 C4 ITEM 5: `/audit`'s findings panel, extracted from `pages/Audit.tsx` under
+	 * the AGENTS.md §8 line cap. It now owns half this route's raw neutrals, so it is
+	 * swept explicitly rather than left to a glob. */
+	'src/components/audit/AuditFindingsPanel.tsx',
 	'src/components/dashboard/CampusReadinessCard.tsx',
 	'src/pages/Audit.tsx',
 	'src/pages/Dashboard.tsx',
@@ -198,7 +214,10 @@ const OWNED_FILES = [
 
 /** The ratchet-family pins after this sweep falls, all measured on the candidate (see control 5). */
 const EXPECTED_RATCHET_TOTAL = 95;
-const EXPECTED_RATCHET_FILE_COUNT = 28;
+/* A5 C4 ITEM 5: 28 -> 29. The residue is unchanged at 95, but it now lives in one more
+ * FILE because `/audit` is two files. A file count that stayed at 28 would have been a
+ * number describing a file layout that no longer exists. */
+const EXPECTED_RATCHET_FILE_COUNT = 29;
 const EXPECTED_IN_SCOPE_RESIDUAL = 68;
 const EXPECTED_EXCLUDED_RESIDUAL = 27;
 
@@ -206,12 +225,17 @@ const EXPECTED_EXCLUDED_RESIDUAL = 27;
  * Raw neutrals each swept file still holds, so EXPECTED_RATCHET_FILE_COUNT is not taken on faith.
  * Measured on the candidate: 1 / 10 / 11 / 8 / 3, against 2 / 14 / 15 / 11 / 6 on the base, i.e.
  * exactly the 1 / 4 / 4 / 3 / 3 substitutions made here. None of the five emptied.
+ *
+ * A5 C4 ITEM 5: `/audit`'s 8 became 4 + 4 across the page and the extracted panel. The
+ * total is preserved and NEITHER number was lowered to make a test pass — 8 -> 4 and 4
+ * is the honest result of a split, and 0 in both would have been a real regression.
  */
 const EXPECTED_RESIDUAL_PER_OWNED_FILE: ReadonlyArray<readonly [string, number]> = [
 	['src/components/campus-map/BuildingGradeScopeControl.tsx', 1],
 	['src/components/campus-map/CampusMapOverview.tsx', 10],
 	['src/components/dashboard/CampusReadinessCard.tsx', 11],
-	['src/pages/Audit.tsx', 8],
+	['src/pages/Audit.tsx', 4],
+	['src/components/audit/AuditFindingsPanel.tsx', 4],
 	['src/pages/Dashboard.tsx', 3],
 ];
 
