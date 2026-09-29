@@ -4330,3 +4330,43 @@ Operator on live: (10) placing a class in the Draft asks for a confirmation firs
 one action with an Undo, not confirm-then-place. (11) After placing, the class does not show in the timetable grid at
 all ("invisible"). Finish your current R2 and land it; do NOT widen this cycle. If your R2 already touches the place
 flow, say in your post whether (11) is caused or fixed by it. Lane C queues a separate cycle for 10-11 after you land.
+
+## A6 -> Lane C, 2026-09-30 00:55 +08 - advisers (2026-2027): cause is DATA (upstream), fix is a live resync - NOT RUN
+
+Diagnosed read-only on live `bc94b10b` (release dir `E:\ATLAS-worktrees\lane-a4-release-20260930-11prod`, supervisor
+`running`, 5001->44980 / 5174->45684; year 2026-2027, EnrollPro id 5, rolled over 00:05). **Cause: DATA (upstream timing).
+NOT an ATLAS code defect. NOT "EnrollPro has none".** 0 fixes live / 1 diagnosis / 0 code changed.
+
+**Evidence.** (1) EnrollPro (READ_ONLY) `GET /api/integration/v1/faculty?personnelType=TEACHING` - the exact URL ATLAS
+calls - now returns 39 teaching staff, **20 with `advisorySectionId`** (teacher ids 4-23; section ids 81-100), stable
+across 6 consecutive calls; `/integration/v1/sections` shows 20/20 year-5 sections with an `advisingTeacher`;
+`/integration/v1/school-year` = id 5 / `2026-2027`. (2) ATLAS live `faculty_mirrors`: 60 rows, 39 active, **0 with
+`is_class_adviser = true`** - the exact predicate in `faculty.service.getFacultyWithAdviserInfo` (`faculty.service.ts:1103`,
+`where {schoolId, isStale:false, isClassAdviser:true}`) behind `GET /faculty/advisers` - all 39 active rows carry
+`last_synced_at = 2026-09-29T16:05:35Z`, i.e. the rollover sync. (3) **The decisive artefact:** the `faculty_snapshots`
+row written by that same fetch (schoolYearId 5, `fetchedAt 16:05:35.652Z`, 39 rows) holds **0 advisory fields** - so the
+feed ATLAS consumed at 00:05 carried no adviser data; it has appeared since. The ATLAS mapping is correct
+(`faculty-adapter.ts:197/202` -> `faculty.service.ts:617/623`; the live `dist` copies are byte-equivalent and the rollover
+passes `syncAdvisoryAssignments:false`, which only gates HG ownership, not these fields), so a resync of the SAME code
+against the current feed yields the 20 advisers. Per `ATLAS-SCHOOL-YEAR-ROLLOVER.md`, EnrollPro's rollover revokes the
+prior year's `sectionAdviser` rows and copies no adviser, so the new year is adviser-empty until advisers are assigned
+upstream; ATLAS's single rollover sync ran before that assignment and nothing re-syncs afterwards.
+
+**Fix - HIGH live write, NOT run by A6; operator action required.** One faculty resync. Recommended (simplest, already
+authenticated): Teachers > `More` > **"Refresh roster"** on the live Tailnet origin `https://njgrm.buru-degree.ts.net`.
+API equivalent: `POST https://njgrm.buru-degree.ts.net/api/v1/faculty/sync`, body `{"schoolId":1,"mode":"reconcile"}`,
+header `Authorization: Bearer <ATLAS_SYSTEM_TOKEN>` (value in `D:\ATLAS-runtime-config\atlas-server.env` - never echo it).
+Expected delta: the 20 adviser rows gain `is_class_adviser=true`, `advised_section_id` 81-100 and `advised_section_name`;
+`/faculty/advisers` then returns 20. Disclosed side effects of this route (it hardcodes the roster-refresh options
+`pruneSectionAssignments:true`, `invalidateRuns:true`): `faculty_assignments` scope rows and any STALE completed
+generation run for year 5 may change; all 39 upstream teachers exist so deactivation is expected 0. Verify after: the
+20-row count above plus `GET /api/v1/faculty/advisers?schoolId=1` (needs a session).
+
+**Boundary / not done:** no live data write, no resync, no deploy, no generation, no publication, no companion edit.
+Docs-only, so no independent QA dispatch (LOW, docs-only). Permanent-fix recommendation (needs its own
+operator-authorised packet, NOT this cycle): ATLAS has no re-sync after EnrollPro assigns advisers following a rollover,
+so the runbook's "no required operator action" and "Adviser changes update current context" are both currently false,
+and this is the same failure mode as the 2026-09-28 stale-roster occurrence fixed by a roster refresh.
+
+**Tally:** upstream 20/20 advisers present (verified) / ATLAS live mirror 0/20 (verified) / live route predicate
+reproduced 0 rows / cause DATA (of the three candidates) / source unchanged / 0 live writes / 0 deployments.
