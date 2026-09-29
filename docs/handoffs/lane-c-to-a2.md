@@ -1442,3 +1442,82 @@ Codex staging walk: run 1 scored 1/5; run 2, after the data repair, also scored 
     - Never show an empty table under "Checking source". Show one progress panel until rows arrive.
     - Audit.tsx is over the 1000-line cap (A5 c2 `ac8adf09`).
   - **Shell (A5):** when you change page, the old page's content stays up (for example, /teachers showed Sections). Show that page's own loading state.
+
+## A4 -> Lane C, 2026-09-29 10:35 +08 - **A4 STAGING at `e9ddda71`** (train 7). Live untouched. Codex walk, then GO.
+
+**0 fixes live / 13 lanes integrated / 0 dropped.** Live is still `ce1257c8`; `c9be17fe` stays the rollback basis.
+**Staging: `https://njgrm.buru-degree.ts.net:8443`** (API 5101, client 5274) - deploy `STAGING_DEPLOYED` in 79.4 s,
+DB re-streamed from live (`SNAPSHOT_REFRESHED`, live signature `1131|492|11` identical both sides).
+
+### Pin and gate
+
+`e9ddda71562742fd00d6ad881c1751f3ac1a0e7c` = the `origin/main` tip when I started, on `release/2026-09-29-7`.
+153 commits and **273 paths** since `ce1257c8` (119 client, 75 server, 126 added).
+
+| Gate | Result |
+|---|---|
+| Prisma diff `ce1257c8..e9ddda71` | **0 paths** - no migration, no schema change |
+| `npm run test:staging-guards` | **20/20 pass** |
+| Client suite vs baseline | **1250 tests, 1213 pass, 37 fail. NEW = 0.** All 37 are in the KNOWN_RED list |
+| Live-data invariants | **PASS** - 1 active non-archived mirror (2022-2023); 0 external ids 900000-999999 across year/section/faculty; 11 migrations = 11 on disk |
+| S-R2 zero-write | **13/13 tables byte-identical** before vs after, incl. `audit_logs` 492 / max 1131 |
+| Live untouched | **measured**: 5001 -> 36980, 5174 -> 17236, same PIDs before and after; machine scope still `ce1257c8`; live tree clean; health + ready 200 on loopback and Tailnet |
+
+**The B5 `Audit.tsx` 1000-line cap is no longer a waiver - it is GREEN.** A3 split the findings panel out at
+`7b58c636`; `Audit.tsx` is **873 -> 830 lines**. That was the one new failure waived for train 6, so the
+known-red list is now one entry *shorter* than the baseline, not longer.
+
+### Shipped-vs-claimed - 14 discriminating checks, all present at the pin and absent at `ce1257c8`
+
+A7 c2/c3/c4/c5 (`AdminYearSetup-DrFSsmYn.js` 27 887 B on 8443; old `AdminYearSetup-DAXETajy.js` **404**),
+A5 c2/c3 (`filter-picker-DqeO3t0r.js` - the shared picker chunk **does not exist in the live build at all**),
+A5 c4 (`RouteOutlet.tsx`), A6 c5 (`TeachingLoadShortageLine.tsx`, `CoverShortageDialog.tsx`, `useCoverShortage.ts`),
+A8 c2 (`teaching-load-capacity.service.js`), A9 (`faculty.service.ts` changed; 34 `personnelType` refs),
+A2 header budget (`TimetableSimpleHeader.tsx`), A3 (`Audit.tsx`).
+
+**Server build, present at the pin and absent from live:** `active-term-resolver.service.js`,
+`teaching-load-capacity.service.js`, `year-setup-carryover.service.js`.
+
+**Client string counts, pin vs live:** `to be hired` **7 vs 2**; `Cover these classes` **2 vs 0**;
+**`Guided mode` 0 vs 1** - that last one is the real A6 c4 proof, and it means **Guided mode is genuinely gone
+in this train**. The component file `TeachingLoadGuidedModePlaceholder.tsx` is **deleted** at the pin and
+`TeachingLoad.tsx` no longer imports or renders it. This corrects the train 5 and train 6 findings, where
+`a2c4c135` was a docs-only merge and the placeholder was still live.
+
+**One claimed marker I am NOT counting as proof:** `OWNER_DEPT` appears **1 in both** builds, because it is the
+parser constant `qe='OWNER_DEPT:'` plus a `startsWith` check - not rendered text. It does not discriminate, so
+A5 c3's proof is the `filter-picker` chunk and the `Subjects` chunk (92 122 B vs 91 402 B), not that string.
+`buildGuidedEmptyTeachingLoadMessage` **survives** at the pin; A6's own contract requires it (it is not
+user-visible), so its presence is correct, not a miss.
+
+**NOT IN TRAIN (correct, per the packet - do not wait):** A8 stall/SSE `4b5d9278` and A2 c13 `b23b7df1` are
+**not ancestors of the pin** (their `ready for release` posts are not on main yet). They ride train 8.
+
+### Two things I hit that you should know, neither a defect in the release
+
+1. **The deploy script's staging quiesce has a real gap, and it fails closed.** It collects PIDs whose command
+   line matches the supervisor `cli.mjs`, but the running staging supervisor (PID 15184) was a **detached
+   leftover whose scheduled-task instance was `Ready`, not `Running`**, so the match found nothing, the ports
+   never cleared, and it refused with `STAGING_DEPLOY_STOP: Staging port 5101 did not clear`. I killed that
+   tree by recorded PID (all three confirmed staging-only by command line first) and re-ran with `-SkipBuild`.
+   **A4 does not edit product or ops code, so this is routed, not fixed** - the quiesce should match the port
+   owners' **parent** supervisor, not only a live `cli.mjs` parent. It will bite train 8 the same way.
+2. **`powershell -File deploy-staging.ps1` cannot run this script at all.** `$PSScriptRoot` is empty inside a
+   `param()` default (`deploy-staging.ps1:63`), so it dies before the guards. It must be invoked with `&` from
+   a working directory, as the runbook shows. The guards are unaffected - `test:staging-guards` is 20/20.
+
+Also worth flagging: the runbook's staging-vs-live discriminator (`subjects?schoolId=1` returning **different
+byte counts** on 8443 vs 443) is **stale now**. The deploy re-streams live into staging, so both return
+**19 509 B** and the row no longer distinguishes anything. I proved the port identity with the build chunk
+instead. The runbook line should be corrected.
+
+`E:` free **29.99 -> 25.45 GiB** (staging copy 1.47 GiB + the gate worktree). Still above the 25 GiB warn line
+but only just - **train 8's reclaim is owed before its build**: `E:\ATLAS-staging\{c9be17fe..., ce1257c8...}`
+are superseded (~2.9 GiB) and `lane-a4-release-20260929-6` is train 6's abandoned gate worktree. **Never
+touch `lane-a4-release-20260929-5` (live) or `lane-a4-release-20260928-4prod` (rollback).**
+
+Worktrees: `lane-a4-release-20260929-7` = `KEEP_ACTIVE` (staging deploy source). `lane-a4-release-20260929-6`
+= `PRESERVE_FOR_DECISION` pending your reclaim call.
+
+**Next action (single):** Lane C runs the Codex walk on staging at `e9ddda71` and resumes A4 with **GO** for
+the production cutover of the same pin.
