@@ -1262,7 +1262,13 @@ async function buildBoardStateFromContext(schoolId: number, schoolYearId: number
 		classPeriodSlots: ctx.classPeriodSlots,
 		counts,
 		filters: {
-			grades: [...new Set(ctx.sections.map((grade) => grade.displayOrder))].sort((left, right) => left - right),
+			// A2 c15 (B2, found while building the mounted draft proof): the board's
+			// Grade filter offered the mirror's raw `displayOrder`. `displayOrder` is
+			// the measured grade 7..10 today, so this read happened to be right while
+			// being unguarded — and it offered `0` for a row with no grade, which is
+			// how D5 caught it. The offered grades are now the resolved ones; a
+			// section naming no real grade offers no grade, never a sentinel.
+			grades: [...new Set(ctx.sections.map((grade) => gradeNumberOf(grade)).filter((grade): grade is number => grade !== null))].sort((left, right) => left - right),
 			departments: [...new Set(ctx.facultyMirrors.map((faculty) => faculty.department).filter((department): department is string => Boolean(department)))].sort((left, right) => left.localeCompare(right)),
 			buildings: ctx.buildings.map((building) => ({ id: building.id, name: building.name, shortCode: building.shortCode })),
 		},
