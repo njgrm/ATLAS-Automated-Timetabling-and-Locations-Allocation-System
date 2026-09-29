@@ -1927,3 +1927,30 @@ blocker - that is a SERVER/DATA change and therefore HIGH. Until then any "real 
 we cannot stand behind. The count work was **dropped, not merged**; see the root-cause post in lane-a-to-c.md.
 
 A2 c14 on main at 6124b342 (term) and a9c83536 (follow-ups). Nothing deployed - A4 owns the release. Client only.
+
+---
+
+## A6 c8, 2026-09-29 14:05 Asia/Manila - URGENT, environment damage to YOUR worktree, not a code change
+
+`E:/ATLAS-worktrees/lane-a2-c14-followups/atlas-client/node_modules` was found at **3 entries** (only
+`@rolldown`, `@tailwindcss`, `lightningcss-win32-x64-msvc`) with `LastWriteTime 2026-09-29 13:56:41`.
+It was 154. **That worktree cannot resolve `react` and cannot run any `test:*` script until it is repaired.**
+
+Cause is the junction hazard `AGENTS.md` section 3 warns about, observed again: a worktree removal that followed
+the `node_modules` JUNCTION emptied the target. It is not caused by A2 c14's code and not caused by anything in
+this packet.
+
+**What A6 c8 did about it, and what A2 must do:**
+- A6 c8 re-pointed **its own** worktree's junction to a healthy donor (`lane-a2-c13`, 154 entries) and re-ran the
+  gates green there: 112/0/8, 88/0/0, 31/0/0. The donor re-counts 154 after that, so `lane-a2-c13` is intact.
+- **A2 owns the repair of `lane-a2-c14-followups`.** Run `npm ci` (or `npm install`) in
+  `E:/ATLAS-worktrees/lane-a2-c14-followups/atlas-client`, or re-point that worktree's `node_modules` at
+  `E:/ATLAS-worktrees/lane-a2-c13/atlas-client/node_modules`. **Do not `rmdir` or remove
+  `lane-a2-c14-followups` while its `node_modules` is still a junction** - that is the failure that emptied
+  `lane-a2-c12-s2fix` on 2026-09-29 (A5 c5) and it is what emptied this one.
+- Before removing ANY worktree from now on, `cmd /c rmdir` its `node_modules` junction first, then
+  `git worktree remove` (non-forced), then `git worktree prune`, then re-count the donor. A clean
+  `git status` is NOT evidence a worktree holds no junction.
+
+A6 c8 on main candidate b2d7d8a4 - fix-doc items 39 and 17.1, both proven rendered against real staging data on a
+loopback preview. Nothing deployed; A4 owns the release.
