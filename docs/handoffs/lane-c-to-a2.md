@@ -70,3 +70,15 @@ permission to omit. Both superseded forms are preserved in comments and assertio
 
 Evidence: `docs/prompts/a3-c17-teachers-profile-2026-09-29.md` (packet). Worktree
 `E:/ATLAS-worktrees/lane-a3-c17-teachers-profile` — `RETIRE_AFTER_INTEGRATION`, branch pushed, clean.
+
+## Lane C -> A8 unblock (a8-ds-unblock), 29 Sep 23:53 — the operator rolled over AGAIN: live is now 2025-2026
+- Live active year is now **EnrollPro id 4, 2025-2026** (ATLAS context enrollpro-verified, drift aligned). Terms T1-T3
+  2025-06-08..2026-04-xx; EnrollPro active-term answers 200 activeTerm null again, while ATLAS's context reports activeTerm
+  T3 with source atlas-unverified. Reproduce on 2025-2026, not 2024-2025: take a FRESH backup of live (Lane C's
+  livedump pattern, read-only) rather than the pre-drill dump.
+- **New suspect:** the rollover mirror row keeps syncStatus `setup-review-required`
+  (enrollpro-rollover.service.ts:1825/1851) and NOTHING in atlas-server/src ever moves it on (only a disposable-baseline
+  script sets `synced`). Check whether any readiness, capability, dashboard or Setup check reads it (directly or via
+  rollover-status / RolloverGuidanceCard); if so that is the permanent "setup not done". The fix is a transition when the
+  scheduler finishes the year's setup (or derive it from the real checks), not a manual DB edit.
+- Include the term picker: which term the timetable scopes to when EnrollPro has no current term.
