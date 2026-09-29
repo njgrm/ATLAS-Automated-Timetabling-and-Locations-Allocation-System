@@ -21,6 +21,7 @@ import {
 import { buildAcademicTermOptions, isVerifiedOrderedActiveTerm, repairTermFilter, type OrderedAcademicTerm } from '@/lib/academic-term';
 import { isTargetSlotOccupiedForTerm } from '@/lib/timetable-term-scope';
 import { formatTime } from '@/lib/utils';
+import { buildEditReceipt, receiptClassLabel } from '@/lib/timetable-edit-receipt';
 import atlasApi from '@/lib/api';
 import type {
 	Building,
@@ -1562,12 +1563,29 @@ export function useScheduleReviewWorkspaceState() {
 				endTime: preview.endTime,
 				roomLabel: preview.roomLabel ?? 'Room saved',
 			});
-			setInlineActionStatus({
-				tone: preview.softCount > 0 ? 'warning' : 'success',
-				message: preview.softCount > 0
-					? `Placed ${preview.subjectLabel} with ${preview.softCount} acknowledged warning${preview.softCount === 1 ? '' : 's'}. Undo below.`
-					: `Placed ${preview.subjectLabel} in ${preview.day} ${preview.startTime}-${preview.endTime}. Undo below.`,
-			});
+		/* A2 mc S5 — the PLACE path now speaks the SAME receipt as move and swap.
+		 * It previously built its own sentence with raw `preview.day`/`startTime`
+		 * (`Placed TLE in MONDAY 07:00-08:00`) and, on a soft run, a count rather
+		 * than a sentence. `preview.subjectLabel` and `preview.sectionLabel` are the
+		 * values the chooser already showed the operator, so the receipt names the
+		 * class it was about. */
+		const placeReceipt = buildEditReceipt({
+			editType: pending.proposal.editType,
+			classLabel: receiptClassLabel({
+				subjectLabel: preview.subjectLabel,
+				sectionLabel: preview.sectionLabel,
+			}),
+			from: null,
+			to: { day: String(preview.day), startTime: String(preview.startTime) },
+			problems: {
+				now: commitResult.violationDelta.hardAfter + commitResult.violationDelta.softAfter,
+				before: commitResult.violationDelta.hardBefore + commitResult.violationDelta.softBefore,
+			},
+		});
+		setInlineActionStatus({
+			tone: placeReceipt.tone,
+			message: `${placeReceipt.sentence} Undo below.`,
+		});
 			setInlinePlacementPending(null);
 		} finally {
 			setInlinePlacementSaving(false);
@@ -1906,14 +1924,35 @@ export function useScheduleReviewWorkspaceState() {
 					? `${roomMap.get(proposal.targetRoomId)!.name} - ${roomMap.get(proposal.targetRoomId)!.buildingShortCode || roomMap.get(proposal.targetRoomId)!.buildingName}`
 					: '',
 			});
-			setInlineActionStatus({
-				tone: scopedPreview.softViolations.length > 0 ? 'warning' : 'success',
-				message: scopedPreview.softViolations.length > 0
-					? `Move applied with ${scopedPreview.softViolations.length} soft warning(s).`
-					: `Moved to ${proposal.targetDay ?? ''} ${proposal.targetStartTime ?? ''}–${proposal.targetEndTime ?? ''}. Undo below.`,
-			});
-		},
-		[captureReviewFocusReturn, dragItem, previewEdit, commitEditWithMeta, stagePreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, placeGeneratedUnassigned, subjectLabel, roomMap, setLastAutoSaveUndo],
+		/* A2 mc S5 — ONE receipt for the committed move. Before this it read
+		 * `Moved to MONDAY 07:00–08:00. Undo below.` on a clean move and
+		 * `Move applied with N soft warning(s).` on a soft one: neither named the
+		 * class, neither said where it came FROM, and the second was a count rather
+		 * than a sentence.
+		 *
+		 * It is derived from the COMMITTED record (`commitResult.violationDelta` is
+		 * what the server measured after the write), never from the optimistic
+		 * proposal, so the sentence cannot describe a change that did not land. */
+		const moveReceipt = buildEditReceipt({
+			editType: proposal.editType,
+			classLabel: receiptClassLabel({
+				subjectLabel: subjectLabel ? subjectLabel(entry.subjectId) : null,
+				sectionLabel: sectionLabel ? sectionLabel(entry.sectionId) : null,
+			}),
+			from: { day: String(entry.day), startTime: String(entry.startTime) },
+			to: { day: String(proposal.targetDay ?? ''), startTime: String(proposal.targetStartTime ?? '') },
+			problems: {
+				now: commitResult.violationDelta.hardAfter + commitResult.violationDelta.softAfter,
+				before: commitResult.violationDelta.hardBefore + commitResult.violationDelta.softBefore,
+				firstNewSentence: scopedPreview.humanConflicts.find((c) => c.severity === 'HARD')?.humanTitle ?? null,
+			},
+		});
+		setInlineActionStatus({
+			tone: moveReceipt.tone,
+			message: `${moveReceipt.sentence} Undo below.`,
+		});
+	},
+		[captureReviewFocusReturn, dragItem, previewEdit, commitEditWithMeta, stagePreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, placeGeneratedUnassigned, subjectLabel, sectionLabel, roomMap, setLastAutoSaveUndo],
 	);
 
 	/** Keyboard-accessible placement confirm */
@@ -2032,15 +2071,29 @@ export function useScheduleReviewWorkspaceState() {
 					? `${roomMap.get(proposal.targetRoomId)!.name} - ${roomMap.get(proposal.targetRoomId)!.buildingShortCode || roomMap.get(proposal.targetRoomId)!.buildingName}`
 					: '',
 			});
-			setInlineActionStatus({
-				tone: scopedPreview.softViolations.length > 0 ? 'warning' : 'success',
-				message: scopedPreview.softViolations.length > 0
-					? `Move applied with ${scopedPreview.softViolations.length} soft warning(s).`
-					: `Moved to ${proposal.targetDay ?? ''} ${proposal.targetStartTime ?? ''}–${proposal.targetEndTime ?? ''}. Undo below.`,
-			});
-			setKbSelectedSource(null);
-		},
-		[captureReviewFocusReturn, kbSelectedSource, preGenKbSource, previewEdit, commitEditWithMeta, stagePreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, placeGeneratedUnassigned, subjectLabel, roomMap, setLastAutoSaveUndo],
+		/* A2 mc S5 — the SAME derivation as the drag path above. Two move entry
+		 * points produced two sentences before this slice; they now produce one. */
+		const kbReceipt = buildEditReceipt({
+			editType: proposal.editType,
+			classLabel: receiptClassLabel({
+				subjectLabel: subjectLabel ? subjectLabel(fakeItem.entry.subjectId) : null,
+				sectionLabel: sectionLabel ? sectionLabel(fakeItem.entry.sectionId) : null,
+			}),
+			from: { day: String(fakeItem.entry.day), startTime: String(fakeItem.entry.startTime) },
+			to: { day: String(proposal.targetDay ?? ''), startTime: String(proposal.targetStartTime ?? '') },
+			problems: {
+				now: commitResult.violationDelta.hardAfter + commitResult.violationDelta.softAfter,
+				before: commitResult.violationDelta.hardBefore + commitResult.violationDelta.softBefore,
+				firstNewSentence: scopedPreview.humanConflicts.find((c) => c.severity === 'HARD')?.humanTitle ?? null,
+			},
+		});
+		setInlineActionStatus({
+			tone: kbReceipt.tone,
+			message: `${kbReceipt.sentence} Undo below.`,
+		});
+		setKbSelectedSource(null);
+	},
+		[captureReviewFocusReturn, kbSelectedSource, preGenKbSource, previewEdit, commitEditWithMeta, stagePreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, placeGeneratedUnassigned, subjectLabel, sectionLabel, roomMap, setLastAutoSaveUndo],
 	);
 
 	/** Load edit history on mount / run change */

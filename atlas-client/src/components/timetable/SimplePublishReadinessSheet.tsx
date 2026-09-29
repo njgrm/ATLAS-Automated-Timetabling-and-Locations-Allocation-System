@@ -8,7 +8,7 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { ScrollArea } from '@/ui/scroll-area';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/ui/sheet';
-import { deriveSimplePublishReadiness, resolveBlockerDestination, type SimplePublishReadiness, type BlockerGroup, type WarningGroup, type RunWidePublishAuthority } from '@/components/timetable/simplePublishReadiness';
+import { deriveSimplePublishReadiness, resolveBlockerDestination, type SimplePublishReadiness, type BlockerGroup, type BlockerItem, type WarningGroup, type RunWidePublishAuthority } from '@/components/timetable/simplePublishReadiness';
 import type { DraftReport, Violation } from '@/types';
 
 type RepairIdentity = {
@@ -59,20 +59,36 @@ const VIOLATION_TO_BLOCKER_REASON: Record<string, string> = {
  * R9/A-18 — resolve the exact section/subject/faculty identity behind a blocker
  * group so the repair link can deep-link with context instead of dropping the
  * operator into a generic page.
+ *
+ * A2 mc S1b — it now also accepts the SPECIFIC item, so one row's own fix button
+ * carries THAT row's identity instead of the group's first. Without it every
+ * must-fix row on the sheet pointed at the same entity, which made per-item
+ * buttons a decoration: nine different buttons, one destination.
  */
 function resolveRepairIdentity(
 	reason: string | undefined,
 	draft: DraftReport | null,
 	violations: Violation[],
+	item?: BlockerItem | null,
 ): RepairIdentity | null {
-	if (!reason) return null;
-	const unassigned = draft?.unassignedItems ?? [];
-	const item = unassigned.find((candidate) => candidate.reason === reason);
+	// The item's own resolved identity is the most specific answer available: it
+	// was itself derived from the violation's own `entryIds` when the violation
+	// carried no ids (A2 mc S2).
 	if (item) {
 		return {
 			sectionId: item.sectionId ?? null,
 			subjectId: item.subjectId ?? null,
 			facultyId: item.facultyId ?? null,
+		};
+	}
+	if (!reason) return null;
+	const unassigned = draft?.unassignedItems ?? [];
+	const unassignedItem = unassigned.find((candidate) => candidate.reason === reason);
+	if (unassignedItem) {
+		return {
+			sectionId: unassignedItem.sectionId ?? null,
+			subjectId: unassignedItem.subjectId ?? null,
+			facultyId: unassignedItem.facultyId ?? null,
 		};
 	}
 	const violation = violations.find(
@@ -89,9 +105,35 @@ function resolveRepairIdentity(
 	return null;
 }
 
-function BlockerGroupRow({ group, onNavigate }: { group: BlockerGroup; onNavigate: (href: string, reason?: string, groupCount?: number) => void }) {
-	const [expanded, setExpanded] = useState(false);
-	const visibleItems = expanded ? group.items : group.items.slice(0, 3);
+/**
+ * A2 mc S1 — one count, one list.
+ *
+ * THE THREE DEFECTS, MEASURED:
+ *  S1a This row rendered `group.items.slice(0, 3)` plus a `Show N more`
+ *       disclosure. On the operator's own run that hid SEVEN of the TEN must-fix
+ *       sessions behind a control they had to discover, on the ONE list that
+ *       blocks publishing. A must-fix item is never behind a disclosure now: every
+ *       item renders, and the `Show N more` control is GONE from this row.
+ *       The WARNING row below keeps its disclosure untouched — a warning is
+ *       reviewable and blocks nothing, and this slice says nothing about it.
+ *  S1b Each item now carries the group's action label as a REAL control that
+ *       dispatches the same repair with THAT item's own identity, so a row's
+ *       button lands on that row. The button reuses the group header's exact
+ *       `@/ui` treatment (`variant="outline" size="sm" h-11`), so it looks like
+ *       every other repair control on the sheet (AGENTS.md §8 One look per
+ *       control) and it cannot be a bare text link.
+ *  S1c The count line now states WHAT the count covers and over WHICH scope, in
+ *       the existing scope Badge plus a short clause. Before this the header
+ *       chip, this sheet's gate and the selected-term line all read `Must fix`
+ *       over three different populations with nothing on screen saying so.
+ *
+ * WHAT WAS REMOVED BESIDE WHAT WAS ADDED (AGENTS.md §11, subtract first): the
+ * `Show N more` control, the `useState`/`expanded` state it needed, and the
+ * `Show less` branch. On the operator's ten-item group that is one fewer control
+ * and seven fewer hidden must-fix sessions; the added buttons are the packet's
+ * explicit requirement and are the only new controls on this row.
+ */
+function BlockerGroupRow({ group, onNavigate }: { group: BlockerGroup; onNavigate: (href: string, reason?: string, groupCount?: number, identity?: RepairIdentity | null) => void }) {
 	const whyItMatters = group.items[0]?.nextStep ?? 'Fix this group before the schedule can be published.';
 	const scopeLabel = plainScopeLabel(group.scope);
 	const destination = resolveBlockerDestination(group.reason, group.actionHref);
@@ -109,6 +151,12 @@ function BlockerGroupRow({ group, onNavigate }: { group: BlockerGroup; onNavigat
 							{scopeLabel}
 						</Badge>
 						{group.count} session{group.count === 1 ? '' : 's'} affected
+						{/* S1c — the population this count covers. `blockerPopulationLabel`
+						    comes from the derivation and uses the shared plain nouns, so
+						    this line cannot name a population the list does not hold. */}
+						<span data-testid="timetable-simple-blocker-population">
+							{` — ${group.populationLabel} in this list`}
+						</span>
 					</p>
 					<p className="mt-1 text-xs text-red-700">Why it matters: {whyItMatters}</p>
 				</div>
@@ -129,25 +177,39 @@ function BlockerGroupRow({ group, onNavigate }: { group: BlockerGroup; onNavigat
 				</Button>
 			</div>
 			{group.items.length > 0 && (
-				<div className="mt-2 space-y-1">
-					{visibleItems.map((item, index) => (
+				/* S1a — EVERY item. No slice, no disclosure. */
+				<div className="mt-2 space-y-1" data-testid="timetable-simple-blocker-items">
+					{group.items.map((item, index) => (
 						<div key={index} className="rounded-lg border border-red-100 bg-white/60 px-2 py-1.5 text-xs">
 							<p className="font-medium text-red-800">{item.sectionLabel} · {item.subjectLabel}</p>
-							<p className="text-red-600">{item.facultyLabel}</p>
+							<div className="flex items-center justify-between gap-2">
+								<p className="min-w-0 text-red-600">{item.facultyLabel}</p>
+								{/* S1b — this row's OWN repair control, carrying this row's
+								    identity. Same @/ui treatment as the group header, so it
+								    looks like every other repair control on the sheet. */}
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									className="h-11 shrink-0 cursor-pointer gap-1 px-2 text-xs"
+									onClick={() => onNavigate(group.actionHref, group.reason, group.count, {
+										sectionId: item.sectionId,
+										subjectId: item.subjectId,
+										facultyId: item.facultyId,
+									})}
+									data-testid="timetable-simple-blocker-item-action"
+									data-blocker-reason={group.reason}
+									data-item-section-id={item.sectionId ?? ''}
+									data-item-subject-id={item.subjectId ?? ''}
+									data-item-faculty-id={item.facultyId ?? ''}
+									aria-label={`${group.actionLabel}: ${item.sectionLabel}, ${item.subjectLabel}`}
+								>
+									{group.actionLabel}
+									<ExternalLink className="size-3" aria-hidden="true" />
+								</Button>
+							</div>
 						</div>
 					))}
-					{group.items.length > 3 && (
-						<Button
-							type="button"
-							variant="ghost"
-							size="sm"
-							className="h-11 gap-1 px-2 text-xs text-red-700"
-							onClick={() => setExpanded((value) => !value)}
-							aria-expanded={expanded}
-						>
-							{expanded ? 'Show less' : `Show ${group.items.length - 3} more`}
-						</Button>
-					)}
 				</div>
 			)}
 		</div>
@@ -211,7 +273,7 @@ export type SimplePublishReadinessSheetBodyProps = {
 	 * C1-a — carries the followed group's own `count` so the repair banner can
 	 * state the real number of affected sessions instead of a hard-coded zero.
 	 */
-	onNavigate: (href: string, reason?: string, groupCount?: number) => void;
+	onNavigate: (href: string, reason?: string, groupCount?: number, identity?: RepairIdentity | null) => void;
 	onCopySummary: () => void;
 	onDownloadCsv: () => void;
 	onClose: () => void;
@@ -398,9 +460,9 @@ export function SimplePublishReadinessSheetContent({
 	);
 
 	const handleNavigate = useCallback(
-		(href: string, reason?: string, groupCount?: number) => {
+		(href: string, reason?: string, groupCount?: number, identity?: RepairIdentity | null) => {
 			onRequestClose();
-			onNavigateToRepair(href, reason, resolveRepairIdentity(reason, draft, violations), groupCount);
+			onNavigateToRepair(href, reason, resolveRepairIdentity(reason, draft, violations, identity), groupCount);
 		},
 		[onRequestClose, onNavigateToRepair, draft, violations],
 	);
@@ -429,7 +491,7 @@ export function SimplePublishReadinessSheetContent({
 		if (readiness.hasBlockers) {
 			lines.push('Blocker causes:');
 			for (const group of readiness.blockerGroups) {
-				lines.push(`  ${group.plainLabel}: ${group.count} session${group.count === 1 ? '' : 's'} (${plainScopeLabel(group.scope)})`);
+				lines.push(`  ${group.plainLabel}: ${group.count} session${group.count === 1 ? '' : 's'} (${plainScopeLabel(group.scope)}; ${group.populationLabel})`);
 				lines.push(`    Action: ${group.actionLabel}`);
 				lines.push(`    Next step: ${group.items[0]?.nextStep ?? 'Review issue'}`);
 			}
@@ -454,9 +516,9 @@ export function SimplePublishReadinessSheetContent({
 
 	const handleDownloadCsv = useCallback(() => {
 		const runId = draft?.runId ?? '';
-		const rows: string[] = ['Type,Category,Count,Action,Next Step'];
+		const rows: string[] = ['Type,Category,Count,Action,Next Step,Scope,Population'];
 		for (const group of readiness.blockerGroups) {
-			rows.push(`Blocker,"${group.plainLabel}",${group.count},"${group.actionLabel}","${group.items[0]?.nextStep ?? ''}"`);
+			rows.push(`Blocker,"${group.plainLabel}",${group.count},"${group.actionLabel}","${group.items[0]?.nextStep ?? ''}","${plainScopeLabel(group.scope)}","${group.populationLabel}"`);
 		}
 		for (const wg of readiness.warningGroups) {
 			rows.push(`Warning,"${wg.plainLabel}",${wg.count},,`);

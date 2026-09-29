@@ -137,7 +137,8 @@
     "test:a5-c4-route-outlet": "tsx --test src/components/app-shell/__tests__/a5-c4-route-outlet-loading.test.tsx",
     "test:a2-c14-active-term": "tsx --test src/lib/__tests__/a2-c14-active-term-authority.test.ts",
     "test:a9-c6-room-filters": "tsx --test src/components/campus-map/__tests__/a9-c6-room-readiness-filters.test.ts",
-    "test:ux-type-scale-a7c8": "tsx --test src/lib/__tests__/a7-c8-type-scale.test.ts"
+    "test:ux-type-scale-a7c8": "tsx --test src/lib/__tests__/a7-c8-type-scale.test.ts",
+    "test:ux-a2-mc-manual-controls": "tsx --max-old-space-size=6144 --test src/components/timetable/__tests__/a2-mc-one-count-one-list.test.tsx src/components/timetable/__tests__/a2-mc-warning-row-identity.test.ts src/components/timetable/__tests__/a2-mc-move-swap-offers.test.tsx src/components/timetable/__tests__/a2-mc-plain-words-preview.test.tsx src/components/timetable/__tests__/a2-mc-edit-receipt.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -5,6 +5,8 @@ import type { ManualEditRecord } from '@/types';
 import { manualEditActionLabel } from '@/lib/timetable-plain-language';
 // A2-C6-TRUTH (T2a): the plain sentence naming a class the auto-fix relocated.
 import { describeEditAutoMoveNamed, editHistoryRevertBlockedReason, editHistorySummarySentence } from '@/lib/timetable-edit-history-truth';
+// A2 mc S5c — the ONE receipt module, shared with the inline status.
+import { historyEditReceiptSentence } from '@/lib/timetable-edit-receipt-record';
 import {
 	ALREADY_UNDONE_EDIT_MESSAGE,
 	REVERT_EDIT_TYPE,
@@ -162,10 +164,25 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 						 * payload naming an entry the run no longer holds, falls back to the
 						 * pre-existing "Class A"/"Class B" sentence: an unnamed sentence is
 						 * honest, an invented class name is not. */
-						const autoMove = describeEditAutoMoveNamed(
-							edit,
-							context.editHistoryEntryClassName ?? (() => null),
-						);
+					const autoMove = describeEditAutoMoveNamed(
+						edit,
+						context.editHistoryEntryClassName ?? (() => null),
+					);
+					/* A2 mc S5c — the SAME receipt module the inline status uses, in its
+					 * SHORT form. Before this slice a row named no class and no slot, so
+					 * the same committed change read as two different sentences on one
+					 * screen (C11/A2-C6).
+					 *
+					 * Additive beside the badge, never in place of it (AGENTS.md §16 and the
+					 * C11 T2 precedent at `:221-231`). It carries NO problem clause: A2-C6
+					 * (D2) already removed these counts because `validationSummary.hardCount`
+					 * is a whole-run commit-time figure that contradicted the header, and a
+					 * row printing "No new problems" from a measurement it does not hold
+					 * would be the same falsehood. `null` renders nothing at all. */
+					const receipt = historyEditReceiptSentence(
+						edit,
+						context.editHistoryEntryClassName ?? (() => null),
+					);
 					const canRevert = !isRevert && !isUndone && isHead && currentRunVersion != null && !revertLoading;
 					// A2-C7 correction (QA `ses_f19fa473bffeDm5iNBes3VX7PH` finding on
 					// T2d, BLOCKING): the head row's tooltip reason WAS the button's own
@@ -219,16 +236,21 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 									Changed by a signed-in account. This record does not show which person.
 								</p>
 							{autoMove && (
-								/* A2-C6-TRUTH (T2a). Additive beside the badge, never in place
-								 * of it: the row still says what KIND of record it is, and the
-								 * plain sentence below names the class that actually moved and
-								 * where it went. It is derived from the recorded before/after
-								 * slots, so it describes what was committed even if the run has
-								 * changed since. */
-								<p className="mt-1 font-medium text-amber-900" data-testid="timetable-edit-history-autofix">
-									{autoMove}
-								</p>
-							)}
+							/* A2-C6-TRUTH (T2a). Additive beside the badge, never in place
+							 * of it: the row still says what KIND of record it is, and the
+							 * plain sentence below names the class that actually moved and
+							 * where it went. It is derived from the recorded before/after
+							 * slots, so it describes what was committed even if the run has
+							 * changed since. */
+							<p className="mt-1 font-medium text-amber-900" data-testid="timetable-edit-history-autofix">
+								{autoMove}
+							</p>
+						)}
+						{receipt && (
+							<p className="mt-1 text-foreground" data-testid="timetable-edit-history-receipt">
+								{receipt}
+							</p>
+						)}
 							{isRevert && (
 								/* D1. The naming is additive beside the actor sentence, never in
 								 * place of the badge, so the row still says what KIND of

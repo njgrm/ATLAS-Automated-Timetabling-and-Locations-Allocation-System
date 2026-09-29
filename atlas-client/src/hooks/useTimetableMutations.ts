@@ -13,6 +13,7 @@ import type { EditHistoryReadState } from '@/lib/timetable-edit-history-truth';
 import { resolvePublicationActionIntent } from '@/lib/publication-approval-action';
 // A2-UX-WIRE-C2 (item 5, #58): the ONE outcome message for one generation.
 import { generationOutcomeToastSentence } from '@/lib/timetable-plain-language';
+import { buildEditReceipt, receiptClassLabel } from '@/lib/timetable-edit-receipt';
 // A2-TIMETABLE-CUSTODY-R2: `deriveRedoAfterRevert` is retained (the accepted
 // wiring assertion in `timetable-dynamic-workspace-undo-redo.test.ts:112` still
 // holds) and is now reached only through `assessRedoAfterRevert`, which refuses a
@@ -1973,24 +1974,55 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			await fetchEditHistory();
 			setRegularSwapPending(null);
 			setSelectedEntry(null);
-			setInlineActionStatus({
-				tone: strategy === 'DIRECT_SWAP' ? 'success' : 'warning',
-				message: strategy === 'AUTO_FIX_MOVE_SOURCE'
-					? 'Sessions switched. ATLAS also moved the source session to the nearest valid slot.'
-					: strategy === 'AUTO_FIX_MOVE_BLOCKING'
-						? 'Sessions switched. ATLAS also relocated the blocking session.'
-						: 'Sessions switched. The grid and edit history were updated.',
-			});
-			if (strategy === 'AUTO_FIX_MOVE_SOURCE') toast.success('Source session auto-fixed to the nearest valid slot.');
-			else if (strategy === 'AUTO_FIX_MOVE_BLOCKING') toast.success('Swap applied with blocking-session auto-fix relocation.');
-			else toast.success('Sessions swapped.');
+		/* A2 mc S5 — the SWAP path speaks the same receipt as move and place.
+		 *
+		 * Before this slice it named neither class and neither slot, so after a
+		 * swap the operator was told only that sessions had switched. It is derived
+		 * from the committed `CommitResult.violationDelta` (what the server measured
+		 * after the write), never from the optimistic request, and it is ADDITIVE:
+		 * the strategy clause below still says whether ATLAS also relocated a third
+		 * session, because that is a fact about the strategy and not about the
+		 * exchange.
+		 *
+		 * THE CLASS NAME, HONESTLY. This hook has no subject/subject label
+		 * resolver in scope (its sibling `useScheduleReviewWorkspaceState` does),
+		 * so the receipt names the section from the `sectionMap` it DOES hold and
+		 * never prints a bare id. A class it cannot name is not invented. */
+		const swappedSection = entryA.sectionId != null ? sectionMap.get(entryA.sectionId) : undefined;
+		const swapReceipt = buildEditReceipt({
+			editType: 'SWAP_ENTRIES',
+			classLabel: receiptClassLabel({
+				sectionLabel: swappedSection?.name ?? null,
+			}),
+			from: { day: String(entryA.day), startTime: String(entryA.startTime) },
+			to: { day: String(entryB.day), startTime: String(entryB.startTime) },
+			problems: {
+				now: data.violationDelta.hardAfter + data.violationDelta.softAfter,
+				before: data.violationDelta.hardBefore + data.violationDelta.softBefore,
+			},
+		});
+		const strategyClause = strategy === 'AUTO_FIX_MOVE_SOURCE'
+			? 'ATLAS also moved the source session to the nearest valid slot.'
+			: strategy === 'AUTO_FIX_MOVE_BLOCKING'
+				? 'ATLAS also relocated the blocking session.'
+				: 'The grid and edit history were updated.';
+		setInlineActionStatus({
+			tone: swapReceipt.tone === 'warning' || strategy !== 'DIRECT_SWAP' ? 'warning' : 'success',
+			message: `${swapReceipt.sentence} ${strategyClause}`,
+		});
+		/* A2 mc S5d — NO SECOND SENTENCE. The receipt above now states the swap, its
+		 * slots and its consequence, so the toast beside it that said "Sessions
+		 * swapped." was the same fact twice. It is REMOVED, not reworded, for the
+		 * same reason the timeslot helper sentence was: one committed change gets
+		 * ONE sentence. The error toast below is untouched — nothing landed there,
+		 * so there is no receipt to read. */
 		} catch (e: unknown) {
 			const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Swap failed.';
 			toast.error(msg);
 		} finally {
 			setRegularSwapSaving(false);
 		}
-	}, [regularSwapPending, apiBase, runVersion, regularSwapPreview, regularSwapStrategy, setRegularSwapSaving, setDraft, schoolYearId, runIdNumeric, setViolationReport, fetchEditHistory, setRegularSwapPending, setSelectedEntry, setInlineActionStatus]);
+	}, [regularSwapPending, apiBase, runVersion, regularSwapPreview, regularSwapStrategy, setRegularSwapSaving, setDraft, schoolYearId, runIdNumeric, setViolationReport, fetchEditHistory, setRegularSwapPending, setSelectedEntry, setInlineActionStatus, sectionMap]);
 
 	const unassignDraftPlacement = useCallback(async (placementId: number) => {
 		if (!schoolYearId) return;

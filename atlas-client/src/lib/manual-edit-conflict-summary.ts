@@ -112,8 +112,9 @@ export function plainConflictDetail(code: string, serverDetail: string | null | 
 	if (!raw) return '';
 	if (MANUAL_CANDIDATE_PREFIX.test(raw)) {
 		const reason = raw.replace(MANUAL_CANDIDATE_PREFIX, '').trim();
-		return reason
-			? `ATLAS refused this change because it breaks a rule every class must follow: ${scrubTokens(reason)}.`
+		const scrubbed = scrubTokens(reason).replace(/[.;,]+$/, '').trim();
+		return scrubbed
+			? `ATLAS refused this change because it breaks a rule every class must follow: ${scrubbed}.`
 			: 'ATLAS refused this change because it breaks a rule every class must follow.';
 	}
 	return scrubTokens(raw.replace(/rejected by shared invariant/gi, 'broke a scheduling rule'))

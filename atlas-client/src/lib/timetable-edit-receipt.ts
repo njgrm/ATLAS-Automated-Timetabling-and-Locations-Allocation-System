@@ -119,6 +119,24 @@ function pluralProblemWord(count: number): string {
 }
 
 /**
+ * The class a receipt names, in the packet's own shape: `TLE for 7-Rizal`.
+ *
+ * Both labels come from the CALLER's resolvers — this module never resolves an
+ * id and never prints one. When only one resolves, that one is used alone;
+ * when neither resolves the receipt names no class, which is honest, rather than
+ * borrowing a neighbour's name.
+ */
+export function receiptClassLabel(input: {
+	sectionLabel?: string | null;
+	subjectLabel?: string | null;
+}): string {
+	const subject = (input.subjectLabel ?? '').trim();
+	const section = (input.sectionLabel ?? '').trim();
+	if (subject && section) return `${subject} for ${section}`;
+	return subject || section;
+}
+
+/**
  * The honest problem clause.
  *
  *  - `now <= 0` -> `No new problems.` (the run is clean after the edit)

@@ -9,11 +9,10 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, ArrowLeft, Check, CheckCircle2, Clock, DoorOpen, Loader2, ShieldAlert, Users } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AlertCircle, ArrowLeft, Clock, DoorOpen, Loader2, ShieldAlert, Users } from 'lucide-react';
 
 import { formatTime } from '@/lib/utils';
-import { formatIdentityFallbackText, formatWarningMessageText, VIOLATION_PRESENTATION } from '@/lib/violation-presentation';
+import { formatIdentityFallbackText, formatWarningMessageText } from '@/lib/violation-presentation';
 import { getQualificationTier } from '@/lib/grade-labels';
 import type { ManualEditProposal, PreviewResult, ScheduledEntry } from '@/types';
 import { Badge } from '@/ui/badge';
@@ -32,12 +31,13 @@ import {
 import {
 	buildOccupiedSlots,
 	DAY_SHORT,
-	deltaSentence,
 	DAYS,
 	GRADE_BADGE,
 	type ManualEditActionType,
 	type ManualEditPanelProps,
 } from '@/components/manual-edit/manual-edit-foundation';
+import { ManualEditConflictInspector } from '@/components/manual-edit/ManualEditConflictInspector';
+import { describeMoveSwapOffers, type MoveSwapOffer } from '@/components/timetable/timetableMoveTargets';
 import { useManualEditOptionGroups } from '@/components/manual-edit/useManualEditOptionGroups';
 import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
 
@@ -142,11 +142,56 @@ export default function ManualEditPanel({
 			timeSlots
 				.filter((ts) => !ts.isSpecialEvent)
 				.map((ts) => ({
-				...ts,
-				key: `${ts.startTime}-${ts.endTime}`,
-				occupied: occupiedSlots.has(`${ts.startTime}-${ts.endTime}`),
-			})),
+					...ts,
+					key: `${ts.startTime}-${ts.endTime}`,
+					occupied: occupiedSlots.has(`${ts.startTime}-${ts.endTime}`),
+				})),
 		[timeSlots, occupiedSlots],
+	);
+
+	/**
+	 * A2 mc S3c — WHAT IS IN EACH OCCUPIED SLOT, and whether the two classes can
+	 * trade places.
+	 *
+	 * The recorded defect: every occupied period was struck through and labelled
+	 * ` (occupied)`, and the only explanation was a helper sentence under the
+	 * control ("Struck-through slots are occupied by the same faculty or room on
+	 * Monday") — which said nothing about WHICH class was there, whether a swap
+	 * was possible, and, after S3a, was no longer even the whole truth.
+	 *
+	 * The partner decision is DELEGATED to `describeMoveSwapOffers`, which calls
+	 * the one `findRegularSwapCandidate` rule. No scoring is re-implemented here.
+	 *
+	 * WHY REMOVE THE HELPER SENTENCE (subtraction first, AGENTS.md §11): §8 forbids
+	 * a helper sentence under a control, and with the option itself now naming the
+	 * occupant and the swap verdict, the sentence restated a fact the operator can
+	 * now read on the option. It is deleted, not reworded.
+	 */
+	const timeSlotSwapOffers = useMemo(() => {
+		const entries = (draftEntries ?? []) as ScheduledEntry[];
+		const offers = describeMoveSwapOffers({
+			slots: timeSlots.filter((ts) => !ts.isSpecialEvent && ts.day === targetDay),
+			occupants: entries.filter((candidate) => String(candidate.day) === String(targetDay)),
+			movingEntry: {
+				entryId: entry.entryId,
+				day: String(entry.day),
+				startTime: String(entry.startTime),
+				sectionId: entry.sectionId,
+				subjectId: entry.subjectId,
+				facultyId: entry.facultyId,
+				roomId: entry.roomId,
+				termIndex: entry.termIndex ?? null,
+			},
+			subjectLabel,
+			facultyLabel,
+		});
+		return new Map(offers.map((offer) => [`${offer.startTime}-${offer.endTime}`, offer] as const));
+	}, [draftEntries, timeSlots, targetDay, entry, subjectLabel, facultyLabel]);
+
+	const swapOfferFor = useCallback(
+		(startTime: string, endTime: string): MoveSwapOffer | undefined =>
+			timeSlotSwapOffers.get(`${startTime}-${endTime}`),
+		[timeSlotSwapOffers],
 	);
 
 	const entryViolations = violationIndex.get(entry.entryId) ?? [];
@@ -497,23 +542,32 @@ export default function ManualEditPanel({
 												<SelectValue placeholder="Select time" />
 											</SelectTrigger>
 											<SelectContent>
-												{freeTimeSlots.map((ts) => (
-													<SelectItem
-														key={ts.key}
-														value={ts.key}
-														className={`text-xs ${ts.occupied ? 'text-muted-foreground line-through' : ''}`}
-													>
-														{formatTime(ts.startTime)} –{' '}
-														{formatTime(ts.endTime)}
-														{ts.occupied && ' (occupied)'}
-													</SelectItem>
-												))}
+												{freeTimeSlots.map((ts) => {
+													/* A2 mc S3c — an occupied period names WHO is there and
+													   whether the two can swap, instead of a struck-through
+													   ` (occupied)`. `Swap with <subject> (<teacher>)` is the
+													   exact label shape from the packet; where no legal partner
+													   exists the option says so in the same plain words. */
+													const offer = ts.occupied ? swapOfferFor(ts.startTime, ts.endTime) : undefined;
+													const occupantNote = ts.occupied
+														? offer
+															? ` · ${offer.allowed ? offer.label : `Not a swap: ${offer.blockedReason}`}`
+															: ' · Taken by another class in this view'
+														: '';
+													return (
+														<SelectItem
+															key={ts.key}
+															value={ts.key}
+															className={`text-xs ${ts.occupied ? 'text-amber-700' : ''}`}
+															data-swap-state={ts.occupied ? (offer?.allowed ? 'swap-allowed' : 'swap-blocked') : 'free'}
+														>
+															{formatTime(ts.startTime)} – {formatTime(ts.endTime)}
+															{occupantNote}
+														</SelectItem>
+													);
+												})}
 											</SelectContent>
 										</Select>
-										<p className="text-[0.6875rem] text-muted-foreground">
-											Struck-through slots are occupied by the same faculty or
-											room on {DAY_SHORT[targetDay] ?? targetDay}.
-										</p>
 									</div>
 								</>
 							)}
@@ -692,304 +746,21 @@ export default function ManualEditPanel({
 					</div>
 				</div>
 
-				{/* ── RIGHT: Conflict Inspector ── */}
-				<div className="flex flex-col min-h-0 h-full rounded-lg border border-border bg-card overflow-hidden">
-					<div className="shrink-0 px-4 pt-3 pb-2 border-b border-border/60 bg-card flex items-center justify-between">
-						<h3 className="text-[0.6875rem] font-semibold text-foreground uppercase tracking-wider">
-							Conflict Inspector
-						</h3>
-						{previewResult ? (
-							<div className="flex items-center gap-1">
-								{previewResult.hardViolations.length > 0 && (
-									<Badge
-										variant="outline"
-										className="h-5 px-1.5 text-[0.625rem] border-red-300 bg-red-50 text-red-700"
-									>
-										{previewResult.hardViolations.length} hard
-									</Badge>
-								)}
-								{previewResult.softViolations.length > 0 && (
-									<Badge
-										variant="outline"
-										className="h-5 px-1.5 text-[0.625rem] border-amber-300 bg-amber-50 text-amber-700"
-									>
-										{previewResult.softViolations.length} soft
-									</Badge>
-								)}
-								{previewResult.humanConflicts.length === 0 && (
-									<Badge
-										variant="outline"
-										className="h-5 px-1.5 text-[0.625rem] border-green-300 bg-green-50 text-green-700"
-									>
-										clean
-									</Badge>
-								)}
-							</div>
-						) : entryViolations.length > 0 ? (
-							<div className="flex items-center gap-1">
-								<span className="text-[0.5625rem] text-muted-foreground mr-1">baseline</span>
-								{entryViolations.filter((v) => v.severity === 'HARD').length > 0 && (
-									<Badge
-										variant="outline"
-										className="h-5 px-1.5 text-[0.625rem] border-red-300/60 bg-red-50/60 text-red-600"
-									>
-										{entryViolations.filter((v) => v.severity === 'HARD').length} hard
-									</Badge>
-								)}
-								{entryViolations.filter((v) => v.severity === 'SOFT').length > 0 && (
-									<Badge
-										variant="outline"
-										className="h-5 px-1.5 text-[0.625rem] border-amber-300/60 bg-amber-50/60 text-amber-600"
-									>
-										{entryViolations.filter((v) => v.severity === 'SOFT').length} soft
-									</Badge>
-								)}
-							</div>
-						) : null}
-					</div>
+				{/* ── RIGHT: Conflict Inspector ──
+				    A2 mc: extracted to `manual-edit/ManualEditConflictInspector.tsx`
+				    because this file stood at 996 physical lines against the AGENTS.md
+				    §8 cap of 1000 and slice S4 adds JSX here. Same component, same
+				    testids, same classes, same props; the move changes no rendered
+				    output. */}
+				<ManualEditConflictInspector
+					previewResult={previewResult}
+					previewLoading={previewLoading}
+					entryViolations={entryViolations}
+					commitLoading={commitLoading}
+					onCommit={handleCommit}
+					formatViolationMessage={formatPanelViolationMessage}
+				/>
 
-					<ScrollArea className="flex-1 min-h-0">
-						<AnimatePresence mode="wait">
-							{previewResult ? (
-								<motion.div
-									key="results"
-									initial={{ opacity: 0 }}
-									animate={{ opacity: 1 }}
-									exit={{ opacity: 0 }}
-									transition={{ duration: 0.12 }}
-									className="px-4 py-3 space-y-4"
-								>
-									{/* Violation delta — human sentence */}
-									<div
-										className={`rounded border border-border bg-muted/30 px-3 py-2 text-xs font-medium ${deltaSentence(previewResult.violationDelta).color}`}
-									>
-										{deltaSentence(previewResult.violationDelta).text}
-									</div>
-
-									{/* Hard conflicts */}
-									{previewResult.humanConflicts.filter(
-										(c) => c.severity === 'HARD',
-									).length > 0 && (
-										<div className="space-y-2">
-											<div className="flex items-center gap-1.5">
-												<AlertCircle className="size-3.5 text-red-600" />
-												<span className="text-xs font-semibold text-red-700">
-											Blocking Conflicts (
-													{
-														previewResult.humanConflicts.filter(
-															(c) => c.severity === 'HARD',
-														).length
-													}
-													)
-												</span>
-											</div>
-											{previewResult.humanConflicts
-												.filter((c) => c.severity === 'HARD')
-												.map((c, i) => (
-													<div
-														key={i}
-														className="rounded border-l-[3px] border-l-red-500 border border-red-200 bg-red-50/80 px-3 py-2"
-													>
-														<div className="text-xs font-semibold text-red-800">
-															{c.humanTitle}
-														</div>
-														<div className="mt-0.5 text-xs text-red-700">
-															{c.humanDetail}
-														</div>
-														{c.delta && (
-															<div className="mt-1 pt-1 border-t border-red-200/60 text-[0.6875rem] text-red-600 font-mono">
-																{c.delta}
-															</div>
-														)}
-													</div>
-												))}
-										</div>
-									)}
-
-									{/* Soft warnings */}
-									{previewResult.humanConflicts.filter(
-										(c) => c.severity === 'SOFT',
-									).length > 0 && (
-										<div className="space-y-2">
-											<div className="flex items-center gap-1.5">
-												<AlertCircle className="size-3.5 text-amber-600" />
-												<span className="text-xs font-semibold text-amber-700">
-											Warnings (
-													{
-														previewResult.humanConflicts.filter(
-															(c) => c.severity === 'SOFT',
-														).length
-													}
-													)
-												</span>
-											</div>
-											{previewResult.humanConflicts
-												.filter((c) => c.severity === 'SOFT')
-												.map((c, i) => (
-													<div
-														key={i}
-														className="rounded border-l-[3px] border-l-amber-500 border border-amber-200 bg-amber-50/80 px-3 py-2"
-													>
-														<div className="text-xs font-semibold text-amber-800">
-															{c.humanTitle}
-														</div>
-														<div className="mt-0.5 text-xs text-amber-700">
-															{c.humanDetail}
-														</div>
-														{c.delta && (
-															<div className="mt-1 pt-1 border-t border-amber-200/60 text-[0.6875rem] text-amber-600 font-mono">
-																{c.delta}
-															</div>
-														)}
-													</div>
-												))}
-										</div>
-									)}
-
-									{/* Clean result */}
-									{previewResult.humanConflicts.length === 0 && (
-										<div className="flex flex-col items-center justify-center py-8 text-center">
-											<CheckCircle2 className="size-10 text-green-500 mb-2" />
-											<span className="text-sm font-medium text-green-700">
-												No Conflicts
-											</span>
-											<span className="text-xs text-muted-foreground mt-0.5">
-												This change introduces no violations.
-											</span>
-										</div>
-									)}
-
-									{/* Policy impact summary */}
-									{previewResult.policyImpactSummary.length > 0 && (
-										<div className="space-y-2">
-											<span className="text-xs font-medium text-muted-foreground">
-												Policy Impact
-											</span>
-											{previewResult.policyImpactSummary.map((p, i) => (
-												<div
-													key={i}
-													className={`rounded border px-3 py-2 text-xs ${
-														p.severity === 'HARD'
-															? 'border-red-200 bg-red-50/50 text-red-700'
-															: 'border-amber-200 bg-amber-50/50 text-amber-700'
-													}`}
-												>
-													<div className="font-medium">{p.label}</div>
-													<div className="mt-0.5 font-mono text-[0.6875rem]">
-														{p.summary}
-													</div>
-												</div>
-											))}
-										</div>
-									)}
-								</motion.div>
-							) : (
-								<motion.div
-									key="baseline"
-									initial={{ opacity: 0 }}
-									animate={{ opacity: 1 }}
-									exit={{ opacity: 0 }}
-									className="px-4 py-3 space-y-4"
-								>
-									{/* Baseline violations for this entry */}
-									{entryViolations.length > 0 ? (
-										<>
-											<div className="rounded border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground font-medium">
-												Baseline violations for this entry before any changes.
-											</div>
-											{entryViolations.filter((v) => v.severity === 'HARD').length > 0 && (
-												<div className="space-y-2">
-													<div className="flex items-center gap-1.5">
-														<AlertCircle className="size-3.5 text-red-600" />
-														<span className="text-xs font-semibold text-red-700">
-															Blocking Conflicts ({entryViolations.filter((v) => v.severity === 'HARD').length})
-														</span>
-													</div>
-													{entryViolations.filter((v) => v.severity === 'HARD').map((v, i) => (
-														<div
-															key={i}
-															className="rounded border-l-[3px] border-l-red-500 border border-red-200 bg-red-50/80 px-3 py-2"
-														>
-															<div className="text-xs font-semibold text-red-800">{VIOLATION_PRESENTATION[v.code]?.title ?? v.code.replace(/_/g, ' ')}</div>
-															<div className="mt-0.5 text-xs text-red-700">{formatPanelViolationMessage(v.message)}</div>
-														</div>
-													))}
-												</div>
-											)}
-											{entryViolations.filter((v) => v.severity === 'SOFT').length > 0 && (
-												<div className="space-y-2">
-													<div className="flex items-center gap-1.5">
-														<AlertCircle className="size-3.5 text-amber-600" />
-														<span className="text-xs font-semibold text-amber-700">
-															Warnings ({entryViolations.filter((v) => v.severity === 'SOFT').length})
-														</span>
-													</div>
-													{entryViolations.filter((v) => v.severity === 'SOFT').map((v, i) => (
-														<div
-															key={i}
-															className="rounded border-l-[3px] border-l-amber-500 border border-amber-200 bg-amber-50/80 px-3 py-2"
-														>
-															<div className="text-xs font-semibold text-amber-800">{VIOLATION_PRESENTATION[v.code]?.title ?? v.code.replace(/_/g, ' ')}</div>
-															<div className="mt-0.5 text-xs text-amber-700">{formatPanelViolationMessage(v.message)}</div>
-														</div>
-													))}
-												</div>
-											)}
-										</>
-									) : (
-										<div className="flex flex-col items-center justify-center py-8 text-center">
-											<CheckCircle2 className="size-10 text-green-500/40 mb-2" />
-											<span className="text-xs text-muted-foreground">
-												No existing violations for this entry.
-											</span>
-											<span className="text-[0.625rem] text-muted-foreground/70 mt-1">
-												Preview your changes to check for new conflicts.
-											</span>
-										</div>
-									)}
-								</motion.div>
-							)}
-						</AnimatePresence>
-					</ScrollArea>
-
-					{/* Sticky commit footer — only shown when preview exists */}
-					{previewResult && (
-						<div className="shrink-0 border-t border-border px-4 py-3 bg-card space-y-2">
-							{previewResult.hardViolations.length > 0 ? (
-								/* Hard conflicts — no commit button, just explanation */
-								<div className="flex items-center gap-2 text-xs text-red-600">
-									<AlertCircle className="size-3.5 shrink-0" />
-									<span>
-										Resolve {previewResult.hardViolations.length} hard
-										conflict
-										{previewResult.hardViolations.length !== 1
-											? 's'
-											: ''}{' '}
-										before committing. Adjust your selection and preview
-										again.
-									</span>
-								</div>
-							) : (
-								/* Clean or soft-only — commit immediately */
-								<Button
-									size="sm"
-									className="w-full h-8 text-xs"
-									onClick={handleCommit}
-									disabled={commitLoading}
-									aria-label="Commit changes (Enter)"
-								>
-									{commitLoading ? (
-										<Loader2 className="size-3 mr-1.5 animate-spin" />
-									) : (
-										<Check className="size-3 mr-1.5" />
-									)}
-									Commit Changes
-									<kbd className="ml-auto text-[0.5625rem] bg-background/50 border border-border/40 rounded px-1 py-px font-mono opacity-70">↵</kbd>
-								</Button>
-							)}
-						</div>
-					)}
-				</div>
 			</div>
 		</div>
 	);
