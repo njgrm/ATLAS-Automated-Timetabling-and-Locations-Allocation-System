@@ -56,3 +56,15 @@ edit path, so Undo/History work); "Apply all safe proposals" (one receipt: "Plac
 because …"). If no proposal exists, say why in one line (e.g. "Mr Cruz is booked every period Mon-Fri"). Unit tests on
 fixtures; prove on a staging copy of live Run 347: how many of the 10 get a proposal, 0 new hard conflicts after Apply all.
 Commit and push wip every 30 min.
+
+## Addendum (Lane C code search) — the simple view did not disappear; it grew
+- Mode: localStorage `atlas_timetable_layout_mode`, default 'simple' (`ScheduleReviewWorkspace.tsx:94,132`). The dense header
+  the operator saw IS the simple header (`TimetableSimpleHeader.tsx:189`), grown by A2 c14 (`318000998`, `e411c4e22`,
+  `95534cedb`), A8 c3 (`d87e1b3ed`) and the export centre (`a9a700ba6`). The expert tabs row is `TimetableSubNav.tsx:24-62`
+  and shows in simple mode; "Rooms changed since…" + See what changed + Update schedule is `SimpleChangeNotice.tsx:112`.
+  So: shrink the simple header back (row 1), keep TimetableSubNav for Expert only, turn SimpleChangeNotice into one short
+  status-line sentence with one button.
+- A warnings filter already exists (`severityFilter` 'all' | 'hard' | 'soft' | …, `SimpleHeaderHelpers.tsx:396`,
+  chip `TimetableGridConflictBadge.tsx:114-169`): make the default 'hard' (must-fix only) and present it as the plain toggle
+  "Show warnings (N)", remembered per user.
+- Tooltips: 64 of 274 call sites pass their own className; after the primitive turns white, sweep those 64 so none re-darken.
