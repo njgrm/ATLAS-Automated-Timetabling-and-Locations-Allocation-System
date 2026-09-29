@@ -4389,7 +4389,79 @@ decidable from source. Worktrees `lane-a3-c10-{s1-sections,s3-tldensity,s4-teach
 
 ## Lane A5 — current lane (written only by Planner A5)
 
-- **Stream: `A5-C3-20260929` is COMPLETE and on `origin/main`.** `/subjects` table + the
+- **`A5-C4-20260929` is INTEGRATED and PUSHED at `464332d6` (`main`). NOT deployed — A4 owns the
+  release (§14).** Packet `docs/prompts/a5-2026-09-29-c4.md`; candidate `5c9a18c4` (product
+  `7b58c636` + corrections); merged on `integration/a5-c4-20260929` over the product `main`
+  advance, **zero conflicts, product tree byte-identical to the reviewed candidate**. **0 fixes
+  live and seen / 5 integrated / 0 dropped.**
+- **What it fixes** — the five Codex design findings Lane C routed at 06:58 (train 6 held at
+  staging; evidence `docs/reviews/codex-staging-train6-24e268fb/`). **None of them is a speed
+  finding**; the 8-12 s page loads are A8's, and no timeout, retry or poll was added here.
+  1. **`TERM_CACHE_INVALID` read in plain words.** The raw code was the *visible label* of the
+     diagnostic popover; it now reads **`Help`**, the code moves behind it (never deleted — the
+     anti-deletion row opens the real popover and finds the code **and** the raw server
+     sentence), and the banner headline now resolves from the **CODE** rather than from `state`
+     alone: *Term information needs updating before scheduling.* An unmapped code keeps today's
+     headline. `description`/`nextAction` copy is byte-identical.
+  2. **Filters: Grade and Program stay visible; Status, Room, Term behind ONE `More filters`.**
+     Labelled `More filters (n)` counting **set** filters, so a hidden active filter is never
+     invisible. **7 visible controls → 5** (§11 subtract-first). The disclosure is the shared
+     `@/ui` picker trigger; an `auto` width variant was **added to `picker-trigger.ts`** so every
+     page gets it, per §8.
+  3. **No empty table under "Checking source."** The 8-row skeleton grid is **replaced** by one
+     centred `AdminStatePanel` until the first catalog response resolves, so the chip and the
+     body can no longer disagree. No timer, no poll, no invented retry.
+  4. **Shell: a route change shows the new page's loading state at once.** Root cause read, not
+     guessed: `<AnimatePresence mode="wait">` meant the **old** page stayed mounted and visible
+     under the **new** URL until its exit completed — on an animation frame, so a stalled main
+     thread (A8's finding) could hold it indefinitely. The gate is removed, the 150 ms fade and
+     the remount key stay, `resolveOutletKey` is untouched, the outlet is extracted to
+     `components/app-shell/RouteOutlet.tsx` as the testable seam, and the fallback names the page
+     from `resolveRouteChrome` — no second title source.
+  5. **`pages/Audit.tsx` 1003 → 891 lines** (over §8's 1000 cap, caused by my own `ac8adf09`);
+     `AuditFindingsPanel.tsx` is 193. The repo-wide B5 cap guard is no longer red on it.
+- **Review: two rounds, the throughput cap honoured.** Round 1 `REJECT_UX` 24/18/**3**/**1**/**2**:
+  the design-gate axis-4 miss (the disclosure hand-restated the shared trigger's chrome and
+  omitted `tracking-normal`), a `ux-r03d` pin this range broke and did not report, and a
+  file-count correction that **masked** the real 108-vs-95 ratchet failure. Round 2
+  `ACCEPT_READY` **41/41/0/0**, all three reproduced closed with 12 and 5 mutation controls. **The
+  one-look fix is real:** the disclosure and the two pickers now render an identical `@/ui` token
+  set, the only difference being the declared `w-auto` vs `w-32`.
+- **Two of my own errors, on the record (§16 holds planner records to the same rule).** (1) The
+  F3 correction raised one side of a pin's arithmetic and left the other, so the suite kept the
+  *same* failure count (9/7/2) while the failing **rows** changed — §11's "count the rows, check
+  they are the same rows", made by me. (2) Round-2 QA **N1** found one assertion the executor
+  added was vacuous: a case-sensitive `epoch` that can never match this codebase's real
+  `routeEpoch`. **Planner-fixed directly** (`5c9a18c4`, one-line `/i`) and verified by running it.
+- **⚠ THREE ROWS ARE UNPERFORMED — a browser decides them, and they are A4's/Lane C's, not
+  mine.** Design-gate axis 2 (truncation, cramping) **CANNOT DECIDE** in jsdom. 1) The new filter
+  row and both new panels at **1366×768 and 390px**. 2) `More filters (n)` under load.
+  3) The item-4 outcome a user sees: the old page gone the instant the URL changes.
+  **A4: carry these as browser rows in the release packet, not source rows** — nothing I ran
+  proves the deployed chunk.
+- **`npm run build` is BLOCKED, not failed** — the repo's own fail-closed `VITE_ENROLLPRO_URL`
+  guard. **A4 must satisfy it at release; no lane invented a value.**
+- **Still over the §8 cap, and NOT mine:** `components/runtime/RolloverGuidanceCard.tsx` at
+  **1008** physical lines (last product change `3ce60260`, `work/a7-school-year-setup-c2`).
+  **A7 owns the split**; the B5 guard stays red on it until then, and it is also why
+  `a3-palette-token-sweep` still reports that file holding `text-slate-500`.
+- **Dated base reds, 2026-09-29, byte-identical and deliberately not re-pinned:**
+  `a3-palette-slate400-s-f` 9/8/1 (ratchet **108 vs pinned 95** — 13 files of *other* lanes'
+  drift; QA upheld **not** re-pinning it inside an A5 commit, and that call was right),
+  `a3-palette-token-sweep` 9/7/2, `a3-c4-copy` 18/14/1, `a3-palette-ratchet-s-e` 5/3/2,
+  `a3-c9-operator-tokens` 21/20/1, `a3-title-strip-c3` 15/13/2. `timetable-relaxed-main` 83/79/4
+  and `client-suite` 1220/1181/39 are **A2/A7 timetable debt**; QA enumerated every raising file
+  and **none** is in A5's 26 paths. `tsc` **5** errors (3 `playwright` not installed).
+- **Worktree disposition, 2026-09-29:** `lane-a5-c4-20260929` **RETIRED** in this closure
+  (junction removed with `cmd /c rmdir` first, non-forced `git worktree remove`, then `prune`).
+  `lane-a5-c3-20260929` stays `KEEP_ACTIVE` — it was the `node_modules` junction donor for c4 and
+  its two release conditions are still unjudged. E: measured **21.6 GiB** free at worktree
+  creation (below the §3 25 GiB warn line) and **29.7 GiB** after A4's reclaim; no branch deleted.
+- **Next action (single):** A4 pins `464332d6` for the next train and carries the **three browser
+  rows** above; Lane C judges them on staging `:5274` afterwards. A5 opens nothing new until a
+  `REJECT_UX` comes back, and will not open a second slice of C4.
+
+- **Stream (prior, complete):** `A5-C3-20260929` is COMPLETE and on `origin/main`. `/subjects` table + the
   one-look-per-control picker sweep. **Slice A `419277e4`, slice B `358812cf`, both pushed to
   `main`; final tip `7b4fc857`. NOT deployed — A4 owns the release. A5 c2 `bf1a7913` is
   untouched and still rides train 6.**
