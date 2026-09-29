@@ -10,7 +10,6 @@ import {
 	ChevronRight,
 	ArrowRight,
 	Wand2,
-	CalendarRange,
 	RefreshCw,
 } from 'lucide-react';
 import { Badge } from '@/ui/badge';
@@ -19,6 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import { useDashboardData, type DashboardDerivedDemandState, type DashboardReadinessSourceState, type LifecyclePhase } from '@/hooks/useDashboardData';
 import type { RolloverStatus } from '@/lib/settings';
+import { ReadinessCard } from '@/components/dashboard/ReadinessCard';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
 import { SmartHelpTrigger } from '@/components/smart/SmartPageShell';
 
@@ -63,14 +63,6 @@ const TONE: Record<StatTone, { iconBg: string; iconRing: string; iconText: strin
 		footer: 'text-amber-600',
 	},
 };
-
-const LIFECYCLE_STEPS: { key: LifecyclePhase; label: string; helper: string }[] = [
-	{ key: 'SETUP', label: 'Setup', helper: 'Year, terms, subjects, rooms' },
-	{ key: 'PREFERENCES', label: 'Preferences', helper: 'Faculty inputs' },
-	{ key: 'GENERATION', label: 'Generate', helper: 'Algorithm run' },
-	{ key: 'REVIEW', label: 'Review', helper: 'Fix blockers' },
-	{ key: 'PUBLISHED', label: 'Published', helper: 'Visible to faculty + students' },
-];
 
 const SOURCE_CHIP_COPY: Record<string, string> = {
 	verified_live: 'Live source',
@@ -156,6 +148,7 @@ const SOURCE_DECISION_STYLE: Record<SourceDecisionTone, { icon: string; badge: s
 };
 
 const SOURCE_REPAIR_LINKS = [
+	{ href: '/admin/year-setup', label: 'School Year' },
 	{ href: '/sections', label: 'Sections' },
 	{ href: '/subjects', label: 'Subjects' },
 	{ href: '/teachers', label: 'Teachers' },
@@ -342,6 +335,20 @@ export type RunReviewChecklistItem = {
 	done: boolean;
 	href: string;
 	hint?: string;
+	/**
+	 * A7 C6 (QA F2) — TRUE when the data behind `done` could not be READ. An
+	 * unresolved step is neither done nor not-ready: the server established only
+	 * that it could not count, so promoting it into the "not ready" list tells
+	 * an older scheduler a published timetable is broken when ATLAS simply does
+	 * not know. The `done` predicate is the accepted one and is not touched.
+	 */
+	unresolved?: boolean;
+	/**
+	 * A7 C6 — the run-review row carries the ONE truthful run-blocker sentence
+	 * (`RunBlockerTile`) instead of a second, differently-worded copy of the
+	 * same fact.
+	 */
+	statusSlot?: 'run-blocker';
 };
 
 /**
@@ -361,13 +368,20 @@ export function buildRunReviewChecklistItem(args: {
 	const { generationAvailable, latestRunStatus, hardViolationCount, softViolationCount } = args;
 	const done = generationAvailable && latestRunStatus === 'COMPLETED' && hardViolationCount === 0;
 	let hint: string | undefined;
-	if (!generationAvailable) hint = 'Generation status is unavailable';
-	else if (latestRunStatus === 'FAILED') hint = 'The latest generation run failed';
-	else if (latestRunStatus === 'IN_PROGRESS') hint = 'Generation is still running';
-	else if (hardViolationCount === null) hint = 'Hard-violation count is unavailable — open the timetable to confirm';
+	if (!generationAvailable) hint = 'ATLAS could not read the last run. Open the timetable to check.';
+	else if (latestRunStatus === 'FAILED') hint = 'The last attempt failed. Open the timetable to see why.';
+	else if (latestRunStatus === 'IN_PROGRESS') hint = 'The timetable is still being made.';
+	else if (hardViolationCount === null) hint = 'ATLAS could not count the problems that must be fixed. Open the timetable to check.';
 	else if (hardViolationCount > 0) hint = `${hardViolationCount} run-wide hard blocker${hardViolationCount === 1 ? '' : 's'}`;
 	else if (softViolationCount !== null && softViolationCount > 0) hint = `${softViolationCount} warning${softViolationCount === 1 ? '' : 's'} acknowledged`;
-	return { label: 'Timetable generated and reviewed', done, href: '/timetable', hint };
+	// A7 C6 R2 (QA F2) — the third state, alongside `done` and `unresolved`.
+	// An unresolved step is a step ATLAS COULD NOT READ. It is not done, it is
+	// not "not ready", and it never takes the amber next-task ring: the ring
+	// means "do this next", and you cannot act on a reading that was never
+	// taken. `done` is left byte-identical — the accepted predicate is not this
+	// correction's to rewrite.
+	const unresolved = !generationAvailable || (latestRunStatus === 'COMPLETED' && hardViolationCount === null);
+	return { label: 'Timetable made and checked', done, href: '/timetable', hint, statusSlot: 'run-blocker', unresolved };
 }
 
 /**
@@ -384,30 +398,37 @@ export function RunBlockerTile(props: {
 		return (
 			<div className='flex items-center gap-2.5 text-sm'>
 				<AlertTriangle className='w-4 h-4 shrink-0 text-amber-500' />
-				<span className='text-foreground font-medium'>Run status unavailable</span>
+				<span className='text-foreground font-medium'>ATLAS could not read the last run. Open the timetable to check.</span>
 			</div>
 		);
 	}
 	if (hardViolationCount === null) {
-		// null must never render as 0 or as "clean".
+		// null must never render as 0 or as "clean". A7 C6: the old wording
+		// ("Hard-violation count unavailable") named the mechanism and not the
+		// job, so an older user had no idea what to do. It now says what is
+		// unavailable AND what to check.
 		return (
 			<div className='flex items-center gap-2.5 text-sm'>
 				<AlertTriangle className='w-4 h-4 shrink-0 text-amber-500' />
-				<span className='text-foreground font-medium'>Hard-violation count unavailable</span>
+				<span className='text-foreground font-medium'>ATLAS could not count the problems that must be fixed. Open the timetable to check.</span>
 			</div>
 		);
 	}
 	if (hardViolationCount > 0) {
+		// A7 C6 — plain words, but the SCOPE survives. "run-wide" was the
+		// load-bearing part of the old sentence: the figure covers the whole
+		// timetable, not one term. `DTC01-S1 surface 3` pins that scope, so it
+		// is now stated as "across the whole timetable" rather than dropped.
 		return (
 			<div className='flex items-center gap-2.5 text-sm'>
 				<AlertTriangle className='w-4 h-4 shrink-0 text-amber-500' />
-				<span className='text-foreground font-medium'>{hardViolationCount} run-wide review blocker{hardViolationCount === 1 ? '' : 's'}</span>
+				<span className='text-foreground font-medium'>{hardViolationCount} problem{hardViolationCount === 1 ? '' : 's'} must be fixed across the whole timetable before it can go out</span>
 			</div>
 		);
 	}
 	const cleanLabel = softViolationCount !== null && softViolationCount > 0
-		? `No hard violations · ${softViolationCount} warning${softViolationCount === 1 ? '' : 's'} acknowledged`
-		: 'No hard violations';
+		? `No problems must be fixed · ${softViolationCount} preference${softViolationCount === 1 ? '' : 's'} the draft could not meet`
+		: 'No problems must be fixed';
 	return (
 		<div className='flex items-center gap-2.5 text-sm'>
 			<CheckCircle2 className='w-4 h-4 shrink-0 text-emerald-500' />
@@ -426,22 +447,21 @@ export function ActiveTermHardViolationsRow(props: { count: number | null }) {
 	if (count === null) {
 		return (
 			<div className='flex items-center justify-between text-xs'>
-				<span className='text-muted-foreground'>Hard violations (run-wide)</span>
-				<span className='text-amber-600 font-semibold'>Unavailable</span>
+				<span className='text-muted-foreground'>Problems that must be fixed in the whole timetable</span>
+				<span className='text-amber-600 font-semibold'>Could not count them</span>
 			</div>
 		);
 	}
 	if (count <= 0) return null;
 	return (
 		<div className='flex items-center justify-between text-xs'>
-			<span className='text-muted-foreground'>Hard violations (run-wide)</span>
+			<span className='text-muted-foreground'>Problems that must be fixed in the whole timetable</span>
 			<span className='text-rose-600 font-semibold'>{count}</span>
 		</div>
 	);
 }
 
 export default function Dashboard() {
-	const [showAllSetupSteps, setShowAllSetupSteps] = useState(false);
 	const [rolloverStatus, setRolloverStatus] = useState<RolloverStatus | null>(null);
 	const rolloverAligned = rolloverStatus?.drift.status === 'aligned';
 	const rolloverBlocking = rolloverStatus !== null && !rolloverAligned;
@@ -483,24 +503,36 @@ export default function Dashboard() {
 	const derivedTotals = derivedDemand?.totals ?? null;
 	const derivedTermBlocker = derivedDemand?.blockers.find((blocker) => TERM_AUTHORITY_BLOCKER_CODES.has(blocker.code)) ?? null;
 
+	// A7 C6 — the readiness list is the DEMO STORY, in order, every entry a
+	// plain noun linked to the page that fixes it. It used to be grouped by data
+	// source, so "not ready" read as an unordered pile.
+	//
+	// `unresolved` (QA F2): TRUE when the read behind a row's `done` predicate
+	// never came back. Those rows are neither done nor outstanding — see
+	// `components/dashboard/ReadinessCard.tsx`, which owns the three buckets.
+	//
+	// Teacher Concerns is deliberately NOT here: A3 C13 is rebuilding that page
+	// and no snapshot field reports a truthful concerns state. The menu entry
+	// exists, so the step is reachable.
 	const checklist = [
-		{ label: 'Sections loaded for school year', done: domainAvailability.sections && (sectionCount ?? 0) > 0, href: '/sections', hint: !domainAvailability.sections ? 'Enrollment unavailable' : sectionCount === null ? 'Enrollment unavailable' : undefined },
-		{ label: 'Subjects added', done: domainAvailability.subjects && (subjectCount ?? 0) > 0, href: '/subjects', hint: !domainAvailability.subjects ? 'Subject data is unavailable' : undefined },
-		{ label: 'Teachers synced from EnrollPro', done: domainAvailability.faculty && (facultyCount ?? 0) > 0, href: '/teachers', hint: !domainAvailability.faculty ? 'Faculty data is unavailable' : undefined },
-		{ label: 'EnrollPro year and ordered terms ready', done: derivedDemandAvailable && derivedTermStructure !== null && !derivedTermBlocker, href: '/admin/year-setup', hint: !derivedDemandAvailable ? 'Year and terms could not be read' : derivedTermBlocker ? (derivedTermBlocker.message ?? 'Refresh the active EnrollPro year and terms') : undefined },
-		{ label: 'Subject scheduling metadata complete', done: derivedDemandAvailable && derivedMetadataExceptions.length === 0, href: '/subjects', hint: !derivedDemandAvailable ? 'Subject metadata could not be checked' : derivedMetadataExceptions.length > 0 ? (derivedMetadataExceptions[0].subjectCode ? `${derivedMetadataExceptions[0].subjectCode}: ${derivedMetadataExceptions[0].message}` : derivedMetadataExceptions[0].message) : undefined },
-		{ label: 'Derived demand prepared (input milestone)', done: derivedDemandAvailable && (derivedTotals?.totalPairs ?? 0) > 0, href: '/subjects', hint: !derivedDemandAvailable ? 'Derived demand could not be read' : derivedTotals ? `${derivedTotals.totalPairs} subject-section pair${derivedTotals.totalPairs === 1 ? '' : 's'} · ${derivedTotals.totalLines} session${derivedTotals.totalLines === 1 ? '' : 's'} — inputs only, not final generation approval` : 'No derived demand yet' },
-		{ label: 'Subjects have teacher coverage', done: domainAvailability.subjects && unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0, href: missingCoverageSubjectIds && missingCoverageSubjectIds.length > 0 ? `/teaching-load?view=subjects&filter=missing-coverage` : '/teaching-load', hint: !domainAvailability.subjects ? 'Coverage is unavailable' : unassignedSubjectCount && unassignedSubjectCount > 0 ? `${unassignedSubjectCount} unassigned` : 'Subject-level coverage only — exact subject-section ownership is confirmed on the Timetable' },
-		{ label: 'Buildings and rooms ready', done: domainAvailability.campus && buildingSetupStatus.done, href: '/map', hint: !domainAvailability.campus ? 'Campus data is unavailable' : buildingSetupStatus.subMessage },
+		{ label: 'School year and terms set', done: derivedDemandAvailable && derivedTermStructure !== null && !derivedTermBlocker, unresolved: !derivedDemandAvailable, href: '/admin/year-setup', hint: !derivedDemandAvailable ? 'ATLAS could not read the school year and its terms' : derivedTermBlocker ? (derivedTermBlocker.message ?? 'Refresh the active EnrollPro year and terms') : undefined },
+		{ label: 'Sections confirmed', done: domainAvailability.sections && (sectionCount ?? 0) > 0, unresolved: !domainAvailability.sections || sectionCount === null, href: '/sections', hint: !domainAvailability.sections || sectionCount === null ? 'Enrollment could not be read' : undefined },
+		{ label: 'Subjects added', done: domainAvailability.subjects && (subjectCount ?? 0) > 0, unresolved: !domainAvailability.subjects, href: '/subjects', hint: !domainAvailability.subjects ? 'Subject data could not be read' : undefined },
+		{ label: 'Every subject has its schedule details', done: derivedDemandAvailable && derivedMetadataExceptions.length === 0, unresolved: !derivedDemandAvailable, href: '/subjects', hint: !derivedDemandAvailable ? 'Subject details could not be checked' : derivedMetadataExceptions.length > 0 ? (derivedMetadataExceptions[0].subjectCode ? `${derivedMetadataExceptions[0].subjectCode}: ${derivedMetadataExceptions[0].message}` : derivedMetadataExceptions[0].message) : undefined },
+		{ label: 'Teachers synced from EnrollPro', done: domainAvailability.faculty && (facultyCount ?? 0) > 0, unresolved: !domainAvailability.faculty, href: '/teachers', hint: !domainAvailability.faculty ? 'The teacher list could not be read' : undefined },
+		{ label: 'Subjects have teacher coverage', done: domainAvailability.subjects && unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0, unresolved: !domainAvailability.subjects, href: missingCoverageSubjectIds && missingCoverageSubjectIds.length > 0 ? `/teaching-load?view=subjects&filter=missing-coverage` : '/teaching-load', hint: !domainAvailability.subjects ? 'Teacher coverage could not be read' : unassignedSubjectCount && unassignedSubjectCount > 0 ? `${unassignedSubjectCount} subject${unassignedSubjectCount === 1 ? '' : 's'} still need${unassignedSubjectCount === 1 ? 's' : ''} a teacher` : 'This checks each subject. The exact subject-section ownership is confirmed on the Class Schedule page' },
+		{ label: 'Teaching rooms marked', done: domainAvailability.campus && buildingSetupStatus.done, unresolved: !domainAvailability.campus, href: '/map', hint: !domainAvailability.campus ? 'The room list could not be read' : buildingSetupStatus.subMessage },
+		{ label: 'Classes needed are worked out', done: derivedDemandAvailable && (derivedTotals?.totalPairs ?? 0) > 0, unresolved: !derivedDemandAvailable, href: '/subjects', hint: !derivedDemandAvailable ? 'ATLAS could not work this out' : derivedTotals ? `${derivedTotals.totalPairs} subject-section pair${derivedTotals.totalPairs === 1 ? '' : 's'} · ${derivedTotals.totalLines} lesson${derivedTotals.totalLines === 1 ? '' : 's'} a week. An input milestone: a starting point, not the finished timetable` : 'No classes worked out yet' },
 		buildRunReviewChecklistItem({ generationAvailable: domainAvailability.generation, latestRunStatus, hardViolationCount: runWideHardViolationCount, softViolationCount: runWideSoftViolationCount }),
 		// EVAL-C01: only a resolved published schedule counts as published.
 		// A reviewed timetable is "ready to publish", not published.
-		{ label: 'Schedule published', done: lifecyclePhase === 'PUBLISHED', href: '/schedules', hint: lifecyclePhase === 'PUBLISHED' ? 'Published schedule is live' : 'Review the timetable before publishing' },
+		{ label: 'Schedule published', done: lifecyclePhase === 'PUBLISHED', unresolved: false, href: '/schedules', hint: lifecyclePhase === 'PUBLISHED' ? 'Everyone can see the timetable' : 'Check the timetable, then publish it' },
 	];
 
 	const doneCount = checklist.filter((c) => c.done).length;
-	const currentIdx = LIFECYCLE_STEPS.findIndex((s) => s.key === lifecyclePhase);
-	const phaseNumber = currentIdx + 1;
+	// The three buckets (done / outstanding / unresolved) are derived inside
+	// `components/dashboard/ReadinessCard.tsx` from this same `checklist`, so
+	// the count here and the lists there can never disagree.
 	const sourceDecision = SOURCE_DECISION_COPY[readinessSourceState];
 	const sourceDecisionStyle = SOURCE_DECISION_STYLE[sourceDecision.tone];
 	const SourceDecisionIcon = sourceDecision.tone === 'success' ? CheckCircle2 : sourceDecision.tone === 'info' ? RefreshCw : AlertTriangle;
@@ -654,18 +686,13 @@ export default function Dashboard() {
 										steps={[
 											{ title: 'Check source status', body: 'Confirm whether ATLAS is using live EnrollPro data or saved setup data.', target: 'Source connection' },
 											{ title: 'Follow the next step', body: 'Use the Your next step card to move scheduling forward one task at a time.', target: 'Your next step' },
-											{ title: 'Review setup readiness', body: 'The checklist shows which setup areas still need attention.', target: 'Setup readiness' },
-											{ title: 'Open timetable last', body: 'Create or review the timetable after setup and Teaching Load are ready.', target: 'Open Timetable' },
+											{ title: 'Read what is not ready', body: 'The readiness list names every step that is not finished, and each one links to the page that fixes it.', target: 'Setup readiness' },
+											{ title: 'Make the timetable last', body: 'Create or check the timetable after setup and Teaching Load are ready.', target: 'Your next step' },
 										]}
-										className='h-9 bg-white/20 hover:bg-white/30 text-white border-white/20'
-									/>
-									<Link to='/timetable'>
-										<Button className='h-9 gap-2 bg-white px-3 text-xs font-semibold text-primary shadow-none hover:bg-white/90'>
-											<CalendarRange className='w-4 h-4' />
-											Open Timetable
-										</Button>
-									</Link>
-								</div>
+									className='h-9 bg-white/20 hover:bg-white/30 text-white border-white/20'
+								/>
+							</div>
+
 							</div>
 						</div>
 					</div>
@@ -784,10 +811,10 @@ export default function Dashboard() {
 									</div>
 								</CardHeader>
 								<CardContent className='p-6'>
-									<h2 className='text-xl font-bold text-foreground'>{next.title}</h2>
-									<p className='mt-2 text-sm leading-relaxed text-muted-foreground'>{next.body}</p>
-									<p className='mt-2 text-sm font-medium text-slate-600'>{readinessSourceMessage}</p>
-									<div className='mt-4'>
+								<h2 className='text-xl font-bold text-foreground'>{next.title}</h2>
+								<p className='mt-2 text-sm leading-relaxed text-muted-foreground'>{next.body}</p>
+								<div className='mt-4'>
+
 										<Link to={next.href} data-repair-target='next-step'>
 											<Button className='h-10 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl shadow-primary-glow'>
 												{next.cta}
@@ -798,155 +825,34 @@ export default function Dashboard() {
 								</CardContent>
 							</Card>
 
-
-							{/* Scheduling lifecycle */}
-							<Card>
-								<CardHeader className='border-b border-slate-100 bg-zinc-50/60 px-6 py-4'>
-									<div className='flex items-center justify-between'>
-										<div>
-											<CardTitle className='text-lg flex items-center gap-2 text-foreground'>Scheduling lifecycle</CardTitle>
-											<CardDescription>Move through every phase before students see a published schedule.</CardDescription>
-										</div>
-										<Badge variant='outline' className='bg-primary/5 text-primary gap-1.5 px-3 py-1.5'>
-											Phase {phaseNumber}/{LIFECYCLE_STEPS.length}
-										</Badge>
-									</div>
-								</CardHeader>
-								<CardContent className='px-6 py-4'>
-									{/* Two-column body on desktop */}
-									<div className='grid grid-cols-1 lg:grid-cols-2 gap-5'>
-										{/* Left: current phase */}
-										<div className='space-y-4'>
-											<div className='flex items-start gap-3'>
-												<div className='shrink-0 rounded-xl bg-primary/10 p-2.5'>
-													<Wand2 className='w-5 h-5 text-primary' />
-												</div>
-												<div className='min-w-0'>
-													<p className='text-xs font-bold uppercase tracking-wider text-primary'>Current phase</p>
-													<p className='text-lg font-bold text-foreground mt-0.5'>{LIFECYCLE_STEPS[currentIdx]?.label ?? 'Setup'}</p>
-													<p className='text-sm text-muted-foreground mt-1 leading-relaxed'>{LIFECYCLE_STEPS[currentIdx]?.helper}</p>
-												</div>
-											</div>
-											<div>
-												<Link to={next.href} className='inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline'>
-													{next.cta}
-													<ArrowRight className='w-4 h-4' />
-												</Link>
-											</div>
-										</div>
-
-										{/* Right: blocker summary */}
-										<div className='space-y-2.5'>
-											<p className='text-xs font-bold uppercase tracking-wider text-muted-foreground'>Before generation</p>
-											<div className='grid grid-cols-2 gap-2.5'>
-												<div className='flex items-center gap-2.5 text-sm'>
-													{!domainAvailability.subjects || (unassignedSubjectCount ?? 0) > 0 ? (
-														<AlertTriangle className='w-4 h-4 shrink-0 text-amber-500' />
-													) : (
-														<CheckCircle2 className='w-4 h-4 shrink-0 text-emerald-500' />
-													)}
-													<span className={!domainAvailability.subjects || (unassignedSubjectCount ?? 0) > 0 ? 'text-foreground font-medium' : 'text-muted-foreground'}>
-														{!domainAvailability.subjects ? 'Coverage unavailable' : (unassignedSubjectCount ?? 0) > 0 ? `${unassignedSubjectCount} unassigned` : 'Subjects assigned'}
-													</span>
-												</div>
-												<div className='flex items-center gap-2.5 text-sm'>
-													{domainAvailability.campus && buildingSetupStatus.done ? (
-														<CheckCircle2 className='w-4 h-4 shrink-0 text-emerald-500' />
-													) : (
-														<AlertTriangle className='w-4 h-4 shrink-0 text-amber-500' />
-													)}
-													<span className={domainAvailability.campus && buildingSetupStatus.done ? 'text-muted-foreground' : 'text-foreground font-medium'}>{!domainAvailability.campus ? 'Rooms unavailable' : 'Rooms ready'}</span>
-												</div>
-												<RunBlockerTile generationAvailable={domainAvailability.generation} hardViolationCount={runWideHardViolationCount} softViolationCount={runWideSoftViolationCount} />
-												<div className='flex items-center gap-2.5 text-sm'>
-													{lifecyclePhase === 'PUBLISHED' ? (
-														<CheckCircle2 className='w-4 h-4 shrink-0 text-emerald-500' />
-													) : (
-														<AlertTriangle className='w-4 h-4 shrink-0 text-amber-500' />
-													)}
-													<span className={lifecyclePhase === 'PUBLISHED' ? 'text-muted-foreground' : 'text-foreground font-medium'}>
-														{lifecyclePhase === 'PUBLISHED' ? 'Published' : 'Publish locked'}
-													</span>
-												</div>
-											</div>
-										</div>
-									</div>
-
-									{/* Progress rail */}
-									<div className='mt-5 pt-4 border-t border-slate-100'>
-										<ol className='flex items-center gap-1'>
-											{LIFECYCLE_STEPS.map((step, idx) => {
-												const state = idx < currentIdx ? 'done' : idx === currentIdx ? 'active' : 'upcoming';
-												return (
-													<li key={step.key} className='flex-1 min-w-0 flex items-center gap-1'>
-														<div className={`h-2 flex-1 rounded-full transition-colors ${state === 'done' ? 'bg-emerald-300' : state === 'active' ? 'bg-primary' : 'bg-slate-200'}`} />
-														<span className={`text-xs font-medium whitespace-nowrap ${state === 'active' ? 'text-primary' : state === 'done' ? 'text-emerald-600' : 'text-muted-foreground'}`}>{step.label}</span>
-													</li>
-												);
-											})}
-										</ol>
-									</div>
-								</CardContent>
-							</Card>
+							{/*
+							  A7 C6 — the "Scheduling lifecycle" card is gone. It was a
+							  third status language over facts the next-step card and the
+							  readiness list already carried, and it rendered the
+							  next-step CTA a second time. Each fact it showed lives on:
+							    current phase   -> `next.title`
+							    "N unassigned"  -> "Subjects have teacher coverage"
+							    rooms           -> "Teaching rooms marked"
+							    run blockers    -> "Timetable made and checked"
+							    published       -> "Schedule published"
+							  The 5-bar rail and "Phase N/5" are gone with it. Do NOT
+							  re-add a phase badge or a rail: one status per fact (§8).
+							*/}
 						</div>
 
-						{/* Setup readiness */}
-						<Card data-testid='dashboard-readiness-hub'>
-								<CardHeader className='border-b border-slate-100 px-6 py-4'>
-									<div className='flex items-start justify-between gap-3'>
-										<div>
-											<CardTitle className='text-lg text-foreground'>Setup readiness</CardTitle>
-											<CardDescription>{doneCount} of {checklist.length} ready</CardDescription>
-										</div>
-										<Badge className='border-0 bg-emerald-50 text-emerald-700 hover:bg-emerald-50'>
-											{doneCount}/{checklist.length}
-										</Badge>
-									</div>
-								</CardHeader>
-								<CardContent className='p-2'>
-									<ul className='divide-y divide-slate-100'>
-										{(() => {
-											const firstUncompletedIdx = checklist.findIndex((item) => !item.done);
-											return checklist.map((item, idx) => {
-												const isNextTask = idx === firstUncompletedIdx;
-												return (
-													<li key={item.label} className={!showAllSetupSteps && idx >= 3 ? 'hidden sm:block' : undefined}>
-														<Link to={item.href} className={`flex items-start gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-slate-50/80 sm:px-4 sm:py-3 ${isNextTask ? 'ring-2 ring-amber-300 bg-amber-50/20' : ''}`}>
-															{item.done ? (
-																<div className='mt-0.5 p-1 rounded-full bg-emerald-100'>
-																	<CheckCircle2 className='w-4 h-4 text-emerald-600' />
-																</div>
-															) : (
-																<div className='mt-0.5 p-1 rounded-full bg-slate-100'>
-																	<div className='w-4 h-4 rounded-full border-2 border-slate-300' />
-																</div>
-															)}
-															<div className='flex-1 min-w-0'>
-																<p className={`text-sm font-medium ${item.done ? 'text-muted-foreground line-through' : 'text-foreground'}`}>{item.label}</p>
-																{item.hint ? (
-																	<p className='flex items-center gap-1 text-xs text-amber-600 mt-1'>
-																		<AlertTriangle className='w-3 h-3' />
-																		{item.hint}
-																	</p>
-																) : null}
-															</div>
-															<ChevronRight className='w-4 h-4 text-slate-300 mt-1' />
-														</Link>
-													</li>
-												);
-											});
-										})()}
-									</ul>
-									{checklist.length > 3 && (
-										<div className='border-t border-slate-100 px-4 py-2 sm:hidden'>
-											<Button type='button' variant='ghost' size='sm' className='h-9 w-full justify-center rounded-xl text-xs font-bold' onClick={() => setShowAllSetupSteps((v) => !v)} aria-expanded={showAllSetupSteps}>
-												{showAllSetupSteps ? 'Show fewer setup steps' : 'View all setup steps'}
-											</Button>
-										</div>
-									)}
-								</CardContent>
-							</Card>
+
+					{/* Setup readiness is `components/dashboard/ReadinessCard.tsx`,
+					    extracted when this file crossed the AGENTS.md 1000-physical-line
+					    cap. Three states: done, outstanding, and unresolved (a read that
+					    never arrived — not outstanding work). See its doc comment. */}
+					<ReadinessCard
+						rows={checklist}
+						generationAvailable={domainAvailability.generation}
+						hardViolationCount={runWideHardViolationCount}
+						softViolationCount={runWideSoftViolationCount}
+					/>
 					</div>
+
 
 					{/* Campus Map & Rooms – full-width */}
 					<Suspense fallback={<Card><CardContent className='p-6 text-sm text-muted-foreground'>Loading campus map…</CardContent></Card>}>

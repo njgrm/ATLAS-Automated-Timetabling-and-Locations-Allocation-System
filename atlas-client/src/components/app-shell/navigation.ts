@@ -2,6 +2,7 @@ import {
 	BookOpen,
 	CalendarClock,
 	CalendarDays,
+	CalendarRange,
 	ClipboardList,
 	GraduationCap,
 	HeartHandshake,
@@ -23,11 +24,38 @@ export type NavItemDef = {
 	disabled?: boolean;
 };
 
+/**
+ * A7 C6 (item 1) — the lookup/print step's ONE plain name, shared by the
+ * sidebar label and the route chrome so the two can never drift.
+ */
+export const LOOKUP_PRINT_LABEL = 'Look up & print schedules';
+
 export const navigationNav: NavItemDef[] = [
 	{ label: 'Dashboard', to: '/', icon: LayoutDashboard },
 ];
 
 export const setupNav: NavItemDef[] = [
+	// A7 C6 (item 1) — the demo story starts here. Before this entry the
+	// school-year step had NO menu item at all: the only door handle was a
+	// Dashboard link to the raw `/admin/year-setup`, so a first-time scheduler
+	// could not find step 1 without being told the address.
+	//
+	// `adminOnly: true` and NO `schedulerAccess` is the load-bearing part, and
+	// it is not a guess: `pages/AdminYearSetup.tsx` admits exactly
+	// `ADMIN_ROLES = {admin, SYSTEM_ADMIN, officer}` and sends everyone else
+	// back to `/`. `canSeeNavItem` resolves an `adminOnly` item with no
+	// `schedulerAccess` to that same three-role set, so nav visibility and the
+	// page's own authority agree exactly. Do NOT add `schedulerAccess: true`
+	// here: that would advertise a page the page itself refuses.
+	//
+	// STORY POSITION: first in `setupNav`, before Subjects, because the demo
+	// walks School Year -> Sections -> Subjects -> Teachers -> Teaching Load ->
+	// Teacher Concerns -> make the Timetable -> look up & print schedules.
+	// That is the ORDER OF THE MENU, read top to bottom. The demo script's own
+	// narrative pairs Teacher Concerns with Teaching Load; `teachersAndRoomsNav`
+	// has always carried Teaching Load first, and reordering it is not this
+	// packet's business, so the comment records the menu rather than the story.
+	{ label: 'School Year', to: '/admin/year-setup', icon: CalendarRange, adminOnly: true },
 	{ label: 'Sections', to: '/sections', icon: GraduationCap, adminOnly: true },
 	{ label: 'Subjects', to: '/subjects', icon: BookOpen, adminOnly: true },
 ];
@@ -70,7 +98,13 @@ export const timetableNav: NavItemDef[] = [
 ];
 
 export const reviewPublishNav: NavItemDef[] = [
-	{ label: 'Room Schedules', to: '/schedules', icon: CalendarDays, adminOnly: true, schedulerAccess: true },
+	// A7 C6 (item 1) — one name per job. "Class Schedule" (the Timetable entry,
+	// which A2 C13 has ruled STAYS) and "Room Schedules" both used to read like
+	// "review", so an older user could find both and still not know which one
+	// reviews the timetable. This entry is the LAST step of the demo story —
+	// look something up and print it — so it now says that. The route `to` is
+	// unchanged: this is a label, not a destination.
+	{ label: LOOKUP_PRINT_LABEL, to: '/schedules', icon: CalendarDays, adminOnly: true, schedulerAccess: true },
 ];
 
 export const auditNav: NavItemDef[] = [
@@ -140,7 +174,20 @@ const routeChromeOverrides: Record<string, { group?: string; title: string }> = 
 	'/timetable/runs': { group: CLASS_SCHEDULE_LABEL, title: 'Runs' },
 	// UX-R03e (setup) - the composed setup route shares the Class Schedule shell.
 	'/timetable/setup': { group: CLASS_SCHEDULE_LABEL, title: 'Setup' },
-	'/room-schedules': { group: 'Review and Publish', title: 'Room Schedules' },
+	/*
+	 * A7 C6 (item 1) — one destination, ONE name. `/room-schedules` and
+	 * `/schedules` mount the SAME page, and the sidebar entry (at `/schedules`)
+	 * reads LOOKUP_PRINT_LABEL. Without this override the deep links into the
+	 * lookup page would still show the old "Room Schedules" shell title, so one
+	 * page would answer to two names depending on the address.
+	 *
+	 * Integrated over A5 C5, which owns `pages/RoomSchedules.tsx`. The page's own
+	 * heading is A5 C5's to set: it currently reads "Schedules", which is a third
+	 * name for this destination and is recorded as a named follow-up for A5 C5's
+	 * owner. A5 C5 must not re-point this override without changing the sidebar
+	 * label in the same commit, or one destination gets two names again.
+	 */
+	'/room-schedules': { group: 'Review and Publish', title: LOOKUP_PRINT_LABEL },
 	/*
 	 * A3 c13 — the route-chrome entries for `/faculty/room-preferences` and
 	 * `/faculty/preferences` are RETIRED, not deleted. Their old titles
@@ -153,6 +200,10 @@ const routeChromeOverrides: Record<string, { group?: string; title: string }> = 
 	 * they actually land on: Teacher Concerns. That is one destination under one
 	 * name, which is what the removal was for, and it is a behaviour the ux-r01
 	 * shared-chrome row pins for every authenticated route.
+	 *
+	 * A7 C6 landed alongside A3 c13, so its packet note that the Room
+	 * Preferences nav entry "stays until A3 c13 lands" is now moot: A3 c13 has
+	 * landed and owns both the entry and this chrome title.
 	 */
 	'/faculty/preferences': { group: 'Teachers and Rooms', title: 'Teacher Concerns' },
 	'/faculty/room-preferences': { group: 'Teachers and Rooms', title: 'Teacher Concerns' },
