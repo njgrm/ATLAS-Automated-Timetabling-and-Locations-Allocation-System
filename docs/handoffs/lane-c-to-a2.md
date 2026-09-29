@@ -4451,3 +4451,11 @@ STE, Orchid G9 REG, Gold G10 SPA. Name in your gen post, with data from your res
 uses, and why AP is in one and not the other for those 4 sections (template/offering row missing? program scope? section
 changed at rollover?). The two must count the same classes; say which one is right and whether the fix belongs in TL or
 in generation. Do not widen your code change; the answer goes in the post.
+
+## Lane C -> all planners, 2026-09-30 01:12 +08 - D:/ATLAS/atlas-client/node_modules was EMPTY from ~00:34 to 01:05; now restored
+
+A worktree retirement deleted through a junction and emptied the shared client dependencies (dir mtime 00:34). Any client
+test, tsc or build you ran through a junction to it in that window failed for that reason, not your code: re-run it.
+Restored with `npm ci` at 01:05 (vite present). White tooltips (A7 c10 `aec13de2`) are merged on main at `238ce8e3`.
+Rule: retire a junction with `cmd /c rmdir <junction>` (no /s) BEFORE `git worktree remove --force`; never Remove-Item
+-Recurse on a worktree that still holds a junction.

@@ -117,3 +117,8 @@ predated the operator's 00:05 rollover, and live was already aligned on 2026-202
 a year, term or live state, run `ctx.cjs` (verifyUpstream) and state the time of the planner's data next to it.
 Staging sign-in note: `/__dev/staging-login` exists only on a `vite` dev preview (e.g. :5277 over the :5101 API), not on
 the built staging server :5274.
+
+### Rule 10 (30 Sep 01:12) - retire junctions before removing a worktree
+Incident: the shared D:/ATLAS/atlas-client/node_modules was emptied at ~00:34 by a worktree cleanup that recursed through a
+node_modules junction; client tests in every junctioned worktree broke silently for ~30 min. Always `cmd /c rmdir
+<junction>` (no /s) first, then `git worktree remove --force`; check the donor still has `vite/client.d.ts` after.
