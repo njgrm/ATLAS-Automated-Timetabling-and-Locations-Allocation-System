@@ -4721,10 +4721,22 @@ decidable from source. Worktrees `lane-a3-c10-{s1-sections,s3-tldensity,s4-teach
   `WorkspaceToolbar.tsx` is at **966 physical lines — 34 of headroom**; extract before the next edit there. Two packet
   corrections so they are not quoted again: §1.3.2's "1235px one line" omits `draftControls` and the row **wraps**;
   `useTeachingLoadUI.ts` is a **fourteenth** changed file the packet did not enumerate.
-- **Worktree:** `E:/ATLAS-worktrees/lane-a6-c6-calm-tl` = `RETIRE_AFTER_INTEGRATION`, left for A4 (§14 E: capacity).
-  Real `node_modules` (278 packages), never junctioned. `lane-a6-c6-baseproof` created and removed this cycle. Branch
-  pushed; **no branch deleted.** `E:` 32.64 GiB after the install — above the §3 warn line, **no reclaim triggered by
-  this cycle**; A4 owns the trigger. Next A6 cycle: fresh session, no packet written.
+- **Worktree: RETIRED by this lane's own closure, not left for A4** (§3, §10 rule 8).
+  `E:/ATLAS-worktrees/lane-a6-c6-calm-tl` is **gone**, recorded before removal: path, branch
+  `work/a6-c6-calm-teaching-load`, HEAD an **ancestor of `origin/main`**, `git status --short` **empty**, real
+  `node_modules` (278 packages, not a junction), and no process using it — my own preview tree was killed by
+  recorded PID and port 5295 confirmed clear first. **The reason is a capacity fact, and it is why the line above was
+  wrong:** `E:` had crossed **below** the §3 25 GiB warn line — **24.78 GiB measured before the retirement, 26.85
+  GiB after.** The bullet previously said "no reclaim triggered by this cycle", which was true when it was written
+  and false by the time the closure ended; leaving my own 1.5 GiB in place would have made a later session read it
+  as stale, which is the failure §15's dating rule exists to prevent. The retention *policy* decision and any reclaim
+  beyond this one remain **A4's** (§14). The base-proof worktree was created and removed inside the cycle. **No branch
+  deleted**; `work/a6-c6-calm-teaching-load` resolves. Next A6 cycle: fresh session, fresh worktree, no packet
+  written.
+- **One process error of mine, recorded because it nearly cost the record.** I retired the worktree **before**
+  applying this correction, so the edit had nowhere to land and needed a fresh docs-only boundary
+  (`E:\ATLAS-worktrees\lane-a6-c6-docs`, also removed after the push). The order is: **all** continuity edits, then
+  the push, **then** the retirement. A closure that retires first and documents after has inverted its own sequence.
 
 - **`A6 ready for release at e2ff35ba` (2026-09-29, packet c5, written by Lane C on A6's behalf). Candidate
   `bcccddc7` over base `b768dba8` (= `316534f2` + packet). 0 fixes live and seen / 5 integrated and NOT seen
