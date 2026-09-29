@@ -27,7 +27,12 @@ test('R3 the selected-class Swap arms the same workflow as the task path', () =>
 	// `simple/SimpleSessionDetails`; its Swap button calls the same handler.
 	// assert.match(workspace, /data-testid="timetable-simple-details-swap"/);
 	assert.match(source('src/components/timetable/simple/SimpleSessionDetails.tsx'), /onClick=\{run\(props\.onSwap\)\} data-testid="timetable-simple-details-swap"/);
+	// A2 mc R2 (QA N4, 2026-09-30): the two rows above prove the two ENDS of the
+	// chain and nothing joined them — nothing asserted that the workspace actually
+	// hands `armSwapSessions` to the extracted component. This is that link.
 	assert.match(workspace, /onSwap=\{armSwapSessions\}/);
+	assert.match(workspace, /<ScheduleReviewWorkspaceSelectedActions/);
+	assert.match(selectedActions, /onSelect=\{\(event\) => \{ event\.preventDefault\(\); onSwap\(\); \}\}/);
 	// The arming transition is the real production module, not a state-only no-op.
 	assert.match(arming, /mode: 'select-first'/);
 	assert.match(arming, /deps\.setTask\('swap-sessions'\)/);

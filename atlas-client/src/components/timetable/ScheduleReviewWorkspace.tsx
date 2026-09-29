@@ -47,11 +47,10 @@ const TeacherDepartureRecoverySheet = lazy(() => import('@/components/timetable/
 })));
 
 /** A2 C13 — extracted so this file sits UNDER §8's 1000-line cap with real headroom: it
- *  stood at 963 and the two props A2 C13 adds took it to 1000, which is AT the line but
- *  has zero room for the next edit — that is how a cap gets breached later. §8 says EXTRACT,
- *  never delete a comment, so the C11 M3 record stays on the call site. The `MoveOccupant`
- *  projection and `TimetableDragOverlay` have since moved to `timetableMoveTargets.ts` and
- *  their own file for the same reason. Pure, not a hook, so hook order is untouched. */
+ *  stood at 995 physical lines at the merge-base, and §8 says EXTRACT, never delete a
+ *  comment, so the C11 M3 record stays on the call site. `MoveOccupant`,
+ *  `TimetableDragOverlay` and the selected-class menu have since each moved to their
+ *  own file for the same reason. Pure, not a hook, so hook order is untouched. */
 
 export const onProfilerRender = (id: string, phase: string, actualDuration: number, baseDuration: number) => {
 	if (typeof window !== 'undefined') {

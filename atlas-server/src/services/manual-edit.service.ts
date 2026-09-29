@@ -2399,36 +2399,26 @@ function findAutoFixTarget(
 	 * once for the source pool — and the client has no timeout, so the dialog sat
 	 * on "Checking options..." indefinitely. That is the demo blocker.
 	 *
-	 * THE PREDICATE IS PROVABLY EQUIVALENT, so no outcome changes. Every hard
-	 * conflict the validator raises for a pair of overlapping entries is keyed on
-	 * section, room or faculty. Two classes that share none of those and overlap
-	 * are not a conflict at all; two that share any of them are a HARD violation
-	 * and the target would have been REJECTED by the very check this predicate
-	 * replaces. So a target occupied by any entry other than the one being moved
-	 * away could never become `bestBlocking`/`bestSource`, and skipping it removes
-	 * work only. (The pool is scoped to one term, so a same-slot copy in another
-	 * term does not count as occupying it.)
+	 * NO CANDIDATE IS FILTERED OUT. An earlier revision of this fix added a
+	 * `slotIsFreeFor` predicate here, on the argument that an occupied slot could
+	 * never win. That argument was WRONG, and QA measured the consequence: `poolFor`
+	 * builds its slots FROM the run's own entries, so every slot it emits is by
+	 * construction occupied. `slotIsFreeFor` therefore rejected every candidate in
+	 * every run -- 34 -> 0 blocking candidates on a realistic 105-entry run -- which
+	 * silently disabled the whole auto-fix and broke the D1-ALT/D2 assertions in
+	 * `timetable-swap-custody-a2.test.ts`, whose fixture exists precisely so the
+	 * fix cannot be satisfied by disabling the feature. The two classes that share
+	 * no section, room or faculty are NOT a conflict, so a legal occupied target
+	 * exists. The predicate is removed; the remaining optimisation (rank without a
+	 * preview, one preview for the winner) is the part QA proved equivalent.
 	 */
-	const slotIsFreeFor = (slot: { day: string; startTime: string; endTime: string }, moved: ScheduledEntry): boolean =>
-		!entries.some((other) => (
-			other.entryId !== moved.entryId
-			&& effectiveTermsOverlap(termOf(other), termOf(moved))
-			&& other.day === slot.day
-			&& other.startTime < slot.endTime
-			&& slot.startTime < other.endTime
-		));
-
 	// `AUTO_FIX_MOVE_BLOCKING` relocates the BLOCKING entry (B) to a target;
 	// `AUTO_FIX_MOVE_SOURCE` relocates the SELECTED entry (A) instead. Each pool is
-	// bounded by the scope of the session it is about to move, and — A2 mc R2 (B4a) —
-	// by the slots that are actually free for it, so the loop below cannot walk
-	// forty occupied periods to rediscover that each one conflicts.
+	// bounded by the scope of the session it is about to move.
 	const blockingCandidates = poolFor(entryB)
-		.filter((slot) => excludeOwn(slot, entryB))
-		.filter((slot) => slotIsFreeFor(slot, entryB));
+		.filter((slot) => excludeOwn(slot, entryB));
 	const sourceCandidates = poolFor(entryA)
-		.filter((slot) => excludeOwn(slot, entryA))
-		.filter((slot) => slotIsFreeFor(slot, entryA));
+		.filter((slot) => excludeOwn(slot, entryA));
 
 	/**
 	 * The comparison a candidate must win, computed WITHOUT building its preview.

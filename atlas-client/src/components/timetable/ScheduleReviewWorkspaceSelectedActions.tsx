@@ -72,7 +72,6 @@ export function ScheduleReviewWorkspaceSelectedActions({
 				onSelect={(event) => { event.preventDefault(); void lock.toggle(); }}
 				data-testid="timetable-simple-selected-lock-action"
 				data-lock-state={lock.isLocked ? 'locked' : 'unlocked'}
-				className={lock.blockReason !== null ? 'opacity-60' : undefined}
 			>
 				<Lock className="mr-2 size-3.5" aria-hidden="true" />
 				<span className="flex flex-col">

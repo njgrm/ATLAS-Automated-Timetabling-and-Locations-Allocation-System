@@ -137,6 +137,35 @@ test('S5b the problem clause is always present and states the DELTA honestly', (
 		'5 new problems: Mr Cruz already teaches 8-Luna at that time.',
 		'and the same is true when the first problem IS named',
 	);
+	// A2 mc R2 residual (QA, 2026-09-30) — `before === now`, the TRADE case. All
+	// three production call sites pass `before` and `now` from the same
+	// `violationDelta`, so a move that removes one conflict and creates another
+	// reaches this. The pre-guard module printed
+	// "0 new problems: Mr Cruz already teaches 8-Luna at that time." — naming a
+	// problem as the first NEW one while also saying none was new. The detail is
+	// still shown, as one of the problems that remain.
+	assert.equal(
+		receiptProblemClause({ now: 6, before: 6, firstNewSentence: 'Mr Cruz already teaches 8-Luna at that time' }),
+		'6 problems now; this change added none, including Mr Cruz already teaches 8-Luna at that time.',
+		'a trade never prints "0 new problems" while naming a new problem',
+	);
+	assert.equal(
+		receiptProblemClause({ now: 2, before: 2 }),
+		'0 new problems.',
+		'a trade with no named detail still counts zero added, not the run total',
+	);
+	assert.equal(
+		buildEditReceipt({
+			editType: 'MOVE_ENTRY',
+			classLabel: 'TLE for 7-Rizal',
+			from: { day: 'MONDAY', startTime: '06:00' },
+			to: { day: 'TUESDAY', startTime: '07:30' },
+			problems: { now: 6, before: 6, firstNewSentence: 'Mr Cruz already teaches 8-Luna at that time' },
+		}).sentence,
+		'Moved TLE for 7-Rizal from Mon 6:00 to Tue 7:30. 6 problems now; this change added none, including Mr Cruz already teaches 8-Luna at that time.',
+		'the whole receipt on a trade does not contradict itself',
+	);
+
 	assert.equal(
 		buildEditReceipt({
 			editType: 'MOVE_ENTRY',

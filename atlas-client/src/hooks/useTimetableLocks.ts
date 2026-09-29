@@ -77,6 +77,8 @@ export const LOCK_KEEPS_CLASS_LINE = 'Generate will keep this class where it is.
 export const LOCK_NEEDS_TEACHER = 'This class has no teacher yet, so it cannot be locked.';
 export const LOCK_NEEDS_ROOM = 'This class has no room yet, so it cannot be locked.';
 export const LOCK_NEEDS_SCOPE = 'This class is not on a saved run yet, so it cannot be locked.';
+/** A2 mc R2 (QA N2, 2026-09-30) — the fail-closed read state, in the operator's words. */
+export const LOCK_READ_FAILED = 'ATLAS could not read which classes are locked. Try again before locking this one.';
 export const LOCKED_CLASS_LINE = 'This class is locked. Generate will keep it in place.';
 
 export function useTimetableLocks(scope: { schoolId: number | null; schoolYearId: number | null }): TimetableLocks {
@@ -106,11 +108,17 @@ export function useTimetableLocks(scope: { schoolId: number | null; schoolYearId
 	useEffect(() => { void readLocks(); }, [readLocks]);
 
 	const unlockBlockReason = useCallback((entry: LockTarget): string | null => {
+		// A2 mc R2 (QA N2, 2026-09-30). The comment beside `setLocks(null)` claimed
+		// the fail-closed state stops "a row claim a class is unlocked because the read
+		// failed" — but this function never consulted `locks`, so after a failed read
+		// the row rendered ENABLED and the operator clicked into a 409. The fail-closed
+		// state has to be consulted HERE, where the enabled state is decided.
+		if (locks === null) return LOCK_READ_FAILED;
 		if (schoolId == null || schoolYearId == null) return LOCK_NEEDS_SCOPE;
 		if (entry.facultyId == null || !Number.isInteger(entry.facultyId) || entry.facultyId < 1) return LOCK_NEEDS_TEACHER;
 		if (entry.roomId == null || !Number.isInteger(entry.roomId) || entry.roomId < 1) return LOCK_NEEDS_ROOM;
 		return null;
-	}, [schoolId, schoolYearId]);
+	}, [locks, schoolId, schoolYearId]);
 
 	const isLocked = useCallback((entry: LockTarget): boolean => {
 		if (!locks) return false;

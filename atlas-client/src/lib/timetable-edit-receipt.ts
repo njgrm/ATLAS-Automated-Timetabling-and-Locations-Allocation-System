@@ -199,6 +199,14 @@ export function receiptProblemClause(problems: ReceiptProblems | null | undefine
 			// The edit removed problems; the remaining count is what the operator sees.
 			return `${now} ${pluralProblemWord(now)} now; ${before - now} ${before - now === 1 ? 'was' : 'were'} removed.`;
 		}
+		// A2 mc R2 residual (QA, 2026-09-30). `before === now` is the trade case —
+		// the move removed one conflict and created another, which is the operator's
+		// own drill. Printing "0 new problems: <a problem>" in one sentence names
+		// something as the first NEW problem while also saying none was new. The
+		// named detail is still worth showing, as one of the problems that remain.
+		if (before != null && added === 0) {
+			return `${now} ${pluralProblemWord(now)} now; this change added none, including ${named}`;
+		}
 		return `${added} new ${pluralProblemWord(added)}: ${named}`;
 	}
 	if (before != null && before > now) {
