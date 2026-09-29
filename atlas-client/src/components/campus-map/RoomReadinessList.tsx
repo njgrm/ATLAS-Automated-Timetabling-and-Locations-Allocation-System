@@ -43,9 +43,58 @@
  *            this file's amber classes are what the c8 ratchet counts. The problems region
  *            below therefore uses the measured `--warning` token family and adds ZERO raw
  *            amber/yellow lines, so neither palette pin moves.
+ *
+ * ── A9 C6 (2026-09-29) — FIX 1.2 ITEM 7.2: THE TOGGLE BECAME FOUR REAL FILTERS ─────────────
+ * THE USER is an older, mouse-first scheduler on Campus & Rooms. THE TASK on this screen is:
+ * narrow the room list down to the rooms that matter, and read a room's full name. WHAT MUST
+ * FEEL DIFFERENT: one obvious row of real filter buttons replaces a show/hide toggle, the list
+ * is always in the order a human would say it out loud, and a filter with nothing behind it
+ * says so in a sentence instead of a blank box.
+ *
+ * WHY THE TOGGLE IS GONE RATHER THAN KEPT (`AGENTS.md` §11 rule 3, subtract first): the new
+ * row's `All rooms` default IS "show all rooms", so keeping `Show all rooms` beside it would
+ * put two controls for one job on the row and leave the operator guessing which one is now
+ * the real one. It is removed, not reworded.
+ *
+ * ── SUBTRACTION LEDGER for this file, APPENDED (`AGENTS.md` §16 — corrections are additive,
+ *    the C3 entries above stand and nothing was deleted) ─────────────────────────────────────
+ *   REMOVED  the `Show all rooms` / `Hide all rooms` toggle (`aria-expanded`,
+ *            `data-testid="room-readiness-show-all"`) and the `ChevronDown` it rotated. Its
+ *            only job was revealing the list, which the `All rooms` default now does, so
+ *            keeping it beside four filters would be a second control for the same action.
+ *   ADDED    one row of four filter buttons — `All rooms` (default) / `Ready` /
+ *            `Needs attention` / `Unavailable` — each carrying its own count. It is the SAME
+ *            shape as the `/teachers` attention-chip row
+ *            (`src/components/faculty/TeacherAttentionFilters.tsx:40-58`), copied rather than
+ *            reinvented, because `AGENTS.md` §8 "One look per control" is a QA failure and
+ *            not a suggestion. The filters add NO sentence, NO chip and NO count line of
+ *            their own: the numbers live inside the buttons.
+ *   ADDED    one empty sentence PER FILTER, exported as a pure function so a control decides
+ *            the exact wording instead of grepping the JSX. A filter that shows a blank box is
+ *            the failure mode; the operator's own words are used verbatim for the case she
+ *            named.
+ *   ADDED    natural name order for the full list, in EVERY filter. The list was in building
+ *            DECLARATION order, which is a database detail; `G10 Room 101, 102, … 201` is the
+ *            order a human says out loud, and a plain string sort would put `Room 102` before
+ *            `Room 2`'s successor, so the comparator is numeric-aware with a building-name
+ *            tiebreak. The PROBLEMS region below keeps its own worst-first ordering — this
+ *            change does not touch `buildRoomProblemGroups` at all.
+ *   ADDED    one line in the same list: the room name now WRAPS (`break-words`) instead of
+ *            `truncate`. Fix 1.2 item 10.2 says "room names wrap instead of `truncate`", and
+ *            this row is the same defect on the same list as `CampusMapOverview.tsx:722`; only
+ *            the name changed, the `Building · N seats` line beneath it still truncates
+ *            because it is a secondary locator, not the thing being read.
+ *   UNTOUCHED `getRoomStatus` (so no readiness this page does not measure can be claimed),
+ *            `STATUS_COPY` and every one of its class strings, `StatusIcon`,
+ *            `buildRoomProblemGroups` (grouping, order, consequence and fix copy),
+ *            `roomProblemSummary`, the problems region markup and its `data-testid`s, the
+ *            per-row status `Badge` (it is redundant in three of four filtered views but it
+ *            carries the colour truth in `All rooms`, and those class strings are pinned by
+ *            `palette-token-sweep-a3-s-e.test.ts`'s per-file residual counts), and the
+ *            `data-room-status` attributes on both regions.
  */
 import { useState } from 'react';
-import { AlertTriangle, CheckCircle2, ChevronDown, CircleSlash2, DoorOpen } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, CircleSlash2, DoorOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import type { Building, Room } from '@/types';
@@ -60,7 +109,7 @@ type RoomReadinessListProps = {
 	compact?: boolean;
 };
 
-type RoomWithBuilding = { building: Building; room: Room; status: RoomReadinessStatus };
+export type RoomWithBuilding = { building: Building; room: Room; status: RoomReadinessStatus };
 
 function getRoomStatus(room: Room, roomOccupancy?: Map<number, string>): RoomReadinessStatus {
 	if (!room.isTeachingSpace) return 'unavailable';
@@ -82,6 +131,102 @@ function StatusIcon({ status }: { status: RoomReadinessStatus }) {
 	if (status === 'ready') return <CheckCircle2 className="size-3.5" aria-hidden="true" />;
 	if (status === 'unavailable') return <CircleSlash2 className="size-3.5" aria-hidden="true" />;
 	return <AlertTriangle className="size-3.5" aria-hidden="true" />;
+}
+
+/* ───────────────────────── the filters, as pure functions ───────────────────────── */
+
+export type RoomReadinessFilter = 'all' | 'ready' | 'needs-attention' | 'unavailable';
+
+/**
+ * THE FOUR FILTERS, in the order an operator reads them, each naming EXACTLY the measured
+ * statuses it stands for.
+ *
+ * `needs-attention` is the three `needs-*` statuses and nothing else. That is not a new
+ * judgement: it is the same test the problems region has always used — `status !== 'ready'
+ * && status !== 'unavailable'` — so a room the region below calls a problem is a room this
+ * filter shows, and a room it does not call a problem is a room this filter does not show.
+ * `unavailable` is deliberately its own filter and NOT part of `needs-attention`: a store
+ * room is not broken, it was never meant for a class, and folding it in would tell the
+ * scheduler that rooms she does not need to fix are rooms she needs to fix.
+ *
+ * The labels are the operator's own words, verbatim.
+ */
+export const ROOM_READINESS_FILTERS: readonly {
+	id: RoomReadinessFilter;
+	label: string;
+	statuses: readonly RoomReadinessStatus[];
+}[] = [
+	{ id: 'all', label: 'All rooms', statuses: ['ready', 'needs-capacity', 'needs-room-type', 'needs-section', 'unavailable'] },
+	{ id: 'ready', label: 'Ready', statuses: ['ready'] },
+	{ id: 'needs-attention', label: 'Needs attention', statuses: ['needs-capacity', 'needs-room-type', 'needs-section'] },
+	{ id: 'unavailable', label: 'Unavailable', statuses: ['unavailable'] },
+];
+
+/** The filter a room's status falls under. Exported so a control can decide the FILTERING. */
+export function roomMatchesFilter(status: RoomReadinessStatus, filter: RoomReadinessFilter): boolean {
+	const entry = ROOM_READINESS_FILTERS.find((candidate) => candidate.id === filter);
+	// An unknown id matches NOTHING rather than everything: fail closed, so a typo in a
+	// filter can never quietly print the whole list under a label that promises otherwise.
+	return entry ? entry.statuses.includes(status) : false;
+}
+
+/**
+ * HOW MANY ROOMS EACH FILTER WOULD SHOW, in the same order the buttons are drawn.
+ *
+ * `all` is every room, including the ones no other filter claims, because "All rooms" that
+ * read less than the total would be a lie told by a button. The counts are computed from the
+ * data rather than written into the JSX, so a control can assert them.
+ */
+export function roomReadinessCounts(rooms: readonly RoomWithBuilding[]): Record<RoomReadinessFilter, number> {
+	const counts: Record<RoomReadinessFilter, number> = { all: rooms.length, ready: 0, 'needs-attention': 0, unavailable: 0 };
+	for (const entry of rooms) {
+		for (const filter of ROOM_READINESS_FILTERS) {
+			if (filter.id !== 'all' && filter.statuses.includes(entry.status)) counts[filter.id] += 1;
+		}
+	}
+	return counts;
+}
+
+/**
+ * THE ORDER A HUMAN SAYS THE ROOMS OUT LOUD IN: `G10 Room 101, 102, … 201`.
+ *
+ * A plain string sort is wrong here in the way that actually bites: `'G10 Room 102'` sorts
+ * before `'G10 Room 2`…'s` successors, and `'G10 Room 10'` sorts BEFORE `'G10 Room 2'`,
+ * because `'1' < '2'`. `localeCompare` with `numeric: true` compares the digit RUNS as
+ * numbers, so 2 < 10 < 102 < 201 as a person would count them. `sensitivity: 'base'` keeps
+ * the comparison stable when a school has both `Room 101` and `room 101`.
+ *
+ * The BUILDING NAME is the tiebreak, not the room id: two buildings that each hold a
+ * `G10 Room 101` are both correct on the name, and without a second key their relative order
+ * would be whatever the flatMap happened to produce — the building DECLARATION order, which
+ * is the database detail this change exists to stop showing. The comparator is total, so the
+ * list is deterministic for the same data on every render.
+ */
+export function compareRoomNamesNatural(a: RoomWithBuilding, b: RoomWithBuilding): number {
+	return (
+		a.room.name.localeCompare(b.room.name, undefined, { numeric: true, sensitivity: 'base' }) ||
+		a.building.name.localeCompare(b.building.name, undefined, { numeric: true, sensitivity: 'base' }) ||
+		a.room.id - b.room.id
+	);
+}
+
+/**
+ * WHAT A FILTER WITH NOTHING BEHIND IT SAYS — one sentence, in the same shape for all four.
+ *
+ * The `Needs attention` wording is the operator's own sentence, used verbatim, and the other
+ * three follow its grammar rather than inventing a house style: they name the filter, they
+ * say "currently", and `All rooms` reuses the sentence this card has always printed when the
+ * school has no rooms at all. A blank box under a filter is the defect; the sentence is the
+ * fix, and it is a pure function so the EXACT string is assertable.
+ *
+ * `All rooms` is only reachable here with zero rooms in the school, which is the one case
+ * the card's own summary line already carries — see the render, where that branch is kept.
+ */
+export function roomReadinessFilterEmptySentence(filter: RoomReadinessFilter): string {
+	if (filter === 'needs-attention') return 'No rooms currently marked as Needs attention.';
+	if (filter === 'ready') return 'No rooms are currently marked as Ready.';
+	if (filter === 'unavailable') return 'No rooms are currently marked as Unavailable.';
+	return 'No rooms yet. Open Edit maps to add the first teaching room.';
 }
 
 /* ───────────────────────── the problems region, as a pure function ────────────────────── */
@@ -199,12 +344,16 @@ export function roomProblemSummary(groups: RoomProblemGroup[]): { rooms: number;
 }
 
 export function RoomReadinessList({ buildings, roomOccupancy, compact = false }: RoomReadinessListProps) {
-	const [showAllRooms, setShowAllRooms] = useState(false);
+	const [filter, setFilter] = useState<RoomReadinessFilter>('all');
 	const rooms = buildings.flatMap((building) =>
 		(building.rooms ?? []).map((room) => ({ building, room, status: getRoomStatus(room, roomOccupancy) })),
 	);
+	// The problems region is built from the DECLARATION order and keeps its own worst-first
+	// sort; the natural order below is applied to a COPY, afterwards, for the full list only.
 	const groups = buildRoomProblemGroups(rooms);
 	const summary = roomProblemSummary(groups);
+	const counts = roomReadinessCounts(rooms);
+	const visibleRooms = rooms.filter((entry) => roomMatchesFilter(entry.status, filter)).sort(compareRoomNamesNatural);
 
 	return (
 		<section data-testid="room-readiness-list" aria-labelledby="room-readiness-title" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-soft">
@@ -222,19 +371,6 @@ export function RoomReadinessList({ buildings, roomOccupancy, compact = false }:
 								: `${summary.rooms} ${summary.rooms === 1 ? 'room needs' : 'rooms need'} something fixed, in ${summary.buildings} ${summary.buildings === 1 ? 'building' : 'buildings'}.`}
 					</p>
 				</div>
-				{rooms.length > 0 ? (
-					<Button
-						variant="outline"
-						size="sm"
-						className="h-8 shrink-0 gap-1.5"
-						aria-expanded={showAllRooms}
-						data-testid="room-readiness-show-all"
-						onClick={() => setShowAllRooms((open) => !open)}
-					>
-						<ChevronDown className={`size-3.5 transition-transform ${showAllRooms ? 'rotate-180' : ''}`} />
-						{showAllRooms ? 'Hide all rooms' : 'Show all rooms'}
-					</Button>
-				) : null}
 			</div>
 
 			{rooms.length === 0 ? null : (
@@ -278,17 +414,61 @@ export function RoomReadinessList({ buildings, roomOccupancy, compact = false }:
 						</div>
 					) : null}
 
-					{/* THE FULL LIST, unchanged, behind one control. This bounded region is
-					    where internal scrolling is allowed; the page's root container is
-					    untouched, so no global scrollbar appears. */}
-					{showAllRooms ? (
-						<div className={`mt-3 grid gap-2 ${compact ? 'max-h-44 overflow-auto pr-1 sm:grid-cols-2' : 'sm:grid-cols-2 lg:grid-cols-3'}`} data-testid="room-readiness-all-rooms">
-							{rooms.map(({ building, room, status }) => {
+					{/* FIX 1.2 ITEM 7.2 — FOUR REAL FILTERS, and they govern the list DIRECTLY
+					    beneath them and nothing else. The problems region above is a summary of
+					    what is broken and is deliberately not filtered: it is already only the
+					    broken buildings. The row is the `/teachers` attention-chip row
+					    (`TeacherAttentionFilters.tsx:40-58`) copied, not a local variant —
+					    `AGENTS.md` §8 "One look per control". The count lives INSIDE each
+					    button, so the row adds no sentence, no chip and no count line of its
+					    own. `overflow-x-auto` is the honest escape when the four labels are
+					    wider than the column, exactly as on `/teachers`. */}
+					<div
+						role="group"
+						aria-label="Filter rooms by readiness"
+						data-testid="room-readiness-filters"
+						className="mt-3 flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto pb-0.5"
+					>
+						{ROOM_READINESS_FILTERS.map((entry) => {
+							const active = entry.id === filter;
+							return (
+								<Button
+									key={entry.id}
+									type="button"
+									variant={active ? 'secondary' : 'outline'}
+									size="sm"
+									aria-pressed={active}
+									data-testid="room-readiness-filter"
+									data-filter={entry.id}
+									data-active={active ? 'true' : 'false'}
+									className="h-8 shrink-0 whitespace-nowrap rounded-full px-2.5 text-xs font-bold"
+									onClick={() => setFilter(entry.id)}
+								>
+									{entry.label}
+									<span className="ml-1 tabular-nums text-muted-foreground">{counts[entry.id]}</span>
+								</Button>
+							);
+						})}
+					</div>
+
+					{/* THE FULL LIST, in natural name order in EVERY filter, and it says so when
+					    a filter has nothing behind it instead of printing an empty box. This
+					    bounded region is where internal scrolling is allowed; the page's root
+					    container is untouched, so no global scrollbar appears. */}
+					{visibleRooms.length > 0 ? (
+						<div className={`mt-2 grid gap-2 ${compact ? 'max-h-44 overflow-auto pr-1 sm:grid-cols-2' : 'sm:grid-cols-2 lg:grid-cols-3'}`} data-testid="room-readiness-all-rooms">
+							{visibleRooms.map(({ building, room, status }) => {
 								const copy = STATUS_COPY[status];
 								return (
 									<div key={room.id} className="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2" data-room-status={status}>
 										<div className="min-w-0">
-											<p className="truncate text-xs font-semibold text-slate-800">{room.name}</p>
+											{/* FIX 1.2 ITEM 10.2, second half: the room NAME WRAPS
+											    instead of truncating. `min-w-0` above is what lets a
+											    flex child shrink at all, so `break-words` has room to
+											    work in and the row grows rather than clipping. The
+											    `Building · N seats` line beneath it is a secondary
+											    locator and still truncates on purpose. */}
+											<p className="break-words text-xs font-semibold text-slate-800">{room.name}</p>
 											<p className="truncate text-[11px] text-muted-foreground">{building.name} · {room.capacity ? `${room.capacity} seats` : 'Capacity missing'}</p>
 										</div>
 										<Badge variant="outline" className={`shrink-0 gap-1 text-[11px] ${copy.className}`}><StatusIcon status={status} />{copy.label}</Badge>
@@ -296,7 +476,11 @@ export function RoomReadinessList({ buildings, roomOccupancy, compact = false }:
 								);
 							})}
 						</div>
-					) : null}
+					) : (
+						<p className="mt-2 text-xs text-muted-foreground" data-testid="room-readiness-empty">
+							{roomReadinessFilterEmptySentence(filter)}
+						</p>
+					)}
 				</>
 			)}
 		</section>

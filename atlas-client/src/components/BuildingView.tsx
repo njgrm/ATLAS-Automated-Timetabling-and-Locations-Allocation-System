@@ -792,7 +792,17 @@ export function BuildingView({
 		<div className={cn('relative', fillAvailableHeight && 'h-full')}>
 			{showToolbar && (
 				<TooltipProvider>
-					<div ref={toolbarRef} className="mb-2 flex items-center gap-1">
+					{/* A9 C6, fix 1.2 item 10.2 — HORIZONTAL INSET ONLY. The operator's words:
+					    "utility bar and drawing surface get `px-4 md:px-6` inset so the zoom
+					    pill and legend text do not touch the borders." Deliberately NO `py-`,
+					    `pt-`, `pb-` or `h-` here: three of the four callers pass a FIXED stage
+					    height (CampusMapOverview 500, CampusReadinessCard 480, CenterWorkspace
+					    420) and this row's height is bound by its `h-7` buttons ON PURPOSE, so
+					    a vertical change would push all three stages down. The inset is
+					    horizontal, so it cannot. It also leaves the `truncate`d legend at
+					    :834 alone — wrapping it would add a line box to the same three panes,
+					    which is what `a3-c4-map-truth.test.ts` test B exists to prevent. */}
+					<div ref={toolbarRef} className="mb-2 flex items-center gap-1 px-4 md:px-6">
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Button variant="outline" size="sm" className="h-7 w-7 p-0" aria-label="Zoom in building view" onClick={() => zoomTo(scale * 1.15)}>
@@ -843,7 +853,18 @@ export function BuildingView({
 				</TooltipProvider>
 			)}
 
-			<div ref={containerRef} className={cn('overflow-hidden rounded-md border border-border bg-slate-50 relative', fillAvailableHeight && 'h-full')}>
+			{/* A9 C6, fix 1.2 item 10.2 — the drawing surface gets the SAME horizontal
+			    inset, so the stage's left and right edges do not sit flush against the
+			    border. The `Stage width={containerW}` still fits EXACTLY inside that
+			    border: `containerW` comes from `entries[0]?.contentRect.width` above, and
+			    `contentRect` is the element's CONTENT box, which excludes padding by
+			    definition — so the padding is already subtracted before Konva is told how
+			    wide to draw. `clientWidth` would have included it and overflowed. The
+			    measurement, the `- 32` in `buildingFitScale`, `HOST_BORDER_PX`,
+			    `BUILDING_PAN_PADDING_PX` and the room-card geometry constants are all
+			    untouched, because they are cross-lane contracts pinned by
+			    `a3-sections-map-layout.test.ts` and `a3-c4-map-truth.test.ts`. */}
+			<div ref={containerRef} className={cn('overflow-hidden rounded-md border border-border bg-slate-50 relative px-4 md:px-6', fillAvailableHeight && 'h-full')}>
 				<Stage
 					width={containerW}
 					height={canvasHeight}

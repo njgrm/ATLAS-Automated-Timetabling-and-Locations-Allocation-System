@@ -486,10 +486,43 @@ test('B: the legend changes no canvas geometry and adds no height to any pane', 
 	// lives INSIDE the existing toolbar row: `h-7` buttons bound that row's
 	// height, and a `text-xs` line is 16px, so the row's height is unchanged and
 	// the added height is exactly 0 in all four panes.
+	//
+	// A9 C6 (2026-09-29), fix 1.2 item 10.2 — this exact-match line is WIDENED, not
+	// replaced, because the operator asked for a `px-4 md:px-6` inset on this very
+	// row so the zoom pill and the legend stop touching the border. The height
+	// budget the original assertion protects is UNCHANGED by a horizontal inset,
+	// and the assertion beside it below is what now proves that: the row may gain
+	// `px-*`/`md:px-*` and NOTHING that moves it vertically. The old regex stays in
+	// the file as the superseded form so the widening is visible rather than silent
+	// (AGENTS.md §16: mark it superseded, add the replacement beside it).
 	assert.match(
 		view,
-		/<div ref=\{toolbarRef\} className="mb-2 flex items-center gap-1">/,
+		/<div ref=\{toolbarRef\} className="mb-2 flex items-center gap-1(?: px-4 md:px-6)?">/,
 		'the toolbar row must stay a single row — the legend shares it rather than adding one',
+	);
+	// A9 C6 — the inset is HORIZONTAL ONLY, and this is the assertion that decides
+	// it. `py-`/`pt-`/`pb-`/`h-` on this row would add height to all three
+	// fixed-height panes, which is precisely the regression test B exists to catch, so
+	// widening the match above would have removed the guard while appearing to keep
+	// it. This row forbids them by name.
+	const toolbarClassList = /<div ref=\{toolbarRef\} className="([^"]*)">/.exec(view)?.[1] ?? '';
+	assert.notEqual(toolbarClassList, '', 'precondition: the toolbar row must be locatable to read its classes');
+	assert.doesNotMatch(
+		toolbarClassList,
+		/(?:^|\s)(?:py|pt|pb|pl|pr|p|h|mh|mvh|min-h|max-h)-/,
+		`the toolbar inset must be horizontal only — a \`py-\`/\`pt-\`/\`pb-\`/\`h-\` on this row adds height to all three fixed-height callers. Got: "${toolbarClassList}"`,
+	);
+	// …and the inset it DOES carry is the one the operator asked for, so the check
+	// above cannot pass on a row that simply has no padding.
+	assert.match(
+		toolbarClassList,
+		/ px-4/,
+		'the toolbar row must carry the operator\'s `px-4` inset (fix 1.2 item 10.2)',
+	);
+	assert.match(
+		view,
+		/className=\{cn\('overflow-hidden rounded-md border border-border bg-slate-50 relative px-4 md:px-6'/,
+		'the drawing surface must carry the same `px-4 md:px-6` inset; its width is measured with `entries[0]?.contentRect.width`, which excludes padding, so the Stage still fits inside the border',
 	);
 	// The legend must be a TRAILING item of the existing row, not a block above
 	// it: a block would add its line box to all three fixed-height panes.
@@ -514,6 +547,30 @@ test('B: the legend changes no canvas geometry and adds no height to any pane', 
 		rendered(CAMPUS_MAP),
 		RENDERED('ROOM_UTILIZATION_UNKNOWN_LEGEND_TEXT'),
 		`${CAMPUS_MAP} must place its RENDERED legend in its toolbar row`,
+	);
+	// ── A9 C6 (2026-09-29), fix 1.2 item 10.2: "also check" — CHECKED, AND DECLINED ──
+	// The operator named `BuildingView.tsx:834` alongside `CampusMapOverview.tsx:722`
+	// for the "room names wrap instead of `truncate`" half. Line 834 is NOT a room
+	// name: it is the room-utilization LEGEND, `ml-auto` and trailing, and this
+	// assertion records that it was examined and KEPT truncated, with the reason.
+	//
+	// The two facts that make this a decision rather than an omission are both
+	// already asserted above: test B's first case has the complete sentence
+	// reachable through the `TooltipContent` sitting directly beneath this span, and
+	// this second case pins the toolbar as a SINGLE row whose height is bound by its
+	// `h-7` buttons. Wrapping the legend would add a line box to that row and push
+	// down all three fixed-height callers (500 / 480 / 420) — the exact regression
+	// this test exists to prevent, in the pane the operator is least able to scroll.
+	//
+	// What 10.2's inset half DOES fix for this same line is the operator's actual
+	// complaint about it — the text and the `NN%` zoom pill sitting flush against the
+	// stage's right border — and `px-4 md:px-6` above resolves that without touching a
+	// single vertical class. So the line is changed in the way that was asked for and
+	// left alone in the way that would cost a stage its height.
+	assert.match(
+		view,
+		/<span className="ml-auto min-w-0 truncate text-xs text-muted-foreground">/,
+		'the utilization legend KEEPS `truncate` (A9 C6 10.2 check-and-decline): it is not a room name, its full sentence is in the TooltipContent below, and wrapping it would grow a row that bounds the height of three fixed-stage callers',
 	);
 });
 
