@@ -206,16 +206,35 @@ export function SectionRow({
 			    trigger both read in full, no ellipsis. The width is taken from the
 			    Section column, which clamps its title to two lines and has the slack.
 
-			    The content inside has to be ABLE to shrink, or a cap just clips it: the
-			    `div` is a flex line, so it also carries `min-w-0`, and the picker
-			    trigger's own `truncate` then reaches its ellipsis instead of the content
-			    pushing the column back out.
+			    SUPERSEDED (A9-c2 R2, 2026-09-30) — the 330 WIDENING WAS THE WRONG FIX,
+			    recorded rather than deleted. Measured on the BUILT, RUNNING app at the R1
+			    tip (`c886a410`), loopback preview on real 20-section data: the panel was
+			    `clientWidth 1070` while the table was `scrollWidth 1124` at 1366x768
+			    (+54px), and 984 vs 1124 at 1280x720 (+140px), so the Details cell
+			    (map button + kebab) sat OUTSIDE the visible panel on every row — the A9
+			    C7 defect this cap existed to prevent. A width is not the problem; the
+			    un-wrappable content is. The fix is now the 200px cap BELOW plus a WRAP,
+			    not a wider column. The R1 sentence above is kept only as history.
 
-			    `SectionRoomPicker` is untouched — no width, no cap, no className
-			    override. One look per control (AGENTS.md §8): the same component must
-			    look and behave identically on the mobile card and in the guided dialog.
-			    The constraint belongs to the one table column that cannot fit it. */}
-			<td className="w-[330px] min-w-0 max-w-[330px] px-4 py-3">
+			    A9 c2 R2 (2026-09-30): back to the A9 C7 200px cap, and the text WRAPS to a
+			    second line instead of truncating. The number is the SAME as the header's,
+			    so the two cannot drift. Both the status line below the control and the
+			    picker trigger's label can occupy two lines, and the cell is a uniform,
+			    fixed height so a row does not jump when a room is assigned (the C7 "a
+			    table that jumps when you save is a table you lose your place in" rule).
+
+			    The content inside has to be ABLE to shrink, or a cap just clips it: the
+			    `div` is a flex line, so it also carries `min-w-0`. R2 removes the
+			    nowrap/ellipsis and lets the text wrap, so the cell's intrinsic minimum
+			    drops to its longest word and the table fits its panel from inside.
+
+			    `SectionRoomPicker` gains NO width, NO cap and NO page-local className
+			    override. R2 does change ONE thing in the shared trigger — its own padding
+			    (`px-2`) and its label becomes a two-line clamp — so the constraining
+			    width is a property of the CONTROL and lands identically on the row, the
+			    mobile card and the guided dialog (AGENTS.md §8: one look per control).
+			    The COLUMN cap belongs to the one table column that cannot fit it. */}
+			<td className="w-[200px] min-w-0 max-w-[200px] px-4 py-3">
 				{/* A9 C7 (2026-09-29) — THE ROW PICKER IS BACK, ON LANE C's BINDING ADDENDUM.
 				    THE HISTORY, so this cell is not re-litigated a third time. A9 C3
 				    (`86665f48`) removed the inline picker from this table and left a plain
@@ -246,10 +265,12 @@ export function SectionRow({
 				      item-46 geometry fix therefore lands on all three at once.
 				    - The SHAPE is the mobile card's (`SectionMobileCard.tsx:88-104`): the
 				      control in a `space-y-1.5` block with ONE status line under it,
-				      minus the card's extra chrome. The status line is a fixed `h-4`
-				      one-line row with a `truncate`d span, so assigning a room changes
-				      its TEXT and never the row's HEIGHT — a table that jumps when you
-				      save is a table you lose your place in. The A9 C3 wording the C4
+				      minus the card's extra chrome. SUPERSEDED (A9-c2 R2): the status
+				      line WAS a fixed `h-4` one-line row with a `truncate`d span; it is
+				      now a fixed TWO-line row (`h-8`, `line-clamp-2`) so the room text
+				      is whole at the 200px cap. Assigning a room still changes its TEXT
+				      and never the row's HEIGHT — a table that jumps when you save is a
+				      table you lose your place in. The A9 C3 wording the C4
 				      suites assert is kept verbatim (`Needs a home room` / `{room} ·
 				      {building}`); the pre-A9-C3 "Needs home room. Choose a room." /
 				      "Ready: …" sentences and any read-only sentence are NOT brought
@@ -270,13 +291,17 @@ export function SectionRow({
 						schoolId={schoolId}
 						roomOccupancy={roomOccupancy}
 					/>
-					{/* ONE line, ALWAYS h-4, so the row does not change height when a room
-						is assigned. The cue icons are the A9 C3 ones. */}
-					<div className="flex h-4 items-center gap-1.5 text-xs font-semibold leading-4 text-muted-foreground">
+					{/* A9 c2 R2 (2026-09-30): the status line is a FIXED two-line box (`h-8`)
+						and its span WRAPS (`line-clamp-2`), so the full `{room} · {building}`
+						reads whole at the 200px cap instead of being ellipsised. The height
+						is fixed, so assigning a room changes the TEXT and never the row's
+						HEIGHT. SUPERSEDED (A9-c2 R2): the previous "ONE line, ALWAYS h-4"
+						cue. The cue icons are the A9 C3 ones. */}
+					<div className="flex h-8 items-center gap-1.5 text-xs font-semibold leading-4 text-muted-foreground">
 						{selectedRoom
 							? <Home className="size-3 shrink-0 text-emerald-600" aria-hidden="true" />
 							: <AlertTriangle className="size-3 shrink-0 text-warning" aria-hidden="true" />}
-						<span data-testid="section-row-home-room" className="min-w-0 truncate">
+						<span data-testid="section-row-home-room" className="min-w-0 line-clamp-2">
 							{selectedRoom
 								? `${selectedRoom.name} · ${selectedRoom.buildingName}`
 								: 'Needs a home room'}

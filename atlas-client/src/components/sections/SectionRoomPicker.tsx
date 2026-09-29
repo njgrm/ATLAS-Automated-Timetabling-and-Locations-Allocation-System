@@ -628,12 +628,15 @@ export function SectionRoomPicker({
 						aria-haspopup="listbox"
 						disabled={disabled || isSaving}
 						className={cn(
-							'h-9 w-full justify-between px-3 rounded-lg border-muted-foreground/20 hover:bg-muted/50 hover:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/40 transition-all text-xs',
+							'h-9 w-full justify-between gap-0 px-2 rounded-lg border-muted-foreground/20 hover:bg-muted/50 hover:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/40 transition-all text-xs',
 							isSaving && 'opacity-70 grayscale bg-muted/30 cursor-wait',
 							!value && 'text-muted-foreground italic',
 						)}
 					>
-						<span className="flex items-center gap-2 truncate">
+						{/* A9 c2 R2 (2026-09-30): the label WRAPS to a second line in the 200px
+						    home-room cap; `whitespace-normal` beats the shared Button's
+						    `whitespace-nowrap`. SUPERSEDED: the one-line `truncate`. */}
+						<span className="min-w-0 flex-1 whitespace-normal text-left line-clamp-2 break-words">
 							{isSaving ? (
 								<span className="flex items-center gap-2 font-bold text-sm text-muted-foreground">
 									<Clock className="size-3 animate-spin" />
@@ -642,15 +645,14 @@ export function SectionRoomPicker({
 							) : selectedRoom ? (
 								<>
 									<span className="font-semibold text-foreground">{selectedRoom.name}</span>
-									<span className="text-xs text-muted-foreground hidden sm:inline">
-										- {selectedRoom.buildingName}
-									</span>
+									{' '}
+									<span className="text-xs text-muted-foreground hidden sm:inline">- {selectedRoom.buildingName}</span>
 								</>
 							) : (
 								'Choose home room'
 							)}
 						</span>
-						<ChevronsUpDown className="ml-1 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+						<ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent
@@ -828,7 +830,6 @@ export function SectionRoomPicker({
 							<Check className={cn('size-3.5 shrink-0', value === null ? 'opacity-100' : 'opacity-0')} />
 							<span className={cn('min-w-0 truncate italic transition-colors', value === null ? 'text-foreground' : 'text-muted-foreground', 'group-hover:text-primary-foreground')}>Unassigned</span>
 						</Button>
-
 
 							{groups.length === 0 && (
 								<div className="py-8 text-center text-xs text-muted-foreground space-y-1">

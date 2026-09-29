@@ -934,6 +934,9 @@ test('R4 control: the Home room column is sized, so the table cannot be pushed w
 	// old bound (< 220) pinned the truncation defect the operator reported; it is
 	// raised, not deleted. The panel still cannot be pushed wider than itself —
 	// that invariant is the R5 row above and the rendered A9-C7 measurement.
+	// SUPERSEDED (A9-c2 R2, 2026-09-30): the column is back at 200 with a WRAP
+	// (see the c2 R1/R2 control below). This LOOSE upper bound still holds, so it
+	// is kept as the history of the widening, not re-narrowed.
 	assert.ok(Number(cellWidth) <= 360, `the column must fit inside the panel beside the other six; got ${cellWidth}px`);
 	for (const [what, line] of [['header', header!], ['cell', cell!]] as const) {
 		assert.match(line, /\bmin-w-0\b/, `the Home room ${what} must be min-w-0 so the content cannot force the column wider`);
@@ -999,6 +1002,8 @@ test('R5 control: the Home room cell carries a HARD cap, because a width is only
 	// The width hint is kept, not replaced: together they are the contract.
 	// A9 c2 R1: the literal `w-[200px]` became the width the header declares
 	// (330), compared below rather than hard-coded, so the two cannot drift.
+	// A9 c2 R2 (2026-09-30): the width is 200 again (the A9 C7 cap) and the
+	// content WRAPS; the comparison stays, so the two still cannot drift.
 	assert.match(cell!, /\bw-\[(\d+)px\]/, 'the explicit width stays; the cap is added beside it, not instead of it');
 	assert.equal(
 		Number(/w-\[(\d+)px\]/.exec(cell!)?.[1]),
@@ -1044,22 +1049,62 @@ test('A9 c2 R1 control: the Home room column is wide enough to show the full roo
 		.split(/\r?\n/)
 		.find((l) => l.includes('<th') && l.includes('Home room'));
 	assert.ok(header, 'precondition: the Home room <th> exists');
-	const cell = source('src/components/sections/SectionRow.tsx')
+	const rowSource = source('src/components/sections/SectionRow.tsx');
+	const cell = rowSource
 		.split(/\r?\n/)
 		.find((l) => l.includes('<td') && /w-\[\d+px\]/.test(l));
 	assert.ok(cell, 'precondition: the Home room <td> exists');
 
 	const headerWidth = Number(/w-\[(\d+)px\]/.exec(header!)?.[1]);
 	const cellWidth = Number(/w-\[(\d+)px\]/.exec(cell!)?.[1]);
+
+	// ── SUPERSEDED (A9-c2 R2, 2026-09-30): the "widen so ONE line fits" decision ──
+	// R1 raised the width to 330 so the 238px room+building string fit on one line.
+	// The planner then measured the BUILT, RUNNING app at the R1 tip (`c886a410`):
+	// the panel was `scrollWidth 1124` against `clientWidth 1070` at 1366x768
+	// (+54px) and `984` at 1280x720 (+140px), so the row's Details cell sat OUTSIDE
+	// the visible panel on every row — the A9 C7 defect this cap exists to prevent.
+	// The 322px floor (MIN_COLUMN_PX) is therefore NOT the contract any more. The
+	// old assertion is recorded here rather than deleted (AGENTS.md §16: a
+	// correction is additive, never subtractive):
+	//
+	//   assert.ok(headerWidth >= MIN_COLUMN_PX,
+	//     `the Home room column must be at least ${MIN_COLUMN_PX}px …; got ${headerWidth}px`);
+	//
+	// THE R2 CONTRACT, which fails first at BOTH recorded revisions: at 69b404ff the
+	// width is 200 but the cell and the trigger TRUNCATE (nowrap), so the wrap
+	// assertions below fail; at c886a410 the width is 330, so the <= 200 cap fails.
 	assert.ok(
-		headerWidth >= MIN_COLUMN_PX,
-		`the Home room column must be at least ${MIN_COLUMN_PX}px to show the full room + building; got ${headerWidth}px`,
+		headerWidth <= 200,
+		`the Home room column must fit the A9 C7 200px cap so the table stays inside its panel; got ${headerWidth}px`,
 	);
-	assert.equal(cellWidth, headerWidth, 'the cell and header must declare the SAME widened width');
-	// The status line under the control carries the `Room · Building` string; it is a
-	// fixed `h-4` one-line cue, so the COLUMN (not a wrap) is what keeps it whole.
-	assert.match(cell!, /\bmin-w-0\b/, 'the widened cell must still be min-w-0 so the primitive keeps its own truncate as the last resort');
-	assert.match(cell!, /max-w-\[(\d+)px\]/, 'the widened cell must keep its hard cap so the panel cannot be pushed wider');
+	assert.equal(cellWidth, headerWidth, 'the cell and header must declare the SAME width');
+	// The status line under the control carries the `Room · Building` string; it now
+	// WRAPS to a two-line clamp (fixed `h-8`) so the value is whole at 200px instead
+	// of the column being widened past the panel.
+	const statusLine = rowSource
+		.split(/\r?\n/)
+		.find((l) => l.includes('data-testid="section-row-home-room"'));
+	assert.ok(statusLine, 'precondition: the row home-room status line exists');
+	assert.match(
+		statusLine!,
+		/\bline-clamp-2\b/,
+		'the status line must wrap to two lines, not ellipsise (fails first at 69b404ff)',
+	);
+	assert.doesNotMatch(statusLine!, /\btruncate\b/, 'the status line must not be a one-line ellipsis');
+	// And the SHARED trigger's label wraps too — the fix is in the primitive, so the
+	// row, the mobile card and the guided dialog all wrap alike (AGENTS.md §8).
+	const pickerSource = source('src/components/sections/SectionRoomPicker.tsx');
+	const labelLine = pickerSource
+		.split(/\r?\n/)
+		.find((l) => /\bline-clamp-2\b/.test(l) && /\bwhitespace-normal\b/.test(l));
+	assert.ok(
+		labelLine,
+		'the picker trigger label must be a wrapping two-line clamp (fails first at 69b404ff, which truncates)',
+	);
+	assert.doesNotMatch(labelLine!, /\btruncate\b/, 'the trigger label must not be a one-line ellipsis');
+	assert.match(cell!, /\bmin-w-0\b/, 'the capped cell must still be min-w-0 so the capped content can shrink');
+	assert.match(cell!, /max-w-\[(\d+)px\]/, 'the capped cell must keep its hard cap so the panel cannot be pushed wider');
 	assert.equal(
 		Number(/max-w-\[(\d+)px\]/.exec(cell!)?.[1]),
 		headerWidth,

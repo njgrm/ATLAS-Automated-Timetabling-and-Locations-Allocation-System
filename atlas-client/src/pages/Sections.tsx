@@ -877,20 +877,27 @@ export default function Sections() {
 									components/sections/SectionsSortableHeader.tsx (A3 C4 B1);
 									it no longer closes over the page's state and takes
 									sortField/sortDir/onToggleSort as props. */}
-									<SortableSectionHeader field="name" label="Section" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} />
+									{/* A9 c2 R2 (2026-09-30): the Section column is pinned to 300px so the
+									 * seven committed column widths sum to 979 <= the 984px panel at
+									 * 1280x720 (see the Home room cell below). Its title is a two-line
+									 * clamp (`line-clamp-2` + `min-w-0 break-words`), so it wraps inside
+									 * this track rather than forcing the table wider. */}
+									<SortableSectionHeader field="name" label="Section" className="w-[300px]" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} />
 									<SortableSectionHeader field="gradeLevelId" label="Grade" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} />
 									<SortableSectionHeader field="enrolledCount" label="Enrolled" align="right" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} />
 									<SortableSectionHeader field="maxCapacity" label="Capacity" align="right" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} />
 									<SortableSectionHeader field="fill" label="% Full" align="right" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} />
 
-									{/* A9 c2 R1 (2026-09-30): the home-room column widens from 200 to
-									 * 330 so the full room + building text fits at 1366x768 and
-									 * 1280x720 with NO ellipsis (`Choose home room` and
-									 * `G7 Room 405 · Grade 7 Academic Wing`). The width is taken
-									 * from the Section column, which has slack (its title clamps to
-									 * two lines). The width here is the SAME number the cell in
-									 * `SectionRow.tsx` declares, so the two cannot drift. */}
-									<th className="w-[330px] min-w-0 px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-xs">Home room</th>
+									{/* A9 c2 R2 (2026-09-30): back to the A9 C7 200px cap, and the room
+									 * text WRAPS. R1's widening to 330 made the room text whole on one
+									 * line but pushed the table past its scroll panel — measured at the
+									 * R1 tip: `scrollWidth 1124` against `clientWidth 1070` at 1366x768
+									 * (984 at 1280x720), with the row's Details actions outside the
+									 * visible panel on EVERY row. The cap and the wrap together keep the
+									 * table inside the panel and the room text whole. The width here is
+									 * the SAME number the cell in `SectionRow.tsx` declares, so the two
+									 * cannot drift. */}
+									<th className="w-[200px] min-w-0 px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-xs">Home room</th>
 									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-xs">Details</th>
 								</tr>
 							</thead>
