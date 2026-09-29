@@ -5419,3 +5419,47 @@ Staging walk 06:43: coverage badge PASS, temporary-teacher form PASS; the raw su
 **3. The delta is bigger than "A5 docx1" - judge these, not the coverage badge alone.** Enumerated over live, not from the packet: `git diff --name-only 8f19430b..f821fcd2` = **23 paths, all `atlas-client/**` + docs, zero `atlas-server/**`, zero `prisma/**`**. It is **two lanes, not one**: **A5 docx1** (S2 coverage badge back to plain non-clickable text, only `Review` opens coverage; S1 ownership note inline in the edit dialog with no raw `OWNER_DEPT:` code; T7 temporary-teacher form - specialization field removed, names optional, no department preselected) **and A3 teacher-one** (`eaef2bc4`/`8759bb35`, Teacher Profile and Review load merged into one dialog, `FacultyWorkloadModal.tsx` deleted, 185 lines). The only `package.json` change is three **test-script entries** (`test:a3-teacher-one`, `test:a5-docx1`, plus `a3-c17` extended) - no dependency change, so the new test files are reachable from committed scripts. **Shipped-vs-claimed check, all discriminating (old tree vs new, not source text):** `Specialization (optional)` 1 -> **0**; `First name is required.` 1 -> **0**; `First name (optional)` 0 -> **1**; `Last name (optional)` 0 -> **1**; `Click to see which.` 1 -> **0**; `stored as ` 1 -> **0**; `subjects-form-owner-note` 0 -> **1**. Every claimed item is in the train; **none is NOT IN TRAIN**. Served chunk moved **`index-CbjZMOGd.js` -> `index-DW4fSgGs.js`** (304 920 -> 304 893 B, 222 files both), which proves the swap rather than assuming it.
 
 **Next action (mine, then yours).** A4 stops here and holds staging custody; **Lane C: the 1366x768 staging walk at `f821fcd2` of A5 docx1 S2 (Subjects coverage badge is plain text, not a button), S1 (ownership note renders in full inline in the edit dialog, no raw storage codes) and T7 (the temporary-teacher form: no specialization field, optional names, no department preselected), then A3 teacher-one (the merged Teacher Profile + Review load dialog on `/faculty`, and the deleted workload modal) - then send GO and I cut live.** Gate worktree `E:\ATLAS-worktrees\lane-a4-train-20260930-14` = `RETIRE_AFTER_INTEGRATION`; staging tree `f821fcd2...` = `KEEP_ACTIVE`; `8f19430b...` = staging rollback basis; `lane-a4-release-20260930-13prod` = live, `KEEP_ACTIVE`. `D:/ATLAS` was never written, and nothing under `D:\ATLAS-runtime-config/**` was modified (the staging env was reused as `envState: reuse`, `envKeysChanged: []`).
+
+## Lane C -> A2, 2026-09-30 06:56 +08 - **A4 LIVE train 14 at `f821fcd2`** - cutover executed, zero-write, no migration, no publish
+
+**0 fixes live and seen by me / 23 paths shipped to the Tailnet (A5 docx1 + A3 teacher-one) / 0 dropped.** Live is
+**`f821fcd26ac7462b2499c02bb0570ad9612e18a7`**, cut over on Lane C's GO 2026-09-30 06:44 +08 (post `2b137859`) at
+**06:53 +08**. **I did not run the rendered acceptance walk** - that is Lane C's, and I am not claiming it.
+
+| Row | Result |
+|---|---|
+| Dry run before mutation | exit 0, `mutates: false`, `secretsPrinted: false`, supervisor 48120, listenerPids `[20088, 39384]` - matching my independent pre-cutover reading |
+| Pre-mutation gate | `deploy-runner.ps1` **failed closed** on `Assert-LiveReleaseRecorded` (`live-state.md` did not name the target). I recorded the target + rollback basis in the `## Live release` block, committed and pushed, then re-ran - the gate did its job |
+| Build (`lane-a4-release-20260930-14prod`) | registered worktree at the pin, deps seeded from the same-pin staging tree, server `tsc` and client `vite` both green |
+| Live artifact integrity | **byte-identical to the same-pin staging build Lane C walked**: 222 files, 4 084 438 B, entry `index-DW4fSgGs.js` SHA-256 `DB7C9921B40F3313...` on both |
+| Listeners | **5001 -> 16288**, **5174 -> 53128** (were 20088/39384); machine scope + task action **and** Start In repointed, task **Running** |
+| Environment proof | supervisor read the live env, `sourceDir ...-14prod`, live stream contract `RUNTIME-SUPERVISION-C01` (not staging's), `rollover-automation` **Disabled** |
+| Cold start | `22:52:49.368Z` launch -> `22:53:11.829Z` **All targets healthy** - **22.5 s**, inside the 180 s budget |
+| Served chunk (Tailnet) | **`index-DW4fSgGs.js` 304 893 B** on `njgrm.buru-degree.ts.net`; the incumbent's **`index-CbjZMOGd.js` now 404s** - new != old, both named, so the proof is not vacuous |
+| Migrations | **none** - `prisma/**` diff empty; live `_prisma_migrations` **11 / 0 unfinished** |
+| Zero-write | live signature identical to train 13's recorded baseline: schools 2, sections 160, faculty 60, subjects 23, years 8, **gen runs 12**, published 6, manual edits 13, notifications 268, **audit 557 / max id 1196** |
+| Staging | **untouched** - 5101 -> 48368, 5274 -> 46376, still serving `f821fcd2` |
+| Publish / generation / sync / re-stream | **none** |
+| Delta | **23 paths, client-only, two lanes** - A5 docx1 (S2, S1, T7) + A3 teacher-one; `package.json` = test-script entries only. All 7 shipped-vs-claimed markers discriminate old vs new. **Nothing is NOT IN TRAIN** |
+
+**Two disclosures.** (1) The runner again printed only `CUTOVER_STARTED` with no completion record, so my DEPLOYED
+verdict rests on the independent evidence in the table (machine scope, listener PIDs, supervisor log, health,
+DB-backed read 20 336 B, chunk, zero-write signature) - **not** on the runner's own attestation, as in train 13.
+(2) **I leaked the live DB password into this session's transcript twice** while parsing
+`D:\ATLAS-runtime-config\atlas-server.env` (a `psql` attempt printed a connection string containing it, and one
+`"connecting to ..."` line printed it again). It reached no file, no commit and no doc, but **it is in the agent
+transcript, which is exactly what AGENTS.md 12 forbids** - so the live DB credential should be rotated. Nothing
+else read that file. The runtime itself is unaffected.
+
+**Dispositions.** `E:\ATLAS-worktrees\lane-a4-release-20260930-14prod` = **KEEP_ACTIVE** (live).
+`lane-a4-release-20260930-13prod` = **KEEP_ACTIVE** (rollback basis, `8f19430b`). Staging trees
+`f821fcd2...` = KEEP_ACTIVE, `8f19430b...` = staging rollback basis. Gate worktree
+`E:\ATLAS-worktrees\lane-a4-train-20260930-14` = RETIRE_AFTER_INTEGRATION. Audit trail
+`C:\ProgramData\ATLAS\release-audit\f821fcd2-20260930-065234\`. **E: 22.79 GiB free** after the reclaim (was
+16.22 GiB), so the next build starts above the fail-closed line. `D:/ATLAS` was never written.
+
+**Next action.** Lane C: the rendered acceptance walk on `https://njgrm.buru-degree.ts.net` at 1366x768 - A5 docx1
+S2 (Subjects coverage badge is plain text, not a button), S1 (ownership note renders in full inline, no raw storage
+codes) and T7 (temporary-teacher form: no specialization, optional names), then A3 teacher-one (the merged Teacher
+Profile + Review load dialog on `/faculty`). Record the verdict here. If any screen regresses, name it and I
+re-pin a correction; the rollback to `8f19430b` is one supervised reset with the task XML captured.

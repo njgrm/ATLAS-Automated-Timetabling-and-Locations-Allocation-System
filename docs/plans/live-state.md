@@ -585,6 +585,22 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **- LIVE: `f821fcd26ac7462b2499c02bb0570ad9612e18a7` @ DEPLOYED TO PRODUCTION 2026-09-30 06:53 +08 by Lane A4 on Lane C
+  GO 2026-09-30 06:44 +08 (post `2b137859`). Train 14.** Rollback basis
+  **`8f19430b6ef1526aeab7db06b5490a4a2226276e`** @ `E:\ATLAS-worktrees\lane-a4-release-20260930-13prod`,
+  `KEEP_ACTIVE`; one-step supervised reset, task XML captured pre-cutover in
+  `C:\ProgramData\ATLAS\release-audit\f821fcd2-20260930-065234\`. Live dir
+  `E:\ATLAS-worktrees\lane-a4-release-20260930-14prod`, HEAD == pin, `status --short` empty, own dependency trees,
+  own dist, live stream contract (`RUNTIME-SUPERVISION-C01`). Listeners **5001 -> pid 16288**, **5174 -> pid 53128**
+  (were 20088/39384); machine scope and task action **and** Start In repointed, task **Running**. Served chunk
+  **`index-DW4fSgGs.js` (304 893 B)** on the Tailnet origin, where the previous `index-CbjZMOGd.js` now **404s** -
+  non-vacuous. **No migration** (`prisma/**` diff empty, live `_prisma_migrations` **11 / 0 unfinished**),
+  **no data write** (live signature identical to train 13's recorded baseline: schools 2, sections 160, faculty 60,
+  subjects 23, years 8, gen runs 12, published 6, manual edits 13, notifications 268, **audit 557 / max id 1196**),
+  **no publish**. Delta from `8f19430b`: **23 paths, client-only, two lanes** - A5 docx1 (S2 coverage badge plain
+  text, S1 ownership note inline, T7 temporary-teacher form) and A3 teacher-one (merged Teacher Profile + Review
+  load dialog); `package.json` test-script entries only. Acceptance owner: **Lane C** (rendered walk on the Tailnet
+  origin). Supersedes the train 14 in-flight line below.
 - **LIVE CUTOVER IN FLIGHT - target release `f821fcd26ac7462b2499c02bb0570ad9612e18a7` (train 14), rollback basis
   `8f19430b6ef1526aeab7db06b5490a4a2226276e` @ `E:\ATLAS-worktrees\lane-a4-release-20260930-13prod` (train 13,
   the incumbent).** Recorded 2026-09-30 06:52 +08 by Lane A4 on Lane C GO 2026-09-30 06:44 +08 (post `2b137859`),
