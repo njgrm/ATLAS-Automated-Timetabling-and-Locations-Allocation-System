@@ -28,8 +28,22 @@
  * the token rather than two hand-matched literals — a `h-9` here and a `h-9` typed in a page is
  * exactly the pair that silently drifts. `AGENTS.md` §8 forbids a page-local override that
  * changes a primitive's look, and a second `h-*` on a trigger is such an override.
+ *
+ * A7 C8 SLICE 1 (operator, 2026-09-29: *"Our default text and sizes should naturally be
+ * bigger"*) — `h-9` (36px) -> `h-10` (40px), the packet's floor for a control that acts. A
+ * filter row is the single most-used row in the product and every one of its controls sits
+ * at this one number, so this is the highest-leverage height in the codebase: one token
+ * moves all of them together and none of them can drift apart again.
+ *
+ * THE WIDTH ARITHMETIC IS THE THING TO WATCH, AND IT IS NOT THIS COMMENT'S JOB TO FIX.
+ * `md` is `w-28` and was sized to hold `Program: All` at `text-xs` with ~42px of slack
+ * across the `/subjects` cluster. A7 C8 also raises `--text-xs` from 12px to 14px, so
+ * every composed face on these triggers is now wider in the same row. The trigger is a
+ * FIXED rectangle, so a wider face is a clipped face. The re-fit pass owns that, with a
+ * rendered row to measure; this slice is forbidden from adding `truncate` to hide it, and
+ * adding width here would silently drop the `w-36`/xl budget reasoning documented below.
  */
-export const PICKER_CONTROL_HEIGHT_CLASS = 'h-9';
+export const PICKER_CONTROL_HEIGHT_CLASS = 'h-10';
 
 /**
  * The ONE set of trigger widths. `AGENTS.md` §8: a control's size is a variant, and a variant
