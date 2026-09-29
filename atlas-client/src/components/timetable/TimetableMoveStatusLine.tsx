@@ -128,13 +128,16 @@ export function TimetableMoveStatusLine({
 							)
 						))}
 						{blocked.map((offer) => (
+							/* A2 mc R2 polish — the row LED with the reason. It used to read
+							 * `Swap with FIL (Mr Luna) — not allowed: …`, which states an
+							 * action and then refuses it in the same breath. */
 							<span
 								key={`${offer.slotKey}-${offer.occupantEntryId}`}
 								className="text-xs"
 								data-testid="timetable-move-swap-blocked"
 								data-swap-allowed="false"
 							>
-								{offer.label} — not allowed: {offer.blockedReason}
+								{`Cannot swap with ${offer.label.replace(/^Swap with /, '')}: ${offer.blockedReason}`}
 							</span>
 						))}
 					</div>

@@ -293,7 +293,12 @@ function PreviewResults({ previewResult }: { previewResult: PreviewResult }) {
 							</div>
 							<div className="mt-0.5 text-xs text-amber-700">{group.nextStep}</div>
 							{group.exampleDetail && (
-								<div className="mt-0.5 text-xs text-amber-700">{group.exampleDetail}</div>
+								/* A2 mc R2 polish — the example is LABELLED. Unlabelled it read
+								 * as the one problem of the cause rather than a sample of it. */
+								<div className="mt-0.5 text-xs text-amber-700">
+									{group.sameDetail ? 'For example: ' : 'One of these: '}
+									{group.exampleDetail}
+								</div>
 							)}
 							{!group.sameDetail && (
 								<div className="mt-0.5 text-xs text-amber-700">

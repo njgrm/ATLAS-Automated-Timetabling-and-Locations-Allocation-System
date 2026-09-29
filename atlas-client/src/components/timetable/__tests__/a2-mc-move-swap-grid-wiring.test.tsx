@@ -383,8 +383,8 @@ test('C3 with no legal partner: ZERO offer buttons and the blocked text (nothing
 		'no offer button when the partner rule refuses the swap');
 	const blocked = host.querySelectorAll('[data-testid="timetable-move-swap-blocked"]');
 	assert.equal(blocked.length, 1, 'the occupied period still states its verdict');
-	assert.match(blocked[0].textContent ?? '', /^Swap with Subject 93 \(Teacher 94\) — not allowed: /,
-		'in plain words, naming why');
+	assert.match(blocked[0].textContent ?? '', /^Cannot swap with Subject 93 \(Teacher 94\): /,
+		'it LEADS with the reason. A2 mc R2 polish: the row used to read `Swap with … — not allowed: …`, which states an action and then refuses it in the same breath.');
 });
 
 test('C4 no regression: the Cancel stays reachable and the message renders exactly the prop', async () => {

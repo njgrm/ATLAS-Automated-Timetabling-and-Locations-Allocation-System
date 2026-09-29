@@ -562,10 +562,15 @@ export default function ManualEditPanel({
 															: ' · Taken by another class in this view'
 														: '';
 													return (
+														/* A2 mc R2 polish — the page-local `text-amber-700` className
+														 * is GONE (AGENTS.md §8 "one look per control": a page must not
+														 * restyle a `@/ui` primitive). The swap verdict travels in the
+														 * OPTION TEXT and in `data-swap-state`, so the meaning survives
+														 * without a bespoke colour. */
 														<SelectItem
 															key={ts.key}
 															value={ts.key}
-															className={`text-xs ${ts.occupied ? 'text-amber-700' : ''}`}
+															className="text-xs"
 															data-swap-state={ts.occupied ? (offer?.allowed ? 'swap-allowed' : 'swap-blocked') : 'free'}
 														>
 															{formatTime(ts.startTime)} – {formatTime(ts.endTime)}

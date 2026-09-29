@@ -66,6 +66,7 @@ const {
 	receiptActionWord,
 	receiptClassLabel,
 	receiptProblemClause,
+	receiptProblemSentence,
 	receiptSlotLabel,
 	shortClockTime,
 } = await import('@/lib/timetable-edit-receipt');
@@ -121,9 +122,115 @@ test('S5b the problem clause is always present and states the DELTA honestly', (
 	assert.equal(receiptProblemClause({ now: 2 }), '2 new problems.', 'with no measurement it still says something true');
 	assert.equal(receiptProblemClause(null), 'No new problems.', 'an absent measurement defaults to the clean reading');
 
-	// The tone follows the clause, so the status line colours itself honestly.
-	assert.equal(buildEditReceipt({ editType: 'MOVE_ENTRY', problems: { now: 0 } }).tone, 'success');
-	assert.equal(buildEditReceipt({ editType: 'MOVE_ENTRY', problems: { now: 4 } }).tone, 'warning');
+	// A2 mc R2 (B1) — `before < now`, the case the pre-fix gate never covered. QA
+	// ran the operator's own drill data through the pre-fix module and got
+	// "531 new problems." for a move that added FIVE to a run that already held
+	// 525 soft warnings and 6 must-fix problems. `now` is the RUN TOTAL; the count
+	// this edit CREATED is `now - before`, and conflating them is the defect.
+	assert.equal(
+		receiptProblemClause({ now: 531, before: 526 }),
+		'5 new problems.',
+		'the pre-fix module printed the whole run total as the number of NEW problems',
+	);
+	assert.equal(
+		receiptProblemClause({ now: 531, before: 526, firstNewSentence: 'Mr Cruz already teaches 8-Luna at that time' }),
+		'5 new problems: Mr Cruz already teaches 8-Luna at that time.',
+		'and the same is true when the first problem IS named',
+	);
+	assert.equal(
+		buildEditReceipt({
+			editType: 'MOVE_ENTRY',
+			classLabel: 'TLE for 7-Rizal',
+			from: { day: 'MONDAY', startTime: '06:00' },
+			to: { day: 'TUESDAY', startTime: '07:30' },
+			problems: { now: 531, before: 526, firstNewSentence: 'Mr Cruz already teaches 8-Luna at that time' },
+		}).sentence,
+		'Moved TLE for 7-Rizal from Mon 6:00 to Tue 7:30. 5 new problems: Mr Cruz already teaches 8-Luna at that time.',
+		'the whole receipt on the operator own drill numbers',
+	);
+	// A receipt that inflates its own count is worse than no receipt, so the
+	// count must never exceed the problems the edit actually created.
+	assert.doesNotMatch(receiptProblemClause({ now: 531, before: 526 }), /531/, '531 can never be called new');
+
+	// The tone follows the CLAUSE, not the run total: a move that added five to a
+	// dirty run is a warning, and a move onto a clean run is a success.
+	assert.equal(buildEditReceipt({ editType: 'MOVE_ENTRY', problems: { now: 531, before: 526 } }).tone, 'warning');
+	assert.equal(buildEditReceipt({ editType: 'MOVE_ENTRY', problems: { now: 0, before: 0 } }).tone, 'success');
+});
+
+test('S5b2 B2 the receipt names the PROBLEM, not the category', () => {
+	// A2 mc R2 (B2): the two move call sites passed `humanTitle`, which for a
+	// teacher conflict is the category `Teacher double-booked`. The packet's own
+	// example sentence is the DETAIL `buildHumanConflicts` already produces.
+	const conflicts = [
+		{
+			code: 'FACULTY_TIME_CONFLICT',
+			severity: 'HARD',
+			// The server's own wording for this code (manual-edit.service.ts).
+			humanTitle: 'Teacher double-booked',
+			humanDetail: 'Mr Cruz is already teaching ESP on Mon 7:00 AM–7:45 AM',
+		},
+	];
+	const sentence = receiptProblemSentence(conflicts);
+	assert.ok(sentence, 'a receipt names the problem when the preview carried one');
+	assert.match(sentence!, /Mr Cruz is already teaching ESP/, 'it carries the teacher and the class, not the category');
+	assert.doesNotMatch(sentence!, /Teacher double-booked/, 'the category string is gone');
+
+	// The scrub is the ONE the preview path uses, so an engine token cannot reach
+	// a receipt by a second route.
+	assert.equal(
+		receiptProblemSentence([{ code: 'X', severity: 'HARD', humanTitle: 't', humanDetail: 'Manual candidate e-1::t1 rejected by shared invariant: SECTION_TIME_CONFLICT.' }]),
+		'ATLAS refused this change because it breaks a rule every class must follow: Section double-booked.',
+		'the invariant sentence and its raw code are composed away by the same scrubber',
+	);
+	// HARD outranks SOFT, and nothing at all is `null` rather than an empty clause.
+	assert.match(receiptProblemSentence([
+		{ code: 'FACULTY_EXCESSIVE_IDLE_GAP', severity: 'SOFT', humanTitle: 't', humanDetail: 'soft detail' },
+		{ code: 'FACULTY_TIME_CONFLICT', severity: 'HARD', humanTitle: 't', humanDetail: 'hard detail' },
+	])!, /^hard detail$/, 'a blocker outranks a warning');
+	assert.equal(receiptProblemSentence([]), null);
+	assert.equal(receiptProblemSentence(null), null);
+});
+
+test('S5b3 B3 one change, one destination on a history row', async () => {
+	// A2 mc R2 (B3): the pre-fix row composed a SWAP's destination from
+	// `before.entryB`, while `describeEditAutoMoveNamed` rendered `after.entryA`
+	// on the same row — two destinations for one class.
+	const autoFixSwap = {
+		id: 9100, runId: 318, actorId: 46, editType: 'SWAP_ENTRIES',
+		beforePayload: {
+			strategy: 'AUTO_FIX_MOVE_SOURCE',
+			entryA: { entryId: 'e-a', sectionId: 71, day: 'MONDAY', startTime: '06:00', endTime: '06:45' },
+			entryB: { entryId: 'e-b', sectionId: 71, day: 'MONDAY', startTime: '08:15', endTime: '09:00' },
+		},
+		afterPayload: {
+			strategy: 'AUTO_FIX_MOVE_SOURCE',
+			// The auto-fix relocated A to 10:15 — which is NOT B's old slot.
+			entryA: { entryId: 'e-a', sectionId: 71, day: 'MONDAY', startTime: '10:15', endTime: '11:00' },
+			entryB: { entryId: 'e-b', sectionId: 71, day: 'MONDAY', startTime: '06:00', endTime: '06:45' },
+		},
+		validationSummary: {}, createdAt: '2026-09-30T08:00:00.000Z',
+	};
+	assert.equal(
+		historyEditReceiptSentence(autoFixSwap as never, (entryId) => (entryId === 'e-a' ? 'TLE' : 'SCIENCE')),
+		'Swapped TLE from Mon 6:00 to Mon 10:15.',
+		'the destination is read from the AFTER payload, so it is the one the auto-move sentence names',
+	);
+	// And the clause is suppressed on exactly the rows that already render a
+	// destination, so the row cannot state two (AGENTS.md §16: additive — the
+	// auto-move sentence itself is not touched).
+	assert.equal(
+		historyEditReceiptSentence(autoFixSwap as never, () => 'TLE', { suppressWhenAutoMoveNamed: 'Also moved TLE to Mon 10:15–11:00 AM.' }),
+		null,
+		'no second destination beside the auto-move sentence',
+	);
+	// A CLEAN exchange still gets its receipt: nothing else on the row says where
+	// the class went.
+	const cleanSwap = {
+		...autoFixSwap,
+		afterPayload: { strategy: 'DIRECT_SWAP', ...autoFixSwap.afterPayload, entryA: autoFixSwap.beforePayload.entryA, entryB: autoFixSwap.beforePayload.entryB },
+	};
+	assert.ok(historyEditReceiptSentence(cleanSwap as never, () => 'TLE'), 'a clean exchange keeps its receipt');
 });
 
 test('S5c EVERY committed move, swap and place derives its status from the ONE module', () => {

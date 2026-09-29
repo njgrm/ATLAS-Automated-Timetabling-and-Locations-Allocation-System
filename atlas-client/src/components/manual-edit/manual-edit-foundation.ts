@@ -68,8 +68,11 @@ export function deltaSentence(delta: PreviewResult['violationDelta']): { text: s
 	if (softDiff > 0) parts.push(`adds ${softDiff} warning${softDiff === 1 ? '' : 's'}`);
 	else if (softDiff < 0) parts.push(`removes ${Math.abs(softDiff)} warning${Math.abs(softDiff) === 1 ? '' : 's'}`);
 	if (parts.length === 0) return { text: 'This change does not add or remove conflicts.', color: 'text-muted-foreground' };
+	/* A2 mc R2 polish — the sentence used the same verb twice: `adds 1 blocking
+	 * conflict and adds 5 warnings.` The second clause now takes the first verb,
+	 * so the sentence reads as one claim. */
 	return {
-		text: `This change ${parts.join(' and ')}.`,
+		text: `This change ${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}.`,
 		color: hardDiff > 0 ? 'text-red-600' : hardDiff < 0 && softDiff <= 0 ? 'text-green-600' : 'text-amber-600',
 	};
 }

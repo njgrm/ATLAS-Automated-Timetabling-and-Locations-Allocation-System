@@ -82,7 +82,15 @@ function readSlots(edit: ManualEditRecord): { from: ReceiptSlot | null; to: Rece
 	return { from: null, to: null };
 }
 
-/** The entry id a recorded edit is about, for the caller's class resolver. */
+/**
+ * The entry id a recorded edit is about, for the caller's class resolver.
+ *
+ * A2 mc R2 (B3): a SWAP's payload keeps its entry ids INSIDE `entryA` / `entryB`
+ * objects, so the pre-fix probe — which read only the payload's own `entryId` /
+ * `entryIdA` keys — found nothing on a swap row and the row named no class at all.
+ * `entryA` is probed in that order: the SOURCE class is the one a swap receipt is
+ * about.
+ */
 export function readEditReceiptEntryId(edit: ManualEditRecord): string | null {
 	const after = asPayload(edit.afterPayload);
 	const before = asPayload(edit.beforePayload);
@@ -92,6 +100,9 @@ export function readEditReceiptEntryId(edit: ManualEditRecord): string | null {
 			const value = payload[key];
 			if (typeof value === 'string' && value.trim()) return value;
 		}
+		const nested = asPayload(payload.entryA);
+		const nestedId = nested?.entryId;
+		if (typeof nestedId === 'string' && nestedId.trim()) return nestedId;
 	}
 	return null;
 }

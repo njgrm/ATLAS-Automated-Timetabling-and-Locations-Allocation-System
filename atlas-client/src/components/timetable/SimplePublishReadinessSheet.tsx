@@ -146,7 +146,11 @@ function BlockerGroupRow({ group, onNavigate }: { group: BlockerGroup; onNavigat
 			<div className="flex items-start justify-between gap-2">
 				<div className="min-w-0">
 					<p className="text-sm font-semibold">{group.plainLabel}</p>
-					<p className="mt-0.5 text-xs text-red-700">
+					{/* A2 mc R2 polish — a `<div>` wrapper, not `<p>`: the shared `Badge`
+					    primitive renders a `<div>`, and a `<div>` inside a `<p>` is the
+					    invalid DOM nesting React reports as a hydration error. Same text,
+					    same testids, one nesting level removed. */}
+					<div className="mt-0.5 text-xs text-red-700">
 						<Badge variant="outline" className="mr-1 h-4 px-1 text-[0.625rem] font-normal" data-testid="timetable-simple-blocker-scope">
 							{scopeLabel}
 						</Badge>
@@ -157,7 +161,7 @@ function BlockerGroupRow({ group, onNavigate }: { group: BlockerGroup; onNavigat
 						<span data-testid="timetable-simple-blocker-population">
 							{` — ${group.populationLabel} in this list`}
 						</span>
-					</p>
+					</div>
 					<p className="mt-1 text-xs text-red-700">Why it matters: {whyItMatters}</p>
 				</div>
 				<Button
