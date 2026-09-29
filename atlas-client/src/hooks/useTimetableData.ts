@@ -132,7 +132,7 @@ function buildTimetableErrorMessage(error: unknown, fallbackMessage: string): st
 	const payload = getTimetableApiErrorPayload(error);
 	if (payload?.code === 'NO_ACTIVE_DRAFT') {
 		const base = payload.message ?? 'No active draft timetable run is available for the active school year.';
-		const hint = payload.actionHint ?? 'Generate a timetable for the active school year, then refresh.';
+		const hint = payload.actionHint ?? 'Generate a draft for the active school year, then refresh.';
 		return `${base} ${hint}`;
 	}
 	if (payload?.code === 'STALE_RUN_DATA') {

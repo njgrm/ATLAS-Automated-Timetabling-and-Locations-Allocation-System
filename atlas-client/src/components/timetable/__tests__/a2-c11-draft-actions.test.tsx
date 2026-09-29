@@ -269,9 +269,15 @@ test('D3R RENDERED (QA-B2 re-point): a PUBLISHED run says Published and cannot P
 	const publish = view.host.querySelector('[data-testid="timetable-simple-publish-action"]') as HTMLButtonElement;
 	assert.equal(publish.disabled, true, 'a published run cannot be published again');
 	// The FULL sentence is still carried, and still not hover-only (AGENTS.md §8).
+	//
+	// A7 c12b (decision 8, rows 6 and 22) SUPERSEDED this row's expected string. It
+	// used to expect `Publish schedule — This schedule is already published.`; the
+	// control's visible label and accessible name are now the one word `Publish`
+	// (row 6), and the reason is the row-22 wording. The property is unchanged: the
+	// disabled control still carries the full reason in its accessible name.
 	assert.equal(
 		publish.getAttribute('aria-label'),
-		`Publish schedule — ${PUBLISH_WHEN_ALREADY_PUBLISHED}`,
+		`Publish — ${PUBLISH_WHEN_ALREADY_PUBLISHED}`,
 		'the control keeps the full reason in its accessible name',
 	);
 	// AGENTS.md §8 — no raw `title` attribute carrying the explanation.

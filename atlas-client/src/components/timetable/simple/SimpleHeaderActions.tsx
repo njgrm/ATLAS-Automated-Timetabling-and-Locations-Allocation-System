@@ -14,7 +14,7 @@
  * (invariant 2: a missing term is never Term 1).
  */
 import type { ReactNode } from 'react';
-import { CalendarClock, ClipboardList, Download, Play, RefreshCw, Settings2, Undo2 } from 'lucide-react';
+import { CalendarClock, ClipboardList, Download, History, Play, RefreshCw, Settings2, Undo2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { cn } from '@/lib/utils';
@@ -240,6 +240,12 @@ export type SimpleMoreScheduleActionsProps = {
 	previewDemand: { visible: boolean; disabled: boolean; onSelect: () => void };
 	/** Return to the published schedule from the working draft — unchanged gate. */
 	returnToPublished: { visible: boolean; onSelect: () => void };
+	/**
+	 * A7 c12b (decision 8 / CORRECTION item 5) — `View past years` moved out of the
+	 * year banner and into More. The href carries the previous school-year id; `null`
+	 * hides the row when there is no previous year (no rollover notice).
+	 */
+	pastYearsHref: string | null;
 	/** A former lifecycle next step that no visible control owns. */
 	nextStep: { label: string; disabled: boolean; href: string | null; onSelect: () => void } | null;
 };
@@ -252,6 +258,7 @@ export function SimpleMoreScheduleActions({
 	generate,
 	previewDemand,
 	returnToPublished,
+	pastYearsHref,
 	nextStep,
 }: SimpleMoreScheduleActionsProps) {
 	return (
@@ -328,6 +335,14 @@ export function SimpleMoreScheduleActions({
 					Return to published
 				</DropdownMenuItem>
 			) : null}
+			{pastYearsHref ? (
+				<DropdownMenuItem asChild className="h-9 gap-2 text-xs" data-testid="timetable-more-past-years">
+					<Link to={pastYearsHref} onClick={onClose}>
+						<History className="size-3.5" aria-hidden="true" />
+						Past years
+					</Link>
+				</DropdownMenuItem>
+			) : null}
 			{downloadAvailable ? (
 				<DropdownMenuItem
 					className="h-9 gap-2 text-xs"
@@ -369,6 +384,10 @@ export function SimpleUnassignedSessionsItem({
 }) {
 	const reason = unavailableReason ?? (count === 0 ? `No unassigned sessions in ${termLabel}.` : null);
 	const disabled = reason != null;
+	/* A7 c12b / decision 8 (row 25) — the unplaced label is `N classes need a
+	 * time slot`, never `Unassigned sessions (N)`. The number is the same count it
+	 * always was (the selected term's, never Term 1 by default). */
+	const unplacedLabel = count === 1 ? '1 class needs a time slot' : `${count} classes need a time slot`;
 	return (
 		<DropdownMenuItem
 			className={cn('gap-2 text-xs', disabled ? 'h-auto min-h-9 items-start py-1.5 data-[disabled]:opacity-100' : 'h-9')}
@@ -380,11 +399,11 @@ export function SimpleUnassignedSessionsItem({
 			<ClipboardList className={cn('size-3.5', disabled && 'mt-0.5 text-muted-foreground')} aria-hidden="true" />
 			{disabled ? (
 				<span className="flex flex-col">
-					<span className="text-muted-foreground">Unassigned sessions ({count})</span>
+					<span className="text-muted-foreground">{unplacedLabel}</span>
 					<span className="text-xs text-muted-foreground" data-testid="timetable-more-unassigned-sessions-reason">{reason}</span>
 				</span>
 			) : (
-				<span>Unassigned sessions ({count})</span>
+				<span>{unplacedLabel}</span>
 			)}
 		</DropdownMenuItem>
 	);

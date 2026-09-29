@@ -884,8 +884,10 @@ test('S5 a Term 2 unassigned session is reachable from the visible More entry an
 
 	const menu = await openHeaderMore();
 	const entry = menu.querySelector<HTMLElement>('[data-testid="timetable-more-unassigned-sessions"]');
-	assert.ok(entry, 'More carries an "Unassigned sessions (N)" entry in the Simple layout');
-	assert.match(entry.textContent ?? '', /Unassigned sessions \(1\)/, 'only the selected term (Term 2) is counted');
+	assert.ok(entry, 'More carries the unplaced-classes entry in the Simple layout');
+	// A7 c12b (decision 8, row 25) SUPERSEDED the label: `Unassigned sessions (N)` is
+	// now `N classes need a time slot`. The count and its term scoping are unchanged.
+	assert.match(entry.textContent ?? '', /1 class needs a time slot/, 'only the selected term (Term 2) is counted');
 	assert.notEqual(entry.getAttribute('data-disabled'), '', 'the entry is enabled with a non-zero count');
 	await click(entry);
 
@@ -905,7 +907,8 @@ test('S5 with only another term\'s item the entry shows 0 and is disabled with a
 	const menu = await openHeaderMore();
 	const entry = menu.querySelector<HTMLElement>('[data-testid="timetable-more-unassigned-sessions"]');
 	assert.ok(entry, 'the entry stays visible with 0');
-	assert.match(entry.textContent ?? '', /Unassigned sessions \(0\)/);
+	// A7 c12b SUPERSEDED: `Unassigned sessions (0)` is now `0 classes need a time slot`.
+	assert.match(entry.textContent ?? '', /0 classes need a time slot/);
 	assert.equal(entry.getAttribute('data-disabled'), '', 'disabled at 0');
 	assert.match(entry.textContent ?? '', /No unassigned sessions in Term 2/, 'the disabled entry says why');
 });
@@ -1613,7 +1616,9 @@ test('PL-J4.1S an unplaced-only block names CLASSES on the chip, the one unit ev
 		draft: draft([unassignedItem(2, 701, 1), unassignedItem(2, 702, 1), unassignedItem(2, 703, 1)], { hardViolationCount: 0, unassignedCount: 3 }),
 	});
 	const text = chip.textContent ?? '';
-	assert.match(text, /3 classes still need a time — this schedule cannot be published yet\./, 'the unplaced clause names classes');
+	// R1-C2 (decision 8) SUPERSEDED the wording: `3 classes still need a time` is
+	// `3 classes need a time slot`. The property is unchanged.
+	assert.match(text, /3 classes need a time slot — this schedule cannot be published yet\./, 'the unplaced clause names classes');
 	assert.doesNotMatch(text, /session/i, 'the chip never falls back to the retired noun');
 });
 

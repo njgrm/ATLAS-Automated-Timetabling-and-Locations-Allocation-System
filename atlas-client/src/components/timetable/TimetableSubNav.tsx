@@ -33,7 +33,7 @@ const SUB_NAV_ITEMS: TimetableSubNavItem[] = [
 	// a run state can no longer be read as the same claim. `key` is unchanged, so
 	// the `timetable-sub-nav-draft` testid and every existing assertion on it
 	// still hold.
-	{ key: 'draft', label: 'Planning', to: '/timetable/pre-generation' },
+	{ key: 'draft', label: 'Draft', to: '/timetable/pre-generation' },
 	{ key: 'setup', label: 'Setup', to: '/timetable/setup' },
 	{ key: 'policies', label: 'Policies', to: '/timetable/policies' },
 	{ key: 'runs', label: 'Runs', to: '/timetable/runs' },

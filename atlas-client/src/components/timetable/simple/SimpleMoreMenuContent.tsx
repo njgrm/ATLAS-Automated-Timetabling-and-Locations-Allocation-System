@@ -5,14 +5,12 @@ import {
 	CircleHelp,
 	ClipboardCheck,
 	HeartHandshake,
-	History,
 	ListChecks,
 	MapPin,
 	MousePointerClick,
 	PencilLine,
 	RefreshCw,
 	Send,
-	Settings2,
 	Trash2,
 	UserRoundX,
 } from 'lucide-react';
@@ -21,8 +19,6 @@ import { Link } from 'react-router-dom';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { runAnchorLabel } from '@/lib/timetable-plain-language';
 import { MANUAL_EDIT_NEEDS_SELECTION_REASON } from '@/components/timetable/CenterWorkspaceManualEditEmpty';
-// A2-C6-TRUTH (T1b): which sentence the Schedule history entry may print.
-import { editHistoryEmptyStateMessage, type EditHistoryReadState } from '@/lib/timetable-edit-history-truth';
 import { cn } from '@/lib/utils';
 import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
 import { Button } from '@/ui/button';
@@ -33,7 +29,7 @@ import { STATUS_ITEMS } from '@/components/timetable/TimetableStatusLegend';
 import { DropdownMenuItem, DropdownMenuLabel } from '@/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
-import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
+import type { TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
 
 /**
  * R7 — the Simple "More" menu. Extracted so every migrated Simple entry point
@@ -43,18 +39,10 @@ import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/time
 export type SimpleMoreMenuContentProps = {
 	context: ScheduleReviewWorkspaceHeaderContext;
 	runToolsAvailable: boolean;
-	/**
-	 * C7 — when the header's single primary action already dispatches the
-	 * review-issues task (the lifecycle `review-warnings` step, or an armed
-	 * review task), this entry is a duplicate of that action and must not
-	 * render. Every other state keeps it, so the review is never stranded.
-	 */
-	hideReviewIssues?: boolean;
 	onClose: () => void;
 	onStartTask: (task: TimetableSimpleTask) => void;
 	onOpenTeacherDeparture: () => void;
 	onOpenRequests: () => void;
-	onLayoutModeChange: (mode: TimetableLayoutMode) => void;
 	/** A3 — the tutorial dialog now opens from here, not the main header row. */
 	onOpenTutorial?: () => void;
 	/**
@@ -193,12 +181,10 @@ export function SimpleMoreScrollRegion({ children }: { children: ReactNode }) {
 export function SimpleMoreMenuContent({
 	context,
 	runToolsAvailable,
-	hideReviewIssues = false,
 	onClose,
 	onStartTask,
 	onOpenTeacherDeparture,
 	onOpenRequests,
-	onLayoutModeChange,
 	onOpenTutorial,
 	onSchoolNamesRefreshed,
 	unassignedEntry = null,
@@ -231,11 +217,12 @@ export function SimpleMoreMenuContent({
 	// The four unconditional Tools rows — Teacher concerns · Campus map · Manual edit
 	// · Building view — plus whatever draft rows this group actually renders.
 	const toolsCount = 1 + 1 + 1 + 1 + draftPublishRow + draftEditRow + draftDiscardRow;
-	const expertToolCount = (hideReviewIssues ? 0 : 1) + 3;
-	// A2-C6-TRUTH (T1b): the entry's own state comes from the last READ, not from
-	// a row count that a failed or unfinished read also produces.
-	const historyReadState: EditHistoryReadState = context.editHistoryReadState ?? 'idle';
-	const historyReadable = historyReadState === 'ready' && context.editHistoryCount > 0;
+	// A7 c12b / decision 8 (CORRECTION item 1) — the `Expert tools` group is
+	// DELETED: `Expert view` (retired), `Advanced rules` (the Policies tab already
+	// owns it), `Review issues` (the readiness panel owns it) and `Schedule history`
+	// (the status chip carries the count). `expertToolCount` and the group's
+	// `EditHistoryReadState` inputs are gone with it; `primaryDispatchesReviewIssues`
+	// stays exported because its pure contract rows still pin it.
 	const dayOptionsVisible = Boolean(context.policyAlignmentWarning) || context.hiddenRowCount > 0;
 	// C11 M1 — the manual-edit pane is selection-dependent, so the menu entry is too.
 	const hasSelectedClass = context.hasSelectedEntry;
@@ -276,84 +263,12 @@ export function SimpleMoreMenuContent({
 					Review room requests ({context.requestPendingCount})
 				</DropdownMenuItem> : null}
 			</div>
-			<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-expert-tools">
-				<MoreGroupHeading label="Expert tools" itemCount={expertToolCount} />
-				{hideReviewIssues ? null : (
-					<DropdownMenuItem className="h-9 gap-2 text-xs" disabled={!runToolsAvailable} data-testid="timetable-more-review-issues" onSelect={(event) => { event.preventDefault(); onClose(); void onStartTask('review-issues'); }}>
-						<ListChecks className="size-3.5" aria-hidden="true" />
-						Review issues
-						{!runToolsAvailable && <span className="sr-only"> Unavailable: no generated run yet.</span>}
-					</DropdownMenuItem>
-				)}
-				{/* LANE-C C03 (B10) — a disabled entry says why instead of only
-				    greying out; the reason stays readable (full opacity). */}
-				<DropdownMenuItem
-					className={cn('gap-2 text-xs', historyReadState !== 'ready' || context.editHistoryCount === 0 ? 'h-auto min-h-9 items-start py-1.5 data-[disabled]:opacity-100' : 'h-9')}
-					disabled={!historyReadable}
-					onSelect={(event) => { event.preventDefault(); onClose(); context.setShowEditHistory(true); }}
-					data-testid="timetable-more-schedule-history"
-				>
-					<History className={cn('size-3.5', (historyReadState !== 'ready' || context.editHistoryCount === 0) && 'mt-0.5 text-muted-foreground')} aria-hidden="true" />
-					{historyReadState !== 'ready' || context.editHistoryCount === 0 ? (
-						<span className="flex flex-col">
-							<span className="text-muted-foreground">Schedule history</span>
-							{/* A2-C6-TRUTH (T1b): the sentence is chosen by the READ, not by
-							    the row count. A term change cleared the ledger and nothing
-							    refilled it, so this entry printed "no class has been
-							    moved…" about a run holding four recorded changes. Only a
-							    `ready` read of zero rows may print the empty-run claim;
-							    an in-flight or failed read prints its own sentence. */}
-							<span className="text-xs text-muted-foreground" data-testid="timetable-more-schedule-history-reason" data-history-read-state={historyReadState}>
-								{editHistoryEmptyStateMessage(historyReadState, context.editHistoryCount)}
-							</span>
-						</span>
-					) : (
-						<span>Schedule history ({context.editHistoryCount})</span>
-					)}
-				</DropdownMenuItem>
-			{/* UX-R03a — policy editing stays Advanced; Simple links to the nested
-			    policy route. The route→view sync drives the existing guarded
-			    centerView state, so no state workaround is needed here.
-
-			    #49 (a) — the link used to ALSO save the Expert layout in the
-			    browser (`onLayoutModeChange('advanced')` → `setLayoutMode` →
-			    localStorage). The policy page renders no scheduler chrome at all
-			    (`isTimetableSchedulerView('policy') === false`), so that write was
-			    invisible: the user opened a policy page, found no header, and every
-			    later /timetable load — including a new tab — opened "GENERATED
-			    TIMETABLE" in Expert view with a different More menu, and the only
-			    way out was a 12px button one runner could not find and another
-			    could only reach on the second click.
-
-			    Navigation here now mutates NOTHING but the URL. Staying in Expert
-			    is a separate, explicit choice: the `Expert view` item below. */}
-			<DropdownMenuItem
-				asChild
-				className="h-9 gap-2 text-xs"
-				data-testid="timetable-more-policy"
-			>
-				<Link
-					to="/timetable/policies"
-					onClick={onClose}
-				>
-					<Settings2 className="size-3.5" aria-hidden="true" />
-					Advanced rules
-				</Link>
-			</DropdownMenuItem>
-				{/* #49 (a) — this is the ONE place in More that deliberately changes
-				    and SAVES the layout, because the user chose it by name. The
-				    tutorial points at More ▸ Expert tools, never here by testid, so
-				    no step can promise a highlight that only exists while the menu
-				    is open. */}
-				<DropdownMenuItem
-					className="h-9 gap-2 text-xs"
-					onSelect={(event) => { event.preventDefault(); onClose(); onLayoutModeChange('advanced'); }}
-					data-testid="timetable-layout-toggle"
-				>
-					<Settings2 className="size-3.5" aria-hidden="true" />
-					Expert view
-				</DropdownMenuItem>
-			</div>
+			{/* A7 c12b / decision 8 (CORRECTION item 1) — the `Expert tools` group was
+			    DELETED here: `Expert view` (the switch is retired, so no user-visible
+			    route or switch to it remains), `Advanced rules` (the Policies tab owns
+			    it), `Review issues` (the readiness panel owns it) and `Schedule
+			    history` (the status chip carries the count). No action is stranded:
+			    each surviving entry point is named above. */}
 			{/* A3 — Status key, Tutorial and Day options move out of the main header
 			    row into More, so the header keeps one status region and one action
 			    row. One STATUS_ITEMS source is shared with the grid legend. */}

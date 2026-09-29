@@ -581,8 +581,18 @@ test('D1 the mobile schedule entity sheet remains available', () => {
 
 	// The sheet's content is the unchanged shared chooser, so the full
 	// Section/Teacher/Room chooser stays exactly one click away.
+	//
+	// A7 c12b SUPERSEDED the file this pin read: the chooser moved, byte-identical,
+	// to `SimpleSchedulePickers.tsx` so `SimpleHeaderHelpers.tsx` stays under the
+	// §8 1000-physical-line cap. The property is unchanged — the sheet content is
+	// the ONE shared `SimpleScheduleControls`, and `SimpleHeaderHelpers` still
+	// re-exports it, so every importer path is intact.
 	const helpers = source('src/components/timetable/simple/SimpleHeaderHelpers.tsx');
-	assert.match(helpers, /<SimpleScheduleControls/);
+	assert.match(helpers, /SimpleScheduleControls,/,
+		'SimpleHeaderHelpers still re-exports the shared chooser');
+	const pickers = source('src/components/timetable/simple/SimpleSchedulePickers.tsx');
+	assert.match(pickers, /<SimpleScheduleControls/,
+		'the sheet content is the unchanged shared chooser, now in its own module');
 });
 
 test('mounted readiness repair keeps its hard filter, while re-entering Simple clears stale filters', async () => {

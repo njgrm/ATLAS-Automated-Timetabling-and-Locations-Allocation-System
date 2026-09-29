@@ -12,7 +12,7 @@ import { captureBridgeToken } from '@/lib/bridge';
 import { resolveEnrollProLogoutRedirect } from '@/lib/companion-config';
 import { applyEnrollProAccentTheme, fetchPublicSettings } from '@/lib/settings';
 import { verifySessionWithinDeadline } from '@/lib/session-verification';
-import { invalidateActiveSchoolYearContext, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { invalidateActiveSchoolYearContext, resolveActiveSchoolYearContext, resolveActiveYearLabel } from '@/lib/enrollpro-public-settings';
 import { isVerifiedOrderedActiveTerm } from '@/lib/academic-term';
 import {
 	clearRolloverAwarenessNotice,
@@ -22,6 +22,11 @@ import {
 	reconcilePersistedRolloverNotice,
 	type RolloverAwarenessNotice,
 } from '@/lib/rollover-awareness';
+/* A7 c12b — the banner is one status sentence with one link. The component is
+ * named `RolloverAwarenessNotice`, which collides with the NOTICE TYPE imported
+ * above, so it is aliased here. */
+import { RolloverAwarenessNotice as RolloverAwarenessBanner } from '@/components/app-shell/RolloverAwarenessNotice';
+import { ActiveYearBadge } from '@/components/app-shell/ActiveYearBadge';
 import {
 	ATLAS_SESSION_EXPIRED_EVENT,
 	clearAtlasAuthStorage,
@@ -180,7 +185,11 @@ export function AppShell() {
 			const previous = runtimeYearRef.current;
 			runtimeYearRef.current = { id: context.activeSchoolYearId, label: context.activeSchoolYearLabel ?? null };
 			setSelectedYearId(context.activeSchoolYearId);
-			setActiveYearLabel(context.activeSchoolYearLabel ?? `School year ${context.activeSchoolYearId}`);
+			/* A7 c12b R1-C1 — the ONE string form of the ONE active-year authority
+			 * (`resolveActiveSchoolYearContext`'s `activeSchoolYearLabel`). The
+			 * timetable chip reads the same field; stringifying it here as well kept
+			 * a second, inline source alive. */
+			setActiveYearLabel(resolveActiveYearLabel(context));
 			setActiveTermLabel(isVerifiedOrderedActiveTerm(context.activeTerm)
 				? context.activeTerm?.activeTerm ?? null
 				: null);
@@ -550,9 +559,10 @@ export function AppShell() {
 							    that states both facts now lives where the term is chosen
 							    (`SimpleTermScopeLine`, and the Expert orientation strip). */}
 							{activeYearLabel && (
-									<Badge variant='outline' className='min-h-7 px-2 text-xs'>
-										Active year: {activeYearLabel}
-									</Badge>
+									/* A7 c12b R1-C1 — the badge is the extracted shared surface, so
+									 * the copy test renders EXACTLY what the scheduler sees. Words,
+									 * placement and role are unchanged. */
+									<ActiveYearBadge label={activeYearLabel} />
 								)}
 							</div>
 						</>
@@ -560,39 +570,16 @@ export function AppShell() {
 				</header>
 
 				{rolloverNotice && (
-					<section
-						role='status'
-						aria-live='polite'
-						data-testid='rollover-awareness-notice'
-						className='flex flex-col gap-3 border-b border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between'
-					>
-						<p className='leading-relaxed'>
-							School year changed to <strong>{rolloverNotice.activeSchoolYearLabel}</strong>.{' '}
-							{rolloverNotice.previousSchoolYearLabel} is archived and read-only. This page refreshed with the new active year.
-						</p>
-						<div className='flex flex-wrap gap-2'>
-							<Button asChild variant='outline' className='min-h-11 bg-white'>
-								<Link to={`/teaching-load/history?schoolYearId=${rolloverNotice.previousSchoolYearId}`}>View past years</Link>
-							</Button>
-							<Button asChild variant='ghost' className='min-h-11'>
-								<Link to='/admin/year-setup'>Year Setup</Link>
-							</Button>
-							<Button
-								type='button'
-								variant='ghost'
-								size='icon'
-								className='min-h-11 min-w-11 text-amber-950'
-								data-testid='rollover-awareness-dismiss'
-								aria-label='Dismiss school year change notice'
-								onClick={() => {
-									if (actorSchoolId != null) clearRolloverAwarenessNotice(actorSchoolId);
-									setRolloverNotice(null);
-								}}
-							>
-								<X className='size-4' aria-hidden='true' />
-							</Button>
-						</div>
-					</section>
+					<RolloverAwarenessBanner
+						notice={rolloverNotice}
+						onActivate={() => {
+							/* Decision 8 / CORRECTION item 5 — activating the ONE link clears
+							 * the notice, so dismissal is preserved in effect; the 14-day TTL is
+							 * the backstop. See the component's doc comment for the record. */
+							if (actorSchoolId != null) clearRolloverAwarenessNotice(actorSchoolId);
+							setRolloverNotice(null);
+						}}
+					/>
 				)}
 
 				{/* A7-C5 — the ONE recovery surface for an unconfirmed sign-in, a

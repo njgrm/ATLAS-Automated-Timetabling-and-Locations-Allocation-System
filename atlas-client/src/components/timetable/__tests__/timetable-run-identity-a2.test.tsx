@@ -363,7 +363,10 @@ test('C3 (c3) the pre-generation planner keeps its own line and never claims a r
 		runs: [],
 		summary: null,
 	});
-	assert.equal(runIdentityText(markup), 'No schedule made yet.', 'the planner says what is missing, in three words');
+	// A7 c12b (row 10) SUPERSEDED the planner line: `No schedule made yet.` is
+	// `Draft · nothing placed yet`. The property is unchanged — the line never
+	// claims a run it does not have.
+	assert.equal(runIdentityText(markup), 'Draft · nothing placed yet', 'the planner names the draft state');
 	assert.equal(runBadgeText(markup), 'No schedule yet', 'and the badge agrees with it');
 	assert.ok(!/Run/.test(runIdentityText(markup)), 'the planner line never claims a run it does not have');
 });
@@ -549,19 +552,21 @@ test('#51 the published/draft verdict reads the run and tolerates any run shape'
 	assert.equal(runBadgeState(renderHeader({ draft: null, summary: null })).key, 'empty', 'and no draft at all is its own state');
 });
 
-test('#51 the sub-nav tab is a SECTION name, so it can never read as a run state', () => {
+test('#51 SUPERSEDED (A7 c12b, decision 8): the draft tab is named `Draft`, the operator\'s one vocabulary', () => {
 	const subNav = readFileSync(
 		resolve(process.cwd(), 'src/components/timetable/TimetableSubNav.tsx'),
 		'utf8',
 	);
-	// The pre-candidate label was "Draft", so on a PUBLISHED run a section link
-	// read as that run's state. It is named for the section instead.
-	assert.match(subNav, /\{ key: 'draft', label: 'Planning', to: '\/timetable\/pre-generation' \}/, 'the pre-generation link is named for the section');
+	// The superseded claim, retained: "the sub-nav tab is a SECTION name, so it can
+	// never read as a run state — the link was named `Planning`." Decision 8
+	// (operator, 2026-09-30) explicitly reverses it in the CORRECTION: "The draft
+	// should never be 'planning', it should be 'draft'."
+	assert.match(subNav, /\{ key: 'draft', label: 'Draft', to: '\/timetable\/pre-generation' \}/, 'the pre-generation link reads Draft, the one vocabulary');
 	const labels = [...subNav.matchAll(/label: '([^']+)', to: '/g)].map((match) => match[1]);
 	assert.deepEqual(
 		labels,
-		['Schedule', 'Planning', 'Setup', 'Policies', 'Runs'],
-		'no sub-nav tab claims a run state, so a published run can never be labelled Draft by the nav',
+		['Schedule', 'Draft', 'Setup', 'Policies', 'Runs'],
+		'the five tabs keep one vocabulary; decision 8 sets the draft tab to Draft',
 	);
 });
 

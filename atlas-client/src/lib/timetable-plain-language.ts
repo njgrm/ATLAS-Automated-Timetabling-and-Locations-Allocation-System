@@ -105,7 +105,7 @@ export function publishBlockedSentence(input: {
 }): string {
 	const unplaced = input.unassignedCount;
 	const tail = unplaced > 0
-		? `${unplaced} class${unplaced === 1 ? ' still needs' : 'es still need'} a time`
+		? classesNeedingTime(unplaced)
 		: mustFixCountLabel(input.blockingHardCount);
 	return `${tail} — this schedule cannot be published yet.`;
 }
@@ -241,7 +241,7 @@ export function roomRequestAppealState(status: string | null | undefined): strin
  */
 export function runAnchorLabel(runId: number, humanAnchor?: string | null): string {
 	const anchor = humanAnchor?.trim();
-	return anchor ? `${anchor} · run ${runId}` : `Generated schedule · run ${runId}`;
+	return anchor ? `${anchor} · run ${runId}` : `Draft · run ${runId}`;
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -322,7 +322,7 @@ export function runStateSentence(input: {
 }): string | null {
 	// U5: the empty state. "Planning draft — no generated run yet" described the
 	// surface's own implementation and then said nothing had been made.
-	if (input.isPreGeneration) return 'No schedule made yet.';
+	if (input.isPreGeneration) return 'Draft · nothing placed yet';
 	if (!input.hasRun || input.runId == null || !Number.isFinite(input.runId)) return null;
 	const meaning = input.isPublished
 		? 'Published — this is the schedule in use.'
@@ -504,9 +504,14 @@ export const ALL_SESSIONS_PLACED_LABEL = 'All classes placed';
 /** The ONE noun for the unit a scheduler places. Nothing user-facing says "session". */
 export const CLASS_NOUN = 'class';
 
-/** `classesNeedingTime(1)` -> `"1 class still needs a time"`, plural otherwise. */
+/**
+ * R1-C2 (decision 8, operator) — the ONE unplaced-count wording:
+ * `classesNeedingTime(1)` -> `"1 class needs a time slot"`, plural otherwise.
+ * It replaces `"N classes still need a time"`; every user-visible string that names
+ * the unplaced count goes through this function, so the noun phrase cannot drift.
+ */
 export function classesNeedingTime(count: number): string {
-	return `${count} ${count === 1 ? CLASS_NOUN : `${CLASS_NOUN}es`} still ${count === 1 ? 'needs' : 'need'} a time`;
+	return `${count} ${count === 1 ? CLASS_NOUN : `${CLASS_NOUN}es`} ${count === 1 ? 'needs' : 'need'} a time slot`;
 }
 
 /* ── U3a / #43 — the generate dialog, cut from 155 words to a 30-word budget ── */
@@ -680,14 +685,14 @@ export function buildGenerateDialogCopy(input: GenerateDialogCopyInput): Generat
  * building a throwaway draft. "Build a new draft" answers that: it is a verb, it
  * names the artefact, and it cannot be read as an edit to the published one.
  */
-export const BUILD_NEW_DRAFT_LABEL = 'Build a new draft';
+export const BUILD_NEW_DRAFT_LABEL = 'Generate a draft';
 
 /** The reassurance that belongs on the dialog's first line when one is published. */
 export const PUBLISHED_SCHEDULE_STAYS_IN_USE = 'Your published schedule stays in use.';
 
 /** The dialog title beside `BUILD_NEW_DRAFT_LABEL`. */
 export function buildNewDraftDialogTitle(isPublished: boolean): string {
-	return isPublished ? 'Build a new draft?' : BUILD_NEW_DRAFT_LABEL;
+	return isPublished ? `${BUILD_NEW_DRAFT_LABEL}?` : BUILD_NEW_DRAFT_LABEL;
 }
 
 /* ── #58 / U4 — ONE outcome message for one generation ─────────────────────── */

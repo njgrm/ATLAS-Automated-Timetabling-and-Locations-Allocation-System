@@ -786,22 +786,20 @@ test('C7: the header primary and More never both dispatch the review-issues acti
 	assert.equal(primaryDispatchesReviewIssues({ activeTaskId: null, lifecycleKind: 'review-follow-ups' }), false);
 	assert.equal(primaryDispatchesReviewIssues({ activeTaskId: 'swap-sessions', lifecycleKind: 'review-warnings' }), false);
 
-	// Wiring: the header threads the decision into More, and More gates the
-	// duplicate entry on it (the dropdown content is portal-mounted and cannot
-	// render in SSR, so the runtime condition is this decision + this gate).
+	// Wiring: A7 c12b (decision 8 / CORRECTION item 1) DELETED the More
+	// `Review issues` entry together with the `Expert tools` group, so the C7
+	// duplicate is now impossible BY CONSTRUCTION rather than gated. The old wiring
+	// is retained as the superseded row (AGENTS.md §16):
+	//   assert.match(header, /hideReviewIssues=\{moreHidesReviewIssues\}/, 'the header passes the C7 decision');
+	//   assert.match(header, /const moreHidesReviewIssues = warningsDispatch === 'review-issues' \|\| primaryDispatchesReviewIssues\(\{/);
+	//   assert.match(menu, /\{hideReviewIssues \? null : \(\s*\n\s*<DropdownMenuItem[^>]*data-testid="timetable-more-review-issues"/);
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
-	assert.match(header, /hideReviewIssues=\{moreHidesReviewIssues\}/, 'the header passes the C7 decision');
-	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): the merged warnings control
-	// now owns the review dispatch whenever issue review is open; the shared
-	// helper still covers an armed review task.
-	// assert.match(header, /const moreHidesReviewIssues = primaryDispatchesReviewIssues\(\{/, 'the decision is the shared helper');
-	assert.match(header, /const moreHidesReviewIssues = warningsDispatch === 'review-issues' \|\| primaryDispatchesReviewIssues\(\{/, 'the decision is the warnings control plus the shared helper');
+	assert.doesNotMatch(header, /moreHidesReviewIssues|hideReviewIssues=/,
+		'the header no longer threads the C7 decision, because the More entry it guarded is gone');
 	const menu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
-	assert.match(
-		menu,
-		/\{hideReviewIssues \? null : \(\s*\n\s*<DropdownMenuItem[^>]*data-testid="timetable-more-review-issues"/,
-		'the More entry renders only when the primary does not own it',
-	);
+	assert.doesNotMatch(menu, /timetable-more-review-issues/,
+		'the More review-issues entry is deleted with the Expert tools group');
+	assert.doesNotMatch(menu, /hideReviewIssues/, 'and the gate that guarded it is gone');
 });
 
 test('A3: the relocated header controls remain reachable from the More menu (source contract)', () => {

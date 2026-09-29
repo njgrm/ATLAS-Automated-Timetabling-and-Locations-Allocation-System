@@ -753,7 +753,7 @@ export function CenterWorkspacePaneSurface(props: CenterWorkspacePaneSurfaceProp
 								    as the published schedule vanishing. Say what this view is. */}
 								{paneView === 'pre-generation' && sandboxGridEntries.length === 0 ? (
 									<p className="mb-3 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground" data-testid="timetable-draft-empty-note">
-										Nothing is placed in this draft yet. The draft is a separate working copy: the published schedule is not shown here and does not change. Place classes from the list on the left, or use Generate to build a new version.
+										Draft · nothing placed yet. Place classes from the list on the left, or Generate a draft.
 									</p>
 								) : null}
 								<TimetableGrid
@@ -810,7 +810,7 @@ export function CenterWorkspacePaneSurface(props: CenterWorkspacePaneSurfaceProp
 												? 'Loading the draft…'
 												: 'Pre-generation draft is empty. Drag sources from the left panel into this grid.')
 											: runs.length === 0
-											? 'No timetable yet. Use the primary action above to begin.'
+											? 'No draft yet. Generate one to begin.'
 											: 'No draft entries in this run'}
 									</p>
 								</div>

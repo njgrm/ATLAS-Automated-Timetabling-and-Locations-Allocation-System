@@ -497,10 +497,14 @@ test('T3b RENDERED: the REAL More menu names the action the way the dialog names
 	const menu = await draft.openMenu('timetable-simple-more-trigger');
 	const row = menu.querySelector('[data-testid="timetable-more-generate"]') as HTMLElement;
 	assert.ok(row, 'the action is a More row once a run exists');
-	assert.ok((row.textContent ?? '').includes('Build a new draft'),
-		'the row says what the dialog says: "Build a new draft"');
-	assert.equal((row.textContent ?? '').includes('Generate'), false,
-		'and not the second wording, which is the split T3b names');
+	// A7 c12b (decision 8, row 8) SUPERSEDED the wording this row pinned:
+	// `Build a new draft` is now `Generate a draft`. The property is unchanged —
+	// the More row and the dialog still say ONE thing, and the retired second
+	// wording never returns.
+	assert.ok((row.textContent ?? '').includes('Generate a draft'),
+		'the row says the one verb: "Generate a draft"');
+	assert.equal((row.textContent ?? '').includes('Build a new draft'), false,
+		'and never the retired wording, which is the split T3b names');
 	assert.equal(row.getAttribute('aria-label'), null,
 		'no reason, so the accessible name is the visible label rather than a second string');
 
@@ -552,9 +556,10 @@ test('T3b RENDERED: the REAL More menu names the action the way the dialog names
 	const blockedRow = blockedMenu.querySelector('[data-testid="timetable-more-generate"]') as HTMLElement;
 	assert.ok(blockedRow, 'the row is still rendered when generation is gated');
 	const blockedText = (blockedRow.textContent ?? '').trim();
-	assert.ok(blockedText.startsWith('Build a new draft'), `the disabled row keeps the one verb (read: ${blockedText})`);
-	assert.equal(blockedText.includes('Generate'), false, 'and never the old wording, in any state');
-	assert.match(blockedRow.getAttribute('aria-label') ?? '', /^Build a new draft — /,
+	// A7 c12b SUPERSEDED: the one verb is `Generate a draft`.
+	assert.ok(blockedText.startsWith('Generate a draft'), `the disabled row keeps the one verb (read: ${blockedText})`);
+	assert.equal(blockedText.includes('Build a new draft'), false, 'and never the retired wording, in any state');
+	assert.match(blockedRow.getAttribute('aria-label') ?? '', /^Generate a draft — /,
 		'the accessible name and the visible label are the same verb, so they cannot differ');
 });
 

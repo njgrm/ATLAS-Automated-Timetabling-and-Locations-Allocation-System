@@ -58,6 +58,7 @@ const {
 	SimplePublishAction,
 	resolveSimpleGenerateActionState,
 	resolveSimplePublishActionState,
+	SETUP_INPUTS_NOT_READY_SHORT,
 } = await import('@/components/timetable/simple/SimpleHeaderHelpers');
 const { deriveTimetableCapabilities } = await import('@/lib/timetable-capabilities');
 
@@ -150,13 +151,18 @@ test('L4 a disabled Generate carries no primary colour, uses the unavailable var
 		assert.ok(generateTokens.has(token), `the disabled Generate carries the shared unavailable class "${token}"`);
 	}
 
-	// The reason is VISIBLE, on the same row, and is not hover-only.
-	const reason = testId(host, 'timetable-simple-generate-short-reason');
-	assert.ok(reason, 'a reason is printed on screen beside the control, not only in a Tooltip');
-	assert.equal(reason.textContent, gate.shortReason, 'the visible sentence is the gate\'s own short form');
-	assert.ok((reason.textContent ?? '').split(/\s+/).length <= 6, 'the visible sentence is ≤ 6 words');
-	assert.doesNotMatch(reason.className, /\btruncate\b/, '§8 forbids truncating the reason to fit');
-	assert.doesNotMatch(reason.className, /line-clamp/, '§8 forbids clamping the reason to fit');
+	// A7 c12b (decision 8 / CORRECTION item 3) SUPERSEDED the visible sentence for
+	// THIS gate: the operator named the bare `Setup inputs are not ready` line as
+	// part of the crowded header, and §8 puts a disabled control's reason in a
+	// `@/ui` Tooltip. `GatedAction` still carries it, and the full sentence stays on
+	// the control's aria-label asserted below. The old claim is retained as the
+	// superseded row (AGENTS.md §16):
+	//   const reason = testId(host, 'timetable-simple-generate-short-reason');
+	//   assert.equal(reason.textContent, gate.shortReason);
+	assert.equal(gate.shortReason, SETUP_INPUTS_NOT_READY_SHORT,
+		'precondition: this is the one sentence decision 8 removes, and the constant and the gate agree');
+	assert.equal(testId(host, 'timetable-simple-generate-short-reason'), null,
+		'the standalone `Setup inputs are not ready` sentence is no longer a visible row');
 	// The FULL sentence is still on the control, so nothing depends on seeing the line.
 	assert.equal(
 		generate.getAttribute('aria-label'),
@@ -200,12 +206,15 @@ test('L5 a disabled Publish in the same row uses the same unavailable classes as
 	assert.doesNotMatch(publish.className, /\bbg-secondary\b/);
 	assert.doesNotMatch(generate.className, /\bbg-secondary\b/);
 
-	// The reason shape is the same on both.
-	const generateReason = testId(host, 'timetable-simple-generate-short-reason');
+	// A7 c12b (CORRECTION item 3) narrows the A2 C13 override to the ONE sentence
+	// the operator objected to: the Generate setup sentence is Tooltip-only, while
+	// Publish keeps its VISIBLE reason. Retained as the superseded row:
+	//   const generateReason = testId(host, 'timetable-simple-generate-short-reason');
+	//   assert.equal(generateReason.className, publishReason.className);
+	assert.equal(testId(host, 'timetable-simple-generate-short-reason'), null,
+		'the setup sentence is Tooltip-only on Generate');
 	const publishReason = testId(host, 'timetable-simple-publish-short-reason');
-	assert.ok(generateReason && publishReason, 'both controls show a reason');
-	assert.equal(generateReason.tagName, publishReason.tagName, 'same element, same size, same weight');
-	assert.equal(generateReason.className, publishReason.className, 'identical reason styling in the same row');
+	assert.ok(publishReason, 'Publish keeps its visible reason — the override is narrowed, not withdrawn');
 });
 
 /**

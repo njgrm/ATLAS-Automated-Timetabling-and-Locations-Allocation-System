@@ -73,9 +73,17 @@ test('the year-change banner is explicitly dismissible and expires via changedAt
 	// no expiry. It must now expose a dismiss control wired to removal of the
 	// durable cache entry, and a bounded window keyed on `changedAt`.
 	const appShell = readSource('../../components/AppShell.tsx');
-	assert.ok(appShell.includes('rollover-awareness-dismiss'), 'the banner exposes a dismiss control');
-	assert.ok(appShell.includes('clearRolloverAwarenessNotice'), 'dismiss removes the durable notice cache entry');
-	assert.ok(appShell.includes('setRolloverNotice(null)'), 'dismiss clears the in-session notice state');
+	// A7 c12b (decision 8 / CORRECTION item 5) SUPERSEDED the `×` dismiss control:
+	// the banner is one status sentence with exactly ONE interactive element, and
+	// activating its `Year Setup` link clears the notice. The old literal
+	// `rollover-awareness-dismiss` is retained as the superseded row, so the change
+	// is additive evidence rather than a deleted assertion (AGENTS.md §16). The
+	// property — dismissal removes the durable entry and the in-session state — is
+	// unchanged, and is the two rows below.
+	assert.equal(appShell.includes('rollover-awareness-dismiss'), false,
+		'SUPERSEDED: the separate dismiss control is removed; the one link clears the notice instead');
+	assert.ok(appShell.includes('clearRolloverAwarenessNotice'), 'activating the link removes the durable notice cache entry');
+	assert.ok(appShell.includes('setRolloverNotice(null)'), 'and clears the in-session notice state');
 
 	const awareness = readSource('../../lib/rollover-awareness.ts');
 	assert.ok(awareness.includes('ROLLOVER_NOTICE_TTL_MS'), 'a bounded notice window is declared');

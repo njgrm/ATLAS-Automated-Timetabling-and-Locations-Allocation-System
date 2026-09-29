@@ -315,7 +315,7 @@ export function PublishChecklistContent({
 			{runId == null && (
 				<div className="rounded-xl border border-slate-200 bg-muted/30 p-3 text-foreground" data-testid="timetable-publish-no-run">
 					<p className="text-sm font-semibold">No timetable generated yet</p>
-					<p className="mt-1 text-xs text-muted-foreground">Generate a timetable before reviewing publish readiness. Preview and readiness checks alone cannot be published.</p>
+					<p className="mt-1 text-xs text-muted-foreground">Generate a draft before reviewing publish readiness. Preview and readiness checks alone cannot be published.</p>
 				</div>
 			)}
 

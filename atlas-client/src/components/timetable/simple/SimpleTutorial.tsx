@@ -25,7 +25,7 @@
  * and the committed source contracts keep working unchanged.
  */
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { BookOpen, CalendarClock, CheckCircle2, ClipboardCheck, Download, ListChecks, Play, Send, Settings2, type LucideIcon } from 'lucide-react';
+import { BookOpen, CalendarClock, CheckCircle2, ClipboardCheck, Download, ListChecks, Play, Send, type LucideIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { BUILD_NEW_DRAFT_LABEL, PUBLISHED_SCHEDULE_STAYS_IN_USE } from '@/lib/timetable-plain-language';
@@ -98,34 +98,24 @@ const NO_RUN_STEPS: readonly SimpleTutorialStep[] = [
 		targetTestId: 'timetable-simple-more-trigger',
 		icon: ClipboardCheck,
 	},
-	{
-		title: 'Use Expert tools for specialist repair',
-		// ROW 37: this step used to target `timetable-layout-toggle`, which only
-		// exists while the More menu is OPEN, so "Show me" reported "Expert view
-		// is not available in the current view" — the recorded failure.
-		body: `${morePath('Expert tools', 'Expert view')} That is where policy, map, and manual edit tools live. Simple view covers daily scheduling once a run exists.`,
-		target: 'More menu',
-		targetTestId: 'timetable-simple-more-trigger',
-		icon: Settings2,
-	},
 ];
 
 const GENERATED_STEPS: readonly SimpleTutorialStep[] = [
 	SCHEDULE_SWITCHER_STEP,
 	{
-		title: 'Build a new draft',
+		title: 'Generate a draft',
 		// ROW 37: "More > Schedule data > Export workbook" named an item that has
 		// never existed. The one action is in Schedule actions, and since #56 its
 		// single verb is `BUILD_NEW_DRAFT_LABEL` — the same words the menu item
 		// and the confirmation dialog use.
-		body: `${morePath('Schedule actions', BUILD_NEW_DRAFT_LABEL)} Use it after setup or data changes. Publish schedule is the main button.`,
+		body: `${morePath('Schedule actions', BUILD_NEW_DRAFT_LABEL)} Use it after setup or data changes. Publish is the main button.`,
 		target: 'More menu',
 		targetTestId: 'timetable-simple-more-trigger',
 		icon: Play,
 	},
 	{
 		title: 'Understand publish blockers',
-		body: 'If the readiness chip shows Must fix, tap it to see which classes still need a time and why the schedule cannot be published yet.',
+		body: 'If the readiness chip shows Must fix, tap it to see which classes still need a time slot and why the schedule cannot be published yet.',
 		target: 'Readiness chip',
 		targetTestId: 'timetable-simple-readiness-chip',
 		icon: ListChecks,
@@ -163,7 +153,7 @@ const PUBLISHED_STEPS: readonly SimpleTutorialStep[] = [
 	},
 	{
 		// #56 — the tutorial says the same thing the menu item says.
-		title: 'Build a new draft',
+		title: 'Generate a draft',
 		body: `${morePath('Schedule actions', BUILD_NEW_DRAFT_LABEL)} ${PUBLISHED_SCHEDULE_STAYS_IN_USE}`,
 		target: 'More menu',
 		targetTestId: 'timetable-simple-more-trigger',
@@ -175,13 +165,6 @@ const PUBLISHED_STEPS: readonly SimpleTutorialStep[] = [
 		target: 'More menu',
 		targetTestId: 'timetable-simple-more-trigger',
 		icon: Download,
-	},
-	{
-		title: 'Use Expert tools for specialist repair',
-		body: `${morePath('Expert tools', 'Expert view')} That is where policy, map, and manual edit tools live.`,
-		target: 'More menu',
-		targetTestId: 'timetable-simple-more-trigger',
-		icon: Settings2,
 	},
 ];
 

@@ -188,9 +188,12 @@ test('B4 beside a published schedule, Generate says it builds a new draft, not a
 	// schedule. Teachers keep seeing the published schedule until you publish the
 	// new one." — two sentences, and "new version" is the phrase this item was
 	// retired for, because it reads as an edit to the live schedule.
-	assert.match(published, /aria-label="Build a new draft\. Your published schedule stays in use\."/);
+	//
+	// A7 c12b (decision 8, row 8) SUPERSEDED the verb again: `Build a new draft`
+	// is `Generate a draft`. The property is unchanged.
+	assert.match(published, /aria-label="Generate a draft\. Your published schedule stays in use\."/);
 	assert.doesNotMatch(published, /new version/i);
-	assert.equal(PUBLISHED_GENERATE_LABEL, 'Build a new draft', 'the label is the copy module\'s one verb, not a second string');
+	assert.equal(PUBLISHED_GENERATE_LABEL, 'Generate a draft', 'the label is the copy module\'s one verb, not a second string');
 	const ordinary = renderToStaticMarkup(createElement(SimpleGenerateAction, { actionState: READY_ACTION_STATE, onClick: () => {} }));
 	assert.match(ordinary, />Generate</);
 	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): beside a run, Generate is the More entry; it carries the same flag.
@@ -345,34 +348,36 @@ test('B9 an empty or loading draft says what it is instead of looking like the s
 	//   assert.match(center, /newDraftLoading\s*\/\/[^\n]*\n\s*\? 'Loading the draft…'/);
 	const center = source('../../components/timetable/CenterWorkspacePaneSurface.tsx');
 	assert.match(center, /paneView === 'pre-generation' && sandboxGridEntries\.length === 0 \? \(/);
-	assert.match(center, /the published schedule is not shown here and does not change/);
+	// A7 c12b (D2, row 11) SUPERSEDED the 3-line paragraph: the 21-word "the
+	// published schedule is not shown here and does not change" sentence is
+	// replaced by the one-line `Draft · nothing placed yet` note with the one verb
+	// `Generate a draft`. The pre-fix literal is retained as the superseded row:
+	//   assert.match(center, /the published schedule is not shown here and does not change/);
+	assert.doesNotMatch(center, /the published schedule is not shown here and does not change/,
+		'SUPERSEDED: the 3-line draft paragraph is replaced by one line');
+	assert.match(center, /Draft · nothing placed yet\. Place classes from the list on the left, or Generate a draft\./,
+		'the one-line draft note names the state and the one verb');
 	assert.match(center, /newDraftLoading\s*\/\/[^\n]*\n\s*\? 'Loading the draft…'/);
 });
 
 // ── B10 ───────────────────────────────────────────────────────────────────
 
-test('B10 a disabled Schedule history says why, readably', () => {
+test('B10 SUPERSEDED (A7 c12b, decision 8 / CORRECTION item 1): the Schedule history More entry is retired', () => {
+	// The old claim, retained as the superseded row (AGENTS.md §16): "a disabled
+	// Schedule history says why, readably — `timetable-more-schedule-history-reason`
+	// and `Schedule history ({context.editHistoryCount})`, with the sentence chosen
+	// by the last read." A7 c12b deletes the whole `Expert tools` group, and with it
+	// this entry: the header's status chip carries the edit-history count now.
 	const menu = source('../../components/timetable/simple/SimpleMoreMenuContent.tsx');
-	assert.match(menu, /data-testid="timetable-more-schedule-history-reason"/);
-	// A2-C6-TRUTH (T1b) — SUPERSEDED IN PART, corrected additively, not deleted.
-	//
-	// This row used to require the empty-run SENTENCE to be a literal in this
-	// component's source. That is the defect, not the contract: the sentence
-	// asserts a fact about the run, and the component printed it whenever
-	// `editHistoryCount === 0` — which a term change and a failed read both
-	// produce. Pinning the literal here is what kept the claim one row-count
-	// away from printing.
-	//
-	// The sentence now lives in ONE owner, `timetable-edit-history-truth`, and
-	// the component selects it by the last READ. So the row is corrected to
-	// assert the new ownership plus the read-driven selection, and the
-	// replacement row below proves the same thing on a RENDERED value.
-	assert.match(menu, /editHistoryEmptyStateMessage\(historyReadState, context\.editHistoryCount\)/,
-		'the sentence is chosen by the last read, not by a row count');
-	assert.doesNotMatch(menu, /no class has been moved, swapped or given a new room/,
-		'the component no longer owns — and can no longer misfire — the empty-run sentence');
-	assert.match(menu, /data-\[disabled\]:opacity-100/);
-	assert.match(menu, /Schedule history \(\{context\.editHistoryCount\}\)/);
+	assert.doesNotMatch(menu, /data-testid="timetable-more-schedule-history-reason"/,
+		'SUPERSEDED: the Schedule history entry is deleted with the Expert tools group');
+	assert.doesNotMatch(menu, /Schedule history \(\{context\.editHistoryCount\}\)/);
+	assert.doesNotMatch(menu, /editHistoryEmptyStateMessage\(historyReadState, context\.editHistoryCount\)/,
+		'and the read-driven sentence call is gone from the menu');
+	// The surviving property — a disabled row still keeps its reason readable — is
+	// carried by the remaining disabled entries (Manual edit, the unplaced entry).
+	assert.match(menu, /data-\[disabled\]:opacity-100/,
+		'disabled rows still keep their reason readable');
 });
 
 test('B10R (A2-C6-TRUTH T1b) the empty-run sentence has exactly one owner and one precondition', () => {

@@ -491,8 +491,8 @@ const LIFECYCLE_LABELS: Record<TimetableLifecycleState, string> = {
 	'pre-generation': 'Working schedule draft',
 	generating: 'Generating…',
 	'failed-run': 'Last generation failed',
-	'generated-issues': 'Generated — issues to review',
-	'generated-reviewable': 'Generated — ready to review',
+	'generated-issues': 'Draft — issues to review',
+	'generated-reviewable': 'Draft — ready to review',
 	// LANE-C C03 (B4) — SUPERSEDED: 'Published schedule — view only'. Dated
 	// changes (swap, teacher leaving, move) are allowed, so it was untrue.
 	published: 'Published schedule — changes start on a date you choose',
@@ -546,25 +546,25 @@ export function deriveTimetableCapabilities(input: TimetableCapabilityInput): Ti
 			? allowed()
 			: denied(runOnlyReason('Room requests'), navigate('Start with generation', '/timetable')),
 		move: input.hasSelectedEntry
-			? (runReady ? allowed() : denied(runOnlyReason('Moving a class'), navigate('Generate a timetable', '/timetable')))
+			? (runReady ? allowed() : denied(runOnlyReason('Moving a class'), navigate('Generate a draft', '/timetable')))
 			: denied('Select a scheduled class on the grid first.'),
 		changeRoom: input.hasSelectedEntry
-			? (runReady ? allowed() : denied(runOnlyReason('Changing a room'), navigate('Generate a timetable', '/timetable')))
+			? (runReady ? allowed() : denied(runOnlyReason('Changing a room'), navigate('Generate a draft', '/timetable')))
 			: denied('Select a scheduled class on the grid first.'),
 		swap: runReady
 			? allowed()
-			: denied(runOnlyReason('Swapping sessions'), navigate('Generate a timetable', '/timetable')),
+			: denied(runOnlyReason('Swapping sessions'), navigate('Generate a draft', '/timetable')),
 		ownerRepair: runReady
 			? allowed()
 			: denied(runOnlyReason('Teaching Load owner repair'), navigate('Open Teaching Load', '/teaching-load')),
 		issueReview: runReady
 			? allowed()
-			: denied(runOnlyReason('Reviewing issues'), navigate('Generate a timetable', '/timetable')),
+			: denied(runOnlyReason('Reviewing issues'), navigate('Generate a draft', '/timetable')),
 		generation,
 		publication: (() => {
-			if (!runReady) return denied('No generated timetable exists yet to publish.', navigate('Generate a timetable', '/timetable'), 'No generated schedule to publish');
+			if (!runReady) return denied('No draft yet to publish.', navigate('Generate a draft', '/timetable'), 'No draft to publish');
 			if (input.isPreGeneration) return denied('Finish the pre-generation draft before publishing.', NONE, 'Finish the pre-generation draft');
-			if (input.isPublished) return denied('This timetable is already published.', NONE, 'Already published');
+			if (input.isPublished) return denied('This schedule is already published.', NONE, 'Already published');
 			if (input.hardCount > 0) return denied(`Fix ${input.hardCount} hard blocker${input.hardCount === 1 ? '' : 's'} before publishing.`, NONE, `Fix ${input.hardCount} hard blocker${input.hardCount === 1 ? '' : 's'}`);
 			if (input.unassignedCount > 0) return denied(`Place ${input.unassignedCount} unresolved session${input.unassignedCount === 1 ? '' : 's'} before publishing.`, NONE, `Place ${input.unassignedCount} unresolved session${input.unassignedCount === 1 ? '' : 's'}`);
 			return allowed();

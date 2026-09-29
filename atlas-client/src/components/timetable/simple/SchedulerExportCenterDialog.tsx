@@ -77,7 +77,7 @@ export function SchedulerExportCenterDialog(props: Props) {
 			<DialogContent className="max-w-xl" data-testid="scheduler-office-working-data">
 				<DialogHeader>
 					<DialogTitle>Office working data</DialogTitle>
-					<DialogDescription>Download an Excel workbook from the selected run and ordered term. These are working files, not official print programs.</DialogDescription>
+					<DialogDescription>Download an Excel workbook from one Draft (or the Published schedule) and one term. These are working files, not official print programs.</DialogDescription>
 				</DialogHeader>
 				<div className="grid gap-4 sm:grid-cols-2">
 					<div className="grid gap-1.5">

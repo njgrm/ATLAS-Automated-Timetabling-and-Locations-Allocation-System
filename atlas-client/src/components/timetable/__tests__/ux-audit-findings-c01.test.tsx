@@ -382,12 +382,22 @@ test('F7: More keeps daily tools and preserves their relevance rules', () => {
 	assert.match(menu, /context\.requestPendingCount > 0/);
 });
 
-test('F7: the expert tools stay under More', () => {
-	const menu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
-	assert.match(menu, /data-testid="timetable-simple-more-expert-tools"/);
-	assert.match(menu, /Review issues/);
-	assert.match(menu, /Advanced rules/);
-	assert.match(menu, /Expert view/);
+test('F7 SUPERSEDED (A7 c12b, decision 8 / CORRECTION item 1): the expert tools are retired entirely', () => {
+	// The old claim, retained verbatim: "the expert tools stay under More —
+	// `timetable-simple-more-expert-tools`, `Review issues`, `Advanced rules`,
+	// `Expert view`." A7 c12b DELETES the whole group: Expert view is retired,
+	// Advanced rules is the Policies tab, Review issues is the readiness panel, and
+	// Schedule history is the status chip. The surviving property is that none of
+	// them reappears in the menu.
+	const menu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx')
+		// The change note in the module NAMES the retired entries on purpose, so the
+		// claim is about executable code only.
+		.replace(/\/\*[\s\S]*?\*\//g, '')
+		.replace(/\/\/.*$/gm, '');
+	assert.doesNotMatch(menu, /data-testid="timetable-simple-more-expert-tools"/);
+	assert.doesNotMatch(menu, /Review issues/);
+	assert.doesNotMatch(menu, /Advanced rules/);
+	assert.doesNotMatch(menu, /Expert view/);
 });
 
 /* ── F2 / F9 — re-verify only, no change ─────────────────────────────────── */

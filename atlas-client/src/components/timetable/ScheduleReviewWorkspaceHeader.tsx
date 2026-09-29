@@ -398,7 +398,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context, onEditDraft, onDiscardDraf
 		},
 		{
 			id: 'plan',
-			label: isPreGenerationWorkspace ? 'Planning draft' : 'Draft planner',
+			label: isPreGenerationWorkspace ? 'Draft' : 'Draft planner',
 			helper: isPreGenerationWorkspace ? 'Use the draft queue and grid before generating a new run.' : 'Open the pre-generation draft queue and place sessions before generating.',
 			icon: CalendarClock,
 			active: isPreGenerationWorkspace,

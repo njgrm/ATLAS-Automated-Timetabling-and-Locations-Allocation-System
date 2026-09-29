@@ -61,6 +61,22 @@ export type ActiveSchoolYearContext = {
 	activeSchoolYearArchived: boolean | null;
 };
 
+/**
+ * A7 c12b R1-C1 — the ONE string form of the active-year authority's label.
+ *
+ * The app-shell `Active year:` badge and the timetable's readiness chip derive the
+ * year they name from ONE authority and ONE field: `resolveActiveSchoolYearContext`
+ * (this module) over the per-`schoolId` persisted entry, field
+ * `activeSchoolYearLabel`. Both surfaces stringify it here, so a second label
+ * source cannot appear without this helper being bypassed — which the copy test
+ * pins. Never returns an empty string.
+ */
+export function resolveActiveYearLabel(
+	context: Pick<ActiveSchoolYearContext, 'activeSchoolYearLabel' | 'activeSchoolYearId'>,
+): string {
+	return context.activeSchoolYearLabel ?? `School year ${context.activeSchoolYearId}`;
+}
+
 export type ResolveActiveSchoolYearContextOptions = {
 	/**
 	 * The authenticated actor school. REQUIRED — there is deliberately no

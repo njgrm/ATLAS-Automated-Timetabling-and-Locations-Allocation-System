@@ -182,8 +182,9 @@ test('UX-QUICKFIX-C01 (b) Publish is present and enabled when the publication ga
 	const markup = renderHeader(CLEAN_UNPUBLISHED);
 	const publish = tagFor(markup, 'timetable-simple-publish-action');
 	assert.doesNotMatch(publish, /\sdisabled=""/, 'an open publication gate must render an enabled Publish control');
-	assert.match(publish, /aria-label="Publish schedule"/);
-	assert.match(markup, /<span>Publish schedule<\/span>/);
+	// A7 c12b (decision 8, row 6) SUPERSEDED the label: `Publish schedule` is `Publish`.
+	assert.match(publish, /aria-label="Publish"/);
+	assert.match(markup, /<span>Publish<\/span>/);
 });
 
 // --- (c) an already-published run is never a disabled "Publish schedule" ---
@@ -314,7 +315,8 @@ test('UX-QUICKFIX-C01 (d3) a closed publication gate renders a disabled Publish 
 	});
 	const publish = tagFor(markup, 'timetable-simple-publish-action');
 	assert.match(publish, /disabled=""/, 'the disabled publish control cannot dispatch');
-	assert.match(publish, /aria-label="Publish schedule — Fix 1 hard blocker before publishing\."/);
+	// A7 c12b (decision 8, rows 6/22) SUPERSEDED the label and reason wording.
+	assert.match(publish, /aria-label="Publish — Fix 1 hard blocker before publishing\."/);
 	// The real next step is still a functional primary action.
 	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): assert.match(markup, /data-testid="timetable-simple-primary-action"/);
 	// The next step (Fix blockers) is the merged warnings control.

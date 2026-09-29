@@ -107,7 +107,7 @@ const copyByTask: Record<TimetableSimpleTask, DrawerCopy> = {
 		icon: CalendarClock,
 	},
 	'unassigned-sessions': {
-		title: 'Unassigned sessions',
+		title: 'Classes needing a time slot',
 		description: 'Sessions of the selected term that have no slot yet. Drag one onto the grid, or use Place session.',
 		stepOne: 'Choose a session',
 		stepTwo: 'Place it on the grid',
