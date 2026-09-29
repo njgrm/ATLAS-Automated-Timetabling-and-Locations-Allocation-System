@@ -487,6 +487,25 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **— LIVE: `cd54224522d44c39f8f3877134b08488541f415f` @ DEPLOYED TO PRODUCTION 2026-09-29 19:48 +08 by Lane A4
+  (train 10) on the operator's GO after Lane C's staging walk. Rollback basis `e75d6b8f` (the incumbent).**
+
+  | | |
+  |---|---|
+  | **LIVE** | **`cd54224522d44c39f8f3877134b08488541f415f`** |
+  | **Live dir** | `E:\ATLAS-worktrees\lane-a4-release-20260929-10prod`, branch `release/2026-09-29-10-prod`, HEAD == pin, `status --short` empty, 0 reparse points, own dependency trees (seeded from `-9prod` + `prisma generate`; server `tsc` 0, client `vite` 0 with `VITE_ENROLLPRO_URL`) |
+  | **Listeners** | 5001 → **49120**, 5174 → **47192** (were 20432 / 17156) |
+  | **Machine scope** | both runtime variables repointed to `-10prod` / `cd542245…`; task `ATLAS-Runtime-Supervisor` **Running**, action + Start In both `-10prod` |
+  | **Rollback basis** | **`e75d6b8f5a430578c551e4177d7cc6f065db697c`**, dir `E:\ATLAS-worktrees\lane-a4-release-20260929-9prod` @ HEAD == pin. One-step supervised reset. |
+  | **Scope** | 153 paths vs `e75d6b8f`, **0 `prisma/`** → no migration (11 before and after) |
+  | **Cutover** | `deploy-runner.ps1` dry run first (`mutates: false`, `secretsPrinted: false`, supervisor lineage verified, `Assert-LiveReleaseRecorded` **passed**), then `-Execute` → **`CUTOVER_STARTED`**. Audit `C:\ProgramData\ATLAS\release-audit\cd542245-20260929-194826\` |
+  | **Acceptance** | **DEPLOYED, all rows PASS.** Loopback + Tailnet health/ready **200** with DB-backed `GET /api/v1/subjects?schoolId=1` **200 (19 482 B)** · **zero write** — all 10 signature tables byte-identical before/after, baseline captured **before** the quiesce · **live-data invariant 1 active mirror, `2023-2024`** · **S-D1 non-vacuous** served `index.html` → `/assets/index-BdvkYd2N.js` **200 (307 649 B)**, old `/assets/index-GM9QISwG.js` **404** |
+  | **Data-portability fix** | the incumbent's **10 runtime campus uploads** (referenced by `schools.campus_image_url`) were copied into the new tree before the cutover; `/atlas-server/uploads/` is in `.git/info/exclude` so the target passes `Get-GitIdentity`'s clean gate. |
+  | **Evidence** | `docs/handoffs/lane-c-to-a2.md`, "A4 LIVE at `cd542245`" |
+
+  Supervisor log: `All targets healthy (liveness and dependency readiness)`, `DB connected, 2 school(s) found`,
+  `[rollover-automation] Disabled via ROLLOVER_AUTO_SYNC_ENABLED=false` — a restart cannot reach `applyRolloverSync`.
+
 - **— CUTOVER TARGET, recorded 2026-09-29 ahead of the cutover by Lane A4 (AGENTS.md §13 — a pin is a commit, not a
   description). Required by `deploy-runner.ps1` `Assert-LiveReleaseRecorded`, which fails closed without it. Target
   release `cd542245` (full `cd54224522d44c39f8f3877134b08488541f415f`), rollback basis `e75d6b8f` (full
@@ -496,10 +515,12 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   `tsc` 0, client `vite` 0 with `VITE_ENROLLPRO_URL`), live entry chunk `index-BdvkYd2N.js` which is NOT the
   incumbent's `index-GM9QISwG.js`, and the incumbent's 10 runtime campus uploads copied in for data portability.
   Train 10 = **153 paths** vs `e75d6b8f`, **0 `prisma/`** → no migration. Staging already served this exact pin;
-  staging leg recorded in `docs/handoffs/lane-c-to-a2.md`, "A4 STAGING at `cd542245`".
+  staging leg recorded in `docs/handoffs/lane-c-to-a2.md`, "A4 STAGING at `cd542245`". **Superseded — the cutover
+  ran; see the LIVE row above.**
 
-- **— LIVE: `e75d6b8f5a430578c551e4177d7cc6f065db697c` @ DEPLOYED TO PRODUCTION 2026-09-29 15:25 +08 by Lane A4
-  (train 9) on Lane C GO. Rollback basis `3216d383` (the incumbent).**
+- **— PREVIOUS LIVE (was): `e75d6b8f5a430578c551e4177d7cc6f065db697c` @ DEPLOYED TO PRODUCTION 2026-09-29 15:25 +08 by Lane A4
+  (train 9) on Lane C GO. Rollback basis `3216d383` (the incumbent).** Displaced by train 10; retained as the
+  **current rollback basis**.
 
   | | |
   |---|---|
