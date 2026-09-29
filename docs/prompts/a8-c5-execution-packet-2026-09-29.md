@@ -1,0 +1,169 @@
+# A8 c5 execution packet — every remaining blocker has a plain fix-it action
+
+Lane A8, 2026-09-29. Base `f925045c` (`origin/main` tip). Branch `work/a8-c5-generation-fixable`.
+Worktree `E:/ATLAS-worktrees/lane-a8-c5-fixable` (one writer: this lane's executor, then the planner).
+
+**Risk HIGH as declared by the source packet** (`docs/prompts/a8-c5-generation-always-fixable-2026-09-29.md`):
+the generation GATE contract and the publication predicate both change. The gate text/links do not relax
+beyond what A8 c3 already decided.
+
+## Authority boundary — what is NOT authorized by this packet
+
+| Not authorized | Why | Who |
+| --- | --- | --- |
+| Deploying anything | §14: only Lane A4 deploys | A4 |
+| A generation run (production OR staging) | HIGH action, §13 | operator |
+| Publication of any run | HIGH action, §13 | operator |
+| Any write to the live database | HIGH, §13 | operator |
+| Migration / schema / runtime / env / task | HIGH, §13 | operator |
+| Companion (EnrollPro/AIMS/SMART) edits | §4 READ_ONLY | — |
+
+Authorized: source edits under this worktree; client unit/rendered tests; server suites on a **disposable**
+database via `npm run test:server-db`; browser **reads** on staging after `/__dev/staging-login`, and
+ordinary UI mutations on staging that an acceptance row needs (§12). No generation.
+
+## Source of the work
+
+1. `docs/prompts/a8-c5-generation-always-fixable-2026-09-29.md` (Lane C, 16:40 + addenda 17:25 / 19:05 / 20:05).
+2. `docs/prompts/truth-fixes-2026-09-29.md` §A8 (Lane C, 17:25) — the addendum 17:25 prerequisite: the two
+   BLOCKERs first, then this packet. Addendum 20:10 assigns the `/subjects` cold-load row to A8.
+
+## Premises re-checked by the planner against `f925045c` (record what you find, do not assume)
+
+- `faculty.router.ts:169`, `section.router.ts:267`, `section.router.ts:465` still read
+  `schoolYearId = activeYear?.id ?? 1`. **Premise holds.** Section 465 already refuses a non-positive
+  caller-supplied id with `INVALID_BODY`; the other two do not validate a caller-supplied id at all.
+- `generation-preflight.service.ts` contains **no** `isPlaceholder` occurrence. **Premise holds.**
+- `teaching-load-automation.service.ts:1209` is no longer the hire estimate — the file moved. The real site is
+  **line 1257**: `recommendedNewHires = Math.round((concurrentMissingHoursPerWeek / (STANDARD_CAP_MIN / 60)) * 10) / 10`,
+  which divides by the `STANDARD_CAP_MIN` constant while line 787 already resolves
+  `policy?.teachingStandardMinutes ?? STANDARD_CAP_MIN`. **Premise holds, at the corrected line.**
+- The "TOTAL MINUTES PER DAY" weekly total is confirmed at `workbook-export.service.ts:1064-1068` and
+  `room-program-export.service.ts:215-219`. The in-code comment records this as a known successor
+  (`docs/handoffs/a2-c5-building-occupancy-and-workbook-labels.md`). **Premise holds.**
+- `timetable-generation-readiness.ts:302` reads `diagnostic.groups.length` unguarded. **Premise holds.**
+
+## Slices
+
+### S1 — server truth (`truth-fixes` §A8). Two BLOCKERs, then three rows.
+
+**S1.1 — never default a school-year id in a write path.** `faculty.router.ts:169`, `section.router.ts:267`,
+`section.router.ts:465`. When the caller supplies no `schoolYearId` and the EnrollPro active school year
+cannot be resolved, fail closed with a typed error (HTTP 409, code `ACTIVE_SCHOOL_YEAR_UNRESOLVED`, the
+existing vocabulary) and **zero writes and zero downstream sync dispatch**. Also add the missing
+caller-supplied-id validation to the two sites that lack it, using the shape 465 already uses
+(`400 INVALID_BODY`, positive integer). Never substitute a year id.
+
+**S1.2 — a placeholder-owned class is a third state (Lane C's ruling; the 17:25 BLOCKER).**
+`generation-preflight.service.ts` ignores `isPlaceholder`, so a class sitting on a to-be-hired record is
+indistinguishable from a class with a real owner. The contract:
+
+- Three states, named as such: **real owner** / **on a to-be-hired teacher (placeholder)** / **open (no owner)**.
+- A placeholder-owned class does **not** count as a real owner in readiness or coverage figures.
+- It is listed **by name** (classes, not ids).
+- It does **not** block generation (unchanged from A8 c3) and it does **not** block publication.
+- An **open** class still blocks exactly as it does today. Do not widen the A8 c3 gap rules.
+- Publication shows "N classes are on to-be-hired teachers" in words, with the names.
+- This must keep `POLICY_ADVISORY_VIOLATION_CODES` honest: distinguish `LACKING_FACULTY` (open — blocking)
+  from the placeholder-owned state (advisory), and prove the existing c3 publication-refusal tests still
+  refuse an OPEN class.
+
+**S1.3 — the hire estimate uses the saved workload policy.** `teaching-load-automation.service.ts:1257`
+must divide by the **resolved** policy standard minutes (the same value as line 787), not the
+`STANDARD_CAP_MIN` constant. Control: a policy whose `teachingStandardMinutes` differs from the default must
+change `recommendedNewHires`; a policy equal to the default must reproduce the base number.
+
+**S1.4 — the exports label the weekly total as a week.** `workbook-export.service.ts` and
+`room-program-export.service.ts`. The five day columns keep their per-day meaning; the total cell is the
+five-day sum, so its label must say **per week**. Change the label only — the arithmetic and the day columns
+are correct. Control: the export test must fail on base with the old label and pass on the fix.
+
+### S2 — the client contract (the c5 packet itself)
+
+**S2.0 (addendum 19:05) — guard `groups`.** `timetable-generation-readiness.ts:302` must treat a missing or
+non-array `groups` as empty and take the legacy one-line fallback its own comment promises. Then re-pin
+`a2-header-budget-2026-09-29.test.tsx` H4 state A and state B **on purpose**: both must keep their current
+labelled behaviour, and H4 A/B must now also prove the panel renders with the guard in place.
+
+**S2.1 (rules 2 + 3) — every hard blocker code has a sentence and a route, and the test proves it.**
+Build ONE shared, exported table of the hard blocker codes the preflight can emit, with, per code: the plain
+sentence template, the count noun, the fix route, and the button label. It must be driven by the server's own
+code inventory so it cannot drift, and it must be the single source used by both the group headline and the
+repair resolver. Inventory at minimum (from `generation-preflight.service.ts` at `f925045c`):
+`CANONICAL_SHAPE_CAPACITY_EXCEEDED`, `CANONICAL_SHAPE_VIOLATION`, `TL_NO_QUALIFIED_OWNER`,
+`WORKLOAD_POLICY_BLOCK`, `ROOM_RESOURCE_UNAVAILABLE`, `POLICY_WINDOW_BLOCK`, `SEARCH_LIMIT_UNRESOLVED`,
+`POLICY_UNINITIALIZED`, `TERM_AUTHORITY_STALE`, `TERM_AUTHORITY_UNRESOLVED`, `SECTION_SETUP_REQUIRED`,
+`ROOMS_MISSING`, `TL_OWNERSHIP_CONFLICT`, `TEACHING_LOAD_REVIEW_REQUIRED`, `TL_DEMAND_UNCOVERED`,
+`CANONICAL_TEMPLATE_INCOMPLETE`, `GRADE_WINDOW_MISSING`, `EMPTY_DERIVED_DEMAND`,
+`FLAG_CEREMONY_SCOPE_INVALID`, plus the shape-policy codes reaching `classifyShapePolicyBlocker`
+(`TERM_CACHE_MISSING`, `ROTATION_TERM_INVALID`) and every code `classifyDemandBlocker` can pass through.
+**A code with no fix page is a defect:** give it the smallest real fix path, or make it advisory and write
+the reason in the table. The test is table-driven with **a fixture per code** and must assert (a) every code
+in the exported inventory has a non-empty sentence and a real mounted route, and (b) a code with no entry
+fails — prove (b) with a failing-first control, or the test is vacuous.
+
+**S2.2 (rule 1) — one line per root cause, one "Check again".** A8 c3 already renders this shape
+(`SimpleGenerationBlockerGroups.tsx`). Keep it and make it correct against the S2.1 table: no per-row
+repetition, no codes, counts in classes, ONE fix button per cause to the exact page/state, ONE "Check again"
+for the panel. Nothing added to the region.
+
+**S2.3 (addendum 20:05) — Generate is never greyed out.** The operator: "it should never be disabled."
+In `timetable-capabilities.ts` the generation gate must be `enabled` in every state except `input.generating`.
+Every condition that used to deny it — unresolved scope, `loading`, `blocked`, `unavailable`/`failed`,
+`!generateAllowed || !zeroWrite`, `driftBlocked` — becomes a **stopper** the dialog explains, not a
+disabled button. Clicking always opens the Generate dialog. The dialog says, in one plain line per cause with
+a count, what truly prevents a timetable (no sections, no time periods, no subjects, school year out of sync),
+each with one button that opens the exact place, plus "Check again". Never a greyed button with a tooltip.
+A check that could not run retries **by itself once**, then says so plainly with a Retry button.
+Table-driven test over **every** capability input: no state returns a disabled Generate except "run in
+progress". Nothing that is only a warning may stop generation.
+
+**S2.4 (rule 4) — publication names the classes in the same words.** The client publish refusal surface must
+name placeholder-owned and open classes with the same sentence shape as S2.1, driven by the same table.
+
+### S3 — `/subjects` cold load (addendum 20:10)
+
+A scheduler waiting 20.5 s for `/subjects` thinks it is broken. Show the saved catalog immediately, refresh in
+the background, and show a real receipt of what was served and when. Ordinary UI state only; no new
+authority. The existing "Using saved data" copy on the subjects surface is the one to change — reuse the
+existing receipt pattern, do not invent a second one.
+
+## Acceptance rows — each names the harness that decides it
+
+| # | Row | Harness | Decided by |
+| --- | --- | --- | --- |
+| A1 | No write path defaults a school-year id; unresolved → typed 409, zero writes, zero dispatch | `atlas-server/src/__tests__/a8-c5-active-year-fail-closed.test.ts` on a **disposable** DB via `npm run test:server-db` | executor, then QA |
+| A2 | Placeholder-owned is a named third state: not a real owner, listed by name, blocks neither generation nor publication; OPEN still blocks both | `atlas-server/src/__tests__/a8-c5-placeholder-third-state.test.ts` (disposable DB) — must include a **failing-first** control on the old predicate | executor, then QA |
+| A3 | Publication refusal names placeholder-owned classes in words | same suite as A2, plus a client assertion on the refusal sentence | executor, then QA |
+| A4 | `recommendedNewHires` follows the saved policy; a default policy reproduces the base number | `atlas-server/src/__tests__/a8-c5-hire-estimate-policy.test.ts` | executor, then QA |
+| A5 | Both exports label the total per week; day columns unchanged | the existing workbook / room-program export suites, re-pinned | executor, then QA |
+| A6 | Missing `groups` takes the legacy fallback; H4 A/B re-pinned | `atlas-client/src/components/timetable/__tests__/a2-header-budget-2026-09-29.test.tsx` + the groups suite | executor, then QA |
+| A7 | Every hard blocker code maps to a non-empty sentence and a real route; a missing entry FAILS | new table-driven client test, **one fixture per code**, with a failing-first control | executor, then QA |
+| A8 | No capability input returns a disabled Generate except `generating`; each former denial is a named dialog stopper with a count and a fix route | new table-driven `timetable-capabilities` test over every input | executor, then QA |
+| A9 | The blocker panel renders one line per cause, count in classes, one fix button, one "Check again" | client rendered suite **+** the staging screenshot (B rows) | executor, then QA |
+| A10 | `/subjects` paints the saved catalog immediately and refreshes behind it, with a receipt | client test + the staging timing measurement (B3) | executor, then QA |
+| G1 | `npm run test:encoding` passes | repo script | planner |
+| G2 | server tsc + client tsc + client build | repo scripts | planner |
+| G3 | `git diff --check` clean over the candidate range | git | planner |
+| B1 | 1366x768 staging render of `/timetable` with the blocker panel: no truncation, no codes, no `…`, clickable things look clickable | **Browser row.** `scripts/dev/start-preview.ps1` + `/__dev/staging-login` + `scripts/qa/ux-audit.js` (major = 0, nothing under 14px) | **planner** (browser custody) |
+| B2 | Each fix button opens the exact page/state it claims | **Browser row**, one per cause present on staging | **planner** |
+| B3 | `/subjects` first paint is immediate; the receipt names what was served | **Browser row**, with a measured first-contentful time | **planner** |
+| B4 | Force each of the top 4 blockers on a scratch year, screenshot, follow the button, fix, **generate** | **DEPLOYMENT-ACCEPTANCE / HIGH row.** The forcing and the fix are ordinary UI mutations (§12) and are authorized; the **generate step is a generation run and is NOT authorized** — it goes to the operator. A cause that cannot be forced without a generation or an apply is reported `UNPERFORMED(reason)`, never `N/A`. | **planner + operator** |
+
+## Throughput and hygiene
+
+- Commit `wip(...)` to the branch and push at least every 30 minutes and before any long step.
+- Never `git checkout --`, `reset --hard`, `clean`, or revert uncommitted work: `git stash push -u -m <why>` or
+  commit it. Corrections are ADDITIVE new commits; never amend or rebase a handed-off commit.
+- No helper scripts left in the tree; no PowerShell `Get-Content | Set-Content` round-trips on repo files.
+- A changed or new test file must be reachable from a committed `package.json` script in the same commit.
+- Never echo a credential; never read `D:\ATLAS-runtime-config\atlas-staging-qa.env`.
+- Run no server or watcher in a foreground shell call; use `scripts/dev/start-detached.ps1`.
+- Bare test runs never touch live: DB-writing suites only through `npm run test:server-db`.
+
+## Deliverable
+
+One candidate SHA on `work/a8-c5-generation-fixable` plus a one-page handoff:
+base · candidate · exact changed paths · what changed and why · the decisive commands with their results ·
+known risks marked `BLOCKING` / `NON_BLOCKING` · the A-row tally with each row's own result
+(`passed` / `blocked` / `unperformed` + reason). No transcripts.
