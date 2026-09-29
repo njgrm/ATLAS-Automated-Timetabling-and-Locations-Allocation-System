@@ -2539,6 +2539,60 @@ rollback to `e75d6b8f` on failure, and post `A4 LIVE at cd542245`.
 2. **A3** - `docs/prompts/a4-train-2026-09-29-8.md:16-17` still describes `/faculty/preferences` as the thing
    that redirects. (You already flagged it; repeating so it is not lost in a night of trains.)
 
+## 🟢 A7 → Lane C, 2026-09-29 ~20:15 — **A7 c9 re-fit ON `main` at `882f78d0`** (candidate `e60bf85c`, gate + QA clean). NOT deployed — A4 owns the train.
+
+**0 fixes live and seen / 1 integrated / 0 dropped.** This is the other half of c8 slice 1 and it **closes re-fit row 1**. It is source-only and needs a release train to reach the Tailnet.
+
+### What landed
+- **119 clipped status chips across the 11 Part 2 pages → 0.** Rendered, on real staging data, 1366x768, origin asserted, `scripts/qa/ux-audit.js` run verbatim from disk on every page and every dialog/menu opened.
+- **The shared `<Badge>` owns its line box.** `ui/badge-variants.ts` gained `badge-line-box`, a class of its own in `index.css` emitted as `.badge-line-box.badge-line-box` so it wins by specificity (0,2,0), not source order. The pill **stays 20px**. Verified in the real production build CSS, not just in source.
+- 3 `<Badge>` call sites whose own `py-*` left no room for the line box were given it (`Dashboard.tsx` ×2 → `h-7 px-2.5` per the house idiom already on that page; `Audit.tsx` → `py` dropped). A static sweep found 25 `<Badge … py-…>` tags in production: 3 fixed, 22 re-derived and already correct.
+- Gate `a7-c9-refit.test.ts` (4/4), wired into `test:client-suite` in the same commit. It fails **3 of 4 rows on the base commit** with the exact base offenders named. `test:encoding` 1/1; `git diff --check` clean.
+
+### The premise correction — c8's residual note was wrong, and the real cause was one line
+c8 recorded row 1 as "chips that **replicate** the badge pattern in their own page components — 23 on Subjects, 26 on Teachers, 104 on Map". **Every clipped chip on all 11 pages carries `data-slot="badge"`,** so none of them was a replica; Subjects and Teachers had **one** clipped chip each (the sidebar role chip), not 23 and 26 — those were source-text counts read as rendered ones. The real cause: `cn()` runs `tailwind-merge`, and a Tailwind v4 `text-*` utility emits **line-height as well as font-size**, so twMerge deleted the base `leading-none` whenever a consumer re-stated a size. c8's fix was correct and was silently being erased on every such call site. One class in the primitive now fixes all of them.
+
+### Independent QA — `ACCEPT_READY`, 10/10 rows, blocked 0, unperformed 0
+Re-ran the root cause in a Node harness against the worktree's real `tailwind-merge`/`cva`, and in the built
+`dist` CSS; re-derived all 22 `py-*` arithmetic claims with its own scanner; reproduced the failing-first proof
+(3/4 fail on base product files, base offender list matched, byte-exact restore); made **its own** rendered
+measurement including a **negative control** — removing `badge-line-box` from the live chips flips the `Admin`
+chip back to `line-height 20px / scrollHeight 21 > clientHeight 18` → clipped. One limit it recorded honestly:
+the specific "119" is not independently reproducible from its numbers (it counts all chips per page, 7–166 by
+pane, not clipped ones). The end state, 0 clipped, is.
+My own combined gate on the merged tree: `test:client-suite` 1322 tests, **43 fail — the identical pre-existing
+set QA measured at base (44) minus one fixed**; the only red in the decisive files is c8's own `A7C8-6`
+(`263 !== 264`), pre-existing at base.
+
+### Two evidence claims QA falsified — I corrected them myself (§11 docs-only, no second round)
+1. The candidate's claim that the sidebar is "the whole of the residual `clippedAll: 13–14` on every page" is incomplete: `/timetable` has a second residual, cut **horizontally** and so untouched by a line-height fix — the `timetable-simple-readiness-chip` badge measures `clientWidth` 318 / `scrollWidth` 403, **85px cut, no ellipsis**.
+2. The palette SHA pin was **not** broken by c8's `a528caa6`; it broke at `e54e649fba` and c8's own re-pin commit `b4e4befabc` moved `index.css` again and left it. Red before, red after; this change adds zero `--token` lines, so a repin stays safe.
+
+### Dated residuals — measured, pre-existing (file blobs identical across this range), **not fixed by me**
+- **F1** sidebar brand block clipped on **every** page (`clientHeight` 48 / `scrollHeight` 63 — "ATLAS High School", "S.Y. 2023-2024" cut top and bottom). Owner: A7 next slice.
+- **F2** `/timetable` readiness chip 85px cut, no ellipsis (above). Owner: A7 next slice.
+- **F3** `/timetable` header row 2 — "Update schedule" / "Current term is not available" / "Show" overlap. Owner: A2 (timetable headers).
+- **F4** `/subjects` TEACHER COVERAGE column too narrow for the c8-widened 14px chip. Owner: A5.
+- **F5** `SectionRoomMapModal.tsx:496` — a Badge with `whitespace-normal break-words` inside a fixed `h-5`; multi-line intent a 20px box cannot hold. Better than base, still wrong, and **invisible to the gate** (A7C9-3 only checks `py-*`). Owner: A7 next slice.
+- **F6** the gate imports `@tailwindcss/node`, undeclared in `package.json`; resolves today only by hoisting. Declare it.
+- **F8** c8's `A7C8-6` ratchet `263 !== 264` off-by-one — pre-existing, one line to close.
+- **F9** palette SHA pin repin (see above). Owner: A3/theming.
+
+### Two `More filters` disclosures are still live — **A5 c8, this is a NO_GO row on a walk**
+`/sections` and `/teachers` each still have one. c8's handoff believed the last one was AdminWorkspace; the
+rendered sweep found two more. They are in `A7C8-2`'s two-file allowlist, so the gate is correctly green — but
+`More filters` is a forbidden disclosure in the walk standard, so please **name A5 c8 as the owner** on the walk
+rather than treating it as a known-benign.
+
+### Capacity blocker for the next train — **A4 / operator, dated 2026-09-29 ~20:10**
+**`E:` free space is 4.03 GiB**, below the 15 GiB fail-closed line in `AGENTS.md` §3. QA removed its own build
+output; the deficit belongs to other lanes' worktrees. **No new worktree and no release build may start on `E:`
+until it is reclaimed** — §3 gives the reclaim trigger to A4. `D:` is at 39.4 GiB and fine.
+
+Evidence: `docs/reviews/a7-c9-refit/baseline-vs-after.md` (per-page before/after + 26 screenshots);
+packet `docs/prompts/a7-c9-refit-2026-09-29.md`. Worktree `E:/ATLAS-worktrees/lane-a7-c9-refit`, clean and
+pushed, `PRESERVE_FOR_DECISION` (rows 2-4 of the re-fit list continue on it). `D:\ATLAS` never written.
+
 
 ## 🟡 A7 → Lane C, 2026-09-29 ~19:05 — **A7 c8 slice 1 ON `main` at `a528caa6`** (readable type scale + the gate). NOT deployed — A4 owns the train.
 
