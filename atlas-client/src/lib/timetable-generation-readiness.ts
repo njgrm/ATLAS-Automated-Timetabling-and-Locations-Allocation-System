@@ -19,6 +19,10 @@
 // C2-a: the operator presentation reuses the established violation-copy
 // normalisers rather than growing a parallel humaniser.
 import { formatIdentityFallbackText, formatWarningMessageText } from './violation-presentation';
+// A8-C5 S2.2: the ONE code → sentence → route table. Every headline and every
+// fix button in the blocker panel is composed from it, so there is no second
+// copy of this vocabulary anywhere in the client.
+import { BLOCKER_CODE_COPY, blockerFixAction, blockerSentence } from './timetable-blocker-code-copy';
 
 export type TimetableGenerationBlockerCategory =
 	| 'DEMAND_AUTHORITY'
@@ -280,20 +284,22 @@ const GENERIC_CAUSE_PHRASE = 'need attention';
 const LEGACY_CAUSE_NOUN = 'attention';
 
 /**
- * A8-C5 S2.2 — the noun and verb for the A8 C3 ADVISORY causes only, which are
- * not hard blockers and therefore carry no row in the shared code table. Every
- * hard blocker cause is composed from that table instead. See the note on
- * `groupHeadline` for why this map is retained rather than merged.
+ * A8-C5 S2.2 — the representative CODE for one root cause: the first code the
+ * shared table knows among the group's own codes.
+ *
+ * A folded group (the two coverage codes, the placeholder state) carries several
+ * codes and therefore ONE line, so exactly one of them speaks for the line. It
+ * is chosen from the group, never from a private list, so the headline and the
+ * button below are guaranteed to describe the same cause.
+ *
+ * Null means the table knows none of this group's codes. That is a defect the A7
+ * table test fails on; the panel still renders (a scheduler must not meet a blank
+ * panel because the server grew a code), and says so in plain words.
  */
-const LEGACY_CAUSE_COPY: Record<string, { noun: string; verb: string }> = {
-	TEACHER_COVERAGE_GAP: { noun: 'classes', verb: 'need a teacher' },
-	FACULTY_OVERLOAD: { noun: 'teachers', verb: 'are over their weekly limit' },
-	WORKLOAD_POLICY_BLOCK: { noun: 'classes', verb: 'have a teacher at their limit' },
-	FACULTY_SUBJECT_NOT_QUALIFIED: { noun: 'classes', verb: 'are with a teacher outside their subjects' },
-	ROOM_RESOURCE_UNAVAILABLE: { noun: 'classes', verb: 'have no suitable room' },
-	TL_OWNERSHIP_CONFLICT: { noun: 'classes', verb: 'have more than one teacher' },
-	TEACHING_LOAD_REVIEW_REQUIRED: { noun: 'classes', verb: 'have no teaching load yet' },
-};
+export function representativeBlockerCode(group: TimetableGenerationBlockerGroup): string | null {
+	return group.codes.find((code) => Object.prototype.hasOwnProperty.call(BLOCKER_CODE_COPY, code))
+		?? (Object.prototype.hasOwnProperty.call(BLOCKER_CODE_COPY, group.code) ? group.code : null);
+}
 
 /**
  * A8 C3 — present one line per root cause, counted in CLASSES.
@@ -320,7 +326,7 @@ export function presentGenerationBlockerGroups(input: {
 			key: `generation-blocker-group-${group.cause}-${index}`,
 			headline: groupHeadline(group),
 			detail: group.examples.length > 0 ? `For example: ${group.examples.join(', ')}.` : null,
-			action: { kind: 'navigate', label: group.action.label, href: group.action.target },
+			action: groupFixAction(group),
 		}));
 	}
 	// A8-C5 S2.0: the fallback line. The verb is spelled out here, so the phrase
@@ -336,22 +342,32 @@ export function presentGenerationBlockerGroups(input: {
 }
 
 /**
- * A8-C5 S2.2 — the headline for a group is now composed from the ONE shared
- * code→sentence table, not from a second local copy of the same vocabulary.
+ * A8-C5 S2.2 — ONE fix button per cause, resolved from the ONE table.
  *
- * Before, `GROUP_CAUSE_COPY` (here) and `actionForCause` (the server) and
- * `deriveTimetableReadinessRepair` (here) each decided what a code meant, and
- * they could disagree. The table is now the single authority: a group's
- * representative code resolves its sentence and its fix route from
- * `timetable-blocker-code-copy.ts`, so the headline, the button and the repair
- * cannot drift apart.
+ * Before this, `GROUP_CAUSE_COPY` (the headline, here), `actionForCause` (the
+ * server) and `deriveTimetableReadinessRepair` (here) each decided what a code
+ * meant and where it is fixed, and they could disagree — a headline about
+ * teaching load could sit above a button that opened rooms. The table is now the
+ * single authority for the PANEL: the same representative code that supplies the
+ * sentence supplies the route and the label, so a line and its button cannot
+ * describe two different problems.
  *
- * `LEGACY_CAUSE_COPY` below is retained ONLY for the A8 C3 advisory causes, which
- * are not hard blockers and therefore deliberately carry no row in that table (see
- * the test's `NOT_PREFLIGHT_BLOCKERS`). Deleting it would drop four live lines
- * from the panel; the alternatives — adding advisory rows to a blocker table, or
- * inventing a second table — are both worse. Its scope is asserted in
- * `a8-c5-generate-gaps-groups.test.tsx`.
+ * The server's own `group.action` remains the FALLBACK for a code the table does
+ * not carry. It is a real mounted route, so the line keeps working; the missing
+ * table row is a defect the A7 test fails on, which is where it belongs — not in
+ * a blank panel in front of a scheduler.
+ */
+function groupFixAction(group: TimetableGenerationBlockerGroup): TimetableGenerationBlockerGroupPresentation['action'] {
+	const representative = representativeBlockerCode(group);
+	const fromTable = representative === null ? null : blockerFixAction(representative);
+	if (fromTable) return { kind: 'navigate', label: fromTable.label, href: fromTable.href };
+	return { kind: 'navigate', label: group.action.label, href: group.action.target };
+}
+
+/**
+ * A8-C5 S2.2 — the headline for a group, composed from the ONE shared
+ * code→sentence table. The count is the server's; the words and the unit are the
+ * table's, so a line can never read as a session count or a bare number.
  */
 function groupHeadline(group: TimetableGenerationBlockerGroup): string {
 	// The server has already counted THIS group in classes, so the line reads
@@ -362,16 +378,13 @@ function groupHeadline(group: TimetableGenerationBlockerGroup): string {
 	// A folded group (the two coverage codes) has several codes; the FIRST one the
 	// table knows is the representative sentence, and because both coverage codes
 	// share one table row they produce the SAME words — one line, not two.
-	const representative = group.codes.find((code) => Object.prototype.hasOwnProperty.call(BLOCKER_CODE_COPY, code))
-		?? (Object.prototype.hasOwnProperty.call(BLOCKER_CODE_COPY, group.code) ? group.code : null);
+	const representative = representativeBlockerCode(group);
 	if (representative) {
 		const sentence = blockerSentence(representative, group.count);
 		assertPlainGroupSentence(sentence, group);
 		return sentence;
 	}
-	const copy = LEGACY_CAUSE_COPY[group.cause];
-	if (!copy) return `${group.count} ${group.count === 1 ? 'item' : 'items'} ${GENERIC_CAUSE_PHRASE}`;
-	return `${group.count} ${group.count === 1 ? singular(copy.noun) : copy.noun} ${copy.verb}`;
+	return `${group.count} ${group.count === 1 ? 'item' : 'items'} ${GENERIC_CAUSE_PHRASE}`;
 }
 
 /**
@@ -386,12 +399,6 @@ function assertPlainGroupSentence(sentence: string, group: TimetableGenerationBl
 			+ 'A scheduler-facing line must be words, never a code, an id or a truncated name.',
 		);
 	}
-}
-
-function singular(noun: string): string {
-	if (noun.endsWith('es')) return noun.slice(0, -2);
-	if (noun.endsWith('s')) return noun.slice(0, -1);
-	return noun;
 }
 
 export type ExpectedGenerationScope = {
