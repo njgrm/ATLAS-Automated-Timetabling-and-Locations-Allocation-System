@@ -30,12 +30,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import {
-	AdminSearchFilterToolbar,
 	AdminStatePanel,
 	AdminTableShell,
 	AdminWorkspaceFrame,
 	type AdminSourceState,
 } from '@/components/admin-workspace/AdminWorkspace';
+import { FilterBar } from '@/ui/filter-bar';
 import { SectionRow, type SectionDetail } from '@/components/sections/SectionRow';
 import { SectionRoomPicker, type RoomOption as HomeRoomOption } from '@/components/sections/SectionRoomPicker';
 import { SectionDetailsSheet } from '@/components/sections/SectionDetailsSheet';
@@ -121,7 +121,9 @@ export default function Sections() {
 	const [homeRoomFilter, setHomeRoomFilter] = useState<'all' | 'missing' | 'assigned'>('all');
 	const [homeRoomOptions, setHomeRoomOptions] = useState<HomeRoomOption[]>([]);
 	const [savingMirrorId, setSavingMirrorId] = useState<number | null>(null);
-	const [showFilters, setShowFilters] = useState(false);
+	/* A5 c8 (2026-09-29): `showFilters` / `setShowFilters` are GONE. They existed only
+	   for the disclosure the shared toolbar rendered, and this page's three filters now
+	   sit in the one always-visible `FilterBar` row — so no value would read them. */
 	const [pendingAssignment, setPendingAssignment] = useState<PendingAssignment | null>(null);
 	const [globalBrowseModalOpen, setGlobalBrowseModalOpen] = useState(false);
 	// A3 C4 (top-10 #3): the room map was only reachable by opening a row's
@@ -796,13 +798,12 @@ export default function Sections() {
 				</Button>
 			)}
 			toolbar={(
-				<AdminSearchFilterToolbar
-					searchValue={searchQuery}
-					onSearchChange={setSearchQuery}
-					searchPlaceholder="Search sections..."
-					filtersOpen={showFilters}
-					onToggleFilters={() => setShowFilters(!showFilters)}
-					hasActiveFilters={hasActiveFilters}
+				/* A5 c8 (2026-09-29): `AdminSearchFilterToolbar` is deleted from
+				   `AdminWorkspace.tsx` — it was the last consumer, so there is no second
+				   filter-bar implementation left. This page renders the ONE shared row. */
+				<FilterBar
+					dataTestId="sections-filter-bar"
+					search={{ value: searchQuery, onChange: setSearchQuery, placeholder: 'Search sections...', ariaLabel: 'Search sections' }}
 				>
 					<SectionsFilterToolbar
 						gradeFilter={gradeFilter}
@@ -814,7 +815,7 @@ export default function Sections() {
 						homeRoomFilter={homeRoomFilter}
 						onHomeRoomFilterChange={(value) => setHomeRoomFilter(value as typeof homeRoomFilter)}
 					/>
-			</AdminSearchFilterToolbar>
+				</FilterBar>
 			)}
 		>
 

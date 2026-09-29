@@ -15,10 +15,10 @@ import { Button } from '@/ui/button';
 // four roster filters. The page builds no Radix filter of its own any more, and the option
 // vocabulary it needs now lives with the controls that offer it.
 import {
-	AdminSearchFilterToolbar,
 	AdminWorkspaceFrame,
 	type AdminSourceState,
 } from '@/components/admin-workspace/AdminWorkspace';
+import { FilterBar } from '@/ui/filter-bar';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin-workspace/AdminDataTable';
 import {
 	FacultyAssignedClassesCell,
@@ -167,7 +167,9 @@ export default function Faculty() {
 		}
 	};
 
-	const [showFilters, setShowFilters] = useState(false);
+	/* A5 c8 (2026-09-29): `showFilters` / `setShowFilters` are GONE. They toggled the
+	   disclosure this page's four roster filters used to sit behind; the filters are now
+	   children of the one always-visible `FilterBar` row, so nothing reads either value. */
 
 	// Sorting
 	const [sortField, setSortField] = useState<SortField>('name');
@@ -755,21 +757,29 @@ return (
 				/>
 			)}
 			toolbar={(
-				<AdminSearchFilterToolbar
-					searchValue={searchQuery}
-					onSearchChange={setSearchQuery}
-					searchPlaceholder="Search teacher, department, or specialization..."
-					filtersOpen={showFilters}
-					onToggleFilters={() => setShowFilters(!showFilters)}
-					hasActiveFilters={hasActiveFilters}
-				>
-					{/* A5 C3 slice B: the four roster filters moved to
-					    `components/faculty/FacultyFilterRow.tsx` and onto the one shared
-					    `@/ui` picker. Two reasons, in order: the file is at §8's 1000-line cap
-					    (981 physical at 419277e4) and the conversion had to land with the
+				/* A5 c8 (2026-09-29) — THE ONE SHARED BAR. `AdminSearchFilterToolbar` is
+				   deleted from `AdminWorkspace.tsx`; this page was its last consumer, so
+				   there is now no second filter-bar implementation in the codebase. The
+				   four roster filters that sat behind its disclosure are children of the
+				   shared `FilterBar` row, and the one `Reset filters` control is
+				   `FilterBar`'s `onReset` at the end of the same row. */
+				<FilterBar
+					dataTestId="teachers-filter-bar"
+					search={{
+						value: searchQuery,
+						onChange: setSearchQuery,
+						placeholder: 'Search teacher, department, or specialization...',
+						ariaLabel: 'Search teachers by name, department, or specialization',
+					}}
+					onReset={hasActiveFilters ? clearAllFilters : undefined}
+					resetLabel="Reset filters"
+				>					{/* A5 C3 slice B: the four roster filters live in
+					    `components/faculty/FacultyFilterRow.tsx` and sit on the one shared
+					    `@/ui` picker. Two reasons, in order: the file is at §8's 1000-line
+					    cap (981 physical at 419277e4) and the conversion had to land with the
 					    extraction; and the four triggers were `h-10 w-44 text-sm
-					    bg-background` — a control that existed in no other form anywhere in the
-					    product. The `More filters` disclosure around them is untouched. */}
+					    bg-background` — a control that existed in no other form anywhere in
+					    the product. */}
 					<FacultyFilterRow
 						schedulingFilter={schedulingFilter}
 						onSchedulingFilterChange={(v) => setSchedulingFilter(v as typeof schedulingFilter)}
@@ -780,10 +790,8 @@ return (
 						onDepartmentFilterChange={setDepartmentFilter}
 						gradeLevelFilter={gradeLevelFilter}
 						onGradeLevelFilterChange={setGradeLevelFilter}
-						hasActiveFilters={hasActiveFilters}
-						onClearAllFilters={clearAllFilters}
 					/>
-				</AdminSearchFilterToolbar>
+				</FilterBar>
 			)}
 		>
 

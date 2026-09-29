@@ -11,6 +11,8 @@ import {
 	DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
 import { SearchableSelect } from '@/ui/searchable-select';
+import { FilterBar } from '@/ui/filter-bar';
+import { pickerTriggerClass } from '@/ui/picker-trigger';
 import { Skeleton } from '@/ui/skeleton';
 import { PageHeader } from '@/components/app-shell/PageHeader';
 import { getActionableApiError } from '@/lib/actionable-api-error';
@@ -517,23 +519,51 @@ export default function TeacherConcerns() {
 							)}
 							testId='teacher-concerns-header'
 						/>
-						{/* Row 2 — the pickers. One picker, one teacher; the room picker
-						    lives with the class it belongs to, below. */}
-						<div className='flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-soft'>
-							<div className='w-full max-w-xs space-y-1.5'>
-								<p className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>Teacher</p>
-								<SearchableSelect
-									items={facultyOptions}
-									value={selectedFacultyId == null ? '' : String(selectedFacultyId)}
-									onValueChange={(value) => setSelectedFacultyId(value ? Number(value) : null)}
-									placeholder={facultyError ? 'Teacher roster unavailable' : faculty.length === 0 ? 'No teachers loaded' : 'Search a teacher by name…'}
-									disabled={faculty.length === 0}
-									disabledReason={facultyError ?? 'Load the teacher roster first.'}
-									triggerClassName='w-full'
-								/>
-							</div>
-							{facultyError ? <p className='text-xs text-destructive'>{facultyError}</p> : null}
-						</div>
+						{/* A5 c8 (2026-09-29) — THE LAYOUT NOTE, BEFORE THE JSX.
+						    *
+						    * The sweep's finding on this page was a MINOR, and it is the clearest
+						    * statement of the shared-bar problem in its purest form: the page's only
+						    * filter sat far below the header, inside its own bordered card, in its
+						    * own look, with its own `w-full` width and an uppercase `TEACHER` label
+						    * above it. Nothing was hidden. It just did not read as part of ATLAS.
+						    *
+						    * WHAT STAYS .... the same `SearchableSelect`, the same `facultyOptions`
+						    *                list, the same `selectedFacultyId` binding, the same
+						    *                disabled behaviour, and BOTH honest placeholders
+						    *                (`Teacher roster unavailable`, `No teachers loaded`) —
+						    *                they are states a user needs to read, not wording.
+						    * WHAT GOES .... the card, the `w-full max-w-xs` column, the uppercase
+						    *                `TEACHER` label (a picker that names itself does not
+						    *                need a second copy of its name above it) and the
+						    *                `Search a teacher by name…` placeholder, normalised to
+						    *                the shared `Search teacher…` form.
+						    * WHAT MOVES .. the control becomes the SEARCH slot of the one shared
+						    *                `FilterBar`, in the common position below the page
+						    *                title / status strip.
+						    *
+						    * ONE DEVIATION WORTH NAMING: the shared bar's search slot is an
+						    * `@/ui` `Input`, and this control is a SEARCHABLE COMBOBOX — it
+						    * filters as you type and opens onto the roster. Building the bar's
+						    * slot as a plain input would have replaced a searchable picker with
+						    * a text box that searches nothing, which is a regression dressed as
+						    * a refactor. So the control stays a `SearchableSelect` and is the
+						    * bar's only child; the bar contributes the row geometry, the `h-9`
+						    * shared height and the `auto` width, which is what this page was
+						    * missing. The `filterAnnouncement`-style status line and the error
+						    * line below are untouched. */}
+						<FilterBar dataTestId='teacher-concerns-filter-bar'>
+							<SearchableSelect
+								items={facultyOptions}
+								value={selectedFacultyId == null ? '' : String(selectedFacultyId)}
+								onValueChange={(value) => setSelectedFacultyId(value ? Number(value) : null)}
+								placeholder={facultyError ? 'Teacher roster unavailable' : faculty.length === 0 ? 'No teachers loaded' : 'Search teacher…'}
+								ariaLabel='Search a teacher by name'
+								disabled={faculty.length === 0}
+								disabledReason={facultyError ?? 'Load the teacher roster first.'}
+								triggerClassName={pickerTriggerClass('auto')}
+							/>
+						</FilterBar>
+						{facultyError ? <p className='mt-1.5 text-xs text-destructive'>{facultyError}</p> : null}
 					</div>
 
 					{schoolYearNotice && <p className='text-xs text-muted-foreground'>{schoolYearNotice}</p>}

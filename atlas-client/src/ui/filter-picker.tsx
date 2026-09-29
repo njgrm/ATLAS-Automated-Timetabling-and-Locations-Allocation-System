@@ -23,6 +23,7 @@
  * primitive is `@/ui/searchable-select`, as `/timetable` already uses it.
  */
 import { SearchableSelect } from '@/ui/searchable-select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import {
 	PICKER_TRIGGER_TYPE_CLASS,
 	SEARCHABLE_OPTION_THRESHOLD,
@@ -95,6 +96,23 @@ export type FilterPickerProps = {
 	dataTestId?: string;
 	/** Width of the popover panel. Defaults to the trigger width. */
 	contentClassName?: string;
+	/**
+	 * A5 c8 (2026-09-29) — ONE optional sentence, shown in a `@/ui` Tooltip on the
+	 * trigger. It exists because `/sections` used to print the program-code legend
+	 * as a `<p>` UNDER the filter bar, which made a three-picker row four rows deep
+	 * and put a second, quieter line of text between the controls and the list.
+	 * Moving that same sentence onto the control it explains is subtraction: the
+	 * line is gone and the words are still reachable, on hover and on focus.
+	 *
+	 * It is a Tooltip and not a `title` attribute and not a raw `<details>` —
+	 * `AGENTS.md` §8 forbids both. Absent `hint` renders byte-for-byte what it
+	 * rendered before this prop existed, which is what keeps every other call site
+	 * unchanged. The picker's own `aria-label` is untouched: the tooltip is visual
+	 * and hover-reachable, not a second accessible name for the same control.
+	 */
+	hint?: string;
+	/** `data-testid` for the tooltip TRIGGER wrapper, so a relocated testid can follow the sentence. */
+	hintTestId?: string;
 };
 
 export function FilterPicker({
@@ -113,6 +131,8 @@ export function FilterPicker({
 	triggerId,
 	dataTestId,
 	contentClassName,
+	hint,
+	hintTestId,
 }: FilterPickerProps) {
 	// The `all` option is what a filter's own vocabulary calls "nothing chosen yet"; when a
 	// A5 C3 CORRECTION ROUND 1 (B3): normalise the options ONCE, here, before
@@ -183,7 +203,7 @@ export function FilterPicker({
 		? (disabledReason ?? 'No options available')
 		: shortValue;
 
-	return (
+	const picker = (
 		<SearchableSelect
 			items={list}
 			value={value}
@@ -200,6 +220,29 @@ export function FilterPicker({
 			disabledReason={disabledReason}
 			className={contentClassName}
 		/>
+	);
+
+	/* `TooltipTrigger asChild` needs a SINGLE child that forwards a ref and a DOM prop.
+	 * `SearchableSelect` returns the trigger button inside a `PopoverTrigger`, so the
+	 * wrapper is a `<span>` carrying only `display: contents`-free flex-none geometry:
+	 * it must not become a flex item of the bar, or it would sit beside the trigger
+	 * instead of around it. `shrink-0` + `inline-flex` keeps the pair one control-sized
+	 * block on the wrapping row. */
+	if (!hint) return picker;
+
+	return (
+		<TooltipProvider delayDuration={200}>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<span className="inline-flex shrink-0" data-testid={hintTestId}>
+						{picker}
+					</span>
+				</TooltipTrigger>
+				<TooltipContent side="top" className="max-w-80">
+					{hint}
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 }
 
