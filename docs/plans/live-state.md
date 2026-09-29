@@ -5547,3 +5547,46 @@ Range `4c806de3` → `39b2dcc7` (accepted) → `e9a04893` (planner docs) → `19
 - Repair: backup to `D:/ATLAS-runtime-config/backups/test-pollution-20260929/{atlas-server,atlas-staging}-fixture-rows-before.json`, then a conditional delete in one transaction.
 - After: exactly one active mirror, 564 (2022-2023). Live health 200.
 - Prevention: AGENTS §14 A4 live-data invariants, and Lane C's status.sh checks the active-mirror count.
+
+---
+
+## Lane A2 - c14 active-term / generate blocker, 2026-09-29 (written only by Lane A2)
+
+**Stream:** c14 (top priority). Base 3bd403e1. **On main: 6124b342 (term) + 9c83536 (follow-ups) +
+docs 91a2d8c6.** Client only - 9 + 7 paths, no tlas-server/, no prisma/, no ops/, no lockfile, no env, no
+migration. **NOT DEPLOYED - A4 owns the release (�14).** Worktrees retired; one 35 MiB unregistered residue dir
+E:/ATLAS-worktrees/lane-a2-c14-followups PRESERVE_FOR_DECISION (a native .node handle held by a PID I did not
+record, so I did not kill it).
+
+**Fixed, on main:** the active ordered term. TeacherConcerns and AdminYearSetup called
+esolveActiveSchoolYearContext without erifyUpstream; the client default is false, so the server skipped
+resolution and returned its literal default "Active term verification not requested.", and the fail-closed gate
+disabled every write. RoomSchedules asked, but without orceRefresh the school-keyed cache served it the
+unverified entry. Shared resolver tlas-client/src/lib/active-term-authority.ts; RoomSchedules issues one
+orceRefresh + verifyUpstream read directly. Follow-ups: 	est:timetable-ux-rehaul 33/35 -> 35/35 (the TEST was
+stale, the product was right); /timetable Retry arming 8000 -> 7500 (promise unmoved, no word added); Radix
+Select uncontrolled->controlled warning fixed at both term pickers with SELECT_NO_VALUE.
+
+**DROPPED - 1 of 2 packet items, and this is the honest headline.** "468 setup items to fix" is
+diagnostic.blockers.length, inflated once per term (TRIMESTER x3) AND once per unassigned SESSION. The session is
+not a field on the blocker - classifyUnassignedBlocker (tlas-server/src/services/generation-preflight.service.ts:402-418)
+discards it into free-text entity - so the count of real problems is **not computable client-side**. Two QA rounds
+returned CORRECTION_REQUIRED; per �11 no third round, so it was dropped. **A8 c3's 651-row packet is on the same
+wall.** Follow-up, SERVER/DATA HIGH: promote session to a first-class blocker field.
+
+**Blockers / not done, each dated:**
+- **2026-09-29 - 0 fixes seen rendered.** All four loopback rows UNPERFORMED. The executor's first attempt
+  redirected to /login (built without VITE_ATLAS_API); QA proved the proposed /api/v1 is discarded by
+  ite.config.ts:38 and would aim the preview proxy at **live 127.0.0.1:5001**. Correct value for whoever runs
+  them: VITE_ATLAS_API=http://127.0.0.1:5101/api/v1 + an authenticated session.
+- **2026-09-29 - the demo year changed to 2023-2024** (A5 C2 note in lane-c-to-a2.md), where the term resolves.
+  **The term defect is therefore invisible on the new year** - it was never failing to resolve, it was never asking.
+  Do not close these rows on "the term shows correctly"; the discriminator is a GET /runtime/context carrying
+  erifyUpstream=true in the Network panel, which previously never fired.
+- **2026-09-29 - term-cache apply is A3's HIGH action, not mine.** If the fix lands and that one verified request
+  still returns erified:false, the cause is the missing 	ermContractCache row for the active mirror.
+- **2026-09-29 - data.** The real Teaching Load owner gaps on the active year are data, fillable only through ATLAS
+  UI flows. Not code. No 	est:client-suite red (39-41) or 	sc red (5) is mine.
+
+**Next action for me:** nothing. Not deployed and not waiting on anyone; the rendered rows and the count follow-up
+are named owners above.
