@@ -175,7 +175,7 @@ async function render(node: React.ReactNode): Promise<HTMLElement> {
 	hostEl = document.createElement('div');
 	document.body.appendChild(hostEl);
 	root = createRoot(hostEl);
-	await act(async () => { root.render(node); });
+	await act(async () => { root?.render(node); });
 	return hostEl;
 }
 
