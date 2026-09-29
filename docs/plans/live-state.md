@@ -26,6 +26,40 @@ rules are what make that safe:
    `docs/handoffs/planner-session-handoff.md`, Lane B in its own handoff file, Lane C in its
    section below until a stream needs a handoff.
 
+## Lane A4 — release lane, 2026-09-29 (train 9 **LIVE at `e75d6b8f`**; all post-cutover follow-ups done)
+
+- **TRAIN 9 IS LIVE at `e75d6b8f`** (full table in the `## Live release` block). Live dir
+  `E:\ATLAS-worktrees\lane-a4-release-20260929-9prod`, listeners 5001 -> **20432** / 5174 -> **17156**, machine scope
+  `…-9prod` / `e75d6b8f…`, task Running. `CUTOVER_STARTED`, audit
+  `C:\ProgramData\ATLAS\release-audit\e75d6b8f-20260929-152501\`. **Rollback basis `3216d383`** (`…-8prod`).
+- **Acceptance: all rows PASS.** Tailnet root/health 200 · loopback + Tailnet health/ready 200 with a **DB-backed**
+  `GET /api/v1/subjects?schoolId=1` 200 (19 509 B) · **zero write** `1139|500|11` before and after (baseline captured
+  **before** the quiesce) · **live-data invariant 1 active mirror, `2023-2024`** (`1|1|2023-2024|5`) · discriminator
+  **non-vacuous** (`/assets/index-GM9QISwG.js` 200, old `/assets/index-DzhMkC-M.js` 404) · rollback basis verified.
+- **Gate lineage:** pre-action review `CORRECTION_REQUIRED` 22/28 (1 BLOCKING, packet wording) applied docs-only; gates
+  re-run on the re-pinned train — Prisma 0 (11->11), client suite 1305/1266/39 with 4 new rows all NON_BLOCKING and
+  attributed, `test:staging-guards` 20/20; Codex staging walk 5/8, no real blocker.
+- **Data-portability fix made before the cutover:** campus-map uploads are written to the release tree at runtime and
+  served from disk; the incumbent held a runtime upload referenced by `schools.campus_image_url` that the new tree
+  lacked, so a plain cutover would have 404'd the live campus image. It was copied into the new tree and
+  `/atlas-server/uploads/` added to `.git/info/exclude` so the target still passes `Get-GitIdentity`'s clean gate. It
+  serves on live (200).
+- **Post-cutover follow-ups, all done (2026-09-29):** staging QA password **rotated** (backup in
+  `backups\atlas-staging-qa.env.bak-20260929-rotation`; SHA-256 prefix moved `A495B2B8…` -> `A1F1DAD5…`; value never
+  printed) and `/__dev/staging-login` **confirmed working** on a :5200 preview (middleware-served 200, token
+  authenticated `/auth/me` 200) · the dirty `E:\ATLAS-staging\3216d383…` dir **resolved**: its only change was the
+  *generated* staging `runtime-contract.json` (installed by `deploy-staging.ps1`; the file itself says never to copy it
+  into the live dir), diff preserved at `docs/handoffs/staging-3216d383-runtime-contract-diff.md`, then removed with a
+  non-forced `git worktree remove` + `prune`. **E: 24.35 -> 25.90 GiB**; surviving staging tree re-counts 155.
+- **Owed, not done here (A4 edits no product/ops code):** `atlas-staging-qa.env` keeps an inherited
+  `Authenticated Users: Modify` ACE and `ensure-staging-qa-account.cjs` writes it with a bare `writeFileSync`. The
+  password is rotated, but the file's containment is not hardened. Route to the `scripts/dev/` owner.
+- **Worktrees:** `…-9prod` = `KEEP_ACTIVE` (live runtime source dir) · `…-8prod` = `KEEP_ACTIVE` (rollback basis) ·
+  `…-7prod`, `…-4prod` beyond the retention depth · `…-6` and `-c02-20260929` = `PRESERVE_FOR_DECISION` (unintegrated).
+- **Next action (single):** Lane C runs the production browser rows on `https://njgrm.buru-degree.ts.net`
+  (`/timetable`, `/teaching-load`, `/map` for the carried campus image) and posts the result in
+  `docs/handoffs/lane-c-to-a2.md`.
+
 ## Lane A4 — release lane, 2026-09-29 12:45 +08 (staging QA access READY; train 8 remains the live release)
 
 - **STAGING QA ACCESS READY (as of 2026-09-29 12:45 +08).** `STAGING QA ACCOUNT READY` (exit 0) plus the loopback
@@ -453,6 +487,40 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **— LIVE: `e75d6b8f5a430578c551e4177d7cc6f065db697c` @ DEPLOYED TO PRODUCTION 2026-09-29 15:25 +08 by Lane A4
+  (train 9) on Lane C GO. Rollback basis `3216d383` (the incumbent).**
+
+  | | |
+  |---|---|
+  | **LIVE** | **`e75d6b8f5a430578c551e4177d7cc6f065db697c`** |
+  | **Live dir** | `E:\ATLAS-worktrees\lane-a4-release-20260929-9prod`, HEAD == pin, `status --short` empty, 0 reparse points, own dependency trees (`npm ci` x3 + `prisma generate`; server `tsc` 0, client `vite` 0 with `VITE_ENROLLPRO_URL` from the live env key `ENROLLPRO_PROXY_ORIGIN`) |
+  | **Listeners** | 5001 -> **20432**, 5174 -> **17156** (were 23456 / 17856) |
+  | **Machine scope** | both runtime variables repointed to `…-9prod` / `e75d6b8f…`; task `ATLAS-Runtime-Supervisor` **Running** |
+  | **Rollback basis** | **`3216d383ce033a3447067255bbe554910fb78595`**, dir `E:\ATLAS-worktrees\lane-a4-release-20260929-8prod` @ HEAD == pin, both `dist`s present, 0 reparse points. One-step supervised reset. |
+  | **Scope** | 140 paths vs `3216d383` (75 client, 4 server, 54 docs), **0 `prisma/`** @ no migration (11 before and after) |
+  | **Cutover** | `deploy-runner.ps1` dry run first (`mutates: false`, lineage verified, `Assert-LiveReleaseRecorded` **passed**), then `-Execute` -> **`CUTOVER_STARTED`**. Audit `C:\ProgramData\ATLAS\release-audit\e75d6b8f-20260929-152501\` |
+  | **Acceptance** | **DEPLOYED, all rows PASS.** S-W1 Tailnet root/health 200 · S-H1 loopback + Tailnet health/ready 200 with DB-backed `GET /api/v1/subjects?schoolId=1` 200 (19 509 B) · **S-Z1/S-R2 zero write** `1139|500|11` before and after, baseline captured **before** the quiesce · **S-R-inv live-data invariant 1 active mirror, `2023-2024`** (`1|1|2023-2024|5`) · **S-D1 non-vacuous** new chunk `/assets/index-GM9QISwG.js` 200 (307 661 B), old `/assets/index-DzhMkC-M.js` 404 · S-B1 rollback basis verified |
+  | **Data-portability fix** | a runtime campus upload referenced by `schools.campus_image_url` existed only in the incumbent tree; it was **copied into the new tree** and `/atlas-server/uploads/` added to `.git/info/exclude` so the target passes `Get-GitIdentity`'s clean gate. It serves on live (200). |
+  | **Evidence** | `docs/handoffs/lane-c-to-a2.md`, "A4 LIVE at `e75d6b8f`" |
+
+  Lane C Codex staging walk 5/8, no real blocker (the one BLOCKER row is the true, dismissible rollover notice
+  2022-2023 -> 2023-2024; the other two FAILs are UX items routed to train 10).
+
+- **— CUTOVER TARGET, recorded 2026-09-29 ahead of the cutover by Lane A4 (AGENTS.md §13 — a pin is a commit, not a
+  description). Required by `deploy-runner.ps1` `Assert-LiveReleaseRecorded`, which fails closed without it. Target
+  release `e75d6b8f` (full `e75d6b8f5a430578c551e4177d7cc6f065db697c`), rollback basis `3216d383` (full
+  `3216d383ce033a3447067255bbe554910fb78595`, the incumbent).** `origin/main` has moved past the pin (it is an
+  **ancestor** of main, direction FORWARD) and the pin is **not** reopened: a pinned release waits for the next train,
+  and main moving does not change what ships. Target tree `E:\ATLAS-staging\e75d6b8f5a430578c551e4177d7cc6f065db697c`
+  (HEAD == pin, `environmentProof.sourceDir` == pin, own dependency trees), currently serving staging on 5101/5274 and
+  verified built. Train 9 = **140 paths** vs `3216d383` (75 client, 4 server, 54 docs), **0 `prisma/`** @ no migration
+  (11 before and after). Staging leg ran first at the SAME pin (`STAGING_DEPLOYED` 159.3 s, `SNAPSHOT_REFRESHED`, live
+  signature `1138|499|11` unchanged) and Lane C's Codex staging walk returned **5/8 with no real blocker** — the single
+  BLOCKER row is the true, dismissible rollover notice 2022-2023 -> 2023-2024, the false 2029-2030 banner A7 c7 fixed is
+  gone, and the other two FAILs are UX items routed to train 10. Rollback is a one-step supervised reset to
+  `E:\ATLAS-worktrees\lane-a4-release-20260929-8prod` @ `3216d383`, verified clean, both `dist`s present, 0 reparse
+  points, **currently serving live**.
+
 - **— LIVE: `3216d383ce033a3447067255bbe554910fb78595` @ DEPLOYED TO PRODUCTION 2026-09-29 11:21 +08 by Lane A4
   (train 8) on Lane C GO. Rollback basis `e9ddda71` (the incumbent).**
 
@@ -3433,6 +3501,58 @@ scheduled. This entry exists so the next reclaim does not have to re-derive the 
 `eb0e3038` as a keep row from the two stale lines above.
 
 Do not write in Lane B/C worktrees.
+
+## Lane A3 - current lane (written only by Planner A3)
+
+### 2026-09-29 ~17:25, packet a3-c14-year-setup-calm - **ON `main` at `b1249a7c` (candidate `5b65d78e`). 0 fixes live and seen / 1 integrated, NOT on production / 0 dropped. A4 owns the deploy; A3 has not deployed. Lane C's UX walk on this screen still blocks its release.**
+
+Packet `docs/prompts/a3-c14-year-setup-calm-2026-09-29.md`. Operator: "School Year Setup is still too technical
+and overwhelming; make the default view one sentence and one button, with IT details folded away, and never an
+endless Checking message." MEDIUM, client-only, 6 paths, **no `prisma/`**, no auth change, no server change.
+Ownership respected: **A7 c7** kept the banner and year-list logic; A3 c14 changed page layout and words only.
+
+- **THE DEFAULT VIEW IS ONE SENTENCE AND ONE FOLD TRIGGER.** On real staging (2023-2024) it now renders
+  "ATLAS is on 2023-2024." and nothing else that competes. `CalmYearSetupDetails.tsx` (new) is one `@/ui` ghost
+  disclosure with `aria-expanded` + `aria-controls`, closed by default, and its panel carries the HTML `hidden`
+  attribute - so the detail is out of the page AND out of the tab order while every existing assertion still finds
+  its node. Nothing was deleted to get there: the drift badges, counts line, server conflict messages, the
+  field-level EnrollPro changes, the standalone read-only preview, the term-authority line, the school-year list,
+  the carry-forward review and the destructive reset all still render, inside the one fold. The card renders that
+  detail INLINE when no fold provider is mounted, so no other mount of `RolloverGuidanceCard` changed.
+- **THE ENDLESS "Checking the school year now..." ENDS.** After 8 s with no status the page says "The school year is
+  taking longer than usual. The school network or EnrollPro may be slow." and offers exactly one "Try again", which
+  re-reads through the page's EXISTING `reloadSignal` - one status read per mount, no second reader. The sign-in
+  check deliberately got NO second deadline: A7-C5's shared resolver already owns that one.
+- **MEASURED ON REAL STAGING at 1366x768, before -> after:** visible words **222 -> 43**, content height
+  **1236px -> 659px**, **no scroll**, fold trigger visible at y=348, 0 visible primary actions, 0 raw codes
+  (`TERM_AUTHORITY_*`, `PERSISTED_*`, `atlas-stale`, `RUN_ROLLOVER_SYNC`, `semanticRevision`, persisted, unverified)
+  even with the fold OPEN. Rendered test: default view **32 words closed / 157 with the fold open**.
+- **SUBTRACTED, not added:** the amber `ADMIN ONLY` chip (the route guard already enforces it), the fold's hint
+  line, the second "Nothing to do. 2023-2024 is ready." sentence, the raw grade-level/program database ids in the
+  reconfigured-sections list, and the "EnrollPro 2023-2024" badge from the default view.
+- **GATES.** `test:a3-c14-year-setup-calm` 6/6 (new, rendered DOM, reachable from a committed script),
+  `test:a7-year-setup-plain-words` 17/17, `test:a7-year-setup-carry-switches` 11/11, `test:ux-guardrails` 31/31,
+  `test:a7-c5-session-deadline` 12/12. `npm run typecheck` 5 errors, all in untouched files (3x TS2307 `playwright`
+  from the incomplete node_modules donor) - **none in any changed file**. QA round 1 `CORRECTION_REQUIRED` 18/17/0/0
+  (one BLOCKING: a duplicate object key in the new test file, TS2783); round 2 `ACCEPT_READY` 11/11/0/0. QA
+  independently reproduced the before/after render, three discriminating mutants, the one-status-read claim, and
+  returned **no REJECT_UX**.
+- **DEPARTURE FROM THE PACKET, RECORDED NOT HIDDEN (QA N1).** The packet asked for "Past years: one short list" in
+  the default view. On real staging that list is five tall drill-year cards (2029-2030 to 2032-2033), so leaving it
+  above the fold overflowed 768 and pushed the fold itself off screen. It is inside the fold now; **A7 c7 owns the
+  list and is making it short, and moving it back above the fold is a one-line change when it is.**
+- **FOLLOW-UPS for Lane C / A7, none blocking.** (1) The slow-check copy cannot distinguish a slow read from a
+  failed one without a new prop through the banner card, which is A7's file; QA's rendered probe found the stacked
+  state does not in fact occur. (2) The card's error line still shows the raw transport message - pre-existing at
+  base, out of c14's scope. (3) The shell header "Active year: 2023-2024" duplicates the page sentence; c14 cut
+  the year being stated three times down to two. (4) `PlainYearSetupCard` now returns a fragment, so on a
+  no-provider mount the detail sits outside `<Card>`; no production mount lacks the provider.
+- **Worktrees:** `E:/ATLAS-worktrees/lane-a3-c14-year-setup` (branch `work/a3-c14-year-setup-calm`, pushed) and
+  `E:/ATLAS-worktrees/lane-a3-c14-integ` (branch `integration/a3-c14-20260929`, merged to `main`). Both are
+  `RETIRE_AFTER_INTEGRATION`. Their `atlas-client/node_modules` are JUNCTIONS to
+  `E:/ATLAS-worktrees/lane-a3-c12-dashboard-map-sections/atlas-client/node_modules` - `cmd /c rmdir` the junction
+  BEFORE any `git worktree remove`, and re-count the donor after.
+- **Next action for A3: none.** A4 owns the deploy; Lane C's UX walk blocks the release of this screen.
 
 ## Lane A2 - current lane (written only by Planner A2)
 

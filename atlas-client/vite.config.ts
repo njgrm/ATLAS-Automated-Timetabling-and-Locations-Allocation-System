@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
+import { devStagingLogin } from './vite.dev-staging-login';
 
 /**
  * Client build-time inputs that a production bundle cannot be shipped without.
@@ -57,7 +58,7 @@ export default defineConfig(({ command, mode }) => {
 	const enrollProProxyTarget = toProxyOrigin(env.VITE_ENROLLPRO_API_BASE, 'http://127.0.0.1:5000');
 
 	return {
-		plugins: [react(), tailwindcss()],
+		plugins: [react(), tailwindcss(), devStagingLogin(env.VITE_ATLAS_API)],
 		resolve: {
 			// The workspace and client both install React. Force every optimized
 			// dependency and source module onto the client's single runtime so HMR

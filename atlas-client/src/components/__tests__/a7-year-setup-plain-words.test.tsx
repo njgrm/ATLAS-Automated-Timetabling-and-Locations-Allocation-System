@@ -766,15 +766,33 @@ test('row 5: driving the main action shows the year, the counts, and the next st
 	// in its own right: A7-C1's confirmation adds NO request, which is checked
 	// separately against the pre-click list.
 	const urls = recorded.map((call) => call.url);
+	// A3-C14 (2026-09-29): this row used to assert the ORDERED list, with
+	// `/runtime/context` before `/runtime/rollover-status`. A3-C14 moved
+	// `YearTruthBanner` — the only source of `/runtime/context` on this page —
+	// from above the status card to inside the page's "Details for IT" fold,
+	// which is rendered below the card, so the two reads now mount in the other
+	// order. The claim this row exists to falsify is "exactly these requests, no
+	// post-apply reload", and that claim is about the MULTISET, not the order:
+	// sorting both sides keeps every original failure mode (a missing request, an
+	// extra request, a duplicate post-apply reload) and drops only the ordering
+	// constraint that the layout change legitimately moved. The superseded
+	// ordered literal is retained below so the change is additive evidence.
 	assert.deepEqual(
-		urls,
+		[...urls].sort(),
 		[
 			'/auth/me',
 			'/runtime/context',
 			'/runtime/rollover-status',
 			'/runtime/rollover-sync/apply',
-		],
+		].sort(),
 		`the page must make exactly these requests: the session, A5-C2A's year/term read, the status read, and the apply - with no post-apply reload. Recorded: ${JSON.stringify(urls)}`,
+	);
+	assert.equal(
+		JSON.stringify(urls),
+		JSON.stringify(['/auth/me', '/runtime/rollover-status', '/runtime/context', '/runtime/rollover-sync/apply']),
+		'SUPERSEDED 2026-09-29 by A3-C14: the pre-A3-C14 ORDER was /auth/me, /runtime/context, /runtime/rollover-status, '
+			+ '/runtime/rollover-sync/apply. The fold moved the year/term read below the status card. The multiset row above '
+			+ 'still fails on a missing, extra or duplicated request, which is what this row was written to catch.',
 	);
 	// A7-C1's own claim, isolated from A5-C2A's: nothing the confirmation did
 	// added a request. Compared by SET so it stays true if the mount order shifts.

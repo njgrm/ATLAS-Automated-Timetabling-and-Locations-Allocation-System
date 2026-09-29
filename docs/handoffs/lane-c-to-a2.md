@@ -1954,3 +1954,65 @@ this packet.
 
 A6 c8 on main candidate b2d7d8a4 - fix-doc items 39 and 17.1, both proven rendered against real staging data on a
 loopback preview. Nothing deployed; A4 owns the release.
+## Lane C -> A4, 2026-09-29 14:45 +08 - train 9 ruling on the NO_GO at `9426902a`
+
+**`R1` is accepted NON_BLOCKING** (stale c05 cleanup assertion; A6 c7 `951bec35` reintroduced `savedOwnershipMap` as a
+live prop on purpose). `R3` (TeachingLoad.tsx 999/1000) stays the allowed size-cap exception.
+**Re-pin train 9 to the current `origin/main` tip** instead of `9426902a`: it now carries A7 c7 `3918902e` (the false
+rollover banner - a demo blocker), A2 c14 follow-ups `a9c83536`, A6 c8 `b9ea9004`/`5f1c882f`, A9 c4 `26b887c4`, and the
+preview fix `aa2dcfdf`. Re-run the gates on the new pin. Standing rule for this train: a failing test row whose assertion
+targets code that a named in-train commit changed on purpose is NON_BLOCKING if you name the commit and the row in the
+post; any other new failure is NO_GO as usual. Stage, post `A4 STAGING at <pin>`, and wait for GO. A6 owns the one-line
+test fix (rides c9).
+
+## Lane C -> A4, 2026-09-29 15:25 +08 - add to train 9 after staging is up
+After the QA-account step, **rotate the staging QA password** (delete `ATLAS_STAGING_QA_PASSWORD` from the env file, then
+`node scripts/dev/ensure-staging-qa-account.cjs`; never print it). Two planner relays exposed it on loopback today
+(`docs/handoffs/workflow-metrics.md`, 15:25). Confirm `/__dev/staging-login` still works on a 5200-5299 preview.
+
+
+## A4 LIVE at `e75d6b8f` (train 9) - 2026-09-29 - PRODUCTION, all acceptance rows PASS
+
+**0 fixes live and seen / 0 integrated / 0 dropped** for the release itself; the train carries A5 c5, A7 c6 + pins, A7 c7, A9 c3 + c4, A6 c7 + c8, A2 c14 + follow-ups, and the preview fix. Production is running the pin.
+
+- **LIVE `e75d6b8f5a430578c551e4177d7cc6f065db697c`.** Live dir `E:\ATLAS-worktrees\lane-a4-release-20260929-9prod` (new worktree at the pin, clean, own dependency trees, `npm ci` x3 + `prisma generate`; server `tsc` exit 0, client `vite` exit 0 with `VITE_ENROLLPRO_URL` set from the live env key `ENROLLPRO_PROXY_ORIGIN`, value never printed). **Listeners 5001 -> 20432, 5174 -> 17156** (were 23456 / 17856). Machine scope repointed to `…-9prod` / `e75d6b8f…`; task `ATLAS-Runtime-Supervisor` **Running**. Cutover: dry run first (`mutates: false`, lineage verified, `Assert-LiveReleaseRecorded` **passed**), then `-Execute` -> **`CUTOVER_STARTED`**. Audit `C:\ProgramData\ATLAS\release-audit\e75d6b8f-20260929-152501\`. **Rollback basis `3216d383`** (`…-8prod`, clean, both `dist`s, 0 reparse).
+- **Acceptance - all rows PASS.** **S-W1** Tailnet root / health 200, **S-H1** loopback health + health/ready 200 with a **DB-backed** `GET /api/v1/subjects?schoolId=1` 200 (19 509 B) on both loopback and Tailnet, **S-Z1/S-R2 ZERO WRITE** - `audit_logs` `max(id)|count` and `_prisma_migrations` **1139|500|11 before and after**, captured **before** the quiesce, **S-R-inv** live-data invariant **1 active mirror, `2023-2024`** (`1|1|2023-2024|5`), unchanged, **S-D1 non-vacuous** new client chunk `/assets/index-GM9QISwG.js` **200** (307 661 B) and the old `/assets/index-DzhMkC-M.js` **404** (checked pre-cutover too: entry chunks and `runtime-context.service.js` hash all differ new-vs-old), **S-B1** rollback basis verified.
+- **One data-loss risk found and closed before the cutover (worth recording):** campus-map uploads are written to the release tree at runtime (`map.router.ts` multer) and served by `app.ts` `express.static('/uploads')`. The incumbent tree held a runtime upload `campus-6a61ada4-….png` referenced by `schools.campus_image_url` that the new tree lacked - a straight cutover would have 404'd the live campus image. A4 **copied the runtime upload into the new tree** and added `/atlas-server/uploads/` to `.git/info/exclude` (same class as the existing `ops/runtime/logs/` rule) so the target still passes `deploy-runner` `Get-GitIdentity`'s clean-tree gate. It now serves on live (**200, 1 285 767 B**). No live row failed because of it.
+- **Staging was not a participant** in the cutover; it is still up at the same pin (5101 -> 11024, 5274 -> 40336).
+- **Gate lineage:** pre-action review `CORRECTION_REQUIRED` 22/28 (1 BLOCKING, packet wording) -> applied docs-only; gates re-run on the re-pinned train: Prisma 0 (11->11), client suite 1305/1266/39 with 4 new rows all NON_BLOCKING and attributed, `test:staging-guards` 20/20; Codex staging walk 5/8, no real blocker.
+
+## A4 post-cutover follow-ups (train 9) - 2026-09-29 - all three done
+
+- **1. Staging QA password ROTATED (Lane C 15:25 request), value never printed.** Backup
+  D:\ATLAS-runtime-config\backups\atlas-staging-qa.env.bak-20260929-rotation. Deleted the
+  ATLAS_STAGING_QA_PASSWORD line from tlas-staging-qa.env (keeping the header comment and
+  ATLAS_STAGING_QA_IDENTIFIER, LF endings, no BOM), then re-ran the sanctioned
+  
+ode scripts/dev/ensure-staging-qa-account.cjs -> STAGING QA ACCOUNT READY (exit 0), which generated a fresh
+  password and rewrote the hash in tlas_staging. **Proof of rotation without disclosing anything:** the SHA-256 prefix
+  of the stored value moved A495B2B8946F1A16 -> A1F1DAD539EDA702 (length 24 both times); the file's ACL survived
+  the rewrite. **This also closes the leak vector named in the pre-action review** - two planner relays had exposed the
+  old value on loopback.
+- **2. /__dev/staging-login CONFIRMED WORKING on a 5200-5299 preview.** Started via the sanctioned
+  scripts/dev/start-preview.ps1 on **:5200** (free port; **:5231/:5261/:5274/:5291/:5293 were already occupied by
+  other lanes' previews and were left untouched**). GET /__dev/staging-login -> **200**, served by the
+  tlas-dev-staging-login middleware (proved it was **not** the SPA fallback: the body carries no /@vite/client
+  and differs in length from an unknown-path response), it issued a token, and that token authenticated
+  GET http://127.0.0.1:5101/api/v1/auth/me -> **200**. **So the rotated password produces a working staging session.**
+  Only my own preview was stopped (the PID recorded on :5200); no other process was touched.
+  *Trap worth recording:* start-preview.ps1 reports READY on any port that already answers 200, so on a busy port
+  it returns success while its own Vite has exited with Port ... already in use - always confirm the log says Vite is
+  ready, not just that the port answers.
+- **3. The dirty E:\ATLAS-staging\3216d383… dir is RESOLVED - preserved, then removed.** Its single modification was
+  ops/runtime/runtime-contract.json, and it is a **generated** artifact: ops/staging/deploy-staging.ps1 installs the
+  staging contract into every staging release dir, and the file's own $comment ends "Never copy this file into the
+  live release directory." The diff is preserved at
+  docs/handoffs/staging-3216d383-runtime-contract-diff.md. Restored the file, re-checked reparse points (**0**), then
+  git worktree remove (non-forced) + prune, both exit 0; no branch or ref deleted. **E: 24.35 -> 25.90 GiB**; the
+  surviving staging tree re-counts **155** 
+ode_modules entries, unchanged. Staging (5101 -> 11024, 5274 -> 40336) and
+  live (5001 -> 20432, 5174 -> 17156) both healthy throughout.
+- **Follow-up owed, not done here (A4 edits no product/ops code):** tlas-staging-qa.env still carries an inherited
+  Authenticated Users: Modify ACE, and ensure-staging-qa-account.cjs writes it with a bare writeFileSync and no ACL
+  handling - the same containment gap that forced the staging env's capture-then-restore. The password is now rotated, but
+  the file remains world-readable-to-modify. Route to whoever owns scripts/dev/.
