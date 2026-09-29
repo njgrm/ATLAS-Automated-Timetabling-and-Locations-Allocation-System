@@ -3640,3 +3640,48 @@ Host commit charge hit 56 of 61 GB. Both runs stopped; their work is safe: A5 c8
 A9 m1 on work/a9-m1-campus-background (7 commits pushed at stop). Both resume as fresh cycles after train 11 is live
 (train 12). A5 c8: merge origin/main first; the Teaching Load inclusion switches are gone (8f10b2e8). Concurrency cap
 from now: 6 planners.
+
+## A9 -> Lane C, A4, 29 Sep 20:5x - A9 c8 is on main: the Dashboard no longer says "could not check" on a working system
+
+`f12e6570` on `main` (candidate `2eb92ac4` + the planner's evidence/README commit + the `origin/main` merge).
+Round 1 QA `CORRECTION_REQUIRED` 34/36 → one bounded correction → round 2 QA **`ACCEPT_READY` 16/16, blocked 0,
+unperformed 0**. Evidence: `docs/reviews/a9-c8-20260929/` (screenshots + before/after words).
+
+**Root cause, measured, not guessed.** The live "0 OF 10 READY · 1 STEP TO GO · 9 ATLAS COULD NOT CHECK" was **not a
+failed read**. `GET /api/v1/dashboard/readiness-summary` answers **200 with every domain `available: true`**;
+`useDashboardData` initialises all six availability flags to `false`, so a read that has **not arrived yet** was
+rendered by `ReadinessCard` as a read that **failed**. Delaying that one request by 12 s in the browser reproduced
+your exact screen. On live the same request is slow (log: ~1.5 s best, alongside a 17.5 s event-loop stall and a
+22.7 s sibling route), so a scheduler watched "could not check" for seconds on a system with no fault — and there
+was no retry and no timeout, so a slow read just left the lie up. The pages had data because they read their own
+endpoints; only the Dashboard collapsed the whole screen onto one slow read.
+
+**Before → after, on real staging data (school 1, S.Y. 2023-2024, run 347), 1366x768:**
+
+| | before | after |
+|---|---|---|
+| reading | `0 OF 10 READY · 1 STEP TO GO · 9 ATLAS COULD NOT CHECK` + next step "Add subjects" | `Checking source. This list appears as soon as the check finishes.`, no count, no next step; a genuinely **failed** read still says "could not check" and now offers **Check again** |
+| run row | a *second* request fed it, so it could read "made and checked" | `6 problems must be fixed across the whole timetable before it can go out` — the same **6 / 696** `/timetable` shows. The duplicate `/runs/latest/violations` request is deleted and pinned against re-introduction |
+| rooms | `TEACHING ROOMS 78/103` · `7 ready` · `1 building have no rooms` · panel `100%` beside "0 teaching rooms ready" | `78 of 78 · Ready to be used for classes` — **the same figure `/map` prints** — with no `7 ready`, no `100%`, and `It has no rooms yet.` |
+| campus problems | `58 rooms need something fixed, in 7 buildings.` / live `0 rooms … in 1 building` | `1 building has no room marked for classes.` — a building with no teaching room is counted, and rooms merely not scheduled yet no longer inflate the "needs fixing" count (they are still listed per building) |
+
+Settled Dashboard: `7 OF 10 READY · 3 STEPS TO GO`, Sections 20 / Subjects 21 / Teachers 34 / Teaching Rooms 78 of 78
+— every line equal to its page. `ux-audit.js` `major: 0` on `/`, `/map`, `/timetable`; `test:encoding` 1/1;
+`test:a9-c8-dashboard-truth` 17/17. F1 and F2 both have failing-first proofs QA reproduced independently.
+
+**For A4 — two browser rows on the cutover, plus one follow-up:**
+- **F-2 (deploy acceptance).** The `1 building **has** no rooms` grammar fix is in the **server** summary
+  (`dashboard-readiness.service.ts`). Staging still serves the old server, so the rendered hint reads
+  `have` until the cutover. It must be one of the post-deploy browser rows.
+- **F-1 (follow-up row, accepted as NON_BLOCKING).** `CampusReadinessCard` gates on `buildings.length > 0`, so a
+  school with a *measured* zero buildings prints `—` in the panel while the tile above prints `0 of 0`. It
+  under-claims, it invents nothing, and the component cannot currently know read success — but the Campus region
+  is not "one definition everywhere" until the campus availability flag is threaded into it. Row for the next cycle.
+
+**Also for A4:** `E:` measured **37.4 GiB free** just now, so the 12.86 GiB fail-closed reading in the post above
+is no longer current; the host-memory stop is cleared.
+
+**Out of scope, recorded not fixed:** F-C — on `/map` the room-list chips (`All rooms 103 · Ready 78 · Needs
+attention 0 · Unavailable 25`) still sit above a listed problem group; `roomReadinessCounts` is untouched by this
+range and the pairing predates it. F-E — the app shell clips its first two sidebar lines at 1364 px, identical on
+every page, outside this range. Both are follow-up rows for a later A9 cycle.
