@@ -487,6 +487,23 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **— CUTOVER TARGET (RETRY), recorded 2026-09-29 22:3x +08 by Lane A4 ahead of the operator-approved **retry** of the
+  second hotfix. Required by `deploy-runner.ps1` `Assert-LiveReleaseRecorded`, which fails closed without it. Target
+  release `8d98628d` (full `8d98628d3829977db7dabffbbd720f8f4fc86a2b`), rollback basis `9462d82d` (the incumbent,
+  currently live).** Branch `hotfix/rollover-term-20260929`. **Parent of `8d98628d` IS `f4d34c75`** - the exact tree
+  that failed to boot - so this retry carries **the same code** and changes only the budget.
+  **The cause of the rollback, as measured: `ops/runtime/runtime-contract.json` `readinessTimeoutMs: 45000`, and the
+  new tree needed ~80 s to boot under memory pressure.** `8d98628d` raises it to **`180000`** and touches **one
+  file, `ops/runtime/runtime-contract.json`, one line** - no product source, so the already-built `dist` and
+  `node_modules` from the failed attempt are reused verbatim (**no rebuild**): server `dist/server.js` present,
+  client entry chunk **`index-BfzPMwrg.js`**, server/client `node_modules` 209/155, **0 reparse points**,
+  10 runtime campus uploads.
+  Target tree `E:\ATLAS-worktrees\lane-a4-hotfix-tl-prod`, branch `release/2026-09-29-10-hotfix-tl`,
+  **fast-forwarded from `f4d34c75` to `8d98628d`**, HEAD == pin, `status --short` empty. The same 45 s -> 180 s
+  change is already on `main` as `029e5425`. Contract / supervisor / deploy-runner tests pass per the operator.
+  The hotfix chain still totals **8 product paths vs `9462d82d`** (7 client Teaching Load + 1 server transaction
+  timeouts) plus this 1 contract line, **0 `prisma/`**.
+
 - **— FAILED ATTEMPT (rolled back), 2026-09-29 22:28 +08 by Lane A4: the operator-approved SECOND HOTFIX
   `f4d34c75` reached `CUTOVER_STARTED` but its tree never finished booting inside the supervisor's fixed
   `readinessTimeoutMs: 45000`, twice (restart attempts 1 and 2), and both live listeners went absent. Rolled back
