@@ -40,6 +40,14 @@ import {
 	type GenerationPreflightTeachingLoadCoverage,
 } from './generation-preflight.service.js';
 import type { CanonicalTemplateCoverage } from './class-program-slot.service.js';
+import {
+	ADVISORY_CODES,
+	buildGenerationBlockerGroups,
+	classifyGenerationBlockers,
+	deriveGenerateDecision,
+	pairKeyOf,
+	type GenerationBlockerGroup,
+} from './generation-blocker-groups.service.js';
 import { resolveSectionGradeLevel } from './grade-level-resolver.js';
 import type { DerivedDemandBlocker } from './derived-demand.service.js';
 import type { DraftConsumeRejection } from './pre-generation-draft.service.js';
@@ -63,6 +71,17 @@ export interface GenerationReadinessDatabaseSignature {
 	teachingLoadCycleVersions: number[];
 	teachingLoadOwnershipCount: number;
 }
+
+/**
+ * A8 C3 — the operator-facing projection of a ROOT CAUSE.
+ *
+ * The live 2023-2024 diagnostic returned 651 rows and the panel rendered 651
+ * identical lines. 620 of those rows were one fact at two grains: 50 classes
+ * with no Teaching Load owner, reported once per pair and once per session. A
+ * group is one root cause, counted in CLASSES, with the raw row count kept
+ * beside it so nothing is hidden.
+ */
+export type { GenerationBlockerGroup };
 
 export interface GenerationReadinessResult {
 	scope: { schoolId: number; schoolYearId: number };
@@ -99,8 +118,47 @@ export interface GenerationReadinessResult {
 		 * truthful (a cache hit reports its own, much smaller, duration). */
 		cached: boolean;
 	};
-	violations: { hardCount: number; softCount: number; hardCodes: Record<string, number>; softCodes: Record<string, number> };
+	violations: {
+		hardCount: number;
+		softCount: number;
+		hardCodes: Record<string, number>;
+		softCodes: Record<string, number>;
+		/**
+		 * A8 C3 — HARD violations the classification resolved as a GAP (provably a
+		 * consequence of an uncovered pair) or as an ADVISORY (a workload or
+		 * qualification code that stops no reviewable run). `hardCount` is NEVER
+		 * reduced; these counts only separate the gate's decision, and
+		 * `hardCount === hardGapCount + advisoryHardCount + blockingHardCount`
+		 * always holds. Publication is unaffected and still refuses a run while
+		 * any of these remain.
+		 */
+		hardGapCount: number;
+		advisoryHardCount: number;
+		/** `hardCount - hardGapCount - advisoryHardCount`: what really blocks. */
+		blockingHardCount: number;
+	};
 	blockers: GenerationReadinessBlocker[];
+	/**
+	 * A8 C3 — the BLOCKING count. This is what `generateAllowed` reads; it is
+	 * NOT `blockers.length`. A teacher gap is reported truthfully and does not
+	 * stop ATLAS from making a schedule.
+	 */
+	blockerCount: number;
+	/** A8 C3 — GAP rows: a setup fact the run carries and names. */
+	gaps: GenerationReadinessBlocker[];
+	/** `gaps.length`. Kept separate from `blockerCount` so neither is ambiguous. */
+	gapCount: number;
+	/** Distinct classes among the gaps — the number an operator can act on. */
+	gapClassCount: number;
+	/**
+	 * A8 C3 — ADVISORY rows: workload/qualification findings that do not stop a
+	 * reviewable run. They are kept in the payload, in their own group, and named
+	 * in the run result. Nothing is dropped to relax the gate.
+	 */
+	advisories: GenerationReadinessBlocker[];
+	advisoryCount: number;
+	/** A8 C3 — one entry per root cause, counted in classes, deterministic order. */
+	groups: GenerationBlockerGroup[];
 	/** Explicit unresolved stakeholder decisions surfaced (never silently encoded). */
 	decisionNotes: string[];
 	/** GEN-C02R1 F1: exact shared preflight parity summary. */
@@ -261,7 +319,10 @@ async function buildGenerationReadinessWithContext(
 	const blockers: GenerationReadinessBlocker[] = [...preflight.blockers];
 
 	let scheduler: GenerationReadinessResult['scheduler'] = { ran: false, assignedCount: 0, unassignedCount: 0, policyBlockedCount: 0, classesProcessed: 0, selectedProfileId: null, runtimeMs: 0, cached: false };
-	let violations: GenerationReadinessResult['violations'] = { hardCount: 0, softCount: 0, hardCodes: {}, softCodes: {} };
+	let violations: GenerationReadinessResult['violations'] = { hardCount: 0, softCount: 0, hardCodes: {}, softCodes: {}, hardGapCount: 0, advisoryHardCount: 0, blockingHardCount: 0 };
+	// A8 C3: hoisted so the gap classifier can attribute a HARD violation to an
+	// uncovered pair from the SAME run, without re-running the validator.
+	let hardViolations: Array<{ code: string; entities?: Record<string, unknown> }> = [];
 
 	if (assembly.schedulerCanRun && assembly.derived) {
 		const constructorInput = buildPreflightConstructorInput(assembly, {});
@@ -344,7 +405,8 @@ async function buildGenerationReadinessWithContext(
 			const validation = validateHardConstraints(validatorCtx);
 			const hard = validation.violations.filter((v) => v.severity === 'HARD');
 			const soft = validation.violations.filter((v) => v.severity === 'SOFT');
-			violations = { hardCount: hard.length, softCount: soft.length, hardCodes: countByCode(hard.map((v) => v.code)), softCodes: countByCode(soft.map((v) => v.code)) };
+			hardViolations = hard;
+			violations = { hardCount: hard.length, softCount: soft.length, hardCodes: countByCode(hard.map((v) => v.code)), softCodes: countByCode(soft.map((v) => v.code)), hardGapCount: 0, advisoryHardCount: 0, blockingHardCount: hard.length };
 
 			// GEN-C02R Correction 8: shape validation independent of the generic
 			// validator. An out-of-shape entry is a HARD blocker.
@@ -404,8 +466,82 @@ async function buildGenerationReadinessWithContext(
 	const zeroWrite = sha256(databaseBefore) === sha256(databaseAfter);
 
 	const sortedBlockers = sortPreflightBlockers(blockers);
-	const generateAllowed = sortedBlockers.length === 0 && scheduler.ran && violations.hardCount === 0 && zeroWrite;
-	const status: GenerationReadinessResult['status'] = generateAllowed ? 'READY' : 'BLOCKED';
+
+	// A8 C3 — classify ONCE, from the rows already assembled above. This is a
+	// pure fold over the same array the diagnostic already built: no second
+	// preflight, no second scheduler dry run, and no additional database read, so
+	// the diagnostic's zero-write proof and its latency are unchanged.
+	const classification = classifyGenerationBlockers(sortedBlockers);
+
+	// A8 C3 F1 CORRECTION — the three hard-violation classes are now computed
+	// EXPLICITLY and each is a genuine subset of `hardCount`.
+	//
+	// The previous form computed the attribution test and then discarded its
+	// result, so `hardGapCount` actually meant "every hard violation that is not
+	// advisory-class" and `blockingHardCount` was identically zero for every
+	// input. `generateAllowed` only held because the mirror loop above
+	// independently pushes a blocker row for each HARD validator violation. The
+	// hard term of the gate was therefore vacuous and `hardGapCount` was a false
+	// operator-facing claim on a public HIGH-gate field.
+	//
+	// The three classes, in the order they are decided:
+	//
+	//  1. ATTRIBUTABLE GAP — the violation's code is advisory-class AND it names
+	//     a (section, subject) pair this same diagnostic already proved has no
+	//     active Teaching Load owner. This is the only thing `hardGapCount`
+	//     counts, which is what its published meaning says.
+	//  2. ADVISORY — the violation's code is advisory-class but the attribution
+	//     cannot be read: a real teacher's weekly cap breach names only a
+	//     `facultyId`, so there is no pair to link. Recorded, grouped, named in
+	//     the run result; does not stop a reviewable schedule. Publication is
+	//     unchanged and still refuses it.
+	//  3. BLOCKING — every other hard violation: any non-advisory code, plus the
+	//     canonical shape violations folded into `hardCount` above, which carry no
+	//     `(section, subject)` pair to attribute in the first place.
+	//
+	// Because 1 and 2 are now real subsets of `hardCount`, the arithmetic in
+	// `deriveGenerateDecision` yields a real `blockingHardCount` that is non-zero
+	// whenever a genuine hard violation exists, and the gate's hard term is
+	// load-bearing rather than decorative.
+	const isAdvisoryClass = (violation: { code: string }): boolean => ADVISORY_CODES.has(violation.code);
+	const attributableGapHard = hardViolations.filter((violation) => {
+		if (!isAdvisoryClass(violation)) return false;
+		const key = pairKeyOf(violation.entities?.sectionId, violation.entities?.subjectId);
+		return key !== null && classification.uncoveredPairs.has(key);
+	});
+	const advisoryClassHard = hardViolations.filter((violation) => isAdvisoryClass(violation) && !attributableGapHard.includes(violation));
+	const hardGapCount = attributableGapHard.length;
+	const advisoryHardCount = advisoryClassHard.length;
+
+	const decision = deriveGenerateDecision({
+		blockingBlockerCount: classification.blocking.length,
+		schedulerRan: scheduler.ran,
+		hardCount: violations.hardCount,
+		hardGapCount,
+		advisoryHardCount,
+		zeroWrite,
+	});
+	const generateAllowed = decision.generateAllowed;
+	const status = decision.status;
+	violations = { ...violations, hardGapCount, advisoryHardCount, blockingHardCount: decision.blockingHardCount };
+
+	// The group labels come from the section mirror the preflight has ALREADY
+	// loaded. A presentation-only extra read is never made for this.
+	const sectionNameById = new Map<number, string>();
+	for (const grade of assembly.sectionsByGrade) {
+		for (const section of grade.sections) {
+			if (typeof section.name === 'string' && section.name.length > 0) sectionNameById.set(section.id, section.name);
+		}
+	}
+	const groups = buildGenerationBlockerGroups({
+		blockers: sortedBlockers,
+		labelFor: (sectionId, subjectId, subjectCode) => {
+			const sectionName = sectionNameById.get(sectionId);
+			const subjectPart = subjectCode ?? (subjectId !== null ? `Subject ${subjectId}` : null);
+			if (sectionName && subjectPart) return `${subjectPart} ${sectionName}`;
+			return sectionName ?? null;
+		},
+	});
 
 	const derived = assembly.derived;
 	const termStructure = derived
@@ -439,6 +575,16 @@ async function buildGenerationReadinessWithContext(
 		scheduler,
 		violations,
 		blockers: sortedBlockers,
+		// A8 C3 — the gap/blocker split, the honest counts, and the grouped view.
+		// `blockers` stays the COMPLETE row list so the raw disclosure and every
+		// existing consumer keep working; nothing is filtered away from it.
+		blockerCount: classification.blocking.length,
+		gaps: classification.gaps,
+		gapCount: classification.gapCount,
+		gapClassCount: classification.gapClassCount,
+		advisories: classification.advisories,
+		advisoryCount: classification.advisoryCount,
+		groups,
 		decisionNotes: [...STAKEHOLDER_DECISION_NOTES],
 		preflight: summarizePreflightParity(assembly),
 		databaseSignature: { before: databaseBefore, after: databaseAfter, zeroWrite },

@@ -48,6 +48,25 @@ export type TimetableTeachingLoadCoverage = {
 	outsideScopePairs: number;
 };
 
+/**
+ * A8 C3 — one ROOT CAUSE, counted in classes.
+ *
+ * The server folds 570 session rows and 50 pair rows of the same 50 unstaffed
+ * classes into ONE of these. `count` is always classes (or distinct items for a
+ * year-wide cause); `sessionCount` is the raw row count it folds and is never
+ * used as a headline.
+ */
+export type TimetableGenerationBlockerGroup = {
+	cause: string;
+	code: string;
+	codes: string[];
+	count: number;
+	sessionCount: number;
+	unit: 'classes' | 'items';
+	examples: string[];
+	action: { label: string; target: string };
+};
+
 export type TimetableGenerationReadinessDiagnostic = {
 	scope: { schoolId: number | null; schoolYearId: number | null };
 	status: 'READY' | 'BLOCKED' | string;
@@ -59,7 +78,21 @@ export type TimetableGenerationReadinessDiagnostic = {
 	termStructure: { format: 'TRIMESTER' | 'QUARTERS' | string; terms: Array<{ identity: string; order: number }> } | null;
 	totals: { lines: number; pairs: number; sessionsByTerm: Record<string, number> };
 	teachingLoadCoverage: TimetableTeachingLoadCoverage | null;
+	/** The COMPLETE row list. It is the disclosed detail, and it is never the gate. */
 	blockers: TimetableGenerationBlocker[];
+	/**
+	 * A8 C3 — the BLOCKING count. This, not `blockers.length`, is what the server
+	 * gate reads. Absent on a payload from before the split, in which case the
+	 * adapter falls back to `blockers.length` so an old payload fails closed.
+	 */
+	blockerCount: number;
+	/** GAP rows: a setup fact the run carries and names. */
+	gaps: TimetableGenerationBlocker[];
+	gapCount: number;
+	/** Distinct classes among the gaps. */
+	gapClassCount: number;
+	/** One entry per root cause, counted in classes, deterministic order. */
+	groups: TimetableGenerationBlockerGroup[];
 	/** Server-computed zero-write truth. The client also accepts the nested
 	 * `databaseSignature.zeroWrite` form. */
 	zeroWrite: boolean;
@@ -87,7 +120,16 @@ export type TimetableCurriculumReadinessState =
 export type TimetableReadinessDiagnosticSummary = {
 	generateAllowed: boolean;
 	zeroWrite: boolean;
+	/**
+	 * A8 C3 — the BLOCKING count. Carried for reporting ONLY. The capability gate
+	 * reads `generateAllowed`/`zeroWrite`: a raw count must never independently
+	 * block, because 620 of the operator's 651 live rows were one fact at two
+	 * grains.
+	 */
 	blockerCount: number;
+	/** A8 C3 — gap rows and the classes among them, reported not gated. */
+	gapCount: number;
+	gapClassCount: number;
 };
 
 /* ------------------------------------------------------------------ *
@@ -189,7 +231,7 @@ export function presentGenerationBlockers(input: {
 }
 
 /**
- * C2-a — the operator sentence for a blocked generation.
+ * A8 C3 — the operator sentence for a blocked generation.
  *
  * It states the consequence, the real count, and where the real list is. It
  * never says "review the item shown": the earlier copy promised an item the
@@ -205,6 +247,88 @@ export function generationBlockedOperatorSentence(input: {
 		return `${input.setupLabel} before ATLAS can generate a timetable. ${input.blockerCount} setup ${item} must be fixed first, and the readiness chip below lists each one with the place to fix it.`;
 	}
 	return `${input.setupLabel} before ATLAS can generate a timetable. The schedule check did not finish, so nothing can be listed. Retry the check to see where it stands.`;
+}
+
+/* ------------------------------------------------------------------ *
+ * A8 C3 — one line per ROOT CAUSE
+ * ------------------------------------------------------------------ */
+
+export type TimetableGenerationBlockerGroupPresentation = {
+	/** Stable row key. Carries no engine text into the DOM. */
+	key: string;
+	/** Plain headline with the CLASS count. Never a code or a session count. */
+	headline: string;
+	/** The examples sentence, or null when the server named none. */
+	detail: string | null;
+	/**
+	 * A8 C3 ITEM 8: the real repair for this root cause, and it is always a
+	 * `navigate` to the surface that fixes that cause. The type is narrowed
+	 * deliberately: an in-place recheck is a PANEL-level control, and modelling it
+	 * per group would have produced a dead branch in the rendered list.
+	 */
+	action: { kind: 'navigate'; label: string; href: string };
+};
+
+const GENERIC_CAUSE_PHRASE = 'need attention';
+
+/**
+ * The noun and the verb for one root cause, so the line reads as a sentence an
+ * older scheduler can act on: "50 classes need a teacher", "4 teachers are over
+ * their weekly limit". The COUNT is the server's; only the wording is here.
+ */
+const GROUP_CAUSE_COPY: Record<string, { noun: string; verb: string }> = {
+	TEACHER_COVERAGE_GAP: { noun: 'classes', verb: 'need a teacher' },
+	FACULTY_OVERLOAD: { noun: 'teachers', verb: 'are over their weekly limit' },
+	WORKLOAD_POLICY_BLOCK: { noun: 'classes', verb: 'have a teacher at their limit' },
+	FACULTY_SUBJECT_NOT_QUALIFIED: { noun: 'classes', verb: 'are with a teacher outside their subjects' },
+	ROOM_RESOURCE_UNAVAILABLE: { noun: 'classes', verb: 'have no suitable room' },
+	TL_OWNERSHIP_CONFLICT: { noun: 'classes', verb: 'have more than one teacher' },
+	TEACHING_LOAD_REVIEW_REQUIRED: { noun: 'classes', verb: 'have no teaching load yet' },
+};
+
+/**
+ * A8 C3 — present one line per root cause, counted in CLASSES.
+ *
+ * The 651-row live list becomes a handful of lines, and the headline count is
+ * the class count an operator can act on. A server payload with no groups (an
+ * older server) falls back to ONE line derived from the raw rows, so the panel
+ * can never render an empty list beside a non-empty blocker array.
+ */
+export function presentGenerationBlockerGroups(input: {
+	diagnostic: TimetableGenerationReadinessDiagnostic;
+	labelForSection?: (id: number) => string;
+}): TimetableGenerationBlockerGroupPresentation[] {
+	const { diagnostic } = input;
+	if (diagnostic.groups.length > 0) {
+		return diagnostic.groups.map((group, index) => ({
+			key: `generation-blocker-group-${group.cause}-${index}`,
+			headline: groupHeadline(group),
+			detail: group.examples.length > 0 ? `For example: ${group.examples.join(', ')}.` : null,
+			action: { kind: 'navigate', label: group.action.label, href: group.action.target },
+		}));
+	}
+	return [{
+		key: 'generation-blocker-group-legacy',
+		headline: `${diagnostic.blockerCount} ${diagnostic.blockerCount === 1 ? 'item needs' : 'items need'} ${GENERIC_CAUSE_PHRASE}`,
+		detail: null,
+		action: { kind: 'navigate', label: 'Open Year Setup', href: '/admin/year-setup' },
+	}];
+}
+
+function groupHeadline(group: TimetableGenerationBlockerGroup): string {
+	const copy = GROUP_CAUSE_COPY[group.cause];
+	if (!copy) return `${group.count} ${group.count === 1 ? 'item' : 'items'} ${GENERIC_CAUSE_PHRASE}`;
+	// The server has already counted THIS group in classes, so the line reads
+	// `group.count`. It must not borrow the panel-wide `gapClassCount`: that is a
+	// different population (every class in any gap), and a group that is not the
+	// whole coverage cause would otherwise print someone else's number.
+	return `${group.count} ${group.count === 1 ? singular(copy.noun) : copy.noun} ${copy.verb}`;
+}
+
+function singular(noun: string): string {
+	if (noun.endsWith('es')) return noun.slice(0, -2);
+	if (noun.endsWith('s')) return noun.slice(0, -1);
+	return noun;
 }
 
 export type ExpectedGenerationScope = {
@@ -283,6 +407,39 @@ function parseTotals(raw: unknown): TimetableGenerationReadinessDiagnostic['tota
 	};
 }
 
+function parseBlockerGroups(raw: unknown): TimetableGenerationBlockerGroup[] {
+	if (!Array.isArray(raw)) return [];
+	return raw.reduce<TimetableGenerationBlockerGroup[]>((acc, entry) => {
+		if (!isRecord(entry)) return acc;
+		const cause = asString(entry.cause);
+		const action = isRecord(entry.action) ? entry.action : null;
+		const target = action ? asString(action.target) : null;
+		if (!cause || !target) return acc;
+		const count = asFiniteNumber(entry.count);
+		if (count === null) return acc;
+		acc.push({
+			cause,
+			code: asString(entry.code) ?? cause,
+			codes: Array.isArray(entry.codes) ? entry.codes.filter((value): value is string => typeof value === 'string') : [],
+			count,
+			sessionCount: asFiniteNumber(entry.sessionCount) ?? count,
+			unit: entry.unit === 'classes' ? 'classes' : 'items',
+			examples: Array.isArray(entry.examples) ? entry.examples.filter((value): value is string => typeof value === 'string') : [],
+			action: { label: asString(action?.label) ?? 'Open Year Setup', target },
+		});
+		return acc;
+	}, []);
+}
+
+function parseBlockers(raw: unknown): TimetableGenerationBlocker[] {
+	if (!Array.isArray(raw)) return [];
+	return raw.reduce<TimetableGenerationBlocker[]>((acc, entry) => {
+		const parsed = parseBlocker(entry);
+		if (parsed) acc.push(parsed);
+		return acc;
+	}, []);
+}
+
 /**
  * Parse an unknown diagnostic payload into the client model. Returns null when
  * the payload is not a usable diagnostic (caller maps to failed/unavailable).
@@ -297,13 +454,15 @@ export function parseGenerationReadinessDiagnostic(raw: unknown): TimetableGener
 	const generateAllowed = raw.generateAllowed === true;
 	const databaseSignature = isRecord(raw.databaseSignature) ? raw.databaseSignature : null;
 	const zeroWrite = raw.zeroWrite === true || databaseSignature?.zeroWrite === true;
-	const blockers = Array.isArray(raw.blockers)
-		? raw.blockers.reduce<TimetableGenerationBlocker[]>((acc, entry) => {
-			const parsed = parseBlocker(entry);
-			if (parsed) acc.push(parsed);
-			return acc;
-		}, [])
-		: [];
+	const blockers = parseBlockers(raw.blockers);
+	const gaps = parseBlockers(raw.gaps);
+	const serverBlockerCount = asFiniteNumber(raw.blockerCount);
+	// A payload from before the A8 C3 split carries no `blockerCount`. Falling back
+	// to the row count there FAILS CLOSED: an old payload blocks exactly as it did
+	// before, and only a payload that states its blocking count can allow a run
+	// with gaps.
+	const blockerCount = serverBlockerCount ?? blockers.length;
+	const gapCount = asFiniteNumber(raw.gapCount) ?? gaps.length;
 	return {
 		scope: {
 			schoolId: scopeRaw ? asFiniteNumber(scopeRaw.schoolId) : null,
@@ -317,6 +476,11 @@ export function parseGenerationReadinessDiagnostic(raw: unknown): TimetableGener
 		totals: parseTotals(raw.totals),
 		teachingLoadCoverage: parseTeachingLoadCoverage(raw.teachingLoadCoverage),
 		blockers,
+		blockerCount,
+		gaps,
+		gapCount,
+		gapClassCount: asFiniteNumber(raw.gapClassCount) ?? gaps.length,
+		groups: parseBlockerGroups(raw.groups),
 		zeroWrite,
 	};
 }
@@ -383,10 +547,13 @@ function blockedMessage(
  *
  * A diagnostic is `ready` only when it is present, belongs to the exact
  * expected actor school/year, `generateAllowed === true`, the zero-write proof
- * is true, the scheduler dry run executed, and there are no blocking items.
- * Everything else is `blocked` with exactly one repair, or `failed`/
- * `unavailable` when the payload cannot be trusted. A previous ready result is
- * never reused for a failed/unavailable or out-of-scope read.
+ * is true, the scheduler dry run executed, and it reports no BLOCKING items.
+ * A8 C3: "no blocking items" is the server's `blockerCount`, not
+ * `blockers.length` — a teacher gap is a setup fact the run carries and names,
+ * and it must not read as "setup needs attention". Everything else is `blocked`
+ * with exactly one repair, or `failed`/`unavailable` when the payload cannot be
+ * trusted. A previous ready result is never reused for a failed/unavailable or
+ * out-of-scope read.
  */
 export function deriveGenerationReadinessState(
 	rawDiagnostic: unknown,
@@ -409,10 +576,22 @@ export function deriveGenerationReadinessState(
 		};
 	}
 
-	const clean = diagnostic.blockers.length === 0;
+	// A8 C3 — `blockerCount` is the BLOCKING count the server computed. When the
+	// payload carries none, the parser already fell back to the raw row count, so
+	// this fails closed for an older payload.
+	const clean = diagnostic.blockerCount === 0;
 	if (diagnostic.generateAllowed === true && diagnostic.zeroWrite === true && diagnostic.schedulerExecuted && clean) {
 		const line = diagnostic.totals.lines;
 		const pair = diagnostic.totals.pairs;
+		if (diagnostic.gapClassCount > 0) {
+			const classes = diagnostic.gapClassCount;
+			const noun = classes === 1 ? 'class' : 'classes';
+			return {
+				state: 'ready',
+				message: `Generation readiness verified: ${pair} subject-section pair${pair === 1 ? '' : 's'}, ${line} session${line === 1 ? '' : 's'} checked with zero writes. ${classes} ${noun} still need a teacher and will be listed in the schedule.`,
+				diagnostic,
+			};
+		}
 		return {
 			state: 'ready',
 			message: `Generation readiness verified: ${pair} subject-section pair${pair === 1 ? '' : 's'}, ${line} session${line === 1 ? '' : 's'} checked with zero writes.`,
@@ -428,10 +607,12 @@ export function deriveGenerationReadinessState(
 export function summarizeGenerationReadiness(
 	readiness: TimetableCurriculumReadinessState | null | undefined,
 ): TimetableReadinessDiagnosticSummary | null {
-	if (!readiness || readiness.state !== 'ready') return null;
+	if (!readiness || (readiness.state !== 'ready' && readiness.state !== 'blocked')) return null;
 	return {
 		generateAllowed: readiness.diagnostic.generateAllowed,
 		zeroWrite: readiness.diagnostic.zeroWrite,
-		blockerCount: readiness.diagnostic.blockers.length,
+		blockerCount: readiness.diagnostic.blockerCount,
+		gapCount: readiness.diagnostic.gapCount,
+		gapClassCount: readiness.diagnostic.gapClassCount,
 	};
 }

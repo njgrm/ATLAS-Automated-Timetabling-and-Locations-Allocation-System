@@ -203,10 +203,14 @@ export function TimetableSetupPane({
 	// publication panel about a schedule that does not exist. When the canonical
 	// diagnostic reports real generation blockers, this entry opens the real
 	// blocker list; otherwise it keeps its publication-readiness meaning.
+	//
+	// A8 C3: both tests read the BLOCKING count and the class-level gap count, not
+	// the raw row count. On live 2023-2024 the row count was 651 and the operator
+	// read "651 setup items to fix" for 50 classes and three further causes.
 	const generationBlocked = inputs.curriculumReadiness?.state === 'blocked'
-		&& inputs.curriculumReadiness.diagnostic.blockers.length > 0;
+		&& inputs.curriculumReadiness.diagnostic.blockerCount > 0;
 	const generationBlockerCount = inputs.curriculumReadiness?.state === 'blocked'
-		? inputs.curriculumReadiness.diagnostic.blockers.length
+		? inputs.curriculumReadiness.diagnostic.blockerCount
 		: 0;
 	const openReadinessEntry = () => {
 		if (generationBlocked) {
