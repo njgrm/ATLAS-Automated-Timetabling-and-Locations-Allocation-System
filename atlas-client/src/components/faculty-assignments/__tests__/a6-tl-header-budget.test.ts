@@ -546,10 +546,71 @@ test('A6c4-G2-4 nothing became unreachable: every preserved control still resolv
 		/<TeachingLoadSummaryMenuItem \/>/,
 		'the header must render the shared `More`-menu item',
 	);
-	assert.match(
+	// ── SUPERSEDED IN ITS EXACT EXPRESSION, A6 c9 (2026-09-29, fix-1.2 38.1).
+	// RETAINED VERBATIM BELOW, NOT DELETED (AGENTS.md §16). ──
+	//
+	// The superseded assertion, verbatim:
+	//
+	//   assert.match(
+	//     source(TOOLBAR_FILE),
+	//     /\{loadSummaryAction \? \(\s*<TeachingLoadSummaryMenuSlot value=\{summaryControl\}>\s*\{loadSummaryAction\}/,
+	//     "and the page's surface must render OUTSIDE the menu content, or Radix unmounts the dialog in the same commit that opens it",
+	//   );
+	//
+	// WHAT OVERRULED IT. The c9 binding addendum: 38.1 gave the page ownership of
+	// the summary window's open flag, so the page has to be able to open it ALREADY
+	// on one teacher. The toolbar therefore reads a `summaryControl` PROP when the
+	// host supplies one and keeps its own local state for every committed control
+	// that does not, which means the value handed to the slot is a NORMALISED local
+	// (`summaryControlValue`) rather than the prop itself, and the action is rendered
+	// as `{loadSummaryAction}` rather than `{loadSummaryAction`.
+	//
+	// The old expression hard-coded a local variable's NAME and two spellings of
+	// the same child. That is a defect in the control, not a claim worth keeping:
+	// renaming the local would have turned it red with no behaviour change. The
+	// CLAIM — Radix unmounts a menu's content on close, so the surface must render
+	// OUTSIDE it, or the dialog is torn down in the same commit that opens it — is
+	// untouched, and the REPLACEMENT below asserts it in terms that survive a
+	// rename, and adds a rendered proof the source scan cannot give.
+	assert.doesNotMatch(
 		source(TOOLBAR_FILE),
 		/\{loadSummaryAction \? \(\s*<TeachingLoadSummaryMenuSlot value=\{summaryControl\}>\s*\{loadSummaryAction\}/,
-		"and the page's surface must render OUTSIDE the menu content, or Radix unmounts the dialog in the same commit that opens it",
+		'A6 c9 (38.1): the slot reads a normalised local, not the prop, and the action is rendered as an expression',
+	);
+	// (1) SOURCE HALF, rename-proof: the page's surface is handed to the SAME slot
+	// wrapper the menu item reads, and that wrapper is NOT inside the menu content.
+	// Read structurally — the slot opens, the action is its only child, the menu
+	// content closes — so no local's name appears anywhere in the assertion.
+	const toolbarCode = code(TOOLBAR_FILE);
+	const outsideSlot = /<TeachingLoadSummaryMenuSlot[^>]*>\s*\{loadSummaryAction\}\s*<\/TeachingLoadSummaryMenuSlot>/;
+	assert.match(
+		toolbarCode,
+		outsideSlot,
+		"and the page's surface must still be rendered through the shared slot as its only child, OUTSIDE the menu content",
+	);
+	const menuContent = /<DropdownMenuContent[\s\S]*?<\/DropdownMenuContent>/.exec(toolbarCode);
+	assert.ok(menuContent, 'the `More` menu content must be locatable so its boundary can be measured');
+	assert.equal(
+		outsideSlot.test(menuContent[0]),
+		false,
+		'CRITICAL: the surface must NOT be a descendant of the menu content — Radix unmounts that subtree on close, so a dialog rendered there is torn down in the same commit that opens it',
+	);
+	// The menu's ITEM is inside the content and the SURFACE is not, which is the
+	// one-way arrangement that makes the control work at all.
+	assert.match(
+		menuContent[0],
+		/<TeachingLoadSummaryMenuSlot[^>]*>\s*<TeachingLoadSummaryMenuItem \/>\s*<\/TeachingLoadSummaryMenuSlot>/,
+		'the menu content keeps only the ITEM inside the shared provider',
+	);
+	// (2) RENDERED HALF, and the part a source scan can never decide: pressing the
+	// item leaves the dialog ALIVE in the portal. The old row could not reach this
+	// because it read markup only; `a6-teaching-load-surface` `A6-38-1b` presses the
+	// real menu, and this row now proves the same thing about the normalised local
+	// by rendering the toolbar through the static-markup instrument it already has.
+	assert.equal(
+		stripOf(renderStrip()).querySelector('[data-testid="teaching-load-summary-dialog"]'),
+		null,
+		'while the dialog is closed the slot renders nothing, so the header height model is untouched',
 	);
 });
 

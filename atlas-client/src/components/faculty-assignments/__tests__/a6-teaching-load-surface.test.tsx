@@ -480,6 +480,71 @@ function openSummaryFromMore(host: HTMLElement): HTMLElement {
 	return host;
 }
 
+/**
+ * A6 c9 — is this scroll region bounded to the viewport, wherever the bound is
+ * DECLARED?
+ *
+ * WHY THIS EXISTS. `AGENTS.md` §8 forbids a global browser scrollbar, and the
+ * row that owns that claim measured it as "the one `overflow-y-auto` carries
+ * `max-h-[70vh]`". That literal bound was the `TeachingLoadTruthPanel`'s own,
+ * which only existed because the panel was the window's only pane. A6 c9 (38.1)
+ * made the window a fixed-height flex frame whose own body is the scroll region
+ * and whose FRAME carries `max-h-[85vh]` — a stricter bound, on fewer elements.
+ *
+ * So the claim did not change and the assertion must not: what is forbidden is an
+ * unbounded scroller that can push the page, not one particular class string. This
+ * asks the real question of the real element — is there a `max-h-<n>vh` on it or
+ * on any ancestor, before the dialog root? — so it stays red for a scroller that
+ * genuinely can outgrow the viewport and stays green for a reworded bound.
+ */
+function boundedToViewport(el: HTMLElement, dialogRoot: HTMLElement): boolean {
+	for (let node: HTMLElement | null = el; node && node !== dialogRoot.parentElement; node = node.parentElement) {
+		if (/\bmax-h-\[?\d+(\.\d+)?vh\]?\b/.test(node.getAttribute('class') ?? '')) return true;
+	}
+	return false;
+}
+
+/**
+ * A6 c9 (fix-1.2 38.1) — OPEN THE TOTALS TABLE BEHIND `More detail`.
+ *
+ * The window landed on the STAFF WORKLOAD AUDIT instead of the totals table, so
+ * every row that reads the totals from the OPEN dialog has to press the one
+ * control that reveals them. This is a HELPER, not a change of claim: each row
+ * still decides its own assertion about the figures it needs, and the press is
+ * the production one — a real `Button` toggling real state on the real dialog.
+ *
+ * It asserts the toggle exists on the way in, because a window that dropped the
+ * disclosure would make every caller below fail on a confusing "no figures"
+ * message instead of naming the control that went missing.
+ */
+function openSummaryMoreDetail(dialog: HTMLElement): HTMLElement {
+	const toggle = dialog.querySelector(
+		'[data-testid="teaching-load-summary-more-detail-toggle"]',
+	) as HTMLButtonElement | null;
+	assert.ok(toggle, 'the summary window must offer the `More detail` disclosure for the totals table');
+	assert.equal(
+		toggle.getAttribute('aria-expanded'),
+		'false',
+		'the totals table is CLOSED on open, so the window lands on the audit roster',
+	);
+	assert.equal(
+		dialog.querySelector('[data-testid="teaching-load-summary-more-detail"]'),
+		null,
+		'precondition: the disclosure content is not in the tree before the press',
+	);
+	click(toggle);
+	assert.ok(
+		dialog.querySelector('[data-testid="teaching-load-summary-more-detail"]'),
+		'pressing `More detail` must put the totals table in the tree',
+	);
+	assert.equal(
+		toggle.getAttribute('aria-expanded'),
+		'true',
+		'and the disclosure must report itself expanded',
+	);
+	return dialog;
+}
+
 test('A6-38-1 SUPERSEDED FOR POSITION by A6-38-1b (A6 c6 item 2, 2026-09-29): clicking `Load summary` opens a dialog with the COMPLETE breakdown', () => {
 	// The production composition: the header button and the dialog are SIBLINGS
 	// in `pages/TeachingLoad.tsx`, so this mounts them the same way — a real
@@ -543,8 +608,66 @@ test('A6-38-1 SUPERSEDED FOR POSITION by A6-38-1b (A6 c6 item 2, 2026-09-29): cl
 	const dialogText = dialog!.textContent ?? '';
 	assert.match(dialogText, /Load summary/, 'the dialog is titled `Load summary`');
 
-	// The COMPLETE breakdown: overall class assignment figures AND capacity
-	// metrics, exactly as the operator enumerated them.
+	// ── SUPERSEDED IN PART, A6 c9 (2026-09-29, fix-1.2 38.1). RETAINED VERBATIM
+	// BELOW, NOT DELETED (AGENTS.md §16). ──
+	//
+	// The superseded assertion, verbatim — every figure read straight off the
+	// OPEN dialog, with no second press:
+	//
+	//   for (const figure of [
+	//     'Classes needing a teacher',
+	//     'Total teaching hours',
+	//     'Standard load',
+	//     'School hard cap',
+	//     'Above standard',
+	//     'Hours still available',
+	//   ]) {
+	//     assert.ok(
+	//       dialogText.includes(figure),
+	//       `the summary dialog must state "${figure}"; saw ${JSON.stringify(dialogText.slice(0, 400))}`,
+	//     );
+	//   }
+	//   assert.match(dialogText, /24/, 'the required-pair count from the model must render');
+	//   assert.match(dialogText, /20h/, 'the 1200 teaching minutes must render as 20h');
+	//   assert.ok(
+	//     dialog!.querySelector('[data-testid="teaching-load-truth-summary"]'),
+	//     'the metric rows must be present in the open dialog',
+	//   );
+	//
+	// WHAT OVERRULED IT. The c9 packet's TARGET §1, verbatim: clicking the figure
+	// "opens the Load summary as the list of who still needs assigning … That list
+	// IS the load summary; the old table of totals nobody reads goes (or behind
+	// 'More detail' at the bottom of that window)". The binding 15:05 addendum
+	// sharpened it: the header's `Load summary` opens the STAFF WORKLOAD AUDIT —
+	// "TOTAL / UNDERLOADED / BALANCED / OVERLOADED badges, roster rows … a row
+	// click drills into that teacher" — with the totals table behind `More detail`
+	// at the BOTTOM.
+	//
+	// So the figures did not go anywhere and `truthModel` still has exactly one
+	// producer: the window now lands on the audit roster, and the same figures are
+	// ONE press further down, which is what `openSummaryMoreDetail` does. The claim
+	// this row really makes — "every figure the operator enumerated is reachable
+	// from this control, with the model's own numbers" — is asserted by the
+	// REPLACEMENT immediately below, in the order a scheduler now meets them.
+	//
+	// WHAT IS NOT SUPERSEDED, and is still asserted above: the control's exact
+	// accessible name `Load summary`, its `data-testid`, its role, that it is the
+	// FIRST `More` item, that clicking it opens a dialog at all, the dialog's
+	// `data-testid`, its `Load summary` title, the ONE bounded scroll region, and
+	// the two belt-and-braces source claims about the frame duplicating no metric.
+
+	// (1) The pane a scheduler now lands on: the STAFF WORKLOAD AUDIT roster, not
+	// the totals table.
+	assert.equal(
+		dialog!.querySelector('[data-testid="teaching-load-summary-more-detail"]'),
+		null,
+		'A6 c9: the totals table is behind `More detail`, so the open window lands on the audit roster',
+	);
+	openSummaryMoreDetail(dialog!);
+
+	// (2) REPLACEMENT for the superseded figures loop. Every figure the operator
+	// enumerated, and the MODEL's own numbers, now read after the disclosure press.
+	const totalsText = dialog!.textContent ?? '';
 	for (const figure of [
 		'Classes needing a teacher',
 		'Total teaching hours',
@@ -554,25 +677,29 @@ test('A6-38-1 SUPERSEDED FOR POSITION by A6-38-1b (A6 c6 item 2, 2026-09-29): cl
 		'Hours still available',
 	]) {
 		assert.ok(
-			dialogText.includes(figure),
-			`the summary dialog must state "${figure}"; saw ${JSON.stringify(dialogText.slice(0, 400))}`,
+			totalsText.includes(figure),
+			`the summary dialog must state "${figure}" once the More detail disclosure is open; saw ${JSON.stringify(totalsText.slice(0, 400))}`,
 		);
 	}
 	// The figures are the model's, not placeholders.
-	assert.match(dialogText, /24/, 'the required-pair count from the model must render');
-	assert.match(dialogText, /20h/, 'the 1200 teaching minutes must render as 20h');
+	assert.match(totalsText, /24/, 'the required-pair count from the model must render');
+	assert.match(totalsText, /20h/, 'the 1200 teaching minutes must render as 20h');
 	// The disclosure is OPEN, so the breakdown is visible without a second click.
 	assert.ok(
 		dialog!.querySelector('[data-testid="teaching-load-truth-summary"]'),
-		'the metric rows must be present in the open dialog',
+		'the metric rows must be present once `More detail` is open',
+	);
+	// The figures come from the SAME `children` node, not a second copy of them.
+	assert.ok(
+		dialog!.querySelector('[data-testid="teaching-load-summary-more-detail"] [data-testid="teaching-load-truth-panel"]'),
+		'the page\'s real `TeachingLoadTruthPanel` must be what the disclosure reveals',
 	);
 	// One scroll region, bounded — no global scrollbar.
 	const scrollers = Array.from(dialog!.querySelectorAll('*'))
 		.filter((el) => /\boverflow-y-auto\b/.test(el.getAttribute('class') ?? ''));
 	assert.equal(scrollers.length, 1, `the dialog must contain exactly one scroll region, found ${scrollers.length}`);
-	assert.match(
-		(scrollers[0] as HTMLElement).getAttribute('class') ?? '',
-		/max-h-\[70vh\]/,
+	assert.ok(
+		boundedToViewport(scrollers[0] as HTMLElement, dialog!),
 		'the dialog scroll region must be bounded so it can never exceed the viewport',
 	);
 	// Belt-and-braces: the dialog frame duplicates no metric, it takes a node.
@@ -627,6 +754,42 @@ test('A6-38-1b THE REPLACEMENT for the superseded POSITION half of A6-38-1 (A6 c
 	assert.equal(items.indexOf(item), 0, 'it is the FIRST item, above `Archived load` and `Staffing mode`');
 
 	// (c) Selecting it opens the SAME dialog with the SAME breakdown.
+	//
+	// ── SUPERSEDED IN PART, A6 c9 (2026-09-29, fix-1.2 38.1). RETAINED
+	// VERBATIM BELOW, NOT DELETED (AGENTS.md §16). ──
+	//
+	// The superseded assertion, verbatim:
+	//
+	//   for (const figure of [
+	//     'Classes needing a teacher',
+	//     'Total teaching hours',
+	//     'Standard load',
+	//     'School hard cap',
+	//     'Above standard',
+	//     'Hours still available',
+	//   ]) {
+	//     assert.ok(dialogText.includes(figure), `the summary dialog must still state "${figure}"`);
+	//   }
+	//   assert.match(dialogText, /24/, "the model's own required-pair count must render — the panel authority did not move");
+	//   assert.match(dialogText, /20h/, 'the 1200 teaching minutes must render as 20h — the panel is unchanged');
+	//   assert.ok(
+	//     dialog!.querySelector('[data-testid="teaching-load-truth-summary"]'),
+	//     'the disclosure is OPEN, so the breakdown is visible without a second click',
+	//   );
+	//
+	// WHAT OVERRULED IT. Same operator text as `A6-38-1`: the packet's TARGET §1 —
+	// "That list IS the load summary; the old table of totals nobody reads goes
+	// (or behind 'More detail' at the bottom of that window)" — and the binding
+	// 15:05 addendum naming the `Staff workload audit` roster as what this control
+	// opens, with `< All teachers` returning to it. The word "still" in the old
+	// failure message is the whole of the claim that stopped being true: the
+	// breakdown is no longer the window's FIRST pane.
+	//
+	// WHAT IS NOT SUPERSEDED and is still asserted above: row 1 carries exactly one
+	// page action plus `Help`, the item is a real `menuitem` with no nested
+	// `<button>`, it is FIRST, its accessible name is exactly `Load summary`, and
+	// selecting it opens the dialog by its own test id. The REPLACEMENT below keeps
+	// the same figures under the same authority and adds what replaced them.
 	assert.equal(portalledDialog() === null, true, 'precondition: no dialog before the item is selected');
 	press(item);
 	const dialog = portalledDialog();
@@ -634,6 +797,11 @@ test('A6-38-1b THE REPLACEMENT for the superseded POSITION half of A6-38-1 (A6 c
 	assert.equal(dialog!.getAttribute('data-testid'), 'teaching-load-summary-dialog', 'the SAME dialog, by its own test id');
 	const dialogText = dialog!.textContent ?? '';
 	assert.match(dialogText, /Load summary/, 'the dialog is still titled `Load summary`');
+
+	// REPLACEMENT (a): the pane it now lands on is the audit roster, and the
+	// totals table is one press away behind the ONE disclosure at the bottom.
+	openSummaryMoreDetail(dialog!);
+	const totalsText = dialog!.textContent ?? '';
 	for (const figure of [
 		'Classes needing a teacher',
 		'Total teaching hours',
@@ -642,13 +810,16 @@ test('A6-38-1b THE REPLACEMENT for the superseded POSITION half of A6-38-1 (A6 c
 		'Above standard',
 		'Hours still available',
 	]) {
-		assert.ok(dialogText.includes(figure), `the summary dialog must still state "${figure}"`);
+		assert.ok(
+			totalsText.includes(figure),
+			`the summary dialog must still state "${figure}" once \`More detail\` is open`,
+		);
 	}
-	assert.match(dialogText, /24/, "the model's own required-pair count must render — the panel authority did not move");
-	assert.match(dialogText, /20h/, 'the 1200 teaching minutes must render as 20h — the panel is unchanged');
+	assert.match(totalsText, /24/, "the model's own required-pair count must render — the panel authority did not move");
+	assert.match(totalsText, /20h/, 'the 1200 teaching minutes must render as 20h — the panel is unchanged');
 	assert.ok(
 		dialog!.querySelector('[data-testid="teaching-load-truth-summary"]'),
-		'the disclosure is OPEN, so the breakdown is visible without a second click',
+		'one press on `More detail` makes the breakdown visible, and no second one is needed',
 	);
 	assert.equal(
 		Array.from(dialog!.querySelectorAll('*')).filter((el) => /\boverflow-y-auto\b/.test(el.getAttribute('class') ?? '')).length,
@@ -726,10 +897,40 @@ test('A6-38-2 the page header state line no longer carries the inline summary ba
 	// The inline truth panel is gone from the header state line, and the header
 	// is wired to the summary surface that replaced it.
 	assert.match(page, /loadSummaryAction=\{/, 'the header must be wired to the summary surface');
+	// ── SUPERSEDED IN ITS EXACT FORM, A6 c9 (2026-09-29, fix-1.2 38.1). RETAINED
+	// VERBATIM BELOW, NOT DELETED (AGENTS.md §16). ──
+	//
+	// The superseded assertion, verbatim:
+	//
+	//   assert.match(
+	//     page,
+	//     /<TeachingLoadSummarySurface>[\s\S]{0,200}<TeachingLoadTruthPanel\s+expanded/,
+	//     'the surface must wrap the real, expanded `<TeachingLoadTruthPanel` in this file',
+	//   );
+	//
+	// WHAT OVERRULED IT. The c9 packet's binding 15:05 addendum, verbatim: the
+	// header's `Load summary` "opens the Staff workload audit per fix-1.2 item
+	// 38.1 … a row click drills into that teacher; each card's Review load opens
+	// straight into that teacher with '< All teachers' back to the roster without
+	// closing the dialog." A drill-in pane needs a node from the page, so
+	// 38.1 added a `teacherDetail` PROP to `<TeachingLoadSummarySurface>`, and the
+	// literal `<TeachingLoadSummarySurface>` no longer occurs at the call site.
+	//
+	// The old expression was a POSITIONAL claim — "these two tags are adjacent in
+	// this file" — and adjacency is not what the row was for. It was for the
+	// truth panel still being the page's real node, owned by the page. That claim
+	// is unchanged by a prop, so it is REPLACED below with an assertion that does
+	// not depend on any local variable's name or on two tags being 200 characters
+	// apart.
 	assert.match(
 		page,
-		/<TeachingLoadSummarySurface>[\s\S]{0,200}<TeachingLoadTruthPanel\s+expanded/,
-		'the surface must wrap the real, expanded `<TeachingLoadTruthPanel` in this file',
+		/<TeachingLoadSummarySurface[\s\S]{0,200}<TeachingLoadTruthPanel\s+expanded/,
+		'REPLACEMENT: the surface must still wrap the real, expanded `<TeachingLoadTruthPanel` in this file — the 38.1 `teacherDetail` prop may sit on the opening tag, but the panel must still be this page\'s own node',
+	);
+	assert.match(
+		page,
+		/<TeachingLoadSummarySurface[^>]*teacherDetail=\{activeInspector\}/,
+		'and 38.1\'s drill-in pane must still be the page\'s own inspector node, not a re-read',
 	);
 	// The truth panel still renders in this file — as the dialog's body — and
 	// stays spelled `<TeachingLoadTruthPanel` for the committed contract test
@@ -747,6 +948,20 @@ test('A6-38-2 the page header state line no longer carries the inline summary ba
 		page,
 		/stateLineSlot=\{[^}]*TeachingLoadSummary/,
 		'the summary surface must not be rendered inside the header state line slot',
+	);
+	// A6 c9 §2: the header's ONE row-2 claim is now the staffing figure, supplied
+	// UNCONDITIONALLY, which is what makes the toolbar's amber degraded pill
+	// unreachable from the real route rather than merely hidden. This is the
+	// source half; `a6-c9-staffing-figure` `A6C9-3` is its rendered half.
+	assert.match(
+		page,
+		/const shortageLineSlot = staffingFigureSlot;/,
+		'the header claim slot must be the staffing figure with no state condition on it',
+	);
+	assert.doesNotMatch(
+		page,
+		/const shortageLineSlot =[^;]*\?/,
+		'no ternary may gate the header claim — an amber pill must not be reachable beside the figure',
 	);
 });
 
@@ -1957,10 +2172,50 @@ test('A6-C2-1 the `Load summary` breakdown has NO sideways scroller and stacks e
 			sideways.map((el) => `${el.getAttribute('data-testid') ?? el.tagName}="${el.getAttribute('class')}"`).join(' | '),
 	);
 	// And the pill treatment itself is gone from the dialog body.
+	//
+	// ── SUPERSEDED IN ITS ENTRY POINT, A6 c9 (2026-09-29, fix-1.2 38.1). RETAINED
+	// VERBATIM BELOW, NOT DELETED (AGENTS.md §16). ──
+	//
+	// The superseded assertion, verbatim:
+	//
+	//   assert.equal(
+	//     dialog!.querySelectorAll('[data-metric-layout="vertical"]').length,
+	//     2,
+	//     'both metric groups must render in the vertical definition-list layout',
+	//   );
+	//
+	// WHAT OVERRULED IT. The c9 packet's binding 15:05 addendum: the header's
+	// `Load summary` opens the Staff workload audit, with "the old table of totals
+	// nobody reads … behind 'More detail' at the bottom of that window". The
+	// dialog therefore lands on the roster and the metric groups are rendered on
+	// the SECOND press, which is why the count above read 0.
+	//
+	// The CLAIM — Lane C's measured defect, that no descendant of this window may
+	// scroll sideways and every metric stacks — is untouched by where the window
+	// opens. It is REPLACED below by pressing the one control that reveals the
+	// groups and then measuring the WHOLE dialog again, which is strictly more
+	// than the original measured: the audit roster is now inside the same subtree
+	// the sideways-scroller check runs over.
+	assert.equal(
+		dialog!.querySelectorAll('[data-metric-layout="vertical"]').length,
+		0,
+		'A6 c9: the metric groups are behind `More detail`, so the open window shows the audit roster',
+	);
+	openSummaryMoreDetail(dialog!);
 	assert.equal(
 		dialog!.querySelectorAll('[data-metric-layout="vertical"]').length,
 		2,
-		'both metric groups must render in the vertical definition-list layout',
+		'REPLACEMENT: both metric groups must render in the vertical definition-list layout',
+	);
+	// And the sideways rule is re-measured over the whole dialog now that both
+	// panes are in it, so the audit roster cannot have brought one with it.
+	assert.equal(
+		Array.from(dialog!.querySelectorAll('*')).filter((el) => {
+			const cls = el.getAttribute('class') ?? '';
+			return /(^|\s)overflow-x-(auto|scroll)(\s|$)/.test(cls);
+		}).length,
+		0,
+		'REPLACEMENT: still no descendant of the dialog may scroll sideways once the totals table is open',
 	);
 
 	// (b) All thirteen figures are still present, each with its metric state.
@@ -2008,7 +2263,10 @@ test('A6-C2-1 the `Load summary` breakdown has NO sideways scroller and stacks e
 	const scrollers = Array.from(dialog!.querySelectorAll('*'))
 		.filter((el) => /(^|\s)overflow-y-auto(\s|$)/.test(el.getAttribute('class') ?? ''));
 	assert.equal(scrollers.length, 1, `the dialog must contain exactly one vertical scroll region, found ${scrollers.length}`);
-	assert.match(scrollers[0]!.getAttribute('class') ?? '', /max-h-\[70vh\]/, 'and it must be bounded to the viewport');
+	assert.ok(
+		boundedToViewport(scrollers[0]!, dialog!),
+		'and it must be bounded to the viewport — on itself or on the frame that holds it (A6 c9 moved the bound to the frame, which is stricter, not weaker)',
+	);
 });
 
 /**
@@ -2764,8 +3022,64 @@ test('A6-C2-7 both entry points share `openTeacherReview`, and the dialog names 
 	assert.match(hook, /openTeacherReview|onOpenReview/, 'the queue action flows to the shared opener');
 	// The page drives it once, and both entry points land there.
 	const page = read('src/pages/TeachingLoad.tsx');
-	assert.match(page, /openTeacherReview\(\{ setViewMode: ui\.setViewMode, setReviewModalOpen \}\)/, 'the page must call the one opener');
-	assert.match(page, /onReviewLoad=\{openTeacherReviewFor\}/, 'the per-row control must use that wrapper');
+	//
+	// ── SUPERSEDED IN ITS LOCATION, A6 c9 (2026-09-29, fix-1.2 38.1). RETAINED
+	// VERBATIM BELOW, NOT DELETED (AGENTS.md §16). ──
+	//
+	// The superseded assertion, verbatim:
+	//
+	//   assert.match(page, /openTeacherReview\(\{ setViewMode: ui\.setViewMode, setReviewModalOpen \}\)/, 'the page must call the one opener');
+	//
+	// WHAT OVERRULED IT. Two things, both operator text.
+	//
+	// (1) The c9 packet's binding 15:05 addendum, verbatim: the header's `Load
+	//     summary` "opens the Staff workload audit per fix-1.2 item 38.1 … each
+	//     card's Review load opens straight into that teacher with
+	//     '< All teachers' back to the roster without closing the dialog". The
+	//     opener therefore has to carry a FACULTY ID, which the old two-field
+	//     `useTeachingLoadRouteIntent` call could not express.
+	// (2) `AGENTS.md` §8, and the same page-level extraction c5 already performed:
+	//     `pages/TeachingLoad.tsx` crossed the 1000-physical-line cap while the
+	//     staffing figure and the 38.1 window control were added, so the opener
+	//     moved into `useTeachingLoadHeaderClaims` and the page still decides WHEN
+	//     and supplies the page's own setters.
+	//
+	// WHAT IS NOT SUPERSEDED, and is the row's actual claim: ONE opener exists, and
+	// BOTH entry points — the per-row control and the repair queue — land on it
+	// rather than each declaring their own. That is asserted below in terms that
+	// do not name the local variable, plus against the module the opener really
+	// lives in.
+	assert.doesNotMatch(
+		page,
+		/openTeacherReview\(\{ setViewMode: ui\.setViewMode, setReviewModalOpen \}\)/,
+		'A6 c9 (38.1): the opener takes a faculty id, so the old two-field route-intent call is gone',
+	);
+	assert.match(
+		page,
+		/useTeachingLoadHeaderClaims\(\{/,
+		'the page must still call the ONE opener — now through the module that owns it',
+	);
+	const opener = read('src/components/faculty-assignments/useTeachingLoadHeaderClaims.tsx');
+	assert.match(
+		opener,
+		/const openTeacherReviewFor = useCallback\(/,
+		'38.1: the opener is one named callback, and it is the ONLY one in the module',
+	);
+	assert.equal(
+		(opener.match(/useCallback\(/g) ?? []).length,
+		1,
+		'38.1: a second opener here would be a second path into the audit window',
+	);
+	assert.match(
+		opener,
+		/if \(facultyId != null\) input\.onSelectTeacher\(facultyId\);/,
+		'the opener must run the page\'s selection BEFORE it opens, so the drill-in never renders the previous teacher',
+	);
+	assert.match(
+		page,
+		/onReviewLoad=\{openTeacherReviewFor\}/,
+		'the per-row control must use that wrapper',
+	);
 	assert.match(page, /onOpenReview: \(\) => openTeacherReviewFor\(null\)/, 'and the repair queue the same wrapper');
 
 	// The dialog, rendered. The TITLE is roster-level; the DESCRIPTION names the

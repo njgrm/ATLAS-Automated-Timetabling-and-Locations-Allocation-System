@@ -10,6 +10,11 @@ import { SmartHelpTrigger } from '@/components/smart/SmartPageShell';
 import { CompactTitleStrip, COMPACT_TITLE_STRIP_CLASS } from '@/components/app-shell/CompactTitleStrip';
 import { TeachingLoadSummaryMenuItem, TeachingLoadSummaryMenuSlot } from '@/components/faculty-assignments/TeachingLoadSummarySurface';
 import { teachingLoadDegradedCopy } from '@/components/faculty-assignments/teachingLoadDegradedCopy';
+import {
+	buildTeachingLoadAlertChip,
+	buildTeachingLoadPrimaryAction,
+	buildTeachingLoadStatusConfig,
+} from '@/components/faculty-assignments/workspaceToolbarHeaderFacts';
 import type { CoverageMode } from '@/types';
 
 type WorkspaceToolbarProps = {
@@ -442,97 +447,27 @@ export function WorkspaceToolbar({
 	 */
 	const completenessPercent = totalPairs > 0 ? Math.round((realAssignedPairs / totalPairs) * 100) : 0;
 
-	const statusConfig = useMemo(() => {
-		if (!isOnline) return { label: 'Offline', color: 'bg-amber-500', description: 'Disconnected from the server. Changes are locked until ATLAS reconnects.' };
-		if (dataSource === 'refreshing') return { label: 'Checking source', color: 'bg-blue-500 animate-pulse', description: dataSourceNotice ?? 'Verifying live data before edits continue.' };
-		if (dataSource === 'live') return { label: 'EnrollPro roster verified', color: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]', description: 'ATLAS Teaching Load draft. Freshly verified. Draft changes can be saved.' };
-		if (isWorkspaceWritable) return { label: 'ATLAS Teaching Load draft', color: 'bg-amber-500', description: dataSourceNotice ?? 'ATLAS is using synced EnrollPro section data for Teaching Load. This is expected.' };
-		if (degradedWriteEnabled) return { label: 'ATLAS Teaching Load draft', color: 'bg-amber-500', description: dataSourceNotice ?? 'ATLAS is using synced EnrollPro section data for Teaching Load. This is expected.' };
-		return { label: 'Read-only', color: 'bg-blue-500', description: dataSourceNotice ?? 'Viewing a saved snapshot. Edits need source verification first.' };
-	}, [isOnline, dataSource, isWorkspaceWritable, degradedWriteEnabled, dataSourceNotice]);
+	/*
+	 * A6 c9 §8 — these three derivations moved verbatim to
+	 * `workspaceToolbarHeaderFacts.ts`, which records why and what was left
+	 * behind. They are pure functions of the props, nothing is decided
+	 * differently, and the toolbar still decides WHEN. Every string, priority
+	 * and disabled rule travelled byte-for-byte.
+	 */
+	const statusConfig = useMemo(
+		() => buildTeachingLoadStatusConfig({ dataSource, isOnline, isWorkspaceWritable, degradedWriteEnabled, dataSourceNotice }),
+		[dataSource, dataSourceNotice, degradedWriteEnabled, isOnline, isWorkspaceWritable],
+	);
 
-	const primaryAction = useMemo(() => {
-		if (dataSource === 'refreshing') {
-			return {
-				label: 'Checking source',
-				shortLabel: 'Checking',
-				isSuggestion: false,
-				onClick: onRetrySource,
-				disabled: true,
-				variant: 'outline' as const,
-				helper: 'ATLAS is checking live assignment data.',
-			};
-		}
-		if (!isOnline || dataSource === 'none') {
-			return {
-				label: isOnline ? 'Retry source' : 'Offline',
-				shortLabel: isOnline ? 'Retry' : 'Offline',
-				isSuggestion: false,
-				onClick: onRetrySource,
-				disabled: !isOnline,
-				variant: 'outline' as const,
-				helper: isOnline ? 'Try loading teaching load data again.' : 'Reconnect before retrying.',
-			};
-		}
-		/*
-		 * A6 C2 (Major 1): the operator's own words are `Suggest assignments`,
-		 * SECONDARY, not red. The old label was `Preview suggested assignments`
-		 * and the old call site forced `border border-primary/20 bg-primary/5
-		 * … text-primary` on top of the `secondary` variant, so it READ as the
-		 * page's primary action in primary colour while doing nothing until a
-		 * second dialog. The label is now the operator's, the primary tint is
-		 * gone, and the button is honestly a secondary one.
-		 */
-		return {
-			label: 'Suggest assignments',
-			shortLabel: 'Suggest',
-			isSuggestion: true,
-			onClick: onAutoFillClick,
-			disabled: autoFillLoading || !autoFillEnabled,
-			variant: 'secondary' as const,
-			helper: autoFillEnabled ? 'Preview ATLAS suggestions before any Teaching Load rows are saved. Nothing is applied until you confirm.' : 'Suggestions need live writable data.',
-		};
-	}, [autoFillEnabled, autoFillLoading, dataSource, isOnline, onAutoFillClick, onRetrySource]);
+	const primaryAction = useMemo(
+		() => buildTeachingLoadPrimaryAction({ dataSource, isOnline, autoFillLoading, autoFillEnabled, onAutoFillClick, onRetrySource }),
+		[autoFillEnabled, autoFillLoading, dataSource, isOnline, onAutoFillClick, onRetrySource],
+	);
 
-	// State-driven alert chip: surfaces only when something needs attention.
-	// Priority: above-weekly-maximum classes (generation blocker) > excess teaching
-	// load (actual teaching above the standard) > temporary teacher placeholders.
-	const alertChip = useMemo(() => {
-		if (overCapCount > 0) {
-			return {
-				key: 'overcap',
-				label: `Above weekly max: ${overCapCount}`,
-				tone: 'danger' as const,
-				tooltip: 'Active teachers above the weekly maximum. Review the filtered teacher list and move classes before generating.',
-				onClick: onShowExcessTeachingLoad,
-				disabled: false,
-				testId: 'teaching-load-alert-over-cap',
-			};
-		}
-		if (policyReady && excessTeachingCount > 0) {
-			return {
-				key: 'excess',
-				label: `Excess teaching load: ${excessTeachingCount}`,
-				tone: 'warning' as const,
-				tooltip: 'Active teachers with actual teaching above the standard. Advisory credit never counts toward this figure.',
-				onClick: onShowExcessTeachingLoad,
-				disabled: false,
-				testId: 'teaching-load-alert-excess',
-			};
-		}
-		if (syntheticPlaceholderPairs > 0) {
-			return {
-				key: 'teacherx',
-				label: `Temporary substitutes: ${syntheticPlaceholderPairs}`,
-				tone: 'warning' as const,
-				tooltip: 'Temporary substitutes are filling load rows. Open the filtered teacher list to replace them before generating.',
-				onClick: onShowTemporarySubstitutes,
-				disabled: false,
-				testId: 'teaching-load-alert-teacher-x',
-			};
-		}
-		return null;
-	}, [overCapCount, excessTeachingCount, policyReady, syntheticPlaceholderPairs, onShowExcessTeachingLoad, onShowTemporarySubstitutes]);
+	const alertChip = useMemo(
+		() => buildTeachingLoadAlertChip({ overCapCount, excessTeachingCount, policyReady, syntheticPlaceholderPairs, onShowExcessTeachingLoad, onShowTemporarySubstitutes }),
+		[excessTeachingCount, onShowExcessTeachingLoad, onShowTemporarySubstitutes, overCapCount, policyReady, syntheticPlaceholderPairs],
+	);
 
 	/*
 	 * A6 C2 (Major 2) — the degraded-data gate for the WHOLE header.
