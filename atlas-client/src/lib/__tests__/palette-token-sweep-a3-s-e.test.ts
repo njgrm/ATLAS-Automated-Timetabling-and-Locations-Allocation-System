@@ -168,11 +168,23 @@ const A3C9_MUTED_FOREGROUND_CHANNEL_DELTA = 18;
 /** Load-bearing perceptual bound: the measured real delta is 0.067; a one-unit token edit is ~1.4. */
 const CONTRAST_TOLERANCE = 0.1;
 
-/** The 19 files this sweep owns. Listed explicitly: a glob would silently absorb A2's surface. */
+/**
+ * The 20 files this sweep owns. Listed explicitly: a glob would silently absorb A2's surface.
+ *
+ * A5 C4 ITEM 5: 19 -> 20, because /audit's extracted findings panel is now a swept
+ * file of its own. A count that is stated here and not updated is a gate that lies about
+ * its own scope, so it moves with the scope.
+ */
 const IN_SCOPE = [
 	'src/components/BuildingPanel.tsx',
 	'src/components/CampusMapEditor.tsx',
 	'src/components/admin-workspace/AdminWorkspace.tsx',
+	/* A5 C4 ITEM 5 (2026-09-29): `/audit`'s findings panel was extracted out of
+	 * `pages/Audit.tsx` because the page measured 1003 physical lines, over the
+	 * AGENTS.md §8 cap. It carries HALF this route's raw neutrals, so it is named
+	 * explicitly here for the same reason the page is: a glob would silently absorb
+	 * it, and an unlisted file would silently escape the sweep. */
+	'src/components/audit/AuditFindingsPanel.tsx',
 	'src/components/campus-map/BuildingGradeScopeControl.tsx',
 	'src/components/campus-map/BuildingPlacementFields.tsx',
 	'src/components/campus-map/CampusMapCanvasPreview.tsx',
@@ -233,21 +245,36 @@ const PRE_SWEEP_FILES = 34;
 const PRE_STEP_2_TOTAL = 110;
 const STEP_2_SUBSTITUTIONS = 15;
 const EXPECTED_TOTAL = 95;
-const EXPECTED_FILE_COUNT = 28;
 /** 95 splits into 68 that are this stream's future work and 27 that sit in the three exclusions. */
 const EXPECTED_IN_SCOPE_RESIDUAL = 68;
 const EXPECTED_EXCLUDED_RESIDUAL = 27;
 
 /**
- * Step 2 emptied no file, which is why `EXPECTED_FILE_COUNT` is unchanged at 28. These are the raw
- * neutrals each of its 5 files still holds, measured on the candidate: 1 / 10 / 11 / 8 / 3, against
- * 2 / 14 / 15 / 11 / 6 on the base, i.e. exactly the 1 / 4 / 4 / 3 / 3 substitutions it made.
+ * Step 2 emptied no file, which is why `EXPECTED_FILE_COUNT` is unchanged at 28 — AS
+ * OF STEP 2. These are the raw neutrals each of its 5 files still holds, measured on
+ * the candidate: 1 / 10 / 11 / 8 / 3, against 2 / 14 / 15 / 11 / 6 on the base, i.e.
+ * exactly the 1 / 4 / 4 / 3 / 3 substitutions it made.
+ *
+ * A5 C4 ITEM 5 (2026-09-29) — `/audit` IS NOW TWO FILES, AND THE COUNT MOVED WITH
+ * THE CODE. The findings panel was extracted out of `pages/Audit.tsx` to bring that
+ * page under the AGENTS.md §8 line cap. The route's 8 raw neutrals became 4 + 4:
+ * the three decorative `text-slate-200` separators and one `text-slate-600` stayed in
+ * the page, and four `text-slate-600` body-text sites moved into the panel. The TOTAL
+ * is unchanged at 8 and `EXPECTED_TOTAL` / `EXPECTED_IN_SCOPE_RESIDUAL` do not move,
+ * because a split is not a sweep. The FILE COUNT rises by one, from 28 to 29, because
+ * the residue now lives in two files instead of one — and a file count is a count of
+ * files, so leaving it at 28 would have been the dishonest number.
+ *
+ * A count that had become 0 in the page AND 0 in the panel would have been a real
+ * regression; 8 -> 4 and 4 is the honest result of a split.
  */
+const EXPECTED_FILE_COUNT = 29;
 const STEP_2_SURVIVING_RESIDUALS: ReadonlyArray<readonly [string, number]> = [
 	['src/components/campus-map/BuildingGradeScopeControl.tsx', 1],
 	['src/components/campus-map/CampusMapOverview.tsx', 10],
 	['src/components/dashboard/CampusReadinessCard.tsx', 11],
-	['src/pages/Audit.tsx', 8],
+	['src/pages/Audit.tsx', 4],
+	['src/components/audit/AuditFindingsPanel.tsx', 4],
 	['src/pages/Dashboard.tsx', 3],
 ];
 
@@ -708,7 +735,10 @@ test('CONTROL (A3-C8r1): the dark-writer scan CAN detect a writer, and is not fo
 });
 
 test('control 3: every in-scope file is free of the two swept classes', () => {
-	assert.equal(IN_SCOPE.length, 19, 'the in-scope set is 19 files; a changed count means a scope edit');
+	// A5 C4 ITEM 5: 19 -> 20, because `/audit`'s extracted findings panel is now a swept
+// file of its own. The scope grew by an extraction, not by a sweep, and a scope count
+// that is not updated is a gate that lies about what it covers.
+assert.equal(IN_SCOPE.length, 20, 'the in-scope set is 20 files; a changed count means a scope edit');
 	const offenders: string[] = [];
 	for (const rel of IN_SCOPE) {
 		const source = readFileSync(join(CLIENT_ROOT, rel), 'utf8');
