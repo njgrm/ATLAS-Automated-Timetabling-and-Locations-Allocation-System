@@ -564,15 +564,61 @@ test('PageHeader renders primaryAction before secondaryActions, and /map depends
 
 // --- 4. The boundary this stream was told not to cross -----------------------
 
+/**
+ * A5 C5 R2 (2026-09-29) C1 — a RENDERED usage of the title, not a prop that
+ * happens to carry it.
+ *
+ * THE DEFECT THIS FIXES. The two rows below counted `\{currentPageTitle\}`
+ * and required exactly one. `AppShell.tsx:620` passes
+ * `pageName={currentPageTitle}` to `<RouteOutlet>` — A5 c4's extracted route
+ * seam, which legitimately needs the page name for its loading fallback. The
+ * substring `{currentPageTitle}` occurs inside `pageName={currentPageTitle}`,
+ * so the count went 1 -> 2 and both rows went red on a page that still has
+ * exactly ONE rendered title, at `AppShell.tsx:497`.
+ *
+ * THE ANSWER IS THE TEST, NOT THE CODE. There is no duplicate title here and
+ * `AppShell.tsx` is correct; the guard was counting the wrong thing. The
+ * distinction the guard actually states — its own comment above it: "the
+ * desktop branch renders only `<AppBreadcrumbs>`, which is WHY these pages need
+ * their own title ... a future stream moving the title across" — is a
+ * RENDERED title, so that is what is counted.
+ *
+ * `(?<!=)` is the whole discriminator, and it is exactly the JSX distinction:
+ * a prop is written `name={value}` and therefore has `=` immediately before
+ * the brace, while a rendered child does not. It is deliberately NOT a
+ * negative list of known prop names, so a future `foo={currentPageTitle}` is
+ * excluded by the same rule rather than needing to be added to a list.
+ */
+const RENDERED_PAGE_TITLE = /(?<!=)\{currentPageTitle\}/g;
+
 test('AppShell still renders currentPageTitle on mobile only, and breadcrumbs on desktop', () => {
 	// The packet forbids editing AppShell.tsx: the desktop branch renders only
 	// <AppBreadcrumbs>, which is WHY these pages need their own title. This is
 	// the regression guard against a future stream moving the title across.
 	const appShell = source('src/components/AppShell.tsx');
 	assert.equal(
-		(appShell.match(/\{currentPageTitle\}/g) ?? []).length,
+		(appShell.match(RENDERED_PAGE_TITLE) ?? []).length,
 		1,
-		'AppShell must keep exactly one currentPageTitle usage',
+		'AppShell must keep exactly one RENDERED currentPageTitle (a prop that carries it is not a second title)',
+	);
+
+	// Added, not a replacement: the count above would also be satisfied by a
+	// title rendered somewhere else, so pin that the one that survives is still
+	// the mobile <div> this stream is protecting. This is the row that fails if
+	// the title ever moves out of the mobile branch's div and somewhere merely
+	// adjacent to it.
+	assert.equal(
+		(appShell.match(/>\{currentPageTitle\}<\/div>/g) ?? []).length,
+		1,
+		'the one rendered currentPageTitle must still be the mobile title <div>',
+	);
+
+	// The prop A5 c4's RouteOutlet seam needs must keep working: this is a
+	// render-count fix, not a removal of the loading fallback's page name.
+	assert.match(
+		appShell,
+		/pageName=\{currentPageTitle\}/,
+		'RouteOutlet must still receive the page name for its loading fallback',
 	);
 
 	const mobileStart = appShell.indexOf('{isMobile ? (');
@@ -616,7 +662,7 @@ test('the AppShell mobile-only pin rejects a title moved into the desktop branch
 	const check = (text: string): void => {
 		const mobileStart = text.indexOf('{isMobile ? (');
 		const desktopStart = text.indexOf(') : (', mobileStart);
-		assert.equal((text.match(/\{currentPageTitle\}/g) ?? []).length, 1);
+		assert.equal((text.match(RENDERED_PAGE_TITLE) ?? []).length, 1);
 		assert.match(text.slice(mobileStart, desktopStart), /\{currentPageTitle\}/);
 		assert.doesNotMatch(
 			text.slice(desktopStart, text.indexOf('</header>', desktopStart)),

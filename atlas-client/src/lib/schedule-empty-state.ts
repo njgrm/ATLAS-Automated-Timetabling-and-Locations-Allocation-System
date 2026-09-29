@@ -51,8 +51,21 @@ export type ScheduleEmptyReason =
 
 export type ScheduleEmptyNextStep =
 	| { kind: 'link'; to: string; label: string }
-	/** A refetch: the condition is a verification state, not something to go and build. */
-	| { kind: 'retry'; label: string };
+	/**
+	 * A5 C5 R2 (2026-09-29) B1 — A retry must DECLARE what it redoes, and the page must perform
+	 * exactly that. The first `retry` shipped as a bare `{ kind: 'retry' }` and the page wired it
+	 * to its schedule refetch, which for `term-unverified` provably cannot change the outcome:
+	 * `viewTerm` is null, so the refetch returns the same refusal before any request, and the year
+	 * context is resolved once, on `actorSchoolId`. QA's words: "an inert button is not a right
+	 * next step." `recheck` is what makes that failure impossible to reintroduce silently — a new
+	 * retry reason cannot be added without naming the authority it re-reads, and the page's
+	 * dispatch has to handle that name.
+	 *
+	 * `term-authority` is the one recovery that exists today: ask the ONE resolver
+	 * (`resolveActiveSchoolYearContext`) again, which is the only thing that can turn an
+	 * unresolved term into a resolved one.
+	 */
+	| { kind: 'retry'; label: string; recheck: 'term-authority' };
 
 export type ScheduleEmptyState = {
 	/** The heading. True for THIS reason and no other. */
@@ -75,7 +88,9 @@ const BUILD_ON_TIMETABLE = '/timetable';
  *  - `term-unverified` → RETRY, not build. `UNVERIFIED_TERM_BODY` says "Retry once the term is
  *    confirmed, or ask an administrator to re-sync the school year." Offering a link to the
  *    Timetable page here would send a scheduler to build a timetable that already exists because
- *    ATLAS could not read its term contract.
+ *    ATLAS could not read its term contract. The retry therefore re-reads the term authority
+ *    (`recheck: 'term-authority'`), which is what "retry once the term is confirmed" actually
+ *    means; it is not a refetch of a schedule this page has not been allowed to request.
  *  - `scope-unverified` → SIGN IN. The request was never made, so the actor's scope is the thing
  *    to restore.
  *  - `draft-untermable` → REGENERATE. The draft exists and is the problem, so "build one" is a
@@ -87,7 +102,7 @@ export function resolveScheduleEmptyState(reason: ScheduleEmptyReason, message: 
 			return {
 				title: UNVERIFIED_TERM_TITLE,
 				body: UNVERIFIED_TERM_BODY,
-				nextStep: { kind: 'retry', label: 'Try again' },
+				nextStep: { kind: 'retry', label: 'Try again', recheck: 'term-authority' },
 				testId: 'schedules-empty-term-unverified',
 			};
 		case 'scope-unverified':
