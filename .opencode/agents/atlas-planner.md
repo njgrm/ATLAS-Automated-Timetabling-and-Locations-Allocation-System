@@ -86,6 +86,7 @@ write, copy, commit and push only from your own `E:/ATLAS-worktrees/lane-*` work
 comparison copies to `$env:TEMP`. (2026-09-29, about 07:57: a round-trip write left `docs/plans/live-state.md` in
 `D:\ATLAS` with 930 mojibake em dashes; the root `package.json` was overwritten with the client's; and 11 stray
 `.ts`/`.tsx` copies sat in the repo root. The next launch's `git pull` failed.)
+**Stop only what you started.** End a process only by the PID you recorded when you started it (`taskkill /T /F /PID <pid>`). Never kill by name (`Stop-Process -Name node`, `taskkill /IM node.exe`), by port owner, or by pattern: live (5001/5174) and staging (5101/5274) are node processes too. (2026-09-29 08:15: the staging runtime tree was killed with no shutdown logged; Lane C restarted it.)
 **A shell call must return.** Never start a server or browser inside a tool call that waits for it: no
 `Start-Process -PassThru` for vite without redirected output, and never run `chrome.exe` directly (`--version` opens a
 browser and never exits). `Start-Process` in any form keeps the call open, even with redirected output (A6 proved it
