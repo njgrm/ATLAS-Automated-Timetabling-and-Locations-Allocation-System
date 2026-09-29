@@ -24,7 +24,13 @@ against a loopback vite preview of THIS candidate. Synthetic fixtures.
    sheet needs live coverage data to mount.
 
 The harness files (`atlas-client/a5c6-harness.html`, `atlas-client/a5c6-harness.tsx`)
-are **untracked scratch, never committed**, and were deleted after this pass.
+are **untracked scratch and were never committed** (`git ls-files` does not know
+them, so they cannot travel a merge). QA round 2 caught this file claiming they
+"were deleted after this pass" while they were still on disk; the claim was
+false at the time it was written, and the files are removed at the close of the
+cycle. Consequence worth stating plainly: **the renders are not reproducible from
+the committed tree** — re-creating the harness is part of the work, not a
+checkout away.
 
 **A trap worth recording:** the first capture came out **completely unstyled** —
 the harness had never imported `@/index.css`, so Tailwind never processed a

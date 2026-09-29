@@ -128,7 +128,20 @@ export function AddOverrideDialog({
 }) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent>
+			{/*
+			 * A5 item 23.2 + QA F3: this is a FOUR-FIELD form, and it keeps
+			 * `max-w-lg`.
+			 *
+			 * The shared resizable contract bounds a data dialog at `max-w-[95vw]`,
+			 * which tailwind-merge resolves OVER the base `max-w-lg`. A dialog
+			 * that states no width of its own therefore opened at ~1298px at
+			 * 1366 — a 4-field form stretched across the whole screen, which is
+			 * the "too literal, nothing removed" read the operator objected to on
+			 * 2026-09-29. Stating the width here restores exactly the width this
+			 * dialog had before the shared contract landed, and it stays
+			 * resizable: a scheduler may still drag it wider.
+			 */}
+			<DialogContent className="max-w-lg">
 				<DialogHeader>
 					<DialogTitle>Add a schedule window</DialogTitle>
 					<DialogDescription>
