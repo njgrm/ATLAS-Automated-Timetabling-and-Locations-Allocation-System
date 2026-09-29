@@ -73,6 +73,25 @@
  *            the exact wording instead of grepping the JSX. A filter that shows a blank box is
  *            the failure mode; the operator's own words are used verbatim for the case she
  *            named.
+ *   CORRECTED (A9 C6, rendered proof on real staging data at 1366x768) the ACTIVE filter
+ *            variant, `secondary` -> `default`. Measured on the loopback preview: `secondary`
+ *            computed to `background rgb(243,244,246)` with a TRANSPARENT border, against an
+ *            inactive `rgb(255,255,255)` with an `rgb(229,231,235)` border — so the pressed
+ *            chip looked LESS bordered than its neighbours and read as a metric, not as
+ *            something you press. The operator asked for "an obvious active state" and the
+ *            standing rule is that a chip which filters must look pressable. `default` is what
+ *            this codebase already uses for an active filter segment
+ *            (`SchedulerPrintDialog.tsx:149`, `TimetableTaskDrawer.tsx:581`). The SAME one-token
+ *            change was made in `TeacherAttentionFilters.tsx`, because §8 makes those two rows
+ *            one control and fixing only this one would have created a mismatch.
+ *   CORRECTED (same pass) `cursor-pointer` on all four filter chips, measured as
+ *            `cursor: default` on the loopback preview. The shared `@/ui` `Button` primitive
+ *            sets NO cursor at all, so every button in the app is `default`; the operator's
+ *            standing rule is that anything which filters must carry a pointer cursor. It is
+ *            added to these two rows only, NOT to the primitive: `ui/button.tsx` is being
+ *            edited by A5 in this same cycle (fix 1.2 items 23.2 and 35.1), so changing the
+ *            shared button now is a live conflict for a cosmetic gain. The primitive gap is
+ *            recorded as a follow-up for Lane C.
  *   ADDED    natural name order for the full list, in EVERY filter. The list was in building
  *            DECLARATION order, which is a database detail; `G10 Room 101, 102, … 201` is the
  *            order a human says out loud, and a plain string sort would put `Room 102` before
@@ -435,17 +454,17 @@ export function RoomReadinessList({ buildings, roomOccupancy, compact = false }:
 								<Button
 									key={entry.id}
 									type="button"
-									variant={active ? 'secondary' : 'outline'}
+									variant={active ? 'default' : 'outline'}
 									size="sm"
 									aria-pressed={active}
 									data-testid="room-readiness-filter"
 									data-filter={entry.id}
 									data-active={active ? 'true' : 'false'}
-									className="h-8 shrink-0 whitespace-nowrap rounded-full px-2.5 text-xs font-bold"
+									className="h-8 shrink-0 cursor-pointer whitespace-nowrap rounded-full px-2.5 text-xs font-bold"
 									onClick={() => setFilter(entry.id)}
 								>
 									{entry.label}
-									<span className="ml-1 tabular-nums text-muted-foreground">{counts[entry.id]}</span>
+									<span className="ml-1 tabular-nums opacity-80">{counts[entry.id]}</span>
 								</Button>
 							);
 						})}

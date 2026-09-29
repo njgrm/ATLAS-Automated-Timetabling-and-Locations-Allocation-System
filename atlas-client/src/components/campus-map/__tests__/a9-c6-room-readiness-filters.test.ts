@@ -498,6 +498,73 @@ test('RENDERED: four filter buttons, `All rooms` pressed, and the whole list sho
 	assert.equal(host.querySelector('[aria-label="Filter rooms by readiness"]') !== null, true, 'the row is a labelled region, so a screen reader can find it');
 });
 
+test('RENDERED: the active filter LOOKS active, not just `aria-pressed` — the defect the render caught', async () => {
+	const host = await mount(liveBuildings(), liveOccupancy());
+	const buttons = filterButtons(host);
+	const active = buttons.find((b) => b.getAttribute('aria-pressed') === 'true')!;
+	const inactive = buttons.filter((b) => b.getAttribute('aria-pressed') === 'false');
+
+	// The reason this row exists as a case at all: the operator asked for "an obvious
+	// active state", and `aria-pressed` is the STATE, not the look. A screen reader and a
+	// sighted older user get different information, and only the second one is what the
+	// operator asked for.
+	//
+	// MEASURED on a loopback preview against REAL staging data at 1366x768, with the
+	// active chip on `variant="secondary"`:
+	//     active   background rgb(243, 244, 246)   border rgba(0, 0, 0, 0)
+	//     inactive background rgb(255, 255, 255)   border rgb(229, 231, 235)
+	// A 3% grey shift, and the "active" chip had a TRANSPARENT border while every
+	// inactive chip had a visible one — so it read as a read-only metric and looked
+	// LESS like a control than its neighbours. On `variant="default"` the same
+	// measurement is background rgb(27, 121, 87) with rgb(255, 255, 255) text.
+	//
+	// jsdom applies no stylesheet, so what is decidable here is the CONTRACT, not the
+	// pixels: the active chip must carry a FILLED background token, and its class list
+	// must differ from every inactive one. Delete the variant swap below and this goes
+	// red, which is what stops the next person re-introducing an invisible active state.
+	const activeClasses = active.className;
+	for (const token of ['bg-secondary', 'bg-muted', 'bg-accent', 'bg-transparent', 'bg-background']) {
+		assert.doesNotMatch(
+			activeClasses,
+			new RegExp(`(?:^|\\s)${token}(?:\\s|$)`),
+			`the active filter must not wear \`${token}\` — that is the invisible-active-state defect this case was written for. Got: "${activeClasses}"`,
+		);
+	}
+	assert.match(
+		activeClasses,
+		/(?:^|\s)bg-primary(?:\s|$)/,
+		'the active filter must carry the FILLED `bg-primary` of `variant="default"`, so it is obviously pressed',
+	);
+	for (const button of inactive) {
+		assert.notEqual(button.className, activeClasses, 'the active filter must be visually distinct from every inactive one');
+	}
+
+	// The count inside the active chip must stay legible on a FILLED background. With
+	// `text-muted-foreground` (dark slate) on the filled green `default` background it
+	// was near-unreadable, which is why the count now tracks the variant's own
+	// foreground with `opacity-80` instead of hard-coding a colour.
+	const activeCount = active.querySelector('span');
+	assert.equal(activeCount?.textContent, '6');
+	assert.doesNotMatch(
+		activeCount?.className ?? '',
+		/text-muted-foreground/,
+		'the count must not hard-code a muted foreground: on the filled active chip that is dark slate on dark green',
+	);
+	assert.match(activeCount?.className ?? '', /tabular-nums/, 'the count keeps its tabular figures');
+
+	// And the whole control must look pressable: the operator\'s standing rule is that
+	// anything which filters carries a pointer cursor. The shared `@/ui` `Button`
+	// primitive sets none, so the class has to be here (a shared-primitive fix is a
+	// follow-up, because `ui/button.tsx` is in another lane\'s hands this cycle).
+	for (const button of buttons) {
+		assert.match(
+			button.className,
+			/(?:^|\s)cursor-pointer(?:\s|$)/,
+			`every filter must carry \`cursor-pointer\`; the shared Button primitive sets no cursor. ${button.getAttribute('data-filter')}`,
+		);
+	}
+});
+
 test('RENDERED: the list order is natural, and the BASE order (declaration) is genuinely different', async () => {
 	const host = await mount(liveBuildings(), liveOccupancy());
 	const names = renderedRoomNames(host);
