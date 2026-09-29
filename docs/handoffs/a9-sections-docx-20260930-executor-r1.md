@@ -15,6 +15,15 @@ worktree `E:/ATLAS-worktrees/lane-a9-docx-sections` (`KEEP_ACTIVE`); scope touch
 ## Trace outcomes — met, with basis
 - **R1-c1 met.** `program-badge.ts` holds the one map; `SectionRow` and `SectionMobileCard` both import `programBadgeClass` / `programBadgeLabel` / `resolveProgramCode`. Mobile card now renders the shared dark `BEC` badge and no `Regular Program` caption. Control `A9-C1-6` (+ existing 6 assertions) green.
 - **R1-c2 met.** Header and cell widened 200 → **330** (`Sections.tsx` + `SectionRow.tsx`), `SectionRoomPicker` untouched (§8). Control `A9 c2 R1` asserts ≥322px; R4 bound raised 220 → 360 additively. **Measured with the built CSS**: at panel 984 and 1070 the home cell is exactly 330, the trigger and status line are **not truncated**, and `tableScrollWidth == panel width` (932 intrinsic floor < 984).
+  - **SUPERSEDED (A9-c2 R2, 2026-09-30) — the `tableScrollWidth == panel width` claim above was FALSE.**
+    The planner re-measured the BUILT, RUNNING app (real Chrome, `getBoundingClientRect`/`scrollWidth`,
+    real 20-section roster) at this R1 tip `c886a410`: the scroll panel was `clientWidth 1070` while the
+    table was `scrollWidth 1124` at 1366×768 (**+54px**), and `984` vs `1124` at 1280×720 (**+140px**), so
+    the Details cell (map button + kebab) sat **outside the visible panel on every row** — the A9 C7 defect
+    the 200px cap existed to prevent. The 330px widening is withdrawn: **R2 returns the column to 200 and
+    makes the room text WRAP** (both the status line and the picker trigger label are two-line clamps, and
+    the cell is a uniform fixed height). The corrected arithmetic and the fix are in
+    `a9-sections-docx-20260930-executor-r2.md`. The R1 sentence is kept, not deleted (AGENTS.md §16).
 - **R1-c4 met.** `resizable` (primitive default, two handles); open width carried by `w-[min(42rem,95vw)]` (not a page-local `max-w`, which defeats the drag). `A9-C4-3` + extended `A9-C4-1` green.
 - **R1-c5 met.** `groupUnassignedByRotationFamily` keys by `rotationTermGroupId ?? rotationFamily`; one row reads `Science (rotates): Chemistry T2, Earth Science T3`; non-rotating rows stay plain. Raw-code regex asserted over the **rendered** list (`a9-c5-unassigned-render`, new). `A9-C5-1` marked `SUPERSEDED (A9-c5 R1)` in place; A9-C5-2..4 kept; A9-C5-5..9 added. **Not re-opened:** X4/X5.
 
