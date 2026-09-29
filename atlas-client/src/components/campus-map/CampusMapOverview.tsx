@@ -393,10 +393,13 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 			<div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-3 lg:px-5">
 				<PageHeader
 					title='Campus & Rooms'
-					// A3 c11 fix 37 — the operator's replacement sentence, and the
-					// direction the page now actually has: the map is on top, so the
-					// copy points at the map first and the readiness card second.
-					subtitle='Select a building on the map to inspect rooms, or review room readiness below.'
+					// A9 c4, fix 37 — the subtitle is REMOVED, not reworded and not
+					// moved. A3 c11 added this sentence because fix-2.docx item 3
+					// asked for it; the operator has since asked for it gone, and
+					// AGENTS.md §8's header budget and the subtract-first rule decide
+					// the same thing: the page direction is already visible from the
+					// map above the readiness card, and a sentence that only narrates
+					// the layout is the first thing to go, not the last.
 					source={(
 						<>
 							<Badge

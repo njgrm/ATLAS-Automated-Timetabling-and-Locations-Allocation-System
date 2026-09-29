@@ -9,6 +9,10 @@ $out = Join-Path $env:TEMP "atlas-preview-$Port.log"
 # `/api/v1` prefix. Without it every request went to `<staging>/auth/login` and came back 404,
 # which read as "login is broken" rather than "the base is wrong".
 #
+# A9 c4 (2026-09-29, `aa2dcfdf`) landed the SAME fix independently and reached the same
+# `/api/v1` value; the merge on 2026-09-29 took this side because it carries the reasoning,
+# and the two are behaviourally identical.
+#
 # The ORIGIN here is still what keeps a loopback preview off live: `vite.config.ts`
 # `toProxyOrigin()` takes `.origin` for the `/api` proxy target, so the proxy also points at
 # staging and never at the live 5001. Never drop the port or point this at 5001 (AGENTS.md section 5).

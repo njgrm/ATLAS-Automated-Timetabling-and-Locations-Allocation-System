@@ -51,3 +51,5 @@ integrate, push, update plans, or author a correction packet. End with
 `RETURN_TO_PRIMARY_PLANNER: <specific reason>`. Do not add a standard
 coordination footer or repeat executor evidence that you did not independently
 verify.
+
+**Never write in `D:\ATLAS`** (the operator's checkout). Work, mutation tests, screenshots and temp files go only in your packet's `E:/ATLAS-worktrees/lane-*` worktree or `$env:TEMP`. A mutant applied to `D:\ATLAS` was found there on 2026-09-29 (14:02). Restore every mutant before you finish.

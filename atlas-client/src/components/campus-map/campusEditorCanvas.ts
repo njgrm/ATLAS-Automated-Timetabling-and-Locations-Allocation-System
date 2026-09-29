@@ -153,6 +153,124 @@ export function campusEditorCanvasSize(input: {
 	};
 }
 
+/* ── A9 c4, fix 36: the VIEW, so a canvas bigger than its box is SEEN, not
+   reached. Reachability was the previous answer and the operator rejected it. ── */
+
+/**
+ * The FREE AREA: what the canvas may be PAINTED into, in px. It is
+ * {@link canvasWorkArea} of the same region box the stage is sized from, so the
+ * stage's coordinate space and the view that shows it come from one measurement.
+ */
+export type CanvasFitBox = { freeWidth: number; freeHeight: number };
+
+/** The stage's own size — the content coordinate space the view scales. */
+export type CanvasSpace = { canvasWidth: number; canvasHeight: number };
+
+/** A stage transform: the scale it is painted at, and where its origin sits.
+ *  Both are SCREEN px / a unitless factor; the stage's own `width`/`height`
+ *  attributes and every building's stored `x`/`y` are untouched by this. */
+export type CanvasViewTransform = { scale: number; x: number; y: number };
+
+/** A strictly positive, finite measurement, or 0 for anything else. */
+function positive(value: number): number {
+	return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+/** Any finite number, sign intact; 0 for a NaN or an infinity. */
+function finite(value: number): number {
+	return Number.isFinite(value) ? value : 0;
+}
+
+/**
+ * The FIT scale: the one multiplier that makes the whole stage land inside the
+ * free area, and it NEVER EXCEEDS 1.
+ *
+ * A9 c4, fix 36, in the operator's words: "The rightmost building cards are
+ * visibly clipped beneath the inspector rather than **contained** in an
+ * auto-grown/full workspace canvas", and "No building may sit under the panel at
+ * 1366x768 (fit the canvas to the free area…)".
+ *
+ * WHAT WENT WRONG WITH THE PREVIOUS ATTEMPT, because this is the second answer
+ * to the same sentence. Auto-grow plus a scrolling region made the buildings
+ * REACHABLE — and reachability is not the ask. At the 1366px default the
+ * measured work area is 726px ({@link canvasWorkArea}: 1366 − 256 app sidebar
+ * − 352 inspector − 32 `p-4`), real campus content reaches 902 + 24 = 926px, so
+ * 200px of the map was painted to the right of the free area. Nothing about the
+ * SIZE contract is wrong and nothing here changes it: the stage keeps growing to
+ * hold its content, {@link clampBuildingToCanvas} keeps a gesture inside it, and
+ * the region keeps scrolling. What was missing is the last mile — a stage that
+ * is bigger than the box it sits in is a canvas the operator has to go FINDING.
+ * The fix is to paint that whole coordinate space into the free area, which is
+ * a VIEW decision and therefore belongs on the stage's transform, never in
+ * {@link campusEditorCanvasSize}.
+ *
+ * Total and pure. Both axes are considered and the SMALLER wins, so a campus
+ * that grew downwards is fitted as carefully as one that grew rightwards. An
+ * unmeasured host or an unmeasured canvas returns 1 — the pre-measurement first
+ * paint, and the named-floor case — so a fit can never produce a NaN scale or a
+ * zero-sized stage, and a canvas that already FITS is never enlarged (that is
+ * what the operator's zoom control is for).
+ */
+export function campusEditorFitScale(free: CanvasFitBox, canvas: CanvasSpace): number {
+	const freeWidth = positive(free?.freeWidth ?? 0);
+	const freeHeight = positive(free?.freeHeight ?? 0);
+	const canvasWidth = positive(canvas?.canvasWidth ?? 0);
+	const canvasHeight = positive(canvas?.canvasHeight ?? 0);
+	if (freeWidth === 0 || freeHeight === 0) return 1;
+	if (canvasWidth === 0 || canvasHeight === 0) return 1;
+	return Math.min(1, freeWidth / canvasWidth, freeHeight / canvasHeight);
+}
+
+/**
+ * The stage transform: {@link campusEditorFitScale} with the operator's own
+ * `zoom` multiplier on top, the result centred in the free area, and the
+ * operator's `pan` CLAMPED so the content can never be dragged out of reach.
+ *
+ * This is the read-only overview's own pattern
+ * (`CampusMapCanvasPreview.tsx`: fit × zoom, a centring offset, `clampPosition`),
+ * brought to the editor — AGENTS.md §8 "copy what works", one map, one fit
+ * behaviour, two views. `zoom` and `pan` are the USER's, and the editor's
+ * existing zoom in / zoom out / reset (↺) cluster drives them: RESET is
+ * `zoom: 1, pan: {0,0}`, which is now the FIT view rather than 100%, because a
+ * 100% default is precisely what put a building under the panel.
+ *
+ * When the painted content is smaller than the free area there is nothing to pan
+ * to, so `pan` is forced to 0 and the centring offset does the work; when it is
+ * larger, `pan` is bounded to the range that keeps every edge reachable. Both
+ * branches coerce junk, so no input can produce a NaN or a zero scale.
+ */
+export function campusEditorViewTransform(input: {
+	free: CanvasFitBox;
+	canvas: CanvasSpace;
+	zoom?: number;
+	pan?: { x: number; y: number };
+}): CanvasViewTransform {
+	const canvasWidth = positive(input.canvas?.canvasWidth ?? 0);
+	const canvasHeight = positive(input.canvas?.canvasHeight ?? 0);
+	const zoom = positive(input.zoom ?? 1) || 1;
+	const scale = campusEditorFitScale(input.free, input.canvas) * zoom;
+
+	// A zero-sized canvas has nothing to place, so it is left at the origin
+	// rather than centred against a negative remainder.
+	if (canvasWidth === 0 || canvasHeight === 0) return { scale, x: 0, y: 0 };
+
+	const freeWidth = positive(input.free?.freeWidth ?? 0);
+	const freeHeight = positive(input.free?.freeHeight ?? 0);
+	const scaledWidth = canvasWidth * scale;
+	const scaledHeight = canvasHeight * scale;
+	const offsetX = Math.max(0, (freeWidth - scaledWidth) / 2);
+	const offsetY = Math.max(0, (freeHeight - scaledHeight) / 2);
+	// A pan is a signed offset, so it is coerced for FINITENESS, not positivity:
+	// a negative pan is a real pan, and must survive the coercion intact.
+	const panX = finite(input.pan?.x ?? 0);
+	const panY = finite(input.pan?.y ?? 0);
+	// Content that fits has nothing to pan to; content that does not can be
+	// panned until either edge meets the free area, and no further.
+	const x = scaledWidth <= freeWidth ? 0 : Math.min(-offsetX, Math.max(freeWidth - offsetX - scaledWidth, panX));
+	const y = scaledHeight <= freeHeight ? 0 : Math.min(-offsetY, Math.max(freeHeight - offsetY - scaledHeight, panY));
+	return { scale, x: offsetX + x, y: offsetY + y };
+}
+
 /**
  * Containment (the operator's option 3): pull a building fully inside the canvas.
  *

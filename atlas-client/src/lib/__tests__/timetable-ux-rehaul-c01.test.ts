@@ -249,15 +249,49 @@ test('C01R C3 the header renders one status surface owning drift, day options, a
 		policyAlignmentWarning: 'Two earlier rows are hidden by the current start-time policy.',
 		hiddenRowCount: 2,
 	});
-	const regions = markup.match(/data-testid="timetable-simple-status-region"/g) ?? [];
-	assert.equal(regions.length, 1, 'exactly one status region may render');
-	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
-	// The drift message is a descendant of the region, not a sibling strip.
+	// SUPERSEDED (A2 c14 follow-ups, 2026-09-29, authority: AGENTS.md §8 header
+	// budget + A2 C11 S2 item 2, both already on main). The two assertions below
+	// pinned ONE CONTAINER by name. The header-budget slice deliberately split
+	// that container: the run-identity / term-authority / capped-messages band is
+	// now `timetable-simple-status-band` (row 1, in
+	// `simple/SimpleHeaderTrailingSurfaces.tsx`), and the change notice moved to
+	// ROW 2 as its first child — "ONE sentence, ONE primary action, one secondary,
+	// and part of THIS row rather than a row of its own". The drift message is
+	// therefore still rendered, but it is no longer a DESCENDANT of the status
+	// surface. The property this row exists to protect is unchanged and is
+	// re-asserted by the R-rows immediately below, in rendered markup, which is
+	// stronger than either superseded pin:
+	//
+	//   const regions = markup.match(/data-testid="timetable-simple-status-region"/g) ?? [];
+	//   assert.equal(regions.length, 1, 'exactly one status region may render');
+	//   const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	//   // The drift message is a descendant of the region, not a sibling strip.
+	//   assert.match(
+	//   	markup,
+	//   	/<section[^>]*data-testid="timetable-simple-status-region"[^>]*>[\s\S]*?data-testid="timetable-simple-input-drift"[\s\S]*?<\/section>/,
+	//   	'the drift message must render inside the single status region',
+	//   );
+	//
+	// C01R C3R (replacement) — the one status surface is still exactly one, and
+	// the drift warning is still ON SCREEN rather than derived and dropped.
+	const bands = markup.match(/data-testid="timetable-simple-status-band"/g) ?? [];
+	assert.equal(bands.length, 1, 'exactly one status band may render in the Simple header');
+	// The drift message renders — a header that derived the notice and dropped it
+	// is exactly the defect C11 S2 item 2 was written to close.
 	assert.match(
 		markup,
-		/<section[^>]*data-testid="timetable-simple-status-region"[^>]*>[\s\S]*?data-testid="timetable-simple-input-drift"[\s\S]*?<\/section>/,
-		'the drift message must render inside the single status region',
+		/data-testid="timetable-simple-input-drift"/,
+		'the drift message still renders in the Simple header',
 	);
+	// …and it renders as a later sibling of the status band, not inside it: that
+	// is the C11 S2 item 2 placement this supersession records. The offset
+	// control that decides it lives at C01R C3R2 below.
+	assert.doesNotMatch(
+		markup,
+		/data-testid="timetable-simple-status-band"[\s\S]*?data-testid="timetable-simple-input-drift"/,
+		'the drift notice is not rendered by the status band',
+	);
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
 	// A3 — the hidden-row controls and the setup-input repairs moved OUT of the
 	// header row: the repairs live on `/timetable/setup`, and the Day options
 	// live in the More menu. One shared `SimpleDayOptions` still owns the panel
@@ -274,12 +308,43 @@ test('C01R C3 the header renders one status surface owning drift, day options, a
 	assert.match(dayOptions, /<PopoverTrigger asChild>/, 'disclosure stays on the @/ui Popover trigger');
 	// Neither surface may remain a direct header child: strip the region and
 	// the drift line must be gone from the remainder.
-	const withoutRegion = markup.replace(
-		/<section[^>]*data-testid="timetable-simple-status-region"[^>]*>[\s\S]*?<\/section>/,
-		'',
-	);
-	assert.doesNotMatch(withoutRegion, /timetable-simple-input-drift/, 'no sibling drift strip may remain');
-	assert.doesNotMatch(withoutRegion, /timetable-hidden-row-controls/, 'no sibling hidden-row strip may remain');
+	// SUPERSEDED (A2 c14 follow-ups, 2026-09-29, same authority as the two pins
+	// above): this strip named `timetable-simple-status-region`, which the header
+	// budget replaced with `timetable-simple-status-band`. Run verbatim it is now
+	// a NO-OP strip — the pattern matches nothing, so `withoutRegion` equals
+	// `markup` and the drift control below would pass on a header that rendered
+	// BOTH a band and a second sibling drift strip. That is the "sibling drift
+	// strip may remain" defect, and the old pin can no longer catch it. Original
+	// retained:
+	//
+	//   const withoutRegion = markup.replace(
+	//   	/<section[^>]*data-testid="timetable-simple-status-region"[^>]*>[\s\S]*?<\/section>/,
+	//   	'',
+	//   );
+	//   assert.doesNotMatch(withoutRegion, /timetable-simple-input-drift/, 'no sibling drift strip may remain');
+	//   assert.doesNotMatch(withoutRegion, /timetable-hidden-row-controls/, 'no sibling hidden-row strip may remain');
+	//
+	// C01R C3R2 (replacement) — placement, decided by offset rather than by a
+	// nested-tag regex, because the two surfaces are SIBLINGS and the superseded
+	// regexes both assumed ancestry. The real shape (A2 C12 + C11 S2 item 2):
+	//   row 1 = title/tabs/status chip/primary/More
+	//   row 2 = the change notice, then the pickers
+	//   then   = `SimpleHeaderTrailingSurfaces`, which owns the status band, as a
+	//           SIBLING of the two-row band and not a child of the header box.
+	// A `<\/section>`-terminated strip cannot decide this: the band is a `div`,
+	// and a lazy close would stop on a nested element, so a stale pin here would
+	// silently become a no-op that always passes.
+	const row1At = markup.indexOf('data-testid="timetable-simple-header-row-1"');
+	const row2At = markup.indexOf('data-testid="timetable-simple-header-row-2"');
+	const driftAt = markup.indexOf('data-testid="timetable-simple-input-drift"');
+	const bandAt = markup.indexOf('data-testid="timetable-simple-status-band"');
+	assert.ok(row1At >= 0 && row2At > row1At, 'the two-row band is row 1 then row 2');
+	assert.ok(driftAt > row2At, 'the drift notice renders inside the row-2 band');
+	// The status band is its own trailing surface, NOT an ancestor of the notice.
+	assert.ok(bandAt > driftAt, 'the status band is a trailing sibling, not a container of the drift notice');
+	// …and there is exactly one of each, so a second sibling strip cannot creep in.
+	assert.equal((markup.match(/data-testid="timetable-simple-input-drift"/g) ?? []).length, 1, 'exactly one drift notice renders');
+	assert.equal((markup.match(/data-testid="timetable-hidden-row-controls"/g) ?? []).length, 0, 'no sibling hidden-row strip joins the header');
 	// C5 — the two mutually exclusive NEXT STEP task-prompt blocks collapsed into
 	// the single lifecycle action control (this state's publish-slot primary).
 	assert.equal((header.match(/data-testid="timetable-simple-task-prompt"/g) ?? []).length, 0, 'the NEXT STEP band collapses into the one action control');
@@ -291,7 +356,32 @@ test('C01R C3 the header renders one status surface owning drift, day options, a
 	const actions = source('src/components/timetable/simple/SimpleHeaderActions.tsx');
 	assert.match(actions, /<Link to="\/timetable\/setup"[^>]*data-testid="timetable-simple-review-setup"/, 'one labelled setup entry point remains (in More)');
 	assert.doesNotMatch(markup, /timetable-simple-sync-setup/, 'Sync with setup is not a header control');
-	assert.doesNotMatch(markup, /timetable-simple-impact-preview/, 'Preview impact is not a header control');
+	// SUPERSEDED (A2 c14 follow-ups, 2026-09-29, authority: A2 C11 S2 item 2,
+	// already on main). This pin was MASKED behind the earlier failing assertion
+	// in this same row, so the row had been reporting the first failure only and
+	// this one had never been exercised. It is recorded here rather than left to
+	// be rediscovered. `timetable-simple-impact-preview` is the "See what
+	// changed" SECONDARY of the header change notice, and one secondary is
+	// exactly what C11 S2 specifies for that row ("ONE sentence, ONE primary
+	// action, one secondary"). It was not a header control when this pin was
+	// written because the header had no change notice of its own to give it to.
+	// The property the pin protects — the header must not collect a sprawl of
+	// detail controls — is re-asserted below as a COUNT, which is what actually
+	// fails when a second one is added. Original retained:
+	//
+	//   assert.doesNotMatch(markup, /timetable-simple-impact-preview/, 'Preview impact is not a header control');
+	//
+	// C01R C3R3 (replacement) — the C11 S2 shape, in rendered markup: one notice,
+	// one secondary, at most one primary. The secondary and the primary are each
+	// counted so a second detail button fails this row, which the superseded
+	// doesNotMatch could not do once one legitimate secondary existed. The
+	// primary is bounded at AT MOST one and not exactly one, because
+	// `SimpleDriftBanner` mounts the apply action only when regeneration is
+	// actually offered for this run — a notice with no primary is the correct
+	// rendering, and pinning it to 1 would have demanded an inert control.
+	assert.equal((markup.match(/data-testid="timetable-simple-impact-preview"/g) ?? []).length, 1, 'the change notice carries exactly one secondary detail control');
+	assert.ok((markup.match(/data-testid="timetable-simple-regenerate-to-apply"/g) ?? []).length <= 1, 'the change notice carries at most one primary action');
+	assert.equal((markup.match(/data-testid="timetable-simple-input-drift"/g) ?? []).length, 1, 'and exactly one change notice, so the counts above are not split across two of them');
 	// Simple keeps the status and schedule chooser, without grid-refinement controls.
 	assert.doesNotMatch(markup, /timetable-filters-trigger|timetable-active-filters/);
 	assert.match(markup, /data-testid="timetable-simple-readiness-chip"/);
@@ -527,5 +617,24 @@ test('C01R boundaries: scope hygiene, term identity, actor scope, and the strict
 	const menu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
 	assert.match(menu, /STATUS_ITEMS/, 'the More menu renders the shared status key');
 	assert.doesNotMatch(header, /<TimetableStatusLegend compact \/>/, 'the status key is not a header control');
-	assert.match(header, /<SimpleDriftBanner/);
+	// SUPERSEDED (A2 c14 follow-ups, 2026-09-29, authority: A2 C11 S2, already on
+	// main as ac77bd594). The header no longer renders `<SimpleDriftBanner>`
+	// inline; it asks the ONE shared gate for a notice node and mounts what comes
+	// back, so the banner MARKUP moved into
+	// `simple/SimpleHeaderChangeNoticeSlot.tsx`. This is a stale pin after a
+	// legitimate refactor, not a removed behaviour: the banner still renders in
+	// the Simple header, which the rendered C01R C3R row above now proves from
+	// markup. This exact re-pin was already applied to
+	// `timetable-scheduler-simplicity-c02.test.ts` on 2026-09-28 and this file
+	// was simply missed. Original retained:
+	//
+	//   assert.match(header, /<SimpleDriftBanner/);
+	//
+	// C01R boundaries-R (replacement) — the two halves that can break
+	// independently, so dropping either pin cannot let this row pass on a header
+	// that shows no drift warning at all (the failure it exists to catch).
+	const noticeSlot = source('src/components/timetable/simple/SimpleHeaderChangeNoticeSlot.tsx');
+	assert.match(noticeSlot, /<SimpleDriftBanner/, 'the shared gate MOUNTS the drift banner (a silent slot is a silent header)');
+	assert.match(header, /const changeNotice = useRunChangeNotice\(/, 'the header derives the notice through that one shared gate');
+	assert.match(header, /\{changeNotice\.node\}/, 'and MOUNTS the node it returns — the warning is on screen, not derived and dropped');
 });

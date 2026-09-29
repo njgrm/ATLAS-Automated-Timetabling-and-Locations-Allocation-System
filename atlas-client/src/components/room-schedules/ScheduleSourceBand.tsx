@@ -20,7 +20,7 @@
  * terms shows the same class three times in one slot and invents conflicts), and it is needed
  * only by someone who is about to change the term.
  */
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SELECT_NO_VALUE } from '@/ui/select';
 import { Button } from '@/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
@@ -28,6 +28,48 @@ import { pickerTriggerClass } from '@/ui/picker-trigger';
 import type { AcademicTermOption, OrderedAcademicTerm } from '@/lib/academic-term';
 
 export type DatedTimetable = { id: number; madeOn: string | null };
+
+/**
+ * A2 c14 follow-up (item 3) — the ONE value that means "no term is chosen yet",
+ * for THIS term picker.
+ *
+ * SCOPE, stated honestly: this fixes the term `Select` IN THIS COMPONENT. It does
+ * not close the class. The same shape also existed at
+ * `simple/SimplePastYearReadOnlySurface.tsx` on `/timetable` and is fixed there
+ * too, with the shared `SELECT_NO_VALUE` from `@/ui/select`; the sweep behind that
+ * is recorded on the primitive. Anything that reaches the same pattern later must
+ * use the same sentinel — a second local copy of this idea would be a second place
+ * to get it wrong.
+ *
+ * Lane C's train-8 walk saw React warn on route change: *"Select is changing from
+ * uncontrolled to controlled"*, on `/room-schedules` and others. For this picker
+ * the cause is here, and it is not the router and not the route change. This
+ * component passed
+ *
+ *     value={viewTerm != null ? String(viewTerm) : undefined}
+ *
+ * and `undefined` is exactly how Radix is told to be UNCONTROLLED. On mount the
+ * active term is not verified yet, so `viewTerm` is `null` and the control was
+ * uncontrolled; a moment later the term resolved, `viewTerm` became a number and
+ * the same mounted control became controlled. React is right to complain: a
+ * control that changes mode mid-life is the defect, on every platform, not a
+ * quirk of this one.
+ *
+ * `/room-schedules` is where it was visible because it is the one page whose term
+ * genuinely starts unresolved — the walk recorded "Term not verified" and a
+ * disabled picker — so it is the one page that takes the uncontrolled→controlled
+ * path. A page that already had a verified term at mount never tripped it.
+ *
+ * The fix keeps the control CONTROLLED for its whole lifetime, using the defined
+ * empty string as the "nothing chosen" value. That is not a suppression: it removes
+ * the mode change, which is the actual defect, and it leaves every other
+ * uncontrolled→controlled input free to warn. It is safe here because no
+ * `SelectItem` can hold `''` — the options are `String(term.order)`, and a term
+ * order is a number, so the smallest possible option value is `"0"`. Radix
+ * rejects an empty-string ITEM, which is why the sentinel belongs on the
+ * control and not in the list.
+ */
+export const NO_TERM_SELECTED = SELECT_NO_VALUE;
 
 export function ScheduleSourceBand({
 	termOptions,
@@ -61,7 +103,7 @@ export function ScheduleSourceBand({
 					<TooltipTrigger asChild>
 						<div>
 							<Select
-								value={viewTerm != null ? String(viewTerm) : undefined}
+								value={viewTerm != null ? String(viewTerm) : NO_TERM_SELECTED}
 								onValueChange={onTermChange}
 								disabled={!termVerified}
 							>

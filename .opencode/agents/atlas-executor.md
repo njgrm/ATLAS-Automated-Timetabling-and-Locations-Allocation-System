@@ -66,3 +66,5 @@ rebase, merge, push, edit the living register, self-approve, or plan successors.
 Return `REVIEW_REQUIRED` with immutable Git identity, changed paths, decisive
 evidence, material risks, and clean-worktree proof. Point to committed detail;
 do not paste logs or restate the packet.
+
+**Never write in `D:\ATLAS`** (the operator's checkout). Work, mutation tests, screenshots and temp files go only in your packet's `E:/ATLAS-worktrees/lane-*` worktree or `$env:TEMP`. A mutant applied to `D:\ATLAS` was found there on 2026-09-29 (14:02). Restore every mutant before you finish.

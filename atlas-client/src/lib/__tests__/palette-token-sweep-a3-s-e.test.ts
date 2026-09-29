@@ -331,15 +331,43 @@ const EXPECTED_EXCLUDED_RESIDUAL = 16;
  * an EMPTYING lowers the excluded residual and adds a guarded zero. The residual total
  * falls by those 11 (measured 106 -> 95 on `origin/main` `a87636b0` versus this tree;
  * the 95 pin is a stale pre-existing red this change does not re-pin).
+ *
+ * A7 C6 (2026-09-29) — re-derived 29 -> 30, mirroring `palette-ratchet-a3-s-e.test.ts`'s
+ * `PINNED_FILE_COUNT` and `palette-slate400-step2-a3-s-f.test.ts`'s
+ * `EXPECTED_RATCHET_FILE_COUNT`, which the same commit moved to 30. A RISE, so the file that
+ * caused it is named rather than the digit quietly raised: commit `342d45e6` extracted the
+ * setup-readiness card out of `src/pages/Dashboard.tsx` into
+ * `src/components/dashboard/ReadinessCard.tsx` under the AGENTS.md §8 line cap, carrying its two
+ * `text-slate-300` chevrons with it. Measured on `origin/main` `94daebf7` with this file's own
+ * counting method (one entry per source file holding at least one raw-neutral occurrence):
+ * `pages/Dashboard.tsx` 3 -> 1, `components/dashboard/ReadinessCard.tsx` 0 -> 2, every other file
+ * unchanged, corpus total flat at 95. This is the SPLIT case the derivation above already names,
+ * not a sweep and not new debt.
  */
-const EXPECTED_FILE_COUNT = 29;
+const EXPECTED_FILE_COUNT = 30;
 const STEP_2_SURVIVING_RESIDUALS: ReadonlyArray<readonly [string, number]> = [
 	['src/components/campus-map/BuildingGradeScopeControl.tsx', 1],
 	['src/components/campus-map/CampusMapOverview.tsx', 9],
 	['src/components/dashboard/CampusReadinessCard.tsx', 11],
 	['src/pages/Audit.tsx', 4],
 	['src/components/audit/AuditFindingsPanel.tsx', 4],
-	['src/pages/Dashboard.tsx', 3],
+	// A7 C6 (2026-09-29) SPLIT RE-DERIVATION. 3 -> 1, and the file is NOT emptied, so the
+	// `count > 0` guard above still holds and `EXPECTED_FILE_COUNT` is untouched by this row.
+	// The two that left did not disappear: commit 342d45e6 extracted the setup-readiness card
+	// out of `pages/Dashboard.tsx` into `components/dashboard/ReadinessCard.tsx` (to bring
+	// Dashboard under the AGENTS.md §8 1000-line cap), and both `text-slate-300` chevrons
+	// travelled with the markup they were attached to. Counted live on `origin/main`
+	// `94daebf7` with the same one-match-per-occurrence method used everywhere in this file:
+	//   `pages/Dashboard.tsx`            3 -> 1   (`:663` `text-slate-600`, the source-decision
+	//                                             sentence, the only survivor)
+	//   `components/dashboard/ReadinessCard.tsx`  0 -> 2  (`:111`, `:138`, both
+	//                                             `ChevronRight className='w-4 h-4 text-slate-300 mt-1'`)
+	// Net residue is unchanged and the corpus total stays 95, so this is the SPLIT case the
+	// `EXPECTED_FILE_COUNT` derivation already documents ("a SPLIT moves a file's residue and
+	// raises the file count"), not a sweep. The new file is named here for the same reason
+	// `AuditFindingsPanel.tsx` is: an unnamed file is a file this table cannot see.
+	['src/pages/Dashboard.tsx', 1],
+	['src/components/dashboard/ReadinessCard.tsx', 2],
 ];
 
 
@@ -911,8 +939,23 @@ test('control 5: the ratchet fell for exactly the reason this file states', () =
 		//
 		// 34 - 6 emptied by this sweep + 1 file the A5 C4 split created = 29, which is
 		// also what `palette-ratchet-a3-s-e.test.ts` pins today.
-		PRE_SWEEP_FILES - 6 + 1,
-		'the expected file count is the pre-sweep file count, minus the six files this sweep emptied, plus the one file the A5 C4 /audit extraction split into; the A5 C5 Room Schedules emptying did NOT lower it, because that file was EXCLUDED (not in the measured list) and a zero-occurrence file is not counted',
+		//
+		// A7 C6 (2026-09-29) adds a SECOND extraction term, and it is the same shape as
+		// the A5 C4 one for the same stated reason: commit `342d45e6` extracted the
+		// setup-readiness card out of `pages/Dashboard.tsx` into
+		// `components/dashboard/ReadinessCard.tsx` to bring that page under the AGENTS.md
+		// §8 line cap. It moved two raw neutrals into a new file and emptied none, so the
+		// residual TOTAL is unchanged and the FILE COUNT rises by exactly one — the same
+		// arithmetic A5 C4 had to correct on this very line, and for the same reason: a
+		// derivation that contradicts its own constant aborts the control BEFORE it reaches
+		// the line below that reports the real pre-existing debt.
+		//
+		// Measured on `origin/main` `94daebf7` with this suite's own corpus: 30 files,
+		// differing from the 29 above by exactly one addition,
+		// `components/dashboard/ReadinessCard.tsx` at 2, with no removal and no other
+		// value change.
+		PRE_SWEEP_FILES - 6 + 1 + 1,
+		'the expected file count is the pre-sweep file count, minus the six files this sweep emptied, plus one file for each extraction that moved residue into a new file (A5 C4 /audit, A7 C6 dashboard readiness card); the A5 C5 Room Schedules emptying did NOT lower it, because that file was EXCLUDED (not in the measured list) and a zero-occurrence file is not counted',
 	);
 
 	// Recompute the ratchet's own scope from source, so this control independently confirms the pin
