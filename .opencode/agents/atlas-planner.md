@@ -111,6 +111,7 @@ and redirects to `/`. **Never open, read, cat or navigate to `D:\ATLAS-runtime-c
 browser tool echoed the password into a transcript on 2026-09-29 and it had to be rotated. If the login page says
 it failed, run `node scripts/dev/ensure-staging-qa-account.cjs` once (staging is re-streamed from live on each deploy).
 Never use any of this against live (`:5001`, `:5174`, the Tailnet origin without `:8443`).
+**If `/__dev/staging-login` 404s, your worktree predates it: `git merge origin/main` (or cherry-pick `9af12673` and `aa2dcfdf`) and restart the preview. No other route.** Never write a script that reads that env file, never serve a password or token on any port ("relay", "token server"), never paste them into a form: on 2026-09-29 A3 c14 QA and A9 c5 each ran such a relay (one with CORS `*`); the reaper now kills them on sight and the lane is marked BLOCKED.
 
 **Clickable must look clickable (operator, 2026-09-29, recurring).** Anything that opens, filters or acts must look
 like a button or link: a visible shape (border or fill), a verb or a chevron in the label, pointer cursor, hover and

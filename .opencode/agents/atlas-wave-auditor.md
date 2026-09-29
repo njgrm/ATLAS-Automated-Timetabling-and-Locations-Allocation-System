@@ -56,3 +56,5 @@ copy-ready correction handoff. End with `RETURN_TO_PRIMARY_PLANNER`; do not add 
 standard coordination block or repeat the entire wave history.
 
 **Never write in `D:\ATLAS`** (the operator's checkout). Work, mutation tests, screenshots and temp files go only in your packet's `E:/ATLAS-worktrees/lane-*` worktree or `$env:TEMP`. A mutant applied to `D:\ATLAS` was found there on 2026-09-29 (14:02). Restore every mutant before you finish.
+
+**Staging sign-in (2026-09-29):** only `http://127.0.0.1:<port>/__dev/staging-login` on a 5200–5299 preview. If it 404s, merge `origin/main` into the worktree (it needs `9af12673`). Never read `D:\ATLAS-runtime-configtlas-staging-qa.env`, never serve a password or token on any port, never type them into a form. The reaper kills token relays on sight.
