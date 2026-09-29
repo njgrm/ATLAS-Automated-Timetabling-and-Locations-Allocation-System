@@ -26,6 +26,40 @@ rules are what make that safe:
    `docs/handoffs/planner-session-handoff.md`, Lane B in its own handoff file, Lane C in its
    section below until a stream needs a handoff.
 
+## Lane A4 — release lane, 2026-09-29 11:20 +08 (train 8 UP AT STAGING; train 7 and earlier below as history)
+
+- **STAGING IS UP at `3216d383` (train 8).** `https://njgrm.buru-degree.ts.net:8443` (API 5101, client 5274),
+  loopback `http://127.0.0.1:5274`. Release dir `E:\ATLAS-staging\3216d383…`, `releaseSha` == pin, owns its dependency
+  trees. Deploy `STAGING_DEPLOYED` in **103.4 s**; DB re-streamed from live (`SNAPSHOT_REFRESHED`,
+  `liveSignatureBefore == liveSignatureAfter == stagingSignature = 1132|493|11`). Pin = the `origin/main` tip at
+  step 1, on `release/2026-09-29-8`; **73 paths** since `e9ddda71`, **0 `prisma/`**.
+- **GATE: PASS.** Prisma diff 0 · `test:staging-guards` **20/20** · client suite **0 new failures introduced by
+  this train** · live-data invariants PASS (`is_active AND NOT is_archived` = 1, fixture ids 900000–999999 = 0,
+  11 migrations) · **live measured untouched** (5001 -> 30904, 5174 -> 4940, same PIDs, machine scope still
+  `…-7prod` / `e9ddda71`, live signature `1132|493|11` unchanged) · S-D1 **8 discriminators, all new-vs-old**.
+  Full record: `docs/handoffs/lane-c-to-a2.md`, "A4 STAGING at `3216d383`".
+- **In the train:** A8 `6a496cbd` (SSE stream slots released on every path + per-`user:school:schoolYearId` cap
+  with 429 — **not a freeze fix**), A2 c13 `5a7552bd`, A6 c6 `a3819321`, A3 c13 `557d1bb9`. **NOT IN TRAIN (correct):**
+  A5 c5, A7 c6, A9 c3 — no `ready for release` before the pin.
+- **⚠ TWO CLIENT-SUITE FAILURES CARRIED BY THE LIVE RELEASE (as of 2026-09-29 11:20 +08), owner A2.** Two rows in
+  `a2-c11-s2-header-banners.test.tsx` are absent from the KNOWN_RED baseline. **They are not this train's:** the same
+  two fail **byte-identically at `e9ddda71`** (same offsets 10498/15642, same messages), proven in a throwaway
+  worktree at the live release. Train 8 adds none, so the gate passes; A2 owns the fix and Lane C owns adding the two
+  names to the baseline doc.
+- **CAPACITY: E: 27.11 -> 28.64 GiB reclaimed before the build, 26.48 after it, 28.01 after retiring the displaced
+  staging tree.** Below the packet's 30 GiB preference **on purpose**: `lane-a4-release-20260929-6` and
+  `lane-a4-release-c02-20260929` both carry unintegrated `e85ee949`, so the preserve rule wins. Still above the §3
+  warn line.
+- **Still routed, not fixed here:** the staging quiesce defect (only survived because `ATLAS-Staging-Supervisor`
+  was **Running**, so `schtasks /end` collected the tree — it bites again when the task is `Ready` with a detached
+  supervisor); `powershell -File deploy-staging.ps1` (invoke with `&`); the runbook's dead 8443-vs-443 byte
+  discriminator (both now 19 509 B after the re-stream).
+- **Worktrees:** `lane-a4-release-20260929-7` = `KEEP_ACTIVE` (gate worktree on `release/2026-09-29-8`, deploy
+  source); `lane-a4-release-20260929-7prod` = `KEEP_ACTIVE` (live); `-6` and `-c02-20260929` =
+  `PRESERVE_FOR_DECISION` (unintegrated `e85ee949`).
+- **Next action (single):** Lane C runs the Codex walk on staging at `3216d383`, then resumes A4 with **GO** for
+  the production cutover of the SAME pin; rollback basis `e9ddda71` / `…-7prod`.
+
 ## Lane A4 — release lane, 2026-09-29 10:35 +08 (train 7 UP AT STAGING; trains 1—5 below as history)
 
 - **STAGING IS UP at `e9ddda71` (train 7).** `https://njgrm.buru-degree.ts.net:8443` (API 5101, client 5274),
