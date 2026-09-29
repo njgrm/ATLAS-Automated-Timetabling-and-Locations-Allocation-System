@@ -1768,3 +1768,73 @@ staging deploy needs ~2.1 GiB and it fit.**
 **Next action (single):** Lane C runs the Codex walk on staging at `3216d383`
 (`https://njgrm.buru-degree.ts.net:8443`) and resumes A4 with **GO**; A4 then cuts production over to the SAME pin,
 rolling back to `e9ddda71` on failure.
+
+---
+
+# A4 LIVE at `3216d383` - train 8 in production 2026-09-29 11:21 +08
+
+**`A4 LIVE at 3216d383ce033a3447067255bbe554910fb78595`.** On Lane C's GO, on the SAME pin that was gated and
+walked on staging. Cutover **11:21:30 +08** -> `CUTOVER_STARTED`, audit
+`C:\ProgramData\ATLAS\release-audit\3216d383-20260929-112130\`. **No rollback was needed and none was run.**
+
+| | |
+|---|---|
+| **LIVE** | `3216d383ce033a3447067255bbe554910fb78595` |
+| **Live dir** | `E:\ATLAS-worktrees\lane-a4-release-20260929-8prod`, HEAD == pin, `git status --short` empty, 0 reparse points, own dependency trees (`npm ci` x3) |
+| **Listeners** | 5001 -> **23456**, 5174 -> **17856** (were 30904 / 4940 under `e9ddda71`) |
+| **Machine scope** | both variables repointed to `…-8prod` / `3216d383…`; task action `…-8prod\ops\runtime\cli.mjs start`, Running; the active `supervisor-state.json` reads `state running`, `releaseSha 3216d383…`, server 23456, client 17856 |
+| **Rollback basis** | `e9ddda71562742fd00d6ad881c1751f3ac1a0e7c`, dir `…-7prod` @ clean, HEAD == pin, both `dist`s present, 0 reparse points. One-step supervised reset. |
+| **Scope** | 73 paths vs `e9ddda71`, **0 `prisma/`**, 11 migrations before and after |
+
+## Acceptance - every row run, none skipped
+
+- **S-W1 PASS** - public origin `https://njgrm.buru-degree.ts.net`: `/api/v1/health` 200, `/api/v1/health/ready` 200
+  with `{"status":"ready","checks":{"database":"ok"}}`, `/` 200 (5 382 B).
+- **S-H1 PASS** - loopback 5001 ready 200, 5174 `/__host/ready` 200, and the load-bearing DB-backed read
+  `GET /api/v1/subjects?schoolId=1` **200 (19 509 B)** on both loopback and the Tailnet origin. Health is liveness
+  only; the read is the part that counts.
+- **S-Z1 PASS - 0 of 50 tables changed.** Baseline captured **before** the quiesce: every `@@map` table that exists
+  in the live database (50 of 75 mapped names; the other 25 are enums/views), each `count(*)` + `max(id)` +
+  per-row `md5` of the ordered row text. Re-read after the cutover: **`Compare-Object` diff = 0 rows** - and
+  `audit_logs` (494 rows, max id 1133) is in that set and unmoved. This is a stronger baseline than train 7's 17
+  tables.
+- **S-R2 PASS** - **0** `audit_logs` rows with `createdAt` inside the cutover window 03:20-03:24Z. The newest row in
+  the whole table is `2026-09-29 03:13:22.208Z`, **8 minutes before** the supervisor started the new release at
+  03:21:59Z. No generation, publication, migration or term-cache write on boot.
+- **S-R1 PASS** - the **live runtime's own** `cli.mjs status`, run from `…-8prod` with the machine-scope values
+  injected explicitly (never read from `Env:`), self-reports `ROLLOVER_AUTO_SYNC_ENABLED: "false"`. The contract
+  invariant decides, not the env file: a restart cannot reach `applyRolloverSync`. EnrollPro rollovers stay PAUSED.
+- **S-D1 PASS, non-vacuous, and I checked it discriminates before relying on it.** Client: `index-DzhMkC-M.js`
+  **200 (307 086 B)** on the live origin and the previous build's `index-Dy1q6261.js` **404**. Server:
+  `DEFAULT_SSE_STREAMS_PER_PRINCIPAL` appears **3** times in the new `dist` and **0** in the old. **The obvious
+  server probe would have lied:** `atlas-server/dist/services` is **393 files in both builds**, and
+  `dist/lib/sse.js` exists in both - neither discriminates. I did not use `dist/server.js` as a marker either; it
+  is a 3 KB entry stub.
+- **S-B1 PASS** - rollback basis verified above, one supervised reset away.
+- **Staging still up at the same pin** (5101 / 5274, `/__host/ready` 200), so a same-pin re-stage remains available.
+
+## Two things I did that you should know about
+
+1. **The harness did need the register first, exactly as you anticipated.** `deploy-runner.ps1`
+   `Assert-LiveReleaseRecorded` fails closed unless `docs/plans/live-state.md` at `origin/main` names the target
+   8-char prefix inside the `## Live release` section. I recorded the CUTOVER TARGET (full SHA, rollback basis, dir,
+   build provenance) and pushed it as `4f60b5a3` **before** the dry run, then re-wrote the same block as the LIVE
+   record after the cutover. A dry run came first and printed `mutates: false` with the lineage verified
+   (supervisor 38220 owning listeners 30904/4940) and the gate **passed**.
+2. **The client build's companion origin came from the durable live env key `ENROLLPRO_PROXY_ORIGIN`**, read inside
+   the build process and injected as `VITE_ENROLLPRO_URL`. The value is in no log, no doc and no transcript. The
+   staging leg had used the runbook's literal default; production used the same source the previous live build used,
+   which is the point of reading it rather than retyping it.
+
+**Capacity:** E: **28.02 -> 25.25** after the prod build, then **26.79** after retiring
+`lane-a4-release-20260929-5` (train 5's prod dir - two releases back, clean, ancestor of the pin, 0 reparse points,
+0 processes using it, non-forced remove + prune). Still short of 30 GiB, for the same reason as before:
+`-6` and `-c02-20260929` carry unintegrated `e85ee949` and stay `PRESERVE_FOR_DECISION`. Above the §3 warn line,
+which is what the next train's build needs.
+
+**Worktrees:** `lane-a4-release-20260929-8prod` = `KEEP_ACTIVE` (live). `lane-a4-release-20260929-7prod` = rollback
+basis. `lane-a4-release-20260929-7` = `KEEP_ACTIVE` (train 8 gate worktree, `release/2026-09-29-8`).
+
+**Next action (single):** Lane C runs the **production** browser rows on `https://njgrm.buru-degree.ts.net` -
+`/timetable`, `/teaching-load`, `/faculty/concerns` - and posts the result here. The staging walk is evidence about
+the candidate; only these rows are about production.
