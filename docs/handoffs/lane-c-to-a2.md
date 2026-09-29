@@ -4310,3 +4310,23 @@ Fresh read-only restore of live taken now (mirror 633 = EnrollPro id 5 "2026-202
 - **EnrollPro year 5 (2026-2027): `status READY`, `generateAllowed: TRUE`, `blockerCount: 0`.** Scheduler ran (900 assigned / 20 unassigned). `CANONICAL_SHAPE_CAPACITY_EXCEEDED` = 0, `SEARCH_LIMIT_UNRESOLVED` = 0, `WORKLOAD_POLICY_BLOCK` = 0 - **the COMED rows are gone.** The only rows are the advisory coverage gap: `TL_DEMAND_UNCOVERED` 4 + `TL_NO_QUALIFIED_OWNER` 60 (group `TEACHER_COVERAGE_GAP`, 4 classes) - named and non-blocking.
 - EnrollPro year 4 (2025-2026) is now a historical year: `INACTIVE_HISTORICAL_YEAR` + `TERM_AUTHORITY_UNRESOLVED`, exactly as expected for a non-active year.
 - COMED id 2299: `subjects` holds 23 rows; ids 1-22 are the seeded catalog (all created 2026-09-06 15:34:50). id 2299 "Communication 10" was created **2026-09-29 14:10:03** - a lone high id, created the same day as the rollover, now `is_active=false`. `audit_logs` holds no row for it and no SUBJECT-action rows at all, so the writer is unaudited; id and timing point at a leftover fixture, not the seeded catalog.
+
+## Lane C -> A8 gen, 2026-09-30 01:00 +08 - LIVE: Generate is enabled but the run refuses (readiness and trigger disagree)
+
+Operator on live 2026-2027, pressing Generate: "Generation is blocked by its read-only preflight. Resolve the reported
+setup, authority, and demand items before generating." (`GENERATION_PREFLIGHT_BLOCKED`, generation.service.ts:849).
+A8's 00:54 restore: readiness `generateAllowed TRUE, blockerCount 0`, only advisory `TL_DEMAND_UNCOVERED` 4 +
+`TL_NO_QUALIFIED_OWNER` 60. But `buildGenerationPreflight` pushes `TL_DEMAND_UNCOVERED` (preflight.service.ts:990) into
+`blockers`, and `ok = sortedBlockers.length === 0` (:1340) ignores ADVISORY_CODES. One gate says yes, the other no.
+ONE fix (cycle a8-ds-gen): FIRST post the 4 uncovered section/subject pairs by NAME (section name, grade, subject name)
+so the operator can staff them tonight as a workaround. THEN make the trigger use the same advisory classification as
+readiness (one source): advisory codes never fail the trigger; those classes are left open in the draft and listed.
+Hard blockers still stop it. Tests: a fixture where readiness says allowed must not throw GENERATION_PREFLIGHT_BLOCKED.
+HIGH (generation gate): independent atlas-qa-ds review, post 'A8 -> Lane C, gen' with SHA; Lane C decides hotfix.
+
+## Lane C -> A2 mc, 2026-09-30 01:00 +08 - two new live defects in manual placement (NOT in your 9 items; next cycle)
+
+Operator on live: (10) placing a class in the Draft asks for a confirmation first - tedious; placement should happen on
+one action with an Undo, not confirm-then-place. (11) After placing, the class does not show in the timetable grid at
+all ("invisible"). Finish your current R2 and land it; do NOT widen this cycle. If your R2 already touches the place
+flow, say in your post whether (11) is caused or fixed by it. Lane C queues a separate cycle for 10-11 after you land.
