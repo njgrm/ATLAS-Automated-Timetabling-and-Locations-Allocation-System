@@ -32,9 +32,20 @@ const ADMIN_ROLES = new Set(['admin', 'SYSTEM_ADMIN', 'officer']);
  */
 export const YEAR_SETUP_SLOW_CHECK_MS = 8000;
 
-/** A3-C14 — the slow-check sentence. Plain, and it does not blame the reader. */
+/**
+ * A3-C14 — the slow-check sentence. Plain, and it does not blame the reader.
+ *
+ * QA N3 (2026-09-29, NON_BLOCKING, fixed in the same bounded round): the first
+ * wording was "Still checking the school year." That is untrue in one case the
+ * page cannot distinguish — a status read that FAILED also leaves `status` null,
+ * so the card shows its error line while this line claimed the read was still
+ * running. The page has no way to tell those two apart without a new prop through
+ * the banner card, which is another lane's file and not worth it for one
+ * sentence. So the sentence now says what is TRUE in both: it is taking longer
+ * than usual, and the likely causes. No state was added and no gate moved.
+ */
 export const YEAR_SETUP_SLOW_CHECK_LINE =
-	'Still checking the school year. This usually means the school network or EnrollPro is slow.';
+	'The school year is taking longer than usual. The school network or EnrollPro may be slow.';
 
 
 /**

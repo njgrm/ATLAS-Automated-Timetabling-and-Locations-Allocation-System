@@ -124,7 +124,7 @@ function alignedStatus() {
 		archivedYears: [PREVIOUS_YEAR],
 		schoolYears: [
 			{ enrollProSchoolYearId: 9, yearLabel: CURRENT_YEAR, state: 'current', isArchived: false, archivedAt: null, preservedCounts: null },
-			{ enrollProSchoolYearId: 8, ...PREVIOUS_YEAR, state: 'kept as history', isArchived: true, preservedCounts: PREVIOUS_YEAR.preservedCounts },
+			{ ...PREVIOUS_YEAR, state: 'kept as history', isArchived: true, preservedCounts: PREVIOUS_YEAR.preservedCounts },
 		],
 		automation: { enabled: false, lastAttemptAt: null, lastResult: null, nextAttemptAt: null, consecutiveFailures: 0, currentlyApplying: false },
 		termAuthority: {
