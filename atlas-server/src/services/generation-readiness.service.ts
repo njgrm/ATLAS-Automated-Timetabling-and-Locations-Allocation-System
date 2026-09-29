@@ -439,9 +439,22 @@ async function buildGenerationReadinessWithContext(
 
 			const subjectCodeById = new Map<number, string | null>(assembly.schedulableSubjects.map((s: any) => [s.id, (typeof s.code === 'string' ? s.code : null)]));
 			const termIdentityByIndex = new Map(termRefs.map((term) => [term.order, term.identity]));
+			// A8 UNBLOCK: the owner name is a presentation label only. It is built
+			// from the faculty rows the preflight ALREADY loaded (extended with
+			// `firstName`/`lastName`); no extra read, and no name is invented.
+			const facultyNameById = new Map<number, string>();
+			for (const member of assembly.faculty as Array<{ id?: unknown; firstName?: unknown; lastName?: unknown }>) {
+				if (typeof member.id !== 'number') continue;
+				const first = typeof member.firstName === 'string' ? member.firstName.trim() : '';
+				const last = typeof member.lastName === 'string' ? member.lastName.trim() : '';
+				const name = `${first} ${last}`.trim();
+				if (name.length > 0) facultyNameById.set(member.id, name);
+			}
 			for (const item of resolvedUnassignedItems) {
 				const termIdentity = typeof item.termIndex === 'number' ? termIdentityByIndex.get(item.termIndex) ?? null : null;
-				blockers.push(classifyUnassignedBlocker(item as any, termIdentity, subjectCodeById.get(item.subjectId) ?? null));
+				const facultyId = typeof (item as { facultyId?: unknown }).facultyId === 'number' ? (item as { facultyId: number }).facultyId : null;
+				const facultyName = facultyId != null ? facultyNameById.get(facultyId) ?? null : null;
+				blockers.push(classifyUnassignedBlocker({ ...(item as any), facultyName }, termIdentity, subjectCodeById.get(item.subjectId) ?? null));
 			}
 			for (const violation of hard) {
 				blockers.push({

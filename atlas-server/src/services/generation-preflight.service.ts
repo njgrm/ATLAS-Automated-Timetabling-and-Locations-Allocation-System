@@ -408,13 +408,22 @@ export function classifyUnassignedBlocker(item: {
 	roomAssignmentReason?: string;
 	homeRoomFallbackCause?: string;
 	termIndex?: number;
+	/**
+	 * A8 UNBLOCK — the preflight-resolved name of the class's canonical owner,
+	 * when one could be resolved. It is a LABEL only: it never selects a
+	 * candidate, never changes a code, and a missing name renders no owner clause.
+	 */
+	facultyName?: string | null;
 }, termIdentity: string | null, subjectCode: string | null = null): GenerationPreflightBlocker {
+	const ownerName = typeof item.facultyName === 'string' && item.facultyName.trim().length > 0
+		? item.facultyName.trim()
+		: null;
 	const base = {
 		termIdentity,
 		sectionId: item.sectionId,
 		subjectId: item.subjectId,
 		subjectCode,
-		entity: `Section ${item.sectionId} · Subject ${subjectCode ?? item.subjectId}${termIdentity ? ` · ${termIdentity}` : ''} · session ${item.session}`,
+		entity: `Section ${item.sectionId} · Subject ${subjectCode ?? item.subjectId}${termIdentity ? ` · ${termIdentity}` : ''} · session ${item.session}${ownerName ? ` · owner ${ownerName}` : ''}`,
 	};
 	const roomReason = item.roomAssignmentReason;
 	if (item.reason === 'NO_QUALIFIED_FACULTY' || roomReason === 'NO_QUALIFIED_FACULTY') {
@@ -428,11 +437,22 @@ export function classifyUnassignedBlocker(item: {
 		};
 	}
 	if (item.reason === 'FACULTY_OVERLOADED' || roomReason === 'FACULTY_SLOT_UNAVAILABLE') {
+		// A8 UNBLOCK: this branch covers TWO different refusals, and the former
+		// single sentence asserted a cap breach for BOTH. `FACULTY_OVERLOADED` is a
+		// genuine limit refusal (a weekly/term or daily teaching cap), so it says
+		// so. `FACULTY_SLOT_UNAVAILABLE` on its own is a BARE SLOT COLLISION — the
+		// owner had no free period left for this session — and the reason must not
+		// claim a limit the dry run never showed (the live 55-row defect). The CODE
+		// is unchanged: this is text, and no gate reads it.
+		const owner = ownerName ?? "The class's owner";
+		const isLimitRefusal = item.reason === 'FACULTY_OVERLOADED';
 		return {
 			...base,
 			code: 'WORKLOAD_POLICY_BLOCK',
 			category: 'POLICY_BLOCKER',
-			reason: 'Every candidate owner is at their workload/slot limit for this session.',
+			reason: isLimitRefusal
+				? `${owner} is already at their teaching limit for this term, so this session could not be placed.`
+				: `${owner} has no free period left for this session in its term, so this session could not be placed.`,
 			owningSurface: 'Teaching Load / Scheduling policy',
 			nextAction: 'Reduce assigned load or adjust the workload policy for this school year.',
 		};
@@ -800,7 +820,9 @@ async function buildGenerationPreflightWithContext(
 	] = await Promise.all([
 		client.facultyMirror.findMany({
 			where: { schoolId, isActiveForScheduling: true, isStale: false },
-			select: { id: true, maxHoursPerWeek: true, ancillaryMinutesPerWeek: true, department: true, isActiveForScheduling: true, isStale: true },
+			// A8 UNBLOCK: carry the owner's name so an unassigned blocker can name
+			// the class's owner. A LABEL only — it selects no candidate and gates nothing.
+			select: { id: true, firstName: true, lastName: true, maxHoursPerWeek: true, ancillaryMinutesPerWeek: true, department: true, isActiveForScheduling: true, isStale: true },
 		}),
 		client.facultySubject.findMany({ where: { schoolId, schoolYearId } }),
 		client.room.findMany({

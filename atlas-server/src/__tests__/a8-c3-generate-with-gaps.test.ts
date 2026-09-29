@@ -43,6 +43,7 @@ import {
 } from '../services/generation.service.js';
 import { countBlockingHardViolations } from '../services/publication-contract.service.js';
 import { isPromotableConstraintCode } from '../services/scheduling-policy.service.js';
+import { classifyUnassignedBlocker } from '../services/generation-preflight.service.js';
 import type { GenerationPreflightBlocker } from '../services/generation-preflight.service.js';
 
 function blocker(overrides: Partial<GenerationPreflightBlocker> & { code: string }): GenerationPreflightBlocker {
@@ -372,4 +373,64 @@ test('C3.10 the completed sentence keeps its exact pre-existing wording in every
 		buildGenerationCompletedMessage({ unplacedCount: 50, teacherGapClasses: 50, timeSlotClasses: 0 }),
 		'New schedule ready. 50 classes still need a teacher.',
 	);
+});
+
+/* ------------------------------------------------------------------ *
+ * 5. A8 UNBLOCK — the workload/policy reason must be TRUE and specific
+ *
+ * The live S.Y. 2025-2026 dry run produced ZERO hard over-cap violations and a
+ * 30 h standard / 40 h cap, yet the Generate panel claimed "55 classes have a
+ * teacher at their limit". The 55 rows were bare slot collisions: the class's
+ * owner had no free period left for that session. `FACULTY_SLOT_UNAVAILABLE`
+ * carries BOTH facts, so the one sentence asserted a cap breach that the data
+ * never showed. The CODE stays `WORKLOAD_POLICY_BLOCK`; only the text is fixed,
+ * and the owner is named when the preflight resolved one. No gate moves.
+ * ------------------------------------------------------------------ */
+
+test('A8UNBLOCK.1 a bare slot collision reads "no free period" (never "limit") and names the owner when known', () => {
+	// The live false claim: `roomAssignmentReason: FACULTY_SLOT_UNAVAILABLE` on a
+	// refusal whose reason is NOT a cap breach (NO_AVAILABLE_SLOT).
+	const slotCollision = classifyUnassignedBlocker({
+		sectionId: 66,
+		subjectId: 42,
+		gradeLevel: 7,
+		session: 1,
+		reason: 'NO_AVAILABLE_SLOT',
+		roomAssignmentReason: 'FACULTY_SLOT_UNAVAILABLE',
+		termIndex: 1,
+		facultyName: 'Dela Cruz, Ana',
+	}, 'T1', 'STE_APPLIED_PHYS');
+	assert.equal(slotCollision.code, 'WORKLOAD_POLICY_BLOCK', 'the blocker CODE is unchanged');
+	assert.equal(slotCollision.category, 'POLICY_BLOCKER', 'the category is unchanged');
+	assert.doesNotMatch(slotCollision.reason, /limit/i, 'a slot collision must not assert a cap breach the data does not show');
+	assert.match(slotCollision.reason, /no free period/i, 'the reason states the real cause');
+	assert.match(slotCollision.entity, /Dela Cruz, Ana/, 'the resolved owner is named in the entity');
+
+	// No owner resolved: never invent one, and never render an empty "owner" clause.
+	const unnamed = classifyUnassignedBlocker({
+		sectionId: 66,
+		subjectId: 42,
+		gradeLevel: 7,
+		session: 1,
+		reason: 'NO_AVAILABLE_SLOT',
+		roomAssignmentReason: 'FACULTY_SLOT_UNAVAILABLE',
+		termIndex: 1,
+		facultyName: null,
+	}, 'T1', 'STE_APPLIED_PHYS');
+	assert.doesNotMatch(unnamed.entity, /owner/i, 'no owner clause is invented when the name is unknown');
+	assert.doesNotMatch(unnamed.reason, /limit/i);
+
+	// A genuine cap refusal still classifies as WORKLOAD_POLICY_BLOCK.
+	const capBreach = classifyUnassignedBlocker({
+		sectionId: 66,
+		subjectId: 42,
+		gradeLevel: 7,
+		session: 1,
+		reason: 'FACULTY_OVERLOADED',
+		roomAssignmentReason: 'FACULTY_SLOT_UNAVAILABLE',
+		termIndex: 1,
+		facultyName: 'Reyes, Ben',
+	}, 'T1', 'STE_APPLIED_PHYS');
+	assert.equal(capBreach.code, 'WORKLOAD_POLICY_BLOCK', 'a real cap refusal keeps its code');
+	assert.match(capBreach.entity, /Reyes, Ben/, 'the resolved owner is named for a cap refusal too');
 });
