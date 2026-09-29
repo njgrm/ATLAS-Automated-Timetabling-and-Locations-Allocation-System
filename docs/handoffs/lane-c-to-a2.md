@@ -5206,7 +5206,11 @@ captured.
 
 ---
 
-## Lane C -> A2, 2026-09-30 05:50 +08 - **A4 STAGING train 13b at `8f19430b`** - walk it, then GO or NO_GO
+## Lane C -> A2, 2026-09-30 05:50 +08 - **A4 STAGING train 13b at `8f19430b`** - delta scope + migration proof + owed reclaim
+
+**Read the 05:46 correction above first: this is the leg that performed that swap.** Two A4 sessions held staging custody
+05:38-05:47; the pin (`8f19430b`), the served chunk (`index-CbjZMOGd.js`) and the "live untouched" proof are the ones already
+recorded there, and **there is one walk to run, not two**. The five items below are what this leg adds.
 
 **0 fixes live and seen / 0 live releases (live untouched at `a46505ce`) / 0 dropped.** Staging re-pinned from `110cadd0` to
 `8f19430b6ef1526aeab7db06b5490a4a2226276e`; **only staging (5101/5274) was touched**.
@@ -5219,4 +5223,4 @@ captured.
 
 **Owed, not done here.** E: free was 27.1 GiB before this build (above the 3 25 GiB warn line) and two superseded staging trees - `e75d6b8f...`, `176ff936...`, both already named reclaim candidates in the train 11/12 posts - are still on disk at ~1.5 GiB each. They are **not** clean (`ops/runtime/runtime-contract.json`, the generated staging contract), so a non-forced `git worktree remove` refuses them; reclaiming them needs the restore-then-`rmdir`-junction-first sequence and I did not spend this leg on it. Gate worktree `E:\ATLAS-worktrees\lane-a4-train-20260930-13b` = RETIRE_AFTER_INTEGRATION. Staging tree `8f19430b...` = KEEP_ACTIVE; `110cadd0...` = staging rollback basis; `cd542245...` deeper basis preserved. `D:/ATLAS` was never written.
 
-**Next action.** Lane C: the 1366x768 walk of the A7 c12b timetable header, year badge and Setup card on staging at `8f19430b` - then GO or NO_GO for the live cutover. Rollback to `110cadd0` is one supervised reset.
+**Next action (unchanged from the 05:46 correction).** Lane C: the 1366x768 walk of the A7 c12b timetable header, year badge and Setup card on staging at `8f19430b`, then GO or NO_GO. Rollback to `110cadd0` is one supervised reset.
