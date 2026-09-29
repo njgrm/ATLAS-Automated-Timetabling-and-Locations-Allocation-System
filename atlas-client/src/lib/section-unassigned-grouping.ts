@@ -140,3 +140,207 @@ export function groupUnassignedByTerm<T extends UnassignedTermInput>(
 		return a.heading.localeCompare(b.heading);
 	});
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+ * A9 c5 R1 (2026-09-30) — ONE ROW PER ROTATING FAMILY, NO RAW CODES ON SCREEN.
+ *
+ * The per-term grouping above (`groupUnassignedByTerm`) was the A9 c5 first cut; the
+ * operator then asked for the OPPOSITE structure (section.docx item 5): a rotating
+ * family is ONE row whose per-term subjects read inline —
+ * `Science (rotates): Chemistry T2, Earth Science T3` — and no raw code
+ * (`SCI_CHEM`, `TLE_AFA_EXP`, `TLE_ROTATION`) may reach the screen.
+ *
+ * These functions are what the dialog renders and what the controls call; the old
+ * per-term grouping is kept (still true, still tested) but is no longer the production
+ * path. `a9-c5-unassigned-grouping.test.ts` marks the superseded rows in place.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+
+/** The minimum a row needs for the family grouping; `SectionUnassignedExpectedClassRow` satisfies it. */
+export type UnassignedFamilyInput = UnassignedTermInput & {
+	subjectId?: number | null;
+	subjectName?: string | null;
+	subjectDisplayLabel?: string | null;
+	subjectCode?: string | null;
+	rotationTermGroupId?: string | null;
+	minMinutesPerWeek?: number | null;
+};
+
+/** The known family tokens the server emits, mapped to the operator's plain name. */
+const FAMILY_NAMES: ReadonlyArray<readonly [RegExp, string]> = [
+	[/^SCI/i, 'Science'],
+	[/^TLE/i, 'TLE'],
+	[/APPLIED[\s_]?CHEM/i, 'Applied Chemistry'],
+	[/^STE$/i, 'STE'],
+	[/^MAPEH$/i, 'MAPEH'],
+	[/^ESP$/i, 'ESP'],
+];
+
+/** `SCIENCE` -> `Science`, `TLE_ROTATION` -> `TLE Rotation`, `TLE` -> `TLE`. */
+function titleCaseWords(token: string): string {
+	return token
+		.replace(/[_-]+/g, ' ')
+		.split(/\s+/)
+		.filter(Boolean)
+		.map((word) =>
+			word.length <= 3 && word === word.toUpperCase()
+				? word
+				: word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
+		)
+		.join(' ');
+}
+
+/**
+ * A stored family token or a leading subject word, as the operator reads it. Known
+ * tokens map to a proper noun (`SCIENCE` -> `Science`); anything else is title-cased
+ * with its underscores removed, so no raw code survives.
+ */
+export function humanizeFamilyToken(token: string | null | undefined): string {
+	const trimmed = (token ?? '').trim();
+	if (!trimmed) return '';
+	for (const [pattern, label] of FAMILY_NAMES) {
+		if (pattern.test(trimmed)) return label;
+	}
+	return titleCaseWords(trimmed);
+}
+
+/** The plain family name for a rotating row: `Science`, `TLE`, `Applied Chemistry`. */
+export function rotationFamilyPlainName(input: UnassignedFamilyInput): string {
+	const nameLeading = (input.subjectName ?? '').trim().split(/\s+/).filter(Boolean)[0] ?? '';
+	const displayLeading = (input.subjectDisplayLabel ?? '').trim().split(/\s+/).filter(Boolean)[0] ?? '';
+	return (
+		humanizeFamilyToken(nameLeading) ||
+		humanizeFamilyToken(displayLeading) ||
+		humanizeFamilyToken(input.rotationFamily) ||
+		humanizeFamilyToken(input.subjectCode) ||
+		''
+	);
+}
+
+/** A raw code token (`SCI_CHEM`, `TLE_AFA_EXP`), which must never reach the screen. */
+function looksLikeCodeToken(value: string): boolean {
+	return /^[A-Z0-9]+(?:_[A-Z0-9_]+)+$/.test(value.trim());
+}
+
+/** The short term the member label carries: `T2`. */
+function shortTerm(input: UnassignedTermInput): string | null {
+	const rank = unassignedTermRank(input);
+	return rank != null ? `T${rank}` : null;
+}
+
+/** True when a row belongs to a term-rotating family rather than a plain all-year class. */
+export function isRotatingClass(input: UnassignedFamilyInput): boolean {
+	return Boolean(input.rotationFamily) || Boolean(input.rotationTermGroupId) || shortTerm(input) != null;
+}
+
+/**
+ * ONE member's inline label: the plain subject words plus its term — `Chemistry T2`,
+ * `Earth Science T3`, `Bread and Pastry T2` — never a raw code. When a rotating row's
+ * own name leads with the family word (`Science Chemistry`) that word is dropped
+ * against `familyPlainName`; the label never becomes blank (it degrades to the row's
+ * own words) and a term is never invented (a non-rotating row gets no suffix).
+ */
+export function unassignedMemberLabel(
+	input: UnassignedFamilyInput,
+	familyPlainName?: string | null,
+): string {
+	const raw =
+		(input.subjectName ?? '').trim() ||
+		(input.subjectDisplayLabel ?? '').trim() ||
+		(input.subjectCode ?? '').trim();
+	const words = raw.split(/\s+/).filter(Boolean);
+	let label = raw;
+	if (words.length >= 2 && familyPlainName) {
+		const leading = humanizeFamilyToken(words[0]);
+		if (leading && leading.toLowerCase() === familyPlainName.toLowerCase()) {
+			const rest = words.slice(1).join(' ');
+			if (rest) label = rest;
+		}
+	}
+	if (!label || looksLikeCodeToken(label)) {
+		label = titleCaseWords(label || raw || input.subjectCode || '');
+	}
+	const term = shortTerm(input);
+	return term ? `${label} ${term}` : label;
+}
+
+/** The truthful weekly-minutes figure for a group: `225 min`, or `150–225 min`. */
+export function unassignedMinutesLabel(
+	minutesPerWeek: readonly (number | null | undefined)[],
+): string {
+	const values = minutesPerWeek.filter((n): n is number => typeof n === 'number' && Number.isFinite(n));
+	if (values.length === 0) return '';
+	const min = Math.min(...values);
+	const max = Math.max(...values);
+	return min === max ? `${min} min` : `${min}–${max} min`;
+}
+
+export type UnassignedFamilyGroup<T> = {
+	/** A stable React key. */
+	key: string;
+	/** `Science (rotates)` for a family, or the plain subject label for a non-rotating row. */
+	heading: string;
+	/** The plain family name (no `(rotates)`), or `null` for a non-rotating row. */
+	familyName: string | null;
+	/** True when this row represents a term-rotating family. */
+	rotates: boolean;
+	rows: T[];
+	/** Each constituent's inline label, in input order: `Chemistry T2`, `Earth Science T3`. */
+	members: string[];
+	/** The group's truthful `min` figure: `225 min` or `150–225 min`. */
+	minutesLabel: string;
+};
+
+/**
+ * Group unassigned expected classes so a rotating family is ONE row and every other
+ * class keeps its own plain row. Rows are keyed by `rotationTermGroupId ?? rotationFamily`
+ * and appear in first-appearance (server) order.
+ */
+export function groupUnassignedByRotationFamily<T extends UnassignedFamilyInput>(
+	rows: readonly T[],
+): UnassignedFamilyGroup<T>[] {
+	const groups: UnassignedFamilyGroup<T>[] = [];
+	const familyIndex = new Map<string, number>();
+
+	for (const row of rows) {
+		if (!isRotatingClass(row)) {
+			const label = unassignedMemberLabel(row, null);
+			groups.push({
+				key: `plain:${row.subjectId ?? groups.length}`,
+				heading: label,
+				familyName: null,
+				rotates: false,
+				rows: [row],
+				members: [label],
+				minutesLabel: unassignedMinutesLabel([row.minMinutesPerWeek]),
+			});
+			continue;
+		}
+
+		const familyKey = (row.rotationTermGroupId ?? row.rotationFamily ?? `subject:${row.subjectId ?? ''}`).trim();
+		const familyName = rotationFamilyPlainName(row);
+		let index = familyIndex.get(familyKey);
+		if (index == null) {
+			index = groups.length;
+			familyIndex.set(familyKey, index);
+			groups.push({
+				key: `family:${familyKey}`,
+				heading: `${familyName} (rotates)`,
+				familyName,
+				rotates: true,
+				rows: [],
+				members: [],
+				minutesLabel: '',
+			});
+		}
+		const group = groups[index];
+		group.rows.push(row);
+		group.members.push(unassignedMemberLabel(row, familyName));
+	}
+
+	for (const group of groups) {
+		if (group.rotates) {
+			group.minutesLabel = unassignedMinutesLabel(group.rows.map((r) => r.minMinutesPerWeek));
+		}
+	}
+	return groups;
+}

@@ -51,7 +51,7 @@
     "test:a3-c4-sections": "tsx --test src/components/sections/__tests__/a3-c4-home-room-truth.test.ts src/components/sections/__tests__/a3-c4-sections-surface.test.tsx",
     "test:a9-c1-program-badges": "tsx --test src/components/sections/__tests__/a9-c1-program-badges.test.ts",
     "test:a9-c4-details-dialog": "node --experimental-test-module-mocks --import tsx --test src/components/sections/__tests__/a9-c4-details-dialog.test.tsx",
-    "test:a9-c5-unassigned-grouping": "tsx --test src/lib/__tests__/a9-c5-unassigned-grouping.test.ts",
+    "test:a9-c5-unassigned-grouping": "tsx --test src/lib/__tests__/a9-c5-unassigned-grouping.test.ts && node --experimental-test-module-mocks --import tsx --test src/components/sections/__tests__/a9-c5-unassigned-render.test.tsx",
     "test:a9-c6-room-receipt-undo": "node --experimental-test-module-mocks --import tsx --test src/components/sections/__tests__/a9-c6-room-receipt-undo.test.tsx",
     "test:a3-c10-teacher-surface": "tsx --test src/components/faculty/__tests__/a3-c10-teacher-surface.test.tsx",
     "test:a6-teachers": "tsx --test src/components/faculty/__tests__/a6-teachers-header-profile.test.tsx",
