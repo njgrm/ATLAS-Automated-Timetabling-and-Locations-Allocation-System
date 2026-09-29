@@ -48,33 +48,27 @@ import { departmentLabel } from '@/lib/deped-glossary';
  * Weekly hours as a NUMBER at one decimal — the precision the per-section badge
  * already used, and the same rounding as before (`Math.round(h * 10) / 10`).
  *
- * A3 c17 row 2, as corrected by C3. The first cut of this row rounded the
- * subject TOTAL from raw minutes while the badge and the "each" figure rounded
- * PER SECTION, which put "3 classes · 11.3h a week" beside "3.8h each" on an
- * ordinary ESP load: 3 × 3.75 rounds to 11.3, and 3 × 3.8 is 11.4. The row is
- * called "hours that add up", and a scheduler who multiplies the two visible
- * numbers must land on the third.
+ * A3 c17 row 2, settled by C3-FIX. History, because the wrong turn is the
+ * instructive part:
  *
- * So the total is now DERIVED FROM the visible per-section figure rather than
- * recomputed from raw minutes. `each × count` is then the total by
- * construction, for every input, including a subject whose minutes are not a
- * whole number of minutes and cannot be represented exactly.
+ *   1. The first cut rounded the subject TOTAL from raw minutes while the badge
+ *      and the "each" figure rounded PER SECTION — "3 classes · 11.3h a week"
+ *      beside "3.8h each", where 3 × 3.8 is 11.4.
+ *   2. C3 "fixed" it by deriving the total from the ROUNDED per-section figure.
+ *      That made the identity hold on screen and the NUMBER WRONG: 8 sections
+ *      of a 225-minute subject is a real load of 1800 minutes = 30.0 hours, and
+ *      the card read "30.4h a week" because 3.75 was rounded up to 3.8 eight
+ *      times. Worse, the same card's server-fed "Current weekly hours" line said
+ *      30h, so the dialog contradicted itself on a row the requester titled
+ *      "hours that add up".
+ *
+ * The settled rule: the TOTAL is always the exact sum of the actual minutes, and
+ * the per-section CLAUSE yields — it never states an hours figure that fails to
+ * reproduce the total it sits beside. Truth first, and the friendly form only
+ * where it is also true.
  */
 function toWeeklyHours(minutes: number): number {
 	return Math.round((minutes / 60) * 10) / 10;
-}
-
-/**
- * A subject's weekly total for this teacher, in hours, guaranteed to equal the
- * VISIBLE per-section figure multiplied by the VISIBLE class count.
- *
- * `perSectionHours` is passed in already-rounded, deliberately: this is the only
- * way to make the identity hold in floating point as well as on screen. Rounding
- * the sum instead would agree for 225 minutes and disagree for 230 (3.83 x 3 is
- * 11.5, and the exact 11.5 rounds the same only by luck).
- */
-function subjectTotalHours(perSectionHours: number, sectionCount: number): number {
-	return Math.round(perSectionHours * sectionCount * 10) / 10;
 }
 
 /** One grade group inside a subject card. `grade` is null when unresolvable. */
@@ -503,15 +497,30 @@ export function FacultyProfileSheet({
 								const gradeGroups = groupSectionsByResolvedGrade(fs.sections);
 								const sectionTotal = fs.sections.length;
 								/*
-								 * A3 c17 C3. The per-section figure is rounded ONCE, and the
-								 * total is that rounded number times the visible count — so
-								 * the three numbers on this line satisfy
-								 * `each x count = total` for every input, which is the
-								 * whole promise of a row called "hours that add up". The
-								 * badge to the right reads the same `perSectionHours`.
+								 * A3 c17 C3-FIX. The TOTAL is the exact sum of the actual
+								 * minutes — never a rounded intermediate — and the per-section
+								 * CLAUSE yields to it.
+								 *
+								 * The rule that makes both true at once: the friendly
+								 * "3.8h each" is printed ONLY when multiplying it by the
+								 * visible count reproduces the visible total at the displayed
+								 * one-decimal precision. For 225 minutes (3.75h) it does not,
+								 * so the clause falls back to the exact "225 min each",
+								 * which multiplies cleanly. For 230 minutes (3.8h x 3 = 11.4 =
+								 * 690/60) the two agree, so the friendly hours form stays.
+								 *
+								 * Truth is never traded for tidiness here: the total is the
+								 * teacher's real load, and it is the same number the server's
+								 * "Current weekly hours" line above reports.
 								 */
-								const perSectionHours = toWeeklyHours(fs.subject?.minMinutesPerWeek ?? 0);
-								const totalHours = subjectTotalHours(perSectionHours, sectionTotal);
+								const perSectionMinutes = fs.subject?.minMinutesPerWeek ?? 0;
+								const perSectionHours = toWeeklyHours(perSectionMinutes);
+								const totalHours = toWeeklyHours(perSectionMinutes * sectionTotal);
+								// Does the friendly hours figure actually reproduce the total
+								// a scheduler can see? Compared at the DISPLAYED precision,
+								// because that is the number on the card.
+								const hoursClauseReproducesTotal =
+									toWeeklyHours(perSectionHours * sectionTotal) === totalHours;
 								return (
 								<div key={fs.id} className="p-3 rounded-xl border border-border bg-background shadow-sm space-y-2.5">
 									<div className="flex items-start justify-between gap-2 border-b pb-2 mb-2 border-border/40">
@@ -523,13 +532,25 @@ export function FacultyProfileSheet({
 										    card was missing — what this subject costs THIS teacher. */}
 										<p className="text-sm text-muted-foreground">
 											{`${sectionTotal} ${sectionTotal === 1 ? 'class' : 'classes'} · ${totalHours}h a week`}
-											{sectionTotal > 1 && fs.subject?.minMinutesPerWeek
-												? ` · ${perSectionHours}h each`
+											{sectionTotal > 1 && perSectionMinutes
+												? hoursClauseReproducesTotal
+													? ` · ${perSectionHours}h each`
+													: ` · ${perSectionMinutes} min each`
 												: ''}
 										</p>
 										</div>
+										{/* THE BADGE IS UNCHANGED AND DELIBERATELY SO. It is the
+										    requester's literal ask: `fs.subject.minMinutesPerWeek`
+										    rendered as an hours figure ("3.8h"), and a per-section
+										    figure in its own right. It is NOT part of the totals
+										    arithmetic, so it is not forced to agree with the
+										    clause beside it. For a 225-minute subject the badge
+										    reads "3.8h" while the clause reads "225 min each".
+										    Both are true; they are answers to different questions.
+										    Flagged in the handoff for arbitration rather than
+										    harmonised silently. */}
 										<Badge variant="secondary" className="text-xs font-bold px-1.5 py-0.5 h-5 shrink-0 bg-muted/50">
-											{fs.subject?.minMinutesPerWeek ? `${perSectionHours}h` : '-'}
+											{perSectionMinutes ? `${perSectionHours}h` : '-'}
 										</Badge>
 									</div>
 									{gradeGroups.length > 0 ? (

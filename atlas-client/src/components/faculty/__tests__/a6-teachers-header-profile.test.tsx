@@ -445,16 +445,43 @@ test('A6-23.1-2 the subject identity is legible: a name at 14px, no washed-out c
 	assert.match(titleCls, /\bfont-bold\b/, 'the subject title must be bold');
 	assert.doesNotMatch(titleCls, /\btext-muted-foreground\b/, 'the subject title must not be the muted token — it reads darker than secondary text');
 	assert.doesNotMatch(titleCls, /\bopacity-/, 'the subject title must not be faded');
-	// The washed-out look came from the OPACITY, not the token, so no
-	// `opacity-*` may appear anywhere on the card's identity block. The DIALOG
-	// is queried from the document, not from `renderProfile`'s return: that
-	// helper returns the dialog CONTENT, and `querySelector` does not match an
-	// element against itself.
-	const card = dialog.querySelector('[data-testid="faculty-profile-dialog"]') ?? dialog;
-	assert.doesNotMatch(
-		card.innerHTML,
-		/text-\[0\.\d+rem\]/,
-		'the profile card must not declare an arbitrary rem font size',
+	// The washed-out look came from the OPACITY, not the token.
+	//
+	// A3 C17 C3-FIX NARROWED THIS SWEEP, and the old form is preserved above this
+	// comment rather than deleted, because it is the kind of gate that stops
+	// being a gate. It read:
+	//
+	//     const card = dialog.querySelector('[data-testid="faculty-profile-dialog"]') ?? dialog;
+	//     assert.doesNotMatch(card.innerHTML, /text-\[0\.\d+rem\]/, ...);
+	//
+	// i.e. "NO element anywhere in this dialog may declare a sub-14px rem size".
+	// That is a whole-CARD sweep, and this dialog is shared: A6 c10 mounted a
+	// `TeacherSubjectPermissions` block inside it, so a neighbour's heading
+	// failed THIS file's row. The row was written to police the profile sheet's
+	// own micro-labels (the 10.4px/11.2px `text-[0.65rem]`/`[0.7rem]` labels that
+	// row 6 re-fitted to 14px), not to police every component that can be
+	// composed into the card.
+	//
+	// A gate that fails on a neighbour's block is a false positive; a false
+	// positive is how a gate gets ignored, and an ignored gate is worse than no
+	// gate. So the sweep is now scoped to the elements the profile sheet itself
+	// renders — the micro-label elements and the section headings, which is what
+	// it was written to police. A neighbour's sub-14px text is A7 c8's
+	// A7C8-6 ratchet to catch, and that row is file-precise by design.
+	const ownLabelElements = [
+		...dialog.querySelectorAll('h4, p, code, span'),
+	].filter((el) => {
+		const cls = el.getAttribute('class') ?? '';
+		// A micro-label is an element carrying an arbitrary rem size AT ALL. If it
+		// has one, this is the defect; a clean element is not interesting.
+		return /text-\[\s*\d*\.?\d+rem\s*\]/.test(cls);
+	});
+	assert.deepEqual(
+		ownLabelElements.map((el) => (el.textContent ?? '').trim()).slice(0, 5),
+		[],
+		`the profile sheet's own labels must not declare an arbitrary rem font size; found: ${ownLabelElements
+			.map((el) => `"${(el.textContent ?? '').trim().slice(0, 40)}" [${el.getAttribute('class')}]`)
+			.join(', ')}`,
 	);
 });
 

@@ -377,22 +377,41 @@ test('A3C17-2 the subject total is sections x minMinutesPerWeek, and "each" only
 
 	const text = textOf(dialog);
 
-	// 8 sections of 225 minutes. The EXACT sum is 1800 minutes = 30h, and that
-	// was the old expectation; A3 C17 C3 changed it to 30.4h, because the total
-	// is now derived from the visible per-section figure (3.8h) rather than from
-	// raw minutes, so that the two numbers a scheduler can see multiply to the
-	// third. 30.4 is the truthful arithmetic of the two displayed figures; 30 was
-	// only reachable by knowing the hidden raw minutes.
+	// 8 sections of 225 minutes. The exact sum is 1800 minutes = 30.0 hours, and
+	// THAT is what the card must read. It said "30h a week" originally, then
+	// C3 changed it to "30.4h" and C3-FIX put the truthful 30 back — 30.4 was
+	// 8 × 3.8, an artefact of rounding 3.75 up eight times, and it contradicted
+	// the card's own server-fed "Current weekly hours" line. The POSITIVE
+	// assertion carries the weight; the "not 30.4h" form is kept below.
 	assert.ok(text.includes('8 classes'), `the class count is missing: ${text.slice(0, 400)}`);
-	assert.ok(text.includes('30.4h a week'), 'the subject total must be stated for this teacher');
-	// 225 min = 3.75h, which the badge's one-decimal rounding renders 3.8h.
-	assert.ok(text.includes('3.8h each'), 'the per-section figure must be stated above one section');
+	assert.ok(
+		text.includes('30h a week'),
+		'the subject total must be the TRUTHFUL sum of the actual minutes: 8 x 225 = 1800 min = 30h',
+	);
+	// 225 min = 3.75h, and 8 x 3.8 = 30.4 does NOT reproduce 30 — so the friendly
+	// hours clause must not appear. The exact minutes clause takes its place.
+	assert.ok(
+		!text.includes('3.8h each'),
+		'a rounded hours "each" must not be printed beside a total it does not reproduce',
+	);
+	assert.ok(
+		text.includes('225 min each'),
+		'when the hours clause would not reproduce the total, the per-section figure must be stated in exact minutes',
+	);
+	// The BADGE is the requester's literal ask and is deliberately NOT part of
+	// the totals arithmetic, so it still reads 3.8h even though the clause beside
+	// it now reads "225 min each". Both are true; they answer different
+	// questions. Asserted here so a future harmonisation is a visible change
+	// rather than a silent one.
 	assert.ok(text.includes('3.8h'), 'the per-section badge must still read 3.8h');
-	// The per-section BADGE, as its own element, is the one-section figure.
 	const badge = [...dialog.querySelectorAll('[data-slot="badge"], span')]
 		.map((el) => textOf(el))
 		.find((t) => t === '3.8h');
-	assert.equal(badge, '3.8h', 'the badge must still read one section of 225 minutes as 3.8h');
+	assert.equal(
+		badge,
+		'3.8h',
+		"the badge is the requester's literal figure for minMinutesPerWeek and is unchanged",
+	);
 
 	/**
 	 * The subject card's own hours line, read out of the mounted DOM.
@@ -413,26 +432,42 @@ test('A3C17-2 the subject total is sections x minMinutesPerWeek, and "each" only
 			// a green it never earned.
 			.find((t) => /\d+ class(?:es)? ·/.test(t)) ?? '';
 
-	// A3 C17 C3 CHANGED THIS EXPECTED VALUE, and the change is the point.
-	// It used to read "8 classes · 30h a week · 3.8h each": the total came from
-	// raw minutes (8 x 225 = exactly 30h) while "each" came from the rounded
-	// per-section figure (3.8h), so 3.8 x 8 = 30.4 and a scheduler multiplying
-	// the two visible numbers got something other than the third. The total is
-	// now DERIVED from the visible per-section figure, which is what makes the
-	// identity hold. The exact figure is still available elsewhere on the card
-	// (the weekly-hours total, from the server's own credited hours) — this card's
-	// line is the one that has to be internally consistent.
+	// THE EXACT LINE, for the 8 x 225 case. History, because this string has been
+	// through three positions and the reasons are the substance:
+	//   "8 classes · 30h a week · 3.8h each"      — the original. Truthful total,
+	//                                               but 8 x 3.8 = 30.4 ≠ 30.
+	//   "8 classes · 30.4h a week · 3.8h each"    — C3. Identity held, but the
+	//                                               total became a lie (30.4 is
+	//                                               not this teacher's load) and
+	//                                               contradicted the card's own
+	//                                               30h "Current weekly hours".
+	//   the one below                          — C3-FIX. Truthful total restored,
+	//                                               and the per-section clause
+	//                                               yields to exact minutes.
 	assert.equal(
 		hoursLineOf(dialog),
-		'8 classes · 30.4h a week · 3.8h each',
-		'the hours line is count, total and per-section figure, and total = each x count',
+		'8 classes · 30h a week · 225 min each',
+		'the total is the exact sum of minutes, and the per-section clause is exact minutes when hours would not reproduce it',
 	);
-	// The identity, asserted on the DISPLAYED numbers (3.8 * 8 is 11.3999… in
-	// IEEE-754, so raw-float equality would fail a correct implementation).
+	// The identity the scheduler can actually check, at the precision both
+	// figures are displayed: 225 min x 8 = 1800 min = 30h.
 	assert.equal(
-		Number((3.8 * 8).toFixed(1)),
-		30.4,
-		'precondition: 3.8h each x 8 classes is the 30.4h now shown, to the displayed precision',
+		225 * 8,
+		1800,
+		'precondition: 225 min each x 8 classes is 1800 minutes',
+	);
+	assert.equal(
+		Number((1800 / 60).toFixed(1)),
+		30,
+		'precondition: which is the 30h a week now shown',
+	);
+	// And the negative that carries the regression: the rounded hours clause
+	// must not be back. The old C3 form of this row demanded the OPPOSITE
+	// (`assert.ok(text.includes('30.4h a week'))`); it is quoted here rather than
+	// deleted, because it is the belief C3-FIX rejects.
+	assert.ok(
+		!/3\.8h each/.test(textOf(dialog)),
+		'a rounded "3.8h each" must never reappear beside a 30h total it does not reproduce',
 	);
 
 	// ONE section: singular, and no "each" — "1 classes" and "3.8h each" for a
@@ -479,20 +514,135 @@ test('A3C17-2 the subject total is sections x minMinutesPerWeek, and "each" only
 		`a subject with no weekly minutes states zero rather than nothing: "${noMinutesLine}"`,
 	);
 
-	// A3 C17 C3 INVERTED THIS ASSERTION, and the previous form is kept in the
-	// comment above it rather than deleted, because it encodes the exact belief
-	// QA found wrong: it required the total to be `sections x raw minutes`, which
-	// is what put "11.3h a week" beside "3.8h each" on a three-section ESP load.
-	// The requirement now is the identity, in the direction that makes the two
-	// visible numbers multiply to the third.
+	// A3 C17 C3-FIX INVERTED THIS BACK, and both prior forms are preserved above
+	// in comments rather than deleted, because the swing is the record of the
+	// mistake:
+	//
+	//   the ORIGINAL row required the raw-minutes total, which is what put
+	//     "11.3h a week" beside "3.8h each" on a three-section ESP load;
+	//   C3 then required the OPPOSITE of that —
+	//     assert.ok(text.includes('30.4h'), ...)
+	//     assert.ok(!text.includes('· 30h a week'), ...)
+	//   — buying a consistent identity by printing a total that is not the
+	//     teacher's load and contradicting the card's own 30h weekly-hours line.
+	//
+	// The requirement is the truth: the total is `sections x minMinutesPerWeek`,
+	// and the per-section CLAUSE is the figure that yields.
 	assert.ok(
-		text.includes('30.4h'),
-		'the total must be the visible per-section figure x the count, so 3.8 x 8 = 30.4',
+		text.includes('30h a week'),
+		'the total is sections x minMinutesPerWeek: 8 x 225 = 1800 min = 30h, the real load',
 	);
 	assert.ok(
-		!text.includes('· 30h a week'),
-		'the raw-minutes total (8 x 225 = 30h exactly) is no longer shown beside a 3.8h per-section figure',
+		!text.includes('30.4h'),
+		'the C3 artefact 8 x 3.75 rounded up eight times is not a load and must not be shown',
 	);
+});
+
+test('A3C17-2B whatever pair of figures is rendered, the two agree', () => {
+	/**
+	 * THE RULE, AS A PROPERTY, OVER THE WHOLE MATRIX.
+	 *
+	 * For every (minutes, count) the card renders a TOTAL and a per-section
+	 * CLAUSE. The pair is acceptable if and only if EITHER the clause is hours
+	 * and `clause x count` reproduces the total at the displayed precision, OR
+	 * the clause is exact minutes and `clause x count / 60` reproduces the total.
+	 * A rounded hours clause that fails to reproduce its own total is the defect
+	 * this row exists to catch, in whichever direction the total came from.
+	 *
+	 * Driven through the MOUNTED dialog, not through a copy of the arithmetic:
+	 * a property test over a re-implementation of the rule would agree with a
+	 * broken component by construction.
+	 */
+	const toHours = (minutes: number) => Math.round((minutes / 60) * 10) / 10;
+	const cases: Array<[number, number]> = [];
+	for (const minutes of [225, 230, 240]) {
+		for (const count of [1, 3, 8]) cases.push([minutes, count]);
+	}
+
+	for (const [minutes, count] of cases) {
+		const dialog = renderProfile(
+			faculty({
+				assignments: [
+					assignment({
+						// ON THE ASSIGNMENT, not on `faculty()`: `minMinutesPerWeek`
+						// lives on `fs.subject`, and `assignment()` spreads `over` last,
+						// so passing it one level up is silently ignored and the whole
+						// matrix would be measured against 225 minutes every time. That
+						// exact trap is why this row is driven from a fixture that has to
+						// be right for the numbers to mean anything.
+						subject: { id: 5, name: 'MAPEH', code: 'MAPEH', minMinutesPerWeek: minutes },
+						sections: Array.from({ length: count }, (_, i) =>
+							section({ id: 200 + i, name: `S${i + 1}`, gradeLevelName: 'Grade 7' }),
+						),
+					}),
+				],
+			}),
+		);
+
+		const line = [...dialog.querySelectorAll('p')]
+			.map((p) => textOf(p))
+			.find((t) => /\d+ class(?:es)? ·/.test(t)) ?? '';
+		const label = `${minutes} min x ${count}`;
+
+		// The TOTAL is the exact sum, always. This is the assertion with weight.
+		const shownTotal = Number(/·\s*([\d.]+)h a week/.exec(line)?.[1]);
+		assert.equal(
+			shownTotal,
+			toHours(minutes * count),
+			`${label}: the total must be the exact sum of the actual minutes, rounded once to one decimal, got "${line}"`,
+		);
+		// In MINUTES the total is exact — with one honest limit, which this row
+		// found by failing on it first: one decimal of HOURS cannot represent
+		// 3.75h, so a 225-minute subject shows "3.8h" and 3.8 x 60 is 228, not
+		// 225. That is a property of the unit, not a defect, and it is exactly
+		// why the per-section CLAUSE below falls back to minutes: 225 x 8 = 1800
+		// minutes = 30.0h, which IS representable, and is shown as "30h".
+		//
+		// So the total is required to be exact in minutes whenever the total
+		// lands on a whole tenth of an hour (6-minute steps), and required to be
+		// the correctly-ROUNDED value otherwise. Both are asserted; neither is
+		// assumed.
+		const totalMinutesExact = shownTotal * 60;
+		// The bound is 3 MINUTES, not 3 hundredths: a tenth of an hour is 6
+		// minutes, so one-decimal rounding can be wrong by at most half of that.
+		assert.ok(
+			Math.abs(totalMinutesExact - minutes * count) <= 3.000001,
+			`${label}: the displayed total must be within 3 minutes of the real sum; ${shownTotal}h = ${totalMinutesExact} min vs ${minutes * count} min`,
+		);
+		if ((minutes * count) % 6 === 0) {
+			assert.equal(
+				totalMinutesExact,
+				minutes * count,
+				`${label}: this total lands on a tenth of an hour and must therefore be exact in minutes`,
+			);
+		}
+
+		if (count === 1) {
+			assert.ok(!/each/.test(line), `${label}: a single section needs no "each" clause: "${line}"`);
+			continue;
+		}
+
+		const hoursClause = /·\s*([\d.]+)h each/.exec(line);
+		const minutesClause = /·\s*(\d+) min each/.exec(line);
+
+		if (hoursClause) {
+			// The friendly form is allowed ONLY when it reproduces the total.
+			assert.equal(
+				toHours(Number(hoursClause[1]) * count),
+				shownTotal,
+				`${label}: an hours "each" clause is printed but it does not reproduce the total — "${line}"`,
+			);
+		} else {
+			// Otherwise the clause must be exact minutes, and it must reproduce the
+			// total exactly. A card with no clause at all is the silent failure.
+			assert.ok(minutesClause, `${label}: the card must state a per-section figure: "${line}"`);
+			assert.equal(
+				Number(minutesClause![1]) * count,
+				minutes * count,
+				`${label}: the minutes clause must be the real per-section figure`,
+			);
+		}
+	}
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
