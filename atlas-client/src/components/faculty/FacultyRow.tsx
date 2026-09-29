@@ -285,6 +285,40 @@ export function facultySubjectCodeDetail(
 	return code.toLowerCase() === facultySubjectDisplayName(subject).trim().toLowerCase() ? '' : code;
 }
 
+/**
+ * A3 c16 (D3) - how many subject NAMES fit inline before the cell stops being one line.
+ *
+ * Showing names instead of codes made this cell better (`AP` -> `Araling Panlipunan`) and
+ * worse in one case: a teacher on two long special-program subjects read
+ * `Special Program in the Arts: Specialization 2, Special Program in Sports: Specialization 2
+ * +1 more` across three lines, in a row visibly taller than its neighbours, with two
+ * near-identical 40-character titles. That is the "too literal" outcome - the packet said
+ * show names, so names were shown even where two of them do not fit.
+ *
+ * The "Assigned classes" column measured 291px at 1366x768 in 14px text, which is about 40
+ * characters on one line. Two entries plus the ", " separator and the two counts therefore
+ * get a combined budget of 38 characters of NAME text; a second name that would break the
+ * line is dropped and reported through the existing `+N more`, and the full per-subject
+ * breakdown stays one click away in `AssignmentBreakdownPopover`. This is a subtraction, and
+ * it never adds a word, a clamp or an ellipsis.
+ */
+const INLINE_SUBJECT_LABEL_BUDGET = 38;
+
+/**
+ * A3 c16 (D3) - the subjects shown inline, and the count hidden behind `+N more`.
+ *
+ * At least one is always shown, so a teacher is never left with an empty cell.
+ */
+export function pickInlineSubjects(summaries: SubjectSummary[]): { shown: SubjectSummary[]; remaining: number } {
+	const first = summaries[0];
+	if (!first) return { shown: [], remaining: 0 };
+	const second = summaries[1];
+	if (!second) return { shown: [first], remaining: 0 };
+	const combined = first.displayName.length + second.displayName.length;
+	if (combined <= INLINE_SUBJECT_LABEL_BUDGET) return { shown: [first, second], remaining: summaries.length - 2 };
+	return { shown: [first], remaining: summaries.length - 1 };
+}
+
 function buildSubjectSummaries(assignments: FacultyAssignmentRecord[]): SubjectSummary[] {
 	return assignments
 		.filter((a) => a.sections.length > 0 || (a.subject?.code))
@@ -616,9 +650,8 @@ export function FacultyAssignedClassesCell({ faculty, onClick }: { faculty: Facu
 		);
 	}
 
-	// Multiple subjects: show up to two + overflow, with first section as discriminator
-	const shown = summaries.slice(0, 2);
-	const remaining = summaries.length - shown.length;
+	// Multiple subjects: show what fits on one line + overflow, with first section as discriminator
+	const { shown, remaining } = pickInlineSubjects(summaries);
 	const firstSections = summaries[0]?.sections.slice(0, 2) ?? [];
 	const firstRemaining = (summaries[0]?.sections.length ?? 0) - firstSections.length;
 
@@ -718,6 +751,9 @@ export function FacultyMobileCard({
 	const presentation = getFacultyLoadPresentation(faculty);
 	const assignments = faculty.assignments ?? [];
 	const summaries = buildSubjectSummaries(assignments);
+	// A3 c16 (D3): the same one-line budget the desktop cell uses, so the mobile
+	// card and the table row never disagree about how many subjects are inline.
+	const inline = pickInlineSubjects(summaries);
 	const teacherName = formatFacultyDisplayName(faculty);
 
 	return (
@@ -761,20 +797,20 @@ export function FacultyMobileCard({
 							)}
 						</>
 						: <>
-							<span>{summaries.slice(0, 2).map((s) => `${s.displayName} ${s.sectionCount}`).join(', ')}{summaries.length > 2 ? ` +${summaries.length - 2} more` : ''}</span>
-							{summaries[0].sections.length > 0 && (
-								<div className="mt-0.5">
-									<span className="text-foreground/70">Sections: </span>
-									{summaries[0].sections.slice(0, 2).map((sec, i) => (
-										<span key={sec.id} className="text-foreground/70">
-											{i > 0 && ', '}
-											{sec.gradeLabel} {sec.name}
-										</span>
-									))}
-									{summaries[0].sections.length > 2 && <span className="text-foreground/70"> +{summaries[0].sections.length - 2}</span>}
-								</div>
-							)}
-						</>
+								<span>{inline.shown.map((s) => `${s.displayName} ${s.sectionCount}`).join(', ')}{inline.remaining > 0 ? ` +${inline.remaining} more` : ''}</span>
+								{summaries[0].sections.length > 0 && (
+									<div className="mt-0.5">
+										<span className="text-foreground/70">Sections: </span>
+										{summaries[0].sections.slice(0, 2).map((sec, i) => (
+											<span key={sec.id} className="text-foreground/70">
+												{i > 0 && ', '}
+												{sec.gradeLabel} {sec.name}
+											</span>
+										))}
+										{summaries[0].sections.length > 2 && <span className="text-foreground/70"> +{summaries[0].sections.length - 2}</span>}
+									</div>
+								)}
+							</>
 					}
 				</button>
 			)}

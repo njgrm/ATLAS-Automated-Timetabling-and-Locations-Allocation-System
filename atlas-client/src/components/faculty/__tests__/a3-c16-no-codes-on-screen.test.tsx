@@ -241,10 +241,14 @@ test('A3-c16-3 the desktop multi-subject cell reads NAMES, not the raw codes', (
 	const cell = host.querySelector('[data-testid="teacher-row-assigned-classes-summary-trigger"]');
 	assert.ok(cell, 'the assigned-classes cell must render');
 	const text = textOf(cell!);
-	assert.match(text, /^TLE Exploratory - ICT 6, TLE Exploratory - Agriculture and Fishery Arts 10 \+1 more/,
-		`the two leading subjects must be named with their counts, then the existing overflow; saw ${JSON.stringify(text)}`);
+	// A3 c16 (D3): these two names are 21 + 41 characters and do not fit the 291px
+	// cell on one line, so the cell keeps the FIRST name and reports the rest
+	// through the overflow it already had. Row 9 below is the dedicated control.
+	assert.match(text, /^TLE Exploratory - ICT 6 \+2 more/,
+		`one long name plus the existing overflow; saw ${JSON.stringify(text)}`);
 	assert.doesNotMatch(text, /TLE_ICT_EXP/, `a raw code was printed; saw ${JSON.stringify(text)}`);
 	assert.doesNotMatch(text, /TLE_AFA_EXP/, `a raw code was printed; saw ${JSON.stringify(text)}`);
+	assert.doesNotMatch(text, /Agriculture and Fishery Arts/, `the second long name must not wrap into the cell; saw ${JSON.stringify(text)}`);
 });
 
 test('A3-c16-4 the mobile card branch reads NAMES too', () => {
@@ -289,7 +293,7 @@ test('A3-c16-4 the mobile card branch reads NAMES too', () => {
 	}));
 	const multiTriggers = Array.from(multi.querySelectorAll('[data-testid="teacher-row-assigned-classes-summary-trigger"]'));
 	const multiText = textOf(multiTriggers[multiTriggers.length - 1]);
-	assert.match(multiText, /^TLE Exploratory - ICT 6, TLE Exploratory - Agriculture and Fishery Arts 10 \+1 more/);
+	assert.match(multiText, /^TLE Exploratory - ICT 6 \+2 more/);
 	assert.doesNotMatch(multiText, /TLE_ICT_EXP|TLE_AFA_EXP/, `a raw code was printed on the mobile card; saw ${JSON.stringify(multiText)}`);
 });
 
@@ -380,4 +384,64 @@ test('A3-c16-7 an assignment with no subject record renders plain words, never `
 	// the "No sections yet" filter), so the negative control is that it is not
 	// READABLE anywhere in the popover either.
 	assert.doesNotMatch(openPopover(host), /SUBJ#/);
+});
+
+/**
+ * A3 c16 (D3) - the rendered 1366x768 pass showed that swapping a code for a
+ * name made ONE row worse: a teacher on two long special-program subjects read
+ * `Special Program in the Arts: Specialization 2, Special Program in Sports:
+ * Specialization 2 +1 more` across three lines, in a row taller than its
+ * neighbours, with two near-identical 40-character titles. These rows pin the
+ * correction - the cell subtracts the second name rather than adding a clamp,
+ * an ellipsis or a line.
+ *
+ * JSDOM performs no layout, so these assert the RULE and its rendered output.
+ * The pixel budget itself was measured in the browser (291px cell, ~40
+ * characters at 14px) and is recorded in `pickInlineSubjects`.
+ */
+const longProgram = (code: string, name: string) => ({
+	id: 9,
+	subjectId: 9,
+	subject: { id: 9, code, name },
+	sections: [section(11, 'Arts 7 - Section A', 7, 7), section(12, 'Arts 8 - Section A', 7, 8)],
+});
+
+test('A3-c16-8 two SHORT subject names both stay inline on one line', () => {
+	const host = render(createElement(FacultyAssignedClassesCell as any, {
+		// `onClick` is what makes the cell the interactive wrapper the roster
+		// renders, and it is the only branch carrying the addressing test id.
+		onClick: () => {},
+		faculty: facultyWith([
+			{ id: 1, subjectId: 5, subject: { id: 5, code: 'DEVL_READING', name: 'Developmental Reading' }, sections: [section(11, 'Rizal 7', 7, 7)] },
+			{ id: 2, subjectId: 6, subject: { id: 6, code: 'FIL', name: 'Filipino' }, sections: [section(12, 'Mabini 7', 7, 8), section(13, 'Mabini 8', 7, 8), section(14, 'Mabini 9', 7, 9), section(15, 'Mabini 10', 7, 10), section(16, 'Mabini 7-B', 7, 7)] },
+		]),
+	}));
+
+	const cell = host.querySelector('[data-testid="teacher-row-assigned-classes-summary-trigger"]');
+	const text = textOf(cell!);
+	// This is the improvement: the row used to read `DEVL_READING 1, FIL 5`.
+	assert.match(text, /Developmental Reading 1, Filipino 5/, `both short names belong inline; saw ${JSON.stringify(text)}`);
+	assert.doesNotMatch(text, /DEVL_READING|FIL/, 'no code may appear in the inline cell');
+});
+
+test('A3-c16-9 two LONG subject names subtract the second name instead of wrapping', () => {
+	const host = render(createElement(FacultyAssignedClassesCell as any, {
+		// `onClick` is what makes the cell the interactive wrapper the roster
+		// renders, and it is the only branch carrying the addressing test id.
+		onClick: () => {},
+		faculty: facultyWith([
+			longProgram('SPA_SPEC', 'Special Program in the Arts: Specialization'),
+			longProgram('SPS_SPEC', 'Special Program in Sports: Specialization'),
+			{ id: 3, subjectId: 7, subject: { id: 7, code: 'FIL', name: 'Filipino' }, sections: [section(13, 'Bonifacio 7', 7, 9)] },
+		]),
+	}));
+
+	const cell = host.querySelector('[data-testid="teacher-row-assigned-classes-summary-trigger"]');
+	const text = textOf(cell!);
+	assert.match(text, /Special Program in the Arts: Specialization 2 \+2 more/, `the overflow must carry the hidden two; saw ${JSON.stringify(text)}`);
+	assert.doesNotMatch(text, /Special Program in Sports/, `the second long name must not wrap into the cell; saw ${JSON.stringify(text)}`);
+	// ...and it is still one click away, with its own count intact.
+	const popoverText = openPopover(host);
+	assert.match(popoverText, /Special Program in Sports: Specialization/, 'the dropped name must remain in the popover breakdown');
+	assert.match(popoverText, /Filipino/, 'every subject must remain in the popover breakdown');
 });
