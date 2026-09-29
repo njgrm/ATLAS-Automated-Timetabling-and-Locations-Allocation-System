@@ -12,15 +12,16 @@
  * WHY THIS IS A COMPUTED CONTROL AND NOT A STRING MATCH. `AGENTS.md` §11 rejects a source-text
  * assertion as acceptance evidence for a user-facing change, and the hard limit here is a real,
  * measurable one — "white-on-fill contrast ≥ 4.5:1". So this file does the arithmetic the claim
- * needs: it reads the committed `PROGRAM_BADGE` map out of the component that renders it and the
- * oklch shades out of the Tailwind that is actually installed, converts both to sRGB itself, and
- * asserts the WCAG ratio. A reviewer reading a pass here is reading a measurement.
+ * needs: it reads the committed `PROGRAM_BADGE` map out of the shared module that renders it and
+ * the oklch shades out of the Tailwind that is actually installed, converts both to sRGB itself,
+ * and asserts the WCAG ratio. A reviewer reading a pass here is reading a measurement.
  *
- * WHY THE MAP IS READ FROM SOURCE AND NOT IMPORTED. `SectionRow.tsx` pulls a React component
- * graph (react-router, Radix, Konva-adjacent imports) that needs a DOM to load; a raw import in a
- * plain `tsx --test` process would test the harness, not the colour. Reading the exported map's
- * literal entries with the same comment-stripping discipline the palette controls use keeps this
- * control about the VALUES, which is the part the operator asked to change.
+ * WHY THE MAP IS READ FROM SOURCE AND NOT IMPORTED. The shared module is imported by
+ * `SectionRow.tsx`/`SectionMobileCard.tsx`, which pull a React component graph (react-router, Radix,
+ * Konva-adjacent imports) that needs a DOM to load; a raw import in a plain `tsx --test` process
+ * would test the harness, not the colour. Reading the exported map's literal entries with the same
+ * comment-stripping discipline the palette controls use keeps this control about the VALUES, which
+ * is the part the operator asked to change.
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -30,7 +31,10 @@ import test from 'node:test';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const CLIENT_ROOT = resolve(here, '..', '..', '..', '..');
+/** A9 c1 R1: the map lives in the shared module both renderers import. */
+const PROGRAM_BADGE_MODULE = resolve(CLIENT_ROOT, 'src/components/sections/program-badge.ts');
 const SECTION_ROW = resolve(CLIENT_ROOT, 'src/components/sections/SectionRow.tsx');
+const SECTION_MOBILE_CARD = resolve(CLIENT_ROOT, 'src/components/sections/SectionMobileCard.tsx');
 const TAILWIND_THEME = resolve(CLIENT_ROOT, 'node_modules/tailwindcss/theme.css');
 const WHITE: Rgb = [255, 255, 255];
 /** WCAG AA for normal text. The packet's own floor. */
@@ -93,9 +97,9 @@ function stripComments(source: string): string {
 
 /** The committed `PROGRAM_BADGE` map, as `<code> -> <class string>`. */
 function readProgramBadgeMap(): Map<string, string> {
-	const code = stripComments(readFileSync(SECTION_ROW, 'utf8'));
+	const code = stripComments(readFileSync(PROGRAM_BADGE_MODULE, 'utf8'));
 	const block = /export const PROGRAM_BADGE: Record<string, string> = \{([\s\S]*?)\n\};/.exec(code);
-	assert.ok(block, 'the exported PROGRAM_BADGE map was not found in SectionRow.tsx');
+	assert.ok(block, 'the exported PROGRAM_BADGE map was not found in program-badge.ts');
 	const out = new Map<string, string>();
 	for (const m of block[1].matchAll(/([A-Z]+):\s*'([^']+)'/g)) out.set(m[1], m[2]);
 	return out;
@@ -198,6 +202,45 @@ test('A9-C1-5: the row no longer prints the duplicated "Regular Program" caption
 	assert.doesNotMatch(code, /'Regular Program'/, 'the duplicated regular-program caption came back');
 	// The badge is the row's program signifier for a regular section too.
 	assert.match(code, /programBadgeLabel\(/, 'the badge label must be derived, not hard-coded per branch');
+});
+
+test('A9-C1-6 (R1): the MOBILE card takes the SAME badge decision as the row, not a paler second copy', () => {
+	// A9 c1 fixed the desktop row but left `SectionMobileCard.tsx` on the old pale
+	// `bg-white` chip plus a grey `Regular Program` caption, so one section looked
+	// like two different things on one page. The fix is one shared definition; this
+	// control fails first on `51c2f2c3`, where the module does not exist and the
+	// card still renders the pale chip.
+	const card = stripComments(readFileSync(SECTION_MOBILE_CARD, 'utf8'));
+	const module = stripComments(readFileSync(PROGRAM_BADGE_MODULE, 'utf8'));
+
+	// Both renderers import the ONE shared definition...
+	assert.match(
+		card,
+		/import\s*\{[^}]*programBadgeClass[^}]*\}\s*from\s*['"][^'"]*program-badge['"]/,
+		'the mobile card must import the shared badge helpers',
+	);
+	assert.match(card, /programBadgeClass\(/, 'the mobile card must use the shared class decision');
+	assert.match(card, /programBadgeLabel\(/, 'the mobile card must use the shared label');
+	assert.match(card, /resolveProgramCode\(/, 'the mobile card must use the shared code resolution');
+
+	// ...and neither card nor row keeps its own copy of the map.
+	assert.doesNotMatch(card, /PROGRAM_BADGE\s*[:=]/, 'the mobile card must not define a second badge map');
+	assert.doesNotMatch(card, /bg-white[^"'`]*text-xs[^"'`]*font-bold/, 'the old pale program chip must be gone');
+	// The duplicated grey caption is deleted; the special PROGRAM NAME stays.
+	assert.doesNotMatch(card, /'Regular Program'/, 'the duplicated regular-program caption came back');
+	assert.match(card, /section\.programName/, 'the special program name must survive on the card');
+
+	// The shared module is the single owner of the decision the two surfaces read.
+	assert.match(module, /export function programBadgeClass/, 'the shared module owns the class function');
+	assert.match(module, /export function resolveProgramCode/, 'the shared module owns the code resolver');
+	assert.match(module, /export function programBadgeLabel/, 'the shared module owns the label function');
+	// A regular section resolves to `REGULAR`, whose shared fill is dark slate:
+	// both the row and the card read that one entry, never a card-local colour.
+	assert.match(
+		PROGRAM_BADGE.get('REGULAR') ?? '',
+		/bg-slate-700/,
+		'a regular section\'s shared badge must be the dark slate `BEC` fill',
+	);
 });
 
 test('CONTROL (A9-C1): the contrast function CAN fail — a pale chip is reported below AA', () => {
