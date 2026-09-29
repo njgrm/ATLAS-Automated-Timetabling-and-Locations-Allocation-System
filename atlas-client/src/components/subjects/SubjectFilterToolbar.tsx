@@ -1,14 +1,10 @@
 import { ALL_ROOM_TYPES, GRADE_OPTIONS, PROGRAM_SCOPE_OPTIONS, ROOM_TYPE_LABELS } from '@/lib/subject-constants';
 import { Button } from '@/ui/button';
 import { FilterPicker } from '@/ui/filter-picker';
-import { PICKER_CONTROL_HEIGHT_CLASS, pickerTriggerClass } from '@/ui/picker-trigger';
-import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
+import { PICKER_CONTROL_HEIGHT_CLASS } from '@/ui/picker-trigger';
 import { AdminSearchFilterToolbar } from '@/components/admin-workspace/AdminWorkspace';
 import { TERM_FILTER_ALL, type TermFilterOption } from './subject-term-filter';
 import { gradeLabel } from '@/lib/grade-labels';
-import { cn } from '@/lib/utils';
-import { SlidersHorizontal } from 'lucide-react';
-import { useState } from 'react';
 import type { RoomType } from '@/types';
 
 /**
@@ -105,69 +101,82 @@ export function SubjectFilterToolbar({
 	termOptions,
 	onResetFilters,
 }: Props) {
-	// A5 C4 (2026-09-29) — THE LAYOUT NOTE, BEFORE THE JSX.
+	// A5 C7 (2026-09-29) — THE LAYOUT NOTE, BEFORE THE JSX.
 	//
-	// Lane C's Codex walk, verbatim: "Keep Grade and Program visible and put the
-	// other filters under 'More filters'." Codex also confirmed this page has NO
-	// truncation today, so this is not a width fix. It is about five competing
-	// controls where a scheduler has to read all five to know the page is
-	// filtered.
+	// WHAT THE OPERATOR NOW WANTS. Lane C's walk filed two items in opposite
+	// directions and only one of them is a preference. A5 C4 read the Codex line
+	// "keep Grade and Program visible and put the other filters under `More
+	// filters`" as authority and shipped the disclosure. The operator then used
+	// the page and filed the disclosure itself (fix-3 item 43): a scheduler has to
+	// CLICK A BUTTON to find out that the page is filtered, and the button that
+	// counts the filters is a number an older, mouse-first scheduler does not read
+	// off a filter bar. Item 43 supersedes A5 C4. Codex's own note — no
+	// truncation, one line at 1366 — is the reason this is affordable.
 	//
-	//   WHAT STAYS IN THE ROW .... the search box, `Grade`, `Program`, `Reset`
-	//                              (only while a filter is set), and ONE
-	//                              `More filters` disclosure.
-	//   WHAT GOES BEHIND IT ...... `Status`, `Room`, `Term`. These are REFINEMENTS
-	//                              - they narrow an answer the scheduler already
-	//                              has. Grade and Program are the two axes a
-	//                              scheduler filters BY.
-	//   WHAT IT COSTS ............ three rectangles leave the visible row; one
-	//                              disclosure button arrives. Net visible control
-	//                              count is unchanged and the row has more slack
-	//                              at 1366px, not less. This is the §11 rule-3
-	//                              subtraction, not an addition.
-	//   WHAT IS NOT CHANGED ..... every picker below is the SAME `@/ui/filter-picker`
-	//                              with its own self-naming trigger and its own
-	//                              `data-testid`; opening the disclosure changes
-	//                              no value; the c3 slice-B guards (Enter on a
-	//                              disabled option, and never claiming `All` for a
-	//                              list that has no `all` member) still sit in
-	//                              `@/ui` and are untouched.
+	//   WHAT STAYS IN THE ROW .... everything. The search box, `Grade`, `Program`,
+	//                              `Status`, `Room`, `Term`, and `Reset` while a
+	//                              filter is set.
+	//   WHAT GOES ............... the `More filters` trigger, the popover behind
+	//                              it, its `Refine the subjects shown` heading, the
+	//                              `(n)` count and the `SlidersHorizontal` icon.
+	//                              One control out, zero in. This is §11 rule 3
+	//                              subtraction with nothing added back: no chip, no
+	//                              "N filters applied", no summary line, no helper
+	//                              sentence.
+	//   WHAT IT COSTS ............ nothing but reachability of three controls,
+	//                              which is exactly what item 43 was filed about.
+	//   THE WIDTH BUDGET ........ `@/ui/picker-trigger` already publishes the
+	//                              `md` (=`w-32`, 128px) variant for THIS case in
+	//                              its own words: "5 × 128 + 4 cluster gaps +
+	//                              Reset + the 240px search box + its gap =
+	//                              1020px against ~1062px available at 1366".
+	//                              With this file's `gap-2` (8px) it is
+	//                              240 + 10 + 640 + 40 + 80 = 1010px against
+	//                              1062px. Nothing needs a new width variant and
+	//                              §8 forbids inventing one at a call site; the
+	//                              cluster keeps `flex-wrap` so a NARROWER
+	//                              viewport still degrades by wrapping instead of
+	//                              overflowing (§8's no-scroll rule), and the
+	//                              rendered 1366x768 no-wrap proof is the browser
+	//                              capture, because jsdom cannot measure layout.
+	//   WHAT IS NOT CHANGED ..... every picker below is still the SAME
+	//                              `@/ui/filter-picker` at the same `width`, with
+	//                              its own self-naming trigger, its own
+	//                              `ariaLabel` and its own `data-testid`; the
+	//                              merged `SubjectStatusFilter` axis, its
+	//                              `shortLabels`, `ROOM_TYPE_SHORT_LABELS`,
+	//                              `gradeLabel(g)` and `TERM_FILTER_ALL` are all
+	//                              untouched. This is a layout change. If an edit
+	//                              here ever changes WHICH SUBJECTS a value
+	//                              selects, it has stopped being a layout change.
 	//
-	// A3-C10's earlier note here read "There is no grouping button left, so there
-	// is nothing to disclose through." That was answering a different finding
-	// (a combined Room+Program trigger that stood between the operator and the
-	// filter). This disclosure groups only REFINEMENTS, and each picker inside it
-	// keeps its own trigger - so a scheduler still reaches `Room` in one click
-	// once the group is open, and never pays a click on a control that is not
-	// `Room`. The finding that closed the old grouping button is recorded above
-	// and is not undone.
-	const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
-
-	// THE COUNT IS OF SET FILTERS, NEVER OF OPTIONS. A disclosure that counted
-	// options would read `More filters (3)` on a page where nothing is filtered,
-	// which is a second thing the operator has to decode. Three filters, three
-	// possible counts, and only these three are eligible.
-	const refinementCount = [
-		subjectStatusFilter !== 'all',
-		roomTypeFilter !== 'all',
-		termFilter !== TERM_FILTER_ALL,
-	].filter(Boolean).length;
-	const moreFiltersLabel = refinementCount > 0 ? `More filters (${refinementCount})` : 'More filters';
-
-	// A5 C4: the shared `AdminSearchFilterToolbar` takes `filtersOpen` /
-	// `onToggleFilters`, and this page used to pass `false` and an empty arrow —
-	// dead props. They now carry this disclosure's REAL state. The shared
-	// component renders its own `More filters` button only when it is given
-	// OVERFLOW CHILDREN, and this page passes one wrapping cluster, so that
-	// button does not appear; the shared component is another lane's file and is
-	// deliberately left unmodified.
+	// A5 C4, SUPERSEDED VERBATIM: its note argued the disclosure was subtraction
+	// ("three rectangles leave the row, one button arrives"). Kept here as the
+	// record of why the argument was wrong — the button it added was a thing a
+	// scheduler had to open, and §11 rule 4 counts controls a scheduler must
+	// find, not controls on screen.
+	//
+	// `filtersOpen` / `onToggleFilters`, DELIBERATELY (A5 C7). The shared
+	// `AdminSearchFilterToolbar` still requires both, and they exist only for ITS
+	// disclosure — a control this page no longer renders. Passing this page's old
+	// disclosure state would be a lie, and passing a real `useState` would keep a
+	// value nothing reads. So both are passed inert (`false` / a no-op): with
+	// `primaryFilterCount={1}` and exactly ONE child (the cluster) the shared
+	// component's `overflowChildren` is empty, and its `More filters` button and
+	// overflow panel are both guarded on that being non-empty, so neither renders.
+	// That is why no stray disclosure appears and `AdminWorkspace.tsx` — another
+	// lane's file — needs no change. The browser capture is the check; this
+	// comment is the reason to expect it.
 	return (
 		<AdminSearchFilterToolbar
 			searchValue={searchQuery}
 			onSearchChange={onSearchChange}
 			searchPlaceholder="Search name or code..."
-			filtersOpen={moreFiltersOpen}
-			onToggleFilters={() => setMoreFiltersOpen((open) => !open)}
+			/* A5 C7: INERT, see the note above. Both are required props and both
+			   exist only for the shared component's own disclosure, which this page
+			   does not render. Nothing here reads either value. */
+			filtersOpen={false}
+			onToggleFilters={() => {}}
 			hasActiveFilters={hasActiveFilters}
 			/* A3-C10: the single wrapping cluster is the one primary child. It is
 			   a child of the row rather than a sibling set of children, which is
@@ -188,8 +197,12 @@ export function SubjectFilterToolbar({
 			   class-list assertion was true. */
 			searchInputClassName={`${PICKER_CONTROL_HEIGHT_CLASS} pl-9 text-xs sm:text-xs`}
 		>
+			{/* ONE cluster, ONE line at 1366. `gap-2` is A5 C7's change from
+			    A5 C4's `gap-2.5` and is part of the budget arithmetic above; it is
+			    the spacing between siblings of a flex row, not chrome on a
+			    primitive, so §8 does not apply to it. */}
 			<div
-				className="flex min-w-0 flex-1 flex-wrap items-center gap-2.5"
+				className="flex min-w-0 flex-1 flex-wrap items-center gap-2"
 				data-testid="subjects-filter-cluster"
 			>
 				{/* R3 §1: the operator's own words are `Grade: All`, `Program: All` — the
@@ -227,96 +240,59 @@ export function SubjectFilterToolbar({
 					dataTestId="subjects-program-filter"
 				/>
 
-				{/* A5 C4: THE ONE DISCLOSURE.
+				{/* A5 C7: THE THREE THAT SAT BEHIND `More filters`, now IN the row.
 				 *
-				 * `@/ui/popover` — the repo's own primitive, and the same one every
-				 * `@/ui/filter-picker` is built on — so this is not a hand-rolled
-				 * grouping control and it matches every other page (§8).
-				 *
-				 * `modal={false}` is load-bearing, not a preference: a Radix POPOVER
-				 * defaulting to modal sets `pointer-events: none` on the body and
-				 * stacks a `DismissableLayer`. Three FilterPickers open their OWN
-				 * popovers from inside this one, so a modal outer would leave the
-				 * inner pickers unclickable. Non-modal keeps outside-click dismissal
-				 * and `Escape` (both are `DismissableLayer`, which does not depend
-				 * on modality) while letting a nested picker be a real control.
-				 */}
-				<Popover open={moreFiltersOpen} onOpenChange={setMoreFiltersOpen} modal={false}>
-					<PopoverTrigger asChild>
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							data-testid="subjects-more-filters"
-							/* The visible label is the ONLY place the count appears, and
-							   it counts SET filters. `aria-expanded` and `aria-haspopup`
-							   come from the primitive, so the control is keyboard
-							   reachable and announces itself as a disclosure without
-							   this file restating that. */
-							className={cn(pickerTriggerClass('auto'), 'gap-1.5')}
-						>
-							<SlidersHorizontal className="size-3.5" aria-hidden="true" />
-							{moreFiltersLabel}
-						</Button>
-					</PopoverTrigger>
-					<PopoverContent
-						align="start"
-						/* The primitive's own `w-[var(--radix-popover-trigger-width)]` is
-						   the width of the DISCLOSURE button, which is sized for the
-						   label, not for a list of filters. One declared width, from the
-						   same `w-*` group so tailwind-merge drops the primitive's. */
-						className="w-[19rem] space-y-2.5 p-3"
-					>
-						<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-							Refine the subjects shown
-						</p>
-						<div className="flex flex-col gap-2.5">
-							<FilterPicker
-								name="Status"
-								ariaLabel="Filter by subject status"
-								value={subjectStatusFilter}
-								onValueChange={(v) => onSubjectStatusFilterChange(v as SubjectStatusFilter)}
-								options={[
-									{ value: 'all', label: 'All statuses' },
-									{ value: 'active', label: 'Active' },
-									{ value: 'inactive', label: 'Archived' },
-									/* The coverage-attention axis, folded into the one status
-									   control rather than dropped (see `SubjectStatusFilter`). */
-									{ value: 'missing-coverage', label: 'Missing teacher coverage' },
-									{ value: 'room-constrained', label: 'Room-constrained subjects' },
-								]}
-								shortLabels={{
-									active: 'Active',
-									inactive: 'Archived',
-									'missing-coverage': 'No coverage',
-									'room-constrained': 'Room-constrained',
-								}}
-								dataTestId="subjects-status-filter"
-							/>
-							<FilterPicker
-								name="Room"
-								ariaLabel="Filter by room type"
-								value={roomTypeFilter}
-								onValueChange={(v) => onRoomTypeFilterChange(v)}
-								options={[
-									{ value: 'all', label: 'All room types' },
-									...ALL_ROOM_TYPES.map((t) => ({ value: t, label: ROOM_TYPE_LABELS[t] })),
-								]}
-								/* R3 §1: the popover keeps the full labels (`Science Laboratory`,
-								   `ICT / Computer Lab`); only the trigger's rectangle is compact. */
-								shortLabels={ROOM_TYPE_SHORT_LABELS}
-								dataTestId="subjects-room-type-filter"
-							/>
-							<FilterPicker
-								name="Term"
-								ariaLabel="Filter by rotation term"
-								value={termFilter}
-								onValueChange={onTermFilterChange}
-								options={termOptions.map((option) => ({ value: option.value, label: option.label }))}
-							/>
-						</div>
-					</PopoverContent>
-				</Popover>
+				 * Their order is unchanged from the popover they came out of, and
+				 * every option list, `shortLabels` map, `ariaLabel` and
+				 * `dataTestId` is what it was. This is a MOVE, not a rewrite: the
+				 * A5 C4 QA that wrote most of these comments — that no filter may
+				 * claim `All` for a list with no `all` member, that the trigger is
+				 * compact while the list keeps the full label, that `gradeLabel`
+				 * is the one shared grade spelling — decided about the CONTROL,
+				 * and none of it depends on where the control sits. */}
+				<FilterPicker
+					name="Status"
+					ariaLabel="Filter by subject status"
+					value={subjectStatusFilter}
+					onValueChange={(v) => onSubjectStatusFilterChange(v as SubjectStatusFilter)}
+					options={[
+						{ value: 'all', label: 'All statuses' },
+						{ value: 'active', label: 'Active' },
+						{ value: 'inactive', label: 'Archived' },
+						/* The coverage-attention axis, folded into the one status
+						   control rather than dropped (see `SubjectStatusFilter`). */
+						{ value: 'missing-coverage', label: 'Missing teacher coverage' },
+						{ value: 'room-constrained', label: 'Room-constrained subjects' },
+					]}
+					shortLabels={{
+						active: 'Active',
+						inactive: 'Archived',
+						'missing-coverage': 'No coverage',
+						'room-constrained': 'Room-constrained',
+					}}
+					dataTestId="subjects-status-filter"
+				/>
+				<FilterPicker
+					name="Room"
+					ariaLabel="Filter by room type"
+					value={roomTypeFilter}
+					onValueChange={(v) => onRoomTypeFilterChange(v)}
+					options={[
+						{ value: 'all', label: 'All room types' },
+						...ALL_ROOM_TYPES.map((t) => ({ value: t, label: ROOM_TYPE_LABELS[t] })),
+					]}
+					/* R3 §1: the popover keeps the full labels (`Science Laboratory`,
+					   `ICT / Computer Lab`); only the trigger's rectangle is compact. */
+					shortLabels={ROOM_TYPE_SHORT_LABELS}
+					dataTestId="subjects-room-type-filter"
+				/>
+				<FilterPicker
+					name="Term"
+					ariaLabel="Filter by rotation term"
+					value={termFilter}
+					onValueChange={onTermFilterChange}
+					options={termOptions.map((option) => ({ value: option.value, label: option.label }))}
+				/>
 
 				{hasActiveFilters && (
 					<Button
