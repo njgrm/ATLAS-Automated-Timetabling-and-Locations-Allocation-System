@@ -1,8 +1,8 @@
 # A9 c8 — evidence (lane `a9-c8`, 2026-09-29)
 
-Range `24401f0b..8d740f8b` (round 1) plus the round-1 correction commit on top; the tip is named
-in the handoff. `24401f0b..HEAD` is four commits, the first of which is the packet commit
-`e7583433` (planner-authored, in the range) and the rest this lane's.
+Delivered tip `2eb92ac4`; range `24401f0b..2eb92ac4` is **five** commits: the planner's packet
+commit `e7583433` plus this lane's `8f91515d`, `bfd73e19`, `8d740f8b` (round 1) and `2eb92ac4`
+(the round-1 correction, closing QA's BLOCKING F-A and its F-B guard gap).
 
 Preview: `scripts/dev/start-preview.ps1 -ClientDir <worktree>\atlas-client -Port 5241` (round 1)
 and `-Port 5242` (the correction round), each proxied to the **staging** API. Viewport
