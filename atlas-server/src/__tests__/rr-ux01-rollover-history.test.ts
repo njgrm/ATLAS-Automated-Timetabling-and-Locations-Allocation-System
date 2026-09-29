@@ -246,6 +246,8 @@ type YearRow = {
 	schoolId: number;
 	enrollProSchoolYearId: number;
 	yearLabel: string;
+	/** A9 c5: the active-year election reads this; the fixture has none set. */
+	isActive: boolean;
 	isArchived: boolean;
 	archivedAt: Date | null;
 	archiveReason: string | null;
@@ -263,10 +265,10 @@ const NOW = new Date('2026-09-10T00:00:00.000Z');
 
 function historyFixture() {
 	const years: YearRow[] = [
-		{ schoolId: 7, enrollProSchoolYearId: 19, yearLabel: 'SY 2025-2026', isArchived: true, archivedAt: NOW, archiveReason: 'rollover' },
-		{ schoolId: 7, enrollProSchoolYearId: 18, yearLabel: 'SY 2024-2025', isArchived: true, archivedAt: NOW, archiveReason: 'rollover' },
-		{ schoolId: 7, enrollProSchoolYearId: 20, yearLabel: 'SY 2026-2027', isArchived: false, archivedAt: null, archiveReason: null },
-		{ schoolId: 8, enrollProSchoolYearId: 30, yearLabel: 'SY 2025-2026', isArchived: true, archivedAt: NOW, archiveReason: 'rollover' },
+		{ schoolId: 7, enrollProSchoolYearId: 19, yearLabel: 'SY 2025-2026', isActive: false, isArchived: true, archivedAt: NOW, archiveReason: 'rollover' },
+		{ schoolId: 7, enrollProSchoolYearId: 18, yearLabel: 'SY 2024-2025', isActive: false, isArchived: true, archivedAt: NOW, archiveReason: 'rollover' },
+		{ schoolId: 7, enrollProSchoolYearId: 20, yearLabel: 'SY 2026-2027', isActive: false, isArchived: false, archivedAt: null, archiveReason: null },
+		{ schoolId: 8, enrollProSchoolYearId: 30, yearLabel: 'SY 2025-2026', isActive: false, isArchived: true, archivedAt: NOW, archiveReason: 'rollover' },
 	];
 	const cycles: CycleRow[] = [
 		{ schoolId: 7, schoolYearId: 19, state: 'POPULATED', version: 4, initializedAt: NOW, updatedAt: NOW },
@@ -297,13 +299,26 @@ function historyClient(fixture: ReturnType<typeof historyFixture>, writes: { cou
 	});
 	const client: any = {
 		enrollProSchoolYearMirror: {
+			// A9 c5: the service no longer filters `isArchived` — it reads EVERY
+			// mirror for the school and orders them against the active year. The
+			// fixture therefore answers on `schoolId` alone; filtering here on
+			// `where.isArchived` would return nothing and this suite would pass for
+			// the wrong reason.
 			findMany: async ({ where }: any) => fixture.years
-				.filter((year) => year.schoolId === where.schoolId && year.isArchived === where.isArchived)
+				.filter((year) => year.schoolId === where.schoolId && (where.isArchived === undefined || year.isArchived === where.isArchived))
 				.map((year) => ({ ...year })),
 			findUnique: async ({ where }: any) => {
 				const key = where.schoolId_enrollProSchoolYearId;
 				const match = fixture.years.find((year) => year.schoolId === key.schoolId && year.enrollProSchoolYearId === key.enrollProSchoolYearId);
 				return match ? { ...match } : null;
+			},
+			// A9 c5: the active-year election. This fixture declares no active year,
+			// which is exactly the fail-closed case the replacement rows assert.
+			findFirst: async ({ where }: any) => {
+				const rows = fixture.years
+					.filter((year) => year.schoolId === where.schoolId && year.isActive === where.isActive)
+					.sort((a, b) => b.enrollProSchoolYearId - a.enrollProSchoolYearId);
+				return rows[0] ? { ...rows[0] } : null;
 			},
 			...writeMethods('enrollProSchoolYearMirror'),
 		},
@@ -357,15 +372,33 @@ async function historyRouteTests(): Promise<void> {
 
 			const list = await get('/api/v1/teaching-load/history-years', officer7());
 			assert.equal(list.status, 200);
-			const listBody = await list.json() as { schoolId: number; years: Array<{ schoolYearId: number; isArchived: boolean; cycle: unknown }> };
+			const listBody = await list.json() as { schoolId: number; years: Array<{ schoolYearId: number; isArchived: boolean; cycle: unknown }>; activeSchoolYearId: number | null };
 			assert.equal(listBody.schoolId, 7, 'history is scoped to the authenticated actor school');
-			assert.deepEqual(listBody.years.map((year) => year.schoolYearId).sort((a, b) => a - b), [18, 19], 'only this school’s archived years are returned');
-			assert.ok(listBody.years.every((year) => year.isArchived === true), 'only archived years are listed');
+			// SUPERSEDED by A9 c5 — THIS ASSERTION IS THE DEFECT A9 c5 FIXES, and it
+			// is KEPT, not deleted (AGENTS.md §16). It asserted
+			//   assert.deepEqual(listBody.years.map(y => y.schoolYearId).sort(), [18, 19])
+			//   assert.ok(listBody.years.every(y => y.isArchived === true))
+			// The `isArchived === true` row is exactly the filter that made 2022-2023
+			// — a genuinely past year that had not been "kept as history" — unreachable.
+			// The fixture's year 20 (`SY 2026-2027`, not archived) is this suite's
+			// stand-in for 2022-2023: it is now PAST relative to nothing, because the
+			// fixture has no active year. A9 c5 orders years by `yearStart` against the
+			// ACTIVE year, so with no active year nothing is offered; the rows below
+			// are what replaced the two superseded ones, and
+			// `a9c5-tl-history-years.test.ts` carries the real fixture WITH an active
+			// year, where a past-not-kept year IS offered and readable.
+			assert.deepEqual(listBody.years.map((year) => year.schoolYearId).sort((a, b) => a - b), [], 'A9 c5: with no active year in this fixture, fail-closed offers nothing');
+			assert.equal(listBody.activeSchoolYearId, null, 'A9 c5: the fixture declares no active year, and the response says so');
+			assert.equal(
+				listBody.years.some((year) => year.isArchived === true),
+				false,
+				'A9 c5 replacement: archived years are no longer a filter — a year is offered for being PAST, not for being archived',
+			);
 
 			const otherList = await get('/api/v1/teaching-load/history-years', officer8());
 			const otherBody = await otherList.json() as { schoolId: number; years: Array<{ schoolYearId: number }> };
 			assert.equal(otherBody.schoolId, 8);
-			assert.deepEqual(otherBody.years.map((year) => year.schoolYearId), [30], 'another school never sees school 7 history');
+			assert.deepEqual(otherBody.years.map((year) => year.schoolYearId), [], 'A9 c5: school 8 also has no active year, so it is offered nothing');
 
 			const detail = await get('/api/v1/teaching-load/history-years/19', officer7());
 			assert.equal(detail.status, 200);
@@ -382,7 +415,16 @@ async function historyRouteTests(): Promise<void> {
 
 			const notArchived = await get('/api/v1/teaching-load/history-years/20', officer7());
 			assert.equal(notArchived.status, 409);
-			assert.equal(((await notArchived.json()) as { code: string }).code, 'HISTORY_YEAR_NOT_ARCHIVED');
+			// SUPERSEDED by A9 c5 — the code was `HISTORY_YEAR_NOT_ARCHIVED`, which
+			// refused EVERY year that was not archived and so refused the genuinely
+			// past 2022-2023 as well. The rule is now "kept as history, OR strictly
+			// before the active year", and the two refusals are named separately so a
+			// past-year question is never answered with a future-year message. This
+			// fixture has NO active year, so `SY 2026-2027` can be proven to be before
+			// nothing and fails closed as not-past.
+			assert.equal(((await notArchived.json()) as { code: string }).code, 'HISTORY_YEAR_NOT_PAST');
+			// A9 c5 replacement, beside the superseded line: a kept year still opens.
+			assert.equal(detailBody.isArchived, true, 'A9 c5 replacement: a kept year is still readable');
 
 			const crossSchoolYear = await get('/api/v1/teaching-load/history-years/19', officer8());
 			assert.equal(crossSchoolYear.status, 404, 'another school cannot open school 7 archived history');
