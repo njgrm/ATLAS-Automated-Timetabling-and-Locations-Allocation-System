@@ -84,3 +84,9 @@ Chrome cannot reach staging's loopback origin, one prompt quoted a stale number,
 "A4 release train N"); Lane C's GO resume uses that id and a numbered cutover prompt (record live-state, dry run,
 -Execute, verify served chunk, rollback, post); Lane C verifies the served chunk itself. Walk prompts never quote expected
 figures. The baseline rule is "caused or worsened by the train".
+
+## Hotfix #2 false "live" — 2026-09-29 22:35 +08 (Lane C)
+Lane C told the operator hotfix f4d34c75 was live after seeing the new chunk on :5174 mid-cutover; the supervisor then
+rolled it back (readiness 45 s budget, ~80 s cold start under memory pressure). **Standing fixes:** Lane C says "live" only
+after A4's LIVE post AND the Tailnet URL (https://njgrm.buru-degree.ts.net/) serves the new chunk; readiness budget is
+now 180 s (8d98628d / 029e5425).

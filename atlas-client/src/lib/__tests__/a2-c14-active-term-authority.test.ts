@@ -176,7 +176,7 @@ function verifiedCalls(): RecordedCall[] {
 test('A the shared resolver issues exactly one verifyUpstream:true request and resolves a verified term the fast read could not', async () => {
 	runtimeContextResponder = profileResponder();
 
-	const resolution = await resolveActiveTermAuthority(201, () => false);
+	const resolution = await resolveActiveTermAuthority(201, { isStillCurrent: () => true });
 
 	assert.ok(resolution, 'a live resolution is returned');
 	assert.equal(verifiedCalls().length, 1,
@@ -215,7 +215,7 @@ test('A-control the PRE-FIX call shape asks for nothing and resolves no term, wh
 test('A-late a response whose actor school moved on is discarded without binding', async () => {
 	runtimeContextResponder = profileResponder();
 
-	const resolution = await resolveActiveTermAuthority(203, () => true);
+	const resolution = await resolveActiveTermAuthority(203, { isStillCurrent: () => false });
 
 	assert.equal(resolution, null,
 		'the shared resolver keeps the existing late-response discard its callers rely on');
@@ -227,7 +227,7 @@ test('A-fail a failed verification still returns the fast-read state instead of 
 		return unverifiedContextPayload();
 	};
 
-	const resolution = await resolveActiveTermAuthority(204, () => false);
+	const resolution = await resolveActiveTermAuthority(204, { isStillCurrent: () => true });
 
 	assert.ok(resolution, 'the caller still gets a state to render');
 	assert.equal(resolution.verifyUpstreamRequested, true, 'and knows verification was attempted');
@@ -252,7 +252,7 @@ test('A-fresh a WRITE-on-this-term caller is never satisfied by a cached verifie
 	// `backgroundRefresh` may legitimately dispatch an UNVERIFIED call to
 	// refresh the cache, but it must never satisfy a writing caller by itself.
 	const trustedVerified = verifiedCalls().length;
-	const trusted = await resolveActiveTermAuthority(205, () => false);
+	const trusted = await resolveActiveTermAuthority(205, { isStillCurrent: () => true });
 	assert.equal(trusted?.authorityReady, true, 'a read-only surface is satisfied by the warm cache');
 	assert.equal(verifiedCalls().length, trustedVerified,
 		'and it does not pay for a second upstream verification');
@@ -260,7 +260,7 @@ test('A-fresh a WRITE-on-this-term caller is never satisfied by a cached verifie
 	// ...but a page that WRITES on this term must still get a current answer,
 	// because the server re-resolves the term and rejects a mismatch with
 	// TERM_SCOPE_MISMATCH. TeacherConcerns opts into exactly this.
-	const wrote = await resolveActiveTermAuthority(205, () => false, { requireFreshVerifiedRead: true });
+	const wrote = await resolveActiveTermAuthority(205, { isStillCurrent: () => true }, { requireFreshVerifiedRead: true });
 	assert.equal(verifiedCalls().length, trustedVerified + 1, 'the writing caller issued its own fresh verified read');
 	assert.equal(wrote?.verifyUpstreamRequested, true, 'and reports that it asked');
 	assert.equal(wrote?.authorityReady, true, 'with a verified, current term');

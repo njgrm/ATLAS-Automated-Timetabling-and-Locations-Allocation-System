@@ -28,6 +28,7 @@ import {
 } from './academic-term.service.js';
 import { buildCanonicalDisplayGrid, buildSpecialEventSlots, type PolicyInput } from './schedule-constructor.js';
 import { resolveCanonicalSlotsFromRows, type ClassProgramSlotRow, type ResolvedSlotRow } from './class-program-slot.service.js';
+import { gradeNumberOf } from './grade-level-resolver.js';
 import {
 	isRejectedFlagCeremonyRow,
 	resolveSpecialEventDayOfWeek,
@@ -657,7 +658,12 @@ export function frozenReferenceMaps(snapshot: PublishedIdentitySnapshot): Frozen
 		sectionById.set(externalId, {
 			atlasId: value.atlasId ?? null,
 			name: value.name,
-			gradeLevel: value.gradeLevelId ?? null,
+			// A2 c15: the frozen record carries `gradeLevelName` beside the id, so
+			// the real grade is recoverable from the snapshot itself. The id is
+			// the EnrollPro internal FK and reads 1..4 for Grades 7..10 since the
+			// 2026-09-28 re-mint, so it must never be read as the grade. Null is
+			// the honest answer for a snapshot row that names no grade.
+			gradeLevel: gradeNumberOf({ gradeLevelName: value.gradeLevelName }),
 			gradeLevelName: value.gradeLevelName ?? null,
 			programType: value.programType ?? null,
 			programCode: value.programCode ?? null,
