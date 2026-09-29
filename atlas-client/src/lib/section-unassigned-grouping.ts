@@ -259,8 +259,17 @@ export function unassignedMemberLabel(
 	if (!label || looksLikeCodeToken(label)) {
 		label = titleCaseWords(label || raw || input.subjectCode || '');
 	}
+	// A9 c2 R2 (2026-09-30): a FULLY BLANK rotating row used to return '', so the
+	// family row rendered `Science (rotates): ` with a trailing empty member. Fall
+	// back to the family's plain name, which is the only identity such a row
+	// truthfully has (the row is unreachable from today's non-null server shape;
+	// the guard is here regardless). No term is invented: `term` below comes only
+	// from the row's own data.
+	if (!label.trim()) {
+		label = (familyPlainName ?? '').trim() || rotationFamilyPlainName(input);
+	}
 	const term = shortTerm(input);
-	return term ? `${label} ${term}` : label;
+	return (term ? `${label} ${term}` : label).trim();
 }
 
 /** The truthful weekly-minutes figure for a group: `225 min`, or `150–225 min`. */
@@ -334,7 +343,11 @@ export function groupUnassignedByRotationFamily<T extends UnassignedFamilyInput>
 		}
 		const group = groups[index];
 		group.rows.push(row);
-		group.members.push(unassignedMemberLabel(row, familyName));
+		// A9 c2 R2 (2026-09-30): never emit an EMPTY member label. The function
+		// above already falls back to the family's plain name; this is the
+		// grouping-side guarantee, so `members` can never carry a dangling ''.
+		const memberLabel = unassignedMemberLabel(row, familyName);
+		if (memberLabel) group.members.push(memberLabel);
 	}
 
 	for (const group of groups) {

@@ -169,3 +169,41 @@ test('A9-C5-9 (R1): a leading family word is dropped, and a single-word row is n
 	assert.equal(rotationFamilyPlainName({ subjectName: 'Science Chemistry', rotationFamily: 'SCIENCE' }), 'Science');
 	assert.equal(humanizeFamilyToken('STE_APPLIED_CHEM'), 'Applied Chemistry');
 });
+
+/* ═══════════════════ A9 c2 R2 (2026-09-30): NO EMPTY MEMBER LABEL ═══════════════════
+ * A fully blank rotating row used to produce `members: ['']`, so the family row
+ * rendered `Science (rotates): ` with a trailing empty member. The row is
+ * unreachable from today's non-null server shape; the guard is here regardless.
+ * Truthful: fall back to the family's plain name (the only identity it has) and
+ * never invent a term. Fails first at `c886a410`, where the member is ''. */
+
+test('A9-C5-10 (R2): a fully blank rotating row never lists an empty member', () => {
+	const groups = groupUnassignedByRotationFamily([
+		{ subjectId: 90, subjectName: null, subjectDisplayLabel: null, subjectCode: null, rotationFamily: 'SCIENCE', rotationTermGroupId: 'sci', rotationTermLabel: null, rotationTermRank: null, minMinutesPerWeek: null },
+	]);
+	assert.equal(groups.length, 1, 'the blank rotating row still forms one family row');
+	assert.equal(groups[0].heading, 'Science (rotates)');
+	assert.deepEqual(
+		groups[0].members,
+		['Science'],
+		'a blank member must fall back to the family name, never an empty string',
+	);
+	for (const member of groups[0].members) {
+		assert.ok(member.trim().length > 0, `no member label may be empty; got "${member}"`);
+	}
+	assert.doesNotMatch(groups[0].members.join(' '), /\bT\d/, 'a blank row must not gain an invented term');
+});
+
+test('A9-C5-11 (R2): an empty member label is dropped at the grouping boundary', () => {
+	// Defence in depth: a row whose family NAME is itself blank (no name, no code,
+	// only a group id) cannot push a '' member into the row's member list.
+	const groups = groupUnassignedByRotationFamily([
+		{ subjectId: 91, subjectName: null, subjectDisplayLabel: null, subjectCode: null, rotationFamily: null, rotationTermGroupId: 'bare', rotationTermLabel: null, rotationTermRank: null, minMinutesPerWeek: null },
+	]);
+	for (const group of groups) {
+		for (const member of group.members) {
+			assert.ok(member.trim().length > 0, `no member label may be empty; got "${member}"`);
+		}
+	}
+	assert.deepEqual(groups[0].members, [], 'an empty label is dropped rather than emitted');
+});
