@@ -2529,5 +2529,22 @@ Four base-identical red suites are recorded, not fixed (3-c4-copy 18/14/**1**/3
    box, the faces got *longer* (Home room: All where /sections had a ~340px column reading
    All home-room states), and the label span is 	runcated. **A9 and D1 are the two I would judge
    first** - D1 (Teaching Load losing UPPERCASE) is by definition a pixel judgement and is the
-   largest visual delta in either slice. My QA did **not** treat the layout note's arithmetic as a
-   measurement and neither should you.
+largest visual delta in either slice. My QA did **not** treat the layout note's arithmetic as a
+measurement and neither should you.
+
+**A9 c3 - Sections + Campus & Rooms: INTEGRATED on main at `9f094889` (older-user fixes 9 and 10).**
+- **`/sections`**: one guided step, "Give 20 sections a home room", replaces the "20 need rooms" badge and
+  20 inline "Choose home room" selectors. It reuses the EXISTING `POST /sections/home-rooms/:yearId/auto-assign`
+  (mode preview then apply) - no new server route. Server enum reasons are translated to plain words in a new
+  `src/lib/home-room-review-copy.ts` and never rendered. Save-state jargon ("Using saved data" / "last safe
+  mirror" / "can be queued") is one line: "A click saves right away - you are online."
+- **`/map`**: inline banner "N of M teaching rooms are ready to be used for classes" replaces the "78/103"
+  metric Card; room problems lead, grouped by building (consequence + one fix + one editor action); the full
+  103-room list sits behind "Show all rooms". The base's "Term not veri..." truncation is fixed.
+- **RENDERED PROOF PASSES the older-user rubric** (QA, 1366x768, before/after screenshots): sections 4.5/5,
+  map 5/5, 4.5x less text on /map. NOT REJECT_UX - the demo is not at risk on this slice.
+- **Browser rows for Lane C**: a real authenticated session render is still owed (QA could not get a seeded
+  session; staging :5101 500s on every Origin-bearing request - a staging-side defect, route separately).
+  Judge `/sections` and `/map` on staging :5274 after this train deploys.
+- **NON_BLOCKING**: `D:\ATLAS\atlas-client\node_modules` has NO @radix-ui scope (138 entries) - the shared Lane C
+  checkout cannot build the client until that tree is repaired (not ours; A4/dependency integrity).
