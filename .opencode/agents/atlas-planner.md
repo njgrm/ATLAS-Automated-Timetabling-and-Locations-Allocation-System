@@ -111,3 +111,8 @@ in on the preview's `/login` with the STAGING-ONLY QA login from `D:\ATLAS-runti
 log, commit or echo the password. Use it only on 127.0.0.1/localhost preview origins backed by `:5101`; never on
 live (`:5001`, `:5174`, the Tailnet origin without `:8443`). If login fails, run
 `node scripts/dev/ensure-staging-qa-account.cjs` once (staging is re-streamed from live on each deploy).
+
+**Clickable must look clickable (operator, 2026-09-29, recurring).** Anything that opens, filters or acts must look
+like a button or link: a visible shape (border or fill), a verb or a chevron in the label, pointer cursor, hover and
+focus states. A number or chip that is clickable but looks like a read-only metric is a defect; QA fails it on the
+render. Conversely, read-only figures must not look pressable.
