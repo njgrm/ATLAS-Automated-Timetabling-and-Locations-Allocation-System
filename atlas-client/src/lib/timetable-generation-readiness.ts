@@ -279,7 +279,7 @@ const GENERIC_CAUSE_PHRASE = 'need attention';
 const GROUP_CAUSE_COPY: Record<string, { noun: string; verb: string }> = {
 	TEACHER_COVERAGE_GAP: { noun: 'classes', verb: 'need a teacher' },
 	FACULTY_OVERLOAD: { noun: 'teachers', verb: 'are over their weekly limit' },
-	WORKLOAD_POLICY_BLOCK: { noun: 'classes', verb: 'have a teacher at their limit' },
+	WORKLOAD_POLICY_BLOCK: { noun: 'classes', verb: 'have no free period with their teacher' },
 	FACULTY_SUBJECT_NOT_QUALIFIED: { noun: 'classes', verb: 'are with a teacher outside their subjects' },
 	ROOM_RESOURCE_UNAVAILABLE: { noun: 'classes', verb: 'have no suitable room' },
 	TL_OWNERSHIP_CONFLICT: { noun: 'classes', verb: 'have more than one teacher' },

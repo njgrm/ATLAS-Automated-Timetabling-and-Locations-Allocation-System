@@ -19,7 +19,9 @@ import {
 	deriveGenerationReadinessState,
 	deriveTimetableReadinessRepair,
 	parseGenerationReadinessDiagnostic,
+	presentGenerationBlockerGroups,
 	summarizeGenerationReadiness,
+	type TimetableGenerationReadinessDiagnostic,
 } from '../timetable-generation-readiness';
 import { deriveTimetableCapabilities, type TimetableCapabilityInput } from '../timetable-capabilities';
 
@@ -320,6 +322,31 @@ test('UX-C01R: the parser ignores a missing nested zero-write form only when fla
 });
 
 // --- Production wiring guards ---
+
+test('A8UNBLOCK: the WORKLOAD_POLICY_BLOCK sentence never claims a teacher is at their limit', () => {
+	// Live S.Y. 2025-2026: 55 rows the panel rendered as "55 classes have a
+	// teacher at their limit", although the dry run produced ZERO hard over-cap
+	// violations (30 h standard / 40 h cap). The rows were bare slot collisions.
+	const diagnostic = readyDiagnostic({
+		status: 'BLOCKED',
+		generateAllowed: false,
+		groups: [{
+			cause: 'WORKLOAD_POLICY_BLOCK',
+			code: 'WORKLOAD_POLICY_BLOCK',
+			codes: ['WORKLOAD_POLICY_BLOCK'],
+			count: 55,
+			sessionCount: 55,
+			unit: 'classes',
+			examples: ['STE_APPLIED_PHYS 7-A'],
+			action: { label: 'Review the schedule', target: '/teaching-load' },
+		}],
+	}) as unknown as TimetableGenerationReadinessDiagnostic;
+	const [line] = presentGenerationBlockerGroups({ diagnostic });
+	assert.ok(line, 'the group must render one line');
+	assert.equal(line.headline.length > 0, true, 'the sentence is non-empty');
+	assert.doesNotMatch(line.headline, /limit/i, 'the sentence must not assert a cap breach the dry run did not show');
+	assert.match(line.headline, /no free period/i, 'the sentence states the real cause');
+});
 
 test('UX-C01R: the timetable hook consumes the generation diagnostic, never the raw derived-ready route', () => {
 	const hook = source('src/hooks/useTimetableData.ts');

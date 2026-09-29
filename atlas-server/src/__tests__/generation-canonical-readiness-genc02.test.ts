@@ -198,6 +198,13 @@ interface MockOverrides {
 	nonuniformRotation?: boolean;
 	/** C03R3: give each subject its own qualified teacher (canonical clean fixture). */
 	distinctTeachers?: boolean;
+	/**
+	 * A8 UNBLOCK: make the MATH owner unavailable for the whole week as a
+	 * persisted UNAVAILABLE authority. Every MATH slot is then a bare slot
+	 * collision (`NO_AVAILABLE_SLOT` + `FACULTY_SLOT_UNAVAILABLE`) — the live
+	 * 55-row shape — not a cap breach. Requires `distinctTeachers`.
+	 */
+	slotCollision?: boolean;
 }
 
 function buildMockClient(overrides: MockOverrides = {}) {
@@ -338,7 +345,18 @@ function buildMockClient(overrides: MockOverrides = {}) {
 		facultyPreference: { findMany: async () => [] },
 		// TEACHER-AVAILABILITY-AUTHORITY-C01: generation reads the reviewed
 		// term-scoped availability authority.
-		facultyAvailability: { findMany: async () => [] },
+		// A8 UNBLOCK: a full-week UNAVAILABLE for the MATH owner forces every MATH
+		// session into a bare slot collision (the live 55-row shape).
+		facultyAvailability: {
+			findMany: async () => (overrides.slotCollision
+				? [{
+					facultyId: teacherBySubject[11],
+					slots: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'].map((day) => ({
+						day, startTime: '00:00', endTime: '23:59', state: 'UNAVAILABLE',
+					})),
+				}]
+				: []),
+		},
 		policySpecialEvent: { findMany: async () => [] },
 		gradeShiftWindow: { findMany: async () => [] },
 		classProgramSlot: { findMany: async () => slotRows },
@@ -910,4 +928,39 @@ test('A8C3.6 NEGATIVE CONTROL for the ruling: advisories do NOT relax anything e
 	const unverified = await buildGenerationReadiness(SCHOOL_ID, SCHOOL_YEAR_ID, { client: noTerms, termContract: undefined, enforceShiftWindows: false });
 	assert.equal(unverified.schedulerExecuted, false, 'the dry run did not run');
 	assert.equal(unverified.generateAllowed, false, 'a gap or an advisory never substitutes for the dry run');
+});
+
+/* ------------------------------------------------------------------ *
+ * 6. A8 UNBLOCK — the WORKLOAD_POLICY_BLOCK reason is TRUE end to end
+ *
+ * Live S.Y. 2025-2026 evidence: the dry run produced ZERO hard over-cap
+ * violations (30 h standard / 40 h cap) and 55 `WORKLOAD_POLICY_BLOCK` rows,
+ * yet the panel said "55 classes have a teacher at their limit". Those rows
+ * were bare slot collisions — the owner had no free period. This row proves
+ * the reason the REAL `buildGenerationReadiness` payload carries is the
+ * truthful one, and that it names the resolved owner. No gate moves.
+ * ------------------------------------------------------------------ */
+
+test('A8UNBLOCK.2 a slot-collision refusal reaches readiness with a truthful WORKLOAD_POLICY_BLOCK reason (never "limit")', async () => {
+	const { client, writes } = buildMockClient({ distinctTeachers: true, slotCollision: true });
+	const readiness = await buildGenerationReadiness(SCHOOL_ID, SCHOOL_YEAR_ID, { client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+	assert.equal(readiness.schedulerExecuted, true, 'the dry run must have run');
+	assert.deepEqual(writes, [], 'the diagnostic stays zero-write');
+
+	const workloadRows = readiness.blockers.filter((row) => row.code === 'WORKLOAD_POLICY_BLOCK');
+	assert.ok(workloadRows.length > 0, 'the blocked owner must produce a workload/policy row');
+	assert.ok(
+		workloadRows.every((row) => !/limit/i.test(row.reason)),
+		`no row may assert a cap breach the dry run did not show; saw ${JSON.stringify(workloadRows.map((row) => row.reason))}`,
+	);
+	assert.ok(
+		workloadRows.some((row) => /no free period/i.test(row.reason)),
+		'the slot-collision reason states the real cause',
+	);
+	assert.ok(
+		workloadRows.some((row) => /owner A Math/.test(row.entity)),
+		'the resolved class owner is named in the entity',
+	);
+	// The blocker CODE is unchanged: the gate reads the same code it always did.
+	assert.equal(readiness.blockers.some((row) => row.code === 'WORKLOAD_POLICY_BLOCK'), true);
 });
