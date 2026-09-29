@@ -648,3 +648,145 @@ describe('A7-C4 the source year that gets chosen', () => {
 		assert.deepEqual(await targetCounts(), { policy: 0, windows: 0, events: 0 });
 	});
 });
+
+/**
+ * A7-C5 — the SAME carry, on the archive-shaped start.
+ *
+ * The defect was never in this service. `archiveAndSyncActiveYear` has always
+ * ended in `applyRolloverSync`, so it has always carried over; the client simply
+ * had no way to express the choice and no way to see it happening. These rows
+ * cover the two things the fix could have broken:
+ *
+ *   1. the value must reach the ONE interpreter un-coerced, so a client that
+ *      sends garbage still KEEPS and only a literal `false` turns anything off;
+ *   2. the existing fail-safe on the rollover-sync path must be untouched.
+ *
+ * HONEST LIMIT OF THIS HARNESS, restated because it is load-bearing. The real
+ * `applyRolloverSync` is NOT driven: its `previewRolloverSync` needs a live
+ * EnrollPro, so a real end-to-end run of `archiveAndSyncActiveYear` is not
+ * available here. Row C5-1 is therefore a forwarding SCAN with a positive
+ * control, labelled as a scan; row C5-2 drives the REAL
+ * `resolveYearSetupCarryOptions` on the exact object the route builds, which is
+ * the real interpreter. Together with the client row that reads the request the
+ * operator's click actually sends (`a7-c5-session-deadline.test.tsx`, X2/X3),
+ * the three legs cover send -> forward -> interpret. No leg is claimed beyond
+ * what it runs.
+ */
+describe('A7-C5 the same carry on the archive-shaped start', () => {
+	// ── C5-1 ──────────────────────────────────────────────────────────────────
+	test('C5-1: the archive route forwards both raw values, and the service passes them through verbatim', () => {
+		const serverRoot = new URL('..', import.meta.url);
+		const rollover = readFileSync(new URL('services/enrollpro-rollover.service.ts', serverRoot), 'utf8');
+		const router = readFileSync(new URL('routes/runtime.router.ts', serverRoot), 'utf8');
+
+		// The route: raw body values, no validation, no `?? false`, no `Boolean()`.
+		const archiveRoute = router.slice(
+			router.indexOf("router.post('/rollover-archive/apply'"),
+			router.indexOf('// ─── RR-TERM-CACHE-C01 / C01R:'),
+		);
+		assert.ok(archiveRoute.length > 0, 'the archive-apply route could not be located, so this scan would pass vacuously');
+		assert.ok(
+			/keepSchedulingRules: req\.body\?\.yearSetupCarry\?\.keepSchedulingRules/.test(archiveRoute),
+			'the archive route must forward the raw request value so the server default decides',
+		);
+		assert.ok(
+			/keepGradeTimeWindows: req\.body\?\.yearSetupCarry\?\.keepGradeTimeWindows/.test(archiveRoute),
+			'the archive route must forward the raw request value so the server default decides',
+		);
+		assert.equal(/Boolean\(\s*req\.body\?\.yearSetupCarry/.test(archiveRoute), false, 'Boolean() would turn a missing field into false — the silent reset the packet forbids');
+		assert.equal(
+			/keepSchedulingRules[^,]*\?\?\s*(false|true)|keepGradeTimeWindows[^,]*\?\?\s*(false|true)/.test(archiveRoute),
+			false,
+			'the archive route must never default a carry switch, in either direction',
+		);
+
+		// The service: the value reaches the apply call verbatim.
+		const service = rollover.slice(
+			rollover.indexOf('export async function archiveAndSyncActiveYear'),
+			rollover.indexOf('await prisma.auditLog.create({', rollover.indexOf('export async function archiveAndSyncActiveYear')),
+		);
+		assert.ok(service.length > 0, 'archiveAndSyncActiveYear could not be located, so this scan would pass vacuously');
+		assert.ok(
+			/yearSetupCarry: input\.yearSetupCarry/.test(service),
+			'archiveAndSyncActiveYear must forward the caller value verbatim into applyRolloverSync',
+		);
+		assert.equal(
+			/keepSchedulingRules\s*:\s*(input|options)\.yearSetupCarry\.keepSchedulingRules\s*===\s*false|keepSchedulingRules[^,]*\?\?\s*false/.test(service),
+			false,
+			'the service must not decide the switch itself; resolveYearSetupCarryOptions is the only interpreter',
+		);
+		assert.ok(
+			/yearSetupCarry\?: Partial<YearSetupCarryOptions>/.test(rollover),
+			'ArchiveAndSyncInput must declare the field it now carries',
+		);
+
+		// THE POSITIVE CONTROL. The same three checks, fed synthetic violations,
+		// must all go red — a scan that cannot detect a defect is not a scan.
+		const scanFlagsDefaultOff = (source: string): boolean => (
+			/keepSchedulingRules\s*:\s*false/.test(source)
+			|| /keepGradeTimeWindows\s*:\s*false/.test(source)
+			|| /keepSchedulingRules[^,]*\?\?\s*(false|true)/.test(source)
+			|| /keepGradeTimeWindows[^,]*\?\?\s*(false|true)/.test(source)
+			|| /Boolean\(\s*req\.body\?\.yearSetupCarry/.test(source)
+		);
+		assert.equal(scanFlagsDefaultOff(archiveRoute), false, 'POSITIVE CONTROL: the real archive route must not be flagged');
+		assert.equal(scanFlagsDefaultOff(service), false, 'POSITIVE CONTROL: the real service must not be flagged');
+		assert.equal(scanFlagsDefaultOff('yearSetupCarry: { keepSchedulingRules: false },'), true, 'POSITIVE CONTROL: a default-off caller must be flagged');
+		assert.equal(scanFlagsDefaultOff('keepSchedulingRules: req.body?.x?.y ?? false,'), true, 'POSITIVE CONTROL: a route-level ?? false must be flagged');
+		assert.equal(scanFlagsDefaultOff('keepGradeTimeWindows: req.body?.yearSetupCarry?.keepGradeTimeWindows ?? true,'), true, 'POSITIVE CONTROL: a route-level ?? true must be flagged too');
+		assert.equal(
+			/keepSchedulingRules: req\.body\?\.yearSetupCarry\?\.keepSchedulingRules/.test('yearSetupCarry: {}'),
+			false,
+			'POSITIVE CONTROL: a route that drops the value entirely must be flagged',
+		);
+	});
+
+	// ── C5-2 ──────────────────────────────────────────────────────────────────
+	test('C5-2: the object the archive route builds still resolves to KEEP for garbage, and only a literal false turns a switch off', () => {
+		// The EXACT shape the route forwards, evaluated by the REAL interpreter.
+		// This is the guarantee the packet protects: the archive-shaped start
+		// gains a reachable control without ever becoming a way to reset silently.
+		const asRouteBuilds = (body: unknown): Partial<{ keepSchedulingRules: unknown; keepGradeTimeWindows: unknown }> => ({
+			keepSchedulingRules: (body as { yearSetupCarry?: { keepSchedulingRules?: unknown } })?.yearSetupCarry?.keepSchedulingRules,
+			keepGradeTimeWindows: (body as { yearSetupCarry?: { keepGradeTimeWindows?: unknown } })?.yearSetupCarry?.keepGradeTimeWindows,
+		});
+
+		const keeps: Array<[string, unknown]> = [
+			['the object is missing entirely', undefined],
+			['both values are absent', {}],
+			['an explicit null', { yearSetupCarry: { keepSchedulingRules: null, keepGradeTimeWindows: null } }],
+			['the string "false"', { yearSetupCarry: { keepSchedulingRules: 'false', keepGradeTimeWindows: 'false' } }],
+			['zero', { yearSetupCarry: { keepSchedulingRules: 0, keepGradeTimeWindows: 0 } }],
+			['an empty object', { yearSetupCarry: {} }],
+			['a value of the wrong shape', { yearSetupCarry: { keepSchedulingRules: { no: true }, keepGradeTimeWindows: [] } }],
+		];
+		for (const [label, body] of keeps) {
+			const resolved = resolveYearSetupCarryOptions(asRouteBuilds(body));
+			assert.deepEqual(
+				{ rules: resolved.keepSchedulingRules, windows: resolved.keepGradeTimeWindows },
+				{ rules: true, windows: true },
+				`${label} must still KEEP on the archive-shaped start`,
+			);
+		}
+
+		// The one way to get an empty new year, which was unreachable before this
+		// packet, now reaches the interpreter as two literal `false`s.
+		assert.deepEqual(
+			resolveYearSetupCarryOptions(asRouteBuilds({ yearSetupCarry: { keepSchedulingRules: false, keepGradeTimeWindows: false } })),
+			{ keepSchedulingRules: false, keepGradeTimeWindows: false },
+			'two literal falses must turn both halves off',
+		);
+		// And each half is independent, so turning one off never silently turns
+		// the other off with it.
+		assert.deepEqual(
+			resolveYearSetupCarryOptions(asRouteBuilds({ yearSetupCarry: { keepSchedulingRules: false, keepGradeTimeWindows: true } })),
+			{ keepSchedulingRules: false, keepGradeTimeWindows: true },
+			'one half off and the other on must stay that way',
+		);
+
+		// THE POSITIVE CONTROL: this reader can see an "off" at all. Without it,
+		// the rows above could pass on a resolver that always returned true.
+		const off = resolveYearSetupCarryOptions({ keepSchedulingRules: false, keepGradeTimeWindows: true });
+		assert.equal(off.keepSchedulingRules, false, 'POSITIVE CONTROL: a literal false must read as off, or every KEEP row above is vacuous');
+	});
+});

@@ -8,8 +8,9 @@ import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard'
 import { SchoolYearListCard } from '@/components/runtime/SchoolYearListCard';
 import { CarryForwardReviewPanel } from '@/components/runtime/CarryForwardReviewPanel';
 import { Button } from '@/ui/button';
-import { verifySessionToken, type RolloverStatus } from '@/lib/settings';
-import { clearAtlasAuthStorage, clearUserRoleCache, hasAnyAuthToken } from '@/lib/auth';
+import { type RolloverStatus } from '@/lib/settings';
+import { verifySessionWithinDeadline } from '@/lib/session-verification';
+import { clearAtlasAuthStorage, clearUserRoleCache } from '@/lib/auth';
 import { describeSavedTermSource, describeUnresolvedTermReason, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { resolveVerifiedActiveTermIndex } from '@/lib/timetable-data/timetablePrefetch';
 import { PLAIN_INTRO, plainStartedCopy, plainYearSetupCarrySummary } from '@/components/runtime/rollover-plain-copy';
@@ -126,7 +127,20 @@ function YearTruthBanner({ schoolId, nonce, onRetry }: { schoolId: number; nonce
 export default function AdminYearSetup() {
 	const navigate = useNavigate();
 	const [user, setUser] = useState<BridgeUser | null>(null);
-	const [verifying, setVerifying] = useState(true);
+	/**
+	 * A7-C5: the page's own gate, driven by the SAME shared resolver the app
+	 * shell uses. It was the second of two unbounded `verifying` states, and it
+	 * is the one Codex saw on screen: "Checking your access..." with no setup
+	 * content, forever. The deadline lives in one module and neither caller
+	 * re-implements a timer.
+	 *
+	 * Three outcomes, and the third is the new one. `unauthenticated` keeps this
+	 * page's historical authority exactly as it was (no token -> `/login` with
+	 * the role cache cleared; a rejection -> the same, plus clearing the stored
+	 * sign-in). `unconfirmed` is NOT a sign-out: a slow server is not proof of a
+	 * bad session, so nothing is cleared and there is no redirect.
+	 */
+	const [sessionState, setSessionState] = useState<'verifying' | 'authenticated' | 'unauthenticated' | 'unconfirmed'>('verifying');
 	const [status, setStatus] = useState<RolloverStatus | null>(null);
 	/** A5-C2A — bumped by the year-truth retry so it really re-reads. */
 	const [yearTruthNonce, setYearTruthNonce] = useState(0);
@@ -145,35 +159,48 @@ export default function AdminYearSetup() {
 	const [reloadSignal, setReloadSignal] = useState(0);
 
 	useEffect(() => {
-		if (!hasAnyAuthToken()) {
-			clearUserRoleCache();
-			setVerifying(false);
-			return;
-		}
 		let cancelled = false;
-		verifySessionToken()
-			.then((u) => {
-				if (cancelled) return;
-				setUser(u);
-				setVerifying(false);
-			})
-			.catch(() => {
-				if (cancelled) return;
-				clearAtlasAuthStorage();
+		// A7-C5: one shared, deadline-bound resolver. `hasAnyAuthToken` is not
+		// re-implemented here — the resolver is the single interpreter of "am I
+		// signed in", and this page keeps only the authority decision.
+		void verifySessionWithinDeadline().then((outcome) => {
+			if (cancelled) return;
+			if (outcome.kind === 'unconfirmed') {
+				setSessionState('unconfirmed');
+				return;
+			}
+			if (outcome.kind === 'unauthenticated') {
+				if (outcome.reason === 'no-token') clearUserRoleCache();
+				else clearAtlasAuthStorage();
 				setUser(null);
-				setVerifying(false);
-			});
+				setSessionState('unauthenticated');
+				return;
+			}
+			setUser(outcome.user);
+			setSessionState('authenticated');
+		});
 		return () => {
 			cancelled = true;
 		};
 	}, []);
 
-	if (verifying) {
+	if (sessionState === 'verifying') {
 		return (
 			<div className="flex min-h-[calc(100svh-3.5rem)] items-center justify-center p-6 text-sm text-muted-foreground">
 				Checking your access...
 			</div>
 		);
+	}
+
+	// A7-C5: a deadline gets NO panel of its own. The app shell's
+	// `SessionVerificationNotice` is mounted directly above this outlet and is
+	// the ONE recovery surface in the tree — one sentence, one Try again, one
+	// Back to dashboard. Repeating any of it here would put the same words and a
+	// second set of buttons a few inches apart, which is the defect §8 forbids.
+	// The screen then reads as a deliberate "could not load" surface, not a
+	// blank one, because the band above states what is wrong and what to do.
+	if (sessionState === 'unconfirmed') {
+		return null;
 	}
 
 	if (!user) {

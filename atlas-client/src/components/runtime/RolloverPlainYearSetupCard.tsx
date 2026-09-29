@@ -142,11 +142,18 @@ export function PlainYearSetupCard(props: PlainYearSetupCardProps) {
 	const busy = previewing || applying || archiving || termApplying;
 	const counts = status?.counts ?? null;
 
-	// A7-C4: the switches appear only above the rollover-sync start, which is the
-	// one primary whose request carries `yearSetupCarry`.
+	// A7-C5: the switches appear above BOTH primaries whose request carries
+	// `yearSetupCarry` — the rollover-sync start and the archive-shaped start.
+	// The archive path really did carry over on the server all along
+	// (`archiveAndSyncActiveYear` -> `applyRolloverSync` ->
+	// `resolveYearSetupCarryOptions`), so excluding it here hid a control that
+	// was already governing a real decision: ATLAS was keeping last year's setup
+	// with no way to turn it off and no way to see it.
+	// The ordered-terms save is still excluded, and still correctly: that request
+	// genuinely carries nothing, and a switch above an action that ignores it
+	// silently does nothing.
 	const showCarrySwitches = copy.primaryLabel != null
-		&& !copy.primarySavesTerms
-		&& !copy.primaryStartsArchivedYear;
+		&& !copy.primarySavesTerms;
 
 	const canClearTestData = recoveryClassification?.classification === 'TEST_DATA_RECOVERY_AVAILABLE';
 
@@ -268,15 +275,15 @@ export function PlainYearSetupCard(props: PlainYearSetupCardProps) {
 
 				{error ? <p className="text-xs font-medium text-destructive">{error}</p> : null}
 
-				{/* A7-C4 — the two switches, immediately above the ONE primary action:
+				{/* A7-C5 — the two switches, immediately above the ONE primary action:
 				    that is the moment the choice is made, so it belongs there, not on a
 				    settings page.
 
-				    THEY APPEAR ONLY ABOVE THE ACTION WHOSE REQUEST CARRIES THEM. The plain
-				    card has three primaries, and only the rollover-sync start posts
-				    `yearSetupCarry`; the archive-shaped start and the ordered-terms save
-				    do not. Rendering a switch above an action that ignores it would be a
-				    control that silently does nothing, so it is not rendered there. */}
+				    THEY APPEAR ONLY ABOVE AN ACTION WHOSE REQUEST CARRIES THEM. The
+				    plain card has three primaries and two of them post
+				    `yearSetupCarry` (the rollover-sync start and the archive-shaped
+				    start); the ordered-terms save does not, so no switch is rendered
+				    above it. */}
 				{showCarrySwitches ? (
 					<div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3" data-testid="year-setup-keep-switches">
 						<CarrySwitchRow
