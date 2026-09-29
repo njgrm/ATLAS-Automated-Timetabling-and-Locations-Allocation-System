@@ -357,12 +357,11 @@ export function useTeachingLoadRepairQueue({
 		 *   3. Every other kind (`missing-load`, `over-cap`, `placeholder`) has its
 		 *      snapshot-derived status REPLACED and its `countLabel` deleted, since
 		 *      both are read off the same snapshot as the withheld header figures.
-		 *   4. And their TITLES are prefixed too. Withholding the figure while
-		 *      leaving `… is over the weekly max` / `… has no load` printed flatly
-		 *      leaves a snapshot-derived state asserted on the row as if it were
-		 *      current — the same defect one string over. `review-ready` is NOT
-		 *      prefixed: its unverified title is already a non-claim, so a prefix
-		 *      would only add words to a sentence that claims nothing.
+		 *   4. And their TITLES are NOT prefixed. A6 c7 §1.4 deleted the
+		 *      `Last saved data — ` prefix (the code is quoted verbatim at its
+		 *      old site): the saved-roster fact already has a home — the header's
+		 *      degraded pill and the plain status sentence in (3) — and a prefix
+		 *      restated it in a second vocabulary inside every item.
 		 *   5. `id`, `kind`, `actionLabel`, `facultyId`, `disabledReason` and every
 		 *      `description` are untouched, so a withheld row is still a row that
 		 *      says what to do. A degraded row must never become a dead row.
@@ -381,12 +380,30 @@ export function useTeachingLoadRepairQueue({
 					item.status = withheldStatus;
 					delete item.countLabel;
 				}
-				// 4. `review-ready` is NOT prefixed: its unverified title is
-				// already a non-claim, so a prefix would only add words to a
-				// sentence that claims nothing.
-				if (item.kind !== 'review-ready') {
-					item.title = `Last saved data — ${item.title}`;
-				}
+				// 4. A6 c7 §1.4 — THE `Last saved data — ` TITLE PREFIX IS GONE.
+				// SUPERSEDED 2026-09-29; the removed code was:
+				//
+				//   if (item.kind !== 'review-ready') {
+				//     item.title = `Last saved data — ${item.title}`;
+				//   }
+				//
+				// It is deleted, not weakened: the chip now reads
+				// `Next step · <count> · <task> · <c6's plain status>`, one line, and
+				// Lane C read the stacked form as status jargon
+				// (`Next step Last saved data - Assign teachers to open classes
+				// Unverified`, report.md older-user line 31). The saved-roster FACT is
+				// not lost — it is now stated ONCE, by c6's plain status clause and by
+				// the degraded pill, which is the single place on the header that
+				// says the roster is the last saved one. Prefixing every title
+				// restated that fact in a second vocabulary inside every item.
+				//
+				// The `id`, `kind`, `actionLabel`, `facultyId`, `description` and the
+				// withheld `status` above are all unchanged: a qualified row is
+				// replaced by a SENTENCE that says why, and it must never become a
+				// dead row. `a6-teaching-load-surface` `A6-C3-3-N2` keeps the
+				// superseded assertions in place and asserts the unprefixed titles
+				// beside them; `a6-c7-shortage-owner-undo` `A6C7-7` is the row that
+				// forbids the prefix in every source state.
 			}
 		}
 		return items;

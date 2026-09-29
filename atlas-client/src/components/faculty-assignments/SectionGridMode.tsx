@@ -34,6 +34,12 @@ export type SectionGridModeProps = {
 	sectionsBySubject: Record<number, ExternalSection[]>;
 	faculty: FacultySummary[];
 	effectiveOwnershipMap: Record<string, FacultyOwnershipState & { isPending: boolean }>;
+	/**
+	 * A6 c7 §1.3 — the SAVED ownership index, so a draft assignment can be put
+	 * back exactly where it was. The page already holds this map; the grid had no
+	 * copy of it, and it needs no new ownership state of its own.
+	 */
+	savedOwnershipMap?: Record<string, FacultyOwnershipState>;
 	onSetSections: (subjectId: number, sectionIds: number[], facultyId?: number) => void;
 	saving: boolean;
 	isReadOnlyMode: boolean;
@@ -59,6 +65,7 @@ export function SectionGridMode({
 	sectionsBySubject,
 	faculty,
 	effectiveOwnershipMap,
+	savedOwnershipMap = {},
 	onSetSections,
 	saving,
 	isReadOnlyMode,
@@ -170,6 +177,37 @@ export function SectionGridMode({
 		// Intentionally does not select the teacher in the grid — doing so would
 		// bleed a section-mode assignment into Teacher Grid mode selection.
 		onSetSections(subjectId, newSectionIds, facultyId);
+	};
+
+	/**
+	 * A6 c7 §1.3 — PUT ONE DRAFT ASSIGNMENT BACK WHERE IT WAS.
+	 *
+	 * Lane C's walk (report.md MINOR line 25) assigned MAPEH in Aguinaldo, watched
+	 * the row read `Draft - not saved` and the section leave the filtered list,
+	 * and found no way back short of leaving the page. So the draft, not the saved
+	 * value, is what this restores — which is also the only honest reading of the
+	 * word: a SAVED change is CHANGED, not undone, and the control is therefore
+	 * only offered while the change is still a draft.
+	 *
+	 * It reuses the two paths the grid already has and invents no ownership state:
+	 * a class that HAD an owner goes back through `onSwapSectionOwnership`, the
+	 * exact-pair transfer the assign itself used; a class that had NONE is
+	 * released through `onSetSections` with an empty list, the same detach the
+	 * grid uses everywhere else. Nothing here reads a teacher list, computes an
+	 * eligibility, or owns a draft of its own.
+	 */
+	const handleUndoDraftOwner = (subjectId: number, sectionId: number, draftOwnerId: number) => {
+		const savedOwnerId = savedOwnershipMap[getAssignmentOwnershipKey(subjectId, sectionId)]?.facultyId;
+		if (savedOwnerId != null && savedOwnerId !== draftOwnerId) {
+			onSwapSectionOwnership?.(subjectId, sectionId, draftOwnerId, savedOwnerId);
+			return;
+		}
+		if (savedOwnerId == null) {
+			onSetSections(subjectId, [], draftOwnerId);
+			return;
+		}
+		// The draft names the teacher the saved map already names: there is nothing
+		// to move, and inventing a change here would be the control lying twice.
 	};
 
 	if (loading) {
@@ -411,13 +449,37 @@ export function SectionGridMode({
 														</div>
 														<div className="flex items-center gap-3 shrink-0">
 															{isStaffed ? (
-																<div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-100 shadow-sm animate-in fade-in duration-300">
-																	<UserCheck className="size-4 text-emerald-600" />
-																	<div className="flex flex-col">
-																		<span className="text-xs font-semibold text-emerald-900 uppercase leading-none mb-0.5">{owner.facultyName}</span>
-																		<span className="text-[10px] font-bold text-emerald-600 uppercase tracking-tighter leading-none">{owner.isPending ? 'Pending Assignment' : 'Current Owner'}</span>
-																	</div>
+													<div
+														data-testid="teaching-load-section-assignment-state"
+														className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-100 shadow-sm animate-in fade-in duration-300"
+													>
+																<UserCheck className="size-4 text-emerald-600" />
+																<div className="flex flex-col">
+																	<span className="text-xs font-semibold text-emerald-900 uppercase leading-none mb-0.5">{owner.facultyName}</span>
+																	<span className="text-[10px] font-bold text-emerald-600 uppercase tracking-tighter leading-none">{owner.isPending ? 'Pending Assignment' : 'Current Owner'}</span>
 																</div>
+																{/* A6 c7 §1.3: ONE `Undo`, INSIDE the confirmation it describes, and
+																    only while the change is still a draft. A saved owner is CHANGED,
+																    not undone, and `Change teacher` beside it is the control for
+																    that. One `@/ui` Button at the SAME chrome as the trigger beside
+																    it (§8 one look per control), and the same `saving` /
+																    read-only gates — it is a write. */}
+																{owner.isPending && (
+																	<Button
+																		type="button"
+																		variant="outline"
+																		size="sm"
+																		className="h-9 gap-1.5 font-semibold uppercase tracking-widest text-xs border-emerald-200 bg-background hover:bg-emerald-50 hover:text-emerald-900 shadow-sm"
+																		disabled={saving || isReadOnlyMode}
+																		data-testid="teaching-load-section-assign-undo"
+																		aria-label={`Undo the teacher assignment for ${row.section.name}`}
+																		onClick={() => handleUndoDraftOwner(subject.id, row.section.id, owner.facultyId)}
+																	>
+																		<RotateCcw className="size-3.5" aria-hidden="true" />
+																		Undo
+																	</Button>
+																)}
+															</div>
 															) : (
 																<div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-100 shadow-sm animate-in fade-in duration-300">
 																	<AlertTriangle className="size-4 text-amber-600" />
@@ -434,7 +496,14 @@ export function SectionGridMode({
 																		disabled={saving || isReadOnlyMode}
 																		data-testid="teaching-load-owner-picker-trigger"
 																	>
-																		{isStaffed ? 'Change owner' : 'Set owner'}
+																		{/* A6 c7 §1.2: `owner` is a data-model word, not a school word. The
+																	    trigger's CHROME is untouched — the complaint was the word, and
+																	    repainting one button in a view whose other controls are uppercase
+																	    would create the §8 "one look per control" mismatch. The all-caps
+																	    sweep belongs to a separate whole-view slice.
+																	    `data-testid`, props and the `...owner...` helper names are stable
+																	    DOM/API hooks and are deliberately NOT renamed. */}
+																		{isStaffed ? 'Change teacher' : 'Assign teacher'}
 																		<ChevronDown className="size-4 opacity-50" />
 																	</Button>
 																</PopoverTrigger>

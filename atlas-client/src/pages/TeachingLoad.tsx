@@ -445,7 +445,7 @@ export default function TeachingLoad() {
 
 	// A6 c5 §1/§2/§3 — the shortage, its two corrected figures and the cover
 	// dialog's state, from ONE hook. It sits ABOVE the repair queue, which needs
-	// `outage.isLive` to know whether the line is claiming row 2.
+	// `outage.hasShortageToShow` to know whether the line is claiming row 2.
 	const outage = useTeachingLoadOutage({
 		subjects: data.subjects,
 		sections: data.allKnownSections,
@@ -573,10 +573,10 @@ export default function TeachingLoad() {
 		sourceDegraded,
 		// A6 c5 §1: the shortage line REPLACES the `missing-load` row, so the
 		// queue must not also offer it, and its `review-ready` fallback must not
-		// claim readiness underneath the line. Derived from the SAME `isLive`
-		// the line uses, so the two can never disagree about whether a shortage
-		// is being claimed.
-		hasShortage: outage.isLive,
+		// claim readiness underneath the line. Derived from the SAME
+		// `hasShortageToShow` the line uses, so the two can never disagree about
+		// whether a shortage is being claimed.
+		hasShortage: outage.hasShortageToShow,
 		// A6 C3 (N-1 / N-3): the hook derives its OWN unverified answer from the
 		// same two fields through the same shared module, so the rule has exactly
 		// one implementation. The page deliberately passes the STATE and not a
@@ -678,15 +678,17 @@ export default function TeachingLoad() {
 			isReadOnly={data.isReadOnlyMode}
 			saving={data.saving}
 			onPrimaryAction={handleRepairPrimaryAction}
-			hasShortageLine={outage.isLive}
+			hasShortageLine={outage.hasShortageToShow}
 		/>
 	);
 
 	/* A6 c5 §1 — the shortage line and its cover dialog, as ONE node. The
 	 * toolbar owns the row's position; this owns both halves of the content, so
 	 * the page wires one slot instead of two and there is one place to look when
-	 * the line and the dialog ever disagree. */
-	const shortageLineSlot = outage.isLive ? (
+	 * the line and the dialog ever disagree. A6 c7 gates this slot on
+	 * `hasShortageToShow` — the question "do classes lack a teacher" — not on
+	 * source freshness, which is what left staging with no line at all. */
+	const shortageLineSlot = outage.hasShortageToShow ? (
 		<TooltipProvider delayDuration={200}>
 			<TeachingLoadOutageSurface
 				outage={outage}
@@ -810,7 +812,12 @@ export default function TeachingLoad() {
 						and `a3-c10` T4 requires the main column to carry exactly one
 						`shrink-0` band — the out-of-fence rollover wrapper. The truth
 						strip, the "Next step" repair queue and the archived-load
-						control moved into `headerStateLine` above (A3-C10-S3 / FIX 38). */}
+						control moved into `headerStateLine` above (A3-C10-S3 / FIX 38).
+
+					A6 c7: this stayed INLINE. Extracting it to
+					`TeachingLoadStaffingNote` to buy line budget broke
+					`A6C5-S9-1`, which proves the note is written on THIS page
+					and which c7 is not authorised to edit. */}
 
 					{outage.staffingFigures.withoutRealTeacherCount > 0 && (
 						<p
@@ -910,6 +917,8 @@ export default function TeachingLoad() {
 								sectionsBySubject={sectionsBySubject}
 								faculty={data.faculty}
 								effectiveOwnershipMap={data.effectiveOwnershipMap}
+								/* A6 c7 §1.3: the SAVED map, so a draft can be put back. */
+								savedOwnershipMap={data.savedOwnershipMap}
 								onSetSections={handleSetSections}
 								saving={data.saving}
 								isReadOnlyMode={data.isReadOnlyMode}

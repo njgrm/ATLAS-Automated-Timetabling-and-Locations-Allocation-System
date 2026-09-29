@@ -4872,6 +4872,72 @@ decidable from source. Worktrees `lane-a3-c10-{s1-sections,s3-tldensity,s4-teach
 
 ## Lane A6 — current lane (written only by Planner A6)
 
+- **`A6 c7 integrated at 03fea9a9` (2026-09-29 ~12:5x +08), candidate `fc7f4424` over base `4244cd3e`, executed the
+  c6 packet's Addendum 11:00** (Lane C's Codex walk of staging train 7, `e9ddda71`). **0 fixes live and seen /
+  4 integrated, 1 of them seen rendered on an isolated loopback / 0 dropped. NOT deployed — A4 owns every release
+  (§14).** Client-only: 7 product paths, all `atlas-client/`, zero `atlas-server/`/`prisma/`/`ops`/lockfile/`.env`/
+  migration/seed. Packet `docs/prompts/a6-c7-shortage-owner-undo-2026-09-29.md` (+ planner correction addendum
+  `7be10a4c`); rendered evidence pinned at `docs/reviews/a6-c7-shortage-owner-undo/`.
+- **Why c5's surface did not render on staging — one name answering two questions.** `useTeachingLoadOutage.ts:124`
+  exported `isLive = !isTeachingLoadSourceDegraded({...}) && shortageLine.visible.length > 0`, a source-freshness
+  predicate AND a visibility predicate in one expression; `TeachingLoadOutageSurface.tsx:46` did
+  `if (!isLive) return <>{children}</>` and `TeachingLoad.tsx:689` never built the slot. Staging was `cached`, so
+  the whole c5 surface — the per-subject line, `Cover these classes` and the cover dialog — was suppressed, leaving
+  only the repair queue's generic `25 classes still need a real teacher.` Split into `figuresVerified` (unchanged
+  predicate) and `hasShortageToShow` (`shortageLine.visible.length > 0`); the surface now renders whenever classes
+  lack a teacher, and the safety c5 wanted is preserved by the cover dialog's **drift re-check at apply** rather than
+  by hiding the button — which is what produced the defect. Recorded in a code comment, not only in the handoff.
+- **The other three, in Lane C's words:** `Set owner` / `Change owner` → **`Assign teacher`** / **`Change teacher`**
+  (strings only; the `…owner…` ids and the timetable's own `Change owner` untouched). One **`Undo`** inside the
+  existing assignment confirmation, shown **only while that row's change is a draft** (`owner.isPending`) and
+  restoring the *saved* owner through the existing swap path — "Undo" on a saved change would be a control that
+  lies. The `Last saved data — ` prefix is **deleted** from every repair-queue title, so the chip reads
+  `Next step · 17 open · Assign teachers to open classes · 17 section-subject pairs need a teacher.` — one line, one
+  status.
+- **Correction round 1 was mine and it was substantive.** Review round 1 returned `CORRECTION_REQUIRED` 10/12 with
+  the rendered row `UNPERFORMED`, and the decisive catch was not the missing picture: the round-1 fix had made the
+  amber pill and the shortage line **siblings**, so a degraded row 2 printed the saved-roster claim **twice** (§8)
+  and, on the budget gate's own `TEXT_XS_ADVANCE_PX = 6.6` basis, had 27.2px of slack against ≥396px of new
+  declared text — the always-wrapped header c6 removed. Ruling: **invert the precedence** so the line takes the
+  slot and the pill returns only when there is no shortage (`hasShortageLine ? line : degradedLead ? pill :
+  sentence`); subtract the duplicate, never shorten a figure, a subject name or the date clause. No capability is
+  lost — c6 §1.5.3 made the header's **primary action** the retry. New row `A6C7-9` decides the composition in all
+  four states; the executor also found and fixed its own defect (its host hard-coded the degraded props, so three
+  "states" were one state compared with itself).
+- **Rendered, before/after, 1366×768, `ISOLATED_LOCAL_BROWSER`** (origin asserted `http://127.0.0.1:5290`, fully
+  mocked `/api/v1`, pinned to staging `:5101`, nothing escaped to a real server; **not** ATLAS acceptance). The
+  **before** (base sources) shows the defect verbatim: the pill alone, no line, no `Cover these classes`, 6 header
+  controls, the `Last saved data —` prefix. The **after** renders `17 classes short: MAPEH 9, English 4, Fil 2 ·
+  12 Sept roster` with `Cover these classes` **enabled** in both `cached` and `live`; row 2 carries **exactly one**
+  claim in all four states; the shortage text node is 330px wide, `scrollWidth` 330, 16px ink — **one line**. The
+  band's 66–67px is the line member plus the 28px slot on a second flex row, a **pre-existing** arrangement present
+  identically in the before capture, not a wrap (QA confirmed by pixel scan, and
+  `before-base-live-shortage.png` is **byte-identical** to `a6c7-live-shortage.png` — the correct expectation, and
+  independent proof the before really was at base).
+- **QA round 2 `ACCEPT_READY` 22/22, blocked 0, unperformed 0**, and it reproduced the round-1 failure signatures
+  from source rather than trusting them. Merged-tree gates: `a6-c7-shortage-undo` 9/0 · `a6-c5-outage` 23/0 ·
+  `a6-c6-calm-tl` 11/0 · `a6-tl-header-budget` 9/0 · `a6-teaching-load` 31/0 · `typecheck` **5 errors, identical to
+  base**, none in `faculty-assignments`. `TeachingLoad.tsx` **999 physical lines** (at the cap by its own count —
+  the next A6 edit there must extract first); `WorkspaceToolbar.tsx` 984.
+- **Owed, dated 2026-09-29, and NOT claimed here** — **Lane C's next staging walk** (and A4's per-screen smoke row
+  for `/teaching-load` after the train that carries `fc7f4424`), with the Tailnet origin asserted: (a) the
+  **Sections view's** `Undo` and its `Assign teacher` / `Change teacher` labels, which have **no** rendered
+  evidence in either round (source rows `A6C7-5`/`A6C7-6` only); (b) a real click through `Cover these classes`
+  with a real session; (c) c6's own still-open row `A6C6-1b` (`Temporary substitutes` heading, no rendered
+  evidence). **Demo 2026-09-30.**
+- **Recorded, deliberately not done here:** the Sections view's all-caps styling (the complaint was the *word*;
+  repainting one button in an uppercase view would create the §8 "one look per control" mismatch), the identical
+  `owner` wording on the timetable page, and c7's second `NON_BLOCKING` from QA — in the degraded shortage state
+  the "not the current one" contrast is hover-only (`Help` step, `Cover these classes` tooltip) while the row shows
+  a dated roster.
+- **Processes:** the executor's preview on `:5277` (PID 37076) was stopped by recorded PID after the run, `:5290`
+  confirmed clear; the integration gates' detached runs stopped with their own PIDs. No runtime, task, env, database
+  or deployment action. **Worktree `E:/ATLAS-worktrees/lane-a6-c7-tl-shortage`: retired in this closure** (its
+  `node_modules` **junction removed first**, then non-forced `worktree remove` + `prune`); the integration boundary
+  `E:/ATLAS-worktrees/lane-a6-c7-integ` follows the same order. **No branch deleted.**
+- **History below: c6 (integrated `a3819321`), c5 (`e2ff35ba`), c3 (`5481dccc`) and earlier.** Kept as written —
+  every claim there was true when written and is dated.
+
 - **`A6 ready for release at a3819321` (2026-09-29 ~11:0x +08, packet c6, Lane C's 06:58 A6 bullet). Candidate
   `fef084b7` + `e6aeb3ed` + `bc97e1d8` over base `a1f0c727` (= `origin/main` at authoring).
   0 fixes live and seen / 6 integrated, seen only on an isolated loopback / 0 dropped.** Packet
@@ -5292,6 +5358,19 @@ Rule from now: live browser QA never saves Subjects/setup/policy; mutation rows 
 - **Still owed, not closed:** the live Tailnet rows for both screens at `https://njgrm.buru-degree.ts.net` with the origin asserted (§12) — a deployment-acceptance clause, A4 deploys first. QA's recorded, unspent reservation: the sentence does not name School Year Setup, so that screen's first seconds are band-only; a one-string follow-up if Lane C's older-scheduler walk wants it.
 - **Worktrees:** `lane-a7-c5-exec` = `RETIRE_AFTER_INTEGRATION` (its `atlas-client/node_modules` is a REAL directory, not a junction — remove it with `cmd /c rmdir` only if it is one; nothing under `D:\ATLAS` was written) · `lane-a7-c5-planner` and `lane-a7-c5-integ` = retire after the push. `E:` measured 31.8 GiB free at cycle start (above the §3 warn line).
 - **Next action (single):** A4 includes `4039d74c` in the next train and runs the `/admin/year-setup` smoke at 1366×768; Lane C takes the live rows and the older-scheduler walk.
+
+### A7 c6 — the first screen and the side menu tell the demo story: INTEGRATED and PUSHED at `ecd69d27` (2026-09-29 15:10 +08)
+
+- **0 fixes live and seen / 6 integrated, not on production / 0 dropped** (c1–c6; c3 is LIVE). **NOT deployed — A4 owns every deploy.** Source `342d45e6` over base `955d2e7a`; merge `ecd69d27`, Lane C browser rows `daefedc3`; packet `docs/prompts/a7-c6-dashboard-nav-2026-09-29.md`. Integrated with **~50 min to spare** on the 16:00 deadline.
+- **Item 1, the defect.** School Year Setup had **no menu entry at all** — the only door handle was a Dashboard link to the raw `/admin/year-setup`, so a first-time scheduler could not find demo step 1 without being told the address. It is now the first entry under School Setup. `adminOnly` with **no** `schedulerAccess` is byte-identical to `AdminYearSetup.ADMIN_ROLES`, so nav visibility and the page's own authority agree; QA read the real `canSeeNavItem` predicate rather than assuming it.
+- **Item 2, the defect.** `6 OF 10 READY` was a bare count, and `hardViolationCount === null` (unresolved) was **promoted into "NOT READY"** with an amber next-task ring — so the ready state read `NOT READY: TIMETABLE MADE AND CHECKED` **beside** `Schedule is published`. An older scheduler reads that as "my published timetable is wrong" and goes to remake it. Unknown now has **its own bucket**, never counted done, never enumerated not-ready, no ring. Guarded by 7 additive rows; the failing-first mutant takes the suite 20/20 → 15/20 on the one-line promotion, source restored byte-exact.
+- **QA: 2 rounds, and the second one is why this row is honest.** Round 1 **`REJECT_UX` 6/10** — the header had become a 7-line ALL-CAPS run-on enumerating all nine outstanding steps, duplicating the rows beneath it and pushing the actionable links below the fold; the packet's own "subtract, calmer, fewer words" was being met by adding a status board. Round 2 **`CORRECTION_REQUIRED` 19/21, design gate PASSED** — F1/F1b/F2/F3/F4/F6/F7 all closed and verified on **real staging data**, not a mock. The two survivors were mechanical and I closed them myself with the exact commands QA named, so no third round was spent: `Dashboard.tsx` had crossed the §8 1000-line cap at **1038 physical** *while the note asserted it was under it*, and that false number had survived one round because round 1's "measured" figure was **blank-line-excluding**. Extracted to `components/dashboard/ReadinessCard.tsx`; `Dashboard.tsx` is now **872** physical (method recorded in the note).
+- **Integration was a real merge, not a fast-forward.** `origin/main` moved **60+ commits** while c6 was in review, and **A2 c13, A3 c13 and A5 c5 all landed** — the two lanes the packet told me to defer to. The single conflict was `navigation.ts`, resolved mechanically: A2 c13's `CLASS_SCHEDULE_LABEL` wins on every `/timetable*` entry, A3 c13's retired preference-route chrome wins, and A7 c6 contributes **only** the `/room-schedules` label. **A3 c13 having landed makes c6's "Room Preferences stays until A3 c13 lands" note MOOT — that entry is A3 c13's now; do not action it twice.**
+- **FOLLOW-UP, for A5, not fixed here.** `RoomSchedules.tsx:564` renders its own `<h1>Schedules</h1>`. With A5 c5's page now on main, the lookup/print destination answers to **three** names: the sidebar, the chrome title (one shared constant) and the page heading. That is the duplicate-name defect c6 removed from the menu, moved into the page. A5 owns the file; integration does not edit another lane's page. A5 must change the heading **and** the nav label in one commit.
+- **Merged-tree gates:** `dashboard-truth-c01` **20/20** · `a3-c8-room-preach` **10/10** · `uxc01r` **38/38** · `a3-c6-route-hygiene` **11/11** · `global-scrollbars` **1/1** · client tsc **5** errors, all pre-existing, none in a changed file · production build green · `diff --check` clean. The 5 base-red rows in `AppShell.tsx` / `SubjectFormModal.tsx` / `SimpleHeaderHelpers.tsx` are unchanged in character and belong to their owners.
+- **Renders are `isolated` loopback** (staging API, mocked `/api/v1`) and prove the candidate reads calmer than base. They are **not** ATLAS acceptance.
+- **Worktrees:** `lane-a7-c6-dashboard-nav` (candidate) and `lane-a7-integ-c6` = **RETIRED** in the closure. The integration worktree's `node_modules` was a **junction** to the candidate's private copy and was `cmd /c rmdir`-ed **before** `worktree remove`; donor re-counted 156 (candidate-private) and 138 (shared `D:\ATLAS`) before and after — intact. No branch deleted. Registered worktrees 71 → 70; `E:` 30.0 GiB free.
+- **Next action (single):** A4 includes `ecd69d27` in the next train; Lane C takes the two live-origin rows in `docs/handoffs/lane-a-to-c.md` — the story walk from the menu, and the Dashboard naming what is not ready.
 
 ## 2026-09-29 00:18 — year 2022-2023 per-year setup copied (operator approved)
 Script `atlas-server/src/scripts/copy-year-setup-shift-windows-events.mjs --school 1 --from 10 --to 1 --apply`: +20

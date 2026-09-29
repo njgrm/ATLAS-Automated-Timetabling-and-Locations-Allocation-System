@@ -149,7 +149,30 @@ test('A5-C2A C4b: both blocked surfaces read the shared helpers, not a local cop
 	const yearSetup = readFileSync(resolve(CLIENT_ROOT, 'src/pages/AdminYearSetup.tsx'), 'utf8');
 	for (const [name, text] of [['TeacherConcerns.tsx', concerns], ['AdminYearSetup.tsx', yearSetup]] as const) {
 		assert.match(text, /describeSavedTermSource/, `${name} must use the shared saved-data wording`);
-		assert.match(text, /resolveActiveSchoolYearContext/, `${name} must use the canonical resolver`);
+		// ── SUPERSEDED IN PLACE, 2026-09-29, A2-C14 ──
+		// The ORIGINAL row asserted, verbatim and no longer run as pass/fail:
+		//   assert.match(text, /resolveActiveSchoolYearContext/, `${name} must use the canonical resolver`);
+		//
+		// WHY IT MOVED, and why the intent is now STRONGER rather than weaker. That
+		// assertion pinned the resolver by NAME. `resolveActiveSchoolYearContext`
+		// defaults `verifyUpstream` to false, so calling it directly is exactly
+		// the defect A2-C14 fixed: both surfaces sent a request that could never
+		// resolve a term, which is why the operator saw "Active ordered term
+		// unresolved" and every write stayed disabled
+		// (docs/reviews/a2-c14-root-cause/root-cause.md §Term 2).
+		//
+		// The canonical resolver is now reached through its ONE shared entry
+		// point, `@/lib/active-term-authority` (`resolveActiveTermAuthority`),
+		// which is where the verified-read pattern lives for every surface. A
+		// bare direct call is now asserted to be GONE, so the row protects a
+		// stronger property than the one it replaces: these pages cannot drift
+		// back into an unverified request without failing here.
+		assert.match(text, /resolveActiveTermAuthority/,
+			`${name} must resolve the term through the shared canonical entry point`);
+		assert.match(text, /@\/lib\/active-term-authority/,
+			`${name} must import that entry point from the shared lib, not define its own`);
+		assert.doesNotMatch(text, /resolveActiveSchoolYearContext\s*\(/,
+			`${name} must not call the resolver directly: that call shape cannot verify a term`);
 		assert.doesNotMatch(text, /fetchEnrollProActiveTerm/, `${name} must not read EnrollPro directly`);
 	}
 });

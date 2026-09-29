@@ -51,3 +51,7 @@ browse schedules" panel, a **"Generation run ID"** number input ("Use a whole nu
 ## Addendum 10:55 — owed by A5 in this candidate (from A2 c13's close)
 `test:a3-page-title-c1` is 12 pass / 2 fail on `origin/main`: the count of `currentPageTitle` in `AppShell.tsx` went
 2 -> 3 with A5 c4's route-change loading work (`RouteOutlet`). Fix the test or the code so it is green; name which.
+
+## Addendum 12:55 — from A7 c6's close (binding)
+A7 c6 (`ecd69d27`) named the menu item for this page "Look up & print schedules". Your page's own `<h1>Schedules</h1>`
+(`RoomSchedules.tsx:564`) now gives it a third name. Make the page heading match the menu label exactly.

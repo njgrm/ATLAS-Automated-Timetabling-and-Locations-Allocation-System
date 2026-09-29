@@ -155,7 +155,7 @@ export default function RoomSchedules() {
 	// from three merged terms shows the same class three times in one slot, and the grid then
 	// counts that as a room conflict: the page reported 10 conflicts for a room that had none. Term
 	// scope is an invariant of the view, not a display filter. `orderedTerms` and the active index
-	// come from the ONE existing authority (`resolveActiveSchoolYearContext` +
+	// come from the ONE existing authority (`resolveActiveTermAuthority` +
 	// `isVerifiedOrderedActiveTerm`), so this surface cannot develop a second opinion. There is
 	// deliberately no "All terms" option: null `viewTerm` means "prove the term", never "fall
 	// back to Term 1".
@@ -207,7 +207,7 @@ export default function RoomSchedules() {
 	 *
 	 * WHY THIS EXISTS. The retry used to call `fetchSchedule()`, which is inert for this reason:
 	 * `viewTerm` is null, so that function returns the same `term-unverified` state BEFORE any
-	 * request, and `resolveActiveSchoolYearContext` below runs once per `actorSchoolId` with no
+	 * request, and `resolveActiveTermAuthority` below runs once per `actorSchoolId` with no
 	 * reload path. The body told a scheduler to "retry once the term is confirmed" and the button
 	 * could not ask whether it had been. A button that cannot do what it says is not a next step.
 	 *
@@ -230,7 +230,24 @@ export default function RoomSchedules() {
 		(async () => {
 			try {
 				setLookupError(false);
-				const yearContext = await resolveActiveSchoolYearContext({ schoolId: scopedSchoolId, allowStaleOnError: true , verifyUpstream: true });
+				// A2-C14 — this page asks for upstream verification exactly ONCE per
+				// read, and it needs no fast unverified read first: it cannot use an
+				// unverified term at all, so the extra round trip bought nothing and
+				// broke A5-C5's "the year context is read exactly once on mount"
+				// control. `forceRefresh` is what makes this a real dispatch — without
+				// it the school-keyed cache short-circuit returned the UNVERIFIED
+				// entry written moments earlier by TeacherConcerns, so the requested
+				// verification was never issued at all (root cause:
+				// docs/reviews/a2-c14-root-cause/root-cause.md §Term 3).
+				// `isVerifiedOrderedActiveTerm` below stays exactly as it is — the gate
+				// is unchanged, only who asks is.
+				const yearContext = await resolveActiveSchoolYearContext({
+					schoolId: scopedSchoolId,
+					allowStaleOnError: true,
+					allowEnrollProFallback: false,
+					forceRefresh: true,
+					verifyUpstream: true,
+				});
 				const activeSchoolYearId = yearContext.activeSchoolYearId;
 
 				const [buildingsRes, subjectsRes, facultyRes] = await Promise.all([

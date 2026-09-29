@@ -11,7 +11,8 @@ import { Button } from '@/ui/button';
 import { type RolloverStatus } from '@/lib/settings';
 import { verifySessionWithinDeadline } from '@/lib/session-verification';
 import { clearAtlasAuthStorage, clearUserRoleCache } from '@/lib/auth';
-import { describeSavedTermSource, describeUnresolvedTermReason, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { describeSavedTermSource, describeUnresolvedTermReason } from '@/lib/enrollpro-public-settings';
+import { resolveActiveTermAuthority } from '@/lib/active-term-authority';
 import { resolveVerifiedActiveTermIndex } from '@/lib/timetable-data/timetablePrefetch';
 import { PLAIN_INTRO, plainStartedCopy, plainYearSetupCarrySummary } from '@/components/runtime/rollover-plain-copy';
 import type { BridgeUser } from '@/types';
@@ -38,9 +39,15 @@ function YearTruthBanner({ schoolId, nonce, onRetry }: { schoolId: number; nonce
 	useEffect(() => {
 		let cancelled = false;
 		setState({ kind: 'loading' });
-		resolveActiveSchoolYearContext({ schoolId, allowStaleOnError: true, allowEnrollProFallback: false, forceRefresh: true })
-			.then((context) => {
+		// A2-C14 — the shared resolver. The previous `forceRefresh`-only call
+		// guaranteed the server's unverified default, so this banner could
+		// report the active term unresolved while the header beside it said the
+		// year was active.
+		resolveActiveTermAuthority(schoolId, () => cancelled)
+			.then((resolution) => {
 				if (cancelled) return;
+				if (resolution == null) return;
+				const context = resolution.context;
 				const termIndex = resolveVerifiedActiveTermIndex(context.activeTerm);
 				if (termIndex == null) {
 					setState({ kind: 'unresolved', reason: describeUnresolvedTermReason(context.activeTerm) });

@@ -39,6 +39,21 @@
  * the whole statement of it, and its hover now says what it OPENS rather than
  * repeating how many subjects it hides. The count was not lost — the control
  * still carries it, and the detail it opens names the subjects by name.
+ *
+ * A6 c7 — THE ONE QUALIFIER, AND WHERE IT LIVES. When the roster is the last
+ * saved one the figures are still shown, because a scheduler whose year ATLAS
+ * could not confirm most needs to be told which classes have no teacher. What
+ * changes is that the claim now SAYS so, in the cover control's EXISTING
+ * Tooltip — the one place a scheduler reads before pressing an action that
+ * changes somebody's load. No second surface, no second chip, and nothing added
+ * to the row's visible words: the row's own `· <date> roster` clause is the one
+ * visible qualifier, and it is c5's, unchanged.
+ *
+ * The safety c5's removed `isLive` gate used to provide is NOT lost with it. It
+ * lives in `CoverShortageDialog`'s `drift` re-check, which the server performs
+ * against the live snapshot when the plan is applied and which already 409s with
+ * the changed classes named. Hiding the button protected nothing the drift check
+ * does not, and it is what produced the defect.
  */
 import { UserRoundPlus } from 'lucide-react';
 
@@ -54,12 +69,30 @@ import {
 /** The control the packet names. Not reworded: two surfaces must not drift. */
 export const COVER_CLASSES_LABEL = 'Cover these classes';
 
+/**
+ * A6 c7 — the honest sentence for a preview computed from the last saved roster.
+ *
+ * It is exported, not inlined, so the committed control can assert the exact
+ * words and the one place that writes them cannot drift. Two claims, both of
+ * which a scheduler needs before pressing a control that changes somebody's
+ * load: WHERE the numbers come from, and WHAT happens to them if EnrollPro has
+ * moved on.
+ */
+export const COVER_SAVED_ROSTER_NOTE = 'This preview is worked out from the last saved roster. ATLAS re-checks it against the live roster when you apply it, and stops if anything has changed.';
+
 export type TeachingLoadShortageLineProps = {
 	line: ShortageLineModel;
 	/** Total classes with no real teacher, so the button's tooltip can name it. */
 	totalShortClasses: number;
 	/** The first named subject, which is what the dialog opens on. */
 	primarySubject: SubjectShortageEntry | null;
+	/**
+	 * A6 c7 — whether the source is CONFIRMED. It qualifies the cover control's
+	 * explanation; it does not decide whether the line renders, and it never
+	 * disables the control. The page's own `writeBlockedReason` is the only gate
+	 * on the action.
+	 */
+	figuresVerified: boolean;
 	/** Disabled when the workspace cannot be written to, with the reason. */
 	writeBlockedReason: string | null;
 	onCover: (entry: SubjectShortageEntry) => void;
@@ -71,6 +104,7 @@ export function TeachingLoadShortageLine({
 	line,
 	totalShortClasses,
 	primarySubject,
+	figuresVerified,
 	writeBlockedReason,
 	onCover,
 	onShowCoverageDetail,
@@ -131,7 +165,9 @@ export function TeachingLoadShortageLine({
 					<TooltipContent side="bottom" className="max-w-72 text-xs font-semibold">
 						{writeBlockedReason
 							? writeBlockedReason
-							: `${COVER_CLASSES_LABEL} in ${primarySubject.subjectName}, the subject with the most classes missing a teacher. ${totalShortClasses} in total need one.`}
+							: figuresVerified
+								? `${COVER_CLASSES_LABEL} in ${primarySubject.subjectName}, the subject with the most classes missing a teacher. ${totalShortClasses} in total need one.`
+								: `${COVER_SAVED_ROSTER_NOTE} ${COVER_CLASSES_LABEL} in ${primarySubject.subjectName}, the subject with the most classes missing a teacher. ${totalShortClasses} in total need one.`}
 					</TooltipContent>
 				</Tooltip>
 			)}
