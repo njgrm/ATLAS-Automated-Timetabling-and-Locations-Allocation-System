@@ -166,7 +166,21 @@ test('the hidden generation bypasses are superseded by the visible, gated action
 	// The direct generation calls left are the gate-guarded visible handler and
 	// the visible lifecycle retry.
 	assert.match(header, /if \(!shouldDispatchSimpleGenerate\(canPlanOrGenerate\)\) return;/);
-	assert.match(header, /case 'retry-generate': context\.handleTriggerGenerate\(\); break;/);
+	/*
+	 * A8-C5 S2.3 (executor, 2026-09-29) — RE-PINNED, on purpose, and the original
+	 * expectation is recorded rather than deleted:
+	 *   was: assert.match(header, /case 'retry-generate': context\.handleTriggerGenerate\(\); break;/);
+	 * The lifecycle retry now hands the click its own `generationStoppers`, so the
+	 * Generate dialog can name the same causes the header derived. The row's CLAIM
+	 * is unchanged — the visible lifecycle retry dispatches generation directly,
+	 * through the shared handler — and it is now stated so the optional argument
+	 * cannot silently turn the call into something else.
+	 */
+	assert.match(
+		header,
+		/case 'retry-generate': context\.handleTriggerGenerate\(capabilities\.generationStoppers\); break;/,
+		'the visible lifecycle retry still dispatches generation, now with the stoppers the dialog explains',
+	);
 	// A3 — the duplicate Generate entry was removed from More; the visible header
 	// control is the single Generate surface.
 	const moreMenu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
