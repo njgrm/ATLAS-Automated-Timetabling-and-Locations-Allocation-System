@@ -378,15 +378,26 @@ export function HomeRoomAutoAssignDialog({
 							{rows.map((row) => {
 								const { assignment } = row;
 								return (
+									/* A9 c2 — THE PICKER OWNS THE ROW'S SPARE WIDTH. The operator's
+									 * crop showed the trigger clipped mid-word
+									 * (`G7 Room 101  - Grade 7 Academic V`) because the whole room
+									 * label competed on ONE flex line with a second, separately
+									 * truncated label in the right-hand gutter ("same grade wing").
+									 * The gutter label moves to its OWN line under the row (it is a
+									 * qualifier, not an identifier), and the freed width goes to the
+									 * picker. The dialog is NOT widened and the type is NOT shrunk;
+									 * `flex-[2] basis-0` gives the picker two thirds of the slack so a
+									 * normal room + building reads in full at 1366x768 and 1280x720
+									 * (operator decision #10: normal width, never near full screen). */
 									<li key={assignment.sectionId} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-border/70 px-2.5 py-2" data-testid="guided-step-row" data-section-id={assignment.sectionId} data-manual={row.isManual ? 'true' : 'false'}>
 										<span
 											className={`shrink-0 rounded-md px-1.5 py-0.5 text-xs font-bold ${GRADE_COLORS[assignment.gradeLevel] ?? 'bg-muted text-muted-foreground'}`}
 										>
 											{gradeBadge(assignment.gradeLevel)}
 										</span>
-										<span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{assignment.sectionName}</span>
+										<span className="min-w-0 flex-1 basis-0 truncate text-sm font-semibold text-foreground">{assignment.sectionName}</span>
 										<span className="shrink-0 text-sm text-muted-foreground" aria-hidden="true">→</span>
-										<div className="w-64 shrink-0">
+										<div className="min-w-0 flex-[2] basis-0">
 											<SectionRoomPicker
 												sectionId={assignment.sectionId}
 												sectionName={assignment.sectionName}
@@ -398,7 +409,7 @@ export function HomeRoomAutoAssignDialog({
 												roomOccupancy={roomOccupancy}
 											/>
 										</div>
-										<span className="shrink-0 text-xs text-muted-foreground" data-testid="guided-step-row-reason">
+										<span className="w-full text-xs text-muted-foreground" data-testid="guided-step-row-reason">
 											{row.isManual ? MANUAL_CHOICE_NOTE : assignmentReasonPhrase(assignment.reason)}
 										</span>
 									</li>
