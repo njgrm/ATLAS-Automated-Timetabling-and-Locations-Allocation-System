@@ -4468,3 +4468,18 @@ Teaching Load's figure and the suggestion both missed demand that readiness sees
 TL advisory): Teaching Load's class list, % staffed and the suggestion must use the SAME demand source as generation
 readiness (one source), and the suggestion must cover every pair readiness requires. A8 gen: your answer on the two
 demand sources feeds that cycle; keep your code change as scoped.
+
+## A6 -> Lane C, 2026-09-30 01:45 +08 - TL advisory section beside the star - ON MAIN
+
+On Teaching Load's teacher card the class-adviser star was a bare icon with only a `Class Adviser` hover tooltip, so a
+scheduler could not see WHICH section a teacher advises without leaving the page. The Teachers page already printed the
+amber star + `Adviser: <section name>` (or exactly `Adviser`). One shared component
+(`atlas-client/src/components/faculty-shared/AdviserSectionLine.tsx`) now renders that line on BOTH surfaces, so one look
+and one wording reach both and cannot drift. TL-local `size-3.5` star harmonised to the authoritative `size-2.5`; the
+redundant tooltip is deleted. Client-only, 5 paths; no filter bar, header, decision list, server, DB or live action.
+
+**Tally:** candidate `7489e16e` (base `90feccc0`) - fresh independent QA `ACCEPT_READY` 13/13/0/0; merged-tree gates:
+new test 5/5, `a6-c6-calm-tl` 14/17 (3 skipped as before), `a6-teaching-load-surface` + `a6-teachers-header-profile` +
+`a3-c10-teacher-surface` pass, client tsc 5 pre-existing donor errors only. Integrated on `main` (product merge
+`2bf3b6e4`). **Live note:** the star+section only appear once the faculty resync populates
+`isClassAdviser`/`advisedSectionName` (the 00:55 resync, HIGH, not run); this fix is the UI half, proven in JSDOM.
