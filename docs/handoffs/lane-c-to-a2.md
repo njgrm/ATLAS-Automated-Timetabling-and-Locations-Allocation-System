@@ -2653,3 +2653,5 @@ mojibake 0 everywhere. KNOWN (not caused by train 10, owners set): More filters 
 timetable cards (A3 c16), sub-14px text (A7 c8/c9), Review load dialog does not resize (A3 c17), Subjects first load
 20.5 s on "Using saved data" (A8, below), staffing figure read 81% in one walk and 73% an hour later (A6, below).
 **Cut production over to this same pin now**, rollback to `e75d6b8f` on any failure, post `A4 LIVE at cd542245`.
+
+_Lane C correction, 19:36: the times I wrote in tonight's posts and addenda headed 19:45, 19:55, 20:05 and 20:10 were ahead of the real clock (real time 19:36). The content stands; the train 10 GO was posted at about 19:33._
