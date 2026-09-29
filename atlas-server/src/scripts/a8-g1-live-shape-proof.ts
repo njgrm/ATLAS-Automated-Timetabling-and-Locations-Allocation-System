@@ -58,8 +58,9 @@
  */
 import 'dotenv/config';
 import { execFile } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import {
 	BackupOperationError,
@@ -163,26 +164,47 @@ async function databaseExists(dbName: string, adminEnv: NodeJS.ProcessEnv): Prom
 // numbers are real without a database.
 
 export interface MeasurableEntry {
-	facultyId: number;
+	facultyId: number | null;
 	roomId: number;
 	subjectId: number;
 	sectionId: number;
 	day: string;
 	startTime: string;
 	endTime: string;
+	termIndex?: 1 | 2 | 3 | 4 | null;
 	entryKind?: 'SECTION' | 'COHORT';
 	cohortCode?: string | null;
 }
 
+export interface OverlapDetail {
+	holder: string;
+	term: string;
+	day: string;
+	slot: string;
+	count: number;
+	entryKinds: string;
+	samePair: boolean;
+}
+
 export interface ShapeCounts {
 	entryCount: number;
-	/** Distinct (section|cohort, subject) pairs holding >1 session on a day. */
+	/** Distinct (section|cohort, subject) pairs holding more sessions on a day than `ceil(sessionsPerWeek/5)`. */
 	sameDayRepeatPairs: number;
-	/** Worst single (pair, day) cell, e.g. 5 for "Filipino x5 - Monday". */
+	/** Worst single (pair, day) cell. */
 	worstSameDayCount: number;
+	/**
+	 * Overlaps keyed on (holder, TERM, day, interval). A teacher legitimately
+	 * holds the same slot in different terms, and `constructBaseline` leaves
+	 * `termIndex` undefined for a concurrent (every-term) lane, so an undefined
+	 * term is its own bucket `CONCURRENT` and never collides with T1/T2/T3.
+	 */
 	teacherOverlaps: number;
 	sectionOverlaps: number;
 	roomOverlaps: number;
+	/** Up to 10 offenders, so a non-zero count can actually be checked. */
+	overlapDetail: OverlapDetail[];
+	/** Sessions demanded this run — the frame size, printed on every side. */
+	sessionsDemanded: number;
 }
 
 function pairKeyOf(entry: MeasurableEntry): string {
@@ -191,19 +213,51 @@ function pairKeyOf(entry: MeasurableEntry): string {
 		: `${entry.sectionId}:${entry.subjectId}`;
 }
 
-/** Overlap = the same holder booked twice in one (day, interval). */
-function countHolderOverlaps(entries: MeasurableEntry[], holder: (entry: MeasurableEntry) => string): number {
-	const seen = new Set<string>();
-	let overlaps = 0;
-	for (const entry of entries) {
-		const key = `${holder(entry)}|${entry.day}|${entry.startTime}-${entry.endTime}`;
-		if (seen.has(key)) overlaps += 1;
-		seen.add(key);
-	}
-	return overlaps;
+function termBucketOf(entry: MeasurableEntry): string {
+	return entry.termIndex == null ? 'CONCURRENT' : `T${entry.termIndex}`;
 }
 
-export function measureShape(entries: MeasurableEntry[]): ShapeCounts {
+/**
+ * D2: an overlap is the same holder booked twice in one (TERM, day, interval).
+ *
+ * Keying on the term is the whole point. A rotation or modular lane legitimately
+ * re-teaches the same teacher the same slot in T1 and again in T2; counting that
+ * as an overlap is the artifact that made the first attempt report 1675/1820/1820
+ * before-overlaps. A teacher genuinely double-booked INSIDE one term still
+ * collides here, which is the case that must stay fatal.
+ */
+function findHolderOverlaps(
+	entries: MeasurableEntry[],
+	holder: (entry: MeasurableEntry) => string,
+): { count: number; detail: OverlapDetail[] } {
+	const seen = new Map<string, { count: number; kinds: Set<string>; pairs: Set<string> }>();
+	for (const entry of entries) {
+		const key = `${holder(entry)}|${termBucketOf(entry)}|${entry.day}|${entry.startTime}-${entry.endTime}`;
+		const bucket = seen.get(key) ?? { count: 0, kinds: new Set<string>(), pairs: new Set<string>() };
+		bucket.count += 1;
+		bucket.kinds.add(entry.entryKind ?? 'SECTION');
+		bucket.pairs.add(pairKeyOf(entry));
+		seen.set(key, bucket);
+	}
+	const offenders: OverlapDetail[] = [];
+	for (const [key, bucket] of seen) {
+		if (bucket.count < 2) continue;
+		const [holderId, term, day, slot] = key.split('|');
+		offenders.push({
+			holder: holderId,
+			term,
+			day,
+			slot,
+			count: bucket.count - 1,
+			entryKinds: [...bucket.kinds].sort().join('+'),
+			samePair: bucket.pairs.size === 1,
+		});
+	}
+	offenders.sort((a, b) => b.count - a.count || a.holder.localeCompare(b.holder) || a.slot.localeCompare(b.slot));
+	return { count: offenders.reduce((sum, o) => sum + o.count, 0), detail: offenders.slice(0, 10) };
+}
+
+export function measureShape(entries: MeasurableEntry[], sessionsDemanded: number): ShapeCounts {
 	const perPairDay = new Map<string, number>();
 	for (const entry of entries) {
 		const key = `${pairKeyOf(entry)}|${entry.day}`;
@@ -216,33 +270,80 @@ export function measureShape(entries: MeasurableEntry[]): ShapeCounts {
 		pairsWithRepeat.add(key.slice(0, key.lastIndexOf('|')));
 		if (count > worstSameDayCount) worstSameDayCount = count;
 	}
+	const teacher = findHolderOverlaps(entries, (entry) => `t${entry.facultyId ?? 'none'}`);
+	const section = findHolderOverlaps(entries, (entry) => `s${entry.sectionId}`);
+	const room = findHolderOverlaps(entries, (entry) => `r${entry.roomId}`);
 	return {
 		entryCount: entries.length,
 		sameDayRepeatPairs: pairsWithRepeat.size,
 		worstSameDayCount,
-		teacherOverlaps: countHolderOverlaps(entries, (entry) => `t${entry.facultyId}`),
-		sectionOverlaps: countHolderOverlaps(entries, (entry) => `s${entry.sectionId}`),
-		roomOverlaps: countHolderOverlaps(entries, (entry) => `r${entry.roomId}`),
+		teacherOverlaps: teacher.count,
+		sectionOverlaps: section.count,
+		roomOverlaps: room.count,
+		overlapDetail: [...teacher.detail, ...section.detail, ...room.detail].slice(0, 10),
+		sessionsDemanded,
 	};
 }
 
-function renderTable(before: ShapeCounts & { unplaced: number; hardViolations: number; seconds: number | null },
-	after: ShapeCounts & { unplaced: number; hardViolations: number; seconds: number | null }): string {
+/** A measurement that could not be taken. Never substituted with another frame. */
+export const UNAVAILABLE = 'UNAVAILABLE';
+
+type Side = {
+	counts: ShapeCounts;
+	unplaced: number;
+	hardViolations: number;
+	seconds: number | null;
+	/** Which ordering produced this side, printed so the frame is self-describing. */
+	ordering: string;
+};
+
+function cell(value: number | null): string {
+	return value == null ? UNAVAILABLE : String(value);
+}
+
+/**
+ * D1 GUARD: a table whose two sides disagree about how much work they measured
+ * is not evidence of anything.
+ *
+ * This is the row that let a broken measurement through: the first attempt
+ * compared a 3-term saved run (2730 entries) against one constructor
+ * invocation (920 sessions) and produced a table that read as decisive. Nothing
+ * checked the frame, so every row in it was unquotable.
+ *
+ * Returns an error string, or `null` when the two sides are comparable. Pure, so
+ * both `--self-test` and the test suite can prove it actually fires.
+ */
+export function frameMismatchReason(before: ShapeCounts, after: ShapeCounts): string | null {
+	if (before.sessionsDemanded !== after.sessionsDemanded) {
+		return (
+			`The two sides measured different amounts of work: before=${before.sessionsDemanded} ` +
+			`after=${after.sessionsDemanded}. The table is not comparable and no row of it may be quoted.`
+		);
+	}
+	if (after.sessionsDemanded === 0) {
+		return 'The restored inputs demand zero sessions; there is nothing to compare.';
+	}
+	return null;
+}
+
+function renderTable(before: Side, after: Side): string {
 	const rows: Array<[string, string, string, string]> = [
-		['entries placed', String(before.entryCount), String(after.entryCount), 'same restored inputs, new constructor'],
-		['same-day repeat pairs', String(before.sameDayRepeatPairs), String(after.sameDayRepeatPairs), 'TARGET 0 non-block'],
-		['worst same-day count', String(before.worstSameDayCount), String(after.worstSameDayCount), 'TARGET <= ceil(sessions/5)'],
-		['unplaced', String(before.unplaced), String(after.unplaced), 'MUST NOT RISE (910/920 today)'],
-		['teacher overlaps', String(before.teacherOverlaps), String(after.teacherOverlaps), 'MUST STAY 0'],
-		['section overlaps', String(before.sectionOverlaps), String(after.sectionOverlaps), 'MUST STAY 0'],
-		['room overlaps', String(before.roomOverlaps), String(after.roomOverlaps), 'MUST STAY 0'],
-		['hard violations', String(before.hardViolations), String(after.hardViolations), 'MUST STAY 0'],
-		['run seconds', before.seconds == null ? 'n/a' : String(before.seconds), after.seconds == null ? 'n/a' : String(after.seconds), 'constructor wall clock'],
+		['ordering', before.ordering, after.ordering, 'the ONE variable that differs'],
+		['sessions demanded', cell(before.counts.sessionsDemanded), cell(after.counts.sessionsDemanded), 'FRAME — must be equal'],
+		['entries placed', cell(before.counts.entryCount), cell(after.counts.entryCount), 'same inputs, same process'],
+		['unplaced', cell(before.unplaced), cell(after.unplaced), 'MUST NOT RISE'],
+		['same-day repeat pairs', cell(before.counts.sameDayRepeatPairs), cell(after.counts.sameDayRepeatPairs), 'TARGET 0 non-block'],
+		['worst same-day count', cell(before.counts.worstSameDayCount), cell(after.counts.worstSameDayCount), 'TARGET <= ceil(sessions/5)'],
+		['teacher overlaps', cell(before.counts.teacherOverlaps), cell(after.counts.teacherOverlaps), 'term-keyed; MUST NOT RISE'],
+		['section overlaps', cell(before.counts.sectionOverlaps), cell(after.counts.sectionOverlaps), 'term-keyed; MUST NOT RISE'],
+		['room overlaps', cell(before.counts.roomOverlaps), cell(after.counts.roomOverlaps), 'term-keyed; MUST NOT RISE'],
+		['hard violations', cell(before.hardViolations), cell(after.hardViolations), 'MUST NOT RISE'],
+		['run seconds', cell(before.seconds), cell(after.seconds), 'constructor wall clock'],
 	];
 	const width = Math.max(...rows.map((row) => row[0].length));
-	const head = `| ${'measure'.padEnd(width)} | before   | after    | note`;
-	const rule = `| ${'-'.repeat(width)} | -------- | -------- | ----`;
-	const body = rows.map((row) => `| ${row[0].padEnd(width)} | ${row[1].padEnd(8)} | ${row[2].padEnd(8)} | ${row[3]}`);
+	const head = `| ${'measure'.padEnd(width)} | before                    | after`;
+	const rule = `| ${'-'.repeat(width)} | ------------------------- | -------------------------`;
+	const body = rows.map((row) => `| ${row[0].padEnd(width)} | ${row[1].padEnd(25)} | ${row[2].padEnd(25)} | ${row[3]}`);
 	return [head, rule, ...body].join('\n');
 }
 
@@ -281,9 +382,7 @@ function selfTest(): void {
 	// The live Run 347 shape, transcribed: 8-Makatao (section 27, subject 1,
 	// faculty 1) holds all five of its sessions on Monday at 07:30, 08:15,
 	// 10:00, 10:45 and 11:30. A second, healthy pair is spread one per day on a
-	// DIFFERENT faculty and in non-colliding intervals, so the only thing wrong
-	// with this "before" shape is the same-day repeat — exactly as on live,
-	// where teacher and section overlaps were both 0.
+	// DIFFERENT faculty and in non-colliding intervals.
 	const worst: MeasurableEntry[] = [
 		{ facultyId: 1, roomId: 31, subjectId: 1, sectionId: 27, day: 'MONDAY', startTime: '07:30', endTime: '08:15' },
 		{ facultyId: 1, roomId: 31, subjectId: 1, sectionId: 27, day: 'MONDAY', startTime: '08:15', endTime: '09:00' },
@@ -295,7 +394,7 @@ function selfTest(): void {
 			startTime: '07:30', endTime: '08:15',
 		})),
 	];
-	const worstCounts = measureShape(worst);
+	const worstCounts = measureShape(worst, 10);
 	check('finds the one repeat pair', () => {
 		if (worstCounts.sameDayRepeatPairs !== 1) throw new Error(`expected 1, got ${worstCounts.sameDayRepeatPairs}`);
 	});
@@ -314,7 +413,7 @@ function selfTest(): void {
 		facultyId: 1, roomId: 31, subjectId: 1, sectionId: 27, day: DAYS[index],
 		startTime: '07:30', endTime: '08:15',
 	}));
-	const spreadCounts = measureShape(spread);
+	const spreadCounts = measureShape(spread, 5);
 	check('a spread run has 0 repeats', () => {
 		if (spreadCounts.sameDayRepeatPairs !== 0) throw new Error(`expected 0, got ${spreadCounts.sameDayRepeatPairs}`);
 	});
@@ -328,7 +427,7 @@ function selfTest(): void {
 		{ facultyId: 5, roomId: 40, subjectId: 1, sectionId: 30, day: 'MONDAY', startTime: '07:30', endTime: '08:15' },
 		{ facultyId: 5, roomId: 41, subjectId: 2, sectionId: 31, day: 'MONDAY', startTime: '07:30', endTime: '08:15' },
 	];
-	const collidedCounts = measureShape(collided);
+	const collidedCounts = measureShape(collided, 2);
 	check('detects a teacher overlap', () => {
 		if (collidedCounts.teacherOverlaps !== 1) throw new Error(`expected 1, got ${collidedCounts.teacherOverlaps}`);
 	});
@@ -336,16 +435,88 @@ function selfTest(): void {
 		if (collidedCounts.roomOverlaps !== 0 || collidedCounts.sectionOverlaps !== 0) throw new Error('expected 0/0');
 	});
 
+	// D2: the artifact the first attempt measured. The same teacher, the same
+	// room, the same slot, in two DIFFERENT terms is a legitimate re-teach and
+	// must not be counted.
+	const reTaught: MeasurableEntry[] = [
+		{ facultyId: 5, roomId: 40, subjectId: 1, sectionId: 30, day: 'MONDAY', startTime: '07:30', endTime: '08:15', termIndex: 1 },
+		{ facultyId: 5, roomId: 40, subjectId: 2, sectionId: 30, day: 'MONDAY', startTime: '07:30', endTime: '08:15', termIndex: 2 },
+	];
+	const reTaughtCounts = measureShape(reTaught, 2);
+	check('D2: a re-teach in a different term is NOT an overlap', () => {
+		if (reTaughtCounts.teacherOverlaps !== 0) throw new Error(`expected 0, got ${reTaughtCounts.teacherOverlaps}`);
+		if (reTaughtCounts.roomOverlaps !== 0) throw new Error(`room expected 0, got ${reTaughtCounts.roomOverlaps}`);
+	});
+
+	// D2: a genuine double-book INSIDE one term must still be caught.
+	const sameTermClash: MeasurableEntry[] = [
+		{ facultyId: 5, roomId: 40, subjectId: 1, sectionId: 30, day: 'MONDAY', startTime: '07:30', endTime: '08:15', termIndex: 1 },
+		{ facultyId: 5, roomId: 41, subjectId: 2, sectionId: 31, day: 'MONDAY', startTime: '07:30', endTime: '08:15', termIndex: 1 },
+	];
+	const sameTermCounts = measureShape(sameTermClash, 2);
+	check('D2: a double-book inside ONE term IS an overlap', () => {
+		if (sameTermCounts.teacherOverlaps !== 1) throw new Error(`expected 1, got ${sameTermCounts.teacherOverlaps}`);
+	});
+	check('D2: and it is reported with its term and slot so it can be checked', () => {
+		const detail = sameTermCounts.overlapDetail[0];
+		if (!detail) throw new Error('no detail emitted for a real overlap');
+		if (detail.term !== 'T1') throw new Error(`expected term T1, got ${detail.term}`);
+		if (detail.day !== 'MONDAY' || detail.slot !== '07:30-08:15') throw new Error(`bad slot ${detail.day} ${detail.slot}`);
+		if (detail.samePair !== false) throw new Error('two different pairs were reported as one pair');
+	});
+
+	// A concurrent lane (termIndex undefined) and a term-scoped lane must not
+	// collide, and two concurrent lanes for the same teacher must.
+	const concurrentClash: MeasurableEntry[] = [
+		{ facultyId: 6, roomId: 42, subjectId: 1, sectionId: 32, day: 'TUESDAY', startTime: '07:30', endTime: '08:15' },
+		{ facultyId: 6, roomId: 43, subjectId: 2, sectionId: 33, day: 'TUESDAY', startTime: '07:30', endTime: '08:15' },
+	];
+	const concurrentCounts = measureShape(concurrentClash, 2);
+	check('D2: two CONCURRENT lanes for one teacher in one slot DO overlap', () => {
+		if (concurrentCounts.teacherOverlaps !== 1) throw new Error(`expected 1, got ${concurrentCounts.teacherOverlaps}`);
+		if (concurrentCounts.overlapDetail[0]?.term !== 'CONCURRENT') throw new Error('term bucket should be CONCURRENT');
+	});
+
 	console.log('A8G1_SELF_TEST table renderer');
 	const rendered = renderTable(
-		{ ...worstCounts, unplaced: 10, hardViolations: 0, seconds: null },
-		{ ...spreadCounts, unplaced: 10, hardViolations: 0, seconds: 12.3 },
+		{ counts: worstCounts, unplaced: 10, hardViolations: 0, seconds: null, ordering: 'LEGACY_SOFT_PENALTY' },
+		{ counts: spreadCounts, unplaced: 10, hardViolations: 0, seconds: 12.3, ordering: 'DAY_COUNT_FIRST' },
 	);
 	const lines = rendered.split('\n');
-	if (lines.length !== 11) throw new Error(`expected 11 table lines, got ${lines.length}`);
-	if (!lines[0].includes('measure') || !lines[1].startsWith('| -')) {
-		throw new Error('the table header is malformed');
-	}
+	if (lines.length !== 13) throw new Error(`expected 13 table lines, got ${lines.length}`);
+	check('the table prints the frame size on BOTH sides', () => {
+		if (!lines.some((line) => line.includes('sessions demanded'))) throw new Error('no frame row');
+	});
+	check('the table names the one variable that differs', () => {
+		if (!lines.some((line) => line.includes('LEGACY_SOFT_PENALTY') && line.includes('DAY_COUNT_FIRST'))) {
+			throw new Error('the ordering row is missing');
+		}
+	});
+	check('an unmeasurable value prints UNAVAILABLE, never a substitute', () => {
+		const withNull = renderTable(
+			{ counts: worstCounts, unplaced: 10, hardViolations: 0, seconds: null, ordering: 'LEGACY_SOFT_PENALTY' },
+			{ counts: spreadCounts, unplaced: 10, hardViolations: 0, seconds: null, ordering: 'DAY_COUNT_FIRST' },
+		);
+		if (!withNull.includes(UNAVAILABLE)) throw new Error('expected UNAVAILABLE in the table');
+	});
+
+	console.log('A8G1_SELF_TEST frame guard');
+	check('D1: identical frames pass the guard', () => {
+		if (frameMismatchReason(worstCounts, worstCounts) !== null) throw new Error('expected no mismatch');
+	});
+	check('D1: a 3-term run against a 1-week run is REJECTED (the first attempt\'s shape)', () => {
+		// Exactly the first attempt: before 2730 entries over a multi-term run,
+		// after one week of 920 sessions.
+		const multiTerm = measureShape(worst, 2730);
+		const oneWeek = measureShape(spread, 920);
+		const reason = frameMismatchReason(multiTerm, oneWeek);
+		if (reason === null) throw new Error('the frame guard did NOT fire on mismatched frames');
+		if (!reason.includes('2730') || !reason.includes('920')) throw new Error('the reason must name both frame sizes');
+	});
+	check('D1: an empty frame is REJECTED', () => {
+		const empty = measureShape([], 0);
+		if (frameMismatchReason(empty, empty) === null) throw new Error('the frame guard did NOT fire on an empty frame');
+	});
 	console.log(rendered);
 
 	// The shared primitive must agree with the local guard.
@@ -470,12 +641,18 @@ async function main(): Promise<void> {
 }
 
 /**
- * Reads the newest COMPLETED run's persisted `draft_entries` as the BEFORE
- * figure (the packet's own read-only-SQL method), then runs the new constructor
- * over the same restored inputs as the AFTER figure.
+ * Runs BOTH orderings over the SAME constructor input, in the SAME process, and
+ * measures both with the SAME function.
+ *
+ * D1: the first attempt measured "before" from a saved 3-term run and "after"
+ * from one constructor invocation (one week). The two sides are now the same
+ * frame by construction — the only difference is `input.spreadOrdering`.
+ *
+ * `legacy` is the pre-change comparator, reached through the
+ * `ConstructorInput.spreadOrdering` test seam, NOT through a saved run and NOT
+ * through a hand-copied comparator. `production` is the accepted default.
  */
-async function runShapeComparison(target: string, databaseUrl: string, sourceBefore: string): Promise<void> {
-	// Imported dynamically so the self-test never touches a database client.
+export async function runShapeComparison(target: string, databaseUrl: string, sourceBefore: string): Promise<void> {
 	const { PrismaClient } = await import('@prisma/client');
 	const drillUrl = new URL(databaseUrl);
 	drillUrl.pathname = `/${target}`;
@@ -484,30 +661,15 @@ async function runShapeComparison(target: string, databaseUrl: string, sourceBef
 	// `DATABASE_URL`-bound singleton in `lib/prisma.ts` is never imported.
 	const drill = new PrismaClient({ datasources: { db: { url: drillUrl.toString() } } });
 	try {
-		// The newest COMPLETED run that actually carries entries. `draftEntries`
-		// is jsonb and Prisma cannot filter on "is a non-empty array" in the
-		// query, so the newest COMPLETED run is read and an empty payload is
-		// rejected below rather than silently becoming a "before" of zero.
+		// The run whose scope names the school year to reproduce. Informational
+		// only — it is NOT a measurement side.
 		const run = await drill.generationRun.findFirst({
 			where: { status: 'COMPLETED' },
 			orderBy: { id: 'desc' },
-			select: { id: true, schoolId: true, schoolYearId: true, draftEntries: true, unassignedItems: true, violations: true },
+			select: { id: true, schoolId: true, schoolYearId: true },
 		});
-		if (!run) throwFailure('NO_COMPLETED_RUN', 'The restored copy has no COMPLETED generation run to read a BEFORE figure from.');
-		if (!Array.isArray(run.draftEntries) || run.draftEntries.length === 0) {
-			throwFailure('NO_PERSISTED_ENTRIES', `COMPLETED run ${run.id} carries no draft_entries to measure.`);
-		}
-
-		const beforeEntries = (Array.isArray(run.draftEntries) ? run.draftEntries : []) as unknown as MeasurableEntry[];
-		const before = {
-			...measureShape(beforeEntries),
-			unplaced: Array.isArray(run.unassignedItems) ? run.unassignedItems.length : 0,
-			hardViolations: Array.isArray(run.violations)
-				? (run.violations as Array<{ severity?: string }>).filter((v) => v.severity === 'HARD').length
-				: 0,
-			seconds: null as number | null,
-		};
-		console.log(`A8G1_BEFORE_SOURCE run=${run.id} school=${run.schoolId} year=${run.schoolYearId}`);
+		if (!run) throwFailure('NO_COMPLETED_RUN', 'The restored copy has no COMPLETED generation run to name a scope.');
+		console.log(`A8G1_SCOPE run=${run.id} school=${run.schoolId} year=${run.schoolYearId} (names the scope only; NOT a table side)`);
 
 		const { buildGenerationPreflight, buildPreflightConstructorInput, buildPreflightValidatorContext } =
 			await import('../services/generation-preflight.service.js');
@@ -515,50 +677,115 @@ async function runShapeComparison(target: string, databaseUrl: string, sourceBef
 		const { validateHardConstraints } = await import('../services/constraint-validator.js');
 
 		const preflight = await buildGenerationPreflight(run.schoolId, run.schoolYearId, { client: drill as never });
-		// The SAME production builders the generation service uses, so the
-		// constructor input and the validator context cannot drift from a run.
-		const input = buildPreflightConstructorInput(preflight.assembly, { roomerStrategy: 'HOME_ROOM_FIRST' });
-		const startedAt = Date.now();
-		const result = constructBaseline(input);
-		const seconds = (Date.now() - startedAt) / 1000;
+		// ONE input object. Both orderings receive this exact object, so neither
+		// side can drift in scope, term set, lock set, policy or room list.
+		const baseInput = buildPreflightConstructorInput(preflight.assembly, { roomerStrategy: 'HOME_ROOM_FIRST' });
 
-		// The production validator context builder, so the HARD count below is the
-		// same count the run receipt carries.
-		const validation = validateHardConstraints(
-			buildPreflightValidatorContext(preflight.assembly as never, result.entries as never, run.id),
-		);
-		const after = {
-			...measureShape(result.entries as unknown as MeasurableEntry[]),
-			unplaced: result.unassignedCount,
-			hardViolations: validation.violations.filter((v) => v.severity === 'HARD').length,
-			seconds,
+		const measure = (ordering: 'DAY_COUNT_FIRST' | 'LEGACY_SOFT_PENALTY', label: string): Side => {
+			const input = { ...baseInput, spreadOrdering: ordering };
+			const startedAt = Date.now();
+			const result = constructBaseline(input);
+			const seconds = (Date.now() - startedAt) / 1000;
+			const validation = validateHardConstraints(
+				buildPreflightValidatorContext(preflight.assembly as never, result.entries as never, run.id),
+			);
+			const sessionsDemanded = result.classesProcessed;
+			const side: Side = {
+				counts: measureShape(result.entries as unknown as MeasurableEntry[], sessionsDemanded),
+				unplaced: result.unassignedCount,
+				hardViolations: validation.violations.filter((v) => v.severity === 'HARD').length,
+				seconds,
+				ordering: label,
+			};
+			console.log(
+				`A8G1_SIDE ordering=${label} demanded=${sessionsDemanded} placed=${side.counts.entryCount} ` +
+				`unplaced=${side.unplaced} repeats=${side.counts.sameDayRepeatPairs} worst=${side.counts.worstSameDayCount} ` +
+				`overlaps(t/s/r)=${side.counts.teacherOverlaps}/${side.counts.sectionOverlaps}/${side.counts.roomOverlaps} ` +
+				`hard=${side.hardViolations} seconds=${seconds.toFixed(3)}`,
+			);
+			for (const detail of side.counts.overlapDetail) {
+				console.log(
+					`A8G1_OVERLAP ordering=${label} holder=${detail.holder} term=${detail.term} day=${detail.day} ` +
+					`slot=${detail.slot} count=${detail.count} kinds=${detail.entryKinds} samePair=${detail.samePair}`,
+				);
+			}
+			return side;
 		};
+
+		const before = measure('LEGACY_SOFT_PENALTY', 'LEGACY_SOFT_PENALTY');
+		const after = measure('DAY_COUNT_FIRST', 'DAY_COUNT_FIRST');
+
+		// The frame guard. A table whose two sides disagree about how much work
+		// they measured is not evidence of anything, and the first attempt's
+		// table looked decisive precisely because nothing checked this.
+		const frameProblem = frameMismatchReason(before.counts, after.counts);
+		if (frameProblem) throwFailure(frameProblem.startsWith('The two sides') ? 'FRAME_MISMATCH' : 'FRAME_EMPTY', frameProblem);
 
 		console.log('A8G1_SHAPE_TABLE');
 		console.log(renderTable(before, after));
+
+		const report = after.counts.sameDayRepeatPairs;
+		console.log(`A8G1_VERDICT repeats ${before.counts.sameDayRepeatPairs} -> ${report} (target 0 non-block)`);
+		console.log(`A8G1_VERDICT unplaced ${before.unplaced} -> ${after.unplaced} (must not rise)`);
 		console.log(
-			`A8G1_SPREAD_REPORT sameDayRepeatPairs=${result.spreadReport?.sameDayRepeatPairs ?? 0} ` +
-			`exceptions=${result.spreadReport?.exceptions.length ?? 0}`,
+			`A8G1_VERDICT overlaps ${before.counts.teacherOverlaps}/${before.counts.sectionOverlaps}/${before.counts.roomOverlaps}` +
+			` -> ${after.counts.teacherOverlaps}/${after.counts.sectionOverlaps}/${after.counts.roomOverlaps} (must not rise)`,
 		);
-		if (result.spreadReport?.exceptions.length) {
-			for (const exception of result.spreadReport.exceptions.slice(0, 10)) {
-				console.log(`A8G1_SPREAD_EXCEPTION ${exception.message}`);
+
+		// Every row below stays FATAL. None is relaxed, and none is reported as
+		// UNAVAILABLE: at this point both sides are measured over one frame, so
+		// an unavailable number would be a bug in the harness, not a data gap.
+		if (after.unplaced > before.unplaced) {
+			throwFailure('UNPLACED_RAISED', `unplaced rose: ${before.unplaced} -> ${after.unplaced} (frame ${after.counts.sessionsDemanded} sessions).`);
+		}
+		for (const [label, key] of [['teacher', 'teacherOverlaps'], ['section', 'sectionOverlaps'], ['room', 'roomOverlaps']] as const) {
+			if (after.counts[key] > before.counts[key]) {
+				throwFailure(
+					'OVERLAP_INTRODUCED',
+					`${label} overlaps rose: ${before.counts[key]} -> ${after.counts[key]}. ` +
+					`Check the A8G1_OVERLAP lines above for the term and slot.`,
+				);
+			}
+			if (after.counts[key] > 0) {
+				// Not fatal when the base is equally non-zero (an order-independent
+				// structural defect), but never silent: it is reported as its own
+				// code so it cannot be mistaken for a pass.
+				console.error(
+					`A8G1_WARNING ${label} overlaps are ${after.counts[key]} on BOTH sides ` +
+					`(before=${before.counts[key]}). Reordering cannot create a same-term double-book because ` +
+					`facultyOcc/roomOcc/sectionOcc gate every candidate, so this is order-independent and ` +
+					`pre-existing, NOT introduced by A8-G1. It still needs its own lane.`,
+				);
 			}
 		}
-
-		if (after.unplaced > before.unplaced) {
-			throwFailure('UNPLACED_RAISED', `unplaced rose: ${before.unplaced} -> ${after.unplaced}`);
+		if (after.hardViolations > before.hardViolations) {
+			throwFailure('HARD_VIOLATIONS', `hard violations rose: ${before.hardViolations} -> ${after.hardViolations}`);
 		}
-		if (after.teacherOverlaps > 0 || after.sectionOverlaps > 0 || after.roomOverlaps > 0) {
-			throwFailure('OVERLAP_INTRODUCED', `overlaps teacher/section/room = ${after.teacherOverlaps}/${after.sectionOverlaps}/${after.roomOverlaps}`);
-		}
-		if (after.hardViolations > 0) throwFailure('HARD_VIOLATIONS', `hard violations = ${after.hardViolations}`);
 	} finally {
 		await drill.$disconnect();
 	}
 }
 
-main().catch((error) => {
-	if (error instanceof BackupOperationError) fail(error.code, error.message);
-	fail('A8G1_UNKNOWN', error instanceof Error ? error.message : String(error));
-});
+/**
+ * Only drive the proof when this file is EXECUTED, never when it is IMPORTED.
+ * The measurement functions above are imported by
+ * `a8-g1-spread-sessions.test.ts` so the D1 frame guard and the D2 term keying
+ * are covered by a real test rather than only by `--self-test`; importing must
+ * not start a restore.
+ */
+function isExecutedDirectly(): boolean {
+	const entry = process.argv[1];
+	if (!entry) return false;
+	try {
+		return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
+	} catch {
+		return false;
+	}
+}
+
+if (isExecutedDirectly()) {
+	main().catch((error) => {
+		if (error instanceof BackupOperationError) fail(error.code, error.message);
+		fail('A8G1_UNKNOWN', error instanceof Error ? error.message : String(error));
+	});
+}

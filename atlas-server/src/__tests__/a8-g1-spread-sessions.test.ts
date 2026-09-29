@@ -25,7 +25,9 @@ import {
 	isDeclaredBlockSubject,
 	type ConstructorInput,
 	type LockedEntryInput,
+	type SpreadOrdering,
 } from '../services/schedule-constructor.js';
+import { frameMismatchReason, measureShape, type MeasurableEntry } from '../scripts/a8-g1-live-shape-proof.js';
 
 const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
 
@@ -135,20 +137,34 @@ const FIL_DEMAND = [
 
 /**
  * The "tight rooms" of the packet fixture: the home room is free on MONDAY and
- * already taken on every other day. Those two locks are what made the old
- * `+2.5` / `-0.5` terms cancel to an exact 3.0 tie.
+ * taken on EVERY other day, at EVERY period. Those locks are what made the old
+ * `+2.5` / `-0.5` terms cancel to an exact 3.0 tie on Tue–Fri.
+ *
+ * Every period matters. An earlier version of this fixture locked only period 0
+ * on Tue–Fri, which left the home room free at periods 1-4 and therefore gave
+ * the legacy comparator a 0.5 candidate on those days too — at which point
+ * legacy ALSO spread, and the fixture stopped reproducing the defect it exists to
+ * reproduce. It is also why the local mutant below and this fixture must agree
+ * on the room state: the mutant treats `busy` as a whole-day property, so the
+ * fixture has to make it one.
  */
 function homeRoomBusyExceptMondayLocks(): LockedEntryInput[] {
-	return (['TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const).map((day) => ({
-		sectionId: LOCK_SECTION_ID,
-		subjectId: LOCK_SUBJECT_ID,
-		facultyId: LOCK_FACULTY_ID,
-		roomId: HOME_ROOM_ID,
-		day,
-		startTime: PERIODS[0].startTime,
-		endTime: PERIODS[0].endTime,
-		entryKind: 'SECTION',
-	}));
+	const locks: LockedEntryInput[] = [];
+	for (const day of ['TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const) {
+		for (const period of PERIODS) {
+			locks.push({
+				sectionId: LOCK_SECTION_ID,
+				subjectId: LOCK_SUBJECT_ID,
+				facultyId: LOCK_FACULTY_ID,
+				roomId: HOME_ROOM_ID,
+				day,
+				startTime: period.startTime,
+				endTime: period.endTime,
+				entryKind: 'SECTION',
+			});
+		}
+	}
+	return locks;
 }
 
 /**
@@ -196,6 +212,11 @@ function buildInput(lockedEntries: LockedEntryInput[], demandOverride: unknown[]
 		lockedEntries,
 		demandOverride,
 	} as unknown as ConstructorInput;
+}
+
+/** The same input object with only the ordering seam changed. */
+function withOrdering(input: ConstructorInput, ordering: SpreadOrdering): ConstructorInput {
+	return { ...input, spreadOrdering: ordering };
 }
 
 function entriesForSection(entries: ReadonlyArray<{ subjectId: number; sectionId: number; day: string }>) {
@@ -480,4 +501,187 @@ test('A8-G1 5c: a subject with more sessions than days fills evenly before doubl
 	const heavyMax = Math.max(...DAYS.map((day) => heavyPlaced.filter((entry) => entry.day === day).length));
 	assert.equal(heavyMax, 3, 'the heaviest day is exactly the cap, never more');
 	assert.equal(heavyResult.spreadReport?.sameDayRepeatPairs, 0, 'reaching the cap is not a breach');
+});
+
+// ─── 6. D1: THE TWO SIDES OF THE PROOF MUST SHARE ONE FRAME ─────────────────
+// The first proof attempt compared a saved 3-term run (2730 entries) against one
+// constructor invocation (920 sessions) and produced a table that read as
+// decisive. Nothing checked the frame, so every row in it was unquotable. These
+// rows are the ones that must never be deleted.
+
+test('A8-G1 6: both orderings are measured over the SAME input and the SAME frame', () => {
+	const input = buildInput(homeRoomBusyExceptMondayLocks());
+	const legacy = constructBaseline(withOrdering(input, 'LEGACY_SOFT_PENALTY'));
+	const production = constructBaseline(withOrdering(input, 'DAY_COUNT_FIRST'));
+
+	// The frame: how much work each side was asked to do. Identical by
+	// construction, and asserted rather than assumed. It is 25, not 5, because
+	// `classesProcessed` counts the 20 ACCEPTED locks as well as the five
+	// sessions — and both sides must count them identically, which is part of
+	// what makes the two sides comparable.
+	assert.equal(legacy.classesProcessed, production.classesProcessed, 'both sides demand the same work');
+	assert.equal(legacy.classesProcessed, 25, '20 accepted locks + 5 sessions, on both sides');
+	assert.equal(legacy.assignedCount, 25, 'and every one is placed, on both sides');
+	assert.equal(legacy.unassignedCount, 0);
+	assert.equal(
+		frameMismatchReason(
+			measureShape(legacy.entries as unknown as MeasurableEntry[], legacy.classesProcessed),
+			measureShape(production.entries as unknown as MeasurableEntry[], production.classesProcessed),
+		),
+		null,
+		'the D1 frame guard must pass for a same-input comparison',
+	);
+
+	// And the one variable that differs really is the ordering.
+	const legacyDays = new Set(entriesForSection(legacy.entries).map((entry) => entry.day));
+	const productionDays = new Set(entriesForSection(production.entries).map((entry) => entry.day));
+	assert.equal(legacyDays.size, 1, 'the legacy comparator puts every session on one day');
+	assert.equal(productionDays.size, 5, 'and the production comparator spreads them');
+	assert.deepEqual(legacy.entries.length, production.entries.length, 'both sides place the same number of sessions here');
+});
+
+test('A8-G1 6b: the frame guard REJECTS the first attempt\'s own table shape', () => {
+	// 2730 entries from a 3-term run against 920 sessions from one week.
+	const multiTerm = measureShape(
+		Array.from({ length: 2730 }, (_, index) => ({
+			facultyId: 1, roomId: 1, subjectId: 1, sectionId: 27,
+			day: 'MONDAY', startTime: '07:30', endTime: '08:15',
+		})),
+		2730,
+	);
+	const oneWeek = measureShape(
+		Array.from({ length: 855 }, (_, index) => ({
+			facultyId: 1, roomId: 1, subjectId: 1, sectionId: 27,
+			day: 'MONDAY', startTime: '07:30', endTime: '08:15',
+		})),
+		920,
+	);
+	const reason = frameMismatchReason(multiTerm, oneWeek);
+	assert.notEqual(reason, null, 'a 3-term run and a one-week run are NOT comparable, and the guard must say so');
+	assert.match(reason as string, /2730/);
+	assert.match(reason as string, /920/);
+});
+
+test('A8-G1 6b2: the frame guard also rejects an empty frame', () => {
+	const empty = measureShape([], 0);
+	assert.notEqual(frameMismatchReason(empty, empty), null, 'zero sessions is not a comparison');
+});
+
+// ─── 7. D2: OVERLAPS ARE TERM-KEYED, BUT A SAME-TERM CLASH IS STILL FATAL ───
+
+test('A8-G1 7: a re-teach in a different term is not an overlap', () => {
+	// The artifact the first attempt measured: the same teacher, room and slot in
+	// T1 and again in T2 is a legitimate rotation, not a double-book.
+	const counts = measureShape(
+		[
+			{ facultyId: 5, roomId: 40, subjectId: 1, sectionId: 30, day: 'MONDAY', startTime: '07:30', endTime: '08:15', termIndex: 1 },
+			{ facultyId: 5, roomId: 40, subjectId: 2, sectionId: 30, day: 'MONDAY', startTime: '07:30', endTime: '08:15', termIndex: 2 },
+		],
+		2,
+	);
+	assert.equal(counts.teacherOverlaps, 0, 'a cross-term re-teach is not a teacher overlap');
+	assert.equal(counts.roomOverlaps, 0, 'nor a room overlap');
+	assert.equal(counts.sectionOverlaps, 0, 'nor a section overlap');
+});
+
+test('A8-G1 7b: a double-book inside ONE term is still counted and is reported by term and slot', () => {
+	const counts = measureShape(
+		[
+			{ facultyId: 5, roomId: 40, subjectId: 1, sectionId: 30, day: 'MONDAY', startTime: '07:30', endTime: '08:15', termIndex: 1 },
+			{ facultyId: 5, roomId: 41, subjectId: 2, sectionId: 31, day: 'MONDAY', startTime: '07:30', endTime: '08:15', termIndex: 1 },
+		],
+		2,
+	);
+	assert.equal(counts.teacherOverlaps, 1, 'a genuine same-term double-book must never be filtered away');
+	const detail = counts.overlapDetail[0];
+	assert.ok(detail, 'and it must be reported so it can be checked');
+	assert.equal(detail.holder, 't5');
+	assert.equal(detail.term, 'T1');
+	assert.equal(detail.day, 'MONDAY');
+	assert.equal(detail.slot, '07:30-08:15');
+	assert.equal(detail.samePair, false, 'two different pairs collided');
+});
+
+test('A8-G1 7c: the constructor leaves a concurrent lane unterm-ed, and that is its own bucket', () => {
+	// `constructBaseline` sets `termIndex: sessionTermIndex`, which is undefined
+	// for a non-modular lane. Two such lanes for one teacher in one slot must
+	// still collide.
+	const counts = measureShape(
+		[
+			{ facultyId: 6, roomId: 42, subjectId: 1, sectionId: 32, day: 'TUESDAY', startTime: '07:30', endTime: '08:15' },
+			{ facultyId: 6, roomId: 43, subjectId: 2, sectionId: 33, day: 'TUESDAY', startTime: '07:30', endTime: '08:15' },
+		],
+		2,
+	);
+	assert.equal(counts.teacherOverlaps, 1, 'two concurrent lanes for one teacher in one slot DO overlap');
+	assert.equal(counts.overlapDetail[0]?.term, 'CONCURRENT');
+});
+
+test('A8-G1 7d: NEITHER ordering can create an overlap, because occupancy gates every candidate', () => {
+	// The structural reason the "75 teacher overlaps" cannot be attributed to
+	// this change: `facultyOcc`/`roomOcc`/`sectionOcc` gate every candidate, and
+	// A8-G1 only reorders the candidate list. Both orderings must agree.
+	for (const ordering of ['LEGACY_SOFT_PENALTY', 'DAY_COUNT_FIRST'] as SpreadOrdering[]) {
+		const result = constructBaseline(withOrdering(buildInput(homeRoomBusyExceptMondayLocks()), ordering));
+		const counts = measureShape(result.entries as unknown as MeasurableEntry[], result.classesProcessed);
+		assert.equal(counts.teacherOverlaps, 0, `${ordering}: a teacher is never double-booked`);
+		assert.equal(counts.roomOverlaps, 0, `${ordering}: a room is never double-booked`);
+		assert.equal(counts.sectionOverlaps, 0, `${ordering}: a section is never double-booked`);
+	}
+});
+
+// ─── 8. THE UNPLACED MECHANISM: what spreading actually changes ─────────────
+//
+// The first attempt reported unplaced 10 -> 65. That comparison was between two
+// different frames, so the rise is not yet attributable. What IS attributable,
+// and is provable offline, is the MECHANISM the planner named: forcing a session
+// onto an unused day changes WHICH days the section occupies, and therefore the
+// residual grid every later demand item sees.
+//
+// These rows pin that mechanism's observable signature. They deliberately do NOT
+// claim to reproduce the live magnitude of 55 — that needs the real restored
+// inputs, and fabricating a fixture that "reproduced" it would prove a
+// constraint I invented rather than the one that binds on live.
+
+test('A8-G1 8: spreading raises the number of days a pair occupies, leaving less residual grid', () => {
+	const input = buildInput(homeRoomBusyExceptMondayLocks());
+	const legacy = constructBaseline(withOrdering(input, 'LEGACY_SOFT_PENALTY'));
+	const production = constructBaseline(withOrdering(input, 'DAY_COUNT_FIRST'));
+
+	const occupiedDays = (entries: Array<{ subjectId: number; sectionId: number; day: string }>) =>
+		new Set(entriesForSection(entries).map((entry) => entry.day)).size;
+
+	assert.equal(occupiedDays(legacy.entries), 1, 'legacy packs the pair onto one day');
+	assert.equal(occupiedDays(production.entries), 5, 'production occupies five days for the same five sessions');
+
+	// The cost side: the section's own occupancy is what every LATER demand item
+	// has to route around. The pair still consumes exactly five section-slots —
+	// the spread does not consume more work, it redistributes it across days.
+	const sectionSlots = (entries: Array<{ subjectId: number; sectionId: number }>) => entriesForSection(entries).length;
+	assert.equal(sectionSlots(legacy.entries), 5, 'the pair consumes five section-slots under legacy');
+	assert.equal(sectionSlots(production.entries), 5, 'and exactly five under the spread — same total, different days');
+
+	// The residual grid is the thing that changes. Count the (day, period) cells
+	// this SECTION leaves free for its next subject, per day.
+	const freeCellsPerDay = (entries: Array<{ sectionId: number; day: string; startTime: string }>, sectionId: number) => {
+		const taken = new Set(entries.filter((e) => e.sectionId === sectionId).map((e) => `${e.day}|${e.startTime}`));
+		return (day: string) => PERIODS.filter((p) => !taken.has(`${day}|${p.startTime}`)).length;
+	};
+	const legacyFree = freeCellsPerDay(legacy.entries, SECTION_ID);
+	const productionFree = freeCellsPerDay(production.entries, SECTION_ID);
+
+	// Legacy leaves 4 of 5 periods free on ONE day and all 5 free on the other
+	// four. The spread leaves 4 free on every day. A later subject that needs a
+	// contiguous block is served better by the legacy shape and worse by the
+	// spread one — which is the mechanism, stated as a measurement.
+	assert.equal(legacyFree('MONDAY'), 0, 'legacy fills Monday completely');
+	assert.equal(legacyFree('TUESDAY'), 5, 'and leaves Tuesday entirely free');
+	assert.equal(productionFree('MONDAY'), 4, 'the spread leaves 4 free on Monday');
+	assert.equal(productionFree('TUESDAY'), 4, 'and 4 free on Tuesday as well');
+
+	// On this fixture, where the grid is not binding, the redistribution costs
+	// nothing. That is the honest scope of the offline claim: the rise is
+	// capacity-dependent and only the restored live inputs can decide it.
+	assert.equal(production.unassignedCount, legacy.unassignedCount, 'on a non-binding grid, unplaced is unchanged');
+	assert.equal(production.unassignedCount, 0);
 });
