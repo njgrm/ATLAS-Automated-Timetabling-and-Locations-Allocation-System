@@ -1,5 +1,60 @@
 # A2 -> Lane C: what I need tested, and what I need answered
 
+## A5 -> Lane C, 2026-09-29 ~13:55 +08 - **A5 c5 ON `main` at `6ddbea57`** - Room Schedules answers three questions and no longer asks for a run id
+
+**0 fixes live and seen / 1 integrated on `main` / 0 dropped.** **A4 owns the deploy; A5 has not deployed and will not (§14).**
+Packet `docs/prompts/a5-room-schedules-2026-09-29.md`, your 09:45 direction: *"We need to change room schedules as well since it's confusing right now."*
+Client-only, 11 paths. On `main` as `6ddbea57`; the accepted candidates are `78541ef4` + `57517239` + follow-up `1de9d213`, all three proven ancestors of `origin/main`.
+
+### What changed, in your words
+
+| Your question | What a scheduler now does |
+|---|---|
+| *"What is in **Room 101** on Tuesday?"* | **1 click.** Rooms are the default mode; the week grid below answers it in plain words (subject, section, room). |
+| *"Where is **this teacher** at 10:00 on Monday?"* | **2 clicks.** `Show: [Room / Teacher / Section]`, then one searchable name picker. |
+| *"What is **Grade 7 – section X**'s week?"* | **2 clicks**, same control. |
+
+**No run id on screen, anywhere.** The `Generation run ID` box and its *"Use a whole number above 0."* error are gone, the `Latest/Run` toggle is gone, and the stat banner that ended `Run #412 · COMPLETED` now reads one quiet sentence - *"Showing the timetable made on 29 Sept"* - built from the loaded view's own `source.generatedAt`. An older timetable is still reachable behind a small **dated** disclosure that lists **dates, not ids**; the run id travels internally only.
+
+Also gone: the "How to browse schedules" panel, a **second** term picker that existed only to unblock a download, and the separate "Showing-term" chip. **14 on-screen elements removed against 4 added.** One primary action, `Print this schedule`. The page ends calmer and shorter in what it asks of you, which was the actual complaint.
+
+### The rows I owe you - all browser rows, all UNPERFORMED, reason `NEEDS_SESSION(lane-a5/playwright-mcp)`
+
+`/room-schedules` redirects to `/login` at 1366x768 in every profile available to this lane. The executor, both QA rounds and I each reproduced it independently. **No credential was typed into a browser field** (§12 - a QA credential was once found in 8 plaintext files plus a transcript) and **no mocked harness was dressed up as acceptance**. I note `scripts/dev/ensure-staging-qa-account.cjs` and `docs/prompts/a4-staging-qa-access-2026-09-29.md` just landed on `main`; if that seeds a session, these become runnable immediately.
+
+1. The three questions answered, with **real click counts** (I claim 1 / 2 / 2 from source; nobody has seen it).
+2. The Mon–Fri grid at **1366x768 with no horizontal scroll**.
+3. Rendered absence of "run id" / "Run #" / the id value from the DOM.
+4. `Print this schedule` actually opens.
+5. **The §8 design judgement, before/after at 1366x768 - UNJUDGED, and this is the one I care about most.** Your own record is that changes here pass every test and still feel like cramming, and a test that counts resolver calls is not a render. **Row 5 gates the demo.**
+
+**Please rule specifically on:** does the header sit in two calm rows or has it been crammed into three? Is `Showing the timetable made on 29 Sept` quiet enough, or is it a chip that should not be a chip? Does the empty state read as one honest sentence per cause? (Four distinct refusals now, each with its own title **and** its own next step - see below.)
+
+### What the review actually cost, so you know what you are inheriting
+
+Two QA rounds, both `CORRECTION_REQUIRED`, and the §11 two-round budget was spent with 2 blocking findings open - an inert `Try again` button, and 12 non-ASCII characters destroyed into 38 literal `?` by a lossy PowerShell write. Rather than ship either, I opened a **separate follow-up candidate** with its own review round. Fresh QA on it: **`ACCEPT_READY` 12/12/0/0**. Two NON_BLOCKING findings recorded rather than fixed:
+
+- **F1** - `Try again` gives no progress cue: it re-reads the term authority silently, and on failure the screen is byte-identical, so an older user cannot tell a working re-read from a dead control. One line to fix; I judged it below the cost of another round. **It is a feel judgement, so it is yours to make on a render.**
+- **F2** - `More > Refresh` still calls `fetchSchedule` directly. Not reachable during a refusal today, but if a future packet re-exposes the header it becomes the same dead end.
+
+### Two cross-lane findings you should know about, because both were mine
+
+**The empty-state regression was real and I nearly shipped it.** The candidate hardcoded *"No timetable to show yet"* over all four refusal causes - false in three of them, and self-contradicting on screen (a body saying "not a missing timetable" under a heading saying there is none). It had also **dropped a control the base rendered**. Fixed: a required `reason` discriminator, four verbatim title+action pairs, and the repo's own `UNVERIFIED_TERM_TITLE` **imported, not restated**. The four refusals still refuse before any request; only the wording had been lying.
+
+**The palette ratchet: four pre-existing reds removed, and I did not re-pin anything to hide a diagnosis.** Emptying Room Schedules moved three ratchet pins that had been computed against my branch's original base, and the stale `PINNED_FILE_COUNT` was **masking the ratchet suite's own 106-vs-95 debt rows** - which the file itself calls "worse than a wrong one". Re-derived live on the merged tree, method and measured file-list delta recorded inline:
+
+| suite | `origin/main` `a87636b0` | A5 c5 on `main` |
+|---|---|---|
+| `test:a3-palette-token-sweep` | 9/8/1 | **9/9/0** |
+| `test:a3-palette-ratchet-s-e` | 5/3/2 | **5/5/0** |
+| `test:a3-palette-slate400-s-f` | 9/8/1 | **9/9/0** |
+
+The corpus total falls **106 → 95**, which is exactly the pinned target: emptying the page is what finally made the code meet the ratchet. `PINNED_TOTAL` untouched. One of those four was **A9 c3's** - they set `CampusMapOverview` 10 → 9 in the sweep file and left the `slate400` mirror at 10, red on main before I touched anything; I fixed the mirror to the measured 9 and named it in the commit. **`test:a3-page-title-c1` is 10/4**: the `currentPageTitle` red A5 c4 left is **green** (it was a prop, not a second title - the test's regex counted `pageName={currentPageTitle}` as a render), and the **4 remaining are A3 c13's Teacher Concerns rows, untouched and not re-pinned.** `client-suite` 1289/1250/39, identical to base. `typecheck` exactly the 5 dated base reds.
+
+**Nothing on this page is deployed.** I did not touch 5001/5174 or staging, did not generate, publish, migrate or apply anything, and did not run a live-data write.
+
+**Worktrees:** `lane-a5-c5-room-schedules` and `lane-a5-c5-r2` `RETIRE_AFTER_INTEGRATION` (now pushed, so retired in this closure); `lane-a5-c3-20260929` stays `KEEP_ACTIVE` - it is the `node_modules` junction donor for this lane and its two release conditions are still unjudged.
+
 ## A3 -> Lane C + A4, 2026-09-29 ~10:5x +08 - **A3 ready for release at `MERGE_SHA`** - Teacher Concerns is the ONE page a scheduler fills while talking to a teacher
 
 **0 fixes live and seen / 1 integrated on `main` / 0 dropped.** **A4 owns the deploy; A3 has not deployed and will not (§14).**
