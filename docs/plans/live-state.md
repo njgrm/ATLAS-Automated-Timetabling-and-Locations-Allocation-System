@@ -4662,6 +4662,70 @@ decidable from source. Worktrees `lane-a3-c10-{s1-sections,s3-tldensity,s4-teach
 
 ## Lane A6 — current lane (written only by Planner A6)
 
+- **`A6 ready for release at a3819321` (2026-09-29 ~11:0x +08, packet c6, Lane C's 06:58 A6 bullet). Candidate
+  `fef084b7` + `e6aeb3ed` + `bc97e1d8` over base `a1f0c727` (= `origin/main` at authoring).
+  0 fixes live and seen / 6 integrated, seen only on an isolated loopback / 0 dropped.** Packet
+  `docs/prompts/a6-c6-calm-teaching-load-2026-09-29.md`; rulings + base proof
+  `docs/reviews/a6-c6-calm-teaching-load-20260929/planner-rulings.md`. **NOT deployed — A4 owns every release
+  (§14).** Client-only: 14 non-docs paths, all `atlas-client/`, **zero** `atlas-server/`/`prisma/`/`ops`/lockfile/
+  `.env`/migration/seed.
+- **The six items, in Lane C's words.** `CROSS-DEPT` → **"Show teachers outside their subject area"**,
+  `UNMAPPED SPECIALIZATION` → **"Show teachers with no matched subject"** (caps gone, ids unchanged; the editor's
+  `Cross-Department` → "Outside their subject area"). `Load summary` off header row 1 into `More`, leaving **one**
+  main button. `Sort: Lowest load` was **measured `clipped: true` at 1366** and now reads `Sort: Load, low` — all four
+  pickers one `xl` variant, none clipped. The withheld figure and the saved-data line both say what is unavailable in
+  plain words (four distinguishable sentences, no product name, no "withheld"); the technical cause moved to a
+  `Tooltip` and a `Help` step; the existing `Retry source` is the one recovery action — enabled online,
+  present-and-disabled-with-a-reason offline. 20 cards: the per-teacher department line, the `Subjects` count and one
+  dead `aria-hidden` node are gone from every row (**62px → 58px measured**).
+- **The §11 design gate: the subtraction is real.** The two inclusion switches moved into one `More filters` popover
+  **on the same row**, trigger stating the on-count — net **−432px, −1 control**, which is what pays for the two plain
+  sentences at 1366. Measured: −1 header control, −2 always-on switches, −3 regions × 20 rows, **+0 chips, +0 visible
+  sentences, +0 rows**. §0.3 records why `Edit assignments` **stays**: it is the only explicit edit entry and two
+  accepted reviewed rows assert it.
+- **Rendered before/after**, same worktree, 1366×768, same mock, degraded (`ISOLATED_LOCAL_BROWSER`, **not** ATLAS
+  acceptance): filter row 1078/1078 `fits`, **every trigger `clipped: false`**, no global scrollbar, 20 rows, first
+  row **58px**. Captures `%TEMP%/opencode/a6c6-{BEFORE,AFTER}-*`.
+- **QA `PLANNER_DECISION_REQUIRED` 32 rows / 30 pass / 1 blocked / 1 unperformed, no `REJECT_UX`, no source defect.**
+  QA re-verified encoding on absolute paths: `WorkspaceToolbar.tsx` **55 em dashes vs 54 at base**, 0 U+FFFD — the
+  §2 round-trip damage is provably restored. **Both decisions were mine and both are ruled**: (i) `a5-p3-picker-guard`
+  7 pass → **6 pass + 1 skip** satisfies the gate table (`A5-C3-P3-2b`'s own text directed its removal; `A6C6-1` is
+  strictly stronger); (ii) the failing-first record QA refused as executor-asserted is now **measured at the base** —
+  the new gate in a throwaway detached worktree at `a1f0c727`: **`tests 10 · pass 0 · fail 10`**, every row red by
+  name, against `11/0` at the candidate; the `node_modules` junction was removed **first**, then non-forced
+  `worktree remove` + `prune`. Plus 11 mutants, each red, each restored.
+- **One lane overlap at integration, settled not merged past.** `origin/main` moved 49 commits under this range and
+  two paths overlapped, one **semantically**: A5 C4 had added an `auto` width variant to `@/ui/picker-trigger` for
+  `/subjects`' `More filters`, for the same reason c6 had just added a duplicate token to the same file. The text
+  merged clean — only a row demanding ONE mechanism made the duplication visible. **A5's shape is adopted** (a
+  content-sized trigger is a *width*), the duplicate is **retired not renamed**, and that closed a **false failure**
+  A5's variant introduced (`pickerTriggerFaceFits` returned `false` for `auto`/`fill`, faces that cannot clip). One
+  cross-lane edit to A5's `A5-C3-P3-3`: the `pickerTriggerClass` match narrowed from a **call** to a **declaration**
+  because it rejected the correct change — with a **new positive control `A5-C3-P3-3b`** proving all five
+  re-declarations are still caught.
+- **Merged-tree gates:** `a6-c6-calm-tl` 11/0 · `a6-teaching-load` 31/0 (base 29/0) · `a3-teachers-load` 43/0 + 7
+  sanctioned skips · `a6-tl-header-budget` 9/0 · `a3-c10-tl-density` 9/0 · `a3-c4-tl-truth` 14/0 · `a5-p3-picker-guard`
+  7/0 + 1 sanctioned skip · `a5-c3-subjects-calm-surface` 23/0 · `a5-c4-filter-disclosure` 10/0 (A5's) ·
+  `a6-c5-outage` 23/0 · `a3-c10-workload-audit` 12/0 · `tl-no-demand-hotfix` 5/0 · `typecheck` **5 errors, identical to
+  base**. Other lanes', named so they are not re-litigated: `a3-truthful-numbers` 19/1 (A3's placeholder row);
+  `a3-title-strip-c3` 14/1 — **improved from base 13/2**, this range genuinely fixed `WorkspaceToolbar must not carry a
+  local copy of the strip row` via the shared `@/ui` `bandRow` token; the one left is `AdminWorkspace.tsx` 21-vs-20
+  (A5/A7's, untouched).
+- **Dated 2026-09-29 — NOT claimed rendered.** `A6C6-1b`'s `Temporary substitutes` heading has **no rendered
+  evidence**: the default filter excludes temporary roles in the mock, so it never mounts. Evidence is a source guard
+  plus a mutant. **Lane C's staging walk on `:8443` after A4 deploys closes it** (assert the origin); no loopback
+  capture ever can. Also owed as deployment-acceptance clauses, to be re-measured independently on staging: per-trigger
+  `scrollWidth <= clientWidth`, header control count, first teacher row's height.
+- **Next row, not this one (NON_BLOCKING):** `NO STANDARD SET` (`TeacherLoadReadout.tsx`) and the `Draft` badge's
+  `uppercase` are still shouted per row — unchanged files, excluded by packet §1.1, the next rubric item.
+  `WorkspaceToolbar.tsx` is at **966 physical lines — 34 of headroom**; extract before the next edit there. Two packet
+  corrections so they are not quoted again: §1.3.2's "1235px one line" omits `draftControls` and the row **wraps**;
+  `useTeachingLoadUI.ts` is a **fourteenth** changed file the packet did not enumerate.
+- **Worktree:** `E:/ATLAS-worktrees/lane-a6-c6-calm-tl` = `RETIRE_AFTER_INTEGRATION`, left for A4 (§14 E: capacity).
+  Real `node_modules` (278 packages), never junctioned. `lane-a6-c6-baseproof` created and removed this cycle. Branch
+  pushed; **no branch deleted.** `E:` 32.64 GiB after the install — above the §3 warn line, **no reclaim triggered by
+  this cycle**; A4 owns the trigger. Next A6 cycle: fresh session, no packet written.
+
 - **`A6 ready for release at e2ff35ba` (2026-09-29, packet c5, written by Lane C on A6's behalf). Candidate
   `bcccddc7` over base `b768dba8` (= `316534f2` + packet). 0 fixes live and seen / 5 integrated and NOT seen
   rendered / 0 dropped.** Packet `docs/prompts/a6-c5-outage-placeholders-2026-09-29.md`; handoff and layout note
