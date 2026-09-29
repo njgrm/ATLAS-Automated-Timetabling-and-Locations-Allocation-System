@@ -806,8 +806,22 @@ test('control 5: the ratchet fell for exactly the reason this file states', () =
 	}
 	assert.equal(
 		EXPECTED_FILE_COUNT,
-		PRE_SWEEP_FILES - 6,
-		'the expected file count is not the pre-sweep file count minus the six files this sweep emptied',
+		// A5 C4 ITEM 5 CORRECTION ROUND 1 (F3): the `+ 1` is the EXTRACTION term, and it
+		// belongs on BOTH sides of this derivation. The A5 C4 item-5 change split
+		// `/audit`'s findings panel out of `pages/Audit.tsx` to bring that page under the
+		// AGENTS.md §8 line cap. The sweep did not empty a file and did not touch a
+		// single residual class - it moved four of them into a new file, so the RESIDUAL
+		// TOTAL is unchanged and the FILE COUNT rises by exactly one. Leaving this
+		// assertion as `PRE_SWEEP_FILES - 6` while `EXPECTED_FILE_COUNT` said 29 made
+		// the two halves of the suite contradict each other, and it did so in the worst
+		// possible direction: control 5 then aborted HERE, on a self-inflicted
+		// arithmetic error, BEFORE reaching the line below that reports the real
+		// pre-existing debt (the ratchet-scope residual measuring 108 against the
+		// pinned 95). An honest number that HIDES a diagnosis is worse than a wrong
+		// one, and the suite's failure count staying at 9/7/2 is exactly the AGENTS.md
+		// §11 trap of counting rows without checking they are the same rows.
+		PRE_SWEEP_FILES - 6 + 1,
+		'the expected file count is the pre-sweep file count, minus the six files this sweep emptied, plus the one file the A5 C4 /audit extraction split into',
 	);
 
 	// Recompute the ratchet's own scope from source, so this control independently confirms the pin
