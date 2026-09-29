@@ -114,8 +114,19 @@ requires a new `atlas-server/src/scripts/a8-g1-live-shape-proof.ts` that, modell
 1. Refuses to start unless `DATABASE_URL` names `^atlas_restore_drill_[0-9]{8}_[a-z0-9]+$` and is neither
    `atlas_db` nor `atlas_recovery_clean_rebuild_20260905` (`run-db-suite.mjs:36-38,115-121`; the same guard
    `disposable-db-write-guard.test.ts` pins).
-2. Creates one drill DB, loads the live-shaped data **read-only** from the staging database, and records
-   source counts + a signature of the source before the load.
+2. **Whole-database copy, not a hand-written table copier (C5 correction, round 2).** Restore a full
+   `pg_dump` of the staging database into exactly one guarded `atlas_restore_drill_*` target, reusing the
+   already-guarded primitives in `atlas-restore-drill.ts` — `createdb -T template0` (`:142`),
+   `pg_restore` (`:158`), `assertRestoreTargetAllowed` (`:124`), `runWithGuaranteedCleanup` (`:153`),
+   `assertCleanupTargetAllowed` (`:223`) and `database-backup.service.ts`. There is **no hand-written
+   per-table copy**: the production preflight reads ~20 tables in FK order
+   (`generation-preflight.service.ts:801-844`), and a hand-written copier either fails on FK order or
+   silently omits a table the constructor reads, producing a decisive-looking but wrong before/after table.
+   The source is `npm run backup`'s `pg_dump` of `atlas_staging` (per §5, `atlas-server/.env` points at
+   `atlas_staging`, not live) and it is reached through a **separate `childEnvFor`-style env**
+   (`atlas-restore-drill.ts:49-59`), never through the `DATABASE_URL`-bound Prisma singleton
+   (`atlas-server/src/lib/prisma.ts:14` binds at import time, so reusing it would silently read the drill
+   DB and record the wrong source signature). Source counts are recorded before and after and must match.
 3. Sets `ROLLOVER_AUTO_SYNC_ENABLED=false` (as the drill does at `:205`).
 4. Runs generation **only** against the drill DB — never live, never staging, never the supervised
    5001/5174 runtime — then prints the before/after table: same-day repeat pairs (target 0 non-block),
@@ -124,8 +135,10 @@ requires a new `atlas-server/src/scripts/a8-g1-live-shape-proof.ts` that, modell
    residue over exactly the names it created.
 6. Never prints a credential; never reads `D:\ATLAS-runtime-config\*`.
 
-If the harness cannot be made to run, the row is reported `BLOCKED`/`UNPERFORMED` with the reason — never
-silently dropped (§16).
+If the harness cannot be made to run, the row is reported `BLOCKED` with the reason — never silently dropped
+(§16). **`UNPERFORMED` is not pre-authorised for this row** (r2 first draft wrongly allowed it; a
+whole-database restore makes it decidable, and the packet's central proof row must be decided by a harness,
+not waved through).
 
 ## R6 — test/gate reachability (reviewer: PASS)
 
