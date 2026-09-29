@@ -585,6 +585,22 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **LIVE CUTOVER IN FLIGHT - target release `48b4686d68987d18fa709e47b8b12dc0c1e8d64f` (train 15, re-pinned
+  from Lane C 07:2x +08), rollback basis `f821fcd26ac7462b2499c02bb0570ad9612e18a7` @
+  `E:\ATLAS-worktrees\lane-a4-release-20260930-14prod` (train 14, the incumbent).** Recorded
+  2026-09-30 07:26 +08 by Lane A4 under operator decision 12 (QA stays, trains go straight to live), **before**
+  any mutation, so `Assert-LiveReleaseRecorded` leads the cutover. Target dir
+  `E:\ATLAS-worktrees\lane-a4-release-20260930-15prod`, HEAD == pin, `status --short` empty, own dependency
+  trees, own dist. **No migration** - `prisma/**` diff empty, `schema.prisma` blob `ba62f40a...` identical on
+  both sides, 12 migration dirs on each side - so decision 12's "a train with a migration still goes through
+  staging" carve-out does **not** apply and direct-to-live stands. **No data write, no generation, no
+  publication** in this train. Delta from `f821fcd2` is **15 non-docs paths, client-only, two lanes**: the
+  Print Reports nav rename `77e34778` + the weekly-grid white card `48b4686d` (Lane C), and the A7 c13
+  Class Schedule clipping / warning-list truth block (`d61f4837` and its `a7-c13-clip` tests). Shipped
+  content is **larger than the one commit named in the re-pin request** - enumerated here so the delta is
+  consented, not assumed. `atlas-client/package.json` adds one test-script entry only;
+  `package-lock.json` and both `dependencies` blocks unchanged. Acceptance owner: **Lane C** (rendered Codex
+  live check right after cutover). This line is superseded by the DEPLOYED line, not deleted.
 - **- LIVE: `f821fcd26ac7462b2499c02bb0570ad9612e18a7` @ DEPLOYED TO PRODUCTION 2026-09-30 06:53 +08 by Lane A4 on Lane C
   GO 2026-09-30 06:44 +08 (post `2b137859`). Train 14.** Rollback basis
   **`8f19430b6ef1526aeab7db06b5490a4a2226276e`** @ `E:\ATLAS-worktrees\lane-a4-release-20260930-13prod`,
