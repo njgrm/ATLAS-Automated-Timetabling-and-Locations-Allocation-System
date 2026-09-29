@@ -55,6 +55,7 @@ import {
 	type TimetableCapabilityInput,
 	type TimetableGenerationStopper,
 } from '../timetable-capabilities';
+import { summarizeGenerationReadiness, type TimetableCurriculumReadinessState } from '../timetable-generation-readiness';
 
 const READY_SUMMARY = { generateAllowed: true, zeroWrite: true, blockerCount: 0, gapCount: 0, gapClassCount: 0 };
 /** A year whose ONLY finding is teacher coverage: a gap, never a blocker. */
@@ -355,3 +356,83 @@ test('A8-d run state, publication and draft state never disable Generate', () =>
 	assert.equal(noRun.gates.publication.enabled, false, 'publishing with no run still refuses');
 	assert.equal(noRun.gates.publication.shortReason, 'No generated schedule to publish');
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// (6) EXECUTOR FINDING, 2026-09-29 — the compact gate view FAILS CLOSED.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * `summarizeGenerationReadiness` read `readiness.diagnostic.generateAllowed`
+ * unguarded. Every production caller passes a state produced by
+ * `deriveGenerationReadinessState`, which always attaches the diagnostic, so
+ * nothing in ATLAS threw — but a readiness is a plain object: test fixtures
+ * hand-build it, a cached value can be restored from an older shape, and a
+ * `{ state: 'ready' }` literal is exactly what a future caller writes. It threw
+ * a `TypeError` from inside the capability derivation, which takes the whole
+ * header down, instead of returning the one answer the model already has a
+ * rendering for.
+ *
+ * THE CONTRACT: an unreadable diagnostic is an UNVERIFIED decision, so the
+ * summary is `null` — the same value an `unavailable`/`failed`/`loading`
+ * readiness already returns — and the capability model then names it
+ * `readiness-unverified`, which the Generate dialog explains in words with a fix
+ * route. Fail closed, never throw, and never invent a decision.
+ */
+test('A8-e a readiness with no readable diagnostic fails closed to null, and never throws', () => {
+	// The three shapes that used to throw. Each is cast through `unknown` on
+	// purpose: the union says `diagnostic` is present on `ready`/`blocked`, and
+	// a guard only the compiler can see is not a guard.
+	const unreadable = [
+		{ state: 'ready', message: 'ready' },
+		{ state: 'blocked', message: 'blocked', code: 'X', repair: { kind: 'retry', label: 'Retry schedule check' } },
+		{ state: 'ready', message: 'ready', diagnostic: null },
+		{ state: 'ready', message: 'ready', diagnostic: 'not-a-diagnostic' },
+	] as unknown as TimetableCurriculumReadinessState[];
+
+	for (const readiness of unreadable) {
+		let summary: unknown = 'THREW';
+		assert.doesNotThrow(() => {
+			summary = summarizeGenerationReadiness(readiness);
+		}, `a ${(readiness as { state: string }).state} readiness with no diagnostic must not throw`);
+		assert.equal(summary, null, 'an unreadable diagnostic is an unverified decision, which is null');
+	}
+
+	// POSITIVE CONTROL, so the row above is not passing because the function
+	// always returns null: the same call on a real, complete readiness still
+	// summarises, and the summary still gates.
+	const real = deriveGenerationReadinessStateForTest();
+	assert.equal(summarizeGenerationReadiness(real)?.blockerCount, 468,
+		'a complete blocked readiness still summarises its blocking count');
+	const gated = deriveTimetableCapabilities(input({
+		curriculumState: 'blocked',
+		generationDiagnostic: summarizeGenerationReadiness(real),
+	}));
+	assert.equal(gated.generationStoppers.some((stopper) => stopper.key === 'readiness-unverified'), true,
+		'and the unverified decision is still NAMED, so failing closed did not silently allow generation');
+});
+
+/** A complete `blocked` readiness, as `deriveGenerationReadinessState` builds it. */
+function deriveGenerationReadinessStateForTest(): TimetableCurriculumReadinessState {
+	return {
+		state: 'blocked',
+		message: 'Generation readiness is blocked.',
+		code: 'GENERATION_BLOCKED',
+		repair: { kind: 'navigate', label: 'Open Year Setup', href: YEAR_SETUP_HREF },
+		diagnostic: {
+			scope: { schoolId: 1, schoolYearId: 2 },
+			status: 'BLOCKED',
+			generateAllowed: false,
+			zeroWrite: true,
+			schedulerExecuted: true,
+			derivedDemandRevision: 'REV',
+			termStructure: null,
+			totals: { lines: 40, pairs: 12, sessionsByTerm: {} },
+			teachingLoadCoverage: null,
+			blockers: [],
+			blockerCount: 468,
+			gapCount: 620,
+			gapClassCount: 50,
+			groups: [],
+		},
+	} as unknown as TimetableCurriculumReadinessState;
+}

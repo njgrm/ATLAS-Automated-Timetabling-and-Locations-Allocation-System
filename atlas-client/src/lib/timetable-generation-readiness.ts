@@ -690,16 +690,42 @@ export function deriveGenerationReadinessState(
 	return { state: 'blocked', message, code, repair, diagnostic };
 }
 
-/** Compact gate view used by the capability model. */
+/**
+ * Compact gate view used by the capability model.
+ *
+ * A8-C5 S2.3 FOLLOW-UP (executor finding, 2026-09-29) — FAIL CLOSED INSTEAD OF
+ * THROWING. This read `readiness.diagnostic.generateAllowed` unguarded, so a
+ * readiness a caller BUILT rather than one `deriveGenerationReadinessState`
+ * produced — a hand-written `{ state: 'ready' }`, a test fixture, a restored
+ * cached value from an older shape — threw a `TypeError` where every other
+ * capability derivation in this lane returns an answer. A summary that cannot be
+ * read is an UNVERIFIED decision, and the capability model already has an
+ * honest rendering for that: `generationStoppers` names it as
+ * `readiness-unverified` and the Generate dialog explains it. Throwing here
+ * instead took the whole header down.
+ *
+ * This is the same rule `presentGenerationBlockerGroups` already applies to
+ * `groups` (A8-C5 S2.0) for the same reason: the parser's defaults are a
+ * guarantee about the parser, not about code outside it. `null` is the correct
+ * answer here — it is exactly what an `unavailable`/`failed`/`loading`
+ * readiness already returns, so the caller needs no new branch.
+ */
 export function summarizeGenerationReadiness(
 	readiness: TimetableCurriculumReadinessState | null | undefined,
 ): TimetableReadinessDiagnosticSummary | null {
 	if (!readiness || (readiness.state !== 'ready' && readiness.state !== 'blocked')) return null;
+	// The union says `diagnostic` is present on these two states, so this is
+	// narrowed away by the type system; the runtime check is deliberate. The
+	// read is untyped in practice because a `TimetableCurriculumReadinessState`
+	// is rebuilt by hand in fixtures and restored from cache, and a guard that
+	// only the compiler can see is not a guard.
+	const diagnostic: TimetableGenerationReadinessDiagnostic | undefined = readiness.diagnostic;
+	if (!diagnostic || typeof diagnostic !== 'object') return null;
 	return {
-		generateAllowed: readiness.diagnostic.generateAllowed,
-		zeroWrite: readiness.diagnostic.zeroWrite,
-		blockerCount: readiness.diagnostic.blockerCount,
-		gapCount: readiness.diagnostic.gapCount,
-		gapClassCount: readiness.diagnostic.gapClassCount,
+		generateAllowed: diagnostic.generateAllowed,
+		zeroWrite: diagnostic.zeroWrite,
+		blockerCount: diagnostic.blockerCount,
+		gapCount: diagnostic.gapCount,
+		gapClassCount: diagnostic.gapClassCount,
 	};
 }
