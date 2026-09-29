@@ -38,45 +38,76 @@ const SUB_NAV_ITEMS: TimetableSubNavItem[] = [
 	{ key: 'runs', label: 'Runs', to: '/timetable/runs' },
 ];
 
-export function TimetableSubNav() {
+/**
+ * A2 HEADER-BUDGET (operator, 2026-09-29) — the presentational row ALONE.
+ *
+ * The `<h1>` and the `<nav>` used to be welded to the `shrink-0 border-b
+ * border-border bg-background` wrapper, so the only way to show the title and the
+ * tabs inside the Simple header's row 1 was to render a SECOND bordered band —
+ * which is how a header ends up with a title row, a sub-nav row and two control
+ * rows, the "regressed / messy" shape the operator reported.
+ *
+ * This component renders the two elements and nothing else. `TimetableSubNav`
+ * below keeps the wrapper for every other surface, so its appearance is unchanged
+ * to the pixel; the Simple header renders `TimetableSubNavRow` directly, inside
+ * its own row 1. There is still exactly ONE definition of the title, ONE
+ * `SUB_NAV_ITEMS` list and ONE `resolveRouteChrome` call, so the two surfaces
+ * cannot drift onto two different titles or two different tab sets.
+ *
+ * EVERY existing `data-testid` (`timetable-page-heading`, `timetable-sub-nav`, and
+ * `timetable-sub-nav-${key}`) is on the same element as before, and `SUB_NAV_ITEMS`
+ * is untouched.
+ */
+export function TimetableSubNavRow() {
 	const location = useLocation();
 	const chrome = resolveRouteChrome(location.pathname);
 
 	return (
+		<div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5">
+			<h1
+				className="text-base font-bold tracking-tight text-foreground"
+				data-testid="timetable-page-heading"
+			>
+				{chrome.title}
+			</h1>
+			<nav
+				aria-label="Timetable sections"
+				data-testid="timetable-sub-nav"
+				className="flex min-w-0 flex-wrap items-center gap-1"
+			>
+				{SUB_NAV_ITEMS.map((item) => (
+					<NavLink
+						key={item.key}
+						to={item.to}
+						end={item.end}
+						data-testid={`timetable-sub-nav-${item.key}`}
+						className={({ isActive }) =>
+							cn(
+								'rounded-md px-2 py-1 text-xs font-semibold transition-colors',
+								'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
+								isActive
+									? 'bg-muted text-foreground'
+									: 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+							)
+						}
+					>
+						{item.label}
+					</NavLink>
+				))}
+			</nav>
+		</div>
+	);
+}
+
+/**
+ * The standalone band every other surface renders: the presentational row inside
+ * its `shrink-0 border-b border-border bg-background` wrapper, byte-identical to
+ * what this file rendered before the row was extracted.
+ */
+export function TimetableSubNav() {
+	return (
 		<div className="shrink-0 border-b border-border bg-background">
-			<div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5">
-				<h1
-					className="text-base font-bold tracking-tight text-foreground"
-					data-testid="timetable-page-heading"
-				>
-					{chrome.title}
-				</h1>
-				<nav
-					aria-label="Timetable sections"
-					data-testid="timetable-sub-nav"
-					className="flex min-w-0 flex-wrap items-center gap-1"
-				>
-					{SUB_NAV_ITEMS.map((item) => (
-						<NavLink
-							key={item.key}
-							to={item.to}
-							end={item.end}
-							data-testid={`timetable-sub-nav-${item.key}`}
-							className={({ isActive }) =>
-								cn(
-									'rounded-md px-2 py-1 text-xs font-semibold transition-colors',
-									'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
-									isActive
-										? 'bg-muted text-foreground'
-										: 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-								)
-							}
-						>
-							{item.label}
-						</NavLink>
-					))}
-				</nav>
-			</div>
+			<TimetableSubNavRow />
 		</div>
 	);
 }

@@ -27,7 +27,9 @@ import {
 	computeSectionAssignmentDeltaMinutes,
 	resolveEffectiveLoadBaselineHours,
 	type FacultyAssignmentDraft,
+	type FacultyOwnershipState,
 } from '@/lib/faculty-assignment-helpers';
+import { isSectionSubjectApplicable } from '@/components/faculty-assignments/teachingLoadOutage';
 import type { EffectiveWorkloadPolicyState } from '@/lib/faculty-teaching-load-cache';
 import type {
 	ExternalSection,
@@ -77,6 +79,52 @@ export function buildCoverageHeadline(
 		};
 	}
 	return { assigned: 0, realAssigned: 0, syntheticAssigned: 0, total: 0, unassigned: 0, rawUnassigned: 0 };
+}
+
+/**
+ * A6 c5 — the sections every applicable subject already has a REAL owner for.
+ *
+ * This was a 24-line inline `useMemo` on `pages/TeachingLoad.tsx`, which the
+ * c5 derivations would have pushed past the AGENTS.md §8 1000-line cap. It was
+ * already a pure function wearing a `useMemo` as a formality, so it moved here
+ * with its logic UNCHANGED — including the two decisions that made it what it
+ * is:
+ *
+ *   - the applicability predicate is now the SHARED
+ *     `isSectionSubjectApplicable`, not a private copy, so the roster's
+ *     "completed" ticks and the header's per-subject shortage figures cannot
+ *     disagree about which (section, subject) pairs exist;
+ *   - the owner lookup prefers the SAVED map and falls back to the pending one,
+ *     and gates on `activeFacultyIds` — an owner who is not in the active roster
+ *     is not a teacher.
+ *
+ * The one thing it deliberately does NOT learn here is the placeholder
+ * exclusion, because a completed section is genuinely complete once any active
+ * owner holds it: that is a different question from "does this class have a REAL
+ * teacher", which `buildSubjectShortage` answers. Two questions, two functions,
+ * and the row that conflates them is the row the packet is fixing.
+ */
+export function buildCompletedSectionIds(input: {
+	sections: ExternalSection[];
+	subjects: Subject[];
+	savedOwnershipMap: Record<string, FacultyOwnershipState>;
+	pendingOwnershipMap: Record<string, FacultyOwnershipState>;
+	activeFacultyIds: Set<number>;
+}): Set<number> {
+	const completed = new Set<number>();
+	for (const section of input.sections) {
+		const applicableSubjects = input.subjects.filter((subject) => isSectionSubjectApplicable(subject, section));
+		if (applicableSubjects.length === 0) continue;
+		const allStaffed = applicableSubjects.every((subject) => {
+			const key = `${subject.id}:${section.id}`;
+			const owner = input.savedOwnershipMap[key] || input.pendingOwnershipMap[key];
+			return Boolean(owner && input.activeFacultyIds.has(owner.facultyId));
+		});
+		if (allStaffed) {
+			completed.add(section.id);
+		}
+	}
+	return completed;
 }
 
 /**

@@ -8,6 +8,7 @@ import { AlertTriangle, Download, Loader2 } from 'lucide-react';
 
 import { Button } from '@/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { SELECT_TRIGGER_PICKER_CLASS } from '@/ui/select';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
 import type { SimpleExportKind } from '@/components/timetable/simple/simpleExportRequests';
 
@@ -30,7 +31,14 @@ export function SimpleTermSwitcher({ context }: { context: ScheduleReviewWorkspa
 			</span>
 			<Select value={value} onValueChange={(next) => context.onTermFilterChange(next === 'all' ? 'all' : Number(next))}>
 				<SelectTrigger
-					className="h-9 w-[8.5rem] shrink-0 text-sm"
+					/* A2 HEADER-BUDGET (operator, 2026-09-29) — §8's new "One look per
+					 * control" rule. This trigger was `h-9 w-[8.5rem] shrink-0 text-sm`
+					 * and its two neighbours on the same row were `h-8 … text-xs`: three
+					 * pickers, three looks, on one line. The WIDTH rule is this
+					 * control's own and stays; the LOOK is now the ONE shared
+					 * `SELECT_TRIGGER_PICKER_CLASS` from `@/ui`, which is the constant
+					 * A5's cross-page sweep and A6's Teaching Load header adopt. */
+					className={`${SELECT_TRIGGER_PICKER_CLASS} w-[8.5rem] shrink-0`}
 					aria-label="Term"
 					data-testid="timetable-simple-term-filter"
 					data-term-filter={value}

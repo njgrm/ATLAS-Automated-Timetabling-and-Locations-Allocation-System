@@ -1,5 +1,6 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { PLACEHOLDER_TRUTH_LABEL } from '@/components/faculty-assignments/teachingLoadOutage';
 
 /**
  * A3 A1 — the one number on a Teaching Load roster row that had no label.
@@ -29,8 +30,10 @@ import { cn } from '@/lib/utils';
  * It now has its own honest state, and the two reasons are distinguished:
  *
  *  - a placeholder (temporary) row has no standard to be a percentage OF, and
- *    ATLAS's house word for such a row is "temporary"
- *    (`TeachingLoadTruthPanel`, `WorkspaceToolbar` "Temporary substitutes");
+ *    ATLAS's house word for such a row is now the packet's own sentence —
+ *    `to be hired — not a real person yet` (A6 c5 §3). It used to be a bare
+ *    one-word `temporary` footnote, which named the mechanism and not the
+ *    consequence, and it now states it.
  *  - otherwise the standard itself is unset for the year, which is what the
  *    pre-existing tooltip already said in prose.
  */
@@ -78,39 +81,62 @@ export function TeacherLoadReadout({
 	const explanation = !policyReady || standardHours == null
 		? 'The standard load is not set for this school year, so the percentage cannot be shown.'
 		: utilization == null
-			? 'This is a temporary row, so its hours are shown without a percentage of the standard.'
+			? PLACEHOLDER_TRUTH_LABEL
 			: `Teaching hours a week in this teacher's busiest term, compared with the ${standardHours}h standard. Adviser and other-duty credit is counted separately.`;
 
+	/*
+	 * A6 c5 §3 — THE PLACEHOLDER LABEL IS ITS OWN LINE, not a token inside the
+	 * hours. `to be hired — not a real person yet` is seven words; squeezing it
+	 * into `15.0h · to be hired — not a real person yet` is exactly the cramming
+	 * the operator rejected on the header, and the row is a dense number strip
+	 * with three columns of figures beside it. A scheduler reads the sentence on
+	 * its own line and the hours above it, and the row loses nothing.
+	 *
+	 * The `no standard set` state stays INLINE, because it is three words and it
+	 * qualifies the figure directly beneath it. The two are different problems:
+	 * one is about the year's policy, the other is about whether the person on
+	 * this row exists yet.
+	 */
 	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<p className={valueClass} data-testid="teacher-load-readout">
-					<span data-testid="teacher-load-hours">{hours}</span>
-					{utilization != null ? (
-						<>
-							<span aria-hidden="true"> · </span>
-							<span data-testid="teacher-load-utilization">{utilization}%</span>
-							{/* The visible label. Without it the percentage is a bare
-							 * number, which is the whole defect. */}
-							<span data-testid="teacher-load-utilization-label" className={labelClass}>
-								of standard
-							</span>
-						</>
-					) : (
-						<>
-							<span aria-hidden="true"> · </span>
-							{/* A third state, stated rather than dropped: the figure is
-							 * withheld on purpose, and the text says which reason. */}
-							<span data-testid="teacher-load-no-percentage" className={cn(labelClass, 'italic')}>
-								{isPlaceholder ? 'temporary' : 'no standard set'}
-							</span>
-						</>
-					)}
+		<>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<p className={valueClass} data-testid="teacher-load-readout">
+						<span data-testid="teacher-load-hours">{hours}</span>
+						{utilization != null ? (
+							<>
+								<span aria-hidden="true"> · </span>
+								<span data-testid="teacher-load-utilization">{utilization}%</span>
+								{/* The visible label. Without it the percentage is a bare
+								 * number, which is the whole defect. */}
+								<span data-testid="teacher-load-utilization-label" className={labelClass}>
+									of standard
+								</span>
+							</>
+						) : !isPlaceholder ? (
+							<>
+								<span aria-hidden="true"> · </span>
+								{/* A third state, stated rather than dropped: the figure is
+								 * withheld on purpose, and the text says which reason. */}
+								<span data-testid="teacher-load-no-percentage" className={cn(labelClass, 'italic')}>
+									no standard set
+								</span>
+							</>
+						) : null}
+					</p>
+				</TooltipTrigger>
+				<TooltipContent side="bottom" className="max-w-64 p-3">
+					<p className="text-xs font-medium">{explanation}</p>
+				</TooltipContent>
+			</Tooltip>
+			{isPlaceholder && (
+				<p
+					data-testid="teaching-load-placeholder-note"
+					className="mt-0.5 text-[11px] font-bold leading-tight text-muted-foreground"
+				>
+					{PLACEHOLDER_TRUTH_LABEL}
 				</p>
-			</TooltipTrigger>
-			<TooltipContent side="bottom" className="max-w-64 p-3">
-				<p className="text-xs font-medium">{explanation}</p>
-			</TooltipContent>
-		</Tooltip>
+			)}
+		</>
 	);
 }

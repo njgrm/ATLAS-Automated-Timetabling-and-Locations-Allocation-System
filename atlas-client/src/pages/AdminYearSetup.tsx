@@ -12,7 +12,7 @@ import { verifySessionToken, type RolloverStatus } from '@/lib/settings';
 import { clearAtlasAuthStorage, clearUserRoleCache, hasAnyAuthToken } from '@/lib/auth';
 import { describeSavedTermSource, describeUnresolvedTermReason, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { resolveVerifiedActiveTermIndex } from '@/lib/timetable-data/timetablePrefetch';
-import { PLAIN_INTRO, plainStartedCopy } from '@/components/runtime/rollover-plain-copy';
+import { PLAIN_INTRO, plainStartedCopy, plainYearSetupCarrySummary } from '@/components/runtime/rollover-plain-copy';
 import type { BridgeUser } from '@/types';
 
 const ADMIN_ROLES = new Set(['admin', 'SYSTEM_ADMIN', 'officer']);
@@ -256,6 +256,12 @@ export default function AdminYearSetup() {
 								sectionCount: status.counts?.sectionCount ?? null,
 								facultyCount: status.counts?.facultyCount ?? null,
 								keptYearLabels: (status.archivedYears ?? []).map((year) => year.yearLabel),
+								// A7-C4: what the new year kept, read off the SAME apply
+								// response the card already holds (`started` IS the apply
+								// result, which extends the status shape). No request is added
+								// and no number is invented — an absent carry result simply adds
+								// no line.
+								yearSetupCarry: plainYearSetupCarrySummary(started),
 							}).map((line) => (
 								<li key={line}>{line}</li>
 							))}

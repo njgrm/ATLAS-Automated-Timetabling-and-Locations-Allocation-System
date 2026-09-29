@@ -27,8 +27,6 @@ export const PLAIN_TERMS_PRIMARY = 'Save the terms';
 export const PLAIN_NEXT_STEP_LINE = 'Next: check Sections, then Teaching Load, then build the timetable.';
 /** The whole intro paragraph, two sentences (A7-C1 §1.1). */
 export const PLAIN_INTRO = "Start the new school year in ATLAS after EnrollPro moves to it. Last year's schedules are kept for reference.";
-/** Replaces "Automatic year sync is off. Sync stays manual." (A7-C1 §1.2). */
-export const PLAIN_AUTOMATION_OFF = 'Nothing changes in ATLAS until you press the button.';
 /** Shown instead of a number we do not have. Never invent a number. */
 export const PLAIN_COUNTS_UNKNOWN = 'Sections and teachers were brought in.';
 
@@ -196,6 +194,12 @@ export function plainStartedCopy(input: {
 	sectionCount: number | null;
 	facultyCount: number | null;
 	keptYearLabels: string[];
+	/**
+	 * A7-C4: the carry result from the APPLY RESPONSE (packet R8 — no read path
+	 * carries it, and no request is added). `null` on a page state that has no
+	 * apply behind it, and the kept line is then simply absent.
+	 */
+	yearSetupCarry?: PlainYearSetupCarrySummary | null;
 }): string[] {
 	const lines: string[] = [
 		input.yearLabel
@@ -207,6 +211,8 @@ export function plainStartedCopy(input: {
 			? `${input.sectionCount} sections and ${input.facultyCount} teachers were brought in from EnrollPro.`
 			: PLAIN_COUNTS_UNKNOWN,
 	);
+	const kept = plainYearSetupKeptLine(input.yearSetupCarry);
+	if (kept) lines.push(kept);
 	if (input.keptYearLabels.length > 0) {
 		lines.push(`Kept for reference: ${input.keptYearLabels.join(', ')}.`);
 	}
@@ -215,26 +221,23 @@ export function plainStartedCopy(input: {
 }
 
 /**
- * The plain replacement for the shared automation line. Non-plain callers keep
- * the existing wording; this exists only for the Year Setup mount.
+ * A7-C4 — the plain automation line is GONE from the Year Setup mount, and with
+ * it this helper and `PLAIN_AUTOMATION_OFF`. The two carry switches make the
+ * pre-press state visible, so the reassurance line said the same thing twice in
+ * two different places, and the design gate does not allow a region to gain words
+ * without giving as much back. It was removed from the PLAIN CARD ONLY: the other
+ * five `RolloverGuidanceCard` mounts (Dashboard, Sections, Faculty, TeachingLoad
+ * and the two timetable surfaces) keep their own automation line, untouched, and
+ * that line never came from this module.
+ *
+ * The strings are removed rather than left in this table on purpose: this module's
+ * header promises that "every string the Year Setup page shows in plain mode is
+ * derived here", so a row nothing renders would contradict the file's own contract
+ * and invite someone to put the line back. (Evidence is never deleted for closing
+ * a finding — AGENTS.md §16 — and no test or control is removed here; the
+ * SUBTRACTION row in the new client suite asserts the line is absent from the
+ * plain card and present on the other five mounts.)
  */
-export function plainAutomationLine(input: {
-	enabled: boolean;
-	healthy: boolean;
-	backoff: boolean;
-	lastAttemptAt: string | null;
-	nextAttemptAt: string | null;
-	consecutiveFailures: number;
-}): string {
-	if (!input.enabled) return PLAIN_AUTOMATION_OFF;
-	if (input.healthy) {
-		return `ATLAS checks EnrollPro for you. Last checked ${input.lastAttemptAt ? new Date(input.lastAttemptAt).toLocaleString() : 'never'}.`;
-	}
-	if (input.backoff) {
-		return `ATLAS will check again ${input.nextAttemptAt ? new Date(input.nextAttemptAt).toLocaleString() : 'soon'} after ${input.consecutiveFailures} failed attempt(s).`;
-	}
-	return 'ATLAS is checking EnrollPro now.';
-}
 
 /**
  * The plain replacement for the recovery block's raw `artifactCounts` key list.
@@ -352,4 +355,123 @@ export const PLAIN_TIMETABLE_YEAR_UNAVAILABLE = "The Timetable page cannot show 
 /** The existing, unchanged read-only Teaching Load destination (R6, item 3). */
 export function plainTeachingLoadYearHref(enrollProSchoolYearId: number): string {
 	return `/teaching-load/history?schoolYearId=${enrollProSchoolYearId}`;
+}
+
+// ─── A7-C4: a new school year keeps last year's setup by default ─────────────
+
+/**
+ * R7 — the two switches, and the operator's OWN labels, byte for byte. The
+ * operator said "One toggle for policy and grade shift? Both defaulted as don't
+ * reset", so the labels are theirs, not ours.
+ *
+ * The two features genuinely exist in two places, and the labels overlap on
+ * "flag ceremonies", so each switch states ITS OWN side of that line (R7):
+ *
+ *   switch 1 = the `scheduling_policies` row — school day length, teaching-hour
+ *              caps, break and lunch times, and the flag-ceremony times and
+ *              on/off switches STORED ON THE POLICY. Off ⇒ the new year gets
+ *              default school-day rules and no ceremony times.
+ *   switch 2 = the `grade_shift_windows` rows and the `policy_special_events`
+ *              rows — the per-grade start/finish rows and the scheduled
+ *              ceremony/special-day rows. Off ⇒ it starts with no per-grade times
+ *              and no scheduled days.
+ *
+ * STATIC descriptions only (packet R8): `getRolloverStatus` is read by six
+ * surfaces including four other lanes' pages, so no count and no request may
+ * appear here. The counts live on the APPLY RESPONSE, below.
+ */
+export const PLAIN_KEEP_SCHEDULING_RULES_LABEL = "Keep last year's scheduling rules";
+export const PLAIN_KEEP_SCHEDULING_RULES_LINE = 'Your school day, teaching hours and break times stay exactly as you set them last year.';
+export const PLAIN_KEEP_GRADE_WINDOWS_LABEL = "Keep last year's grade time windows and flag ceremonies";
+export const PLAIN_KEEP_GRADE_WINDOWS_LINE = 'Each grade keeps its own start and finish times, and your flag ceremonies and special days come with it.';
+
+/**
+ * What a switch says INSTEAD of its line when it is off. One sentence, in
+ * place of the other — never both, and never an extra chip saying the same
+ * thing twice (packet R2).
+ */
+export const PLAIN_KEEP_SWITCH_OFF_LINE = 'The new year starts empty for this.';
+
+/** Shown when a carry was asked for and the new year already had all of it. */
+export const PLAIN_KEEP_NOTHING_LINE = 'Nothing needed keeping — this year already had all of it.';
+
+/** Honest 0/1/n pluralisation, so the confirmation can never over- or under-claim. */
+function plainCount(count: number, one: string, many: string): string {
+	return `${count} ${count === 1 ? one : many}`;
+}
+
+/**
+ * The post-apply "what was kept" line, or null when there is nothing to say.
+ *
+ * Three branches, and the third is a judgement recorded on purpose:
+ *
+ *  1. something was actually inserted → the kept sentence, carrying the counts
+ *     the SERVER reported (0 and 1 pluralised honestly, because a carry can
+ *     legitimately keep the school-day rules while a grade already had its own
+ *     times, and saying "0" is truer than hiding the part);
+ *  2. at least one switch was ON and nothing was inserted → "this year already
+ *     had all of it", which is what actually happened;
+ *  3. BOTH switches were off → null. Saying "this year already had all of it"
+ *     would be a false claim: the operator asked for an empty year and got one.
+ *     The switch rows on the card already said `The new year starts empty for
+ *     this.`, so the state is visible and no new sentence is invented here.
+ */
+/** The shape the kept line reads: the server's plan plus the two RESOLVED switches. */
+export type PlainYearSetupCarrySummary = {
+	applied: boolean;
+	keepSchedulingRules: boolean;
+	keepGradeTimeWindows: boolean;
+	plan: {
+		sourceYearLabel: string | null;
+		gradeShiftWindows: { toInsert: number };
+		policySpecialEvents: { toInsert: number };
+	};
+};
+
+/**
+ * Reads the carry result off an APPLY RESPONSE without assuming it is there.
+ *
+ * The confirmation may be rendered from a status that never came from an apply
+ * (a reload, an archive-and-sync, or a server older than this packet), so every
+ * absent part degrades to "no line" rather than to a claim. Nothing here
+ * defaults a missing value: a missing carry is not "nothing was kept", it is
+ * "there is nothing to say".
+ */
+export function plainYearSetupCarrySummary(applied: unknown): PlainYearSetupCarrySummary | null {
+	const carry = (applied as { sync?: { yearSetupCarry?: unknown } } | null | undefined)?.sync?.yearSetupCarry;
+	if (carry == null || typeof carry !== 'object') return null;
+	const result = carry as {
+		applied?: unknown;
+		keepSchedulingRules?: unknown;
+		keepGradeTimeWindows?: unknown;
+		plan?: { sourceYearLabel?: unknown; gradeShiftWindows?: { toInsert?: unknown }; policySpecialEvents?: { toInsert?: unknown } } | null;
+	};
+	if (result.plan == null || typeof result.plan !== 'object') return null;
+	const windows = Number(result.plan.gradeShiftWindows?.toInsert ?? 0);
+	const events = Number(result.plan.policySpecialEvents?.toInsert ?? 0);
+	if (!Number.isFinite(windows) || !Number.isFinite(events)) return null;
+	return {
+		applied: result.applied === true,
+		keepSchedulingRules: result.keepSchedulingRules !== false,
+		keepGradeTimeWindows: result.keepGradeTimeWindows !== false,
+		plan: {
+			sourceYearLabel: typeof result.plan.sourceYearLabel === 'string' ? result.plan.sourceYearLabel : null,
+			gradeShiftWindows: { toInsert: windows },
+			policySpecialEvents: { toInsert: events },
+		},
+	};
+}
+
+export function plainYearSetupKeptLine(carry: PlainYearSetupCarrySummary | null | undefined): string | null {
+	if (!carry) return null;
+	if (carry.applied) {
+		const yearLabel = carry.plan.sourceYearLabel;
+		const windows = plainCount(carry.plan.gradeShiftWindows.toInsert, 'grade start and finish time', 'grade start and finish times');
+		const events = plainCount(carry.plan.policySpecialEvents.toInsert, 'flag ceremony and special day', 'flag ceremonies and special days');
+		return yearLabel
+			? `Kept from ${yearLabel}: your school day rules, ${windows}, and ${events}.`
+			: `Kept: your school day rules, ${windows}, and ${events}.`;
+	}
+	if (!carry.keepSchedulingRules && !carry.keepGradeTimeWindows) return null;
+	return PLAIN_KEEP_NOTHING_LINE;
 }

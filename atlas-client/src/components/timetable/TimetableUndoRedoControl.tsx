@@ -71,6 +71,28 @@ export type UndoRedoControlState = {
  * (AGENTS.md §16), and an inert button that carries its reason is neither a control
  * that fails nor a silent absence.
  */
+/**
+ * A2 HEADER-BUDGET (operator, 2026-09-29) — is there anything for the cluster to
+ * ACT ON? One predicate, over exactly the five facts the cluster renders from.
+ *
+ * §8's "Header budget" rule: "disabled actions with nothing to do (Undo/Redo/
+ * History with no draft) are hidden or live under `More`". The operator's
+ * screenshot showed a disabled Undo / Redo / History on a year with no schedule.
+ *
+ * `undoBlockedReason` and `undoNotice` COUNT as something to act on even with
+ * `editHistoryCount === 0`: both are RENDERED `role="status"` notices that state a
+ * refused operation, and hiding the cluster would hide the only place they appear.
+ * `redoVersionStale` is the third such notice. So the cluster is hidden only when
+ * every control is inert AND there is nothing to read.
+ */
+function hasSomethingToActOn(state: UndoRedoControlState): boolean {
+	return state.editHistoryCount !== 0
+		|| state.redoState != null
+		|| state.undoBlockedReason != null
+		|| state.undoNotice != null
+		|| state.redoVersionStale;
+}
+
 export function TimetableUndoRedoControl({
 	editHistoryCount,
 	revertLoading,
@@ -82,7 +104,29 @@ export function TimetableUndoRedoControl({
 	setShowEditHistory,
 	undoNotice = null,
 	undoBlockedReason = null,
-}: UndoRedoControlState) {
+	hideWhenIdle = false,
+}: UndoRedoControlState & {
+	/**
+	 * A2 HEADER-BUDGET — when `true`, the cluster renders NOTHING while every
+	 * control is inert and there is no notice to read (see `hasSomethingToActOn`),
+	 * and renders IN FULL the moment any of them is present. The Simple header
+	 * passes `true`; the Expert header does not, so its behaviour is unchanged.
+	 *
+	 * THIS IS NOT A SECOND CONTROL. `ScheduleReviewWorkspace` still builds exactly
+	 * ONE `TimetableUndoRedoControl` and hands the SAME node to both layouts, so
+	 * the A2-TIMETABLE-CUSTODY single-surface rule holds. And the accepted
+	 * `timetable-visible-undo` / `timetable-visible-redo` / `timetable-visible-history`
+	 * testids are all still rendered whenever the cluster is present, and the
+	 * cluster is present in every state where any of them can act.
+	 */
+	hideWhenIdle?: boolean;
+}) {
+	if (hideWhenIdle && !hasSomethingToActOn({
+		editHistoryCount, revertLoading, revertLastEdit, redoState, redoVersionStale,
+		redoLastEdit, clearRedo, setShowEditHistory, undoNotice, undoBlockedReason,
+	})) {
+		return null;
+	}
 	return (
 		<div className="flex items-center gap-1.5" data-testid="timetable-undo-redo-control">
 			<TooltipProvider>

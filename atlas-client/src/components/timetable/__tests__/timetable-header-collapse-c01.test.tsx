@@ -422,11 +422,26 @@ const PUBLISHED_WITH_FOLLOW_UPS = {
 test('D1 the header renders exactly one row band holding the one status region and the one action cluster', () => {
 	const markup = renderHeader(CLEAN_UNPUBLISHED);
 
-	// Exactly one status region and exactly one header row band.
+	// Exactly one status SURFACE and exactly one header row band.
+	// ── SUPERSEDED IN PLACE, 2026-09-29, A2 HEADER-BUDGET (operator) ──
+	// AGENTS.md §8's "Header budget" caps the `<header>` BOX at two calm rows, so
+	// the in-box status region became a third band and the whole status line moved
+	// out of the box to a SIBLING: `SimpleHeaderStatusBand` in
+	// `simple/SimpleHeaderTrailingSurfaces.tsx`, `data-testid="timetable-simple-status-band"`.
+	// The original assertion is retained VERBATIM and is NOT run as pass/fail:
+	//   assert.equal((markup.match(/data-testid="timetable-simple-status-region"/g) ?? []).length, 1, 'exactly one status region may render');
+	// The CLAIM is unchanged — exactly one status surface, never two — so it is
+	// restated on the element that now carries it, AND the superseded in-box region
+	// is asserted at zero so the old surface cannot return alongside the new one.
+	assert.equal(
+		(markup.match(/data-testid="timetable-simple-status-band"/g) ?? []).length,
+		1,
+		'exactly one status surface may render',
+	);
 	assert.equal(
 		(markup.match(/data-testid="timetable-simple-status-region"/g) ?? []).length,
-		1,
-		'exactly one status region may render',
+		0,
+		'the superseded in-box status region is gone',
 	);
 	assert.equal(
 		(markup.match(/data-testid="timetable-simple-header-row"/g) ?? []).length,
@@ -439,17 +454,39 @@ test('D1 the header renders exactly one row band holding the one status region a
 		(markup.match(/data-testid="timetable-simple-primary-action"/g) ?? []).length <= 1,
 		'never two lifecycle primaries',
 	);
-	// The status chip renders inside the one status region.
+	// The status chip renders — it is a row-1 control now rather than a child of
+	// the status region, so the message is corrected to the structure asserted.
 	assert.match(markup, /data-testid="timetable-simple-readiness-chip"/);
 
-	// Source structure: the row band is the single band that opens before the
-	// status region, which opens before the first action-row control.
+	// Source structure: the row band opens before the first action-row control, and
+	// the ONE status line opens after the row band's contents — it is a sibling of
+	// the box, so "before the action controls" is no longer what it means.
+	//   const regionAt = markup.indexOf('data-testid="timetable-simple-status-region"');
+	//   assert.ok(regionAt < actionAt, 'the status region and the action controls share the one row band');
+	// retained verbatim above and superseded, because the line no longer shares the
+	// row band. What replaces it is the same ordering claim about the new element,
+	// and it still discriminates: a status line mounted back inside the box would
+	// render BEFORE the action controls and fail this.
 	const rowAt = markup.indexOf('data-testid="timetable-simple-header-row"');
-	const regionAt = markup.indexOf('data-testid="timetable-simple-status-region"');
+	const bandAt = markup.indexOf('data-testid="timetable-simple-status-band"');
 	const actionAt = markup.indexOf('data-testid="timetable-simple-term-switcher"');
 	assert.ok(rowAt >= 0, 'the row band renders');
-	assert.ok(rowAt < regionAt, 'the one row band opens before the status region');
-	assert.ok(regionAt < actionAt, 'the status region and the action controls share the one row band');
+	assert.ok(bandAt >= 0, 'the one status line renders');
+	assert.ok(rowAt < actionAt, 'the one row band opens before the first action-row control');
+	// THE DECISIVE HALF, and it is on the RENDERED output rather than on an
+	// ordering between two testids. An earlier draft of this row compared
+	// `actionAt < bandAt` alone, and that is NOT sufficient: a status line moved
+	// back to the END of the `<header>` element still renders after the action
+	// controls and would have satisfied it. This row was checked against that
+	// exact mutant (the surface re-mounted inside `</header>`) and it passed, so
+	// the comparison below was added. The header box's own closing tag must come
+	// BEFORE the status line, which is only true when the line is a sibling of the
+	// box and not a child of it. `renderToStaticMarkup` emits no comments, so the
+	// first `</header>` is the element's real closing tag.
+	const headerCloseAt = markup.indexOf('</header>');
+	assert.ok(headerCloseAt >= 0, 'the header box closes');
+	assert.equal((markup.match(/<\/header>/g) ?? []).length, 1, 'the header box closes exactly once');
+	assert.ok(headerCloseAt < bandAt, 'and the one status line renders AFTER the header box closes — a sibling of it, not inside it');
 });
 
 test('D1 at ≥1366px the header uses bounded wrapping rows instead of a horizontal strip', () => {
@@ -475,13 +512,48 @@ test('D1 at ≥1366px the header uses bounded wrapping rows instead of a horizon
 	// The message states only what this regex decides.
 	assert.match(markup, /class="flex min-w-0 flex-wrap items-center gap-1\.5[^"]*"/,
 		'the status line keeps its wrapping base for narrow layouts');
-	assert.match(markup, /class="flex min-w-0 flex-wrap items-center gap-1\.5 px-3 lg:flex-nowrap"/,
+	// SUPERSEDED IN PLACE, 2026-09-29, A2 HEADER-BUDGET (operator). §8's row 2 is
+	// "the pickers plus only the actions that still have something to act on", and
+	// the draft actions are now right-aligned on it, so row 2's class grew a
+	// `pb-1.5` — the box's own bottom breathing room, since it is the box's LAST
+	// row. The original exact-class pin is retained VERBATIM and is NOT run as
+	// pass/fail, because it broke on that one added token:
+	//   assert.match(markup, /class="flex min-w-0 flex-wrap items-center gap-1\.5 px-3 lg:flex-nowrap"/, 'the control row does not wrap from lg up, so it is ONE visual line at 1366 px');
+	//
+	// The requirement is unchanged and is now read OFF THE ELEMENT the row owns,
+	// by its own `data-testid`, instead of off a whole class string: control row 2
+	// must carry `lg:flex-nowrap`. That discriminates in both directions — a row
+	// that lost the token fails, and so does one that grows a `wide:flex-row`
+	// override, because the assertion names the `lg:` variant specifically.
+	const controlRowTag = markup.match(/<div[^>]*data-testid="timetable-simple-header-row-2"[^>]*>/)?.[0];
+	assert.ok(controlRowTag, 'the control row renders');
+	assert.match(controlRowTag, /lg:flex-nowrap/,
 		'the control row does not wrap from lg up, so it is ONE visual line at 1366 px');
+	assert.match(controlRowTag, /class="flex min-w-0 flex-wrap[^"]*"/,
+		'and it keeps its wrapping base for narrow layouts');
+	assert.doesNotMatch(controlRowTag, /wide:flex-row|wide:flex-nowrap/,
+		'no width-variant override pushes it onto a second line at 1366 px');
 	assert.doesNotMatch(markup, /justify-start gap-1\.5 overflow-x-auto/);
 	// The new mechanism's own risk, asserted rather than assumed: if the row cannot
 	// wrap, the elastic children must be the ones that give up width, and nothing
 	// may become an overflow surface.
-	assert.match(markup, /class="flex min-w-0 flex-wrap items-center justify-start gap-1\.5 lg:ml-auto lg:flex-nowrap lg:justify-end"/,
+	//
+	// SUPERSEDED IN PLACE, 2026-09-29, A2 HEADER-BUDGET (operator). §8's row-1 text
+	// puts the title and the five tabs in the same row as this cluster, so the
+	// cluster is now
+	//   `flex min-w-0 flex-wrap items-center gap-1.5 pr-3 lg:ml-auto lg:flex-nowrap lg:justify-end`
+	// — it carries its own trailing padding (`pr-3`) and the `justify-start` token is
+	// gone. The original assertion is retained VERBATIM and is NOT run as pass/fail:
+	//   assert.match(markup, /class="flex min-w-0 flex-wrap items-center justify-start gap-1\.5 lg:ml-auto lg:flex-nowrap lg:justify-end"/, 'the primary / Undo / More cluster does not wrap from lg up either');
+	//
+	// WHAT REPLACES IT is the same requirement without the brittle part: the cluster
+	// must carry `lg:flex-nowrap`, and no `overflow-x-auto` may appear. Dropping the
+	// token fails the first; adding a scrolling strip fails the second. That is
+	// strictly more discriminating than the exact-string form, which failed on a
+	// harmless `pr-3` and would have failed again on the next class change.
+	const cluster = markup.match(/<div class="[^"]*lg:flex-nowrap[^"]*">/)?.[0] ?? '';
+	assert.ok(cluster, 'the primary / Undo / More cluster renders');
+	assert.match(cluster, /class="flex min-w-0 flex-wrap items-center[^"]*lg:flex-nowrap[^"]*"/,
 		'the primary / Undo / More cluster does not wrap from lg up either');
 	assert.doesNotMatch(markup, /overflow-x-auto/, 'nowrap + truncation, never a scrolling strip that clips the primary');
 });

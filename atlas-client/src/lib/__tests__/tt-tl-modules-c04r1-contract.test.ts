@@ -18,6 +18,7 @@ const HOOK = 'src/components/timetable/TacticalSandboxDock.useTeachingLoadModule
 const SHEET = 'src/components/timetable/TeacherDepartureRecoverySheet.tsx';
 const BANNER = 'src/components/timetable/simple/SimpleDriftBanner.tsx';
 const HEADER = 'src/components/timetable/TimetableSimpleHeader.tsx';
+const NOTICE_SLOT = 'src/components/timetable/simple/SimpleHeaderChangeNoticeSlot.tsx';
 
 /* ------------------------------------------------------------------ *
  * F3 — no client-side confirmation authority
@@ -97,8 +98,65 @@ test('F1 the sheet uses the truthful departure copy helper', () => {
  * ------------------------------------------------------------------ */
 
 test('F4 the header passes the strict published predicate to the drift banner', () => {
+	// SOURCE-SHAPE ROW, restated 2026-09-29 (executor A2). The SAFETY claim is
+	// unchanged and is the real one: the value that reaches the drift banner must
+	// be `isRunPublishedStrict`, and the header must still pass it DOWN rather
+	// than let the banner decide for itself. Only the JSX POSITION moved — the
+	// header now hands the value to the one shared change-notice hook, and that
+	// hook's slot mounts the banner. The chain is asserted end to end in the new
+	// row below.
+	// SUPERSEDED 2026-09-29 (authority: AGENTS.md §8 "Header budget", the A2
+	// header-budget range) — this pinned the banner's prop to a literal
+	// `isPublished={isRunPublished}` in the header's source text, and the header
+	// no longer mounts the banner at all. Retained verbatim, per AGENTS.md §16.
+	// assert.match(source(HEADER), /isPublished=\{isRunPublished\}/);
 	assert.match(source(HEADER), /isRunPublishedStrict/);
-	assert.match(source(HEADER), /isPublished=\{isRunPublished\}/);
+});
+
+test('F4 [source shape, restated 2026-09-29] the strict published predicate reaches the drift banner through the one shared notice hook', () => {
+	const header = source(HEADER);
+	const slot = source(NOTICE_SLOT);
+
+	// 1 — the header DERIVES the value from the strict predicate.
+	assert.match(
+		header,
+		/const isRunPublished = isRunPublishedStrict\(/,
+		'the header still derives its published value from the one strict predicate',
+	);
+
+	// 2 — and PASSES IT DOWN into the one shared notice hook, as an input, not as
+	// a prop it mounts.
+	const notice = header.match(/useRunChangeNotice\(\{([\s\S]*?)\n\t\}\);/);
+	assert.ok(notice, 'the header must call the one shared change-notice hook');
+	assert.match(
+		notice![1],
+		/isPublished: isRunPublished,/,
+		'the hook receives the strict value, by name',
+	);
+
+	// 3 — the slot FORWARDS it to the banner. It forwards; it does not decide.
+	assert.match(slot, /const \{ context, capabilities, isPublished, /);
+	assert.match(slot, /<SimpleDriftBanner/);
+	assert.match(
+		slot,
+		/isPublished=\{isPublished\}/,
+		'the slot forwards the caller\'s value to the banner rather than a literal',
+	);
+
+	// 4 — THE PART THAT MAKES IT DISCRIMINATE. `timetableWorkspaceTruth` exports
+	// two OTHER publication predicates, and a superseded run keeps stale
+	// `publishedAt`/`publishedBy` markers while `isPublished:false`; reading either
+	// of them here would render published affordances for a run that is not
+	// published (A-04/B-11). The header reaches for the strict one only.
+	assert.doesNotMatch(
+		header,
+		/isDraftPublishedStrict|hasSupersededPublicationMarkers/,
+		'the header must not reach for a looser publication predicate',
+	);
+	// and it cannot be feeding the banner a prop of its own choosing, because the
+	// header no longer mounts the banner.
+	assert.doesNotMatch(header, /isPublished=\{/);
+	assert.doesNotMatch(header, /<SimpleDriftBanner/);
 });
 
 test('F4 the banner gates sync on the published prop', () => {

@@ -81,11 +81,18 @@ final "next action" may only be one that needs Lane C, A4 or the operator. (2026
 **Claim only what is on `main`.** A handoff's "done" list names the merged SHA per item; an item that is committed on a
 branch but not merged is "integrated: no". (2026-09-29: Guided mode removal was reported done in c3 but never merged;
 the operator saw it still live.)
+**Never write in `D:\ATLAS`.** It is Lane C's checkout, and every launch pulls into it. Read there if you like, but
+write, copy, commit and push only from your own `E:/ATLAS-worktrees/lane-*` worktree, docs and live-state included. Save
+comparison copies to `$env:TEMP`. (2026-09-29, about 07:57: a round-trip write left `docs/plans/live-state.md` in
+`D:\ATLAS` with 930 mojibake em dashes; the root `package.json` was overwritten with the client's; and 11 stray
+`.ts`/`.tsx` copies sat in the repo root. The next launch's `git pull` failed.)
+**Stop only what you started.** End a process only by the PID you recorded when you started it (`taskkill /T /F /PID <pid>`). Never kill by name (`Stop-Process -Name node`, `taskkill /IM node.exe`), by port owner, or by pattern: live (5001/5174) and staging (5101/5274) are node processes too. (2026-09-29 08:15: the staging runtime tree was killed with no shutdown logged; Lane C restarted it.)
 **A shell call must return.** Never start a server or browser inside a tool call that waits for it: no
 `Start-Process -PassThru` for vite without redirected output, and never run `chrome.exe` directly (`--version` opens a
 browser and never exits). `Start-Process` in any form keeps the call open, even with redirected output (A6 proved it
-at 05:45). Start a preview only with `powershell -File scripts/dev/start-preview.ps1 -ClientDir <dir> -Port <p>`;
-it detaches, proxies to staging and waits at most 60 s. Take renders only
+at 05:45), and so do `[Diagnostics.Process]::Start` and `&` (A8, 07:20). Start a vite preview only with
+`scripts/dev/start-preview.ps1 -ClientDir <dir> -Port <p>` (it proxies to staging). Start ANY other long-lived process
+(a server, a profiler, a watcher) only with `scripts/dev/start-detached.ps1 -Dir -Command -Log [-Env] [-Port]`. Take renders only
 with the Playwright MCP, which now gives each run its own headless browser. The tool's own `timeout` does not end a
 hung call on Windows while a grandchild holds the output. On timeout, run `taskkill /T /F /PID <pid>` to end the whole
 tree, not `$p.Kill()`. A test that never exits usually leaves a DB pool or server open; fix that in the test. (2026-09-29:

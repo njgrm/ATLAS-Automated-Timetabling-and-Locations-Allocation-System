@@ -14,11 +14,13 @@ import {
 	resolveEffectiveLoadBaselineHours,
 } from '@/lib/faculty-assignment-helpers';
 import { COVERAGE_MODE_CONFIG, formatTeachingLoadSaveError, buildSectionsBySubject, transferExactSectionPair, buildSaveCommitReceipt } from '@/lib/teaching-load-helpers';
-import { appliedSuggestionMessage } from '@/lib/teaching-load-suggestion-presentation';
+import { appliedSuggestionMessage, teachingLoadShortageNote } from '@/lib/teaching-load-suggestion-presentation';
 import { TooltipProvider } from '@/ui/tooltip';
 import { createScopeEpoch, captureEpoch } from '@/lib/scope-request-epoch';
 import { useTeachingLoadData } from '@/hooks/useTeachingLoadData';
 import { useTeachingLoadUI } from '@/hooks/useTeachingLoadUI';
+import { useTeachingLoadOutage } from '@/hooks/useTeachingLoadOutage';
+import { TeachingLoadOutageSurface } from '@/components/faculty-assignments/TeachingLoadOutageSurface';
 import { TeacherGridMode } from '@/components/faculty-assignments/TeacherGridMode';
 import { SectionGridMode } from '@/components/faculty-assignments/SectionGridMode';
 import { TeachingLoadInspectorPanel } from '@/components/faculty-assignments/TeachingLoadInspectorPanel';
@@ -32,6 +34,7 @@ import { TeachingLoadSummarySurface } from '@/components/faculty-assignments/Tea
 import { TeachingLoadTruthPanel } from '@/components/faculty-assignments/TeachingLoadTruthPanel';
 import { buildTeachingLoadTruthModel } from '@/lib/teaching-load-authority-truth';
 import {
+	buildCompletedSectionIds,
 	buildCoverageHeadline,
 	buildTeachingLoadWorkspaceState,
 	countTeachersAboveWeeklyMax,
@@ -77,23 +80,13 @@ export default function TeachingLoad() {
 	// assignment workspace on every large viewport.
 	const [reviewModalOpen, setReviewModalOpen] = useState(false);
 	/*
-	 * A6 c4 (G1) — `advancedGridVisible` is GONE, and `a2c4c135` is the commit the
-	 * operator packet and `docs/prompts/a4-train-2026-09-29-5.md` both named as
-	 * "Guided mode removed". That commit is a docs-only fold, so the gate it
-	 * claimed to have removed was still live at `ce1257c8`: the grid rendered
-	 * behind `{advancedGridVisible ? … : <TeachingLoadGuidedModePlaceholder/>}`,
-	 * and the page could turn the grid OFF for an empty year (see the effect
-	 * below) so a scheduler met a placeholder instead of the roster.
-	 *
-	 * The operator's own instruction is the whole requirement: "what's the deal
-	 * with the guided mode thing? Just remove that please". There is now ONE
-	 * rendering of the workspace — the grid, in whichever of the two view modes
-	 * is selected — and no state that can take it away.
-	 *
-	 * `guidedDefaultApplied` STAYS. It is not the gate; it is the one-shot guard
-	 * that keeps the empty-year status message from being re-announced on every
-	 * later render, and that message is worth saying once whether or not a
-	 * placeholder stood in front of the grid.
+	 * A6 c4 (G1) — `advancedGridVisible` is GONE, and `a2c4c135` is the docs-only
+	 * fold the operator packet named as "Guided mode removed"; the gate it claimed
+	 * to have removed was still live at `ce1257c8`, so the page could turn the
+	 * grid OFF for an empty year and a scheduler met a placeholder instead of the
+	 * roster. `guidedDefaultApplied` STAYS, and it is not the gate: it is the
+	 * one-shot guard that keeps the empty-year status message from being
+	 * re-announced on every later render.
 	 */
 	const [guidedDefaultApplied, setGuidedDefaultApplied] = useState(false);
 	const [draftStatusMessage, setDraftStatusMessage] = useState('No draft changes yet. Start with the next step below.');
@@ -144,30 +137,18 @@ export default function TeachingLoad() {
 		setSuggestionApplying(false);
 	}, [data.scopeKey, resetForScope]);
 
-	const completedSectionIds = useMemo(() => {
-		const completed = new Set<number>();
-		for (const section of data.allKnownSections) {
-			const programType = (section.programType ?? 'REGULAR').toUpperCase();
-			const displayOrder = section.displayOrder;
-			const applicableSubjects = data.subjects.filter((subject) => {
-				if (!subject.isActive || subject.code === 'HG') return false;
-				const gradeCompatible = subject.gradeLevels.length === 0 || subject.gradeLevels.includes(displayOrder);
-				if (!gradeCompatible) return false;
-				const subjectScopes = subject.programScopes || [];
-				return subjectScopes.length === 0 || subjectScopes.some((scope) => scope.toUpperCase() === programType);
-			});
-			if (applicableSubjects.length === 0) continue;
-			const allStaffed = applicableSubjects.every((subject) => {
-				const key = `${subject.id}:${section.id}`;
-				const owner = data.savedOwnershipMap[key] || data.pendingOwnershipMap[key];
-				return Boolean(owner && data.activeFacultyIds.has(owner.facultyId));
-			});
-			if (allStaffed) {
-				completed.add(section.id);
-			}
-		}
-		return completed;
-	}, [data.allKnownSections, data.subjects, data.savedOwnershipMap, data.pendingOwnershipMap, data.activeFacultyIds]);
+	// A6 c5 — the derivations below moved to `teachingLoadWorkspaceMetrics.ts`
+	// (which records the extraction and its reason); the page decides WHEN.
+	const completedSectionIds = useMemo(
+		() => buildCompletedSectionIds({
+			sections: data.allKnownSections,
+			subjects: data.subjects,
+			savedOwnershipMap: data.savedOwnershipMap,
+			pendingOwnershipMap: data.pendingOwnershipMap,
+			activeFacultyIds: data.activeFacultyIds,
+		}),
+		[data.allKnownSections, data.subjects, data.savedOwnershipMap, data.pendingOwnershipMap, data.activeFacultyIds],
+	);
 
 	const handleSave = useCallback(async (force?: boolean) => {
 		if (!data.schoolId || !data.activeSchoolYearId) return;
@@ -310,9 +291,17 @@ export default function TeachingLoad() {
 				suggestedAssignmentBreakdown: result.proposal.suggestedAssignmentBreakdown,
 			});
 			
+			/*
+			 * A6 c5 S9 — the PRE-HOTFIX wording is gone. This branch used to say
+			 * `… but some classes still need scheduler review.`, which names
+			 * neither a number nor a subject. It now reads the same
+			 * `N classes still need a real teacher` sentence the page and the
+			 * modal share. `unresolved` on a PREVIEW counts temporary-substitute
+			 * rows, which are never saved, so it is exactly that count.
+			 */
 			const unresolvedCount = result.preview.unresolved ?? 0;
 			if (unresolvedCount > 0) {
-				const message = 'Teaching Load suggestion is ready, but some classes still need scheduler review.';
+				const message = teachingLoadShortageNote(unresolvedCount, 0);
 				setDraftStatusMessage(message);
 				toast.warning(message, { id: toastId });
 			} else {
@@ -421,13 +410,8 @@ export default function TeachingLoad() {
 		toast.info('All Teaching Load draft changes discarded.');
 	}, [data]);
 
-	/*
-	 * A6: the five derivations below moved to
-	 * `teachingLoadWorkspaceMetrics.ts` to keep this page under the AGENTS.md §8
-	 * 1000-physical-line cap after item 38. Each was already a pure function
-	 * behind a `useMemo` / `useCallback` formality, so the extraction changes no
-	 * behaviour and adds no authority: the page still decides WHEN to recompute.
-	 */
+	// A6: the five derivations live in `teachingLoadWorkspaceMetrics.ts`, which
+	// records the extraction; the page still decides WHEN to recompute.
 	const resolveSectionHoverDeltaMinutes = useCallback((subject: Subject, sectionId: number) => {
 		return sectionHoverDeltaMinutesFor(
 			subject,
@@ -446,9 +430,50 @@ export default function TeachingLoad() {
 		return previewLoadHoursFor(ui.loadProfile, ui.hoveredIncomingMinutes);
 	}, [ui.loadProfile, ui.hoveredIncomingMinutes]);
 
+	// Canonical truth surface, derived from the server contracts. A6 c5: declared
+	// ABOVE the shortage hook, which takes it as a parameter — one derivation, two
+	// consumers, so the truth panel and the header cannot disagree about who is a
+	// to-be-hired record.
+	const placeholderFacultyIds = useMemo(
+		() => new Set(data.faculty.filter((member) => member.isPlaceholder).map((member) => member.id)),
+		[data.faculty],
+	);
+
 	const coverageHeadline = useMemo(() => {
 		return buildCoverageHeadline(data.coverageTotals);
 	}, [data.coverageTotals]);
+
+	// A6 c5 §1/§2/§3 — the shortage, its two corrected figures and the cover
+	// dialog's state, from ONE hook. It sits ABOVE the repair queue, which needs
+	// `outage.isLive` to know whether the line is claiming row 2.
+	const outage = useTeachingLoadOutage({
+		subjects: data.subjects,
+		sections: data.allKnownSections,
+		savedOwnershipMap: data.savedOwnershipMap,
+		pendingOwnershipMap: data.pendingOwnershipMap,
+		activeFacultyIds: data.activeFacultyIds,
+		placeholderFacultyIds,
+		coverageTotals: data.coverageTotals,
+		fetchedAt: data.sectionSummary?.fetchedAt,
+		schoolId: data.schoolId,
+		activeSchoolYearId: data.activeSchoolYearId,
+		scopeKey: data.scopeKey,
+		dataSource: data.dataSource,
+		isOnline: data.isOnline,
+		degradedNotice: data.degradedNotice,
+		sectionMap: data.sectionMap,
+	});
+	const { cover } = outage;
+
+	// A6 c5 §3 + S9 — the honest "still need a real teacher" figure, ON THE PAGE.
+	// Count is `placeholder + unowned`: a to-be-hired record is not a teacher.
+	const stillNeedRealTeacherNote = useMemo(
+		() => teachingLoadShortageNote(
+			coverageHeadline.syntheticAssigned,
+			coverageHeadline.unassigned,
+		),
+		[coverageHeadline.syntheticAssigned, coverageHeadline.unassigned],
+	);
 
 	const emptyActiveYearTeachingLoad = useMemo(
 		() => !data.loading && coverageHeadline.total > 0 && coverageHeadline.assigned === 0 && data.activeDraftCount === 0,
@@ -501,8 +526,8 @@ export default function TeachingLoad() {
 	}, [ui]);
 
 	// The "Temporary substitutes" readiness chip is a real control: it opens the
-	// teacher grid filtered to unmapped temporary placeholder rows so the
-	// operator can replace them before generating.
+	// teacher grid filtered to unmapped temporary placeholder rows so the operator
+	// can replace them before generating.
 	const showTemporarySubstitutes = useCallback(() => {
 		ui.setViewMode('teacher');
 		ui.setShowTemporaryRoles(true);
@@ -510,35 +535,16 @@ export default function TeachingLoad() {
 		ui.setLoadFilter('all');
 		ui.setFilterStatus('all');
 		ui.setShowFilters(false);
-		// A6 c4 (G1): the `setAdvancedGridVisible(true)` that used to sit here was a
-		// no-op guard against a gate that no longer exists.
 	}, [ui]);
-
-	/*
-	 * A6 C3 SLICE 1 — the header's four strings, extracted.
-	 *
-	 * This was a 55-line inline `useMemo` and it is now a call to
-	 * `buildTeachingLoadWorkspaceState` in
-	 * `components/faculty-assignments/teachingLoadWorkspaceMetrics.ts`, the
-	 * module that already holds this page's other pure derivations. It moved
-	 * because the file was 995 physical lines against the AGENTS.md §8 cap of
-	 * 1000, and because it was already pure: seven `data.*` fields in, four
-	 * strings out. EVERY string moved byte-for-byte and the branch order is
-	 * unchanged, so this extraction changes nothing a scheduler can see. The
-	 * page still decides WHEN to recompute.
-	 */
+	/* A6 C3 SLICE 1 — the header's four strings live in
+	 * `buildTeachingLoadWorkspaceState`, which records that extraction and why
+	 * every string travelled byte-for-byte. The page still decides WHEN. */
 	const workspaceState = useMemo(() => buildTeachingLoadWorkspaceState({ isOnline: data.isOnline, dataSource: data.dataSource, canPersistAssignments: data.canPersistAssignments, activeDraftCount: data.activeDraftCount, degradedNotice: data.degradedNotice, error: data.error }), [data.isOnline, data.dataSource, data.canPersistAssignments, data.activeDraftCount, data.degradedNotice, data.error]);
 
-	/**
-	 * FIX 16.1 + A6 C2 — the ONE production opener for a staff-workload review,
-	 * now also the roster's read-only teacher profile (Slice 3). The detached
-	 * bottom-right `Review teachers` button is gone; a row's `Review load` button
-	 * and the repair queue both land here, so the modal, its title and its view
-	 * mode cannot disagree. The select runs BEFORE the open deliberately:
-	 * `reviewModalTitle` is derived from `data.selected`, and a dialog that opened
-	 * against the previous teacher and corrected itself one render later is the
-	 * defect this indirection caused.
-	 */
+	/* FIX 16.1 + A6 C2 — the ONE production opener for a staff-workload review.
+	 * The select runs BEFORE the open deliberately: `reviewModalTitle` is derived
+	 * from `data.selected`, and a dialog that opened against the previous teacher
+	 * and corrected itself one render later is the defect this indirection causes. */
 	const openTeacherReviewFor = useCallback((facultyId?: number | null) => {
 		if (facultyId != null) data.setSelectedId(facultyId);
 		openTeacherReview({ setViewMode: ui.setViewMode, setReviewModalOpen });
@@ -565,6 +571,12 @@ export default function TeachingLoad() {
 		coverageTotal: coverageHeadline.total,
 		coverageUnassigned: coverageHeadline.unassigned,
 		sourceDegraded,
+		// A6 c5 §1: the shortage line REPLACES the `missing-load` row, so the
+		// queue must not also offer it, and its `review-ready` fallback must not
+		// claim readiness underneath the line. Derived from the SAME `isLive`
+		// the line uses, so the two can never disagree about whether a shortage
+		// is being claimed.
+		hasShortage: outage.isLive,
 		// A6 C3 (N-1 / N-3): the hook derives its OWN unverified answer from the
 		// same two fields through the same shared module, so the rule has exactly
 		// one implementation. The page deliberately passes the STATE and not a
@@ -601,12 +613,6 @@ export default function TeachingLoad() {
 
 	const departmentOptions = ui.departmentFacetOptions;
 
-	// Canonical truth surface. Every value is derived from the server contracts;
-	// nothing here re-computes demand, policy, or qualification authority.
-	const placeholderFacultyIds = useMemo(
-		() => new Set(data.faculty.filter((member) => member.isPlaceholder).map((member) => member.id)),
-		[data.faculty],
-	);
 	const truthModel = useMemo(
 		() => buildTeachingLoadTruthModel({
 			diagnostics: data.authorityDiagnostics,
@@ -651,42 +657,44 @@ export default function TeachingLoad() {
 		data.selected,
 	);
 
-	/* A3-C10-S3 — the compact state line.
+	/*
+	 * A3-C10-S3: the truth summary (42px), the "Next step" repair queue (58px) and
+	 * the archived-load control were three `shrink-0` bands here and are now ONE
+	 * line inside the command strip. The full record lives on
+	 * `TEACHING_LOAD_HEADER_MODEL` in `WorkspaceToolbar.tsx`, which owns row 2.
 	 *
-	 * These three were `shrink-0` bands stacked under the command strip, between
-	 * it and the roster: the canonical truth summary (42px), the "Next step"
-	 * repair-queue banner (58px) and the archived-load control. At 1366x768 that
-	 * put the first assignment row at ~430px of 768 (Lane C, live release
-	 * a1db27d5) under five stacked header rows.
-	 *
-	 * They are now ONE horizontal line, rendered by the strip itself as row 2
-	 * beside the `% staffed`, classes-without-a-teacher and alert chips. The
-	 * declared height model lives on `TEACHING_LOAD_HEADER_MODEL` in
-	 * `WorkspaceToolbar.tsx`; the committed control is
-	 * `__tests__/a3-c10-tl-header-density.test.ts`.
-	 *
-	 * NOTHING IS HIDDEN. The truth panel keeps every one of its figures and
-	 * testids — they moved into the `Load summary` dialog below, rendered from
-	 * the same `truthModel`; the repair queue keeps its count, its live status,
-	 * its safety `disabledReason` and its primary action; the archived-load
-	 * control is still a link to `/teaching-load/history`. Only the repair
-	 * queue's prose description moved behind a hover whose trigger already names
-	 * the task, the count and the status. */
+	 * A6 c5: the line below is this page's OWN staffing reading, first in the
+	 * workspace so a scheduler who never opens a dialog still meets the honest
+	 * "still need a real teacher" count. `hidden` on short viewports matches the
+	 * rollover card above, so the workspace never grows a third band.
+	 */
 	const headerStateLine = (
-		/* A6 C2 (Major 1): this is the ONE control on row 2, because row 2 is
-		 * "one sentence of status + one primary action" and the repair queue's
-		 * `h-7` button is that action. FIX 38 had already moved the truth panel
-		 * into the `Load summary` dialog below (same `truthModel`); the
-		 * `Archived load` control that sat beside the queue was navigation, not
-		 * state, and moved into the header's More menu as `historyAction`. */
+		/* A6 C2 (Major 1): row 2 is "one sentence of status + one primary
+		 * action", and this is that action. A6 c5 adds the shortage line as a
+		 * second slot; the queue keeps every OTHER next step. */
 		<TeachingLoadRepairQueue
 			items={repairQueueItems}
 			activeItemId={activeRepairId ?? routedRepairId}
 			isReadOnly={data.isReadOnlyMode}
 			saving={data.saving}
 			onPrimaryAction={handleRepairPrimaryAction}
+			hasShortageLine={outage.isLive}
 		/>
 	);
+
+	/* A6 c5 §1 — the shortage line and its cover dialog, as ONE node. The
+	 * toolbar owns the row's position; this owns both halves of the content, so
+	 * the page wires one slot instead of two and there is one place to look when
+	 * the line and the dialog ever disagree. */
+	const shortageLineSlot = outage.isLive ? (
+		<TooltipProvider delayDuration={200}>
+			<TeachingLoadOutageSurface
+				outage={outage}
+				writeBlockedReason={workspaceState.writeBlockedReason}
+				onShowCoverageDetail={showUnassignedTeachingLoad}
+			/>
+		</TooltipProvider>
+	) : null;
 
 	if (data.error && data.dataSource === 'none') {		return (
 			<div className="flex h-[calc(100svh-3.5rem)] items-center justify-center p-6">
@@ -706,11 +714,7 @@ export default function TeachingLoad() {
 		<TooltipProvider delayDuration={200}>
 			<div className="flex h-[calc(100svh-3.5rem)] flex-col bg-background overflow-hidden">
 				{/* A3-TITLE-STRIP-C3: this band's padding + hairline were redundant
-					once WorkspaceToolbar adopted the shared full-bleed strip, and
-					keeping them would have nested one bordered bar inside another
-					and re-added the 13px this stream must not add. The strip owns the
-					inset and the hairline now; the sr-only workflow line below is
-					position:absolute and contributes no height either way. */}
+					once WorkspaceToolbar adopted the shared full-bleed strip. */}
 				<div className="shrink-0">
 <WorkspaceToolbar
 						realAssignedPairs={coverageHeadline.realAssigned}
@@ -743,6 +747,7 @@ export default function TeachingLoad() {
 						onSave={handleSave}
 					onRetrySource={() => data.fetchData({ forceRefresh: true })}
 					stateLineSlot={headerStateLine}
+					shortageLineSlot={shortageLineSlot}
 					// FIX 38: the toolbar owns this control's POSITION, the surface owns its
 					// open state and the dialog, and the page still BUILDS the body, so
 					// `truthModel` has exactly one producer.
@@ -796,18 +801,26 @@ export default function TeachingLoad() {
 							</div>
 						)}
 
-					{/* A3-C10-S3: the canonical truth strip, the "Next step" repair queue
-						and the archived-load control were three `shrink-0` bands here
-						and are now one compact state line inside the command strip
-						(`headerStateLine` above). FIX 38 then took the truth panel
-						out of that line entirely and into the `Load summary` dialog,
-						so the roster starts under a header whose second row is two
-						summary chips and two actions.
+					{/* A6 c5: the note below is the page's OWN reading of the staffing
+						figures, first in the workspace so a scheduler who never opens a
+						dialog still meets the honest "still need a real teacher" count.
+						`hidden` on short viewports matches the rollover card above, so
+						the workspace never grows a third band. It is deliberately NOT
+						a `shrink-0` band: it is content that scrolls with the roster,
+						and `a3-c10` T4 requires the main column to carry exactly one
+						`shrink-0` band — the out-of-fence rollover wrapper. The truth
+						strip, the "Next step" repair queue and the archived-load
+						control moved into `headerStateLine` above (A3-C10-S3 / FIX 38). */}
 
-						Phase 4.1 note, still true: the standalone TeachingLoadTaskGuide
-						remains removed, and the repair queue is still the single
-						"next step" surface. Its % staffed figure is still the one in
-						the readiness strip, now on the same line as everything else. */}
+					{outage.staffingFigures.withoutRealTeacherCount > 0 && (
+						<p
+							data-testid="teaching-load-still-need-real-teacher"
+							data-staffed-percent={outage.staffingFigures.staffedPercent}
+							className="px-3 pt-1 text-xs font-semibold text-muted-foreground [@media(max-height:640px)]:hidden lg:px-5"
+						>
+							{stillNeedRealTeacherNote}
+						</p>
+					)}
 
 					<div className="flex min-h-[140px] flex-1 flex-col" data-testid="teaching-load-workspace">
 
@@ -917,17 +930,13 @@ export default function TeachingLoad() {
 						</div>
 					</div>
 
-				{/* Fix 26: the permanent `hidden w-80 ... lg:block` inspector column
-					was removed here. It narrowed the workspace by 320px on every
-					large viewport. The identical content is now reachable on demand
-					from EVERY teacher row's `Review load` button, and on small
-					screens by the preserved `View profile` control below. */}
+				{/* Fix 26: the permanent 320px desktop inspector column is gone; the
+					per-row `Review load` button and the mobile `View profile` control
+					below reach the same content on demand. */}
 			</div>
 			</div>
 
-			{/* Phase 4.8: mobile inspector access. This is the legitimate
-				small-screen affordance and is PRESERVED. The desktop equivalent
-				is now the per-row `Review load` button. */}
+			{/* Phase 4.8: the legitimate small-screen affordance, PRESERVED. */}
 			<TeachingLoadInspectorTriggers
 				onOpenMobile={() => setMobileInspectorOpen(true)}
 			/>
