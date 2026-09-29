@@ -615,7 +615,18 @@ export async function readCarryForwardSourceSnapshot(
 		sectionsByExternalId.set(section.externalId, {
 			sectionMirrorId: 0,
 			externalId: section.externalId,
-			// Authoritative grade from gradeLevelId; displayOrder is never grade truth.
+			// A2 c15 (2026-09-29) precedence correction. The former comment here read
+			// "Authoritative grade from gradeLevelId; displayOrder is never grade
+			// truth." The first half was already false and is now clearly so: the
+			// authoritative grade is the EnrollPro grade NAME ("Grade 7"), because
+			// `grade_level_id` is an opaque FK that re-mints on every wipe (5..8,
+			// then 17..20, then 1..4 as of 2026-09-28). The second half remains TRUE
+			// HERE for a specific reason, and the reason is worth keeping: this call
+			// passes the name and the id but deliberately NOT `displayOrder`, so the
+			// shared authority's `displayOrder` leg is not consulted on this path and
+			// the id is reached only when the name is absent and no registry helps.
+			// The other carry-forward callers that DO pass `displayOrder` go through
+			// the same authority and are covered by its own precedence.
 			gradeLevel: resolveCarryForwardGrade(section.gradeLevelId, section.gradeLevelName),
 			programType: section.programType,
 			name: section.name,
@@ -733,7 +744,18 @@ export async function readCarryForwardTargetSnapshot(
 		sections: (sections as any[]).map((section) => ({
 			sectionMirrorId: section.id,
 			externalId: section.externalId,
-			// Authoritative grade from gradeLevelId; displayOrder is never grade truth.
+			// A2 c15 (2026-09-29) precedence correction. The former comment here read
+			// "Authoritative grade from gradeLevelId; displayOrder is never grade
+			// truth." The first half was already false and is now clearly so: the
+			// authoritative grade is the EnrollPro grade NAME ("Grade 7"), because
+			// `grade_level_id` is an opaque FK that re-mints on every wipe (5..8,
+			// then 17..20, then 1..4 as of 2026-09-28). The second half remains TRUE
+			// HERE for a specific reason, and the reason is worth keeping: this call
+			// passes the name and the id but deliberately NOT `displayOrder`, so the
+			// shared authority's `displayOrder` leg is not consulted on this path and
+			// the id is reached only when the name is absent and no registry helps.
+			// The other carry-forward callers that DO pass `displayOrder` go through
+			// the same authority and are covered by its own precedence.
 			gradeLevel: resolveCarryForwardGrade(section.gradeLevelId, section.gradeLevelName),
 			programType: section.programType,
 			name: section.name,

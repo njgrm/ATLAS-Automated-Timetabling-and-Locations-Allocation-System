@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
-import { resolveSectionGradeNumber } from '@/lib/schedule-review-helpers';
+import { compareSections } from '@/lib/sections-sort';
 import {
 	promoteActiveSchoolYearContext,
 	resolveActiveSchoolYearContext,
@@ -646,30 +646,11 @@ export default function Sections() {
 		if (homeRoomFilter === 'missing') list = list.filter((section) => !isHomeRoomResolved(section, homeRoomOptions));
 		if (homeRoomFilter === 'assigned') list = list.filter((section) => isHomeRoomResolved(section, homeRoomOptions));
 
-		const sorted = [...list].sort((a, b) => {
-			let cmp = 0;
-			if (sortField === 'name') cmp = a.name.localeCompare(b.name, undefined, { numeric: true });
-			else if (sortField === 'gradeLevelId') {
-				// A2 c15 (B2): the "Grade" column sorts by the REAL grade through
-				// the one client authority. It used to subtract the raw EnrollPro
-				// `gradeLevelId`, which is an opaque FK that re-mints on every wipe
-				// (1..4 for Grades 7..10 since 2026-09-28) — so the column claimed
-				// to sort by grade while ordering by an id space. A section that
-				// names no real grade sorts last, never as grade 0 or grade 1.
-				const gradeA = resolveSectionGradeNumber(a) ?? Number.MAX_SAFE_INTEGER;
-				const gradeB = resolveSectionGradeNumber(b) ?? Number.MAX_SAFE_INTEGER;
-				cmp = gradeA - gradeB;
-				if (cmp === 0) cmp = a.name.localeCompare(b.name, undefined, { numeric: true });
-			}
-			else if (sortField === 'enrolledCount') cmp = a.enrolledCount - b.enrolledCount;
-			else if (sortField === 'maxCapacity') cmp = a.maxCapacity - b.maxCapacity;
-			else if (sortField === 'fill') {
-				const fA = a.maxCapacity > 0 ? a.enrolledCount / a.maxCapacity : 0;
-				const fB = b.maxCapacity > 0 ? b.enrolledCount / b.maxCapacity : 0;
-				cmp = fA - fB;
-			}
-			return sortDir === 'desc' ? -cmp : cmp;
-		});
+		// A2 c15 (B2): the comparator lives in `@/lib/sections-sort` so the "Grade"
+		// column can order by the resolved grade from the one client authority
+		// rather than by the raw EnrollPro `gradeLevelId`, and so this page stays
+		// under the AGENTS §8 1000-line ceiling.
+		const sorted = [...list].sort((a, b) => compareSections(a, b, sortField, sortDir));
 
 		const tf = sorted.length;
 		const tp = Math.max(1, Math.ceil(tf / pageSize));

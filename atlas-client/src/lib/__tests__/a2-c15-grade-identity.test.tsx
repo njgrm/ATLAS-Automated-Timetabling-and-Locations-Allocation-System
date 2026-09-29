@@ -83,6 +83,7 @@ const { gradeNumberOf, resolveSectionGradeNumber, normalizeJhsGradeNumber, norma
 const { buildTeacherWorkloadView } = await import('@/components/faculty/teacherWorkloadProfile');
 const { GradeBadge } = await import('@/components/faculty-assignments/GradeBadge');
 const { buildSectionsBySubject } = await import('../teaching-load-helpers');
+const { compareSections, sectionSortGrade } = await import('../sections-sort');
 
 const roots: any[] = [];
 afterEach(() => {
@@ -291,14 +292,10 @@ test('C15-BADGE-3. the badge keeps the sanctioned GR prefix for grades 7-10 and 
  * exactly what the next EnrollPro re-mint produces — the two orders diverge and
  * the grade order is the correct one.
  */
-function sortByGradeColumn(rows: ExternalSection[]): number[] {
+function sortByGradeColumn(rows: ExternalSection[]): Array<number | null> {
 	return [...rows]
-		.sort((a, b) => {
-			const gradeA = resolveSectionGradeNumber(a) ?? Number.MAX_SAFE_INTEGER;
-			const gradeB = resolveSectionGradeNumber(b) ?? Number.MAX_SAFE_INTEGER;
-			return gradeA - gradeB;
-		})
-		.map((row) => resolveSectionGradeNumber(row) as number);
+		.sort((a, b) => compareSections(a, b, 'gradeLevelId', 'asc'))
+		.map((row) => sectionSortGrade(row));
 }
 
 test('C15-B2-1. the /sections Grade column orders by the real grade, not the EnrollPro id', () => {
@@ -326,23 +323,25 @@ test('C15-B2-1. the /sections Grade column orders by the real grade, not the Enr
 	const byId = [...reMinted].sort((a, b) => a.gradeLevelId - b.gradeLevelId).map((row) => resolveSectionGradeNumber(row));
 	assert.deepEqual(byId, [8, 7], 'the raw-id sort would have put Grade 8 first — this is the defect the change removes');
 
-	// A section naming no real grade sorts LAST (the sort key is
-	// Number.MAX_SAFE_INTEGER) and its resolved grade stays null — never 0, never
-	// 1. The `as number` in the helper is a lie the assertion below corrects.
+	// A section naming no real grade sorts LAST (the comparator's sort key is
+	// Number.MAX_SAFE_INTEGER) and its resolved grade stays null — never 0, never 1.
 	const withUnknown = [...reMinted, section({ id: 3003, name: 'unknown', gradeLevelId: 1, gradeLevelName: '', displayOrder: 0 })];
 	assert.deepEqual(
 		sortByGradeColumn(withUnknown),
 		[7, 8, null],
 		'an unresolvable section sorts last and resolves to no grade, not to 0 or 1',
 	);
-	assert.equal(resolveSectionGradeNumber(withUnknown[2]), null, 'the unresolvable section resolves to null');
-	// And it really is ordered last, not merely reported last.
-	const ordered = [...withUnknown].sort((a, b) => {
-		const gradeA = resolveSectionGradeNumber(a) ?? Number.MAX_SAFE_INTEGER;
-		const gradeB = resolveSectionGradeNumber(b) ?? Number.MAX_SAFE_INTEGER;
-		return gradeA - gradeB;
-	});
+	// And it really is ordered last, not merely reported last — this is the REAL
+	// exported comparator `pages/Sections.tsx` calls, not a copy of it.
+	const ordered = [...withUnknown].sort((a, b) => compareSections(a, b, 'gradeLevelId', 'asc'));
 	assert.equal(ordered[2].id, 3003, 'the unresolvable section is the final row of the Grade column');
+	// The other sort fields must be untouched by the extraction.
+	assert.equal(
+		compareSections(reMinted[0], reMinted[1], 'name', 'asc'),
+		'seven'.localeCompare('eight', undefined, { numeric: true }),
+		'the name column still sorts by name, not by grade',
+	);
+	assert.equal(compareSections(reMinted[0], reMinted[1], 'gradeLevelId', 'desc') > 0, true, 'descending still reverses the grade order');
 });
 
 /** The Teaching Load grade filter, driven through its REAL exported function. */
