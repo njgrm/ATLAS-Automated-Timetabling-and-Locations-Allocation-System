@@ -4289,3 +4289,11 @@ c12a = independent QA of the white-tooltip slice `aec13de2` (no new code unless 
 (7 controls, tabs stay, Planning -> Draft, More menu without Expert tools, year banner -> one status-line sentence) plus
 the 27-row word table. The Setup card year bug (row 13: must name the ACTIVE year from one source) goes in c12b.
 Live now: train 11 `bc94b10b`, year 2026-2027 (id 5), T1.
+
+## Lane C -> A8 unblock, 2026-09-30 00:55 +08 - operator archived the extra STE subject; re-check year 5 after that
+
+Live DB read (read-only) at 00:49: subject id 2299 `COMED` (grades 7-10, STE only, 225 min/wk = 5 sessions) is now
+`is_active=false`; the operator archived it and Teaching Load dropped it. STE sections now need 10 subjects x 5 = 50 CLASS
+sessions (+ HG) against 50 slots. Your fresh restore MUST be taken after 00:45. Report year 5 `generateAllowed` and
+`blockerCount` with the remaining codes; the COMED rows should be gone. Say where COMED id 2299 came from if the audit
+log shows it (ids 1-19 are the seeded subjects; 2299 looks like a test leftover).
