@@ -275,6 +275,15 @@ export interface RunSummary {
 	 */
 	policyAdvisoryCount?: number;
 	/**
+	 * A8-C5 S1.2 — the THIRD ownership state carried on the run summary: distinct
+	 * classes whose canonical Teaching Load owner is a to-be-hired (placeholder)
+	 * record, and up to five of their names. Counted from the run's own persisted
+	 * rows, so the number and the names can never disagree. These classes block
+	 * neither generation nor publication; publication NAMES them in words.
+	 */
+	placeholderOwnedClasses?: number;
+	placeholderOwnedExamples?: string[];
+	/**
 	 * A2-WARNING-COUNT-62 (D1): the run's TOTAL SOFT violation count, from the
 	 * same `mergedValidationResult` that produces `hardViolationCount`,
 	 * `blockingHardViolationCount` and `violationCounts` below. This is the
@@ -425,6 +434,26 @@ export function buildHomeRoomFallbackDiagnostics(
 }
 
 /**
+ * A8-C5 S1.2 — the persisted code for a class that sits on a TO-BE-HIRED
+ * (placeholder) owner. It is NEW at base `f925045c`.
+ *
+ * Why it is its own code and not a member of an existing set: in this codebase
+ * "advisory" already means "non-blocking for generation, still refused by
+ * publication" (`POLICY_ADVISORY_VIOLATION_CODES` and `PROMOTABLE_CONSTRAINT_CODES`
+ * agree on exactly that, and every advisory code is on both). Lane C's ruling for
+ * a placeholder-owned class is a THIRD state that blocks NEITHER. So it must be
+ * a distinct code, deliberately ABSENT from both sets:
+ *
+ *   - absent from `PROMOTABLE_CONSTRAINT_CODES` (scheduling-policy.service.ts), so
+ *     `countBlockingHardViolations` never refuses publication over it;
+ *   - absent from `POLICY_ADVISORY_VIOLATION_CODES` (below), so it is not
+ *     reported as an advisory the operator must still clear before publishing.
+ *
+ * No membership is added to or removed from either set by this packet.
+ */
+export const PLACEHOLDER_OWNED_VIOLATION_CODE = 'SYNTHETIC_PLACEHOLDER_OWNED';
+
+/**
  * C07A — truthful violation code for an unassigned session.
  *
  * The observed failure cause decides the code. A faculty/data refusal (missing
@@ -433,13 +462,23 @@ export function buildHomeRoomFallbackDiagnostics(
  * requires both a room-path failure (`NO_COMPATIBLE_ROOM`) and the
  * specialized-room authority recorded by the constructor.
  */
-export function resolveUnassignedViolationCode(item: Pick<UnassignedItem, 'reason' | 'roomAssignmentReason'>): {
-	code: 'LACKING_FACULTY' | 'SPECIALIZED_ROOM_UNAVAILABLE' | 'UNASSIGNED_SECTION';
+export function resolveUnassignedViolationCode(item: Pick<UnassignedItem, 'reason' | 'roomAssignmentReason' | 'ownerIsPlaceholder'>): {
+	code: 'LACKING_FACULTY' | 'SPECIALIZED_ROOM_UNAVAILABLE' | 'UNASSIGNED_SECTION' | typeof PLACEHOLDER_OWNED_VIOLATION_CODE;
 	severity: 'HARD' | 'SOFT';
 } {
+	// A8-C5 S1.2: a placeholder-owned class is NOT a class with no teacher. It has
+	// a canonical owner who has not been hired yet, so it must not be collapsed
+	// into `LACKING_FACULTY` (which is on BOTH existing sets and therefore still
+	// refuses publication, as an open class must). It gets its own code and its
+	// own SOFT severity, so it blocks neither generation nor publication while
+	// staying visible in the run's own persisted rows.
+	if (item.ownerIsPlaceholder === true) {
+		return { code: PLACEHOLDER_OWNED_VIOLATION_CODE, severity: 'SOFT' };
+	}
 	if (item.reason === 'NO_QUALIFIED_FACULTY' || item.roomAssignmentReason === 'NO_QUALIFIED_FACULTY') {
 		// Missing subject / missing qualified teacher: a structural faculty-authority
-		// blocker, never a room result.
+		// blocker, never a room result. An OPEN class still lands here and still
+		// blocks publication exactly as before — unchanged.
 		return { code: 'LACKING_FACULTY', severity: 'HARD' };
 	}
 	if (
@@ -657,6 +696,15 @@ export type TeacherGapBreakdown = {
 	 * unchanged and refuses the run while any of them remain.
 	 */
 	policyAdvisoryCount: number;
+	/**
+	 * A8-C5 S1.2 — the THIRD ownership state, from the run's OWN persisted rows:
+	 * distinct classes whose canonical Teaching Load owner is a to-be-hired
+	 * (placeholder) record. Reported with their names so the operator reads
+	 * "12 classes are on to-be-hired teachers: …", never a code and never an id.
+	 * It blocks neither generation nor publication.
+	 */
+	placeholderOwnedClasses: number;
+	placeholderOwnedExamples: string[];
 };
 
 /**
@@ -686,7 +734,7 @@ export const POLICY_ADVISORY_VIOLATION_CODES: ReadonlySet<string> = new Set([
  * classes read as 50.
  */
 export function summarizeTeacherGaps(args: {
-	unassignedItems: Array<{ sectionId: number; subjectId: number; reason?: string; roomAssignmentReason?: string }>;
+	unassignedItems: Array<{ sectionId: number; subjectId: number; reason?: string; roomAssignmentReason?: string; ownerIsPlaceholder?: boolean }>;
 	violations?: Array<{ code?: string; severity?: string }>;
 	labelFor?: (sectionId: number, subjectId: number) => string | null;
 	maxExamples?: number;
@@ -695,8 +743,22 @@ export function summarizeTeacherGaps(args: {
 	const slotPairs = new Set<string>();
 	const gapLabelCounts = new Map<string, number>();
 	const maxExamples = args.maxExamples ?? 5;
+	// A8-C5 S1.2: a placeholder-owned class is a THIRD state. It is removed from
+	// both the teacher-gap and the time-slot populations and reported on its own,
+	// so a class whose owner has simply not been hired is never counted as a class
+	// that needs a teacher, and never counted as a slot problem either.
+	const placeholderPairs = new Set<string>();
+	const placeholderLabelCounts = new Map<string, number>();
 	for (const item of args.unassignedItems) {
 		const key = `${item.sectionId}:${item.subjectId}`;
+		if (item.ownerIsPlaceholder === true) {
+			placeholderPairs.add(key);
+			const placeholderLabel = args.labelFor?.(item.sectionId, item.subjectId) ?? null;
+			if (placeholderLabel !== null) {
+				placeholderLabelCounts.set(placeholderLabel, (placeholderLabelCounts.get(placeholderLabel) ?? 0) + 1);
+			}
+			continue;
+		}
 		const isTeacherGap = item.reason === 'NO_QUALIFIED_FACULTY' || item.roomAssignmentReason === 'NO_QUALIFIED_FACULTY';
 		if (isTeacherGap) gapPairs.add(key);
 		else slotPairs.add(key);
@@ -709,6 +771,10 @@ export function summarizeTeacherGaps(args: {
 		.sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]))
 		.slice(0, maxExamples)
 		.map(([label]) => label);
+	const placeholderOwnedExamples = [...placeholderLabelCounts.entries()]
+		.sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]))
+		.slice(0, maxExamples)
+		.map(([label]) => label);
 	const policyAdvisoryCount = (args.violations ?? []).filter(
 		(violation) => violation.severity === 'HARD' && POLICY_ADVISORY_VIOLATION_CODES.has(String(violation.code)),
 	).length;
@@ -717,6 +783,8 @@ export function summarizeTeacherGaps(args: {
 		timeSlotClasses: slotPairs.size,
 		teacherGapExamples,
 		policyAdvisoryCount,
+		placeholderOwnedClasses: placeholderPairs.size,
+		placeholderOwnedExamples,
 	};
 }
 
@@ -730,6 +798,9 @@ export function buildGenerationCompletedMessage(input: {
 	 * NAMES the gaps the way the packet asks ("50 classes placed without a
 	 * teacher yet: MAPEH 7-A, …") rather than carrying a bare count. */
 	teacherGapExamples?: string[];
+	/** A8-C5 S1.2: classes whose owner is a to-be-hired teacher, and their names. */
+	placeholderOwnedClasses?: number;
+	placeholderOwnedExamples?: string[];
 }): string;
 export function buildGenerationCompletedMessage(
 	countOrInput: number | {
@@ -738,6 +809,8 @@ export function buildGenerationCompletedMessage(
 		timeSlotClasses?: number;
 		policyAdvisories?: number;
 		teacherGapExamples?: string[];
+		placeholderOwnedClasses?: number;
+		placeholderOwnedExamples?: string[];
 	},
 ): string {
 	// A8 C3 — the object form names the THREE populations a scheduler has to act
@@ -752,10 +825,16 @@ export function buildGenerationCompletedMessage(
 	const teacherGap = Number.isFinite(input.teacherGapClasses) && (input.teacherGapClasses ?? 0) > 0 ? (input.teacherGapClasses as number) : 0;
 	const timeSlot = Number.isFinite(input.timeSlotClasses) && (input.timeSlotClasses ?? 0) > 0 ? (input.timeSlotClasses as number) : 0;
 	const advisories = Number.isFinite(input.policyAdvisories) && (input.policyAdvisories ?? 0) > 0 ? (input.policyAdvisories as number) : 0;
+	// A8-C5 S1.2: the to-be-hired population. A class whose owner has not been
+	// hired is NOT a class that needs a teacher, so it gets its own clause in
+	// words and never enters the "needs a teacher" count.
+	const placeholderOwned = Number.isFinite(input.placeholderOwnedClasses) && (input.placeholderOwnedClasses ?? 0) > 0
+		? (input.placeholderOwnedClasses as number)
+		: 0;
 	if (!Number.isFinite(unplacedCount) || unplacedCount < 0) {
 		return 'New schedule ready.';
 	}
-	if (unplacedCount === 0 && advisories === 0) {
+	if (unplacedCount === 0 && advisories === 0 && placeholderOwned === 0) {
 		return 'New schedule ready. All classes placed.';
 	}
 	// A8 C3 ITEM 5 — the names come from the run's own persisted unassigned rows
@@ -766,7 +845,16 @@ export function buildGenerationCompletedMessage(
 	const examples = Array.isArray(input.teacherGapExamples)
 		? input.teacherGapExamples.filter((name): name is string => typeof name === 'string' && name.trim().length > 0).slice(0, 5)
 		: [];
+	// Same naming rule as the gap clause: cap by choosing how many to print, never
+	// by slicing a name (no "…", AGENTS.md §8).
+	const placeholderExamples = Array.isArray(input.placeholderOwnedExamples)
+		? input.placeholderOwnedExamples.filter((name): name is string => typeof name === 'string' && name.trim().length > 0).slice(0, 5)
+		: [];
 	const clauses: string[] = [];
+	if (placeholderOwned > 0) {
+		const counted = `${placeholderOwned} ${placeholderOwned === 1 ? 'class is' : 'classes are'} on a to-be-hired teacher`;
+		clauses.push(placeholderExamples.length > 0 ? `${counted}: ${placeholderExamples.join(', ')}` : counted);
+	}
 	if (teacherGap > 0) {
 		const counted = `${teacherGap} ${teacherGap === 1 ? 'class' : 'classes'} still ${teacherGap === 1 ? 'needs' : 'need'} a teacher`;
 		clauses.push(examples.length > 0 ? `${counted}: ${examples.join(', ')}` : counted);
@@ -1033,6 +1121,9 @@ export async function triggerGenerationRun(
 			const verdict = resolveUnassignedViolationCode(item);
 			const isSpecializedUnavailable = verdict.code === 'SPECIALIZED_ROOM_UNAVAILABLE';
 			const isLackingFaculty = verdict.code === 'LACKING_FACULTY';
+			// A8-C5 S1.2: the third state says so in words, and carries the flag that
+			// produced it so the run's own rows remain auditable.
+			const isPlaceholderOwned = verdict.code === PLACEHOLDER_OWNED_VIOLATION_CODE;
 			return {
 				code: verdict.code,
 				severity: verdict.severity,
@@ -1040,7 +1131,9 @@ export async function triggerGenerationRun(
 					? `Section ${item.sectionId} subject ${item.subjectId} could not be assigned to a specialized room in term ${item.termIndex} session ${item.session}.`
 					: isLackingFaculty
 						? `Section ${item.sectionId} subject ${item.subjectId} has no qualified faculty available in term ${item.termIndex} session ${item.session}.`
-						: `Section ${item.sectionId} subject ${item.subjectId} remained unassigned in term ${item.termIndex} session ${item.session}.`,
+						: isPlaceholderOwned
+							? `Section ${item.sectionId} subject ${item.subjectId} is on a to-be-hired teacher in term ${item.termIndex} session ${item.session}.`
+							: `Section ${item.sectionId} subject ${item.subjectId} remained unassigned in term ${item.termIndex} session ${item.session}.`,
 				schoolId,
 				schoolYearId,
 				runId: run.id,
@@ -1096,7 +1189,7 @@ export async function triggerGenerationRun(
 			}
 		}
 		const teacherGaps = summarizeTeacherGaps({
-			unassignedItems: resolvedUnassignedItems as Array<{ sectionId: number; subjectId: number; reason?: string; roomAssignmentReason?: string }>,
+			unassignedItems: resolvedUnassignedItems as Array<{ sectionId: number; subjectId: number; reason?: string; roomAssignmentReason?: string; ownerIsPlaceholder?: boolean }>,
 			violations: mergedValidationResult.violations as unknown as Array<{ code?: string; severity?: string }>,
 			labelFor: (sectionId, subjectId) => {
 				const sectionName = runSectionNameById.get(sectionId);
@@ -1131,6 +1224,9 @@ export async function triggerGenerationRun(
 			teacherGapClasses: teacherGaps.teacherGapClasses,
 			timeSlotClasses: teacherGaps.timeSlotClasses,
 			teacherGapExamples: teacherGaps.teacherGapExamples.length > 0 ? teacherGaps.teacherGapExamples : undefined,
+			// A8-C5 S1.2: the third state, from the same persisted rows.
+			placeholderOwnedClasses: teacherGaps.placeholderOwnedClasses,
+			placeholderOwnedExamples: teacherGaps.placeholderOwnedExamples.length > 0 ? teacherGaps.placeholderOwnedExamples : undefined,
 			policyAdvisoryCount: teacherGaps.policyAdvisoryCount,
 			// A2-WARNING-COUNT-62 (D1): persisted so the run-wide warning figure
 			// has a server-owned source. Without it the header silently measures a
@@ -1266,6 +1362,9 @@ export async function triggerGenerationRun(
 				timeSlotClasses: summary.timeSlotClasses,
 				policyAdvisories: summary.policyAdvisoryCount,
 				teacherGapExamples: summary.teacherGapExamples,
+				// A8-C5 S1.2: the to-be-hired population, in words.
+				placeholderOwnedClasses: summary.placeholderOwnedClasses,
+				placeholderOwnedExamples: summary.placeholderOwnedExamples,
 			}),
 			metadata: {
 				runId: run.id,

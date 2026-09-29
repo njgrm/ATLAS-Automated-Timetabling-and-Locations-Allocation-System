@@ -64,6 +64,12 @@ export const VIOLATION_CODES = [
 	'SECTION_OVERCOMPRESSED',
 	'LACKING_FACULTY',
 	'INCOMPLETE_MODULAR_GROUP',
+	// A8-C5 S1.2: the THIRD ownership state — this class's Teaching Load owner is a
+	// to-be-hired record, not a member of staff. It is NOT `LACKING_FACULTY`
+	// (an open class), and it is deliberately absent from both
+	// `PROMOTABLE_CONSTRAINT_CODES` and `POLICY_ADVISORY_VIOLATION_CODES`, so it
+	// blocks neither generation nor publication while staying visible in words.
+	'SYNTHETIC_PLACEHOLDER_OWNED',
 ] as const;
 
 export type ViolationCode = (typeof VIOLATION_CODES)[number];
@@ -111,6 +117,7 @@ export const VIOLATION_COPY: Record<ViolationCode, ViolationCopy> = {
 	SECTION_OVERCOMPRESSED: { title: 'Class day is too compressed', meaning: 'The class has too many back-to-back periods without a sufficient break.', action: 'Spread the classes out or add a break.' },
 	LACKING_FACULTY: { title: 'No teacher available', meaning: 'A required session has no qualified teacher available.', action: 'Assign a qualified teacher in Teaching Load or free an authorized teacher.' },
 	INCOMPLETE_MODULAR_GROUP: { title: 'Rotating subject group incomplete', meaning: 'A rotating subject family is missing a required term-specific member or assignment.', action: 'Complete the subject, teacher, and room assignments for every term.' },
+	SYNTHETIC_PLACEHOLDER_OWNED: { title: 'On a to-be-hired teacher', meaning: 'This class is assigned to a teacher record that has not been hired yet, so it has no member of staff teaching it.', action: 'Assign an employed teacher in Teaching Load when the class is covered. The schedule and its publication are not blocked by this.' },
 };
 
 // ─── Draft schedule input shape ───
