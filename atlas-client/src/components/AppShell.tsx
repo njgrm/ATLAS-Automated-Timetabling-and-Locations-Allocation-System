@@ -40,7 +40,8 @@ import {
 	SidebarTrigger,
 } from '@/ui/sidebar';
 import { AccessibilityMenu } from '@/components/AccessibilityMenu';
-import { RouteOutlet } from '@/components/app-shell/RouteOutlet';import { useAccessibility } from '@/hooks/useAccessibility';
+import { RouteOutlet } from '@/components/app-shell/RouteOutlet';
+import { useAccessibility } from '@/hooks/useAccessibility';
 import {
 	isRolloverCompletionEvent,
 	useNotificationStream,
