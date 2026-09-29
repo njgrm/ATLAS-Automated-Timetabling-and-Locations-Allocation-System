@@ -33,21 +33,22 @@
  *
  * THE PREDICATE'S SENSE (A3 p1 — a real outage, 2026-09-29)
  * ========================================================
- * The second parameter is a DISCARD predicate and **TRUE MEANS DISCARD**. It is
- * named `isStaleRead` for exactly that reason, and the JSDoc repeats it at the
- * signature.
+ * The second parameter is the caller's LIVENESS, and it is a NAMED OPTION:
+ * `{ isStillCurrent }`, where `true` means "this read is still good".
  *
- * A caller had the opposite sense — it passed its `isCurrent` closure, whose
- * `true` means "this read is still good". Every healthy resolution was therefore
- * discarded, the resolver returned `null`, and Teacher Preferences sat with
- * `schoolYearId = null` forever: Save and "Anything else" disabled, the
- * availability read never fired, and no reason on screen. The staging term data
- * was healthy the whole time; the predicate was the fault.
+ * A caller once passed its `isCurrent` closure straight into a bare positional
+ * `isObsolete` parameter, whose `true` means the OPPOSITE. Every healthy
+ * resolution was therefore discarded, the resolver returned `null`, and Teacher
+ * Preferences sat with `schoolYearId = null` forever: Save and "Anything else"
+ * disabled, the availability read never fired, and no reason on screen. The
+ * staging term data was healthy the whole time; the predicate was the fault.
  *
  * A still-current closure is the common shape in this codebase (`cancelled` plus
- * a session-epoch check), so the inversion was one keystroke away at every call
- * site. Hence the rename, the doc, and a caller-shaped regression that passes a
- * still-current predicate and requires the resolution back.
+ * a session-epoch check), so a bare function parameter made the inversion one
+ * keystroke away at every call site and no type could catch it: `() => true` is
+ * a valid function either way. A named option removes the trap at the type
+ * level — the sense is written down where the call happens, and the conversion
+ * to "stale" happens once, inside the contract.
  */
 
 import { isVerifiedOrderedActiveTerm } from './academic-term';
@@ -89,6 +90,19 @@ export type ResolveActiveTermAuthorityOptions = {
 };
 
 /**
+ * THE CALLER'S LIVENESS, as a named option rather than a bare positional
+ * predicate.
+ *
+ * `isStillCurrent()` returning `true` means "this read is still good, keep it".
+ * That is the sense every caller in this codebase already thinks in, so it is
+ * the sense the contract accepts; the flip to "stale, discard" happens once,
+ * inside the resolver, and cannot be got wrong at a call site (A3 p1).
+ */
+export type ActiveTermReadLiveness = {
+	readonly isStillCurrent: () => boolean;
+};
+
+/**
  * Resolve the active ordered term for an actor school, asking for upstream
  * verification exactly once when the fast read does not already carry it.
  *
@@ -102,22 +116,22 @@ export type ResolveActiveTermAuthorityOptions = {
  *   requests carry different request profiles, so they never dedupe into one.
  * - A failed verification keeps the fast-read state and still returns, so the
  *   caller can fall back to an explicit scope instead of dead-ending.
- * - Returns `null` ONLY when `isStaleRead()` reports this read is obsolete (the
- *   actor school moved on, or the caller unmounted). That is the single reason
- *   for `null`, which is why a caller may safely leave its own state alone: a
- *   newer run or an unmount owns that state now. A `null` is never a dead end.
+ * - Returns `null` ONLY when `isStillCurrent()` reports this read is obsolete
+ *   (the actor school moved on, or the caller unmounted). That is the single
+ *   reason for `null`, which is why a caller may safely leave its own state
+ *   alone: a newer run or an unmount owns that state now. A `null` is never a
+ *   dead end.
  *
- * @param isStaleRead TRUE = DISCARD this read and return `null`. FALSE = this
- *   read is still good, keep going. Do NOT pass a "still current" predicate:
- *   its `true` means the OPPOSITE and it silently discards every healthy
- *   resolution (A3 p1). A caller's own `isCurrent` must be passed as
- *   `() => !isCurrent()`.
+ * @param liveness `{ isStillCurrent }` — `true` KEEPS this read, `false` discards
+ *   it and returns `null`.
  */
 export async function resolveActiveTermAuthority(
 	actorSchoolId: number,
-	isStaleRead: () => boolean,
+	liveness: ActiveTermReadLiveness,
 	options: ResolveActiveTermAuthorityOptions = {},
 ): Promise<ActiveTermAuthorityResolution | null> {
+	// The ONLY place the sense is translated. Inside the contract, once.
+	const isStaleRead = () => !liveness.isStillCurrent();
 	const requireFreshVerifiedRead = options.requireFreshVerifiedRead === true;
 	const context = await resolveActiveSchoolYearContext({
 		schoolId: actorSchoolId,

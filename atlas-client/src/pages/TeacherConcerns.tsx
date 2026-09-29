@@ -139,19 +139,18 @@ export default function TeacherConcerns() {
 		const isCurrent = () => !cancelled && isCurrentEpoch(token, epoch);
 		/*
 		 * A3 p1 — THE POLARITY. `resolveActiveTermAuthority`'s second parameter is
-		 * a DISCARD predicate: TRUE means "throw this read away". This page used
-		 * to pass `isCurrent`, whose `true` means the OPPOSITE, so every healthy
-		 * resolution was discarded, the resolver returned `null`, and this
-		 * `if (resolution == null) return;` left `schoolYearId` null forever. The
-		 * grid still rendered, Save and "Anything else" stayed disabled, the
-		 * availability read never fired, and nothing on screen said why — while
-		 * the staging term data was healthy the whole time.
+		 * the caller's LIVENESS and `true` means "still good, keep it". This page
+		 * used to hand its `isCurrent` closure to a bare positional parameter whose
+		 * `true` meant the OPPOSITE (discard), so every healthy resolution was
+		 * thrown away, the resolver returned `null`, and the `if (bound == null)
+		 * return;` below left `schoolYearId` null forever. The grid still rendered,
+		 * Save and "Anything else" stayed disabled, the availability read never
+		 * fired, and nothing on screen said why — while the staging term data was
+		 * healthy the whole time.
 		 *
-		 * `() => !isCurrent()` is the correct adapter. `isCurrent` stays the
-		 * still-current predicate this file uses everywhere else; only the
-		 * boundary converts it.
+		 * `{ isStillCurrent: isCurrent }` states the sense in the call itself, so
+		 * the inversion can no longer be made here.
 		 */
-		const isStaleRead = () => !isCurrent();
 		setYearError(null);
 		setYearResolution('PENDING');
 		// A2-C14 — the shared resolver asks for upstream verification exactly
@@ -166,7 +165,7 @@ export default function TeacherConcerns() {
 		// with `TERM_SCOPE_MISMATCH`, so a cached-but-verified term can make this
 		// page show a term the server no longer holds. The read and the write
 		// must agree, so this page still gets a current answer.
-		resolveActiveTermAuthority(actorSchoolId, isStaleRead, { requireFreshVerifiedRead: true })
+		resolveActiveTermAuthority(actorSchoolId, { isStillCurrent: isCurrent }, { requireFreshVerifiedRead: true })
 			.then((resolution) => {
 				if (!isCurrent()) return;
 				/*
