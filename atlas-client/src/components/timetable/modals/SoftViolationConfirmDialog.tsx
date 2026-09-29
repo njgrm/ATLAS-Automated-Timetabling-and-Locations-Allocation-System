@@ -32,7 +32,8 @@ export function SoftViolationConfirmDialog({
 }: SoftViolationConfirmDialogProps) {
 	return (
 		<Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onCancel(); }}>
-			<DialogContent className="max-w-md">
+			{/* A5 item 23.2: a CONFIRMATION — forced compact, not a 95vw panel. */}
+			<DialogContent resizable={false} className="max-w-md">
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
 						<AlertTriangle className="size-4 text-amber-500" />

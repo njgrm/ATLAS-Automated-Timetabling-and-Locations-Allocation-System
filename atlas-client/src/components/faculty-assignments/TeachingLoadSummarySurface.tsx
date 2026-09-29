@@ -40,6 +40,18 @@ import { TeachingLoadSummaryDialog } from '@/components/faculty-assignments/Teac
 type TeachingLoadSummarySurfaceProps = {
 	/** The page's real `TeachingLoadTruthPanel` node, passed `expanded`. */
 	children: ReactNode;
+	/**
+	 * A6 c9 (38.1) — the page's per-teacher workload node, rendered when the
+	 * dialog is drilled into one teacher.
+	 *
+	 * It is the SAME node the page already builds for the review/profile dialog
+	 * (`TeachingLoadInspectorPanel` bound to the selected teacher), so the
+	 * drill-in imports and reuses the per-teacher metrics instead of restating
+	 * them, exactly as `ReviewTeachersModal` does. Omitted, the roster has
+	 * nowhere to drill into and the dialog degrades honestly to the roster plus
+	 * the `More detail` breakdown.
+	 */
+	teacherDetail?: ReactNode;
 };
 
 /**
@@ -66,6 +78,19 @@ type TeachingLoadSummarySurfaceProps = {
 const TeachingLoadSummaryMenuContext = createContext<{
 	open: boolean;
 	setOpen: (open: boolean) => void;
+	/**
+	 * A6 c9 (38.1) — open ALREADY DRILLED INTO one teacher.
+	 *
+	 * The per-card `Review load` control has to open the staff workload audit
+	 * straight into that teacher's detail, with the `< All teachers` control that
+	 * returns to the roster, and the open flag lives in the HOST because Radix
+	 * unmounts a menu's content on close. This is the third door into the one
+	 * dialog, and it is why the faculty id travels with the flag rather than
+	 * being read from a second piece of state.
+	 */
+	openFor: (facultyId: number | null) => void;
+	/** The teacher the flag was opened for, or `null` for the roster. */
+	facultyId: number | null;
 } | null>(null);
 export const TeachingLoadSummaryMenuSlot = TeachingLoadSummaryMenuContext.Provider;
 
@@ -83,7 +108,7 @@ export function TeachingLoadSummaryMenuItem() {
 	if (!host) return null;
 	return (
 		<DropdownMenuItem
-			onSelect={() => host.setOpen(true)}
+			onSelect={() => (host.openFor ? host.openFor(null) : host.setOpen(true))}
 			data-testid="teaching-load-summary-open"
 			className="cursor-pointer gap-2 text-xs font-semibold"
 		>
@@ -93,14 +118,20 @@ export function TeachingLoadSummaryMenuItem() {
 	);
 }
 
-export function TeachingLoadSummarySurface({ children }: TeachingLoadSummarySurfaceProps) {
+export function TeachingLoadSummarySurface({ children, teacherDetail }: TeachingLoadSummarySurfaceProps) {
 	// Owned HERE when this component is its own trigger, and by the HOST when the
 	// host renders `TeachingLoadSummaryMenuItem` beside it. Either way there is one
 	// flag, and the page never learns which.
 	const [localOpen, setLocalOpen] = useState(false);
+	const [localFacultyId, setLocalFacultyId] = useState<number | null>(null);
 	const host = useContext(TeachingLoadSummaryMenuContext);
 	const open = host ? host.open : localOpen;
 	const setOpen = host ? host.setOpen : setLocalOpen;
+	// A6 c9 (38.1): whichever side owns the flag also owns WHICH teacher the
+	// dialog opens on, so there is one source and no second piece of state that
+	// could disagree with it.
+	const openFor = host?.openFor
+		?? ((facultyId: number | null) => { setLocalFacultyId(facultyId); setLocalOpen(true); });
 
 	if (host) {
 		/*
@@ -111,7 +142,13 @@ export function TeachingLoadSummarySurface({ children }: TeachingLoadSummarySurf
 		 * menu cannot unmount a dialog it is in the middle of opening.
 		 */
 		return (
-			<TeachingLoadSummaryDialog open={open} onOpenChange={setOpen}>
+			<TeachingLoadSummaryDialog
+				open={open}
+				onOpenChange={setOpen}
+				initialFacultyId={host.facultyId}
+				openFor={openFor}
+				teacherDetail={teacherDetail}
+			>
 				{children}
 			</TeachingLoadSummaryDialog>
 		);
@@ -131,7 +168,7 @@ export function TeachingLoadSummarySurface({ children }: TeachingLoadSummarySurf
 				size="sm"
 				className="h-7 shrink-0 gap-1.5 px-2 text-xs"
 				data-testid="teaching-load-summary-open"
-				onClick={() => setOpen(true)}
+				onClick={() => openFor(null)}
 			>
 				<ClipboardList className="size-3.5" aria-hidden="true" />
 				Load summary
@@ -139,7 +176,13 @@ export function TeachingLoadSummarySurface({ children }: TeachingLoadSummarySurf
 
 			{/* A SIBLING of the button, not a child: the dialog portals, so nesting
 			    it would only add a wrapper to reason about. */}
-			<TeachingLoadSummaryDialog open={open} onOpenChange={setOpen}>
+			<TeachingLoadSummaryDialog
+				open={open}
+				onOpenChange={setOpen}
+				initialFacultyId={localFacultyId}
+				openFor={openFor}
+				teacherDetail={teacherDetail}
+			>
 				{children}
 			</TeachingLoadSummaryDialog>
 		</>

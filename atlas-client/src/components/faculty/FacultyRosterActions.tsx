@@ -31,6 +31,18 @@
  * `secondaryActions` slot at all, and `AdminWorkspace.tsx` — owned by another
  * lane — is untouched.
  *
+ * FIX 24.2 (operator, 2026-09-29) — `X` IS A LITERAL, NOT THE NEXT NUMBER.
+ *
+ * The create label used to interpolate the next roster number, so it read
+ * `Create temporary teacher (Teacher 42)`. The operator's wording puts a literal
+ * capital `X` in that parenthetical: `X` means "the one you are about to
+ * create", and a number means "this one already exists". So the `nextTeacherNumber`
+ * prop is REMOVED from this component rather than ignored — a prop that no
+ * longer reaches the rendered string is a future lie about where the copy comes
+ * from, and the computation that fed it is gone from `pages/Faculty.tsx` too.
+ * The `Plus` icon stays, so the button renders
+ * `+ Create temporary teacher (Teacher X)`.
+ *
  * ACCESSIBLE NAME / LABEL-IN-NAME (AGENTS.md §8).
  *
  * Both controls previously carried a raw `title` attribute
@@ -41,7 +53,7 @@
  * `@/ui` Tooltip rather than kept. The `aria-label`s are removed because the
  * visible label is now the full sentence; an `aria-label` of "Add temporary
  * teacher" on a button whose visible text reads "Create temporary teacher
- * (Teacher 42)" would break WCAG 2.5.3 Label in Name, because the accessible
+ * (Teacher X)" would break WCAG 2.5.3 Label in Name, because the accessible
  * name no longer contains the visible label.
  *
  * FIX 25 — the per-row repair action no longer navigates. It opens the in-page
@@ -64,11 +76,6 @@ type FacultyRosterActionsProps = {
 	syncing: boolean;
 	isOnline: boolean;
 	refreshing: boolean;
-	/**
-	 * `X` for `Create temporary teacher (Teacher X)`. The page passes the real
-	 * next teacher number from the roster, not a placeholder.
-	 */
-	nextTeacherNumber: number;
 };
 
 export function FacultyRosterActions({
@@ -77,9 +84,8 @@ export function FacultyRosterActions({
 	syncing,
 	isOnline,
 	refreshing,
-	nextTeacherNumber,
 }: FacultyRosterActionsProps) {
-	const createTemporaryLabel = temporaryTeacherActionLabel(nextTeacherNumber);
+	const createTemporaryLabel = temporaryTeacherActionLabel();
 	const rowRef = useRosterActionRowFit();
 	// The transient states keep the button honest about what is in flight; the
 	// settled label is the operator's requested copy.

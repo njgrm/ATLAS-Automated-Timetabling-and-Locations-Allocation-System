@@ -257,7 +257,18 @@ export function SectionRoomMapModal({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] flex flex-col p-0 overflow-hidden border-border/40 shadow-2xl">
+			<DialogContent
+				/*
+				 * A5 item 23.2 — "Assign Home Room", target 4 of 5. A DATA surface
+				 * (a room picker over a map), so it takes the shared dialog's default
+				 * `resizable` handling. The only bounds kept here are its own:
+				 * `w-[95vw] h-[90vh]`, its `p-0` shell and its own scroll. The drag
+				 * handles and the clamps now arrive from `@/ui/dialog` instead of
+				 * being this page's private idea of resizing.
+				 */
+				resizable
+				className="max-w-[95vw] w-[95vw] h-[90vh] flex flex-col p-0 overflow-hidden border-border/40 shadow-2xl"
+			>
 				<div className="flex-1 flex flex-col min-h-0">
 					{/* Header area */}
 					<div className="shrink-0 border-b bg-muted/30 px-6 py-4">

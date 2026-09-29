@@ -334,8 +334,13 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	// the client never rendered, which is what made a blocked generation a dead
 	// end. This one states the consequence, the real count, and where the real
 	// list is.
+	// A8 C3 — this is the BLOCKING count, not `blockers.length`. A teacher gap is
+	// a setup fact the run carries and names, so it must not make the chip say
+	// "651 setup items to fix"; the gaps are reported by the readiness panel in
+	// classes. A payload with no `blockerCount` falls back to the row count and
+	// therefore fails closed.
 	const setupBlockerCount = context.curriculumReadiness?.state === 'blocked'
-		? context.curriculumReadiness.diagnostic.blockers.length
+		? context.curriculumReadiness.diagnostic.blockerCount
 		: 0;
 	const setupOperatorMessage = setupBlockedDiagnostic
 		? generationBlockedOperatorSentence({ blockerCount: setupBlockerCount, setupLabel: setupState.label })

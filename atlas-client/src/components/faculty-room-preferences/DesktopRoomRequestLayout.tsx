@@ -340,7 +340,7 @@ export default function DesktopRoomRequestLayout({
 									}`}
 								>
 									<p className='text-xs font-bold'>{room.name}</p>
-									<p className='text-[10px] text-muted-foreground'>{room.buildingName} â€¢ Floor {room.floor}</p>
+									<p className='text-[10px] text-muted-foreground'>{room.buildingName} • Floor {room.floor}</p>
 								</Button>
 							))}
 						</div>

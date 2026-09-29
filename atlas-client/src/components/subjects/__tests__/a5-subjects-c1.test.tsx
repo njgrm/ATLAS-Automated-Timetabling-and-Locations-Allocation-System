@@ -222,9 +222,19 @@ test('A5-34/35: the Subjects column-header bubble renders on document.body, outs
 
 	// THE DARK, READABLE STYLE (operator item 34: the previous
 	// `bg-popover text-popover-foreground` was a white pill on a white card).
-	for (const token of ['z-50', 'bg-slate-900', 'text-white', 'font-medium', 'text-xs', 'px-2.5', 'py-1', 'rounded-md', 'shadow-md', 'pointer-events-none', 'whitespace-nowrap']) {
+	// A5 item 35.1 replaced `whitespace-nowrap` with the WRAP contract, so the
+	// required set now carries `whitespace-normal` and asserts the cap that
+	// forces a long sentence onto a second line.
+	for (const token of ['z-50', 'bg-slate-900', 'text-white', 'font-medium', 'text-xs', 'px-2.5', 'py-1', 'rounded-md', 'shadow-md', 'pointer-events-none', 'w-max', 'max-w-xs', 'md:max-w-sm', 'whitespace-normal', 'break-words', 'leading-normal']) {
 		assert.ok(hasClass(node, token), `the bubble is missing the standard tooltip token "${token}"`);
 	}
+	// The wrap contract is only real if the nowrap force is GONE. This is the
+	// control that distinguishes item 35.1 from the class list it replaced.
+	assert.equal(
+		hasClass(node, 'whitespace-nowrap'),
+		false,
+		'whitespace-nowrap is back on the shared primitive, so a long sentence is clipped again',
+	);
 	// It still carries a real pair of background/foreground classes, i.e. the
 	// content is not white-on-white whatever the theme.
 	assert.match(node.className, /bg-slate-900/);
@@ -384,18 +394,31 @@ test('A5-34/35 MUTANT CONTROL: the PRE-FIX bubble class list is rejected by the 
 	// and the standard dark style; the base was `z-[9999]` with a
 	// `bg-popover text-popover-foreground` white pill.
 	const PRE_FIX = 'z-[9999] overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md animate-in';
-	const REQUIRED = ['z-50', 'bg-slate-900', 'text-white', 'font-medium', 'text-xs', 'px-2.5', 'py-1', 'rounded-md', 'shadow-md', 'pointer-events-none', 'whitespace-nowrap'];
+	// A5 item 35.1: the same base, plus the `whitespace-nowrap` force that
+	// clipped every sentence-length helper. This is the SECOND half of the
+	// mutant: it proves the wrap contract is load-bearing, not decoration.
+	const PRE_FIX_NOWRAP = `${PRE_FIX} whitespace-nowrap`;
+	const REQUIRED = ['z-50', 'bg-slate-900', 'text-white', 'font-medium', 'text-xs', 'px-2.5', 'py-1', 'rounded-md', 'shadow-md', 'pointer-events-none', 'w-max', 'max-w-xs', 'whitespace-normal', 'break-words', 'leading-normal'];
 
 	// The same predicate row 1 applies to the rendered bubble.
 	const missing = (className: string) => {
 		const tokens = className.split(/\s+/).filter(Boolean);
 		return REQUIRED.filter((token) => !tokens.includes(token));
 	};
-	assert.deepEqual(
-		missing(PRE_FIX),
-		['z-50', 'bg-slate-900', 'text-white', 'font-medium', 'px-2.5', 'py-1', 'pointer-events-none', 'whitespace-nowrap'],
-		'MUTANT CONTROL DID NOT FIRE: the pre-fix class list no longer fails the style check, so row 1 is asserting nothing',
-	);
+	// The missing set is DERIVED, not hand-written. The hand-written copy that
+	// stood here was itself wrong: `PRE_FIX` already carries `text-xs`,
+	// `rounded-md` and `shadow-md`, so those three are never "missing" from it,
+	// and the expectation could not hold. What matters is that the control FIRES
+	// and that it fires on the tokens that matter, not on cosmetics.
+	assert.ok(missing(PRE_FIX).length > 0, 'MUTANT CONTROL DID NOT FIRE: the pre-fix class list no longer fails the style check, so row 1 is asserting nothing');
+	for (const token of ['z-50', 'bg-slate-900', 'text-white', 'w-max', 'max-w-xs', 'whitespace-normal', 'break-words', 'leading-normal']) {
+		assert.ok(missing(PRE_FIX).includes(token), `the pre-fix list must be rejected for ${token}, not merely for cosmetics`);
+	}
+	// The 35.1 mutant: nowrap present, wrap contract absent. The predicate must
+	// still reject it — otherwise the wrap classes are decoration.
+	for (const token of ['w-max', 'max-w-xs', 'whitespace-normal', 'break-words', 'leading-normal']) {
+		assert.ok(missing(PRE_FIX_NOWRAP).includes(token), `MUTANT CONTROL DID NOT FIRE: the 35.1 nowrap list still passes, so the wrap contract is not load-bearing (${token})`);
+	}
 
 	// And the LIVE bubble passes it — the same predicate, opposite outcome.
 	await render(
@@ -489,18 +512,28 @@ function clusterTriggers(): HTMLElement[] {
 }
 
 /**
- * A5 C4 (2026-09-29) — the ONE `More filters` disclosure, and the filters behind it.
+ * A5 C7 ITEM 43 (2026-09-29) — THE DISCLOSURE IS GONE.
  *
- * `Status`, `Room` and `Term` moved under this disclosure on the packet's finding
- * ("Keep Grade and Program visible and put the other filters under 'More
- * filters'"). Rows that used to assert they were DIRECTLY in the row are re-pointed
- * through this helper rather than deleted, so each keeps testing the same property
- * from the new place the filter actually lives.
+ * A5 C4 (2026-09-29) moved `Status`, `Room` and `Term` under ONE `More filters`
+ * disclosure ("Keep Grade and Program visible and put the other filters under 'More
+ * filters'"). Item 43 supersedes it: all five are in the row permanently.
+ *
+ * `moreFiltersTrigger()` and `ensureMoreFiltersOpen()` are KEPT, not deleted, and both
+ * now ASSERT THEIR OWN ABSENCE. They are the seam every row in this file that used to
+ * say "reach a filter through the disclosure" already calls, so keeping them means
+ * those rows needed no restructuring at all — their helper call became a stronger
+ * assertion instead of a removed line. A C4-shaped accommodation that quietly stayed
+ * behind would let a reintroduced disclosure pass this whole suite; these two helpers
+ * are what make that impossible (`AGENTS.md` §16).
  */
-function moreFiltersTrigger(): HTMLElement {
+function moreFiltersTrigger(): never {
 	const button = document.body.querySelector<HTMLElement>('[data-testid="subjects-more-filters"]');
-	assert.ok(button, 'the `More filters` disclosure is gone from the row');
-	return button;
+	assert.equal(
+		button === null,
+		true,
+		'the `More filters` disclosure is back in the row; item 43 put all five filters in the row permanently',
+	);
+	throw new Error('unreachable: `subjects-more-filters` is absent, which is what this helper asserts');
 }
 
 /** Every `role=combobox` currently rendered, wherever it lives (cluster or disclosure). */
@@ -509,23 +542,32 @@ function allVisibleTriggers(): HTMLElement[] {
 }
 
 /**
- * Open the disclosure only if it is not already open.
+ * A5 C7: assert all five filters are in the row with NO interaction — the replacement
+ * for A5 C4's idempotent "open the disclosure" step.
  *
- * `More filters` is a TOGGLE, so a bare `click` in a loop closes it on the second
- * pass and the filter the row is about to reach disappears. Checking first makes
- * every caller idempotent, which is what a real user does — they open it once and
- * then keep working inside it.
+ * It keeps A5 C4's shape (a single helper every caller already invokes) and changes
+ * what it decides: on A5 C4 this clicked a toggle, which meant a filter could only be
+ * checked from inside the disclosure. Here it checks the CLOSED row, so a filter that
+ * had been re-hidden would be red here by name.
  */
 async function ensureMoreFiltersOpen(): Promise<void> {
-	if (document.body.querySelector('[data-testid="subjects-status-filter"]')) return;
-	await click(moreFiltersTrigger());
-	assert.ok(
-		document.body.querySelector('[data-testid="subjects-status-filter"]'),
-		'clicking `More filters` did not reveal the refinement filters',
+	const inRow = Array.from(
+		document.body.querySelectorAll('[data-testid="subjects-filter-cluster"] [role="combobox"]'),
+	);
+	assert.equal(
+		inRow.length,
+		5,
+		`the row carries ${inRow.length} filters with no interaction; item 43 requires all five, and ` +
+			'a filter reachable only through a disclosure is a filter a scheduler has to hunt for',
+	);
+	assert.equal(
+		document.body.querySelector('[data-testid="subjects-more-filters"]') === null,
+		true,
+		'a `More filters` disclosure is back in the row',
 	);
 }
 
-test('A5-9.1/41: the filter row is ONE cluster with exactly one All Status control, and the refinements sit behind ONE disclosure', async () => {
+test('A5-9.1/41: the filter row is ONE cluster with exactly one All Status control, and ALL FIVE filters are in it', async () => {
 	await render(<MemoryRouter><SubjectFilterToolbar {...TOOLBAR} hasActiveFilters /></MemoryRouter>);
 
 	// One row: the shared inline row, with no second always-visible row beside it.
@@ -533,10 +575,22 @@ test('A5-9.1/41: the filter row is ONE cluster with exactly one All Status contr
 	assert.equal(document.body.querySelector('[data-testid="admin-primary-filter-row"]') === null, true, 'a second always-visible filter row is back');
 
 	// One wrapping cluster carrying the whole row, at the operator's spacing.
+	//
+	// A5 C7 ITEM 43: `gap-2.5` becomes `gap-2`. This is the spacing BETWEEN SIBLINGS
+	// of a flex row, not chrome on a control, so §8's "one look per control" does not
+	// apply to it — and §8 in fact requires the one change, because the row now holds
+	// five pickers plus Reset where A5 C4 held two plus a disclosure, and `gap-2` is
+	// what keeps all of them inside one line at 1366. The width budget that depends on
+	// it is asserted in `a5-c4-subjects-filter-disclosure.test.tsx` (`A5-C7-2k`) and,
+	// as a rendered no-wrap result, in the 1366x768 browser capture.
 	const cluster = document.body.querySelector('[data-testid="subjects-filter-cluster"]') as HTMLElement;
-	for (const token of ['flex', 'flex-wrap', 'items-center', 'gap-2.5']) {
+	for (const token of ['flex', 'flex-wrap', 'items-center', 'gap-2']) {
 		assert.ok(hasClass(cluster, token), `the cluster is missing "${token}"`);
 	}
+	// `gap-2.5` must not survive as a competing declaration alongside `gap-2`; the
+	// tailwind-merge rule that governs the pickers' widths is the same one, and two
+	// gap classes would make the budget undecidable from source.
+	assert.equal(hasClass(cluster, 'gap-2.5'), false, 'the cluster still carries `gap-2.5` alongside `gap-2`');
 
 	// EXACTLY ONE status-looking trigger, and its resting label is the
 	// operator's own `Status: All` — the duplicate `All statuses` dropdown is
@@ -550,26 +604,25 @@ test('A5-9.1/41: the filter row is ONE cluster with exactly one All Status contr
 	// is unchanged: exactly one status-looking control, and no second status
 	// dropdown anywhere.
 	//
-	// A5 C4, RE-POINTED — the trigger is now reached by opening ONE disclosure
-	// rather than by reading the row. The count is taken over the whole document
-	// after the disclosure is open, so a SECOND status control hidden behind a
-	// second disclosure would still be caught.
+	// A5 C4, RE-POINTED, AND NOW SUPERSEDED BY A5 C7 ITEM 43 — the trigger used to be
+	// reached by opening ONE disclosure. It is now reached from the row itself, and the
+	// count is taken over the whole document, so a SECOND status control hidden
+	// anywhere would still be caught.
 	await ensureMoreFiltersOpen();
 	const statusish = allVisibleTriggers().filter((t) => /status/i.test(`${t.getAttribute('aria-label') ?? ''} ${t.textContent ?? ''}`));
 	assert.equal(statusish.length, 1, `expected exactly one status control, found ${statusish.length}: ${statusish.map((t) => t.getAttribute('aria-label')).join(', ')}`);
 	assert.equal((statusish[0].textContent ?? '').trim(), 'Status: All', 'the merged status control does not read the operator\'s "Status: All"');
 
 	// Every filter the operator had is still present and still names itself in its
-	// own words. Grade and Program are the two the row shows; Status, Room and
-	// Term are the three behind the disclosure. `Trigger: All` for all five, and
-	// the FULL labels still available in the popovers and the accessible names.
+	// own words. `Trigger: All` for all five, and the FULL labels still available in
+	// the popovers and the accessible names.
 	//
-	// A5 C4, RE-POINTED — was `assert.equal(triggers.length, 5, ...)` and a loop
-	// over five `[aria-label]` lookups BEFORE any interaction. The five filters
-	// are all still offered; two of them are simply one disclosure away, which is
-	// the packet's own finding. The count of FILTERS is unchanged at five; the
-	// count of controls VISIBLE with no interaction is now two plus the
-	// disclosure, and that is asserted on its own below.
+	// A5 C7 ITEM 43, RE-POINTED — this was `assert.equal(triggers.length, 5, …)` and
+	// a loop over five `[aria-label]` lookups. The count of FILTERS is still five and
+	// the loop is unchanged; what changed is that all five are now read from the
+	// CLOSED row, so the loop no longer proves anything about a control that was only
+	// reachable after a click. A5 C4's accommodation — read two visible, then open the
+	// disclosure to read three more — is recorded verbatim above and superseded here.
 	assert.equal(allVisibleTriggers().length, 5, `expected 5 offered filters (Status, Grade, Program, Room, Term), found ${allVisibleTriggers().length}`);
 	for (const label of [
 		'Filter by subject status: All statuses',
@@ -591,27 +644,23 @@ test('A5-9.1/41: the filter row is ONE cluster with exactly one All Status contr
 		assert.ok(allVisibleTriggers().some((t) => (t.textContent ?? '').trim() === label), `no trigger reads "${label}"`);
 	}
 
-	// A5 C4, RE-POINTED — what used to be asserted here, recorded verbatim and
-	// SUPERSEDED by the packet's finding:
+	// A5 C4, SUPERSEDED BY A5 C7 ITEM 43 — what this used to assert, recorded verbatim:
 	//   assert.equal(<buttons matching /more filters/i>.length, 0,
 	//     'a "More filters" disclosure is back');
-	// There is now exactly ONE disclosure and it is named `More filters`, so the
-	// replacement asserts its NUMBER and its NAME rather than its absence. The
-	// property the old assertion was protecting - a scheduler is never made to
-	// hunt for a filter, and there is never more than one thing to open - is
-	// preserved, because three controls leaving the visible row means a
-	// scheduler reads two, not five.
+	// A5 C4 replaced that absence check with a count and a name, because A5 C4 HAD a
+	// disclosure. Item 43 removes the disclosure, so the ORIGINAL absence assertion is
+	// restored — and this is a case where restoring it is the strengthening, not the
+	// weakening: on A5 C4 a scheduler read two filters and had to open a button to
+	// discover the page was filtered at all; on A5 C7 all five are on screen and
+	// nothing has to be opened. A count badge on a grouping button was the thing the
+	// operator could not read.
 	const disclosures = Array.from(document.body.querySelectorAll('button')).filter((b) =>
 		/^More filters/.test((b.textContent ?? '').trim()),
 	);
-	assert.equal(disclosures.length, 1, `the row carries ${disclosures.length} disclosures, not one`);
-	assert.equal((disclosures[0].textContent ?? '').trim(), 'More filters', 'the disclosure does not name itself');
-	// With nothing set it must not claim a count: `More filters (0)` is a second
-	// thing to decode.
-	assert.doesNotMatch((disclosures[0].textContent ?? '').trim(), /\(\d+\)/, 'the disclosure counts filters when none is set');
-	// And only TWO filters are directly visible with no interaction, which is the
-	// subtraction the packet asked for.
-	assert.equal(clusterTriggers().length, 2, `expected 2 directly-visible filters, found ${clusterTriggers().length}`);
+	assert.equal(disclosures.length, 0, `a \`More filters\` disclosure is back in the row (found ${disclosures.length})`);
+	// And ALL FIVE are directly visible with no interaction — the inverse of the A5 C4
+	// subtraction, and the assertion that makes the disclosure's return red.
+	assert.equal(clusterTriggers().length, 5, `expected all 5 filters directly in the row, found ${clusterTriggers().length}`);
 	assert.equal(/EnrollPro year and terms verified live/.test(document.body.textContent ?? ''), false, 'the green EnrollPro notice strip is back');
 
 	// The handles A3-C10 introduced are preserved. The Room handle is now inside
@@ -641,34 +690,28 @@ test('A5-9.1/41: the search box is the fixed compact width, and every select car
 	//   ['h-9', 'text-xs', 'px-3', 'rounded-xl', 'border', 'border-slate-200',
 	//    'bg-white', 'hover:bg-slate-50', 'transition-colors']
 	// AFTER, each trigger carries the shared variant — `h-9` (the one height token,
-	// also on the search box), `w-32` (the one even width), `text-xs`, `px-3`, and
-	// the case normalisation — and the radius/border/background come from
-	// `@/ui/button variant="outline"`, which is the Section and Teacher pickers'
-	 // look, the reference the operator named. The assertion is still per-trigger,
-	 // still on the RENDERED class list, and a page that restated any of these
-	 // would fail here.
+	// also on the search box), the `auto` WIDTH variant (see the correction note
+	// below), `text-xs`, `px-3`, and the case normalisation — and the radius/border/
+	// background come from `@/ui/button variant="outline"`, which is the Section and
+	// Teacher pickers' look, the reference the operator named. The assertion is still
+	// per-trigger, still on the RENDERED class list, and a page that restated any of
+	// these would fail here.
 	//
-	// A5 C4, RE-POINTED AND STRENGTHENED. This used to read the two or more
-	// triggers in the cluster and `assert.ok(triggers.length >= 4)`. Three of the
-	// five now sit behind the disclosure, so the row's own length check could only
-	// ever see two — and §8's "one look per control" is decided by the look, not by
-	// the row a control happens to sit in. So the same per-trigger assertions now
-	// run over ALL FIVE, with the disclosure open: the shared height, width, type
-	// size, padding and case are proven identical for the visible two AND the
-	// hidden three. That is a stronger gate than the one it replaces, not a weaker
-	// one.
+	// A5 C7 CORRECTION ROUND 1: the width is `w-auto`, not `w-32`. Round 0 asserted
+	// `w-32` and I measured that it clipped — `Room: Laboratory` overflowed its 128px
+	// rectangle by 10px, and fourteen faces exceeded `md`'s published 12-character
+	// budget. `picker-trigger.ts` says a width that is not a fixed rectangle "ALWAYS
+	// FITS", so `auto` is the variant for a page whose longest face does not fit a
+	// fixed one. §8 is untouched: all five take the SAME variant, and the height,
+	// border, radius, case and option-list search behaviour all still come from the
+	// shared builder.
 	const rowTriggers = clusterTriggers();
 
 	// Grades use the shared compact DepEd form, not `Grade 7`.
 	//
-	// A5 C4 ORDER NOTE — this check runs BEFORE the disclosure is opened, and that
-	// ordering is load-bearing rather than cosmetic. `openSelect` begins by
-	// dispatching `Escape` to close whatever is open; with a disclosure mounted
-	// that also tears down its `DismissableLayer` and `hideOthers`, and whether the
-	// next `pointerdown` lands before or after that teardown is the exact race this
-	// file already documented for `openFilter` (see the A3-C10 Room/Program
-	// comment). Grade is a row control that needs no disclosure, so it is read
-	// from the untouched toolbar and the row stays deterministic.
+	// ORDER NOTE — unchanged from round 0: this check runs BEFORE the rest, because
+	// `openSelect` begins by dispatching `Escape` to close whatever is open. Grade is
+	// a row control like every other here, and the row is deterministic.
 	const options = await openSelect(document.body.querySelector('[aria-label="Filter by grade level: All grades"]'));
 	const labels = options.map((o) => (o.textContent ?? '').trim());
 	assert.equal(labels[0], 'All grades', 'the grade filter has no "All grades" reset option');
@@ -678,12 +721,19 @@ test('A5-9.1/41: the search box is the fixed compact width, and every select car
 	assert.equal(labels.includes('Grade 7'), false, 'the grade options use a second spelling');
 	assert.equal(labels.length, constants.GRADE_OPTIONS.length + 1, 'the grade list lost an option');
 
-	// ...and NOW the disclosure, for the per-trigger look check over all five.
-	await click(moreFiltersTrigger());
+	// A5 C7 ITEM 43: NO disclosure is opened here, and none is needed. A5 C4's line
+	// was `await click(moreFiltersTrigger());` — the call site that turned a genuine
+	// reachability question into "press the button this page told you to press". It
+	// is kept as `ensureMoreFiltersOpen()`, which now asserts all five are already
+	// in the row, so the row is still checked from the same place in the sequence.
+	await ensureMoreFiltersOpen();
 	const triggers = allVisibleTriggers();
 	assert.equal(triggers.length, 5, `expected 5 offered filters, found ${triggers.length}`);
+	// The per-trigger look check over all five. A5 C7 CORRECTION ROUND 1: the width token
+	// is `w-auto` rather than round 0's `w-32` — see the note above for why a fixed
+	// rectangle smaller than the content is a clipping instruction, not a budget.
 	for (const trigger of triggers) {
-		for (const token of ['h-9', 'w-32', 'text-xs', 'px-3', 'normal-case']) {
+		for (const token of ['h-9', 'w-auto', 'whitespace-nowrap', 'text-xs', 'px-3', 'normal-case']) {
 			assert.ok(hasClass(trigger, token), `a select trigger is missing the shared "${token}": ${trigger.getAttribute('aria-label')}`);
 		}
 		// The page-local chrome string is gone, not renamed: `rounded-xl` +
@@ -691,13 +741,24 @@ test('A5-9.1/41: the search box is the fixed compact width, and every select car
 		for (const gone of ['rounded-xl', 'border-slate-200', 'bg-white']) {
 			assert.equal(hasClass(trigger, gone), false, `a select trigger still carries the page-local override "${gone}"`);
 		}
+		// And none is back on a FIXED width, which is the round-0 defect this round
+		// corrects: a trigger with a `w-<n>` can clip a face it does not fit.
+		assert.doesNotMatch(
+			trigger.className,
+			/(^|\s)w-(\d+|full|px)(\s|$)/,
+			`a select trigger is back on a fixed rectangle: ${trigger.getAttribute('aria-label')}`,
+		);
 	}
-	// All five share ONE width, which is what R1 J3 asks for and what makes the
-	// 1366 width budget decidable from source.
+	// All five share ONE width VARIANT, which is what §8's "one look per control"
+	// asks for and what makes the row's width a function of what is selected rather
+	// than of a constant that can be too small.
 	const widths = new Set(triggers.map((t) => (t.className.match(/(?:^|\s)w-[\w-]+/) ?? ['NONE'])[0].trim()));
 	assert.equal(widths.size, 1, `the five filters carry ${widths.size} different widths: ${[...widths].join(' | ')}`);
-	// And the two that stayed in the row are the ones the packet kept there.
-	assert.equal(rowTriggers.length, 2, `expected 2 directly-visible filters, found ${rowTriggers.length}`);
+	// A5 C7: all five are in the row with no interaction. A5 C4's `assert.equal(
+	// rowTriggers.length, 2, …)` is recorded verbatim in this file's A5 C7 notes and
+	// superseded — under item 43 the count is five, and a filter that needed a
+	// disclosure to appear would fail `ensureMoreFiltersOpen()` above.
+	assert.equal(rowTriggers.length, 5, `expected all 5 filters directly in the row, found ${rowTriggers.length}`);
 });
 
 test('A5-9.1/41 LOAD-BEARING: the one status control reaches BOTH axes — lifecycle and coverage attention', async () => {
@@ -878,16 +939,38 @@ const COVERAGE_SUBJECT = {
 	updatedAt: '2026-09-27T00:00:00.000Z',
 } as never;
 
-test('A5-17.1(1): the coverage dialog is resizable at the operator bounds, and is still centered by the primitive', async () => {
+test('A5-17.1(1) + 23.2: the coverage dialog takes the SHARED resizable contract and is centred by a flex parent', async () => {
 	await renderCoverage(coverageDetail());
 	const dialog = document.body.querySelector('[data-testid="subject-coverage-dialog"]') as HTMLElement | null;
 	assert.ok(dialog, 'the coverage dialog did not render');
 
-	// RESIZABLE, at the four bounds the operator specified.
-	assert.equal(dialog.style.resize, 'both', 'the dialog is not resizable (CSS `resize: both`)');
-	for (const bound of ['min-w-[500px]', 'max-w-[95vw]', 'min-h-[420px]', 'max-h-[90vh]']) {
-		assert.ok(hasClass(dialog, bound), `the dialog is missing the bound ${bound}`);
-	}
+	// A5 ITEM 23.2 — the page-local resize answer is GONE and the card asks the
+	// shared primitive instead. The old `style={{ resize: 'both' }}` and the old
+	// page-local grip are both deleted; a page that grows a private dialect of
+	// "resizable" again is the regression this row exists to catch.
+	assert.equal(dialog.getAttribute('data-resizable'), 'true', 'the card must take the shared resizable contract');
+	assert.notEqual(dialog.style.resize, 'both', 'the page-local CSS `resize: both` is back');
+	assert.equal(
+		document.body.querySelector('[data-testid="subject-coverage-resize-grip"]'),
+		null,
+		'the page-local grip is back; the shared primitive supplies the handles now',
+	);
+
+	// The card's OWN bounds, unchanged from item 17.1 — EXCEPT the width and
+	// height clamps, which item 23.2 moved onto the shared primitive.
+	//
+	// The 17.1 assertions that pinned `min-w-[500px]` and `max-h-[90vh]` HERE are
+	// SUPERSEDED, not deleted (AGENTS.md §16): a page-local clamp passed through
+	// `cn()` wins over the shared `DIALOG_RESIZABLE_CLASSES` and silently
+	// un-applies the universal contract. The card keeps the one bound that is
+	// genuinely its own — its minimum height.
+	assert.ok(hasClass(dialog, 'min-h-[420px]'), `the dialog is missing the bound min-h-[420px]`);
+	// And the shared primitive's clamps reach the rendered card, so the drag
+	// really is bounded on both axes.
+	assert.ok(hasClass(dialog, 'min-w-[min(480px,95vw)]'), 'the shared 480px floor did not reach the card');
+	assert.ok(hasClass(dialog, 'max-w-[95vw]'), 'the shared 95vw cap did not reach the card');
+	assert.ok(hasClass(dialog, 'max-h-[85vh]'), 'the shared 85vh cap did not reach the card');
+
 	// It still owns its own scroll: a resize must not turn the card into a page
 	// scroll region.
 	assert.ok(hasClass(dialog, 'overflow-hidden'), 'the dialog lost overflow-hidden');
@@ -897,19 +980,86 @@ test('A5-17.1(1): the coverage dialog is resizable at the operator bounds, and i
 		assert.ok(hasClass(scroller, token), `the dialog body lost "${token}"`);
 	}
 
-	// STILL CENTERED. The primitive's own `left-[50%] top-[50%]` positioning is
-	// what the `animate-modal-in` translate keys re-centre at any size, which is
-	// why no JS re-centring was added.
-	assert.ok(hasClass(dialog, 'left-[50%]'), 'the dialog lost its horizontal centring anchor');
-	assert.ok(hasClass(dialog, 'top-[50%]'), 'the dialog lost its vertical centring anchor');
+	// STILL CENTERED — BY A FLEX PARENT, not a translate. The old primitive
+	// anchored with `left-[50%] top-[50%]` and re-centred through the
+	// `animate-modal-in` translate keys, which is precisely what made a WIDTH
+	// drag unusable: a transform computed for one size fights a box the user is
+	// resizing. The wrapper re-centres at every size.
+	const wrapper = dialog.parentElement;
+	assert.ok(wrapper, 'the dialog must be centred by a wrapper element');
+	assert.equal(wrapper!.getAttribute('data-dialog-centering'), 'flex');
+	assert.match(wrapper!.getAttribute('class') ?? '', /\bflex\b/);
+	assert.match(wrapper!.getAttribute('class') ?? '', /\bitems-center\b/);
+	assert.equal(hasClass(dialog, 'left-[50%]'), false, 'the translate centring anchor is back');
+	assert.equal(hasClass(dialog, 'top-[50%]'), false, 'the translate centring anchor is back');
 
-	// The resize affordance is VISIBLE, not just available.
-	const grip = document.body.querySelector('[data-testid="subject-coverage-resize-grip"]') as HTMLElement | null;
-	assert.ok(grip, 'there is no visible resize grip');
-	assert.equal(grip.getAttribute('aria-hidden'), 'true', 'the decorative grip is exposed to assistive tech');
-	assert.ok(hasClass(grip, 'pointer-events-none'), 'the grip swallows the drag instead of the card receiving it');
-	assert.ok(dialog.contains(grip), 'the grip is not inside the resizable card');
-	assert.ok(grip.querySelector('svg'), 'the grip renders no icon');
+	// The resize affordance is VISIBLE and KEYBOARD-SANE: two handles, each
+	// looking like something you can drag, and each out of the tab order.
+	const handles = Array.from(dialog.querySelectorAll('[data-testid="dialog-resize-handle"]'));
+	assert.equal(handles.length, 2, `the card must render a left and a right handle, saw ${handles.length}`);
+	for (const handle of handles as HTMLElement[]) {
+		assert.equal(handle.getAttribute('aria-hidden'), 'true', 'a pointer-drag handle is not an assistive-tech control');
+		assert.equal(handle.getAttribute('tabindex'), '-1', 'a pointer-drag handle must be out of the tab order');
+		assert.match(handle.getAttribute('class') ?? '', /\bcursor-ew-resize\b/, 'a handle must advertise that it drags sideways');
+		assert.match(handle.getAttribute('class') ?? '', /\bbg-border\b/, 'a handle must be visible, not an invisible 2px line');
+	}
+	// The close button still works: the handles are inset from the corner it owns.
+	assert.ok(dialog.querySelector('button'), 'the dialog lost its close button');
+});
+
+test('A5-17.2 the section chips carry the requested proportions and wrap as the card widens', async () => {
+	await renderCoverage(coverageDetail());
+	const chips = Array.from(document.body.querySelectorAll('[data-testid="subject-coverage-section-chip"]')) as HTMLElement[];
+	assert.ok(chips.length > 0, 'the section chips must render');
+
+	for (const chip of chips) {
+		const cls = chip.getAttribute('class') ?? '';
+		// The pill: `px-3 py-1.5 gap-2 rounded-xl`.
+		for (const token of ['px-3', 'py-1.5', 'gap-2', 'rounded-xl']) {
+			assert.ok(cls.split(/\s+/).includes(token), `the section chip is missing "${token}"; saw ${cls}`);
+		}
+		// The row WRAPS, so widening the dialog lays chips out on fewer lines
+		// instead of clipping them.
+		assert.match(cls, /\bflex\b/);
+	}
+	const row = chips[0]!.parentElement!;
+	assert.match(row.getAttribute('class') ?? '', /\bflex-wrap\b/, 'the chip row must wrap as the dialog widens');
+
+	// The grade badge: `text-xs font-semibold px-2 py-0.5` — and NOT the old
+	// 10px badge, which was smaller than the text around it.
+	const badges = Array.from(document.body.querySelectorAll('[data-testid="subject-coverage-section-chip"] span')) as HTMLElement[];
+	const gradeBadges = badges.filter((b) => /\bpx-2\b/.test(b.getAttribute('class') ?? ''));
+	assert.ok(gradeBadges.length > 0, 'a grade badge must render inside a chip');
+	for (const badge of gradeBadges) {
+		const cls = badge.getAttribute('class') ?? '';
+		for (const token of ['text-xs', 'font-semibold', 'px-2', 'py-0.5']) {
+			assert.ok(cls.split(/\s+/).includes(token), `the grade badge is missing "${token}"; saw ${cls}`);
+		}
+		// AGENTS.md §8: the grade colour is the ONE shared DepEd palette, so the
+		// control is EQUALITY with the palette entry for the grade the badge
+		// actually renders (a hard-coded GR7 green would have failed on a fixture
+		// whose first chip is GR9 — a test bug that read as a product bug). A LOCAL
+		// variant is a colour no palette entry supplies.
+		const grade = /^GR(\d+)$/.exec((badge.textContent ?? '').trim());
+		assert.ok(grade, `a grade badge must read as the shared GRn label; saw "${(badge.textContent ?? '').trim()}"`);
+		const palette = (GRADE_COLORS as Record<string, string>)[grade![1]!];
+		assert.ok(palette, `GR${grade![1]} has no shared palette entry`);
+		for (const token of palette.split(' ')) {
+			assert.ok(cls.split(/\s+/).includes(token), `GR${grade![1]} must carry the shared palette token ${token}; saw ${cls}`);
+		}
+		const paletteTokens = new Set(Object.values(GRADE_COLORS).flatMap((entry) => entry.split(' ')));
+		for (const token of cls.split(/\s+/)) {
+			if (/^(bg|text)-(red|yellow|blue|green|emerald|amber)-\d/.test(token)) {
+				assert.ok(paletteTokens.has(token), `"${token}" is a LOCAL grade colour instead of the shared palette`);
+			}
+		}
+	}
+	// The section NAME is `text-sm font-medium` — legible, not `text-xs`.
+	const names = badges.filter((b) => /\btext-sm\b/.test(b.getAttribute('class') ?? ''));
+	assert.ok(names.length > 0, 'the section name must render at text-sm');
+	for (const name of names) {
+		assert.match(name.getAttribute('class') ?? '', /\bfont-medium\b/, 'the section name must be text-sm font-medium');
+	}
 });
 
 test('A5-17.1(2): the teacher card shows the name and the load badge, and no duplicate grade row and no ASSIGNED SECTIONS subheader', async () => {
@@ -947,8 +1097,23 @@ test('A5-17.1(3): each section renders a colour-coded grade pill beside the sect
 	for (const token of ['flex', 'flex-wrap', 'gap-2', 'pt-2']) {
 		assert.ok(hasClass(wrap, token), `the section wrap is missing "${token}"`);
 	}
-	for (const token of ['px-2.5', 'py-1', 'rounded-lg', 'bg-slate-50', 'border-slate-200/80']) {
+	// A5 item 17.2 re-proportioned the pill: `px-3 py-1.5 gap-2 rounded-xl`. The
+	// old `px-2.5 py-1 rounded-lg` was the item 17.1 shape; this row keeps the
+	// control and re-points it at the shape the operator asked for now.
+	for (const token of ['px-3', 'py-1.5', 'gap-2', 'rounded-xl', 'bg-slate-50', 'border-slate-200/80']) {
 		assert.ok(hasClass(chips[0], token), `the section chip is missing "${token}"`);
+	}
+	// And the section NAME is `text-sm font-medium` — legible, not `text-xs`.
+	for (const token of ['text-sm', 'font-medium']) {
+		assert.ok(
+			hasClass(chips[0].querySelectorAll('span')[1] as HTMLElement, token),
+			`the section name is missing "${token}"`,
+		);
+	}
+	// The grade badge is `text-xs font-semibold px-2 py-0.5`, not the 10px badge
+	// that was smaller than the helper text around it.
+	for (const token of ['text-xs', 'font-semibold', 'px-2', 'py-0.5']) {
+		assert.ok(hasClass(chips[0].querySelector('span') as HTMLElement, token), `the grade badge is missing "${token}"`);
 	}
 
 	for (const [index, want] of expected.entries()) {
@@ -958,17 +1123,33 @@ test('A5-17.1(3): each section renders a colour-coded grade pill beside the sect
 		// The grade pill text is the SHARED compact form, and its colour comes
 		// from the ONE shared palette — GR7 green, GR9 red.
 		assert.equal((pill.textContent ?? '').trim(), gradeLabel(want.grade), `the grade pill is not the shared ${gradeLabel(want.grade)}`);
+		// AGENTS.md §8: the grade colour is the ONE shared DepEd palette. The
+		// control is EQUALITY with the palette, not the absence of a colour: the
+		// palette is itself expressed as raw Tailwind greens/reds, so banning those
+		// tokens would ban the shared palette. A local variant is a colour the
+		// palette does not supply.
 		const palette = GRADE_COLORS[String(want.grade)];
 		assert.ok(palette, 'the shared palette has no entry for this grade');
+		const badgeCls = pill.getAttribute('class') ?? '';
 		for (const token of palette.split(' ')) {
-			assert.ok(hasClass(pill, token), `the grade pill colour is not the shared palette token "${token}"`);
+			assert.ok(hasClass(pill, token), `the grade badge colour is not the shared palette token "${token}"`);
+		}
+		for (const token of badgeCls.split(' ')) {
+			assert.ok(
+				/^(text|bg|border)-(red|green|yellow|blue|emerald|amber|sky|indigo|violet|rose|slate)-/.test(token) === false || palette.split(' ').includes(token),
+				`"${token}" is a LOCAL grade colour; the badge must carry only the shared palette for ${gradeLabel(want.grade)}`,
+			);
 		}
 		// THE DISCRIMINATING ROW: the name is the NAME. Before the fix the chip
 		// held the whole display string `GR7 Bonifacio`, so the grade was
 		// printed a second time as text.
 		assert.equal((name.textContent ?? '').trim(), want.name, 'the section name is not the bare section name');
 		assert.equal(/^GR\d/.test((name.textContent ?? '').trim()), false, 'the section name still carries a GRx prefix');
-		assert.ok(hasClass(name, 'text-xs') && hasClass(name, 'font-medium'), 'the section name lost its type classes');
+		// A5 item 17.2: the section name is `text-sm font-medium`, up from `text-xs`.
+		// The control keeps the "it must be typed at all" claim and re-points it at
+		// the size the operator asked for — a 12px name beside a 12px grade badge
+		// gave the grade no hierarchy over the thing it labels.
+		assert.ok(hasClass(name, 'text-sm') && hasClass(name, 'font-medium'), 'the section name lost its type classes');
 	}
 
 	// ITEM 17.1(4): the SAME layout for every assigned teacher, not just the

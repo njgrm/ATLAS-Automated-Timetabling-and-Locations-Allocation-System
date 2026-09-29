@@ -51,7 +51,9 @@ export function SwapConfirmationModal({
 	const displacedBecomesUnassigned = !currentRoomName;
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-w-xl rounded-3xl p-0 overflow-hidden border-border/40 shadow-2xl">
+			{/* A5 item 23.2: both of these are CONFIRMATIONS ("Move to X?",
+			    "Remove the home room for Y?"), so both are forced compact. */}
+			<DialogContent resizable={false} className="max-w-xl rounded-3xl p-0 overflow-hidden border-border/40 shadow-2xl">
 				<div className="bg-warning-muted/50 border-b border-warning-border px-6 py-4 flex items-center gap-3">
 					<div className="size-10 rounded-full bg-warning/10 flex items-center justify-center text-warning shadow-inner">
 						<AlertTriangle className="size-5" />
@@ -180,7 +182,7 @@ export function UnassignConfirmationModal({
 }: UnassignConfirmationModalProps) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-w-sm rounded-3xl p-8 overflow-hidden border-border/40 shadow-2xl">
+			<DialogContent resizable={false} className="max-w-sm rounded-3xl p-8 overflow-hidden border-border/40 shadow-2xl">
 				<div className="flex flex-col items-center text-center space-y-4">
 					<div className="size-14 rounded-full bg-warning/10 flex items-center justify-center text-warning shadow-inner">
 						<AlertCircle className="size-7" />

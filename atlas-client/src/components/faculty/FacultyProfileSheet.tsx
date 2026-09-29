@@ -119,34 +119,31 @@ export function FacultyProfileSheet({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
 				/*
-				 * FIX 23.1 (operator, 2026-09-28) — the profile card is now
-				 * RESIZABLE, because a fixed card forced the subject list into a
-				 * scroll the scheduler could not see past.
+				 * THE TEACHER PROFILE DIALOG (A5 item 23.2, target 2 of 5).
 				 *
-				 * `resize` is Tailwind's `resize: both`, and `overflow-hidden` on
-				 * the card is REQUIRED for a resize handle to appear at all: with
-				 * `overflow: auto` a native resizer needs its own scroll gutter and
-				 * competes with the inner scroll region. So the card clips and the
-				 * BODY below scrolls instead, which keeps exactly one scroll
-				 * container on this surface and none of them global.
+				 * It was already resizable — but resizable in its own way, with a
+				 * page-local Tailwind `resize` class, its own bounds and a browser-drawn
+				 * corner grip. It now takes the shared dialog's `resizable` handling,
+				 * so the Teacher profile card, the Subject coverage card and the other
+				 * three data dialogs all answer "can I widen this?" the same way
+				 * (AGENTS.md §8, one look per control). `resize` is gone from the class
+				 * list; the shared primitive's two visible drag handles replace the
+				 * corner grip.
 				 *
-				 * The `min-*(…,95vw)` form is the operator's `min-w-[500px]` /
-				 * `min-h-[400px]`, guarded: an UNGUARDED `min-w-[500px]` on a
-				 * 390px viewport is a hard overflow, and this file's own
-				 * no-scroll rule (AGENTS.md §8) would be broken by a 110px
-				 * horizontal scrollbar. `min(500px, 95vw)` keeps the requested
-				 * floor wherever it fits and degrades to the viewport elsewhere;
-				 * `max-w-[95vw]` / `max-h-[90vh]` bound the other axis so a
-				 * dragged-out card can never leave the visible area.
+				 * What stays here is what is genuinely this surface's own: its
+				 * first-paint height, its `min-h-[min(400px,90vh)]` / `min-h-[400px]`
+				 * floor, and `overflow-hidden`. The clipping is still load-bearing —
+				 * the card clips and the BODY below it scrolls, so this surface keeps
+				 * exactly one scroll container and never a global one (§8).
 				 *
-				 * `cn`/tailwind-merge resolves this against the primitive's base
-				 * (`grid w-full max-w-lg h-fit max-h-[90vh] overflow-y-auto
-				 * gap-4 p-6`): `flex`, `h-[70vh]`, `w-[min(56rem,95vw)]`,
-				 * `max-w-[95vw]`, `overflow-hidden` and `p-0` all win over their
-				 * base counterparts, while `border` and `shadow-lg` survive because
-				 * nothing here competes with them.
+				 * The `min-*(…,95vw)` guard is the operator's `min-w-[500px]` made
+				 * safe: an UNGUARDED `min-w-[500px]` on a 390px viewport is a hard
+				 * overflow and a 110px horizontal scrollbar. The same reasoning now
+				 * lives in `@/ui/dialog` for every dialog, and this line keeps the
+				 * card's own, larger, floor.
 				 */
-				className="flex h-[70vh] min-h-[min(400px,90vh)] min-w-[min(500px,95vw)] w-[min(56rem,95vw)] max-w-[95vw] max-h-[90vh] resize flex-col gap-0 overflow-hidden p-0"
+				resizable
+				className="flex h-[70vh] min-h-[min(400px,90vh)] min-w-[min(500px,95vw)] w-[min(56rem,95vw)] max-w-[95vw] max-h-[90vh] flex-col gap-0 overflow-hidden p-0"
 				data-testid="faculty-profile-dialog"
 			>
 				<DialogHeader className="px-6 pt-6 pb-6 border-b">

@@ -274,7 +274,24 @@ const renderedSurfaces: [string, string, () => unknown, string, number][] = [
 	['/faculty/preferences', '/faculty/preferences', OfficerPreferences, 'Faculty Preferences', 0],
 	['/faculty/room-preferences', '/faculty/room-preferences', OfficerRoomPreferences, 'Room Preferences', 0],
 	['/timetabling/how-it-works', '/timetabling/how-it-works', HowItWorks, 'How Scheduling Works', 0],
-	['/teaching-load/history', '/teaching-load/history', TeachingLoadHistoryView, 'Archived Teaching Load', 1],
+	/**
+	 * A9 c5, DELIBERATE PINNED-VALUE EDIT — same shape as the `/` Dashboard edit
+	 * recorded in section 3 below.
+	 *
+	 * The literal was `'Archived Teaching Load'`. It is now `'Past years'` because
+	 * A9 c5 changed what the page IS: the history list no longer filters
+	 * `isArchived: true`, so it offers every genuinely past year (2022-2023 was
+	 * excluded by exactly that filter), and a page whose own words say "archived"
+	 * while offering a year that is not archived is the mislabel the Codex live
+	 * audit recorded. `navigation.ts` was renamed in the same commit, so this row
+	 * and `resolveRouteChrome` still agree and the "rendered h1 equals the
+	 * breadcrumb leaf" control below is still an exact equality in both directions.
+	 *
+	 * What this edit does NOT do (AGENTS.md §16 — corrections are additive; never
+	 * weaken an assertion to get green): the assertion is untouched, only the
+	 * expected word moved; a rename in EITHER direction still goes red.
+	 */
+	['/teaching-load/history', '/teaching-load/history', TeachingLoadHistoryView, 'Past years', 1],
 ];
 
 test('rendered A3 surfaces each emit exactly one canonical h1 and at most one primary action', async () => {
@@ -343,7 +360,11 @@ test('the navigation registry still carries the intended title for each converte
 		['/faculty/preferences', 'Faculty Preferences'],
 		['/faculty/room-preferences', 'Room Preferences'],
 		['/timetabling/how-it-works', 'How Scheduling Works'],
-		['/teaching-load/history', 'Archived Teaching Load'],
+		// A9 c5, PINNED-VALUE EDIT beside the one in `renderedSurfaces`. This was
+		// `['/teaching-load/history', 'Archived Teaching Load']`; see that comment
+		// for why the registry title moved with the page title. The row is edited,
+		// not deleted, and it is still an exact equality against the registry.
+		['/teaching-load/history', 'Past years'],
 		['/admin/year-setup', 'School Year Setup'],
 	];
 	for (const [route, title] of expectations) {

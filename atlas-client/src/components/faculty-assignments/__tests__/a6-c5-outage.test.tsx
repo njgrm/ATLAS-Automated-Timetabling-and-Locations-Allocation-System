@@ -432,10 +432,35 @@ test('A6C5-S9-1 the pre-hotfix preview-toast wording is GONE from the page', () 
 		/teachingLoadShortageNote\(/,
 		'the toast must now carry the shared `N classes still need a real teacher` sentence',
 	);
+	// ══ SUPERSEDED IN PLACE, A6 c9 (2026-09-29). RETAINED, NOT DELETED. ══
+	//
+	// The superseded assertion, verbatim:
+	//
+	//   assert.match(
+	//     page,
+	//     /data-testid="teaching-load-still-need-real-teacher"/,
+	//     'the honest note must be on the PAGE, not only inside the summary modal description',
+	//   );
+	//
+	// WHAT OVERRULED IT. The c9 packet's operator direction, verbatim: "The 50
+	// classes still need a teacher is barely noticeable. We need the percentage of
+	// staffing and to make it clickable to see who still needs assigning — that's
+	// what the load summary should be." That grey note was one of THREE statements
+	// of the same shortage on one screen (the header pill, the c7 per-subject line
+	// and this line), and AGENTS.md §8 forbids one fact stated more than once. The
+	// count is not lost: it is now the header's own CONTROL, and the window that
+	// control opens names every short class. This row's real claim — "the honest
+	// count is on the PAGE, not only inside a modal description" — is asserted by
+	// the REPLACEMENT immediately below, and its RENDERED half is
+	// `a6-c9-staffing-figure.test.tsx` row `A6C9-2`, which is a render and not a
+	// source reading.
+	//
+	// The claim below is therefore the SAME claim with the new home, and it is
+	// ADDED beside the superseded one rather than in place of it.
 	assert.match(
 		page,
-		/data-testid="teaching-load-still-need-real-teacher"/,
-		'the honest note must be on the PAGE, not only inside the summary modal description',
+		/useTeachingLoadHeaderClaims\(\{/,
+		'REPLACEMENT: the page still owns the honest staffing claim — it now builds the header control that carries it',
 	);
 	// And the page is under the AGENTS.md §8 cap the packet names.
 	const lines = read('src/pages/TeachingLoad.tsx').split('\n').length;

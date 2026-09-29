@@ -223,22 +223,23 @@ function toolbarFor(overrides: Record<string, unknown> = {}) {
 // ─────────────────────────────────────────────────────────────────────────────
 // A1 — the filters name themselves, in one even box, at the search height
 //
-// A5 C4, RE-POINTED (2026-09-29). Both A1 rows used to render the toolbar
-// CLOSED and assert on all five triggers at once. Three of them — Status, Room and
-// Term — now sit behind the ONE `More filters` disclosure on the packet's finding
-// ("Keep Grade and Program visible and put the other filters under 'More
-// filters'"), so a closed render can only ever see two.
+// A5 C7, SUPERSEDING A5 C4's RE-POINTED note (2026-09-29). Both A1 rows used to
+// render the toolbar CLOSED and assert on all five triggers at once. Under A5 C4
+// three of them — Status, Room and Term — sat behind the ONE `More filters`
+// disclosure on the packet's finding ("Keep Grade and Program visible and put the
+// other filters under 'More filters'"), so a closed render could only ever see two.
 //
-// The properties these rows exist for are UNCHANGED and are now asserted over ALL
-// FIVE, with the disclosure open, because §8's "one look per control" is decided by
-// a control's LOOK and not by which row it happens to sit in:
+// A5 C7 ITEM 43 REMOVES THAT DISCLOSURE and puts all five in the row permanently,
+// which SUPERSEDES the A5 C4 accommodation rather than repeating it. The properties
+// these rows exist for are UNCHANGED, and they are now asserted on the CLOSED row
+// with NO interaction at all, which is the original A1 form the C4 detour moved away
+// from:
 //   - every trigger shows its own name and a short value, and keeps its long
 //     accessible name (A1a);
 //   - every trigger is ONE even width at the shared `h-9` height (A1b).
-// That is a stronger gate than the two it replaces: the three hidden filters are now
-// proven to look identical to the two visible ones, which the old closed render
-// could not check. The two controls that stayed in the row are additionally
-// asserted to be exactly two, so the subtraction cannot silently reverse.
+// The §8 "one look per control" claim therefore now covers the controls a scheduler
+// actually SEES, which is a stronger gate than asserting the hidden three match the
+// visible two.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Real pointer sequence, the way a mouse opens a control. */
@@ -260,15 +261,30 @@ function allTriggers(): HTMLElement[] {
 }
 
 /**
- * Open the ONE `More filters` disclosure, idempotently — it is a toggle, so a bare
- * click in a sequence would close it again and the filters under test would vanish.
+ * A5 C7 ITEM 43: the disclosure is gone, so this is no longer an OPENING step — it is
+ * the assertion that NO OPENING IS NEEDED, which is stronger than the A5 C4 version.
+ *
+ * A5 C4's `openMoreFilters` clicked a toggle, so it had to be idempotent and it had
+ * to run before the read. Its REPLACEMENT is deliberately the same seam in the
+ * `interactiveSnapshot` signature (`interact` runs while the tree is mounted) but it
+ * presses NOTHING and asserts instead: all five triggers are already in the document
+ * before any interaction. If a future edit reintroduces a disclosure, this fails
+ * naming the filters it could not find, which is the regression a C4-shaped
+ * accommodation would otherwise silently absorb.
  */
-async function openMoreFilters(): Promise<void> {
-	if (document.body.querySelector('[data-testid="subjects-status-filter"]') !== null) return;
-	await press(document.body.querySelector('[data-testid="subjects-more-filters"]'));
-	assert.ok(
-		document.body.querySelector('[data-testid="subjects-status-filter"]'),
-		'clicking `More filters` did not reveal the refinement filters',
+async function assertAllFiveInRowWithNoInteraction(): Promise<void> {
+	const inRow = Array.from(
+		document.body.querySelectorAll('[data-testid="subjects-filter-cluster"] [role="combobox"]'),
+	);
+	assert.equal(
+		inRow.length,
+		5,
+		`the row shows ${inRow.length} filters with no interaction; item 43 requires all five in the row`,
+	);
+	assert.equal(
+		document.body.querySelector('[data-testid="subjects-more-filters"]') === null,
+		true,
+		'a `More filters` disclosure is back in the row',
 	);
 }
 
@@ -302,9 +318,9 @@ async function interactiveSnapshot<T>(
 }
 
 test('A5-C3-A1a: every trigger shows its own name and a short value, and the accessible name stays long', async () => {
-	// RED ON BASE at the disclosure step: there is no `subjects-more-filters` to
-	// press, so the two visible and the three hidden cannot both be read.
-	const seen = await interactiveSnapshot(toolbarFor(), openMoreFilters, () => allTriggers().map((t) => ({
+	// FAILING-FIRST against A5 C4: on A5 C4 only two of these five were in the closed
+	// cluster, and `assertAllFiveInRowWithNoInteraction` is red there.
+	const seen = await interactiveSnapshot(toolbarFor(), assertAllFiveInRowWithNoInteraction, () => allTriggers().map((t) => ({
 		visible: (t.textContent ?? '').replace(/\s+/g, ' ').trim(),
 		aria: t.getAttribute('aria-label'),
 	})));
@@ -331,21 +347,34 @@ test('A5-C3-A1a: every trigger shows its own name and a short value, and the acc
 		assert.ok(aria, 'a filter trigger has no accessible name at all');
 		assert.match(aria as string, /^Filter by /, `${aria} lost its long accessible name`);
 	}
-	// AND the two the row keeps are exactly the two the packet kept there, so the
-	// subtraction cannot silently reverse while this row still passes.
+	// And the row shows ALL FIVE directly, with no interaction at all. Under A5 C4
+	// this was `assert.equal(inRow, 2, …)` — the A5 C4 subtraction, recorded there and
+	// superseded here by item 43. A5 C7 flips it: the assertion now says the
+	// disclosure cannot return by hiding one of these five.
 	const inRow = await snapshot(toolbarFor(), (host) =>
 		host.querySelectorAll('[data-testid="subjects-filter-cluster"] [role="combobox"]').length,
 	);
-	assert.equal(inRow, 2, `expected 2 directly-visible filters, found ${inRow}`);
+	assert.equal(inRow, 5, `expected all 5 filters directly in the row, found ${inRow}`);
 });
 
-test('A5-C3-A1b: the five triggers are ONE even width, and the search input shares the height token (R1 J3)', async () => {
-	// A5 C4, RE-POINTED: the three filters behind the disclosure are read too, so
-	// the "one look per control" claim covers all five rather than the two the row
-	// happens to show. Superseded verbatim:
-	//   const triggers = comboboxes(host);   // the CLOSED toolbar's two triggers
-	//   assert.equal(<classes carrying h-9>.length, 5, ...)
-	const seen = await interactiveSnapshot(toolbarFor(), openMoreFilters, (host) => {
+test('A5-C3-A1b: the five triggers carry ONE width variant, and the search input shares the height token (R1 J3)', async () => {
+	// A5 C7: back to the ORIGINAL A5 C3 shape — a CLOSED render, all five triggers
+	// read at once — because item 43 removed the disclosure that forced the A5 C4
+	// detour through `openMoreFilters`. What A5 C4 asserted is SUPERSEDED VERBATIM in
+	// the comment it left, and nothing is weakened: the same five per-trigger
+	// properties are still checked, now on the row a scheduler actually looks at.
+	//
+	// A5 C7 CORRECTION ROUND 1 — "ONE EVEN WIDTH" BECAME "ONE WIDTH VARIANT", and the
+	// distinction is the whole correction. Round 0 pinned all five to `w-32` and
+	// measured that it clipped: `Room: Laboratory` overflowed its 128px rectangle by
+	// 10px and fourteen faces exceeded `md`'s 12-character budget. The width is now
+	// the `auto` variant, so the five are no longer the SAME NUMBER — they are the
+	// same VARIANT, which is what §8 "One look per control" actually asks for. The
+	// assertions below are unchanged and still green: the shared height, the shared
+	// type size, one width declaration each, and the search box on the same height
+	// token. A variant is the stronger claim here, because a fixed number is only
+	// "one look" right up until the content outgrows it.
+	const seen = await interactiveSnapshot(toolbarFor(), assertAllFiveInRowWithNoInteraction, (host) => {
 		const triggers = allTriggers();
 		const search = host.querySelector('input[placeholder^="Search name"]') as HTMLElement | null;
 		return {
@@ -357,7 +386,12 @@ test('A5-C3-A1b: the five triggers are ONE even width, and the search input shar
 		};
 	});
 	assert.equal(seen.widths.length, 5, `expected 5 triggers, found ${seen.widths.length}`);
-	assert.equal(new Set(seen.widths).size, 1, `the five filters carry ${new Set(seen.widths).size} different widths: ${seen.widths.join(' | ')}`);
+	assert.equal(new Set(seen.widths).size, 1, `the five filters carry ${new Set(seen.widths).size} different width variants: ${seen.widths.join(' | ')}`);
+	// A5 C7 CORRECTION ROUND 1: the ONE variant is `w-auto`, content-sized. Round 0
+	// asserted the same property with `w-32` and the row clipped; this is the width
+	// half of that correction, and `picker-trigger.ts` publishes it as the answer for a
+	// page whose longest face does not fit a fixed rectangle.
+	assert.deepEqual([...new Set(seen.widths)], ['w-auto'], `the five filters are not all on the shared \`auto\` variant: ${seen.widths.join(' | ')}`);
 	assert.match(seen.widths[0] ?? '', /^w-/, `a trigger has no real width class: ${seen.classes[0]}`);
 	/* Exactly one width class each, so the old `w-40 / w-24 / w-28 / w-36 / w-28` cannot come
 	 * back as a second, unmerged declaration. */

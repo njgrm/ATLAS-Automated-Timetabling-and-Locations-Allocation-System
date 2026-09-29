@@ -161,7 +161,12 @@ const routeChromeOverrides: Record<string, { group?: string; title: string }> = 
 	'/my': { group: 'My Portal', title: 'Faculty Portal Retired' },
 	'/subjects/requirements': { group: 'School Setup', title: 'Subject Requirements' },
 	'/subjects/decision-workspace': { group: 'School Setup', title: 'Subject Decisions' },
-	'/teaching-load/history': { group: 'Teachers and Rooms', title: 'Archived Teaching Load' },
+	// A9 c5: was 'Archived Teaching Load'. The page offers EVERY past year now, not
+	// only years that were "kept as history", and "archived" was the reason 2022-2023
+	// looked missing. This is the breadcrumb leaf AND the canonical page title
+	// (`a3-canonical-page-title-c1` renders the h1 and compares it to this value), so
+	// the rename has to happen here or the two drift apart.
+	'/teaching-load/history': { group: 'Teachers and Rooms', title: 'Past years' },
 	'/faculty': { group: 'Teachers and Rooms', title: 'Faculty' },
 	'/assignments': { group: 'Teachers and Rooms', title: 'Assignments' },
 	'/faculty/concerns': { group: 'Teachers and Rooms', title: 'Teacher Preferences' },

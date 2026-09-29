@@ -21,7 +21,11 @@ router.get('/history-years', authenticate, requirePrivilegedRole, async (req: Re
 	try {
 		const schoolId = actorSchoolId(req, res);
 		if (schoolId == null) return;
-		res.json({ schoolId, years: await listTeachingLoadHistoryYears(schoolId) });
+		// A9 c5: the service returns the WHOLE answer (`activeSchoolYearId`,
+	// `activeYearLabel`, `years`, `futureYears`), so the route passes it through
+	// instead of re-wrapping a years-only array. Auth and actor scope above are
+	// deliberately untouched.
+	res.json(await listTeachingLoadHistoryYears(schoolId));
 	} catch (error) {
 		next(error);
 	}

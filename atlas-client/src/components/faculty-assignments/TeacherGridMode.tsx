@@ -32,7 +32,7 @@ import { TeacherLoadReadout } from './TeacherLoadReadout';
 import { TeachingLoadFilterBar } from './TeachingLoadFilterBar';
 import { formatFacultyDisplayName } from '@/components/faculty/teacherNameDisplay';
 import { formatFacultyInitials } from '@/components/faculty/teacherNameDisplay';
-import { countDistinctSections } from '@/lib/teaching-load-counts';
+import { countDistinctSections, countDistinctSubjects } from '@/lib/teaching-load-counts';
 import {
 	buildTeacherWorkloadAuditSnapshot,
 	clearTeacherWorkloadAudit,
@@ -380,9 +380,10 @@ export function TeacherGridMode({
 											: teachingUtilizationPercentFor(member, teachingStandardHours, effectiveActualHours);
 										
 										// LANE-C C02 (audit A1): distinct sections, not the per-subject sum.
-										// A6 c6 item 6 removed the sibling `subjectsCount`, which was that
-										// per-subject sum, so this is now the row's ONLY demand figure.
 										const sectionsCount = countDistinctSections(effectiveAssignmentsByFaculty[member.id]);
+										// A6 c9 (fix-1.2 16.2): the `Subjects` column, whose figure is
+										// distinct subjects that actually carry sections.
+										const subjectsCount = countDistinctSubjects(effectiveAssignmentsByFaculty[member.id]);
 
 										return (
 											<div 
