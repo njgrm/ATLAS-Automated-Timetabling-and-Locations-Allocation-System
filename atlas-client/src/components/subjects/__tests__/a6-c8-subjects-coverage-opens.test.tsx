@@ -1,32 +1,24 @@
 /**
- * A6 c8 (2026-09-29) — fix-doc item 17.1: the `/subjects` coverage COUNT opens the
- * subject's read-only coverage window.
+ * OPERATOR (30 Sep 2026, docx1 S2) REVERSED A6 c8 / fix 2.17.1 — read this first.
  *
- * THE DEFECT, reproduced on real staging data by the planner, subject `ESP/GMRC`:
+ * 2.17.1 (2026-09-29) made the `/subjects` coverage COUNT itself a `<button>` that
+ * opened the subject's read-only coverage window, because the cell's only
+ * affordance had been a DEAD `AccessibleInfo` info icon (looked like data, was
+ * focusable, opened nothing). The operator has now reversed that contract: the
+ * coverage badge is PLAIN, NON-clickable status text again, and only the row's
+ * `Review` action opens coverage.
  *
- *   cell [data-testid="subject-coverage-cell-5"] text: "18/20 covered2 sections still
- *     need a teacher."
- *     -> <div slot="badge" aria-label="ESP/GMRC has partial section coverage">18/20 covered</div>
- *     -> <button> … the AccessibleInfo info icon …
- *   click that button  -> [data-testid="subject-coverage-dialog"] count 0   (opens NOTHING)
- *   click the row's "Review teacher coverage for ESP/GMRC" -> count 1      (works)
- *
- * So the cell's only affordance was a DEAD info icon: the control looked like data,
- * was focusable, was clickable, and did nothing. The `Review` action one cell over
- * did work, which is what makes this a defect rather than a missing feature — the
- * window was always reachable, just not from the control the cell was built around.
+ * This file was `A6C8-17.1-*`; its three controls are rewritten below as
+ * `A5DOCX1-S2-*` against the NEW contract. The reversal is a deliberate operator
+ * contract change, not a deletion: the harness and the adversarial style are kept,
+ * the fixture is still the real staging row (`ESP/GMRC`, 18 owned of 20, 2
+ * uncovered), and every row still mounts the REAL `SubjectRow`.
  *
  * WHY EVERY ROW HERE RENDERS AND CLICKS. `AGENTS.md` §11: "A test that only asserts
- * source text is not acceptance evidence for a user-facing change," and this is
- * precisely a source-text-shaped fix — a wrapper element and a deleted icon. A row
- * that read the `.tsx` and matched `/<button/` would have passed on the base. So
- * every row below mounts the REAL `SubjectRow`, finds the coverage control BY ITS
- * RENDERED TEXT (`18/20 covered`), CLICKS it, and reads the resulting DOM.
- *
- * THE FIXTURE IS THE REAL SURFACE, taken from the row the planner photographed:
- * `ESP/GMRC`, 18 owned of 20 relevant sections, 2 uncovered. A fixture of
- * `18/20`/`2` is what the operator actually saw, so a control cannot pass against a
- * convenient constant.
+ * source text is not acceptance evidence for a user-facing change." A row that read
+ * the `.tsx` and matched `/<button/` would have passed on the base. So each row
+ * mounts the real component, finds things BY THEIR RENDERED TEXT, dispatches a real
+ * click, and reads the resulting DOM.
  *
  * THE HARNESS IS COPIED VERBATIM from the accepted sibling
  * `a5-c3-subjects-calm-surface.test.tsx` (JSDOM bootstrap, the render/read/unmount
@@ -186,169 +178,122 @@ function buttonsIn(scope: ParentNode): HTMLButtonElement[] {
 	return Array.from(scope.querySelectorAll('button')) as HTMLButtonElement[];
 }
 
-/** The control whose VISIBLE TEXT is exactly this — never found by test id. */
-function buttonByText(scope: ParentNode, text: string): HTMLButtonElement | null {
-	return buttonsIn(scope).find((b) => (b.textContent ?? '').replace(/\s+/g, ' ').trim() === text) ?? null;
+/** The badge the cell renders — the one status element, whatever its state. */
+function badgeIn(scope: ParentNode): HTMLElement | null {
+	return scope.querySelector('[data-slot="badge"]') as HTMLElement | null;
 }
 
 const textOf = (node: Element | Document | null | undefined) => (node?.textContent ?? '').replace(/\s+/g, ' ').trim();
 
-/* ═══════════════════════ the control, and the click that opens the window ══ */
+/* ═══════════════════════ the badge is plain text, and only Review opens ══ */
 
-test('A6C8-17.1-1 clicking the rendered coverage COUNT opens that subject\'s coverage window', async () => {
-	// THE ROW. On the base this fails at the very first assertion: there is no
-	// button whose visible text is `18/20 covered`. The badge was a `div`, and the
-	// only button in the cell was the dead `AccessibleInfo` icon.
+test('A5DOCX1-S2-1 the coverage cell is PLAIN status text — zero buttons, no focus, and clicking the badge opens nothing', async () => {
+	// OPERATOR (30 Sep, S2): the coverage badge is non-clickable text again.
 	const opened: unknown[] = [];
-	const control = await snapshot(
+	const badge = await snapshot(
 		rowFor(PARTIAL, (s) => { opened.push(s); }),
 		(host) => {
 			const cell = host.querySelector('[data-testid="subject-coverage-cell-5"]');
 			assert.ok(cell, 'the coverage cell must render, and keep its own test id');
-			const button = buttonByText(cell!, '18/20 covered');
-			assert.ok(
-				button,
-				'the coverage COUNT itself must be the control that opens the window — a badge that looks like data and does nothing is the defect',
-			);
-			// It is a REAL button: keyboard-operable, in the Tab order, submitting
-			// nothing. A `div` with an onClick would satisfy the click and fail this.
-			assert.equal(button!.tagName, 'BUTTON', 'the coverage control must be a real `<button>`, not a clickable div');
-			assert.equal(button!.type, 'button', 'and it must not submit anything');
-			assert.equal(button!.getAttribute('title'), null, 'never a raw `title` attribute (AGENTS.md §8)');
-			// THE SENTENCE MOVED OFF THE DEAD ICON AND ONTO THE CONTROL. It was the
-			// icon's `shortHelp`; it is now the button's accessible name, and it ends
-			// in "Click to see which." because the control is now clickable.
+			// (a) ZERO buttons, and the badge is not focusable. The base (fix
+			// 2.17.1) rendered the badge as a real `<button>`; this is the
+			// operator-reversed contract.
 			assert.equal(
-				button!.getAttribute('aria-label'),
-				'2 sections still need a teacher. Click to see which.',
-				'the explanatory sentence must be the control\'s accessible name, and it must say the control can be clicked',
+				buttonsIn(cell!).length,
+				0,
+				'the coverage cell must render NO control — the operator made the badge plain text and only `Review` opens coverage',
 			);
-			// The STATUS is still stated on the badge element itself, so the colour
-			// band and its meaning did not lose their own accessible name.
-			const badge = button!.querySelector('[data-slot="badge"]');
-			assert.ok(badge, 'the status badge must still be inside the control');
-			assert.equal(
-				badge!.getAttribute('aria-label'),
-				'Edukasyon sa Pagkakaisa has partial section coverage',
-				'the badge must keep its own status `aria-label`',
-			);
-			// THE BADGE KEEPS ITS STATUS COLOUR. The defect was "looks like data,
-			// does nothing", NOT "looks like data": the amber / green / red band is
-			// the meaning of the column, so the button wears the same classes.
-			const badgeClass = badge!.getAttribute('class') ?? '';
+			const found = badgeIn(cell!);
+			assert.ok(found, 'the coverage cell must still render its status badge');
+			assert.equal(found!.getAttribute('tabindex'), null, 'the badge must not be focusable — it is not a control');
+			// No Tooltip wrapper survived beside it (§8 forbids a raw `title=`).
+			assert.equal(found!.getAttribute('title'), null, 'the badge must not carry a raw `title` attribute');
+			assert.equal(cell!.querySelectorAll('details').length, 0, 'no raw `<details>` may stand in for an affordance');
+			// (b) THE BADGE KEEPS ITS WORDS, ITS COLOUR BAND AND ITS OWN STATUS
+			// `aria-label`. The reversal removes the affordance, never the status.
+			assert.equal(textOf(found!), '18/20 covered', 'the partial badge must keep its exact words');
+			const badgeClass = found!.getAttribute('class') ?? '';
 			assert.match(badgeClass, /bg-amber-50/, 'the partial badge must keep its amber status band');
 			assert.match(badgeClass, /text-amber-700/, 'and its amber text');
 			assert.match(badgeClass, /border-amber-200/, 'and its amber border');
-			// …and the control itself is discoverably clickable.
-			assert.match(button!.getAttribute('class') ?? '', /hover:underline/, 'the control must read as clickable on hover');
-			assert.match(button!.getAttribute('class') ?? '', /focus-visible:ring/, 'and must be discoverable by keyboard focus');
-			// THE DEAD ICON IS GONE. The cell used to render a second, focusable
-			// button that opened nothing; a cell with two buttons where one is inert
-			// is worse than a cell with one.
 			assert.equal(
-				buttonsIn(cell!).length,
-				1,
-				'the coverage cell must render exactly ONE control — the dead info icon is deleted, not kept beside the new one',
+				found!.getAttribute('aria-label'),
+				'Edukasyon sa Pagkakaisa has partial section coverage',
+				'the badge must keep its own status `aria-label`',
 			);
-			// No raw `<details>` was introduced as a substitute affordance (§8).
-			assert.equal(cell!.querySelectorAll('details').length, 0, 'no raw `<details>` may stand in for the control');
-			buttonByText(cell!, '18/20 covered')!.dispatchEvent(
-				new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }),
-			);
-			return button!;
+			// (c) CLICK THE BADGE. It must open NOTHING — the one thing the
+			// operator asked to stop.
+			found!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+			return found;
 		},
 	);
-	// The CLICK reached the real prop, with THAT subject — not a row id, not the
-	// first subject in a list. This is the whole claim of item 17.1.
 	assert.deepEqual(
 		opened,
-		[SUBJECT],
-		`clicking the rendered coverage count must call \`onShowCoverage\` with THAT subject; saw ${JSON.stringify(opened.map((s) => (s as { id?: number })?.id))}`,
+		[],
+		`clicking the coverage badge must NOT call \`onShowCoverage\`; saw ${JSON.stringify(opened.map((s) => (s as { id?: number })?.id))}`,
 	);
-	assert.ok(control, 'precondition: the control was read off the rendered row');
+	assert.ok(badge, 'precondition: the badge was read off the rendered row');
 });
 
-test('A6C8-17.1-2 the OTHER two coverage badges are equally clickable — a status cell is not clickable only when something is wrong', async () => {
-	// THE NEGATIVE CONTROL, and it matters for a scheduler: a control that is
-	// clickable only in the alarming state teaches people that the calm state is
-	// decoration. Each state is found by its OWN rendered text and clicked.
-	for (const [face, coverageRow, help] of [
-		['Full coverage', FULL, 'All required sections have a teacher assigned.'],
-		['No coverage', NONE, '20 sections still need a teacher. Click to see which.'],
-	] as Array<[string, unknown, string]>) {
+test('A5DOCX1-S2-2 the FULL and NONE badges are equally plain, and keep their exact words and colour band', async () => {
+	// A control that is plain only in the amber state would teach people the calm
+	// state is still a control. Each state is found by its OWN rendered text.
+	for (const [face, coverageRow, ariaLabel, family] of [
+		['Full coverage', FULL, 'Edukasyon sa Pagkakaisa has full section coverage', 'emerald'],
+		['No coverage', NONE, 'Edukasyon sa Pagkakaisa has no section coverage', 'red'],
+	] as Array<[string, unknown, string, string]>) {
 		const opened: unknown[] = [];
 		await snapshot(
 			rowFor(coverageRow, (s) => { opened.push(s); }),
 			(host) => {
 				const cell = host.querySelector('[data-testid="subject-coverage-cell-5"]')!;
 				assert.ok(cell, `${face}: the coverage cell must render`);
-				const button = buttonByText(cell, face);
-				assert.ok(button, `${face}: this badge must be the same clickable control, not a dead one`);
-				assert.equal(
-					button!.getAttribute('aria-label'),
-					help,
-					`${face}: the sentence must follow the coverage state, in the control's own words`,
-				);
-				buttonByText(cell, face)!.dispatchEvent(
-					new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }),
-				);
+				assert.equal(buttonsIn(cell).length, 0, `${face}: this badge must be plain text, not a control`);
+				const badge = badgeIn(cell);
+				assert.ok(badge, `${face}: the status badge must render`);
+				assert.equal(textOf(badge!), face, `${face}: the badge words changed`);
+				const badgeClass = badge!.getAttribute('class') ?? '';
+				assert.match(badgeClass, new RegExp(`bg-${family}-50`), `${face}: the status band changed`);
+				assert.match(badgeClass, new RegExp(`text-${family}-700`), `${face}: the status text colour changed`);
+				assert.match(badgeClass, new RegExp(`border-${family}-200`), `${face}: the status border colour changed`);
+				assert.equal(badge!.getAttribute('aria-label'), ariaLabel, `${face}: the badge lost its status \`aria-label\``);
+				click(badge!);
 			},
 		);
-		assert.deepEqual(
-			opened,
-			[SUBJECT],
-			`${face}: clicking the rendered badge must open that subject's coverage window`,
-		);
+		assert.deepEqual(opened, [], `${face}: clicking a plain status badge must open nothing`);
 	}
 });
 
 /**
- * A6C8-17.1-3 — THE PRODUCTION PATH, not the cell on its own.
+ * A5DOCX1-S2-3 — THE ROW'S ONE OPENER MUST STILL WORK.
  *
- * The rows above mount `SubjectRow`. This row mounts the composition
- * `SubjectCatalogBody` builds and asserts that the coverage count and the `Review`
- * action open the SAME window, which is the claim a scheduler actually has: two
- * affordances, one window, no duplicate *status*. The `Review` action is a
- * committed surface and is deliberately NOT deleted; this row proves it still works
- * rather than assuming it.
+ * The reversal could be satisfied by deleting every affordance on the row. So this
+ * row proves the `Review` action — now the ONLY control that opens coverage — still
+ * calls `onShowCoverage` with THAT subject. Without this the reversal would be
+ * indistinguishable from removing the feature.
  */
-test('A6C8-17.1-3 the `Review` action and the coverage count both reach the SAME `onShowCoverage`, and neither is a duplicate status', async () => {
+test('A5DOCX1-S2-3 the `Review` action is the ONE control that opens coverage, and it reaches `onShowCoverage` with that subject', async () => {
 	const opened: unknown[] = [];
 	await snapshot(
 		rowFor(PARTIAL, (s) => { opened.push(s); }),
 		(host) => {
-			const cell = host.querySelector('[data-testid="subject-coverage-cell-5"]')!;
 			// The `Review` action lives in the row's ACTION cell, not the coverage
 			// cell, so it is found by its own committed accessible name.
-			const review = buttonsIn(cell!.ownerDocument.body)
+			const review = buttonsIn(host.ownerDocument.body)
 				.find((b) => (b.getAttribute('aria-label') ?? '').startsWith('Review teacher coverage for')) as HTMLButtonElement | undefined;
-			assert.ok(review, 'the row\'s labelled `Review` action must still render — it is a committed surface, not a duplicate to delete');
+			assert.ok(review, 'the row\'s labelled `Review` action must still render — it is now the only way to open coverage');
 			assert.equal(textOf(review), 'Review', 'and it must still read exactly `Review`');
 			assert.equal(
 				review!.getAttribute('aria-label'),
 				'Review teacher coverage for Edukasyon sa Pagkakaisa',
 				'with the full accessible name it has always had',
 			);
-
-			// EXACTLY TWO controls on the row open coverage: the count and `Review`.
-			// The count is asserted, not assumed, and the count is a COUNT — two
-			// buttons in one cell would be a new defect, and the cell is asserted at
-			// one by row 1. What this row adds is that the two are the SAME action on
-			// the SAME subject, not a second status competing with the first.
-			const openers = buttonsIn(cell!.ownerDocument.body).filter(
-				(b) => b === buttonByText(cell, '18/20 covered') || b === review!,
-			);
-			assert.equal(openers.length, 2, 'the row offers exactly two affordances for one window');
-
-			// CLICK the count, then CLICK `Review`; both must reach the same prop with
-			// the same subject.
-			click(buttonByText(cell, '18/20 covered')!);
 			click(review!);
 		},
 	);
 	assert.deepEqual(
 		opened,
-		[SUBJECT, SUBJECT],
-		`both affordances must reach the SAME handler with the SAME subject; saw ${JSON.stringify(opened.map((s) => (s as { id?: number })?.id))}`,
+		[SUBJECT],
+		`the \`Review\` action must reach \`onShowCoverage\` with THAT subject; saw ${JSON.stringify(opened.map((s) => (s as { id?: number })?.id))}`,
 	);
 });
