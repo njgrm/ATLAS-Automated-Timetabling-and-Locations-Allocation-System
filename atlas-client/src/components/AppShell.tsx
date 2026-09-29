@@ -4,9 +4,9 @@ import {
 	WifiOff,
 	X,
 } from 'lucide-react';
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Suspense } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useOutlet } from 'react-router-dom';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { useReducedMotion } from 'motion/react';
 
 import { captureBridgeToken } from '@/lib/bridge';
 import { resolveEnrollProLogoutRedirect } from '@/lib/companion-config';
@@ -34,15 +34,13 @@ import type { BridgeUser } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Separator } from '@/ui/separator';
-import { Skeleton } from '@/ui/skeleton';
 import {
 	SidebarInset,
 	SidebarProvider,
 	SidebarTrigger,
 } from '@/ui/sidebar';
 import { AccessibilityMenu } from '@/components/AccessibilityMenu';
-import { TimetableSkeleton } from '@/components/timetable/TimetableSkeleton';
-import { useAccessibility } from '@/hooks/useAccessibility';
+import { RouteOutlet } from '@/components/app-shell/RouteOutlet';import { useAccessibility } from '@/hooks/useAccessibility';
 import {
 	isRolloverCompletionEvent,
 	useNotificationStream,
@@ -137,9 +135,6 @@ export function AppShell() {
 	const { fontSize, setFontSize } = useAccessibility();
 	const reduceMotion = useReducedMotion();
 	const isTimetableRoute = location.pathname.startsWith('/timetable');
-	const suspenseFallback = isTimetableRoute
-		? <TimetableSkeleton />
-		: <div className="p-6"><Skeleton className="h-100 w-full rounded-lg" /></div>;
 	const [sidebarOpen, setSidebarOpen] = useState(readSidebarOpenPreference);
 	const [schoolName, setSchoolName] = useState(() => readShellBrandingCache()?.schoolName ?? DEFAULT_SHELL_SCHOOL_NAME);
 	const [logoUrl, setLogoUrl] = useState<string | null>(() => readShellBrandingCache()?.logoUrl ?? null);
@@ -573,20 +568,36 @@ export function AppShell() {
 					/>
 				)}
 
-				<AnimatePresence mode="wait">
-					<motion.div
-						key={resolveOutletKey(location.pathname, routeEpoch)}
-						initial={reduceMotion ? false : { opacity: 0 }}
-						animate={reduceMotion ? { opacity: 1 } : { opacity: 1 }}
-						exit={reduceMotion ? { opacity: 1 } : { opacity: 0 }}
-						transition={reduceMotion ? { duration: 0 } : { duration: 0.15, ease: 'linear' }}
-						className={`flex-1 min-h-0 overflow-hidden ${isMobile && isFaculty ? 'pb-16' : ''}`}
-					>
-						<Suspense fallback={suspenseFallback}>
-							{outlet && React.cloneElement(outlet as React.ReactElement, { key: resolveOutletKey(location.pathname, routeEpoch) })}
-						</Suspense>
-					</motion.div>
-				</AnimatePresence>
+				{/* A5 C4 (2026-09-29): the outlet, its remount key and its loading state
+				    now live in `RouteOutlet` — the testable seam. The exit-wait gate
+				    (`mode="wait"`) is GONE and is not replaced by another gate.
+
+				    WHY IT HAD TO GO. `mode="wait"` means the new route is not rendered
+				    until the OLD one has finished exiting, so the previous page stayed
+				    mounted and VISIBLE under the new URL for the whole exit window. That
+				    window completes on an animation frame, so a throttled or blocked
+				    main thread — exactly what the A8 stalls cause — could hold the old
+				    page on screen indefinitely. Codex saw `/teachers` showing Sections
+				    (run 2, MAJOR, route changes).
+
+				    The 150ms fade-in is KEPT on the `motion.div` inside `RouteOutlet`, so
+				    a route change still reads as a page change. Only the EXIT phase is
+				    removed, because an exit is the phase that had to wait.
+
+				    `resolveOutletKey`'s signature and value are unchanged and still supply
+				    the remount key; the page name comes from `routeChrome.title`, i.e.
+				    from `resolveRouteChrome` — the same source the header and breadcrumbs
+				    read, so there is no second title source to drift. Nothing else in this
+				    595-line file is touched: the sidebar, auth bridge, `routeEpoch`, the
+				    school-year switcher and every gate here are out of scope. */}
+				<RouteOutlet
+					outlet={outlet}
+					outletKey={resolveOutletKey(location.pathname, routeEpoch)}
+					pageName={currentPageTitle}
+					timetable={isTimetableRoute}
+					reduceMotion={reduceMotion ?? false}
+					className={`flex-1 min-h-0 overflow-hidden ${isMobile && isFaculty ? 'pb-16' : ''}`}
+				/>
 
 				{isMobile && isFaculty && <FacultyMobileBottomNav />}
 			</SidebarInset>
