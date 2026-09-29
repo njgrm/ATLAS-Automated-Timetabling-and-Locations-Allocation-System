@@ -707,7 +707,7 @@ export function FacultyProfileSheet({
 								Edit in Teaching Load
 							</Link>
 						</Button>
-						<Button variant="secondary" className="h-10 text-muted-foreground font-bold uppercase tracking-wide text-xs" onClick={() => onOpenChange(false)}>
+						<Button variant="secondary" className="h-10 text-muted-foreground font-bold uppercase tracking-wide text-xs" onClick={() => onOpenChange(false)} data-testid="faculty-profile-close">
 							Close
 						</Button>
 					</div>
