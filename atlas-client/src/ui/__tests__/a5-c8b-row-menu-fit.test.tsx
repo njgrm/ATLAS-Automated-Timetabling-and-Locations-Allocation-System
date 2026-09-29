@@ -334,6 +334,94 @@ test('A5-C8B-ROW-1: the Teachers row menu carries the recipe and its items carry
 	await unmount(host);
 });
 
+test('A5-C8B-ROW-3: Teachers, Sections and Subjects row menus render the SAME look', async () => {
+	/* The packet's closing intent: *"the row menus look identical on Teachers,
+	   Sections and Subjects."* ROW-1 proves Teachers; ROW-2 proves the recipe is
+	   REFERENCED everywhere. Neither proves a second roster actually renders it,
+	   and the defect being fixed was five different answers to one question — so
+	   the only row that can catch a regression is one that opens two of them and
+	   compares what the DOM produced.
+
+	   It compares the RENDERED class lists, not the source strings, because the
+	   thing that regressed was a rendered width, not a name. */
+	const { SectionRow } = await import('@/components/sections/SectionRow');
+
+	/* The Sections fixture, on the shape `a3-c4-sections-surface.test.tsx` uses,
+	   so this is the same section the committed Sections suite renders. */
+	const SECTION: any = {
+		id: 2, name: 'G7 - Mabini', maxCapacity: 40, enrolledCount: 38,
+		gradeLevelId: 7, gradeLevelName: 'GRADE 7', displayOrder: 1, homeRoomId: 501,
+	};
+
+	const openRowMenu = async (host: HTMLElement, label: string) => {
+		const trigger = Array.from(document.body.querySelectorAll('[aria-label]'))
+			.find((el) => el.getAttribute('aria-label') === label) as HTMLElement | undefined;
+		assert.ok(trigger, `the row menu trigger "${label}" did not render`);
+		await openMenu(trigger);
+		const menu = document.querySelector('[role="menu"]') as HTMLElement | null;
+		assert.ok(menu, `the row menu for "${label}" did not open`);
+		return menu;
+	};
+
+	/* ---- Teachers ---- */
+	const teachers = await render(<RosterHarness faculty={TEMPORARY_TEACHER} />);
+	const teacherMenu = await openRowMenu(teachers, 'Teacher actions');
+	const teacherItems = Array.from(teacherMenu.querySelectorAll('[role="menuitem"]')) as HTMLElement[];
+
+	/* ---- Sections ---- */
+	const sections = await render(
+		<MemoryRouter>
+			<table><tbody>
+				<SectionRow
+					section={SECTION}
+					homeRoomOptions={[{ id: 501, name: 'Room 501', buildingName: 'Building A', type: 'CLASSROOM' } as any]}
+					isReadOnly={false}
+					schoolId={1}
+					onHomeRoomChange={() => {}}
+					onShowDetails={() => {}}
+					onShowRoomMap={() => {}}
+				/>
+			</tbody></table>
+		</MemoryRouter>,
+	);
+	const sectionMenu = await openRowMenu(sections, 'More actions for G7 - Mabini');
+	const sectionItems = Array.from(sectionMenu.querySelectorAll('[role="menuitem"]')) as HTMLElement[];
+
+	assert.ok(teacherItems.length >= 2, 'the Teachers menu did not render its items');
+	assert.ok(sectionItems.length >= 2, 'the Sections menu did not render its items');
+
+	/* The content geometry is IDENTICAL, token for token, on two rosters that
+	   previously disagreed: Teachers was `w-52`, Sections was `w-48`. */
+	const geometry = (menu: HTMLElement) =>
+		rowMenuContentClassName.split(/\s+/).filter((t) => menu.className.split(/\s+/).includes(t));
+	assert.deepEqual(
+		geometry(sectionMenu),
+		geometry(teacherMenu),
+		`the Sections and Teachers row menus do not share the recipe geometry.\n    Teachers: ${teacherMenu.className}\n    Sections: ${sectionMenu.className}`,
+	);
+	assert.deepEqual(geometry(teacherMenu), rowMenuContentClassName.split(/\s+/), 'the Teachers menu is not fully on the recipe');
+
+	/* And every item on BOTH rosters is nowrap. A roster that adopted the content
+	   recipe but not the item recipe would be content-sized and still wrap. */
+	for (const [roster, items] of [['Teachers', teacherItems], ['Sections', sectionItems]] as const) {
+		for (const item of items) {
+			const text = (item.textContent ?? '').replace(/\s+/g, ' ').trim();
+			assert.match(item.className, /whitespace-nowrap/, `${roster} menu item "${text}" can still wrap onto two lines`);
+		}
+	}
+
+	/* The two rosters' real labels, so the comparison above is about the product
+	   and not about two empty menus. */
+	const sectionLabels = sectionItems.map((i) => (i.textContent ?? '').trim());
+	assert.ok(
+		sectionLabels.some((l) => l.includes('Open teaching load')),
+		`the Sections row menu lost its own actions: ${JSON.stringify(sectionLabels)}`,
+	);
+
+	await unmount(sections);
+	await unmount(teachers);
+});
+
 test('A5-C8B-ROW-2: every roster row menu is ON the recipe — five rosters, one answer', () => {
 	/* The packet's actual finding: the same one-line-wrap defect fixed with five
 	   different widths. If a page is added to this list it must be on the recipe,
