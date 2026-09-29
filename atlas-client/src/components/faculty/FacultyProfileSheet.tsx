@@ -21,13 +21,73 @@ import {
 	DialogTitle,
 } from '@/ui/dialog';
 import { Separator } from '@/ui/separator';
-import type { FacultySummary } from '@/types';
+import type { ExternalSection, FacultySummary } from '@/types';
 import { Link } from 'react-router-dom';
 import { getDepartmentColor } from '@/lib/department-colors';
 import { GradeBadge } from '@/components/faculty-assignments/GradeBadge';
-import { formatFacultyDisplayName, formatFacultyInitials } from '@/components/faculty/teacherNameDisplay';
+import {
+	formatFacultyDisplayName,
+	formatFacultyInitials,
+	isPlaceholderSentinelName,
+} from '@/components/faculty/teacherNameDisplay';
+import { resolveSectionGradeNumber } from '@/lib/schedule-review-helpers';
 import { deriveLoadStatus, STANDARD_WEEKLY_TEACHING_HOURS } from '@/lib/faculty-assignment-helpers';
 import { departmentLabel } from '@/lib/deped-glossary';
+
+/**
+ * Weekly minutes as hours at ONE decimal, the precision the per-section badge
+ * already used.
+ *
+ * A3 c17 row 2 makes the per-section badge and the subject TOTAL read from this
+ * one function. That is the whole point: when they were two inline expressions a
+ * later edit to one would silently disagree with the other, and "3.8h" beside
+ * "30h a week" for 8 sections is the kind of arithmetic a scheduler stops
+ * trusting.
+ */
+function formatHoursLabel(minutes: number): string {
+	return `${Math.round((minutes / 60) * 10) / 10}h`;
+}
+
+/** One grade group inside a subject card. `grade` is null when unresolvable. */
+type GradeGroup = {
+	/** Stable React key; the unresolved group is the only non-numeric one. */
+	key: string;
+	grade: number | null;
+	sections: ExternalSection[];
+};
+
+/**
+ * Group a subject's sections by the grade they are REALLY in, ascending, with
+ * the unresolvable group last.
+ *
+ * A3 c17 row 1. The resolver is `resolveSectionGradeNumber` — the one shared
+ * authority (A2 c15) the Timetable grid and the canonical readiness diagnostic
+ * already use. A section it cannot resolve keeps `grade: null` and is rendered
+ * under a neutral "Grade not set" heading with NO `GradeBadge`, because a
+ * coloured `GRn` chip is a claim about a grade and an unresolved section does
+ * not support one.
+ */
+function groupSectionsByResolvedGrade(sections: ExternalSection[]): GradeGroup[] {
+	const byGrade = new Map<number, ExternalSection[]>();
+	const unresolved: ExternalSection[] = [];
+	for (const section of sections ?? []) {
+		const grade = resolveSectionGradeNumber(section);
+		if (grade == null) {
+			unresolved.push(section);
+			continue;
+		}
+		const bucket = byGrade.get(grade);
+		if (bucket) bucket.push(section);
+		else byGrade.set(grade, [section]);
+	}
+	const groups: GradeGroup[] = [...byGrade.entries()]
+		.sort(([a], [b]) => a - b)
+		.map(([grade, groupSections]) => ({ key: `grade-${grade}`, grade, sections: groupSections }));
+	if (unresolved.length > 0) {
+		groups.push({ key: 'grade-unset', grade: null, sections: unresolved });
+	}
+	return groups;
+}
 
 interface FacultyProfileSheetProps {
 	faculty: FacultySummary | null;
@@ -57,7 +117,14 @@ export function FacultyProfileSheet({
 
 	const subjectCount = faculty.subjectCount ?? 0;
 	const sectionCount = faculty.sectionCount ?? 0;
-	
+
+	/**
+	 * A3 c17 row 3. Read from the ONE shared predicate in `teacherNameDisplay`,
+	 * not from `faculty.isPlaceholder` alone, so the badge and the display name
+	 * can never disagree about which record is a to-be-hired one.
+	 */
+	const isPlaceholder = isPlaceholderSentinelName(faculty);
+
 	const weeklyHours = faculty.policyCreditedHours ?? 0;
 	const maxHours = faculty.maxHoursPerWeek;
 	const loadPercent = Math.round((weeklyHours / Math.max(maxHours, 1)) * 100);
@@ -165,23 +232,50 @@ export function FacultyProfileSheet({
 								)}
 							</div>
 							<DialogDescription className="flex flex-wrap items-center gap-2 mt-1">
-								<code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded uppercase tracking-tighter opacity-80">
-									#{faculty.employeeId || 'ID-PENDING'}
-								</code>
+								{/*
+								 * A3 c17 row 3 — the identity line says one true thing
+								 * about this record and nothing else.
+								 *
+								 * A to-be-hired record has no employee number to show:
+								 * it is not an employee, so `#ID-PENDING` was inventing an
+								 * identity AND saying "Active teacher" in the same breath.
+								 * It now reads `To be hired` in the roster's own Temporary
+								 * *look* — the violet outline pair, copied verbatim from
+								 * `FacultyRow.tsx:205` so there is one "not a real person
+								 * yet" appearance in the app (AGENTS.md §8). Only the SIZE
+								 * differs, because this dialog is held to the 14px floor and
+								 * `text-[0.65rem]` is 10.4px; a4-row-6 below raises the rest.
+								 *
+								 * A REAL teacher with no `employeeId` shows NOTHING in this
+								 * slot — not an empty `<code>`, not a dash, not the pending
+								 * sentinel. A missing field is not a fact worth a chip.
+								 */}
+								{isPlaceholder ? (
+									<Badge
+										variant="outline"
+										className="h-auto px-1.5 py-0.5 text-sm font-bold border-violet-200 bg-violet-50 text-violet-700"
+									>
+										To be hired
+									</Badge>
+								) : faculty.employeeId ? (
+									<code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded uppercase tracking-tighter opacity-80">
+										#{faculty.employeeId}
+									</code>
+								) : null}
 								{faculty.isActiveForScheduling ? (
-									<span className="flex items-center gap-1 text-[0.7rem] font-bold text-emerald-600 uppercase tracking-wider">
+									<span className="flex items-center gap-1 text-sm font-semibold text-emerald-700">
 										<CheckCircle2 className="size-3" /> Active teacher
 									</span>
 								) : (
-									<span className="flex items-center gap-1 text-[0.7rem] font-bold text-muted-foreground uppercase tracking-wider">
+									<span className="flex items-center gap-1 text-sm font-semibold text-muted-foreground">
 										<AlertTriangle className="size-3" /> Excluded from scheduling
 									</span>
 								)}
-								<span className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-wider">{sourceFreshness}</span>
+								<span className="text-sm font-semibold text-muted-foreground">{sourceFreshness}</span>
 							</DialogDescription>
 							{faculty.isClassAdviser && (
 								<div className="mt-2">
-									<Badge className="bg-amber-50 text-amber-800 hover:bg-amber-100 shadow-none border-amber-200 font-bold text-[0.7rem] px-2 py-0.5">
+									<Badge className="bg-amber-50 text-amber-800 hover:bg-amber-100 shadow-none border-amber-200 font-bold text-sm px-2 py-0.5">
 										<Star className="size-3 fill-amber-500 text-amber-600 mr-1.5" />
 										{faculty.advisedSectionName ? `Adviser: ${faculty.advisedSectionName}` : 'Class Adviser'}
 									</Badge>
@@ -200,10 +294,10 @@ export function FacultyProfileSheet({
 				<div className="min-h-0 flex-1 overflow-y-auto px-6 pt-6 space-y-8">
 					{/* Identity Section */}
 					<div className="space-y-4">
-						<h4 className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-widest">Roster identity</h4>
+						<h4 className="text-sm font-semibold text-muted-foreground">Roster identity</h4>
 						<div className="grid grid-cols-2 gap-4">
 							<div className="space-y-1.5">
-								<p className="text-[0.65rem] font-bold text-muted-foreground flex items-center gap-1.5 uppercase tracking-wider">
+								<p className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
 									<Briefcase className="size-3 opacity-50" /> Department
 								</p>
 								<Badge variant="outline" className={`text-xs font-semibold py-0.5 h-6 px-2 border-opacity-50 ${deptColor.bg} ${deptColor.text} ${deptColor.border}`}>
@@ -211,7 +305,7 @@ export function FacultyProfileSheet({
 								</Badge>
 							</div>
 							<div className="space-y-1.5">
-								<p className="text-[0.65rem] font-bold text-muted-foreground flex items-center gap-1.5 uppercase tracking-wider">
+								<p className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
 									<User className="size-3 opacity-50" /> Status
 								</p>
 								<p className="text-sm font-semibold pl-0.5">{faculty.employmentStatus || 'Unknown'}</p>
@@ -271,13 +365,13 @@ export function FacultyProfileSheet({
 
 						<div className="grid grid-cols-2 gap-4 pt-2">
 							<div className="p-3 rounded-xl border bg-muted/20 flex flex-col gap-1">
-								<p className="text-[0.65rem] font-bold text-muted-foreground uppercase flex items-center gap-1.5 tracking-wider">
+								<p className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
 									<BookOpen className="size-3 opacity-50" /> Subjects
 								</p>
 								<p className="text-2xl font-bold">{subjectCount}</p>
 							</div>
 							<div className="p-3 rounded-xl border bg-muted/20 flex flex-col gap-1">
-								<p className="text-[0.65rem] font-bold text-muted-foreground uppercase flex items-center gap-1.5 tracking-wider">
+								<p className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
 									<CalendarDays className="size-3 opacity-50" /> Sections
 								</p>
 								<p className="text-2xl font-bold">{sectionCount}</p>
@@ -289,55 +383,94 @@ export function FacultyProfileSheet({
 
 					{/* Assigned Subjects List */}
 					<div className="space-y-4">
-						<div className="flex items-center justify-between">
-							<h4 className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-widest">Assigned subjects and sections</h4>
+						<div className="flex items-center justify-between gap-3">
+							<h4 className="text-sm font-semibold text-muted-foreground">Assigned subjects and sections</h4>
 						{/* Fix 25: `reviewAction` renders a plain Button when the parent
 							handles the review in place, and only falls back to the
 							navigating Link when it does not. No nested interactive. */}
-						{reviewAction('link', 'h-auto p-0 text-[0.65rem] font-bold uppercase tracking-widest text-primary hover:no-underline')}
+						{reviewAction('link', 'h-auto p-0 text-sm font-semibold text-primary hover:no-underline')}
 					</div>
 
-						{faculty.assignments && faculty.assignments.length > 0 ? (
-							<div className="space-y-3">
-								{faculty.assignments.map((fs) => (
-									<div key={fs.id} className="p-3 rounded-xl border border-border bg-background shadow-sm space-y-2.5">
-										<div className="flex items-start justify-between gap-2 border-b pb-2 mb-2 border-border/40">
-											<div className="min-w-0">
-											<p className="text-sm font-bold truncate leading-tight">{fs.subject?.name || 'Unknown Subject'}</p>
-											{/* FIX 23.1: `FIL` / `DEVL_READING` were a washed-out
-								    10.4px at 70% opacity — smaller and dimmer than any
-								    other label in the card, on a subject code a
-								    scheduler reads to identify a load row. The
-								    `opacity-70` is the defect, not the size: the
-								    design token `--muted-foreground` is
-								    `215 16% 42%`, which is 5.667:1 on this card's
-								    surface, so at full opacity `text-xs` is legible
-								    AA and no raw `text-slate-NNN` neutral is
-								    needed (raw neutrals are banned by the committed
-								    palette ratchet). */}
-											<code className="text-xs font-medium text-muted-foreground font-mono uppercase">{fs.subject?.code}</code>
-
-											</div>
-											<Badge variant="secondary" className="text-xs font-bold px-1.5 py-0.5 h-5 bg-muted/50">
-												{fs.subject?.minMinutesPerWeek ? `${Math.round((fs.subject.minMinutesPerWeek / 60) * 10) / 10}h` : '-'}
-											</Badge>
+					{faculty.assignments && faculty.assignments.length > 0 ? (
+						<div className="space-y-3">
+							{faculty.assignments.map((fs) => {
+								/*
+								 * A3 c17 rows 1-2. The card is now SHAPE-FIRST: the
+								 * subject name heads it, the sections beneath it are
+								 * grouped by the grade they are actually in, and the
+								 * hours line states the total so the badge and the
+								 * number a scheduler adds up cannot disagree.
+								 *
+								 * GRADE RESOLUTION IS AUTHORITY, NOT A FIELD. This used
+								 * to read `sec.displayOrder` and, before that,
+								 * `sec.gradeLevelId`; EnrollPro re-mints `grade_level_id`,
+								 * so a Grade 7 section rendered `GR1`. The one resolver
+								 * is `resolveSectionGradeNumber` (A2 c15), which reads
+								 * `gradeLevelName` first and only then a real
+								 * `displayOrder`. A section it cannot resolve is NOT
+								 * given an invented number: it lands in a neutral
+								 * "Grade not set" group with no `GradeBadge`, because a
+								 * badge IS a claim.
+								 */
+								const gradeGroups = groupSectionsByResolvedGrade(fs.sections);
+								const sectionTotal = fs.sections.length;
+								return (
+								<div key={fs.id} className="p-3 rounded-xl border border-border bg-background shadow-sm space-y-2.5">
+									<div className="flex items-start justify-between gap-2 border-b pb-2 mb-2 border-border/40">
+										<div className="min-w-0">
+										<p className="text-sm font-bold leading-tight">{fs.subject?.name || 'Unknown Subject'}</p>
+										{/* Row 2. The subject CODE line is gone: the request is for the
+										    name, and one readable label beats a name over a code the
+										    scheduler has to decode. What replaces it is the number the
+										    card was missing — what this subject costs THIS teacher. */}
+										<p className="text-sm text-muted-foreground">
+											{`${sectionTotal} ${sectionTotal === 1 ? 'class' : 'classes'} · ${formatHoursLabel((fs.subject?.minMinutesPerWeek ?? 0) * sectionTotal)} a week`}
+											{sectionTotal > 1 && fs.subject?.minMinutesPerWeek
+												? ` · ${formatHoursLabel(fs.subject.minMinutesPerWeek)} each`
+												: ''}
+										</p>
 										</div>
-										<div className="flex flex-col gap-1.5">
-											{fs.sections && fs.sections.length > 0 ? (
-												fs.sections.map((sec) => (
-													<div key={sec.id} className="flex items-center gap-2">
-										<GradeBadge grade={sec.displayOrder} ariaSuffix={sec.name} />
-														<span className="text-xs text-foreground font-semibold truncate">{sec.name}</span>
-													</div>
-												))
-											) : (
-												<span className="text-xs text-muted-foreground italic">No sections explicitly mapped.</span>
-											)}
-										</div>
+										<Badge variant="secondary" className="text-xs font-bold px-1.5 py-0.5 h-5 shrink-0 bg-muted/50">
+											{fs.subject?.minMinutesPerWeek ? formatHoursLabel(fs.subject.minMinutesPerWeek) : '-'}
+										</Badge>
 									</div>
-								))}
-							</div>
-						) : (
+									{gradeGroups.length > 0 ? (
+										<div className="space-y-2">
+											{gradeGroups.map((group) => (
+												<div key={group.key} className="rounded-lg border border-border/60 bg-muted/20 p-2 space-y-1.5">
+													<div className="flex items-center gap-1.5">
+														{/* The DepEd grade colour is the EXISTING
+														    `GradeBadge` -> `GradeLevelBadge` pair. No second
+														    colour map is introduced here (§8). */}
+														{group.grade != null ? <GradeBadge grade={group.grade} /> : null}
+														<span className="text-sm font-semibold text-foreground">
+															{group.grade != null ? `Grade ${group.grade}` : 'Grade not set'}
+														</span>
+													</div>
+													{/* Side by side and wrapping, rather than one section per
+													    line: a Grade 7 with five sections was five lines of
+													    the same answer. */}
+													<div className="flex flex-wrap gap-1.5">
+														{group.sections.map((sec) => (
+															<span
+																key={sec.id}
+																className="rounded-md border border-border bg-background px-2 py-0.5 text-sm font-medium text-foreground"
+															>
+																{sec.name}
+															</span>
+														))}
+													</div>
+												</div>
+											))}
+										</div>
+									) : (
+										<span className="text-sm text-muted-foreground italic">No sections explicitly mapped.</span>
+									)}
+								</div>
+								);
+							})}
+						</div>
+					) : (
 							<div className="space-y-3 rounded-xl border border-dashed bg-muted/5 px-4 py-10 text-center">
 								<p className="text-sm font-bold text-foreground">No teaching load assigned yet.</p>
 								<p className="text-xs leading-5 text-muted-foreground">Open Teaching Load to assign subjects and sections before generation.</p>
@@ -351,7 +484,7 @@ export function FacultyProfileSheet({
 					<Separator className="opacity-50" />
 
 					<div className="space-y-3 rounded-xl border bg-slate-50/70 p-4">
-						<h4 className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-widest">Adviser and source context</h4>
+						<h4 className="text-sm font-semibold text-muted-foreground">Adviser and source context</h4>
 						<p className="text-sm font-semibold text-foreground">
 							{faculty.isClassAdviser
 								? faculty.advisedSectionName

@@ -295,6 +295,20 @@ test('A7C8-5: arbitrary font sizes are detected in px, rem and pt, and non-sizes
  *   px ones out would reintroduce exactly the px-only blind spot this row exists
  *   to close.
  *
+ *   RETIRED 2026-09-29 (A3 c17, Teachers profile) — 2 keys, 12 occurrences:
+ *   `components/faculty/FacultyProfileSheet.tsx|text-[0.65rem]` (5) and
+ *   `|text-[0.7rem]` (7). That dialog's uppercase micro-labels were 10.4px and
+ *   11.2px; A3 c17 raised all twelve to `text-sm` sentence case, which is the
+ *   re-fit this row exists to force.
+ *
+ *   THE OCCURRENCE TOTAL WAS ALSO OFF BY ONE BEFORE THAT. This row recorded
+ *   264 against a measured 263 on base `7110b031` (254 rem + 9 `text-[13px]`,
+ *   57 files), so 264 - 12 = 252 would have been a plausible-looking wrong
+ *   number. The total below is 251 = 263 measured - 12 retired, and it is
+ *   MEASURED, not derived: the same scan the row performs, run over every
+ *   production file at base `7110b031` via `git show`, counted 263. Re-derive
+ *   before changing this number rather than subtracting from a recorded one.
+ *
  *   OWNER: A7 C8 RE-FIT PASS (the next slice), which raises these to 14px and
  *   re-fits each surface. Several of these sites sit in FIXED-HEIGHT boxes, so a
  *   blind bump to `text-xs` clips them — that is why this is its own slice with
@@ -350,8 +364,6 @@ const UNDER_14PX_ALLOWLIST_2026_09_29: Record<string, number> = {
 	'components/faculty-dashboard/MobileDashboardLayout.tsx|text-[13px]': 3,
 	'components/faculty-dashboard/TeachingIdentityPanel.tsx|text-[13px]': 3,
 	'components/faculty-shared/FacultyGlobalHeader.tsx|text-[13px]': 1,
-	'components/faculty/FacultyProfileSheet.tsx|text-[0.65rem]': 5,
-	'components/faculty/FacultyProfileSheet.tsx|text-[0.7rem]': 7,
 	'components/faculty/FacultyRow.tsx|text-[0.6rem]': 3,
 	'components/faculty/FacultyRow.tsx|text-[0.65rem]': 6,
 	'components/room-schedules/OccupancyTemplatePreview.tsx|text-[0.625rem]': 1,
@@ -454,14 +466,15 @@ test('A7C8-6: no arbitrary sub-14px font size outside the dated, owner-tagged ra
 	// off-by-one in the count cannot hide behind a matching set of keys.
 	assert.equal(
 		recorded.length,
-		89,
-		'A7C8-6: the allowlist must hold exactly 89 keys (recorded 2026-09-29).',
+		87,
+		'A7C8-6: the allowlist must hold exactly 87 keys (89 recorded 2026-09-29, ' +
+			'less the two FacultyProfileSheet.tsx keys A3 c17 retired).',
 	);
 	assert.equal(
 		found.reduce((a, [, c]) => a + c, 0),
-		264,
-		'A7C8-6: production must hold exactly 264 sub-14px arbitrary font-size ' +
-			'occurrences (255 rem + 9 text-[13px]). Update this number and the ' +
+		251,
+		'A7C8-6: production must hold exactly 251 sub-14px arbitrary font-size ' +
+			'occurrences (242 rem + 9 text-[13px]). Update this number and the ' +
 			'inventory doc in the same commit that changes it.',
 	);
 });

@@ -54,6 +54,7 @@ import {
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import {
 	getFacultyLoadSortRank,
+	MAX_WEEKLY_TEACHING_HOURS,
 	type SubjectSectionOwnershipIndexEntry,
 } from '@/lib/faculty-assignment-helpers';
 import { ActorScopedRolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
@@ -588,6 +589,43 @@ export default function Faculty() {
 		return 'no-saved-data';
 	}, [dataSource, loading, refreshing]);
 
+	/**
+	 * A3 c17 row 5 — the weekly maximum the `over-cap` chip is counting
+	 * against, read from the roster rather than typed into a sentence.
+	 *
+	 * The operator's words were "It hard-codes 40h" (`Faculty.tsx:705`), and
+	 * they were right about the consequence, not only the literal: a teacher
+	 * saved with a 32h maximum was told, in a tooltip, that they were above the
+	 * 40h weekly maximum, which is a different rule from the one the roster
+	 * applies to them. The sentence has to state the number the count actually
+	 * uses.
+	 *
+	 * The order of the fallbacks is the order of how much we know: the maximum
+	 * among the teachers THIS chip is counting, then the roster-wide maximum,
+	 * then the policy constant. The last is the only one that is a fallback,
+	 * and it is reached only when the roster is empty — in which case there is
+	 * no teacher to have been miscounted, so nothing on screen is false.
+	 *
+	 * Note the counted set is the same predicate the chip's `count` uses, minus
+	 * placeholders. A to-be-hired record is a slot, not a person over a cap,
+	 * and it is excluded from the count for the same reason here.
+	 */
+	const savedWeeklyMaxHours = useMemo(() => {
+		const counted = faculty.filter(
+			(teacher) =>
+				teacher.isActiveForScheduling &&
+				!teacher.isPlaceholder &&
+				(teacher.policyCreditedHours ?? 0) > teacher.maxHoursPerWeek,
+		);
+		const maximumOf = (list: typeof faculty) =>
+			list.reduce((max, teacher) => Math.max(max, teacher.maxHoursPerWeek ?? 0), 0);
+		return (
+			maximumOf(counted) ||
+			maximumOf(faculty) ||
+			MAX_WEEKLY_TEACHING_HOURS
+		);
+	}, [faculty]);
+
 	const teacherStats = useMemo(() => {
 		const activeCount = rosterStats?.activeCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling).length;
 		const assignedCount = rosterStats?.assignedCount ?? faculty.filter((teacher) => (teacher.subjectCount ?? 0) > 0).length;
@@ -702,7 +740,7 @@ export default function Faculty() {
 
 	const attentionChips = [
 		{ id: 'needs-load' as const, label: 'No subjects assigned', helper: 'Active teachers with no subject assigned in Teaching Load.', count: rosterStats?.unassignedCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.subjectCount ?? 0) === 0).length },
-		{ id: 'over-cap' as const, label: 'Above weekly max', helper: 'Active teachers above the 40h weekly maximum. Move classes before generating.', count: rosterStats?.overCapCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.policyCreditedHours ?? 0) > teacher.maxHoursPerWeek).length },
+		{ id: 'over-cap' as const, label: 'Above weekly max', helper: `Active teachers above the ${savedWeeklyMaxHours}h weekly maximum. Move classes before generating.`, count: rosterStats?.overCapCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.policyCreditedHours ?? 0) > teacher.maxHoursPerWeek).length },
 		{ id: 'no-active-load' as const, label: 'No sections assigned', helper: 'Active teachers with no section assigned yet.', count: faculty.filter((teacher) => teacher.isActiveForScheduling && !teacher.isPlaceholder && (teacher.sectionCount ?? 0) === 0).length },
 		{ id: 'placeholders' as const, label: 'Temporary teachers', helper: 'Placeholder records for teachers who have not been hired yet. Replace before publishing.', count: faculty.filter((teacher) => teacher.isPlaceholder).length },
 		{ id: 'all' as const, label: 'All teachers', helper: 'Clear the attention filter and show every teacher.', count: rosterStats?.totalCount ?? faculty.length },
