@@ -107,7 +107,7 @@ named artifact.
 **Real staging data in previews (2026-09-29).** Browser proof must use real staging data, not fixtures. Start the
 preview with `scripts/dev/start-preview.ps1` on a port in 5200–5299 (it points at the staging API `:5101/api/v1`), then
 open **`http://127.0.0.1:<port>/__dev/staging-login`** in the browser: the dev server signs in to STAGING server-side
-and redirects to `/`. **Never open, read, cat or navigate to `D:\ATLAS-runtime-configtlas-staging-qa.env`** — a
+and redirects to `/`. **Never open, read, cat or navigate to `D:\ATLAS-runtime-config\atlas-staging-qa.env`** — a
 browser tool echoed the password into a transcript on 2026-09-29 and it had to be rotated. If the login page says
 it failed, run `node scripts/dev/ensure-staging-qa-account.cjs` once (staging is re-streamed from live on each deploy).
 Never use any of this against live (`:5001`, `:5174`, the Tailnet origin without `:8443`).
