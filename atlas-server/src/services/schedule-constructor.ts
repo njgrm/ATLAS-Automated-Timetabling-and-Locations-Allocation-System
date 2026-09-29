@@ -104,6 +104,33 @@ function normalizeSpecializationCode(value?: string | null): string {
 	return (value ?? '').trim().toUpperCase();
 }
 
+/**
+ * A8-G1: does this subject declare itself a block / double period?
+ *
+ * The packet would let a declared block legally hold two sessions of the same
+ * subject on one day. `model Subject` in `prisma/schema.prisma` carries only
+ * `minMinutesPerWeek`, `modularGroupId`, `modularOrder`, `rotationFamily`,
+ * `termGroupId`, `schedulingDisposition`, `termCount`, `gradeLevels`,
+ * `programScopes`, `allowedSpecializations`, `requiredFeatures` and
+ * `ownerDepartment` — there is no block/double-period column, so honouring one
+ * would require a migration that is explicitly out of scope. The predicate is
+ * the ONE place the report rule consults for a block, and it is code-only: it
+ * adds no user-facing setting and changes no data.
+ *
+ * Consecutive periods are NOT a block. `wouldExceedConsecutive` is a
+ * consecutive-teaching BREAK rule, so treating back-to-back periods as a block
+ * would let a normal week collapse into 2+2+1 and would make the packet's
+ * "0 same-day repeats" target unreachable.
+ */
+export function isDeclaredBlockSubject(
+	subject: Pick<SubjectInput, 'id' | 'modularGroupId'> | undefined | null,
+): boolean {
+	if (!subject) return false;
+	// No existing `Subject` field declares a block. `modularGroupId` is a
+	// rotation family, not a block, and is deliberately NOT read as one.
+	return false;
+}
+
 // Grade numbers pass through; legacy EnrollPro ids fall back to the one shared map.
 const normalizeGradeLevel = normalizeGradeNumberOrLegacyId;
 
@@ -1389,6 +1416,50 @@ export interface ConstructorResult {
 	unassignedCount: number;
 	classesProcessed: number;
 	policyBlockedCount: number;
+	/**
+	 * A8-G1: one non-violation receipt group describing this run's same-day
+	 * repeats. It is deliberately NOT a `Violation` and must never become one —
+	 * see the `RunSummary.spreadReport` note in `generation.service.ts`.
+	 */
+	spreadReport?: SpreadReport;
+}
+
+/**
+ * A8-G1: one (section|cohort, subject, day) cell that holds more than one
+ * session although a spread placement existed nowhere for it.
+ *
+ * A repeat is only recorded when the constructor had ALREADY tried every
+ * candidate on an unused day and all of them failed, because `dayUseCount`
+ * orders those candidates strictly first. A day that reaches two sessions is
+ * therefore itself the proof that no spread placement was available — no extra
+ * branch in the placement loop is needed to establish it.
+ */
+export interface SpreadException {
+	code: 'SAME_DAY_REPEAT_NO_SPREAD_AVAILABLE';
+	sectionId: number;
+	subjectId: number;
+	subjectLabel: string;
+	sectionLabel: string;
+	day: string;
+	count: number;
+	message: string;
+}
+
+export interface SpreadReport {
+	/**
+	 * Distinct (section|cohort, subject) pairs that ended a run with more than
+	 * `ceil(sessionsPerWeek / 5)` of that subject's sessions on at least one day
+	 * — i.e. days that were more loaded than the week can hold evenly. On the
+	 * live 5-session subjects this is the "31 pairs" figure Run 347 reported.
+	 */
+	sameDayRepeatPairs: number;
+	/**
+	 * One entry per (pair, day) cell above `ceil(sessionsPerWeek / 5)`. Every
+	 * entry is a `preferredMaxPerDay` breach by construction, and every
+	 * `preferredMaxPerDay` breach is in this list, so the count and the list can
+	 * never disagree.
+	 */
+	exceptions: SpreadException[];
 }
 
 export interface ModularAssignment {
@@ -1966,6 +2037,31 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 	const subjectMap = new Map(subjects.map((s) => [s.id, s]));
 
+	// A8-G1: `sectionId` → the DISPLAY label the run receipt must show. The
+	// composed "8-Makatao" string is not a stored column anywhere: it is the
+	// grade-level name with its "Grade " prefix removed, joined to the section
+	// name. `DemandItem` itself carries no section name, so the map is built
+	// from the one `sectionsByGrade` authority already destructured above.
+	//
+	// Defensive on purpose: the grade-level name is read off the SECTION first
+	// (that is literally "the section's grade-level name") and falls back to the
+	// enclosing group, and a caller that supplies neither still gets a usable
+	// label instead of a crash. This map is only read when a spread exception is
+	// actually reported, so it must never be able to fail a run that spread
+	// cleanly.
+	const sectionLabelById = new Map<number, string>();
+	for (const grade of sectionsByGrade) {
+		const groupGradeName = (grade as { gradeLevelName?: string }).gradeLevelName ?? '';
+		for (const section of grade.sections) {
+			const gradeName = (section as { gradeLevelName?: string }).gradeLevelName || groupGradeName;
+			const gradePrefix = gradeName.replace(/^Grade\s+/i, '').trim();
+			sectionLabelById.set(
+				section.id,
+				gradePrefix ? `${gradePrefix}-${section.name}` : section.name,
+			);
+		}
+	}
+
 	// Qualified faculty index: "subjectId:sectionId" → sorted [facultyId, ...]
 	const qualifiedMap = new Map<string, number[]>();
 	const sortedFS = [...facultySubjects].sort((a, b) => a.facultyId - b.facultyId);
@@ -2279,6 +2375,11 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	const unassignedItems: UnassignedItem[] = [];
 	const lockWarnings: string[] = [];
 	const modularWarnings: ModularWarning[] = [];
+	// A8-G1: the non-violation spread receipt accumulators. Kept beside the
+	// other run-level report state, and NOT in `unassignedItems` and NOT in any
+	// violation array.
+	const spreadExceptions: SpreadException[] = [];
+	let spreadRepeatPairs = 0;
 	let assignedCount = 0;
 	let unassignedCount = 0;
 	let policyBlockedCount = 0;
@@ -2292,6 +2393,11 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	// ─── Pre-place locked entries ───
 	// "sectionId:subjectId" → count of sessions already fulfilled by locks
 	const lockSessionCounts = new Map<string, number>();
+	// A8-G1: the same pair key, then day → sessions of that pair a lock already
+	// put on that day. Seeded HERE, inside the accept branch, and NOT by walking
+	// `lockedEntries`: a lock rejected above (no canonical slot, no facultyId, no
+	// roomId) never becomes an entry and must not consume a spread day.
+	const lockDayUseByPair = new Map<string, Map<string, number>>();
 
 	if (lockedEntries && lockedEntries.length > 0) {
 		for (const lock of lockedEntries) {
@@ -2352,6 +2458,13 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				? `${lock.cohortCode}:${lock.subjectId}`
 				: `${lock.sectionId}:${lock.subjectId}`;
 			lockSessionCounts.set(lockKey, (lockSessionCounts.get(lockKey) ?? 0) + 1);
+
+			// A8-G1: a locked placement is a real session of this pair on that
+			// day, so the spread rule must see it. `lockKey` is the same pair key
+			// `getDemandAssignmentKey` produces below.
+			const lockedDayUse = lockDayUseByPair.get(lockKey) ?? new Map<string, number>();
+			lockedDayUse.set(lock.day, (lockedDayUse.get(lock.day) ?? 0) + 1);
+			lockDayUseByPair.set(lockKey, lockedDayUse);
 		}
 	}
 
@@ -2631,9 +2744,13 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			});
 		}
 
-		// Track which days we already used for this section-subject pair (spread sessions across days)
-		const daysUsedForPair = new Set<string>();
-		
+		// A8-G1: how many sessions of THIS (section|cohort, subject) pair are
+		// already on each day. A COUNT, not a boolean set: the min-count day wins,
+		// which is what makes a subject with more sessions than days fill Mon–Fri
+		// evenly before it doubles any day. Seeded from ACCEPTED locks so a kept
+		// manual edit counts as a day use on the keep-my-edits path.
+		const daysUsedForPair = new Map<string, number>(lockDayUseByPair.get(getDemandAssignmentKey(item)) ?? undefined);
+
 		// Track failure reasons across all attempts for this session
 		const sessionFailureReasons = new Set<UnassignedItem['reason']>();
 
@@ -2667,9 +2784,12 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		const canonicalClassSlots = shapeContract?.canonicalSlots?.filter(s => s.rowKind === 'CLASS');
 		const useCanonicalSlots = canonicalClassSlots && canonicalClassSlots.length > 0;
 
-		const possibleSlots: { day: string; startTime: string; endTime: string; score: number; pi?: number }[] = [];
+		const possibleSlots: { day: string; startTime: string; endTime: string; score: number; dayUseCount: number; pi?: number }[] = [];
 		for (let di = 0; di < DAYS.length; di++) {
 			const day = DAYS[di];
+			// A8-G1: the dominant spread key. Read once per day, before the
+			// period loop, so every candidate on this day carries the same count.
+			const dayUseCount = daysUsedForPair.get(day) ?? 0;
 
 			if (useCanonicalSlots) {
 				// Use canonical CLASS rows directly as candidates
@@ -2677,13 +2797,18 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					if (getDemandSectionIds(item).some((sectionId) => sectionOcc.isOccupied(sectionId, day, canonicalSlot.startTime, canonicalSlot.endTime))) continue;
 					if (isIntervalBlockedByDayScopedEvent(dayScopedEventWindows, day, canonicalSlot.startTime, canonicalSlot.endTime)) continue;
 
+					// A8-G1: the former `+2.5` SECTION / `+1.5` COHORT day penalty is
+					// DELETED, not left in place. `dayUseCount` is the FIRST sort key
+					// and strictly dominates `score`, so a day this pair has used can
+					// never outrank an unused day on room quality — which was exactly
+					// the defect (a used day with a free home room tied an unused day
+					// with a busy one at 3.0, and Monday won the tie-break).
 					let score = 1;
-					if (daysUsedForPair.has(day)) score += item.entryKind === 'COHORT' ? 1.5 : 2.5;
 					if (preferredHomeRoom != null) {
 						if (roomOcc.isOccupied(preferredHomeRoom.id, day, canonicalSlot.startTime, canonicalSlot.endTime)) score += 2;
 						else score -= 0.5;
 					}
-					possibleSlots.push({ day, startTime: canonicalSlot.startTime, endTime: canonicalSlot.endTime, score });
+					possibleSlots.push({ day, startTime: canonicalSlot.startTime, endTime: canonicalSlot.endTime, score, dayUseCount });
 				}
 			} else {
 				// Fall back to legacy FALLBACK_PERIOD_SLOTS
@@ -2692,27 +2817,39 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					if (getDemandSectionIds(item).some((sectionId) => sectionOcc.isOccupied(sectionId, day, slot.startTime, slot.endTime))) continue;
 					if (isIntervalBlockedByDayScopedEvent(dayScopedEventWindows, day, slot.startTime, slot.endTime)) continue;
 
+					// A8-G1: see the canonical branch above — the day penalty is dead
+					// code under the dominant `dayUseCount` key and is not applied.
 					let score = 1;
-					if (daysUsedForPair.has(day)) score += item.entryKind === 'COHORT' ? 1.5 : 2.5;
 					if (preferredHomeRoom != null) {
 						if (roomOcc.isOccupied(preferredHomeRoom.id, day, slot.startTime, slot.endTime)) score += 2;
 						else score -= 0.5;
 					}
-					possibleSlots.push({ day, startTime: slot.startTime, endTime: slot.endTime, score, pi });
+					possibleSlots.push({ day, startTime: slot.startTime, endTime: slot.endTime, score, dayUseCount, pi });
 				}
 			}
 		}
 
-			if (possibleSlots.length === 0 && preferredHomeRoomId != null) {
-				sawNoValidPeriodInPolicyWindow = true;
-			}
+		if (possibleSlots.length === 0 && preferredHomeRoomId != null) {
+			sawNoValidPeriodInPolicyWindow = true;
+		}
 
-			possibleSlots.sort((a, b) => {
-				if (a.score !== b.score) return a.score - b.score;
-				const dayDiff = DAYS.indexOf(a.day as typeof DAYS[number]) - DAYS.indexOf(b.day as typeof DAYS[number]);
-				if (dayDiff !== 0) return dayDiff;
-				return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
-			});
+		// A8-G1: the spread rule is ONE new FIRST key, not a second pass and not a
+		// new branch. Consequences, all by construction:
+		//  - every count-0 candidate is tried before any count-1 candidate, so a
+		//    spread placement is preferred whenever one exists;
+		//  - if all count-0 candidates fail on faculty/room/capacity/policy the
+		//    loop still walks into the count-1+ candidates and places the session,
+		//    so `unassignedCount` cannot rise;
+		//  - occupancy marking, the hard daily/consecutive guards and
+		//    `getQualifiedFacultyIds(..., sessionTermIndex)` are untouched, so no
+		//    teacher, section or room overlap can appear.
+		possibleSlots.sort((a, b) => {
+			if (a.dayUseCount !== b.dayUseCount) return a.dayUseCount - b.dayUseCount;
+			if (a.score !== b.score) return a.score - b.score;
+			const dayDiff = DAYS.indexOf(a.day as typeof DAYS[number]) - DAYS.indexOf(b.day as typeof DAYS[number]);
+			if (dayDiff !== 0) return dayDiff;
+			return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
+		});
 
 			for (const slotCandidate of possibleSlots) {
 				if (placed) break;
@@ -3102,7 +3239,10 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 							facultyDayPeriods.set(dailyKey, dayPeriods);
 						}
 
-						daysUsedForPair.add(slotCandidate.day);
+						// A8-G1: the day this pair has now been used one more time on. A
+						// count, not an `add`, so the next session sees 1 rather than a
+						// boolean and the min-count day keeps winning.
+						daysUsedForPair.set(slotCandidate.day, (daysUsedForPair.get(slotCandidate.day) ?? 0) + 1);
 						placed = true;
 
 						if (LAB_ROOM_TYPES.has(room.type)) {
@@ -3222,7 +3362,56 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				unassignedCount++;
 			}
 		}
+
+		// ── A8-G1: the non-violation same-day-repeat receipt ──
+		// `daysUsedForPair` now holds the FINAL tally for this pair: accepted
+		// locks plus every session the loop placed. Any day at two or more is a
+		// repeat, and a repeat is its own proof that no spread placement existed,
+		// because `dayUseCount` forced the loop to exhaust every unused-day
+		// candidate first. Nothing here raises `unassignedCount`, touches
+		// `placed`, or reaches `violations`.
+		if (!isDeclaredBlockSubject(subject)) {
+			// Post-condition: the packet's "at most one class of a subject per
+			// day", generalised to `ceil(sessionsPerWeek / 5)` so a subject with
+			// more sessions than days is not reported for filling days evenly.
+			// Clamped at 1 so a zero-session demand item that only carries locks
+			// never reports a single session.
+			//
+			// This ONE condition is both the cap assertion and the report rule.
+			// A cell above the cap means every day was already at or above it, so
+			// "no other day was free" is literally true rather than a guess.
+			const preferredMaxPerDay = Math.max(1, Math.ceil(item.sessionsPerWeek / 5));
+			const subjectLabel = subject.name?.trim() || subject.code?.trim() || `Subject ${item.subjectId}`;
+			const sectionLabel = item.entryKind === 'COHORT'
+				? (item.cohortName?.trim() || item.cohortCode?.trim() || sectionLabelById.get(item.sectionId) || `Section ${item.sectionId}`)
+				: (sectionLabelById.get(item.sectionId) || `Section ${item.sectionId}`);
+			let pairHasRepeat = false;
+			for (const day of DAYS) {
+				const count = daysUsedForPair.get(day) ?? 0;
+				if (count <= preferredMaxPerDay) continue;
+				pairHasRepeat = true;
+				const dayLabel = `${day.charAt(0)}${day.slice(1).toLowerCase()}`;
+				spreadExceptions.push({
+					code: 'SAME_DAY_REPEAT_NO_SPREAD_AVAILABLE',
+					sectionId: item.sectionId,
+					subjectId: item.subjectId,
+					subjectLabel,
+					sectionLabel,
+					day,
+					count,
+					message: `${subjectLabel} for ${sectionLabel} has ${count} classes on ${dayLabel} (no other day was free)`,
+				});
+			}
+			if (pairHasRepeat) spreadRepeatPairs++;
+		}
 	}
+
+	// A8-G1: one grouped, non-violation receipt object — a count AND a bounded
+	// exception list, never a raw `string[]` and never a raw count alone.
+	const spreadReport: SpreadReport = {
+		sameDayRepeatPairs: spreadRepeatPairs,
+		exceptions: spreadExceptions,
+	};
 
 	return {
 		entries,
@@ -3233,5 +3422,6 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		unassignedCount,
 		classesProcessed: assignedCount + unassignedCount,
 		policyBlockedCount,
+		spreadReport,
 	};
 }

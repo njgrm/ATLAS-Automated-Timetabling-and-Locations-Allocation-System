@@ -292,6 +292,35 @@ export interface RunSummary {
 	violationCounts?: Record<string, number>;
 	lockWarnings?: string[];
 	modularWarnings?: string[];
+	/**
+	 * A8-G1: the run receipt's same-day-repeat group — how many (section, subject)
+	 * pairs ended a run with more than one class of that subject on one day, and
+	 * the exact per-pair, per-day exceptions with real section and subject
+	 * labels.
+	 *
+	 * This is NOT a violation and MUST NOT become one. Routing a spread exception
+	 * through `modularWarnings` would promote it into `violations` at
+	 * `generation.service.ts:1013-1014` and from there into
+	 * `PUBLISH_ACK_REQUIRED_SOFT_VIOLATIONS` (`publication-contract.service.ts`),
+	 * which is wrong: a subject that genuinely had no free day is a fact the
+	 * scheduler should read, not a defect that should gate publication. It is
+	 * therefore a plain additive jsonb key on the summary, returned verbatim by
+	 * `getRunDraft`/`getLatestRunDraft` into `DraftReport.summary`. Runs created
+	 * before this change simply lack the key, which is why it is optional.
+	 */
+	spreadReport?: {
+		sameDayRepeatPairs: number;
+		exceptions: Array<{
+			code: 'SAME_DAY_REPEAT_NO_SPREAD_AVAILABLE';
+			sectionId: number;
+			subjectId: number;
+			subjectLabel: string;
+			sectionLabel: string;
+			day: string;
+			count: number;
+			message: string;
+		}>;
+	};
 	cohortCount?: number;
 	contractWarnings?: string[];
 	// H-ALG-5: Hybrid scheduler diagnostics
@@ -1142,6 +1171,10 @@ export async function triggerGenerationRun(
 			violationCounts: mergedValidationResult.counts.byCode,
 			lockWarnings: result.lockWarnings.length > 0 ? result.lockWarnings : undefined,
 			modularWarnings: modularWarnings.length > 0 ? modularWarnings.map((warning) => warning.message) : undefined,
+			// A8-G1: the spread receipt is a plain additive summary key. It is
+			// deliberately NOT `modularWarnings` and NOT a `Violation`, so it can
+			// never reach `PUBLISH_ACK_REQUIRED_SOFT_VIOLATIONS`.
+			spreadReport: result.spreadReport,
 			cohortCount: cohorts.length,
 			termCounts,
 			contractWarnings: cohortSyncWarnings.length > 0 ? [...cohortSyncWarnings] : undefined,
