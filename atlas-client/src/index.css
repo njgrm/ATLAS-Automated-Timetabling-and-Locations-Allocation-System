@@ -16,13 +16,21 @@
 	   is too small, which fails accessibility. Lock in." / "Our default text and
 	   sizes should naturally be bigger.") — the DEFAULT type scale, raised once, here.
 
-	   WHY THIS BLOCK AND NOT `@theme inline`. Tailwind v4's `@theme inline` is for
-	   values that REFERENCE another variable, so the emitted utility inlines the
-	   resolved value instead of emitting a `var()` that must resolve in the consumer's
-	   scope. These are plain literal `rem` lengths, so they belong in the non-inline
-	   `@theme`; that way the utilities stay `var(--text-xs)`-driven and ONE edit here
-	   moves every page. `a3-c8-warning-token.test.ts` reads the `@theme inline` block
-	   for the four `--color-warning*` utilities, so nothing here can disturb it.
+	   WHY THIS BLOCK AND NOT THE INLINE ONE. Tailwind v4 has a second theme block,
+	   the `inline` variant, for values that REFERENCE another variable: it inlines
+	   the resolved value into the emitted utility instead of emitting a `var()` that
+	   must resolve in the consumer's scope. These are plain literal `rem` lengths,
+	   so they belong in this non-inline block; that way the utilities stay
+	   `var(--text-xs)`-driven and ONE edit here moves every page.
+
+	   THIS COMMENT MUST NOT NAME THE SELECTORS THE STYLESHEET PARSERS LOOK FOR.
+	   Several token tests locate structural regions of this file by searching for a
+	   literal at-rule or dark-mode selector and slicing between two offsets. A prose
+	   mention of either string ANYWHERE earlier in the file moves the delimiter, the
+	   slice inverts, and every test that parses that selector fails at once — with
+	   failures that read as dark-mode and contrast regressions and are really a
+	   comment. Both are therefore described in words above and spelled nowhere in
+	   this file. Do not restore them.
 
 	   WHY 14px AND 15px. Tailwind's defaults are `xs` = 0.75rem (12px) and `sm` =
 	   0.875rem (14px). 12px body-adjacent text is below the size the operator's

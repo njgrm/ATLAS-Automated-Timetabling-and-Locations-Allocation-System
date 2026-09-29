@@ -356,12 +356,15 @@ test('C1 control: the empty-room-list state is one word, and it is "Empty"', () 
 /* ───────────────────────── §8: the 11px floor in the files this stream touched ───────────────────────── */
 
 test('A3 control: no sub-11px text was introduced in the files this change owns', () => {
-	// `TeacherGridMode.tsx` is deliberately NOT scanned here: it carries a
-	// `text-[10px]` department-count Badge at line 262 that predates this change
-	// (verified present at base c0d91827) and is out of scope to fix. Listing it
-	// would make this control fail on a pre-existing condition and train the next
-	// reader to ignore it. The readout label this change DID author is pinned at
-	// 11px by the A1 control instead.
+	// `TeacherGridMode.tsx` is deliberately NOT scanned here, and the reason has
+	// changed. When this control was written, that file carried a `text-[10px]`
+	// department-count Badge that predated the change and was out of scope; listing it
+	// would have made this control fail on a pre-existing condition and trained the
+	// next reader to ignore it. A7 C8 SLICE 1 (2026-09-29) has since replaced every
+	// `text-[9-12px]` in production — that Badge included — with `text-xs` at 14px, so
+	// the exception this comment used to justify no longer describes anything. The
+	// file stays out of the scan list because this control does not own it, not
+	// because it holds small text.
 	const owned = [
 		...READ_SITES.map((s) => s.file),
 		'src/lib/room-utilization-display.ts',
@@ -381,7 +384,42 @@ test('A3 control: no sub-11px text was introduced in the files this change owns'
 
 	// The A1 label is the one new type size this change introduces, so it is
 	// pinned directly rather than left to the scan above.
+	// RE-PINNED BY A7 C8 SLICE 1 (2026-09-29). This asserted `text-[11px]` and called
+	// 11px "the house floor". The operator's 2026-09-29 ruling ("There is a lot of text
+	// that is too small, which fails accessibility. Lock in." / "Our default text and
+	// sizes should naturally be bigger.") RAISED the floor: every `text-[9-12px]` in
+	// production became `text-xs`, and `--text-xs` itself went 12px -> 14px. The label
+	// is therefore now `text-xs` at 14px — 3px LARGER than the pin it replaces, which is
+	// the point of the change and not a regression.
+	//
+	// The 11px row is RETAINED as a superseded record and a stronger row is added
+	// beside it, because AGENTS.md §16 forbids closing a finding by deleting its control.
 	const readout = source('src/components/faculty-assignments/TeacherLoadReadout.tsx');
-	assert.match(readout, /text-\[11px\]/, 'the visible utilisation label must be 11px, at the house floor');
-	assert.doesNotMatch(readout, /text-\[(?:[0-9]|10)px\]/, 'the label must not drop below the 11px floor');
+	assert.doesNotMatch(
+		readout,
+		/text-\[11px\]/,
+		'SUPERSEDED-BY-A7C8-1 PIN, RETAINED AS A RECORD: the A3 11px house-floor pin. The ' +
+			'label moved to `text-xs` (14px) under A7 C8 slice 1, which RAISED the floor from ' +
+			'11px rather than lowering it. If this fires, an arbitrary 11px size is back.',
+	);
+	assert.match(
+		readout,
+		/\btext-xs\b/,
+		'A7C8-REPIN (replaces the 11px pin above): the utilisation label must be `text-xs`, ' +
+			'which A7 C8 slice 1 raised to 14px.',
+	);
+	assert.doesNotMatch(
+		readout,
+		/text-\[(?:[0-9]|1[0-3])px\]/,
+		'A7C8-REPIN: the label must not be an arbitrary sub-14px size. `text-xs` is 14px.',
+	);
+	// And the token itself, so a future lowering of `--text-xs` cannot quietly undo the
+	// label's apparent size. This is the assertion the 11px pin could not make.
+	assert.match(
+		source('src/index.css'),
+		/--text-xs:\s*0\.875rem/,
+		'A7C8-REPIN: `--text-xs` must stay 0.875rem (14px). Lowering it makes every ' +
+			'`text-xs` in the product — including this label — smaller again, which is the ' +
+			'exact regression the operator asked to be locked in.',
+	);
 });

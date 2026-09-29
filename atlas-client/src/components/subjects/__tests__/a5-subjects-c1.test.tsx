@@ -653,7 +653,11 @@ test('A5-9.1/41: the search box is the fixed compact width, and every select car
 	const wrapper = search.parentElement as HTMLElement;
 	assert.ok(hasClass(wrapper, 'w-[240px]'), `the search wrapper is not w-[240px]: ${wrapper.className}`);
 	assert.ok(hasClass(wrapper, 'max-w-[240px]'), 'the search box can still grow past the compact width');
-	for (const token of ['h-9', 'text-xs']) {
+	// RE-PINNED BY A7 C8 SLICE 1 (2026-09-29): the shared picker height token moved
+	// `h-9` -> `h-10` (36px -> 40px), the floor for a control that acts. The claim is
+	// UNCHANGED — the search input still shares the ONE height token with the triggers
+	// and the width is still the fixed compact `w-[240px]`. Re-pinned, not deleted (§16).
+	for (const token of ['h-10', 'text-xs']) {
 		assert.ok(hasClass(search, token), `the search input is missing "${token}"`);
 	}
 
@@ -706,7 +710,10 @@ test('A5-9.1/41: the search box is the fixed compact width, and every select car
 	const triggers = allVisibleTriggers();
 	assert.equal(triggers.length, 5, `expected 5 offered filters, found ${triggers.length}`);
 	for (const trigger of triggers) {
-		for (const token of ['h-9', 'w-32', 'text-xs', 'px-3', 'normal-case']) {
+		// RE-PINNED BY A7 C8 SLICE 1 (2026-09-29): `h-9` -> `h-10` on the shared height
+	// token. Every other token here is untouched and the row's claim — that each
+	// trigger carries the ONE shared variant, not a page-local look — is as strong.
+	for (const token of ['h-10', 'w-32', 'text-xs', 'px-3', 'normal-case']) {
 			assert.ok(hasClass(trigger, token), `a select trigger is missing the shared "${token}": ${trigger.getAttribute('aria-label')}`);
 		}
 		// The page-local chrome string is gone, not renamed: `rounded-xl` +
@@ -819,7 +826,20 @@ test('A5-9.1/41 PRESERVATION: a consumer that passes no search override still re
 	assert.ok(search, 'the default search input did not render');
 	assert.ok(hasClass(search, 'h-8'), `the default input lost h-8: ${search.className}`);
 	assert.ok(hasClass(search, 'pl-9'), 'the default input lost the icon inset');
-	assert.equal(hasClass(search, 'h-9'), false, 'the Subjects compact height leaked into the shared default');
+	// RE-PINNED BY A7 C8 SLICE 1 (2026-09-29). This row's subject was the SUBJECTS
+	// page's own `h-9` leaking into the shared default while the shared token was
+	// something else. Both are now `h-10`, so the row is re-pointed at the leak that
+	// would still be real, and the old pin is retained as a record rather than deleted.
+	assert.equal(
+		hasClass(search, 'h-9'),
+		false,
+		'the Subjects compact height leaked into the shared default',
+	);
+	assert.equal(
+		hasClass(search, 'h-10'),
+		true,
+		'the default search input does not carry the shared h-10 height token',
+	);
 	const wrapper = search.parentElement as HTMLElement;
 	assert.ok(hasClass(wrapper, 'sm:max-w-sm'), `the default search width changed: ${wrapper.className}`);
 });

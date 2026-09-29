@@ -1058,7 +1058,11 @@ test('A6-39-1 SUPERSEDED IN PART by A6-39-1b then MOSTLY RESTORED by A6 c8 item 
 		// SUPERSEDED, RETAINED, NOT DELETED (A5 C3 -> A6 c6 item 3 -> A6 c8 item 39):
 		//   for (const token of [/\bh-9\b/, /\bw-32\b/, /\btext-xs\b/, /\bpx-3\b/, /\brounded-lg\b/, /\bbg-background\b/, /\bnormal-case\b/]) {
 		//   for (const token of [/\bh-9\b/, /\bw-52\b/, /\btext-xs\b/, /\bpx-3\b/, /\brounded-lg\b/, /\bbg-background\b/, /\bnormal-case\b/]) {
-		for (const token of [/\bh-9\b/, /\bw-auto\b/, /\bwhitespace-nowrap\b/, /\btext-xs\b/, /\bpx-3\b/, /\brounded-lg\b/, /\bbg-background\b/, /\bnormal-case\b/]) {
+		// RE-PINNED BY A7 C8 SLICE 1 (2026-09-29): the shared control-height token moved
+		// `h-9` -> `h-10` (36px -> 40px). Every other token below is untouched and the
+		// row's claim — the pick carries the ONE shared `@/ui` chrome and no page-local
+		// look — is as strong. Re-pinned, not deleted (§16).
+		for (const token of [/\bh-10\b/, /\bw-auto\b/, /\bwhitespace-nowrap\b/, /\btext-xs\b/, /\bpx-3\b/, /\brounded-lg\b/, /\bbg-background\b/, /\bnormal-case\b/]) {
 			assert.match(cls, token, `the "${name}" pick must carry the shared control chrome`);
 		}
 		// The page-local look is gone, not renamed.
@@ -1088,7 +1092,10 @@ test('A6-39-1 SUPERSEDED IN PART by A6-39-1b then MOSTLY RESTORED by A6 c8 item 
 	assert.doesNotMatch(containerClass, /\bflex-1\b/, 'the search box must not be elastic');
 	assert.doesNotMatch(containerClass, /\bw-full\b/, 'the search box must not be full-width');
 	const searchClass = search.getAttribute('class') ?? '';
-	assert.match(searchClass, /\bh-9\b/, 'the search input is h-9');
+	// RE-PINNED BY A7 C8 SLICE 1 (2026-09-29): the shared height token is `h-10` now,
+	// so the search input shares `h-10` — which is this row's actual claim, that the box
+	// and the picks are ONE height. See the note at the chrome list above.
+	assert.match(searchClass, /\bh-10\b/, 'the search input is the shared h-10 height');
 	assert.match(searchClass, /\btext-xs\b/, 'the search input is text-xs');
 
 	// "`More filters` and the second row are both GONE."
