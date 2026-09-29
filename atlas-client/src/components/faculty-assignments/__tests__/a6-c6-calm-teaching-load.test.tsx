@@ -1436,10 +1436,34 @@ test("A6C6-8b the ONE row carries search, four content-sized pickers and BOTH di
 			`${id}: the switch and its label stay in one control, not split across a disclosure`,
 		);
 		// Height-parity with the pickers beside it, so the row reads as one instrument.
+		//
+		// ── SUPERSEDED IN ITS CONTAINER, RETAINED, NOT DELETED (A6 c8 correction
+		// round 1, 2026-09-29). ── The original expectation, verbatim:
+		//
+		//   assert.match(
+		//     primary.querySelector(`[id="${id}"]`)!.parentElement!.getAttribute('class') ?? '',
+		//     /\bh-9\b/,
+		//     `${id}: the switch box shares the pickers' height token`,
+		//   );
+		//
+		// The rendered browser proof on real staging data showed the first attempt at
+		// this slice put each switch in its own box inside ONE wrapper that also held
+		// the 292px draft group. A wrapper is a single flex item, so it wraps as a unit:
+		// the wrapper measured 621px and dragged BOTH filter toggles onto a second
+		// line, which is the defect the operator's headline forbids. The two switches
+		// now SHARE ONE `SWITCH_CHROME` box and are siblings of the draft group, so
+		// each switch's own parent is an inner sub-wrapper that carries no height.
+		//
+		// The CLAIM is unchanged and is asserted one level out, on the box that
+		// actually carries the height: the nearest ancestor that is a direct child of
+		// the one control row.
+		const box = primary.querySelector(`[id="${id}"]`)!
+			.closest('[data-testid="teaching-load-inclusion-switches"]') as HTMLElement | null;
+		assert.ok(box, `${id}: both switches must share ONE bordered group on the one row`);
 		assert.match(
-			primary.querySelector(`[id="${id}"]`)!.parentElement!.getAttribute('class') ?? '',
+			box!.getAttribute('class') ?? '',
 			/\bh-9\b/,
-			`${id}: the switch box shares the pickers' height token`,
+			`${id}: that shared group must still carry the pickers' height token, or a 20px control sits in a 36px row`,
 		);
 	}
 

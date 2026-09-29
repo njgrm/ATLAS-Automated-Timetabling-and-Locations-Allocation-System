@@ -384,8 +384,7 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 				    the disclosure as "a filter an operator uses daily was two clicks
 				    away" and asked for it to leave the DOM entirely. The row still fits
 				    because the four pickers moved to the shared content-sized `auto`
-				    variant — see the arithmetic in this file's header — so the two
-				    switches cost the same ~320px the measurement reserved for them.
+				    variant — see the arithmetic in this file's header.
 
 				    THE IDS ARE UNCHANGED (`show-outside-dept`,
 				    `show-unmapped-specialization`). They are stable DOM hooks that
@@ -395,24 +394,49 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 				    sentence is the switch's `aria-label` AND its `@/ui` Tooltip,
 				    because a 38-character sentence cannot sit beside four pickers on a
 				    1078px row and a `title` attribute is banned by `AGENTS.md` §8.
+				    The switch keeps its own `aria-checked`, which is where on/off is
+				    honestly stated now that the deleted trigger no longer carried a
+				    count.
 
-				    THE TOOLTIP WRAPS THE `SWITCH_CHROME` BOX; it does not replace it.
-				    The box keeps its own height, border, radius and hover so the row
-				    still reads as one instrument, and the switch keeps its own
-				    `aria-checked`, which is where on/off is honestly stated now that
-				    the deleted trigger no longer carried a count.
+				    ONE GROUP, NOT TWO BOXES (correction round 1, 2026-09-29). The
+				    first attempt at this slice put each switch in its own
+				    `SWITCH_CHROME` box inside ONE wrapper that ALSO held the draft
+				    group. The rendered measurement at 1366x768 on real staging data
+				    showed why that was wrong: the wrapper is a single flex item, so it
+				    wraps as a UNIT. It measured 621px — the two filter toggles plus
+				    the 292px draft group — and dragging the two FILTERS onto a second
+				    line is exactly what the operator's headline forbids ("consolidate
+				    all filter controls into a single row"). So the switches and the
+				    draft group are now SIBLINGS on the one row, in the operator's
+				    order: the filters first, the draft group last.
 
-				    THE WRAPPER HOLDS THE TOGGLES AND THE DRAFT GROUP, and carries the
-				    `ml-auto`, so the two toggles sit immediately left of the draft
-				    group and `Save changes` stays hard right whether or not a draft
-				    exists. FIX 40's row-1 placement of the draft controls is
-				    unchanged.
+				    THE TWO SWITCHES SHARE ONE BOX. Two boxes cost two `px-2.5` (20px),
+				    two borders (2px) and an 8px inter-box gap; one box costs 22px of
+				    chrome and the row's own `gap-2` supplies the separation, with a
+				    `border-l` so the boundary between the two toggles is still
+				    visible. `SWITCH_CHROME` is applied UNCHANGED — including its
+				    `h-9`, which is what keeps this group the same height as the `h-9`
+				    pickers and the `h-9` search beside it; a box without it would be a
+				    20px-tall control in a 36px row. The group's own `gap-2` IS the
+				    `gap-2` between the two pairs the packet asked for, so the second
+				    sub-wrapper carries only the divider and no extra padding (adding
+				    `pl-2` as well would space them 16px and spend 8px of the 24px
+				    slack).
+
+				    THE TOOLTIP WRAPS EACH SWITCH'S OWN SUB-WRAPPER, not the shared
+				    group, so hovering one toggle cannot open the other's explanation.
+
+				    FIX 40'S DRAFT GROUP IS UNCHANGED: its own `ml-auto flex shrink-0
+				    items-center gap-2`, so `Save changes` stays hard right, and with a
+				    draft present it wraps onto its own right-aligned second line —
+				    which is one row of FILTERS plus a separate draft action group, not
+				    a filter row broken in two.
 				    */}
-				<div className="ml-auto flex shrink-0 items-center gap-2" data-testid="teaching-load-row-actions">
+				<div className={SWITCH_CHROME} data-testid="teaching-load-inclusion-switches">
 					<TooltipProvider delayDuration={200}>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<div className={SWITCH_CHROME}>
+								<div className="flex items-center gap-2">
 									<Switch
 										id="show-outside-dept"
 										checked={showOutsideDept}
@@ -431,7 +455,7 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<div className={SWITCH_CHROME}>
+								<div className="flex items-center gap-2 border-l border-border/60">
 									<Switch
 										id="show-unmapped-specialization"
 										checked={showUnmappedSpecialization}
@@ -448,8 +472,13 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 							</TooltipContent>
 						</Tooltip>
 					</TooltipProvider>
-					{draftControls}
 				</div>
+
+				{/* FIX 40: the draft group, its own `ml-auto` child of the one row again,
+				    so the two filter toggles are never dragged onto a second line by it. */}
+				{draftControls ? (
+					<div className="ml-auto flex shrink-0 items-center gap-2">{draftControls}</div>
+				) : null}
 			</div>
 
 			{hasActiveFilters && (

@@ -1316,6 +1316,146 @@ test('A6-39-1c no `More filters` element exists in any state, BOTH switches are 
 
 /* ───────────── Item 40 — no sticky footer, and a save confirmation ───────── */
 
+/**
+ * A6-39-1d — THE CONTAINER RELATIONSHIP, pinned because a rendered browser proof
+ * caught the defect that no text assertion could.
+ *
+ * WHAT WENT WRONG ONCE, recorded because this is the whole reason the row exists.
+ * This slice's first attempt put each switch in its own `SWITCH_CHROME` box inside
+ * ONE wrapper that ALSO held the draft group, and every other assertion in this
+ * file stayed green: the switches were on the row, in the operator's order, with
+ * their labels and their accessible names. The row still rendered as TWO lines at
+ * 1366x768 on real staging data, because a wrapper is a single flex item and wraps
+ * as a unit — the wrapper measured 621px (two filter toggles + the 292px draft
+ * group) and `flex-wrap` put it, and with it BOTH filter toggles, on line 2. The
+ * operator's headline for item 39 is "consolidate all filter controls into a single
+ * row", so two of the six filter controls on a second line is a failure of the
+ * requirement that no DOM-order assertion can see.
+ *
+ * So the relationship is pinned structurally: the switches' nearest common ancestor
+ * that is a CHILD of the one control row is the switch GROUP, and that group is a
+ * SIBLING of the draft group rather than its parent. JSDOM performs no layout, so
+ * this row proves the structure that makes one line POSSIBLE and the planner's
+ * rendered capture confirms the pixels; between them a regression in either
+ * direction is red somewhere.
+ */
+test('A6-39-1d the two inclusion switches SHARE ONE group that is a SIBLING of the draft group, so the draft can never drag a filter onto a second line', () => {
+	const host = render(createElement(TeachingLoadFilterBar as any, filterBarProps({
+		draftControls: createElement(TeachingLoadDraftActionBar as any, {
+			activeDraftCount: 0, canUndo: false, canRedo: false,
+			isReadOnlyMode: false, saving: false,
+			onUndo: () => {}, onRedo: () => {}, onDiscard: () => {}, onSave: () => {},
+		}),
+	})));
+	const primary = host.querySelector('[data-testid="teaching-load-primary-filters"]')!;
+	assert.ok(primary, 'the filter row must render');
+
+	// THE NEAREST COMMON ANCESTOR THAT IS A CHILD OF THE GIVEN ROW. Not `closest()`
+	// — that stops at the sub-wrapper inside the group, which proves nothing about
+	// where the group sits on the row. This walks up until it finds a direct child,
+	// and it takes the row as an argument because this row mounts TWO bars and a
+	// closure over the first one would resolve nothing on the second.
+	const childOfRow = (row: Element, node: Element): Element | null => {
+		for (let el = node.parentElement; el; el = el.parentElement) {
+			if (el.parentElement === row) return el;
+		}
+		return null;
+	};
+	const first = primary.querySelector('[id="show-outside-dept"]')!;
+	const second = primary.querySelector('[id="show-unmapped-specialization"]')!;
+	assert.ok(first && second, 'both switches must render on the one row');
+
+	const firstContainer = childOfRow(primary, first);
+	const secondContainer = childOfRow(primary, second);
+	// A COUNT and not `assert.equal(a, b)`, and the reason is this file's own hard-
+	// won note (see `A6C6-4`): node's assertion reporter runs `util.inspect` on a
+	// failing `actual`, and inspecting a live JSDOM element walks the whole document.
+	// A failure here hung this runner for 70s and was killed, which hides the real
+	// assertion behind a bare `test failed`.
+	assert.equal(
+		firstContainer === secondContainer ? 1 : 0,
+		1,
+		'BOTH switches must sit in the SAME child of the row — a wrapper per switch means two boxes, and two boxes is what the 1078px budget cannot afford',
+	);
+	const group = firstContainer!;
+	assert.equal(
+		group.getAttribute('data-testid'),
+		'teaching-load-inclusion-switches',
+		'and that shared child must be the switch GROUP, addressable by its own test id so a future row can pin the same relationship',
+	);
+
+	// THE GROUP IS NOT THE DRAFT GROUP'S PARENT. This is the load-bearing half: it
+	// is exactly the relationship that put both filter toggles on line 2, and it is
+	// the one a well-meaning "just keep the draft group tidy" edit would restore.
+	const draftBar = host.querySelector('[data-testid="teaching-load-draft-action-bar"]')!;
+	assert.ok(draftBar, 'the draft group must render, or this row cannot decide the relationship');
+	assert.equal(
+		group.contains(draftBar) ? 1 : 0,
+		0,
+		'the switch group must NOT contain the draft group: a wrapper holding both wraps as ONE flex item and drags two filter controls onto a second line',
+	);
+	assert.equal(
+		draftBar.parentElement === group ? 1 : 0,
+		0,
+		'the draft group must be its OWN child of the row, a SIBLING of the switch group',
+	);
+	// And both are children of the same row, which is what "one row" means.
+	assert.equal(group.parentElement === primary ? 1 : 0, 1, 'the switch group is a child of the one control row');
+	assert.equal(draftBar.parentElement!.parentElement === primary ? 1 : 0, 1, 'and so is the draft group wrapper');
+
+	// ONE BOX OF CHROME, NOT TWO. A second `SWITCH_CHROME` box would cost another
+	// `px-2.5` (20px) and another border, which is the 22px the 1078px budget does
+	// not have; and the boundary between the two toggles must still be visible, or
+	// they read as one four-word control.
+	assert.equal(
+		Array.from(group.querySelectorAll('div')).filter((d) => (
+			/\brounded-xl\b/.test(d.getAttribute('class') ?? '')
+			|| /\bbg-background\b/.test(d.getAttribute('class') ?? '')
+			|| /\bpx-2\.5\b/.test(d.getAttribute('class') ?? '')
+		)).length,
+		0,
+		'neither inner sub-wrapper may re-declare the BOX chrome (radius, fill, padding) — only the group draws the box, and a second box is the 22px the budget does not have',
+	);
+	// …while the divider's own colour token IS allowed, and is asserted below: it is
+	// the one thing the second sub-wrapper is for.
+	assert.equal(
+		Array.from(group.children).filter((c) => /\bborder-l\b/.test(c.getAttribute('class') ?? '')).length,
+		1,
+		'exactly ONE divider between the two toggles, so the boundary is visible without a second box',
+	);
+	assert.equal(
+		Array.from(group.children).filter((c) => /\bborder-l\b[\s\S]*\bborder-border\/60\b/.test(c.getAttribute('class') ?? '')).length,
+		1,
+		'and it takes the shared border token, so the divider reads as part of this box rather than as another one',
+	);
+
+	// FIX 40 UNCHANGED: the draft wrapper keeps its own `ml-auto`, so `Save changes`
+	// stays hard right. SUPERSEDED, RETAINED, NOT DELETED: in the first attempt at
+	// this slice the `ml-auto` was on the SWITCH wrapper, and `A6-40-1` below still
+	// asserts it on the draft group's own parent.
+	//   assert.match(group.getAttribute('class') ?? '', /\bml-auto\b/, 'the switch group carries the `ml-auto`');
+	assert.match(
+		draftBar.parentElement!.getAttribute('class') ?? '',
+		/\bml-auto\b/,
+		'FIX 40: the draft group keeps its own `ml-auto`, so the actions stay hard right',
+	);
+
+	// WITH NO DRAFT, THE ROW IS THE FILTERS AND NOTHING ELSE — and the switch group
+	// is still a child of the row, so its position never depends on a draft.
+	const bare = render(createElement(TeachingLoadFilterBar as any, filterBarProps()));
+	const bareRow = bare.querySelector('[data-testid="teaching-load-primary-filters"]')!;
+	assert.equal(
+		childOfRow(bareRow, bareRow.querySelector('[id="show-outside-dept"]')!)!.getAttribute('data-testid'),
+		'teaching-load-inclusion-switches',
+		'with no draft the switches are still in the shared group on the one row',
+	);
+	assert.equal(
+		bareRow.querySelectorAll('.ml-auto').length,
+		0,
+		'and with no draft there is no `ml-auto` wrapper at all — the row is the five named controls and the switch group, full stop',
+	);
+});
+
 test('A6-40-1 the draft controls live INSIDE the filter row, with no footer bar', () => {
 	// The rendered mount point is the claim: the old footer was a `border-t
 	// bg-background px-3 py-2` sibling of the workspace shell.
