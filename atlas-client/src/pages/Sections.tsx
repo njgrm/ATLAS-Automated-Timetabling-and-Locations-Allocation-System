@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
+import { resolveSectionGradeNumber } from '@/lib/schedule-review-helpers';
 import {
 	promoteActiveSchoolYearContext,
 	resolveActiveSchoolYearContext,
@@ -649,7 +650,15 @@ export default function Sections() {
 			let cmp = 0;
 			if (sortField === 'name') cmp = a.name.localeCompare(b.name, undefined, { numeric: true });
 			else if (sortField === 'gradeLevelId') {
-				cmp = a.gradeLevelId - b.gradeLevelId;
+				// A2 c15 (B2): the "Grade" column sorts by the REAL grade through
+				// the one client authority. It used to subtract the raw EnrollPro
+				// `gradeLevelId`, which is an opaque FK that re-mints on every wipe
+				// (1..4 for Grades 7..10 since 2026-09-28) — so the column claimed
+				// to sort by grade while ordering by an id space. A section that
+				// names no real grade sorts last, never as grade 0 or grade 1.
+				const gradeA = resolveSectionGradeNumber(a) ?? Number.MAX_SAFE_INTEGER;
+				const gradeB = resolveSectionGradeNumber(b) ?? Number.MAX_SAFE_INTEGER;
+				cmp = gradeA - gradeB;
 				if (cmp === 0) cmp = a.name.localeCompare(b.name, undefined, { numeric: true });
 			}
 			else if (sortField === 'enrolledCount') cmp = a.enrolledCount - b.enrolledCount;

@@ -82,6 +82,7 @@ const { createRoot } = await import('react-dom/client');
 const { gradeNumberOf, resolveSectionGradeNumber, normalizeJhsGradeNumber, normalizeInternalGradeId } = await import('../schedule-review-helpers');
 const { buildTeacherWorkloadView } = await import('@/components/faculty/teacherWorkloadProfile');
 const { GradeBadge } = await import('@/components/faculty-assignments/GradeBadge');
+const { buildSectionsBySubject } = await import('../teaching-load-helpers');
 
 const roots: any[] = [];
 afterEach(() => {
@@ -273,4 +274,142 @@ test('C15-BADGE-3. the badge keeps the sanctioned GR prefix for grades 7-10 and 
 		assert.equal(count, 1, `grade ${grade} renders exactly one badge`);
 		assert.equal(text, `GR${grade}`);
 	}
+});
+
+// ─── C15-B2: the two client id-as-grade reads found by the correction review ──
+
+/**
+ * The /sections "Grade" column sort. `Sections.tsx` now sorts on
+ * `resolveSectionGradeNumber`, so this row pins the COMPARISON it performs.
+ *
+ * HONEST SCOPE, stated rather than implied: on every MEASURED staging id space
+ * (1..4, 5..8, 17..20) the opaque id happens to be monotonic with the grade, so
+ * the old id sort and the new grade sort produce the SAME order today. This row
+ * therefore does not claim the old sort was visibly wrong on staging. It pins
+ * the two things that are true: (a) the column now orders by the thing its
+ * header claims, and (b) the moment an id disagrees with its grade — which is
+ * exactly what the next EnrollPro re-mint produces — the two orders diverge and
+ * the grade order is the correct one.
+ */
+function sortByGradeColumn(rows: ExternalSection[]): number[] {
+	return [...rows]
+		.sort((a, b) => {
+			const gradeA = resolveSectionGradeNumber(a) ?? Number.MAX_SAFE_INTEGER;
+			const gradeB = resolveSectionGradeNumber(b) ?? Number.MAX_SAFE_INTEGER;
+			return gradeA - gradeB;
+		})
+		.map((row) => resolveSectionGradeNumber(row) as number);
+}
+
+test('C15-B2-1. the /sections Grade column orders by the real grade, not the EnrollPro id', () => {
+	const measured = STAGING_ROWS.map((row, index) => section({ ...row, id: 2000 + index, name: `${row.gradeLevelName}-${row.gradeLevelId}` }));
+	// STAGING_ROWS holds 12 rows: each of Grades 7/8/9/10 in all THREE id spaces,
+	// so the grade order is three of each grade.
+	assert.deepEqual(
+		sortByGradeColumn(measured),
+		[7, 7, 7, 8, 8, 8, 9, 9, 9, 10, 10, 10],
+		'every measured staging row must order by its grade: three of each grade across the three id spaces',
+	);
+
+	// The discriminating case: ids that DISAGREE with their grades. This is what
+	// the next re-mint looks like, and it is where the old `a.gradeLevelId -
+	// b.gradeLevelId` sort was wrong by construction.
+	const reMinted: ExternalSection[] = [
+		section({ id: 3001, name: 'seven', gradeLevelId: 3, gradeLevelName: 'Grade 7', displayOrder: 7 }),
+		section({ id: 3002, name: 'eight', gradeLevelId: 1, gradeLevelName: 'Grade 8', displayOrder: 8 }),
+	];
+	assert.deepEqual(
+		sortByGradeColumn(reMinted),
+		[7, 8],
+		'the grade order must be 7 then 8 even when the ids say otherwise',
+	);
+	const byId = [...reMinted].sort((a, b) => a.gradeLevelId - b.gradeLevelId).map((row) => resolveSectionGradeNumber(row));
+	assert.deepEqual(byId, [8, 7], 'the raw-id sort would have put Grade 8 first — this is the defect the change removes');
+
+	// A section naming no real grade sorts LAST (the sort key is
+	// Number.MAX_SAFE_INTEGER) and its resolved grade stays null — never 0, never
+	// 1. The `as number` in the helper is a lie the assertion below corrects.
+	const withUnknown = [...reMinted, section({ id: 3003, name: 'unknown', gradeLevelId: 1, gradeLevelName: '', displayOrder: 0 })];
+	assert.deepEqual(
+		sortByGradeColumn(withUnknown),
+		[7, 8, null],
+		'an unresolvable section sorts last and resolves to no grade, not to 0 or 1',
+	);
+	assert.equal(resolveSectionGradeNumber(withUnknown[2]), null, 'the unresolvable section resolves to null');
+	// And it really is ordered last, not merely reported last.
+	const ordered = [...withUnknown].sort((a, b) => {
+		const gradeA = resolveSectionGradeNumber(a) ?? Number.MAX_SAFE_INTEGER;
+		const gradeB = resolveSectionGradeNumber(b) ?? Number.MAX_SAFE_INTEGER;
+		return gradeA - gradeB;
+	});
+	assert.equal(ordered[2].id, 3003, 'the unresolvable section is the final row of the Grade column');
+});
+
+/** The Teaching Load grade filter, driven through its REAL exported function. */
+function assignedIndexFor(rows: ExternalSection[]) {
+	return {
+		schoolId: 1,
+		schoolYearId: 1,
+		fetchedAt: '2026-09-29T00:00:00.000Z',
+		sections: rows.map((row, index) => ({
+			sectionId: row.id,
+			sectionName: row.name,
+			gradeLevel: 7,
+			programType: 'REGULAR',
+			schoolYearId: 1,
+			classes: [{
+				subjectId: 11 + index,
+				subjectCode: `SUBJ${index}`,
+				subjectName: `Subject ${index}`,
+				subjectDisplayLabel: `Subject ${index}`,
+				specializationCode: null,
+				specializationLabel: null,
+				rotationFamily: null,
+				rotationTermRank: null,
+				rotationTermLabel: null,
+				rotationTermGroupId: null,
+				rotationTermCount: null,
+				minMinutesPerWeek: 300,
+			}],
+			totals: { male: 0, female: 0, total: 0, staleCount: 0 },
+		})),
+	} as never;
+}
+
+test('C15-B2-2. the Teaching Load grade filter matches the REAL grade, never the raw displayOrder', () => {
+	const rows = STAGING_ROWS.map((row, index) => section({ ...row, id: 4000 + index, name: `${row.gradeLevelName}-${row.gradeLevelId}` }));
+	const sectionMap = new Map(rows.map((row) => [row.id, row]));
+	const index = assignedIndexFor(rows);
+
+	for (const grade of [7, 8, 9, 10]) {
+		const grouped = buildSectionsBySubject(index, sectionMap, String(grade));
+		const matched = Object.values(grouped).flat().map((row) => row.id);
+		assert.deepEqual(
+			matched,
+			rows.filter((row) => resolveSectionGradeNumber(row) === grade).map((row) => row.id),
+			`filtering by Grade ${grade} must return exactly that grade's sections across all three id spaces`,
+		);
+	}
+
+	// `all` returns every section, including one that names no real grade.
+	const unknown = section({ id: 4999, name: 'unknown', gradeLevelId: 1, gradeLevelName: '', displayOrder: 0 });
+	const allMap = new Map([...sectionMap, [unknown.id, unknown]]);
+	const allGrouped = buildSectionsBySubject(assignedIndexFor([...rows, unknown]), allMap, 'all');
+	assert.equal(Object.values(allGrouped).flat().length, rows.length + 1, '"all" must include the unresolvable section');
+
+	// The discriminating case: `displayOrder` says 1, the grade is 7. The old
+	// `section.displayOrder === Number(filter)` would have matched this section
+	// under a "1" filter; the authority matches it under 7.
+	const mismatched = section({ id: 4998, name: 'order-1-grade-7', gradeLevelId: 1, gradeLevelName: 'Grade 7', displayOrder: 1 });
+	const mismatchedMap = new Map([[mismatched.id, mismatched]]);
+	assert.equal(
+		Object.values(buildSectionsBySubject(assignedIndexFor([mismatched]), mismatchedMap, '7')).flat().length,
+		1,
+		'a Grade 7 section with displayOrder 1 must match the Grade 7 filter',
+	);
+	assert.equal(
+		Object.values(buildSectionsBySubject(assignedIndexFor([mismatched]), mismatchedMap, '1')).flat().length,
+		0,
+		'and must NOT match a "1" filter — that is the raw field leaking into a grade filter',
+	);
 });

@@ -1,4 +1,5 @@
 import type { CoverageMode, ExternalSection, SectionAssignedClassesIndexResult } from '@/types';
+import { resolveSectionGradeNumber } from './schedule-review-helpers';
 
 export type TeachingLoadDraftAssignment = {
 	subjectId: number;
@@ -139,7 +140,13 @@ export function buildSectionsBySubject(
 	for (const sectionResult of sectionAssignedClassesIndex?.sections ?? []) {
 		const section = sectionMap.get(sectionResult.sectionId);
 		if (!section) continue;
-		const gradeMatch = gradeLevelFilter === 'all' || section.displayOrder === Number(gradeLevelFilter);
+		// A2 c15 (B2): the grade filter compares the REAL grade from the one client
+		// authority, not the mirror's raw `displayOrder`. `displayOrder` is the
+		// measured grade 7..10 today, but reading it unguarded re-introduced a
+		// grade from a field that is not the grade authority, and it disagreed
+		// with every other grade consumer in this surface. A section naming no
+		// real grade matches no grade filter but `all` — never grade "1".
+		const gradeMatch = gradeLevelFilter === 'all' || resolveSectionGradeNumber(section) === Number(gradeLevelFilter);
 		if (!gradeMatch) continue;
 
 		const contractRows = [
