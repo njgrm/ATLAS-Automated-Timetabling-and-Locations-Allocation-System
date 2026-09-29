@@ -10,18 +10,34 @@
  * happened was the one case that said nothing. Five reasons could disable that
  * button and exactly one of them explained itself.
  *
- * WHAT IS PROVED HERE
- * ===================
- *  R1-R5  Each of the five reasons renders its own sentence, on the same row as
+ * WHAT IS PROVED HERE (labels corrected in A3 p1 correction round 1, N10 —
+ * round 1 of this header said "R1-R5" for six rows and "48 combinations" for a
+ * row that asserts 96; both numbers were wrong)
+ * =============================================================================
+ *  R1-R6  Each of the SIX reasons renders its own sentence, on the same row as
  *         the button, with Save disabled. R4 is the silent hole from the outage.
- *  R6     THE INVARIANT: `reason` is non-null if and only if writes are
- *         disabled, for all 48 combinations of the page's inputs. One function
- *         computes both, so the flag the button reads and the sentence the
- *         operator reads cannot drift apart.
- *  R7     A reason is NEVER shown when the page did not block the write, and a
+ *         R5 is the unresolved ordered term, and its sentence is the fixed
+ *         short consequence — NOT the card's detailed reason, which is a
+ *         different string owned by a different surface (B1), and which may
+ *         legitimately contain a raw EnrollPro code (B2). B2's end-to-end proof,
+ *         driven by a real coded payload, is A3P1-B3 in
+ *         `a3p1-teacher-prefs-stale-read-polarity.test.ts`.
+ *  R7      THE INVARIANT: `reason` is non-null if and only if writes are
+ *         disabled, across all 48 combinations of the page's inputs (2 x 2 x 2
+ *         x 2 nullable states x 3 resolution states — the whole input space).
+ *         One function computes both, so the flag the button reads and the
+ *         sentence the operator reads cannot drift apart. The round-1 figure
+ *         of 96 counted a hand-written `unresolvedTermReason` dimension that
+ *         B1 + B2 removed, so the number is restated to match reality. Every
+ *         reason produced here is also asserted free of raw enum tokens.
+ *  R8      A reason is NEVER shown when the page did not block the write, and a
  *         save in flight is not a reason (it would flicker on every press).
- *  R8-R10 The save receipt is truthful about the next timetable, and honest
+ *  R9      The reason is on the SAME row as the button, not a block above it.
+ *  R10-R12 The save receipt is truthful about the next timetable, and honest
  *         when nothing was written.
+ *  R13     N6: the header chip and the receipt sentence AGREE, so a save that
+ *         wrote nothing cannot show "Saved" beside "Nothing to save".
+ *  R14-R15 The chip's derived label for an unsaved teacher is honest.
  *
  * Run: `npm run test:a3p1-prefs-save`
  */
@@ -71,7 +87,7 @@ const { act } = await import('react');
 const { MemoryRouter } = await import('react-router-dom');
 
 const { default: TeacherConcernWorkspace } = await import('../TeacherConcernWorkspace');
-const { describeSavedConcern, resolveConcernSaveAvailability } = await import('../teacher-concern-helpers');
+const { concernSaveStateLabel, concernSaveWroteAnything, describeSavedConcern, resolveConcernSaveAvailability } = await import('../teacher-concern-helpers');
 
 /**
  * Render, then SNAPSHOT the HTML into a detached node before unmounting.
@@ -119,15 +135,19 @@ function saveButton(host: HTMLElement): HTMLButtonElement | null {
 	return host.querySelector('[data-testid="concern-save-button"]');
 }
 
-/** The page's own inputs for one of the five reasons. */
+/** The page's own inputs for one of the six reasons. */
 function inputsFor(reason: 'school' | 'yearPending' | 'yearFailed' | 'yearMissing' | 'term' | 'teacher' | 'none'): ConcernSaveAvailabilityInput {
-	const base = { actorSchoolId: 1, schoolYearId: 2, activeTermIndex: 1, selectedFacultyId: 7, yearResolution: 'RESOLVED' as ConcernYearResolution, unresolvedTermReason: null };
+	// No `unresolvedTermReason` here on purpose (B1 + B2): the Save row's term
+	// sentence is a fixed consequence, not a function of the card's detail, so
+	// this fixture has nothing to hand it. The card-side code path is proved
+	// against a REAL coded payload in A3P1-B3.
+	const base = { actorSchoolId: 1, schoolYearId: 2, activeTermIndex: 1, selectedFacultyId: 7, yearResolution: 'RESOLVED' as ConcernYearResolution };
 	switch (reason) {
 		case 'school': return { ...base, actorSchoolId: null };
 		case 'yearPending': return { ...base, schoolYearId: null, yearResolution: 'PENDING' };
 		case 'yearFailed': return { ...base, schoolYearId: null, yearResolution: 'FAILED' };
 		case 'yearMissing': return { ...base, schoolYearId: null, yearResolution: 'RESOLVED' };
-		case 'term': return { ...base, activeTermIndex: null, unresolvedTermReason: 'ATLAS has no saved ordered term to fall back to.' };
+		case 'term': return { ...base, activeTermIndex: null };
 		case 'teacher': return { ...base, selectedFacultyId: null };
 		case 'none': return { ...base };
 	}
@@ -171,7 +191,16 @@ test('A3P1-R7 the reason is present if and only if writes are disabled, for ever
 	const terms = [1, null] as const;
 	const teachers = [7, null] as const;
 	const resolutions: ConcernYearResolution[] = ['PENDING', 'RESOLVED', 'FAILED'];
-	const termReasons = [null, 'EnrollPro reported ACTIVE_TERM_UNRESOLVED and ATLAS has no saved ordered term.'] as const;
+	/*
+	 * 48 combinations, and that is now the WHOLE input space: 2 x 2 x 2 x 2
+	 * nullable states x 3 resolution states. Round 1 of this row carried a sixth
+	 * dimension, a hand-written `unresolvedTermReason`, which made it 96 — and
+	 * that dimension was also what let a raw enum into the sentence (B2). With
+	 * the field gone there is nothing left to vary, and the count is restated to
+	 * match reality rather than to look impressive. The term sentence's
+	 * independence from any payload is pinned separately by A3P1-B4.
+	 */
+	const EXPECTED_COMBINATIONS = 48;
 
 	let combinations = 0;
 	for (const actorSchoolId of actorSchools) {
@@ -179,26 +208,29 @@ test('A3P1-R7 the reason is present if and only if writes are disabled, for ever
 			for (const activeTermIndex of terms) {
 				for (const selectedFacultyId of teachers) {
 					for (const yearResolution of resolutions) {
-						for (const unresolvedTermReason of termReasons) {
-							const input: ConcernSaveAvailabilityInput = { actorSchoolId, schoolYearId, activeTermIndex, selectedFacultyId, yearResolution, unresolvedTermReason };
-							const result = resolveConcernSaveAvailability(input);
-							combinations += 1;
-							const label = JSON.stringify({ actorSchoolId, schoolYearId, activeTermIndex, selectedFacultyId, yearResolution });
-							assert.equal(
-								result.reason !== null,
-								result.writesDisabled,
-								`reason/writesDisabled must agree for ${label} (reason: ${String(result.reason)})`,
+						const input: ConcernSaveAvailabilityInput = { actorSchoolId, schoolYearId, activeTermIndex, selectedFacultyId, yearResolution };
+						const result = resolveConcernSaveAvailability(input);
+						combinations += 1;
+						const label = JSON.stringify({ actorSchoolId, schoolYearId, activeTermIndex, selectedFacultyId, yearResolution });
+						assert.equal(
+							result.reason !== null,
+							result.writesDisabled,
+							`reason/writesDisabled must agree for ${label} (reason: ${String(result.reason)})`,
+						);
+						if (result.writesDisabled) {
+							assert.ok((result.reason ?? '').trim().length > 0, `a disabled write always has a non-empty reason for ${label}`);
+							assert.doesNotMatch(
+								result.reason ?? '',
+								/[A-Z][A-Z0-9]*_[A-Z0-9_]+/,
+								`B2: no raw enum token may reach the Save row for ${label}`,
 							);
-							if (result.writesDisabled) {
-								assert.ok((result.reason ?? '').trim().length > 0, `a disabled write always has a non-empty reason for ${label}`);
-							}
 						}
 					}
 				}
 			}
 		}
 	}
-	assert.equal(combinations, 96, 'every combination of the page\'s inputs was covered');
+	assert.equal(combinations, EXPECTED_COMBINATIONS, "every combination of the page's inputs was covered");
 });
 
 test('A3P1-R8 a fully resolved page enables writes and shows NO reason', async () => {
@@ -273,4 +305,46 @@ test('A3P1-R13 a save that wrote nothing does not claim the next timetable will 
 		'no record was written, so claiming the next timetable will use it would be a false receipt',
 	);
 	assert.doesNotMatch(message, /^Saved /, 'nothing was saved, so the receipt must not open with "Saved"');
+});
+
+// ═══ R14 — N6: the chip and the receipt are one statement, not two ═══════════
+
+test('A3P1-R14 N6: an empty save leaves the chip NOT reading "Saved", and a real save does read it', () => {
+	const empty = {
+		teacherName: 'AGUILAR, CARLO MIGUEL',
+		availabilityWindows: 0,
+		roomNeeds: 0,
+		hasNote: false,
+		bindFailure: null,
+	};
+	/*
+	 * The page derives the chip's TYPED outcome and the receipt from the SAME
+	 * counts object through `concernSaveWroteAnything`, so this row asserts the
+	 * pairing the page performs: wrote-nothing => no 'SAVED' outcome, and the
+	 * chip then falls back to the record's own status.
+	 */
+	assert.equal(concernSaveWroteAnything(empty), false, 'an empty save wrote nothing');
+	assert.equal(
+		concernSaveWroteAnything({ ...empty, availabilityWindows: 1 }),
+		true,
+		'one painted window is something written',
+	);
+	assert.equal(concernSaveWroteAnything({ ...empty, hasNote: true }), true, 'a note is something written');
+	assert.equal(concernSaveWroteAnything({ ...empty, roomNeeds: 1 }), true, 'a room need is something written');
+
+	// And the sentence the operator reads next to the chip agrees.
+	const emptyReceipt = describeSavedConcern(empty);
+	assert.match(emptyReceipt, /nothing to save/i, 'the receipt says nothing was written');
+	assert.doesNotMatch(emptyReceipt, /^Saved /, 'so the chip beside it must not be allowed to read "Saved"');
+});
+
+test('A3P1-R15 the chip label for a non-saved teacher is honest about being unsaved', () => {
+	// The state the page lands in after an empty save: `saveOutcome` is null, so
+	// the chip is derived from the record, which is not REVIEWED.
+	assert.equal(
+		concernSaveStateLabel({ selected: true, saved: false, bindFailure: false }),
+		'Nothing saved yet',
+		'the chip agrees with the receipt: nothing was written, so nothing is claimed',
+	);
+	assert.equal(concernSaveStateLabel({ selected: true, saved: true, bindFailure: false }), 'Saved', 'a real save still reads Saved');
 });

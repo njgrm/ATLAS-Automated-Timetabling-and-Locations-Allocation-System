@@ -40,7 +40,7 @@ import {
 	submitConcernRoom,
 	type AvailabilityPickerSlot,
 } from '@/components/faculty-shared/teacher-concern-client';
-import { composeConcernNotes, concernSaveStateLabel, concernSaveStateTone, bindConcernTermResolution, describeSavedConcern, parseConcernNotes, resolveConcernSaveAvailability, type ConcernYearResolution } from '@/components/faculty-shared/teacher-concern-helpers';
+import { composeConcernNotes, concernSaveStateLabel, concernSaveStateTone, concernSaveWroteAnything, bindConcernTermResolution, describeSavedConcern, parseConcernNotes, resolveConcernSaveAvailability, type ConcernYearResolution } from '@/components/faculty-shared/teacher-concern-helpers';
 import type { ConcernRoomDraft } from '@/components/faculty-shared/TeacherConcernWorkspace';
 import type { RoomOption } from '@/components/sections/SectionRoomPicker';
 import RunAvailabilityDriftCard from '@/components/faculty-shared/RunAvailabilityDriftCard';
@@ -72,14 +72,14 @@ export default function TeacherConcerns() {
 	const [activeTermIndex, setActiveTermIndex] = useState<number | null>(null);
 	/** A5-C2A — the server resolver's degradation truth, rendered verbatim. */
 	const [savedTermNotice, setSavedTermNotice] = useState<string | null>(null);
-		const [unresolvedTermReason, setUnresolvedTermReason] = useState<string | null>(null);
-		const [yearError, setYearError] = useState<string | null>(null);
-		/**
-		 * A3 p1 — where this page is in the term resolution. It exists so the
-		 * sticky Save row can tell "still checking" from "checked and there is
-		 * none", which are different sentences and used to be the same silence.
-		 */
-		const [yearResolution, setYearResolution] = useState<ConcernYearResolution>('PENDING');
+	const [unresolvedTermReason, setUnresolvedTermReason] = useState<string | null>(null);
+	const [yearError, setYearError] = useState<string | null>(null);
+	/**
+	 * A3 p1 — where this page is in the term resolution. It exists so the
+	 * sticky Save row can tell "still checking" from "checked and there is
+	 * none", which are different sentences and used to be the same silence.
+	 */
+	const [yearResolution, setYearResolution] = useState<ConcernYearResolution>('PENDING');
 
 	const [faculty, setFaculty] = useState<FacultyMirror[]>([]);
 	const [facultyError, setFacultyError] = useState<string | null>(null);
@@ -392,7 +392,6 @@ export default function TeacherConcerns() {
 		activeTermIndex,
 		selectedFacultyId,
 		yearResolution,
-		unresolvedTermReason,
 	});
 	const writesDisabled = saveAvailability.writesDisabled;
 	const facultyOptions = useMemo(
@@ -467,21 +466,35 @@ export default function TeacherConcerns() {
 				setRoomState(rooms);
 			}
 
-			const counts = describeSavedConcern({
+			const countsFor = {
 				teacherName: facultyLabel(selectedFaculty),
 				availabilityWindows: pickerSlots.length,
 				roomNeeds: rooms?.entries.filter((entry) => entry.requestedRoomId != null).length ?? 0,
 				hasNote: notes.trim().length > 0,
 				bindFailure,
-			});
-			setSavedMessage(counts);
+			};
+			setSavedMessage(describeSavedConcern(countsFor));
 			/*
 			 * N2 — the chip reads a TYPED state, never a substring of the sentence
 			 * above. A copy edit to `describeSavedConcern` can no longer silently
 			 * turn "Saved" into "Saved, not yet counted" or back: the reason the
 			 * server gave us is carried beside the sentence as data.
+			 *
+			 * A3 p1 correction round 1, N6 — and the chip must also AGREE with
+			 * that sentence. An empty save writes no record, so the receipt reads
+			 * "Nothing to save for X yet." and the chip used to read "Saved" right
+			 * beside it. `concernSaveWroteAnything` is the single predicate both
+			 * statements are derived from, so they cannot drift. Leaving the
+			 * outcome null lets the chip fall back to the record's own status,
+			 * which is the truthful answer for a teacher with no stored record.
 			 */
-			setSaveOutcome(bindFailure == null ? 'SAVED' : 'SAVED_NOT_BINDING');
+			setSaveOutcome(
+				!concernSaveWroteAnything(countsFor)
+					? null
+					: bindFailure == null
+						? 'SAVED'
+						: 'SAVED_NOT_BINDING',
+			);
 			bumpRefresh();
 		} catch (error) {
 			setSaveFailure(concernApiErrorMessage(error));
@@ -641,13 +654,22 @@ export default function TeacherConcerns() {
 					)}
 
 					{/*
-					 * A3 p1 — this card keeps the title, the real reason and the ONE
-					 * recovery action. Its trailing "Writes stay disabled rather than
-					 * defaulting to Term 1" line was REMOVED, not moved: the sticky
-					 * Save row now says the same thing beside the button, and saying
-					 * it twice on one screen is the duplicate-sentence defect
-					 * (AGENTS §8). The card owns the repair; the Save row owns the
-					 * consequence.
+					 * A3 p1 — THIS CARD OWNS THE DETAILED TERM REASON, and the sticky
+					 * Save row owns only the short consequence. They must not share a
+					 * string.
+					 *
+					 * Round 1, B1: the first fix deleted this card's trailing "Writes
+					 * stay disabled…" line, but the duplicate was not that line — it
+					 * was the shared `unresolvedTermReason` itself, which the Save-row
+					 * helper was concatenating into its own sentence. The two
+					 * conditions coincide exactly, so one sentence printed twice on
+					 * one screen. The helper no longer receives this value at all.
+					 *
+					 * The EnrollPro wording below, including its `reported ${code}`
+					 * form, is DELIBERATE here and stays: this card is the diagnostic
+					 * surface, it sits beside the "Re-check the active term" action,
+					 * and a scheduler chasing a term problem needs the real upstream
+					 * code. B2's fix removed the code from the Save row, not from here.
 					 */}
 					{termUnresolved && actorSchoolId != null && schoolYearId != null && (
 						<Card className='rounded-2xl border-warning-border bg-warning-muted' data-testid='concern-term-unresolved'>

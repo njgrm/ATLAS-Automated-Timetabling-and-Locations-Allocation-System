@@ -171,7 +171,22 @@ test('A5-C2A C4b: both blocked surfaces read the shared helpers, not a local cop
 		assert.match(concerns, /bindConcernTermResolution/,
 			'TeacherConcerns must reach the term binding through the shared helper, not bind it locally');
 		assert.match(concernsHelpers, /describeSavedTermSource/,
-			'the shared helper is where the saved-data wording is applied');
+			'TeacherConcerns must apply the shared saved-data wording through the shared helper');
+		/*
+		 * A3 p1 correction round 1, B3 — RESTORED, ADDITIVELY. Round 1 of this
+		 * candidate replaced the loop's per-page
+		 * `assert.match(text, /describeSavedTermSource/)` with assertions that
+		 * only ever read `TeacherConcerns` and the shared helper, so the
+		 * `AdminYearSetup` arm was DELETED rather than moved. That is a subtractive
+		 * correction (AGENTS §16) and it left a real hole: a page-local copy of
+		 * the saved-data wording in AdminYearSetup would now pass, and no other
+		 * committed row replaced the coverage.
+		 *
+		 * Nothing above is removed. This arm is added back beside the new ones,
+		 * scoped to the page that still calls the shared wording directly.
+		 */
+		assert.match(yearSetup, /describeSavedTermSource/,
+			'AdminYearSetup must use the shared saved-data wording, not a local copy');
 		// ── SUPERSEDED IN PLACE, 2026-09-29, A2-C14 ──
 		// The ORIGINAL row asserted, verbatim and no longer run as pass/fail:
 		//   assert.match(text, /resolveActiveSchoolYearContext/, `${name} must use the canonical resolver`);

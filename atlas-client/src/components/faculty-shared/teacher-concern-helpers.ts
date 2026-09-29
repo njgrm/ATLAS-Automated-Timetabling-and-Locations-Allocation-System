@@ -347,11 +347,19 @@ export type ConcernSaveAvailabilityInput = {
 	activeTermIndex: number | null;
 	selectedFacultyId: number | null;
 	yearResolution: ConcernYearResolution;
-	/**
-	 * The shared unresolved-term sentence, reused verbatim. This function never
-	 * re-words it: one explanation of a term problem, not two.
+	/*
+	 * DELIBERATELY NOT AN INPUT (A3 p1 correction round 1, B1 + B2).
+	 *
+	 * The page's `unresolvedTermReason` is the shared DETAILED string, and it used
+	 * to be concatenated into the Save-row sentence. That printed one sentence
+	 * twice on one screen and leaked `EnrollPro reported ${code}` into the row.
+	 * The card owns that string; this row owns the consequence. Passing it here
+	 * at all is the trap, so the field is gone rather than merely unused.
+	 *
+	 * The absence is itself covered, not merely asserted: re-adding the field and
+	 * re-concatenating it turns A3P1-B3 red with "B2 - the Save row must not
+	 * leak the raw enum" and A3P1-B4 red with the fixed-sentence check.
 	 */
-	unresolvedTermReason?: string | null;
 };
 
 export type ConcernSaveAvailability = {
@@ -365,17 +373,37 @@ const YEAR_PENDING_REASON = 'Checking which school year and term are active, so 
 const YEAR_FAILED_REASON = 'The active school year could not be read, so there is nothing to save yet.';
 const YEAR_MISSING_REASON = 'No active school year is set for your school, so there is nothing to save yet.';
 const NO_TEACHER_REASON = 'Choose a teacher first, then Save.';
-const TERM_TAIL = 'Save stays off until the active term is verified.';
-const TERM_FALLBACK_REASON = `ATLAS has no verified active term for this school year. ${TERM_TAIL}`;
-
-function sentence(text: string): string {
-	const trimmed = text.trim();
-	if (trimmed === '') return '';
-	return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
-}
 
 /**
- * THE ONE SOURCE OF TRUTH for "may this page write, and if not, why not".
+ * The Save row's sentence for the unresolved-term case, and ONLY that sentence.
+ *
+ * A3 p1 correction round 1, B1 + B2. This used to be built by concatenating the
+ * page's shared `unresolvedTermReason` onto a tail. That was wrong twice:
+ *
+ *   B1 — `unresolvedTermReason` is the SAME string the "Active ordered term
+ *        unresolved" card renders (`TeacherConcerns.tsx`), and the two
+ *        conditions coincide exactly, so one sentence appeared TWICE on one
+ *        screen. Deleting the card's trailing line did not fix it; the
+ *        duplicated string was the shared one, not that line.
+ *   B2 — `describeUnresolvedTermReason` has a code branch that emits
+ *        "EnrollPro reported ${code} and …", so the Save row could read
+ *        "EnrollPro reported TERM_AUTHORITY_STALE and …". A raw enum in a
+ *        sentence meant for an older, mouse-first scheduler.
+ *
+ * So the two surfaces now own DIFFERENT jobs and never share a string: the card
+ * owns the detail (it keeps the EnrollPro explanation verbatim, which belongs
+ * with the "Re-check the active term" action), and this row owns the
+ * CONSEQUENCE for the button. It is short and code-free by construction, because
+ * it is a fixed sentence rather than a derived one - so there is no code path
+ * that can leak an enum into it, and nothing it can say can duplicate the card.
+ *
+ * Short is also the right length here: the Save row is sticky and stays visible
+ * when the card above has been scrolled out of view, so it must stand alone.
+ */
+const TERM_CONSEQUENCE_REASON = 'Save is off until ATLAS verifies an active term.';
+
+/**
+ * The ONE SOURCE OF TRUTH for "may this page write, and if not, why not".
  *
  * PRECEDENCE (which sentence wins when several apply — a precedence, not an
  * intersection): school scope, then the active school year (with a read in
@@ -384,7 +412,7 @@ function sentence(text: string): string {
  * to the earliest blocker rather than the nearest.
  */
 export function resolveConcernSaveAvailability(input: ConcernSaveAvailabilityInput): ConcernSaveAvailability {
-	const { actorSchoolId, schoolYearId, activeTermIndex, selectedFacultyId, yearResolution, unresolvedTermReason } = input;
+	const { actorSchoolId, schoolYearId, activeTermIndex, selectedFacultyId, yearResolution } = input;
 	if (actorSchoolId == null) return { writesDisabled: true, reason: NO_SCHOOL_REASON };
 	if (schoolYearId == null) {
 		if (yearResolution === 'PENDING') return { writesDisabled: true, reason: YEAR_PENDING_REASON };
@@ -393,12 +421,23 @@ export function resolveConcernSaveAvailability(input: ConcernSaveAvailabilityInp
 		// are real states, and neither may be silent — that was the defect.
 		return { writesDisabled: true, reason: YEAR_MISSING_REASON };
 	}
-	if (activeTermIndex == null) {
-		const why = unresolvedTermReason == null ? '' : sentence(unresolvedTermReason);
-		return { writesDisabled: true, reason: why === '' ? TERM_FALLBACK_REASON : `${why} ${TERM_TAIL}` };
-	}
+	if (activeTermIndex == null) return { writesDisabled: true, reason: TERM_CONSEQUENCE_REASON };
 	if (selectedFacultyId == null) return { writesDisabled: true, reason: NO_TEACHER_REASON };
 	return { writesDisabled: false, reason: null };
+}
+
+/**
+ * Did this save actually write anything?
+ *
+ * A3 p1 correction round 1, N6. The chip in the header is driven by a TYPED
+ * `saveOutcome`, and the receipt sentence by these counts, so the two are two
+ * statements about one event and they have to agree. A save with no windows, no
+ * room needs and no note writes no record, so the receipt says "Nothing to save
+ * for X yet." — and the chip must NOT read "Saved" beside it, which is what it
+ * did. One predicate, used by both, so they cannot drift.
+ */
+export function concernSaveWroteAnything(counts: ConcernSaveCounts): boolean {
+	return counts.availabilityWindows > 0 || counts.roomNeeds > 0 || counts.hasNote;
 }
 
 export type ConcernTermBinding = {

@@ -66,7 +66,7 @@ Object.defineProperty(globalThis, 'window', {
 import atlasApi from '@/lib/api';
 import { invalidateActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { resolveActiveTermAuthority } from '@/lib/active-term-authority';
-import { bindConcernTermResolution } from '@/components/faculty-shared/teacher-concern-helpers';
+import { bindConcernTermResolution, resolveConcernSaveAvailability } from '@/components/faculty-shared/teacher-concern-helpers';
 
 type RecordedCall = { params?: Record<string, unknown> };
 let runtimeContextCalls: RecordedCall[] = [];
@@ -162,6 +162,83 @@ function profileResponder(): RuntimeContextResponder {
 		? stagingVerifiedContextPayload()
 		: unverifiedContextPayload());
 }
+
+// ═══ D — B1 + B2: one string on the card, none on the Save row ══════════════
+
+/**
+ * A real UNRESOLVED upstream answer carrying a real error code — not a
+ * hand-written sentence. This is the payload shape the server returns when
+ * EnrollPro cannot resolve an active term, and it is the one that used to put
+ * "EnrollPro reported TERM_AUTHORITY_STALE and …" into the Save row.
+ *
+ * `message` is null on purpose. `describeUnresolvedTermReason` returns
+ * `message` when present and only falls through to the `EnrollPro reported
+ * ${code}` branch when it is absent — so a payload carrying both would never
+ * reach the code path at all, and this row would pass without testing the leak.
+ */
+function codedUnresolvedContextPayload(code: string) {
+	return {
+		...stagingVerifiedContextPayload(),
+		activeTerm: {
+			...stagingVerifiedContextPayload().activeTerm,
+			verified: false,
+			activeTerm: null,
+			termIndex: null,
+			matchedSchoolYear: false,
+			code,
+			message: null,
+		},
+	};
+}
+
+const CODES = ['TERM_AUTHORITY_STALE', 'ACTIVE_TERM_UNRESOLVED', 'TERM_STRUCTURE_UNAVAILABLE'];
+
+test('A3P1-B3 the CARD keeps the real EnrollPro code, and the Save row never repeats or leaks it', async () => {
+	for (const code of CODES) {
+		invalidateActiveSchoolYearContext(1);
+		runtimeContextResponder = async () => codedUnresolvedContextPayload(code);
+
+		let cancelled = false;
+		const resolution = await resolveActiveTermAuthority(1, { isStillCurrent: () => !cancelled }, { requireFreshVerifiedRead: true });
+
+		// The CARD path: the detailed diagnostic, code included, as before.
+		const bound = bindConcernTermResolution(resolution);
+		assert.notEqual(bound, null, `${code}: an unresolved-but-readable term still binds`);
+		const card = bound?.unresolvedTermReason ?? '';
+		assert.match(card, new RegExp(code), `${code}: the card keeps the real upstream code — the diagnostic surface must not be dumbed down`);
+
+		// The SAVE ROW path, for the page state that same answer produces.
+		const availability = resolveConcernSaveAvailability({
+			actorSchoolId: 1,
+			schoolYearId: bound?.schoolYearId ?? 2,
+			activeTermIndex: bound?.activeTermIndex ?? null,
+			selectedFacultyId: 7,
+			yearResolution: 'RESOLVED',
+		});
+		assert.equal(availability.writesDisabled, true, `${code}: an unresolved term disables writes`);
+		const row = availability.reason ?? '';
+		assert.doesNotMatch(row, new RegExp(code), `${code}: B2 — the Save row must not leak the raw enum`);
+		assert.doesNotMatch(row, /[A-Z][A-Z0-9]*_[A-Z0-9_]+/, `${code}: B2 — no SNAKE_CASE enum token at all in the Save row`);
+		assert.doesNotMatch(row, /EnrollPro reported/, `${code}: B2 — the Save row must not echo the card's code sentence`);
+		// B1 — one sentence per place, never the same string twice on a screen.
+		assert.notEqual(row, card, `${code}: B1 — the Save row must not reprint the card's sentence`);
+		assert.ok(row.trim().length > 0, `${code}: the Save row still explains itself`);
+	}
+});
+
+test('A3P1-B4 the Save-row sentence is fixed, so no term payload can change or duplicate it', () => {
+	const base = { actorSchoolId: 1, schoolYearId: 2, activeTermIndex: null, selectedFacultyId: 7, yearResolution: 'RESOLVED' as const };
+	const first = resolveConcernSaveAvailability(base).reason;
+	// The same page state reached from three different upstream answers.
+	for (const code of CODES) {
+		assert.equal(
+			resolveConcernSaveAvailability(base).reason,
+			first,
+			`${code}: the consequence sentence is independent of the upstream payload`,
+		);
+	}
+	assert.match(first ?? '', /^Save is off until ATLAS verifies an active term\.$/, 'the sentence is short, code-free and about the control');
+});
 
 // ═══ A — the caller shape that failed in production ════════════════════════
 
@@ -273,28 +350,56 @@ test('A3P1-D the AdminYearSetup sense is unchanged: cancelled means discard', as
 	assert.equal(superseded, null, 'a cancelled AdminYearSetup read is still discarded');
 });
 
-// ═══ C — the contract cannot be called in the wrong sense ══════════════════
+// ═══ C — the contract consults liveness at BOTH of its discard points ═══════
 
-test('A3P1-E the liveness is a named option, so a bare predicate is a type error rather than a silent discard', () => {
+test('A3P1-E the resolver consults isStillCurrent before AND after the verified read', async () => {
 	/*
-	 * A discriminating structural row, not a source-text match. The pre-fix
-	 * signature took a bare `() => boolean` whose `true` meant DISCARD, and
-	 * `() => true` type-checked perfectly while silently throwing away every
-	 * healthy answer. What made the defect possible was that the two senses were
-	 * indistinguishable AT THE CALL SITE, so the contract now requires an object
-	 * with a named `isStillCurrent` and a caller that hands over a bare function
-	 * is a compile error.
+	 * A3 p1 correction round 1, N8. The previous A3P1-E built its own object
+	 * literal and then asserted properties of THAT literal, so it could not fail
+	 * if the contract reverted to a bare positional predicate — it was a
+	 * tautology wearing a control's clothes. This row instead drives the REAL
+	 * `resolveActiveTermAuthority` and counts how often it asks.
 	 *
-	 * Proved behaviourally by A3P1-A (an object argument is accepted and keeps
-	 * the resolution) together with this row: the argument shape is part of the
-	 * contract, and `npm run typecheck` fails if a call site reverts to a bare
-	 * predicate.
+	 * The contract has two discard points: after the fast read, and again after
+	 * the `verifyUpstream: true` read. A page that goes stale DURING the
+	 * verified read must still discard, and that is only observable by flipping
+	 * the answer part-way through. So the closure is rigged to report "still
+	 * current" for the first consultation and "stale" from then on, which can
+	 * only take effect if the resolver really asks a second time.
 	 */
-	const liveness = { isStillCurrent: () => true };
-	assert.equal(typeof liveness.isStillCurrent, 'function', 'the liveness is carried as a named option, not a positional predicate');
+	runtimeContextResponder = profileResponder();
+
+	let calls = 0;
+	let cancelled = false;
+	const isStillCurrent = () => {
+		calls += 1;
+		return !cancelled && calls === 1;
+	};
+
+	const resolution = await resolveActiveTermAuthority(1, { isStillCurrent }, { requireFreshVerifiedRead: true });
+
 	assert.equal(
-		(Object.getOwnPropertyDescriptor(liveness, 'isStillCurrent') !== undefined),
-		true,
-		'`isStillCurrent` is an own property, so the sense is written in the call',
+		calls,
+		2,
+		'the resolver checks liveness at both discard points: once after the fast read, once after the verified read',
 	);
+	assert.equal(resolution, null, 'a read that goes stale during the verified read is discarded, not half-bound');
+	assert.equal(bindConcernTermResolution(resolution), null, 'and the binding declines to act on it');
+});
+
+test('A3P1-E2 a liveness that never goes stale is never consulted into a discard', async () => {
+	runtimeContextResponder = profileResponder();
+
+	let calls = 0;
+	let cancelled = false;
+	const resolution = await resolveActiveTermAuthority(1, {
+		isStillCurrent: () => {
+			calls += 1;
+			return !cancelled;
+		},
+	}, { requireFreshVerifiedRead: true });
+
+	assert.ok(calls >= 1, 'liveness is consulted at least once');
+	assert.notEqual(resolution, null, 'a live read is never discarded');
+	assert.equal(resolution?.context.activeTerm?.termIndex, 1, 'and it carries the verified staging term');
 });
