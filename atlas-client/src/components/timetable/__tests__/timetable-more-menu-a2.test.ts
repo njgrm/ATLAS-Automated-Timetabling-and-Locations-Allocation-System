@@ -287,42 +287,42 @@ function menuItemBlock(file: string, testId: string): string {
 
 /* ── #49 (a) — "Advanced rules" must not save the layout ──────────────────── */
 
-test('#49 (a) the policy item cannot write the saved layout, and nothing else can either', () => {
-	// Pinned at the item block (Radix menu content does not mount in JSDOM — see
-	// the header note). The property is "navigating to the policy page does not
-	// change the persisted layout mode", and the persisted write only exists
-	// behind `onLayoutModeChange`, so the absence of that call in this exact block
-	// IS the property.
-	const block = menuItemBlock('src/components/timetable/simple/SimpleMoreMenuContent.tsx', 'timetable-more-policy');
-	assert.match(block, /asChild/);
-	assert.match(block, /<Link/);
-	assert.match(block, /to="\/timetable\/policies"/);
-	assert.match(block, /onClick=\{onClose\}/, 'it closes the menu and changes nothing else');
-	assert.doesNotMatch(
-		block,
-		/onLayoutModeChange/,
-		'#49 (a): opening Advanced rules must not save the Expert layout',
-	);
-
-	// Only executable code counts: the comment above the policy item names the
-	// old wiring on purpose, to say what was removed and why.
+/**
+ * SUPERSEDED (A7 c12b, decision 8 / CORRECTION item 1, 2026-09-30). The old claim,
+ * retained verbatim so the property it encoded stays on the record: "the
+ * `timetable-more-policy` item navigates to `/timetable/policies` with
+ * `onClick={onClose}` and calls NO `onLayoutModeChange`, and the explicit
+ * `Expert view` item (`timetable-layout-toggle`) is the ONE deliberate layout
+ * writer" — i.e. a navigation must never silently persist a layout choice.
+ *
+ * The `Expert tools` group, and with it `Advanced rules`, `Expert view`,
+ * `Review issues` and `Schedule history`, is DELETED. The policy route is reached
+ * from the Policies tab and Expert view is retired outright, so the menu now has
+ * ZERO layout writers. The property the old row protected is now held by ABSENCE.
+ */
+test('#49 (a) SUPERSEDED by A7 c12b: the menu carries NO layout writer at all — no policy link, no Expert view', () => {
+	const menu = codeOnly('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
 	assert.equal(
-		(codeOnly('src/components/timetable/simple/SimpleMoreMenuContent.tsx').match(/onLayoutModeChange\('advanced'\)/g) ?? []).length,
-		1,
-		'exactly one layout writer remains in the menu, so no second silent save can appear',
+		(menu.match(/onLayoutModeChange\('advanced'\)/g) ?? []).length,
+		0,
+		'the Expert tools group and its one layout writer are deleted; no silent save can appear',
 	);
+	assert.doesNotMatch(menu, /timetable-more-policy/, 'the More `Advanced rules` link is gone (the Policies tab owns it)');
+	assert.doesNotMatch(menu, /timetable-layout-toggle/, 'the `Expert view` switch is retired');
+	assert.doesNotMatch(menu, /data-testid="timetable-simple-more-expert-tools"/, 'and the whole Expert tools group is gone');
 });
 
-test('#49 (a) control: the explicit Expert view item is still the one deliberate save', () => {
-	// The negative control for the row above: the mechanism still exists, and it
-	// is attached to the item whose NAME is the choice, not to a navigation.
-	const block = menuItemBlock('src/components/timetable/simple/SimpleMoreMenuContent.tsx', 'timetable-layout-toggle');
+test('#49 (a) SUPERSEDED control: the layout mechanism still exists behind the workspace, so the absence above is real', () => {
+	// The negative control: a layout writer still exists SOMEWHERE (the workspace
+	// persists a layout on an explicit choice), so the absence above is a claim
+	// about a live mechanism, not about a callback that no longer exists.
+	const workspace = source('src/components/timetable/ScheduleReviewWorkspace.tsx');
+	assert.match(workspace, /window\.localStorage\.setItem\('atlas_timetable_layout_mode', mode\)/);
 	assert.match(
-		block,
-		/onSelect=\{\(event\) => \{ event\.preventDefault\(\); onClose\(\); onLayoutModeChange\('advanced'\); \}\}/,
-		'choosing Expert view by name still changes and saves the layout',
+		workspace,
+		/window\.localStorage\.getItem\('atlas_timetable_layout_mode'\) === 'advanced' \? 'advanced' : 'simple'/,
+		'a saved layout is still read back on load',
 	);
-	assert.match(block, /Expert view/);
 });
 
 test('#49 (a) the parent persists the layout behind that one callback, so the fix is load-bearing', () => {
@@ -344,10 +344,17 @@ test('#50 every group is a first-level heading that states how many items it own
 	// Pinned at the source: the headings are Radix menu labels (no JSDOM mount).
 	// Each row is the exact heading call, so a group that loses its count, or
 	// loses its heading and goes back to being an implied section, fails.
+	//
+	// SUPERSEDED (A7 c12b, decision 8 / CORRECTION item 1, 2026-09-30) for ONE row:
+	// `['Expert tools', 'expertToolCount']` was in this list. The whole Expert tools
+	// group is DELETED, so the row is retained as the explicit absence assertion
+	// below rather than silently dropped (AGENTS.md §16).
 	const menu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
+	assert.doesNotMatch(menu, /data-testid="timetable-simple-more-expert-tools"/,
+		'SUPERSEDED `[\'Expert tools\', \'expertToolCount\']`: that group no longer exists and must not come back');
+	assert.doesNotMatch(menu, /expertToolCount/, 'and its row-count input is gone with it');
 	for (const [group, count] of [
 		['Daily tasks', 'dailyTaskCount'],
-		['Expert tools', 'expertToolCount'],
 		['Help & display', 'helpAndDisplayCount'],
 		['Tools', '4'],
 		['Schedule data', '3'],

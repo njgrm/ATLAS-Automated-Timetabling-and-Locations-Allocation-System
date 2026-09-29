@@ -78,7 +78,7 @@ export function readinessLabel(context: ScheduleReviewWorkspaceHeaderContext) {
 		}
 		return 'Working schedule draft';
 	}
-	if (!context.draft) return yearLabel ? `No ${yearLabel} timetable yet` : 'No current-year timetable yet';
+	if (!context.draft) return yearLabel ? `No draft yet for ${yearLabel}` : 'No draft yet for this school year';
 	const summaryRaw = context.draft.summary as unknown as Record<string, unknown> | null;
 	const isPublished = summaryRaw?.isPublished === true;
 	if (isPublished) {
@@ -467,6 +467,15 @@ export const PUBLISHED_GENERATE_LABEL = BUILD_NEW_DRAFT_LABEL;
 export const PUBLISHED_GENERATE_DESCRIPTION = `${BUILD_NEW_DRAFT_LABEL}. ${PUBLISHED_SCHEDULE_STAYS_IN_USE}`;
 
 /**
+ * A7 c12b / decision 8 (CORRECTION item 3) — the ONE disabled-Generate short
+ * reason that must no longer sit under the control. It is authored at the same
+ * `denied()` call in `timetable-capabilities.ts` that produces the full
+ * sentence, so this constant and that call cannot drift: the row in
+ * `a2-c13-unavailable-generate.test.tsx` asserts the two agree.
+ */
+export const SETUP_INPUTS_NOT_READY_SHORT = 'Setup inputs are not ready';
+
+/**
  * A2 C13 (item 3c) — the reason, IN WORDS, BESIDE the control.
  *
  * §8's "Header budget" rule (2026-09-29) put a disabled action's reason in a
@@ -551,7 +560,18 @@ export function SimpleGenerateAction({
 					<span>{published ? PUBLISHED_GENERATE_LABEL : 'Generate'}</span>
 				</Button>
 			</GatedAction>
-			<UnavailableReason reason={disabled ? shortReason : null} testId="timetable-simple-generate-short-reason" />
+			{/* A7 c12b / decision 8 (CORRECTION item 3) — the standalone sentence
+			 * `Setup inputs are not ready` is DELETED from the control row: the
+			 * operator's screenshot printed it as a bare line beside `Generate`, and
+			 * §8 puts a disabled control's reason in a `@/ui` Tooltip. `GatedAction`
+			 * above already carries the FULL sentence in the tooltip and the control's
+			 * `aria-label`, so nothing is lost. Every OTHER state keeps its visible
+			 * reason, so the A2 C13 override ("put the reason in words beside it") is
+			 * narrowed to the one sentence the operator objected to, not withdrawn. */}
+			<UnavailableReason
+				reason={disabled && shortReason !== SETUP_INPUTS_NOT_READY_SHORT ? shortReason : null}
+				testId="timetable-simple-generate-short-reason"
+			/>
 		</>
 	);
 }
@@ -649,12 +669,12 @@ export function SimplePublishAction({
 					size="sm"
 					className="h-11 gap-1.5 px-3 text-sm"
 					disabled={disabled}
-					aria-label={reason ? `Publish schedule — ${reason}` : 'Publish schedule'}
+					aria-label={reason ? `Publish — ${reason}` : 'Publish'}
 					onClick={onClick}
 					data-testid="timetable-simple-publish-action"
 				>
 					<Send className="size-3.5" aria-hidden="true" />
-					<span>Publish schedule</span>
+					<span>Publish</span>
 				</Button>
 			</GatedAction>
 			<UnavailableReason reason={disabled ? shortReason : null} testId="timetable-simple-publish-short-reason" />
@@ -753,7 +773,7 @@ export function useSimpleTasks(
 	return useMemo(() => {
 		const unassignedCount = context.summary?.unassignedCount ?? 0;
 		const noCurrentTimetable = !context.draft && !context.isPreGenerationWorkspace;
-		const yearLabel = context.schoolYearContext?.activeSchoolYearLabel ?? 'current school year';
+		const yearLabel = context.schoolYearContext?.activeSchoolYearLabel ?? 'this school year';
 		// C1-b — the task badge reads the same single authority as the
 		// recommended task and the lifecycle next step. It previously counted
 		// every HARD violation and labelled it "blocked", so a run the publish
@@ -796,7 +816,7 @@ export function useSimpleTasks(
 				label: noCurrentTimetable ? 'Build Teaching Load' : context.isPreGenerationWorkspace ? 'Continue draft' : 'Plan draft',
 				primaryLabel: noCurrentTimetable ? 'Open Teaching Load' : context.isPreGenerationWorkspace ? 'Continue draft' : 'Plan before generating',
 				helper: noCurrentTimetable
-					? `No ${yearLabel} timetable yet. Build Teaching Load before creating the first timetable.`
+					? `No draft yet for ${yearLabel}. Build Teaching Load before creating the first timetable.`
 					: 'Open the pre-generation draft queue and place sessions before generating a new run.',
 				icon: noCurrentTimetable ? GraduationCap : CalendarClock,
 				badge: taskCount(context.draftPlacementCount, 'draft'),
@@ -806,7 +826,7 @@ export function useSimpleTasks(
 			{
 				id: 'publish',
 				label: 'Publish',
-				primaryLabel: 'Publish schedule',
+				primaryLabel: 'Publish',
 				helper: gates.publication.enabled
 					? 'Publish when the schedule is clean.'
 					: (gates.publication.reason ?? 'Publishing is not available for this run yet.'),

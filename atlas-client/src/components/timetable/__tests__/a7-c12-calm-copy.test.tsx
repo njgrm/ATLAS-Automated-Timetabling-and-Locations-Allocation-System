@@ -317,10 +317,11 @@ test('ROW 13 / D3 RENDERED: the setup pane and the header chip derive the year f
 // ═══ ROWS 14/15 — THE RUNS PANE (RENDERED) ══════════════════════════════════
 
 test('ROWS 14/15 RENDERED: the Runs empty state uses the new copy and the duplicate `read-only history` sub-row is deleted', () => {
-	const host = tree(renderToStaticMarkup(createElement(TimetableRunsPane as never, {
-		runs: [], runsPending: false, runsUnavailableReason: null, selectedRunId: 'latest',
-		onSelectRun: () => {}, formatTimestamp: (v: string) => v, formatDuration: (v: number) => String(v),
-	} as never)));
+	const host = tree(renderToStaticMarkup(createElement(MemoryRouter as never, { initialEntries: ['/timetable/runs'] },
+		createElement(TimetableRunsPane as never, {
+			runs: [], runsPending: false, runsUnavailableReason: null, selectedRunId: 'latest',
+			onSelectRun: () => {}, formatTimestamp: (v: string) => v, formatDuration: (v: number) => String(v),
+		} as never))));
 	const text = host.textContent ?? '';
 	assert.ok(text.includes('No drafts yet for this school year.'), 'row 14: the empty headline');
 	assert.ok(text.includes('Drafts and published schedules appear here.'), 'row 14: the empty explanation');

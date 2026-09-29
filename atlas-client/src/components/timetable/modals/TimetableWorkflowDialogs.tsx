@@ -93,7 +93,7 @@ export function TimetableWorkflowDialogs({ context, isPublished = false }: { con
 		/>
 
 		<Dialog open={showResetDraftDialog} onOpenChange={setShowResetDraftDialog}>
-				<DialogContent resizable={false} className="sm:max-w-sm"><DialogHeader><DialogTitle>Reset the draft schedule?</DialogTitle><DialogDescription>Saved placements return to the queue without a time.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setShowResetDraftDialog(false)}>Cancel</Button><Button variant="destructive" onClick={() => void openPreGenerationWorkspace(true)}>Reset draft</Button></DialogFooter></DialogContent>
+				<DialogContent resizable={false} className="sm:max-w-sm"><DialogHeader><DialogTitle>Discard this draft?</DialogTitle><DialogDescription>Saved placements return to the queue without a time.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setShowResetDraftDialog(false)}>Cancel</Button><Button variant="destructive" onClick={() => void openPreGenerationWorkspace(true)}>Discard draft</Button></DialogFooter></DialogContent>
 		</Dialog>
 
 		<Dialog open={showLeavePreGenDialog} onOpenChange={setShowLeavePreGenDialog}>

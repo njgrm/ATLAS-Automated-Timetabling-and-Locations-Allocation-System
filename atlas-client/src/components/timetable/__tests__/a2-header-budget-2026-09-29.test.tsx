@@ -491,12 +491,16 @@ test('H2 state A: exactly ONE status chip, no run-state badge, and nothing else 
 	// counts — an element that CONTAINS another claimant is the same claim rendered
 	// through its control, not a second place the header says it.
 	const all = [...header.querySelectorAll<HTMLElement>('[data-testid]')]
-		.filter((element) => /\bno .*(timetable yet|schedule yet)\b/i.test(visibleText(element)));
+		/* A7 c12b SUPERSEDED this detector's phrasing: the chip's sentence changed
+		 * from `No 2022-2023 timetable yet` (row 13) to `No draft yet for 2022-2023`.
+		 * `draft yet` is added so the SAME property — exactly one element claims
+		 * there is nothing to show — is still decided. AGENTS.md §16. */
+		.filter((element) => /\bno .*(timetable yet|schedule yet|draft yet)\b/i.test(visibleText(element)));
 	const claims = all.filter((element) => !all.some((other) => other !== element && element.contains(other)));
 	assert.equal(claims.length, 1,
 		`exactly ONE element claims there is no schedule; ${claims.length} do: ${all.map((e) => `${e.getAttribute('data-testid')}="${visibleText(e).trim()}"`).join(' | ')}`);
-	assert.match(visibleText(claims[0]), /No 2022-2023 timetable yet/,
-		'and the surviving claim is the readiness chip\'s own truthful sentence');
+	assert.match(visibleText(claims[0]), /No draft yet for 2022-2023/,
+		'and the surviving claim is the readiness chip\'s own truthful sentence (A7 c12b row 13)');
 	assert.ok(q(host, 'timetable-simple-warnings-control'),
 		'the chip is still the face of the merged warnings control — no control was added or lost');
 });
@@ -814,7 +818,6 @@ test('H8 state B: every action reachable before is still reachable — the real 
 	assert.ok(rows.length > 0, `and it has rows (${rows.length})`);
 	for (const id of [
 		'timetable-more-generate',
-		'timetable-more-schedule-history',
 		'timetable-more-unassigned-sessions',
 		'timetable-simple-review-setup',
 		'timetable-simple-edit-draft-action',
@@ -822,6 +825,15 @@ test('H8 state B: every action reachable before is still reachable — the real 
 	]) {
 		assert.ok(menu!.querySelector(`[data-testid="${id}"]`), `${id} is still reachable from the More menu`);
 	}
+	/* A7 c12b SUPERSEDED one row: `timetable-more-schedule-history` used to be in
+	 * the list above. It lived in the `Expert tools` group, which decision 8 /
+	 * CORRECTION item 1 DELETES, so the row is retained as the explicit absence the
+	 * change requires rather than dropped (AGENTS.md §16). The count it carried is
+	 * not lost: the header's status chip carries it. */
+	assert.equal(menu!.querySelector('[data-testid="timetable-more-schedule-history"]'), null,
+		'SUPERSEDED: `Schedule history` is deleted with the Expert tools group and must not return');
+	assert.equal(menu!.querySelector('[data-testid="timetable-simple-more-expert-tools"]'), null,
+		'and the whole Expert tools group is gone');
 });
 
 test('H8 state A: the More menu keeps BOTH draft rows even though row 2 hides `Discard draft`', async () => {

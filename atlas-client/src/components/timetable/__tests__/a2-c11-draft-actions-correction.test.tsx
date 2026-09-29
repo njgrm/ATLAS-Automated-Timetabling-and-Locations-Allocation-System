@@ -870,10 +870,16 @@ test('F2R3 RENDERED (QA-B2 re-point): no draft action can EVER be an enabled con
  * The five group boxes, and the heading each one prints its claimed row count on.
  * `data-more-group` is the heading's own hook, so the claim is read out of the DOM
  * rather than out of the formula that produced it.
+ *
+ * SUPERSEDED (A7 c12b, decision 8 / CORRECTION item 1, 2026-09-30):
+ * `{ testId: 'timetable-simple-more-expert-tools', label: 'Expert tools' }` was the
+ * second row. The whole Expert tools group is DELETED; the replacement assertion is
+ * `assert.equal(menu.querySelector('[data-testid="timetable-simple-more-expert-tools"]'), null)`
+ * inside the F2 RENDERED test below, so the claim is retained as an absence rather
+ * than removed (AGENTS.md §16).
  */
 const MORE_GROUPS: ReadonlyArray<{ readonly testId: string; readonly label: string }> = [
 	{ testId: 'timetable-simple-more-daily-tasks', label: 'Daily tasks' },
-	{ testId: 'timetable-simple-more-expert-tools', label: 'Expert tools' },
 	{ testId: 'timetable-simple-more-help', label: 'Help & display' },
 	{ testId: 'timetable-simple-more-tools', label: 'Tools' },
 	{ testId: 'timetable-simple-more-schedule-data', label: 'Schedule data' },
@@ -1038,6 +1044,9 @@ test('CORRECTION 4 (F2) RENDERED: EVERY group heading claims exactly the rows it
 		// warning and no hidden rows, so `Help & display` renders no Day-options block.
 		assert.equal(menu.querySelector('[data-testid="timetable-more-day-options"]'), null,
 			`${state.name}: no Day options block, so the Help & display panel rows are exactly Status key`);
+		// SUPERSEDED (A7 c12b / CORRECTION item 1) — the Expert tools group is gone.
+		assert.equal(menu.querySelector('[data-testid="timetable-simple-more-expert-tools"]'), null,
+			`${state.name}: the Expert tools group is deleted and must never render`);
 
 		for (const group of MORE_GROUPS) {
 			const box = menu.querySelector(`[data-testid="${group.testId}"]`);

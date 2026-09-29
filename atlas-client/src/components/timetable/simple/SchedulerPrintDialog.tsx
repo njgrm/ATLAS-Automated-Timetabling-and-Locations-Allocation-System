@@ -141,7 +141,7 @@ export function SchedulerPrintDialog(props: Props) {
 			<DialogContent className="max-w-2xl" data-testid="scheduler-print-dialog">
 				<DialogHeader>
 					<DialogTitle>Download schedules</DialogTitle>
-					<DialogDescription>Choose Word for official printable forms or Excel for editable working schedules. Downloads use one completed run and one ordered term. Selecting several items creates one ZIP package.</DialogDescription>
+					<DialogDescription>Choose Word for official printable forms or Excel for editable working schedules. Downloads use one Draft (or the Published schedule) and one term. Selecting several items creates one ZIP package.</DialogDescription>
 				</DialogHeader>
 				{unresolvedReason ? <p role="status" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{unresolvedReason}</p> : (
 					<div className="grid min-h-0 gap-4">

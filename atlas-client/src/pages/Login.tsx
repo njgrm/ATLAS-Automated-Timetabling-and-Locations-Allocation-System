@@ -311,7 +311,7 @@ export default function Login() {
 							{
 								icon: BarChart3,
 								title: 'Automated Generation',
-								desc: 'Build draft timetables with policy and workload-aware scheduling.',
+								desc: 'Generate draft timetables with policy and workload-aware scheduling.',
 							},
 							{
 								icon: Shield,

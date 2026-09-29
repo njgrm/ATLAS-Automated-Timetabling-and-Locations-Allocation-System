@@ -126,19 +126,24 @@ export function TimetableRunsPane({
 
 	// The header line describes the surface or the read, never the emptiness.
 	// The empty claim is made once, in the body, and only when it is earned.
+	//
+	// A7 c12b (row 15) — the `Runs · read-only history` sub-row is DELETED: the tab
+	// already says `Runs`, and the surface's read-only nature is stated by the copy
+	// in the body. `null` here renders no second line, so the empty state is not two
+	// identical claims.
 	const headerLine = viewState === 'pending'
 		? 'Checking the generation runs for this school year…'
 		: viewState === 'unavailable'
 			? 'The generation runs for this school year could not be loaded.'
 			: viewState === 'empty'
-				? 'Runs · read-only history'
+				? null
 				: `${runs.length} run${runs.length === 1 ? '' : 's'} · newest first · read-only history`;
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col" data-testid="timetable-runs-pane">
 			<div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2">
 				<Badge variant="outline" className="h-5 px-1.5 text-xs uppercase">Runs</Badge>
-				<p className="text-xs text-muted-foreground">{headerLine}</p>
+				{headerLine ? <p className="text-xs text-muted-foreground">{headerLine}</p> : null}
 			</div>
 			{viewState === 'pending' ? (
 				/* Still in flight: say the read is happening. Announcing "no runs"
@@ -178,9 +183,9 @@ export function TimetableRunsPane({
 					<div className="max-w-md space-y-3 text-center" data-testid="timetable-runs-empty-state">
 						<History className="mx-auto size-10 text-muted-foreground/30" aria-hidden="true" />
 						{/* The single authoritative empty announcement for this pane. */}
-						<p className="text-sm font-medium">No generation runs yet for this school year.</p>
+						<p className="text-sm font-medium">No drafts yet for this school year.</p>
 						<p className="text-xs text-muted-foreground">
-							Generate a timetable from the schedule surface first — each generation run will appear here for review.
+							Drafts and published schedules appear here.
 						</p>
 						<Button asChild variant="outline" size="sm" className="h-7 text-xs">
 							<Link to="/timetable">

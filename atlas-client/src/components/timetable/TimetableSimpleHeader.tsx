@@ -30,7 +30,6 @@ import {
 	chooseRecommendedTask,
 	hasPivotValue,
 	firstPivotValue,
-	primaryDispatchesReviewIssues,
 	resolvePublishTaskDispatch,
 	resolveSimpleGenerateActionState,
 	resolveSimplePublishActionState,
@@ -82,6 +81,7 @@ import { resolveTermAuthorityNotice } from '@/hooks/useTimetableData';
 import { ExportPresentationSettingsDialog } from '@/components/timetable/simple/ExportPresentationSettingsDialog';
 import { SchedulerPrintDialog } from '@/components/timetable/simple/SchedulerPrintDialog';
 import { fetchRolloverStatus, type RolloverStatus } from '@/lib/settings';
+import { readRolloverAwarenessNotice } from '@/lib/rollover-awareness';
 
 /* A2 C13 — the prop shape moved to `simple/SimpleHeaderReadinessTypes.ts` for the
    same reason the two types below moved there under A2 HEADER-BUDGET: this file sat
@@ -562,10 +562,11 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	};
 	// C7 — the review action is never offered twice: More drops its entry while
 	// the merged warnings control (or an armed review task) owns it.
-	const moreHidesReviewIssues = warningsDispatch === 'review-issues' || primaryDispatchesReviewIssues({
-		activeTaskId: activeTask,
-		lifecycleKind: lifecycleAction.kind,
-	});
+	/* A7 c12b / decision 8 (CORRECTION item 1) — the `Expert tools` group (and with
+	 * it the More `Review issues` row) is deleted outright, so the C7 de-duplication
+	 * decision is no longer needed at this call site. `primaryDispatchesReviewIssues`
+	 * stays exported and unit-tested; the warnings control is still the one owner of
+	 * the review action. */
 	// The former lifecycle primary's remaining next steps keep one More entry.
 	const moreNextStep = suppressPrimaryAction ? null
 		: setupRepairIsInPlace
@@ -602,10 +603,21 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	);
 	const unassignedUnavailable = context.isPreGenerationWorkspace
 		? 'Unassigned sessions belong to a generated schedule; this is the working draft.'
-		: !hasGeneratedRun ? 'No generated schedule yet.' : null;
+		: !hasGeneratedRun ? 'No draft yet.' : null;
 
 	const exportRunId = context.draft?.runId ?? context.activeGeneratedRunId ?? null;
 	const exportYearLabel = context.schoolYearContext?.activeSchoolYearLabel ?? null;
+
+	/* A7 c12b (decision 8 / CORRECTION item 5) — `View past years` moved out of the
+	 * year banner and into More, so the header reads the ONE persisted rollover
+	 * notice (the same durable record the AppShell banner hydrates) and offers the
+	 * previous year's history link only when a rollover actually happened. No second
+	 * source of "is there a previous year" is invented. */
+	const pastYearsHref = useMemo(() => {
+		if (!context.schoolId) return null;
+		const notice = readRolloverAwarenessNotice(context.schoolId);
+		return notice ? `/teaching-load/history?schoolYearId=${notice.previousSchoolYearId}` : null;
+	}, [context.schoolId]);
 
 	const clearGridSelection = () => {
 		context.setSelectedEntry(null);
@@ -801,12 +813,12 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 										visible: context.isPreGenerationWorkspace && Boolean(context.hasPublishedReturnState),
 										onSelect: context.returnToGeneratedRun,
 									}}
+									pastYearsHref={pastYearsHref}
 									nextStep={moreNextStep}
 								/>
 								<SimpleMoreMenuContent
 									context={context}
 									runToolsAvailable={runToolsAvailable}
-									hideReviewIssues={moreHidesReviewIssues}
 									/* C11 D, correction 2 (QA-B2) — `Edit draft` and `Discard draft`
 									   render in this menu, and `Publish` renders here ONLY when the
 									   primary slot is not the publication control. */
@@ -815,7 +827,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 									onStartTask={startTask}
 									onOpenTeacherDeparture={openTeacherDeparture}
 									onOpenRequests={openRequestsTask}
-									onLayoutModeChange={onLayoutModeChange}
 									onOpenTutorial={() => { setMoreOpen(false); setTutorialOpen(true); }}
 									onSchoolNamesRefreshed={() => setSchoolNamesRefreshed(true)}
 									unassignedEntry={(

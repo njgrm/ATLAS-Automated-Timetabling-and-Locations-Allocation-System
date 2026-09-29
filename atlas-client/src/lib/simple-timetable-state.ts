@@ -105,15 +105,15 @@ export function deriveSimpleLifecycleAction(input: SimpleLifecycleInput): Simple
 		return { kind: 'fix-setup', label: 'Open Year Setup', disabled: false, interactive: true };
 	}
 	if (input.isPreGeneration) {
-		return { kind: 'generate', label: 'Generate when ready', disabled: false, interactive: true };
+		return { kind: 'generate', label: 'Generate a draft', disabled: false, interactive: true };
 	}
 	if (!input.hasGeneratedRun) {
 		// A failed newest run is history, not a reviewable timetable: the next
 		// action is an explicit retry, never publish or review.
 		if (input.latestRunFailed) {
-			return { kind: 'retry-generate', label: 'Try generating again', disabled: false, interactive: true };
+			return { kind: 'retry-generate', label: 'Generate a draft', disabled: false, interactive: true };
 		}
-		return { kind: 'start-draft', label: 'Start draft', disabled: false, interactive: true };
+		return { kind: 'start-draft', label: 'Generate a draft', disabled: false, interactive: true };
 	}
 	if (input.isPublished) {
 		if ((input.unassignedCount ?? 0) > 0) {
@@ -127,7 +127,7 @@ export function deriveSimpleLifecycleAction(input: SimpleLifecycleInput): Simple
 	if ((input.softCount ?? 0) > 0) {
 		return { kind: 'review-warnings', label: 'Review warnings', disabled: false, interactive: true };
 	}
-	return { kind: 'publish', label: 'Publish schedule', disabled: false, interactive: true };
+	return { kind: 'publish', label: 'Publish', disabled: false, interactive: true };
 }
 
 export type SimpleInteractionMode =

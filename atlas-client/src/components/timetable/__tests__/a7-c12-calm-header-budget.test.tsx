@@ -265,7 +265,8 @@ const NOTICE = {
 function bannerMarkup(onActivate?: () => void): string {
 	assert.equal(typeof RolloverAwarenessNotice, 'function',
 		'the rollover notice is a real, renderable component (this fails on the base, where the module does not exist)');
-	return renderToStaticMarkup(createElement(RolloverAwarenessNotice as never, { notice: NOTICE, onActivate } as never));
+	return renderToStaticMarkup(createElement(MemoryRouter as never, { initialEntries: ['/timetable'] },
+		createElement(RolloverAwarenessNotice as never, { notice: NOTICE, onActivate } as never)));
 }
 
 // ═══ ROW A — THE HEADER'S CONTROL INVENTORY IS EXACT AND ≤6 ═════════════════
@@ -322,7 +323,7 @@ test('B state A: activating the ONE link clears the notice (dismissal preserved 
 	mountedHost = host;
 	const root = createRoot(host);
 	mountedRoot = root;
-	act(() => { root.render(createElement(RolloverAwarenessNotice as never, { notice: NOTICE, onActivate: () => { cleared += 1; } } as never)); });
+	act(() => { root.render(createElement(MemoryRouter as never, { initialEntries: ['/timetable'] }, createElement(RolloverAwarenessNotice as never, { notice: NOTICE, onActivate: () => { cleared += 1; } } as never))); });
 	const link = host.querySelector('a[href]') as HTMLAnchorElement | null;
 	assert.ok(link, 'the link is rendered');
 	act(() => { link!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })); });
