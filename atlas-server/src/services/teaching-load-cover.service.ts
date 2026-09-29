@@ -586,8 +586,14 @@ export async function listCoverOpenClasses(input: {
 		const heldByFacultyId = ownerByPair.get(`${pair.subjectId}:${pair.sectionExternalId}`) ?? null;
 		const holder = heldByFacultyId == null ? null : holderById.get(heldByFacultyId) ?? null;
 		const heldByIsPlaceholder = holder ? holder.isPlaceholder === true : false;
+		// THE counting rule: a class is OPEN when nobody owns it OR a placeholder
+		// owns it. A class owned by a real teacher is NOT open, so it is not in
+		// this list at all — that is what makes `unowned + placeholderOwned ===
+		// total` true by construction rather than by a client subtraction.
+		const isOpen = heldByFacultyId == null || heldByIsPlaceholder;
+		if (!isOpen) continue;
 		if (heldByFacultyId == null) unowned += 1;
-		else if (heldByIsPlaceholder) placeholderOwned += 1;
+		else placeholderOwned += 1;
 		classes.push({
 			subjectId: pair.subjectId,
 			subjectCode: pair.subjectCode,

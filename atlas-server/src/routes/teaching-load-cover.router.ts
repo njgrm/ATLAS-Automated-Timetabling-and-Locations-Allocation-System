@@ -45,7 +45,9 @@ function actorUserIdOf(req: Request): number | null {
 
 function fail(res: Response, error: unknown, next: NextFunction): void {
 	if (error instanceof CoverContractError) {
-		res.status(error.statusCode).json({ message: error.message, ...error.payload });
+		// `code` is ALWAYS present; a typed error without it would leave the client
+		// unable to branch on the 400/409 it is written against.
+		res.status(error.statusCode).json({ code: error.code, message: error.message, ...error.payload });
 		return;
 	}
 	next(error);

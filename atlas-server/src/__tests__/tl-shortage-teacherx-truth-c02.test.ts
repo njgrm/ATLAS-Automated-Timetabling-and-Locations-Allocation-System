@@ -302,13 +302,28 @@ function rowsOfType(result: AutoFillResult, type: string) {
 
 // ─── item 2: Teacher-X must report the truth ───────────────────────────────────
 
+/**
+ * A8 c4: a REAL teacher who is unqualified for the subject under test AND has no
+ * room (a 1h contract cannot take a 4h class).
+ *
+ * A8 c4 made the `ANYONE` tier reachable inside the real pass, so the placeholder
+ * pool is now unreachable while ANY real teacher has room — the operator's
+ * "absolute last resort" rule. Fixtures whose subject under test is
+ * "the placeholder closes this shortage" therefore must not also contain a real
+ * teacher with room: they use this helper so their stated premise stays TRUE and
+ * every original assertion is unchanged.
+ */
+function facultyWithoutRoom(id: number, department: string): Row {
+	return faculty(id, department, { maxHours: 1 });
+}
+
 test('item 2: Teacher-X reports stillNeedRealTeacher > 0 and counts substitutes as unsaved', async () => {
-	// MAPEH has no qualified real teacher at all, so one pair stays uncovered.
+	// MAPEH has no qualified real teacher with room, so one pair stays uncovered.
 	// Pre-fix this returned `unresolved: 0` because Teacher-X forced the zero.
 	const { result, writes } = await runAutoFill({
 		subjects: [subject(MAPEH, 'MAPEH', 'MAPEH', [7])],
 		sections: [section(SECTION_MAPEH_A)],
-		faculty: [faculty(101, 'MATH')],
+		faculty: [facultyWithoutRoom(101, 'MATH')],
 	}, 'REAL_FACULTY_THEN_TEACHER_X');
 
 	assert.equal(result.stillNeedRealTeacher, 1, 'the still-uncovered MAPEH pair must be reported');
@@ -340,7 +355,7 @@ test('item 2: the still-need count matches the substitute rows and the uncovered
 			subject(FILI, 'FILI', 'FILI', [8]),
 		],
 		sections: [section(SECTION_MAPEH_A, 7), section(SECTION_FILI_A, 8)],
-		faculty: [faculty(101, 'MATH')],
+		faculty: [facultyWithoutRoom(101, 'MATH')],
 	}, 'REAL_FACULTY_THEN_TEACHER_X');
 
 	assert.equal(result.stillNeedRealTeacher, 2);
@@ -354,16 +369,16 @@ test('item 2: the still-need count matches the substitute rows and the uncovered
 // ─── correction R1 / B1: `created` counts PERSISTED assignments only ──────────
 
 test('B1: a Teacher-X run that only closes a pair on paper reports created 0', async () => {
-	// MAPEH has no qualified real teacher, so the single pair is closed ONLY by a
-	// preview-only `TEMPORARY_SUBSTITUTE` row (facultyId null, never persisted).
-	// Failing-first evidence: on the pre-correction source this reported
+	// MAPEH has no qualified real teacher with room, so the single pair is closed
+	// ONLY by a preview-only `TEMPORARY_SUBSTITUTE` row (facultyId null, never
+	// persisted). Failing-first evidence: on the pre-correction source this reported
 	// `created === 1` and `assignmentsCreated === 1` with zero persisted rows,
 	// because `totalCreated = created + teacherXRowsClosed` added the substitute
 	// count. `autoFill` is preview-only, so the truthful persisted count is 0.
 	const { result, writes } = await runAutoFill({
 		subjects: [subject(MAPEH, 'MAPEH', 'MAPEH', [7])],
 		sections: [section(SECTION_MAPEH_A)],
-		faculty: [faculty(101, 'MATH')],
+		faculty: [facultyWithoutRoom(101, 'MATH')],
 	}, 'REAL_FACULTY_THEN_TEACHER_X');
 
 	assert.equal(result.created, 0, 'a preview-only substitute row is NOT a created assignment');
@@ -416,7 +431,7 @@ test('B1: a saved placeholder assignment is counted as created, a substitute is 
 		subjects: [subject(MAPEH, 'MAPEH', 'MAPEH', [7])],
 		sections: [section(SECTION_MAPEH_A), section(SECTION_MAPEH_B)],
 		faculty: [
-			faculty(101, 'MATH'),
+			facultyWithoutRoom(101, 'MATH'),
 			faculty(900, 'MAPEH', { maxHours: 30, placeholder: true }),
 		],
 		facultySubjects: [facultySubject(700, 900, MAPEH)],
@@ -654,11 +669,13 @@ test('item 3: a placeholder assignment is a PERSISTED insert, unlike a substitut
 test('item 3: with no qualified real teacher at all, a qualified placeholder closes the whole shortage', async () => {
 	// The Codex scenario: a saved placeholder left at no load. It must now be
 	// assignable so the shortage is actually closeable from Teaching Load.
+	// A8 c4: the only real teacher here has NO ROOM, so "no real teacher can
+	// cover this" is still the premise and the placeholder is the last resort.
 	const { result } = await runAutoFill({
 		subjects: [subject(MAPEH, 'MAPEH', 'MAPEH', [7])],
 		sections: [section(SECTION_MAPEH_A), section(SECTION_MAPEH_B)],
 		faculty: [
-			faculty(101, 'MATH'),
+			facultyWithoutRoom(101, 'MATH'),
 			faculty(900, 'MAPEH', { maxHours: 30, placeholder: true }),
 		],
 		facultySubjects: [facultySubject(700, 900, MAPEH)],

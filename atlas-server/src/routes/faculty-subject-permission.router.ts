@@ -47,7 +47,8 @@ function auditYearId(req: Request): number {
 
 function fail(res: Response, error: unknown, next: NextFunction): void {
 	if (error instanceof CoverContractError) {
-		res.status(error.statusCode).json({ message: error.message, ...error.payload });
+		// `code` is ALWAYS present, so the client can branch on the typed 400.
+		res.status(error.statusCode).json({ code: error.code, message: error.message, ...error.payload });
 		return;
 	}
 	next(error);
