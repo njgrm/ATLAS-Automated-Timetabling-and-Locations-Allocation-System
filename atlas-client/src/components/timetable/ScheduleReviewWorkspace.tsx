@@ -351,6 +351,30 @@ export default function ScheduleReviewWorkspace() {
 		termOrder: pastYearTermOrder,
 	});
 
+	/* A2 mc R2, item 7 — the lock action. The server capability exists
+	 * (`GET/POST/DELETE …/locks`) and no client surface called it, so this is the
+	 * first reachable `Lock this class` on `/timetable`. The label, the enabled state
+	 * and the reason are ONE derivation in `useSelectedClassLock`, so they cannot
+	 * disagree. Above the past-year gate for the same reason as `pastYear` above. */
+	const selectedClassLock = useSelectedClassLock(
+		locks,
+		state.selectedEntry
+			? {
+					entryId: state.selectedEntry.entryId,
+					sectionId: state.selectedEntry.sectionId,
+					subjectId: state.selectedEntry.subjectId,
+					facultyId: state.selectedEntry.facultyId,
+					roomId: state.selectedEntry.roomId,
+					day: String(state.selectedEntry.day),
+					startTime: String(state.selectedEntry.startTime),
+					endTime: String(state.selectedEntry.endTime),
+					entryKind: state.selectedEntry.entryKind,
+					cohortCode: state.selectedEntry.cohortCode,
+				}
+			: null,
+		(status) => state.setInlineActionStatus(status),
+	);
+
 	/**
 	 * A2 C12 / ITEM S2 — the gate.
 	 *
@@ -463,30 +487,6 @@ export default function ScheduleReviewWorkspace() {
 		void state.centerWorkspaceContext.handleKbPlace(offer.day, offer.startTime, offer.endTime);
 		state.headerContext.setKbSelectedSource(null);
 	};
-
-	/* A2 mc R2, item 7 — the lock action. The server capability exists
-	 * (`GET/POST/DELETE …/locks`) and no client surface called it, so this is the
-	 * first reachable `Lock this class` on `/timetable`. The label, the enabled state
-	 * and the reason are ONE derivation in `useSelectedClassLock`, so they cannot
-	 * disagree. */
-	const selectedClassLock = useSelectedClassLock(
-		locks,
-		state.selectedEntry
-			? {
-				entryId: state.selectedEntry.entryId,
-				sectionId: state.selectedEntry.sectionId,
-				subjectId: state.selectedEntry.subjectId,
-				facultyId: state.selectedEntry.facultyId,
-				roomId: state.selectedEntry.roomId,
-				day: String(state.selectedEntry.day),
-				startTime: String(state.selectedEntry.startTime),
-				endTime: String(state.selectedEntry.endTime),
-				entryKind: state.selectedEntry.entryKind,
-				cohortCode: state.selectedEntry.cohortCode,
-			}
-			: null,
-		(status) => state.setInlineActionStatus(status),
-	);
 
 	const openSimpleSelectedDetails = () => {
 		if (layoutMode === 'simple') {
