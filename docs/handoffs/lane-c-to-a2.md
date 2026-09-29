@@ -1,5 +1,41 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+## 🟡 A2 → Lane C, 2026-09-30 — **A2 mc ready for release at `bf20cbd8`** (items 1–8 of your manual-controls packet; item 9 is a non-existent module)
+
+**0 fixes live and seen / 7 items integrated, none live / 1 item NOT DONE.** Integrated on `main` at **`bf20cbd8`** (candidate `41b04b2c`, merge `d641c5e3`; the branch had `origin/main` merged in at `4c59b3c1`, and the final push re-merged A8 c5's docs-only `c93bec03` — zero conflicts both times). **A4 owns the deploy; A2 has not deployed and will not.** No generation, publication, migration, live-data write, sign-in, or browser session.
+
+**The staging walk is the acceptance and it has not run.** No screenshot exists, so no rendered judgement is claimed. Three screens: `/timetable` Publish Readiness, `/timetable` with a move armed, `/timetable` Manual Edit.
+
+| Your item | Status | What the operator now sees | Seen rendered? |
+|---|---|---|---|
+| **1** readiness reconciles | **DONE** | Every must-fix item listed in full — the `Show 7 more` disclosure is **deleted, not reworded**. Each item carries its own fix button carrying that item's identity. Counts state their scope. | **no** |
+| **2** `Unknown section · Unknown subject` | **DONE** | Resolved from the violation's own `entryIds`; fallback is `No section on this record`. Never `Unknown`, never an id. | **no** |
+| **3** move when every slot is taken | **DONE** | `Every period in this view already has a class in it.` + real `Swap with ESP (Mr Diaz)` buttons, blocked swaps in words with the reason, Cancel always reachable. The strikethrough and the helper sentence under the select are gone. | **no** |
+| **4** plain-words preview | **DONE** | `Checking this change…` at once; 10 identical blockers → 1 card + `× 10`; 525 warnings → one line per cause with counts; `SECTION_TIME_CONFLICT` and `rejected by shared invariant` are unreachable from rendered text. | **no** |
+| **5** receipt + history | **DONE** | One derivation, both surfaces: `Moved TLE for 7-Rizal from Mon 6:00 to Tue 7:30. No new problems.` | **no** |
+| **6** swap stalls on `Checking options...` | **DONE (root cause)** | The pool included occupied slots and re-ran a whole-run validation + 525 human-conflict sentences per candidate, with no client timeout. Fixed at the source; the feature is intact. | **no** |
+| **7** Lock/pin not reachable | **DONE** | `Lock this class` in the selected-class menu, with the blocking reason in the sub-label. **No header file touched** — A7 c10's boundary held. | **no** |
+| **8** place session says nothing | **PARTIAL** | `No free time: this slot double-books <teacher> or <room>.` — but it checks **one** slot, so the global `No free time:` lead over-claims, and the nearest swap is **not** offered. Recorded, not claimed. | **no** |
+| **9** print opens promptly | **NOT DONE — your call** | **`lib/scheduler-print-requests.ts` does not exist in the tree.** The control is `window.print()` at `pages/RoomSchedules.tsx:624` and `:953`; it is synchronous and cannot hang, and the page is not A2's. **Name the real surface if you still want this.** | n/a |
+
+### The one thing worth carrying to every lane
+
+Round 2 of QA found that the item-6 fix **deleted a working feature while every gate stayed green**. The fix added a `slotIsFreeFor` predicate on the sound argument that an occupied slot can never be a valid auto-fix target — but `poolFor` builds its pool *from* the run's own entries, so every slot it emits is occupied by construction, and the predicate rejected **every** candidate in **every** run (34 → 0 on a realistic 105-entry run). Two classes sharing no section, room or teacher are not a conflict, so legal occupied targets do exist.
+
+The control that catches it **already existed** — `timetable-swap-custody-a2` carries a fixture whose own comment says it exists "so the fix cannot be satisfied by simply disabling the auto-fix" — and it was **not in the packet's gate list, so nobody ran it.** Now 16/16, with `blockingTarget=THURSDAY|07:30|08:15` restored. **A packet naming a surface does not thereby name its gate.** When your drill says a control stalls, the gate list should include the suites that already cover that code path, not only the ones this change wrote.
+
+### Gates on the merged tree
+
+`test:ux-a2-mc-manual-controls` **37/37** · `test:encoding` **1/1** · server `tsc --noEmit` **clean** · client `tsc` **5 errors, all pre-existing, none in a file this range touched** · client suite **27 failing tests, failure SETS identical to the `4c59b3c1` baseline element-by-element** · `git diff --check` clean · `ScheduleReviewWorkspace.tsx` **998** physical lines (§8 cap 1000).
+
+**Two QA rounds ran, and the second was `CORRECTION_REQUIRED` (35/45, then 19/27).** Both BLOCKING findings are fixed and verified: the auto-fix pool above, and a truthfulness defect in the receipt itself — at `before === now` (a move that trades one conflict for another, your own drill case) it printed `0 new problems: Mr Cruz already teaches 8-Luna at that time.`
+
+### Not done, dated 2026-09-30
+
+**0 of 8 rendered on staging or live.** No browser session, no deploy, no staging build, no database write, nothing generated or published. Follow-up rows carried in `docs/plans/live-state.md` (Lane A2 block): item 8's over-claim, the untested lock surface, one-count/two-nouns in the readiness sheet, 11 identical `Place manually` buttons, the untested server `VIOLATION_TITLES`, and `src/pages/Faculty.tsx` at 1029 lines which makes the repo-wide §8 cap guard red — **A3 c17's file from train 11, not A2's**, and A3 may want it.
+
+**A4: train 12 for `bf20cbd8`.** MEDIUM, source-only, client-led plus one server file (`manual-edit.service.ts`) whose change is presentation + a preview-loop optimisation, proven not to alter the candidate set.
+
 ## 🟢 A5 → Lane C, 2026-09-30 01:2x +08 — rotation counts: a term-rotation group now counts as ONE subject (display-only)
 
 **0 fixes live and seen / 1 integrated / 0 dropped.** Candidate `594f091b` (base `08bd21ce`) accepted and pushed to `main` at merge **`72304151`** (third reconcile over `cd8eb5b4`; origin advanced mid-cycle, docs-only). Independent QA `ses_f11bc24b8ffe8kUNUcbsTVLDlF` → **`ACCEPT_READY` 17/17, blocked 0, unperformed 0** (incl. the DB-backed dashboard suite on a disposable `atlas_restore_drill_*`, zero residue). **A4 owns the deploy; A5 has not deployed and will not.** No generation, publication, migration, live-data write or sign-in.
