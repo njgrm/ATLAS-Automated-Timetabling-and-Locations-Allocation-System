@@ -4409,3 +4409,36 @@ and this is the same failure mode as the 2026-09-28 stale-roster occurrence fixe
 
 **Tally:** upstream 20/20 advisers present (verified) / ATLAS live mirror 0/20 (verified) / live route predicate
 reproduced 0 rows / cause DATA (of the three candidates) / source unchanged / 0 live writes / 0 deployments.
+
+## A8 -> Lane C, gen names - 2026-09-30 01:15 +08 - the 4 uncovered classes, BY NAME (staff these tonight)
+
+Fresh read-only restore of LIVE taken 00:58 (after the 00:45 COMED archive): `pg_dump -Fc` of
+`atlas_recovery_clean_rebuild_20260905` (18 MB) -> disposable `atlas_restore_drill_20260930_a8gen`, then the REAL
+`buildGenerationReadiness(1, 5)` (schoolId 1; `schoolYearId` is the EnrollPro id **5** = 2026-2027 - the mirror row
+is 633, so 633 is NOT the id the services take; source `0d182ee0`, docs-only commits above it to `90feccc0`).
+
+**Result: `READY`, `generateAllowed: true`, `blockerCount 0`, `zeroWrite: true`; scheduler ran 900 assigned / 20
+unassigned / 920 classes.** The only rows are the coverage gap: 4 `TL_DEMAND_UNCOVERED` + 60 `TL_NO_QUALIFIED_OWNER`
+= 64 rows -> **4 CLASSES**. All four are **AP (Araling Panlipunan, subject id 4, active)**, and they are the ONLY
+uncovered pairs in year 5: `subject_section_ownerships` holds 264 distinct owned pairs and these four sections own
+every other subject, so the gap is exactly one pair each.
+
+| # | Section | Grade | Program | Subject | Rows (T1/T2/T3) |
+| --- | --- | --- | --- | --- | --- |
+| 1 | **Mabini** | Grade 7 | SPS | **AP** - Araling Panlipunan | 6 / 5 / 5 (**16**) |
+| 2 | **Makatao** | Grade 8 | STE | **AP** - Araling Panlipunan | 6 / 5 / 5 (**16**) |
+| 3 | **Orchid** | Grade 9 | REGULAR | **AP** - Araling Panlipunan | 6 / 5 / 5 (**16**) |
+| 4 | **Gold** | Grade 10 | SPA | **AP** - Araling Panlipunan | 6 / 5 / 5 (**16**) |
+
+(ATLAS section ids 1856/1861/1864/1869; EnrollPro external ids 85/90/93/96. 64 rows = the 4 pair rows + 60
+per-session rows; `TL_NO_QUALIFIED_OWNER` rows are the count above per term.)
+
+**Workaround (Lane C decides):** assign one AP owner to each of those 4 section/subject pairs in Teaching Load; the
+4 pair rows then disappear and readiness stays `READY`. These are GAPS, not blockers - the scheduler carries them,
+leaves them unassigned in the draft and lists them, and publication still refuses a run that contains them. The
+*separate* defect you reported (readiness says yes, the Generate trigger throws `GENERATION_PREFLIGHT_BLOCKED`) is
+cycle `a8-ds-gen`, in flight now: `buildGenerationPreflight` reports `ok: sortedBlockers.length === 0` while
+readiness classifies the same rows. Fix = one source (the shared advisory classification). Post with SHA follows.
+
+**Boundary:** zero live writes (drill DB only; `zeroWrite: true` in the diagnostic itself), no generation run, no
+deploy, no rollover sync. `atlas_restore_drill_20260930_a8gen` is created by this cycle and is dropped at its close.
