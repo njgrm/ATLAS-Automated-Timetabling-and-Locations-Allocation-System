@@ -12,6 +12,7 @@ import type {
 } from '../types';
 import { isDepartmentMatch } from './grade-labels';
 import { BELOW_STANDARD_LABEL } from './teaching-load-labels';
+import { gradeNumberOf } from './schedule-review-helpers';
 
 export type { FacultyAssignmentDraft, FacultyOwnershipState, LoadStatus, SubjectSectionOwnershipIndexEntry };
 
@@ -1167,7 +1168,7 @@ export function buildTeachingLoadProfile(
 				isRotationDuplicate,
 				sectionId,
 				sectionName: section.name,
-				gradeLevel: section.displayOrder,
+				gradeLevel: gradeNumberOf(section),
 				minutesPerWeek: subject.minMinutesPerWeek,
 				totalMinutes: subject.minMinutesPerWeek,
 			});
@@ -1242,7 +1243,9 @@ export function buildTeachingLoadProfile(
 		rotationFamilies,
 		breakdown: breakdown.sort(
 			(left, right) =>
-				left.gradeLevel - right.gradeLevel || left.sectionName.localeCompare(right.sectionName) || left.subjectCode.localeCompare(right.subjectCode),
+				// A2 c15: `gradeLevel` is nullable, so order unknowns last
+				// instead of coercing them to a grade.
+				(left.gradeLevel ?? Number.MAX_SAFE_INTEGER) - (right.gradeLevel ?? Number.MAX_SAFE_INTEGER) || left.sectionName.localeCompare(right.sectionName) || left.subjectCode.localeCompare(right.subjectCode),
 		),
 	};
 }

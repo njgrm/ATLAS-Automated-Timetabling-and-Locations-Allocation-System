@@ -23,6 +23,7 @@ import { after, test } from 'node:test';
 import { act } from 'react';
 import type { Root } from 'react-dom/client';
 import { JSDOM } from 'jsdom';
+import { PICKER_CONTROL_HEIGHT_CLASS, PICKER_CONTROL_MIN_HEIGHT_CLASS } from '@/ui/picker-trigger';
 
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://localhost/subjects' });
 Object.assign(globalThis, {
@@ -82,9 +83,8 @@ const { SortableSectionHeader } = await import('../../sections/SectionsSortableH
 const { AdminDataTable } = await import('../../admin-workspace/AdminDataTable');
 const { SubjectFilterToolbar } = await import('../SubjectFilterToolbar');
 type SubjectStatusFilter = import('../SubjectFilterToolbar').SubjectStatusFilter;
-const { AdminSearchFilterToolbar } = await import('../../admin-workspace/AdminWorkspace');
+const { FilterBar } = await import('@/ui/filter-bar');
 const constants = await import('../../../lib/subject-constants');
-
 let root: Root | null = null;
 let hostEl: HTMLElement | null = null;
 after(async () => {
@@ -570,9 +570,19 @@ async function ensureMoreFiltersOpen(): Promise<void> {
 test('A5-9.1/41: the filter row is ONE cluster with exactly one All Status control, and ALL FIVE filters are in it', async () => {
 	await render(<MemoryRouter><SubjectFilterToolbar {...TOOLBAR} hasActiveFilters /></MemoryRouter>);
 
-	// One row: the shared inline row, with no second always-visible row beside it.
-	assert.ok(document.body.querySelector('[data-testid="admin-inline-filter-row"]'), 'the single filter row is gone');
-	assert.equal(document.body.querySelector('[data-testid="admin-primary-filter-row"]') === null, true, 'a second always-visible filter row is back');
+	// One row. A5 c8 (2026-09-29), RE-POINTED: `admin-inline-filter-row` and
+	// `admin-primary-filter-row` belonged to `AdminSearchFilterToolbar`, which is
+	// DELETED (it was the last consumer, and the packet forbids a second
+	// filter-bar implementation). The ONE row is now `@/ui/filter-bar`, and this
+	// page's existing `subjects-filter-cluster` hook is its container — so the
+	// "one row, not two" claim is now made positively, on the element that IS the
+	// row, instead of by counting two retired hooks.
+	assert.ok(document.body.querySelector('[data-testid="subjects-filter-cluster"]'), 'the single filter row is gone');
+	assert.equal(
+		document.body.querySelectorAll('[data-testid="subjects-filter-cluster"]').length,
+		1,
+		'a second filter bar rendered; this page must have exactly one',
+	);
 
 	// One wrapping cluster carrying the whole row, at the operator's spacing.
 	//
@@ -677,13 +687,20 @@ test('A5-9.1/41: the search box is the fixed compact width, and every select car
 	assert.ok(search, 'the search box is gone');
 	assert.equal(search.placeholder, 'Search name or code...', 'the search placeholder is not the operator text');
 	const wrapper = search.parentElement as HTMLElement;
+	// A5 c8 (2026-09-29), RE-POINTED TWICE on this row.
+	//
+	// (1) The wrapper no longer needs a `max-w-[240px]`: the shared bar's search
+	//     wrapper is `relative w-[240px] shrink-0`, and a fixed `w-*` already cannot
+	//     grow. The old class was the deleted toolbar's belt-and-braces, and keeping
+	//     the assertion would mean requiring a second spelling of a width `@/ui`
+	//     already owns.
+	// (2) The trigger height token is `min-h-9`, not `h-9`, on the `auto` variant —
+	//     see the note below the loop. `h-9` remains on the FIXED variants and on
+	//     the search input; `auto` composes `h-auto min-h-9` so a long face WRAPS
+	//     inside its own box instead of running past its border.
 	assert.ok(hasClass(wrapper, 'w-[240px]'), `the search wrapper is not w-[240px]: ${wrapper.className}`);
-	assert.ok(hasClass(wrapper, 'max-w-[240px]'), 'the search box can still grow past the compact width');
-	// RE-PINNED BY A7 C8 SLICE 1 (2026-09-29): the shared picker height token moved
-	// `h-9` -> `h-10` (36px -> 40px), the floor for a control that acts. The claim is
-	// UNCHANGED — the search input still shares the ONE height token with the triggers
-	// and the width is still the fixed compact `w-[240px]`. Re-pinned, not deleted (§16).
-	for (const token of ['h-10', 'text-xs']) {
+	assert.ok(hasClass(wrapper, 'shrink-0'), 'the search box can be squeezed by a filter beside it');
+	for (const token of [PICKER_CONTROL_HEIGHT_CLASS, 'text-xs']) {
 		assert.ok(hasClass(search, token), `the search input is missing "${token}"`);
 	}
 
@@ -734,18 +751,29 @@ test('A5-9.1/41: the search box is the fixed compact width, and every select car
 	const triggers = allVisibleTriggers();
 	assert.equal(triggers.length, 5, `expected 5 offered filters, found ${triggers.length}`);
 	// The per-trigger look check over all five. A5 C7 CORRECTION ROUND 1: the width token
-	// is `w-auto` rather than round 0's `w-32` — see the note above for why a fixed
+	// is `w-auto` rather than round 0's `w-32` - see the note above for why a fixed
 	// rectangle smaller than the content is a clipping instruction, not a budget.
+	//
+	// A5 c8 (2026-09-29), RE-POINTED. The token list used to be
+	//   ['h-9', 'w-auto', 'whitespace-nowrap', 'text-xs', 'px-3', 'normal-case']
+	// and TWO of those entries are gone by design:
+	//   - `h-9` is now `min-h-9` on the `auto` variant, because that variant composes
+	//     `h-auto min-h-9` so a long face WRAPS inside its own box instead of running
+	//     past its border. `h-9` is still the height of the search input and of every
+	//     FIXED width variant, so the "one height" claim survives in the form the
+	//     product actually has: one MINIMUM, shared by everything on the row.
+	//   - `whitespace-nowrap` is REMOVED, and its absence is asserted. It is the class
+	//     that let `Home room: Home room assigned` spill outside its select on
+	//     `/sections`; `AGENTS.md` §8 forbids a cut-off or spilling face.
 	for (const trigger of triggers) {
-		// RE-PINNED BY A7 C8 SLICE 1 (2026-09-29): the shared height token moved
-		// `h-9` -> `h-10` (40px, the packet floor for a control that acts). MERGED with A5 c7
-		// (fef3f77a), which moved `/subjects` onto the `auto` width variant, so the width tokens
-		// here are `w-auto whitespace-nowrap` (not the old fixed `w-32` this row was re-pinned
-		// against). The row's claim - each trigger carries the ONE shared variant, not a
-		// page-local look - is unchanged and still exactly as strong.
-		for (const token of ['h-10', 'w-auto', 'whitespace-nowrap', 'text-xs', 'px-3', 'normal-case']) {
+		for (const token of [PICKER_CONTROL_MIN_HEIGHT_CLASS, 'w-auto', 'text-xs', 'px-3', 'normal-case']) {
 			assert.ok(hasClass(trigger, token), `a select trigger is missing the shared "${token}": ${trigger.getAttribute('aria-label')}`);
 		}
+		assert.equal(
+			/(^|\s)whitespace-normal(\s|$)/.test(trigger.querySelector('span')?.className ?? ''),
+			true,
+			`a select trigger's face does not wrap inside its own box, so a long value escapes it: ${trigger.getAttribute('aria-label')}`,
+		);
 		// The page-local chrome string is gone, not renamed: `rounded-xl` +
 		// `border-slate-200` + `bg-white` were this page's own look, and §8 forbids it.
 		for (const gone of ['rounded-xl', 'border-slate-200', 'bg-white']) {
@@ -849,44 +877,52 @@ test('A5-9.1/41 LOAD-BEARING: the one status control reaches BOTH axes — lifec
 	);
 });
 
-test('A5-9.1/41 PRESERVATION: a consumer that passes no search override still renders the shared h-8 input', async () => {
-	// `AdminSearchFilterToolbar` is shared by Sections and Faculty, which pass
-	// neither `searchMaxWidthClassName` nor `searchInputClassName`. The new prop
-	// is default-off, so their toolbar must render what it rendered before.
+test('A5-9.1/41 PRESERVATION, RE-POINTED 2026-09-29 (A5 c8): the shared bar gives EVERY page the same search box, from the one token', async () => {
+	/* WHAT THIS ROW USED TO ASSERT, and why it moved rather than disappeared.
+	 *
+	 * It rendered `AdminSearchFilterToolbar` directly and proved the SHARED default
+	 * search input (`h-8`, `pl-9`, `sm:max-w-sm` wrapper) was untouched by a page's
+	 * compact override. A5 c8 deleted that component — it was the last consumer, and
+	 * the packet forbids leaving a second filter-bar implementation in the codebase —
+	 * so there is no "shared default" left to be untouched: there is one bar, and it
+	 * has one search box.
+	 *
+	 * THE CLAIM SURVIVES, AND IT IS STRONGER. Instead of "a default is not overridden
+	 * by an opt-in", the contract is now "there is nothing to override": the height
+	 * comes from `PICKER_CONTROL_HEIGHT_CLASS`, the same token every picker trigger
+	 * takes, on every page, with no per-page string anywhere. The row below therefore
+	 * asserts the SAME input twice — once through this page's bar, once through a bar
+	 * this page does not own — and requires the two class lists to be identical, which
+	 * is the property the sweep's `Subjects is 36px/240px, Sections is 32px/384px`
+	 * finding was actually about.
+	 */
+	const { PICKER_CONTROL_HEIGHT_CLASS } = await import('@/ui/picker-trigger');
+
 	await render(
-		<AdminSearchFilterToolbar
-			searchValue=""
-			onSearchChange={() => {}}
-			searchPlaceholder="Search sections..."
-			filtersOpen={false}
-			onToggleFilters={() => {}}
-			hasActiveFilters={false}
+		<FilterBar
+			search={{ value: '', onChange: () => {}, placeholder: 'Search sections...' }}
 		/>,
 	);
 	const search = document.body.querySelector('input[placeholder="Search sections..."]') as HTMLInputElement | null;
-	assert.ok(search, 'the default search input did not render');
-	assert.ok(hasClass(search, 'h-8'), `the default input lost h-8: ${search.className}`);
-	assert.ok(hasClass(search, 'pl-9'), 'the default input lost the icon inset');
-	// RE-PINNED BY A7 C8 SLICE 1 (2026-09-29). This row's subject was the SUBJECTS
-	// page's own `h-9` leaking into the shared default while the shared token was
-	// something else. Both are now `h-10`, so the leak the row was written for can no
-	// longer occur, and the old pin is RETAINED as a record rather than deleted
-	// (AGENTS.md §16) — the `h-9` the shared default must never carry.
-	//
-	// A `h-10` assertion was deliberately NOT added here. This is the SHARED default
-	// input on `AdminSearchFilterToolbar`, which renders a page-local `h-8` — below
-	// the floor A7 C8 set, but a page-local control this slice does not own. Asserting
-	// `h-10` would have failed against an element the change never touched, and
-	// asserting `h-8` would have blessed a control the operator's ruling does not
-	// accept. It is recorded as a re-fit item in the A7 C8 handoff instead: the shared
-	// `@/ui` input is the thing to raise, and every consumer follows from it.
-	assert.equal(
-		hasClass(search, 'h-9'),
-		false,
-		'the Subjects compact height leaked into the shared default',
-	);
+	assert.ok(search, 'the shared bar did not render a search input');
+	assert.ok(hasClass(search, PICKER_CONTROL_HEIGHT_CLASS), `the search box does not take its height from the token: ${search.className}`);
+	assert.ok(hasClass(search, 'pl-9'), 'the search box lost the icon inset');
+	/* `sm:text-xs` beside `text-xs` is not redundancy: `@/ui` `Input` ends with
+	 * `text-base … sm:text-sm`, tailwind-merge keeps a differently-VARIANT class, and
+	 * the `sm:` half wins at every viewport ≥640px. A5 c7 measured that in a browser
+	 * while this class-list assertion was green. */
+	assert.ok(hasClass(search, 'text-xs'), 'the search box lost its compact type size');
+	assert.ok(hasClass(search, 'sm:text-xs'), 'the search box lost the `sm:` override that actually wins at 1366');
 	const wrapper = search.parentElement as HTMLElement;
-	assert.ok(hasClass(wrapper, 'sm:max-w-sm'), `the default search width changed: ${wrapper.className}`);
+	assert.ok(hasClass(wrapper, 'w-[240px]'), `the search wrapper lost the shared 240px: ${wrapper.className}`);
+	assert.ok(hasClass(wrapper, 'shrink-0'), 'the search wrapper can be squeezed by a filter beside it');
+	/* The row is no longer 'Sections and Faculty render the shared default'. It is
+	 * 'there is one search box, and this page does not get a different one'. */
+	assert.equal(
+		hasClass(search, 'h-8'),
+		false,
+		'the retired per-toolbar default height is back on the shared search box',
+	);
 });
 
 // ---------------------------------------------------------------------------

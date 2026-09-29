@@ -687,14 +687,64 @@ test('A5-C7-2i F2: all five pickers are the SHARED `@/ui` trigger, and no call s
 	//   - `filter-picker.tsx`: "A page names a `variant`; it never writes a width class."
 	// `auto` is the width every one of these five names.
 	const { pickerTriggerClass } = await import('@/ui/picker-trigger');
-	const variantTokens = pickerTriggerClass('auto').split(/\s+/).filter(Boolean);
+	/* A5 c8 (2026-09-29) — THE VARIANT IS READ AS IT RENDERS, NOT AS IT IS TYPED.
+	 *
+	 * `pickerTriggerClass('auto')` is a JOINED STRING, not a merged class: it contains
+	 * both `h-9` (the shared height token) and `h-auto` (the `auto` variant's growth),
+	 * and `cn`/tailwind-merge keeps the LAST of a family. So the rendered trigger
+	 * carries `h-auto` and NOT `h-9`, and a naive "is every token of the variant on
+	 * the element" assertion goes red on a trigger that is exactly right.
+	 *
+	 * That assertion is the one that decides "did the shared variant land, or did a
+	 * call site hand-write a look", so it must not be weakened — it is made MERGE-AWARE
+	 * instead: where the variant states two values in one family, only the surviving
+	 * (last) one is required on the element. A hand-written override still fails it,
+	 * because an override introduces a value the variant never stated.
+	 */
+	const LOOK_FAMILIES = [/^h-/, /^min-h-/, /^w-/, /^min-w-/, /^max-w-/, /^px-/, /^py-/, /^text-(?:xs|sm|base|lg|xl)$/, /^font-/, /^normal-case$/, /^tracking-/];
+	const allVariantTokens = pickerTriggerClass('auto').split(/\s+/).filter(Boolean);
+	const superseded = new Set(
+		allVariantTokens.filter((token, index) =>
+			LOOK_FAMILIES.some((family) => family.test(token))
+			&& allVariantTokens.slice(index + 1).some((later) => LOOK_FAMILIES.some((family) => family.test(token) && family.test(later))),
+		),
+	);
+	const variantTokens = allVariantTokens.filter((token) => !superseded.has(token));
+	// Sanity on the reduction itself, so it cannot quietly reduce to nothing and make
+	// the row vacuous: the shared token, the type treatment and the padding must all
+	// survive it.
+	//
+	// `A5-C8-B5b`, and the height entries are read from `@/ui` rather than typed here.
+	// A7 c8 moved the shared height token `h-9` -> `h-10` on `main`; a literal in this
+	// list would have turned the next legitimate move of that token into a red row that
+	// says nothing about the subject filters. The heights are therefore the two exported
+	// constants, whose agreement is `A5-C8-B5b`'s own subject.
+	const { PICKER_CONTROL_HEIGHT_CLASS, PICKER_CONTROL_MIN_HEIGHT_CLASS } = await import('@/ui/picker-trigger');
+	for (const required of ['text-xs', 'px-3', 'normal-case', 'font-normal', 'w-auto', 'min-w-32', 'max-w-[22rem]', PICKER_CONTROL_MIN_HEIGHT_CLASS]) {
+		assert.ok(variantTokens.includes(required), `the merge-aware reduction dropped the required shared token "${required}" and would make the rest of this row vacuous`);
+	}
+	// The composed class is a JOINED STRING, so BOTH height values are present even
+	// though tailwind-merge keeps only `h-auto` on the rendered element. Assert the
+	// pair here so a future token move that drops one of them is visible from this row
+	// too, not only from the `auto` variant's own gate.
+	assert.ok(
+		allVariantTokens.includes(PICKER_CONTROL_HEIGHT_CLASS),
+		`the auto variant no longer composes the shared height token ${PICKER_CONTROL_HEIGHT_CLASS}: ${allVariantTokens.join(' ')}`,
+	);
 
 	const seen = await interactiveSnapshot(toolbarFor(), async () => {}, () =>
-		clusterComboboxes().map((t) => ({ cls: t.className, label: t.getAttribute('aria-label') })),
+		clusterComboboxes().map((t) => ({
+			cls: t.className,
+			label: t.getAttribute('aria-label'),
+			// A5 c8: the LABEL SPAN is where the wrap decision is actually made, and
+			// `@/ui/button`'s base carries `whitespace-nowrap` on the button itself, so
+			// the button's class list cannot answer "does this face wrap?".
+			faceClass: t.querySelector('span')?.className ?? 'NO_FACE_SPAN',
+		})),
 	);
 	assert.equal(seen.length, 5, `expected 5 triggers in the row, found ${seen.length}`);
 
-	for (const { cls, label } of seen) {
+	for (const { cls, label, faceClass } of seen) {
 		const renderedTokens = cls.split(/\s+/).filter(Boolean);
 		// (1) THE VARIANT LANDED, IN FULL, on every picker.
 		for (const token of variantTokens) {
@@ -744,11 +794,37 @@ test('A5-C7-2i F2: all five pickers are the SHARED `@/ui` trigger, and no call s
 		// string."
 		const widths = renderedTokens.filter((t) => /^w-/.test(t));
 		assert.deepEqual(widths, ['w-auto'], `${label} declares ${JSON.stringify(widths)} rather than the shared \`w-auto\``);
-		// `whitespace-nowrap` rides with `auto` and is the other half of "not clipped":
-		// a content-sized trigger that can wrap mid-label reads as two facts.
+		/* A5 c8 (2026-09-29) — THIS HALF IS REVERSED, and it is the substantive
+		 * correction of the change rather than a restatement of it. The row used to be:
+		 *
+		 *   // `whitespace-nowrap` rides with `auto` and is the other half of "not clipped":
+		 *   // a content-sized trigger that can wrap mid-label reads as two facts.
+		 *   assert.ok(renderedTokens.includes('whitespace-nowrap'), …);
+		 *
+		 * `whitespace-nowrap` is what lets a face ESCAPE its own box, which is the
+		 * defect Lane C measured in the operator's own screenshot: "Home room: Home
+		 * room assigned spills outside its select". `AGENTS.md` §8 forbids a
+		 * cut-off OR a spilling face, and a trigger that grows a second line is not
+		 * "two facts" — it is a value a scheduler can finish reading.
+		 *
+		 * The wrap is asserted on the LABEL SPAN rather than on the trigger, because
+		 * `@ui/button`'s base class carries `whitespace-nowrap` and would otherwise
+		 * make this unassertable from the button's own list. That is also the honest
+		 * place to check: the span is what actually wraps.
+		 */
+		/* The TRIGGER's own width is bounded (`w-auto min-w-32 max-w-[22rem]`) rather
+		 * than neutral (`min-w-0`), because A5 c8 gave `auto` a floor so a short
+		 * filter cannot read narrower than the search box beside it. The shrink floor
+		 * the face needs lives on the LABEL SPAN, which is the flex child that has to
+		 * give way — asserting `min-w-0` on the button would be asserting a class
+		 * tailwind-merge deliberately discarded. */
 		assert.ok(
-			renderedTokens.includes('whitespace-nowrap'),
-			`${label} is content-sized but can wrap mid-label: "${cls}"`,
+			/(^|\s)min-w-32(\s|$)/.test(cls) && /(^|\s)max-w-\[22rem\](\s|$)/.test(cls),
+			`${label} is not bounded on both sides, so its face is either narrower than the search box or wider than the row: "${cls}"`,
+		);
+		assert.ok(
+			/(^|\s)whitespace-normal(\s|$)/.test(faceClass) && /(^|\s)min-w-0(\s|$)/.test(faceClass),
+			`${label} face cannot shrink and wrap inside its own box, so a long value will be cut or will spill. Face span: "${faceClass}"`,
 		);
 	}
 
@@ -1162,19 +1238,33 @@ test('A5-C7-2k: the row is ONE content-sized cluster: nothing fixed to overflow,
 
 	const host = await render(toolbarFor({ hasActiveFilters: true }));
 
-	// ONE cluster, and the shared row is still the single always-visible row.
+	// ONE cluster, and it IS the always-visible row.
+	//
+	// A5 c8 (2026-09-29), RE-POINTED. `admin-inline-filter-row` /
+	// `admin-primary-filter-row` / `admin-search-filter-toolbar` belonged to
+	// `AdminSearchFilterToolbar`, which is DELETED — it was the last consumer, and the
+	// packet forbids leaving a second filter-bar implementation in the codebase. The
+	// ONE row is now `@/ui/filter-bar`, and this page's existing `subjects-filter-cluster`
+	// hook sits on its container. So the three-way "one row, not two, not three"
+	// check below collapses to one assertion, and it is STRONGER: the cluster and the
+	// row must be the same element, so a second bar appearing anywhere on this page
+	// goes red here rather than being counted as an extra row.
 	const clusterEl = query(host, 'subjects-filter-cluster');
 	assert.ok(clusterEl, 'the wrapping cluster is gone');
 	assert.equal(
-		query(host, 'admin-inline-filter-row') === null,
-		false,
-		'the shared inline row is gone, so the filters left the row that is always visible',
+		clusterEl.className.includes('flex-wrap'),
+		true,
+		'the shared row is gone, so the filters left the row that is always visible',
 	);
 	assert.equal(
-		query(host, 'admin-primary-filter-row') === null,
+		clusterEl.querySelector('[data-testid="subjects-filter-cluster"]') === null,
 		true,
-		'a SECOND always-visible filter row rendered; the header is one row, not two',
+		'a SECOND filter bar rendered inside the row; the header is one row, not two',
 	);
+	// The retired hooks, on record (`AGENTS.md` §16) rather than deleted:
+	//
+	//   assert.equal(query(host, 'admin-inline-filter-row') === null, false, '…');
+	//   assert.equal(query(host, 'admin-primary-filter-row') === null, true, '…');
 
 	// (1) ALL FIVE ARE CONTENT-SIZED, so none of them can clip a face. Read from the
 	// rendered class list, so an edit that puts one back on a fixed rectangle is
@@ -1202,7 +1292,14 @@ test('A5-C7-2k: the row is ONE content-sized cluster: nothing fixed to overflow,
 	// other four fixed terms are measured below.
 	const searchWrapper = document.body.querySelector('input[placeholder="Search name or code..."]')!.parentElement!;
 	assert.match(searchWrapper.className, /w-\[240px\]/, 'the search box is not the fixed compact width the row depends on');
-	assert.match(searchWrapper.className, /max-w-\[240px\]/, 'the search box can still grow past the compact width');
+	/* A5 c8 (2026-09-29), RE-POINTED. The old assertion required `max-w-[240px]`,
+	 * which came from the deleted shared toolbar's own class list. `@/ui/filter-bar`
+	 * states the width ONCE, as `w-[240px] shrink-0`; a fixed `w-*` with `shrink-0`
+	 * already cannot grow or be squeezed, so requiring a second spelling of the same
+	 * number would mean requiring a page to restate a token `@/ui` owns. The old
+	 * expectation is on record (`AGENTS.md` §16):
+	 *   assert.match(searchWrapper.className, /max-w-\[240px\]/, 'the search box can still grow past the compact width'); */
+	assert.match(searchWrapper.className, /shrink-0/, 'the search box can be squeezed by a filter beside it');
 
 	// `Reset` is in the cluster while a filter is set. Its width is content too, but
 	// it is measured from its rendered label so the FIXED part of the row is a number
@@ -1254,11 +1351,17 @@ test('A5-C7-2k: the row is ONE content-sized cluster: nothing fixed to overflow,
 	// MEASURED browser result; the wrap is the behaviour that promise rests on when
 	// the state is wider than one line.
 	assert.ok(clusterEl.className.includes('flex-wrap'), 'the cluster does not wrap, so a narrow viewport overflows instead');
-	assert.ok(clusterEl.className.includes('min-w-0'), 'the cluster cannot shrink, so it overflows instead of wrapping');
+	/* A5 c8: the `min-w-0` half is RETIRED with the wrapper it belonged to. The old
+	 * shared toolbar had a `min-w-0 flex-1` children wrapper so the cluster could
+	 * shrink; the shared bar has no wrapper — it is one `flex flex-wrap items-center
+	 * gap-2` row with `[&>*]:shrink-0` on every child, so a filter keeps its own face
+	 * and the ROW wraps. The property this row protects (the controls never overflow
+	 * the page sideways) is asserted by the wrap above and by the absence of any
+	 * overflow class below. The old expectation, on record:
+	 *   assert.ok(clusterEl.className.includes('min-w-0'), 'the cluster cannot shrink, so it overflows instead of wrapping'); */
 	// No horizontal escape hatch anywhere: the row wraps or it fits, it never scrolls
 	// sideways and it never hides a filter behind a scroller.
-	const toolbar = query(host, 'admin-search-filter-toolbar')!;
-	for (const [name, el] of [['the row', query(host, 'admin-inline-filter-row')!], ['the cluster', clusterEl], ['the toolbar', toolbar]] as const) {
+	for (const [name, el] of [['the row', clusterEl]] as const) {
 		assert.equal(
 			/h-\[|max-h-\[|overflow-y-auto|overflow-auto|overflow-x-auto|overflow-scroll/.test(el.className),
 			false,

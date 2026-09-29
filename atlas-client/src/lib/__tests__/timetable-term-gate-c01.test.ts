@@ -163,7 +163,7 @@ test('D1 after a fast unverified read the timetable requests exactly one verifyU
 		params?.verifyUpstream === 'true' ? verifiedContextPayload() : unverifiedContextPayload()
 	);
 
-	const resolution = await resolveTimetableTermAuthority(101, () => false);
+	const resolution = await resolveTimetableTermAuthority(101, { isStillCurrent: () => true });
 
 	assert.ok(resolution, 'resolution must be returned for a current actor school');
 	assert.equal(resolution.authorityReady, true, 'authority resolves verified after the D1 call');
@@ -205,7 +205,7 @@ test('D1 a failed verification keeps the fast-read state so the load can fall ba
 		return unverifiedContextPayload();
 	};
 
-	const resolution = await resolveTimetableTermAuthority(103, () => false);
+	const resolution = await resolveTimetableTermAuthority(103, { isStillCurrent: () => true });
 
 	assert.ok(resolution, 'a failed verification must not reject the bootstrap');
 	assert.equal(resolution.authorityReady, false, 'authority stays unresolved');
@@ -217,7 +217,7 @@ test('D1 a late actor-school response is discarded without binding', async () =>
 	invalidateActiveSchoolYearContext(104);
 	runtimeContextResponder = async () => unverifiedContextPayload();
 
-	const resolution = await resolveTimetableTermAuthority(104, () => true);
+	const resolution = await resolveTimetableTermAuthority(104, { isStillCurrent: () => false });
 
 	assert.equal(resolution, null, 'an obsolete actor school must not resolve');
 	assert.equal(

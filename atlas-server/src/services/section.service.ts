@@ -8,6 +8,7 @@ import { getDataContext } from '../lib/data-context.js';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { resolveRuntimeContext } from './runtime-context.service.js';
 import { sectionAdapter, type SectionSummary, type SectionFetchResult } from './section-adapter.js';
+import { gradeNumberOf } from './grade-level-resolver.js';
 
 const db = () => getDataContext();
 
@@ -590,7 +591,7 @@ export async function applySpecialProgramPlacementOverlay(
 	schoolId: number,
 	schoolYearId: number,
 ): Promise<SpecialProgramPlacementResult> {
-	const sections = await db().sectionMirror.findMany({
+	const unsortedSections = await db().sectionMirror.findMany({
 		where: {
 			schoolId,
 			schoolYearId,
@@ -602,11 +603,27 @@ export async function applySpecialProgramPlacementOverlay(
 			externalId: true,
 			name: true,
 			gradeLevelId: true,
+			gradeLevelName: true,
+			displayOrder: true,
 			programType: true,
 			homeRoomId: true,
 			buildingZoneId: true,
 		},
-		orderBy: [{ gradeLevelId: 'asc' }, { programType: 'asc' }, { name: 'asc' }],
+		orderBy: [{ programType: 'asc' }, { name: 'asc' }],
+	});
+
+	// A2 c15 (B2): this query used to `orderBy: [{ gradeLevelId: 'asc' }]`, i.e.
+	// process sections in the EnrollPro internal id order. That id is an opaque
+	// FK that re-mints on every wipe (1..4 for Grades 7..10 since 2026-09-28), so
+	// it is not a grade and the ordering it implied was incidental. A Prisma
+	// `orderBy` cannot express the resolved grade, so the grade ordering is
+	// applied here in memory through the ONE authority. Unresolvable grades sort
+	// last rather than as grade 0. `programType` and `name` keep their previous
+	// precedence as the secondary keys.
+	const sections = unsortedSections.sort((a, b) => {
+		const gradeA = gradeNumberOf(a) ?? Number.MAX_SAFE_INTEGER;
+		const gradeB = gradeNumberOf(b) ?? Number.MAX_SAFE_INTEGER;
+		return gradeA - gradeB;
 	});
 
 	const missingHomeRoomBefore = sections.filter((section) => section.homeRoomId == null).length;

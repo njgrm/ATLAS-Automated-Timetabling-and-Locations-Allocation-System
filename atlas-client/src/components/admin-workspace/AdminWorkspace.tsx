@@ -1,11 +1,8 @@
-import { Children } from 'react';
 import type { ReactNode } from 'react';
-import { AlertTriangle, CheckCircle2, Info, MoreHorizontal, Search, SlidersHorizontal } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Info, MoreHorizontal } from 'lucide-react';
 
-import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card } from '@/ui/card';
-import { Input } from '@/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -191,16 +188,27 @@ export function AdminWorkspaceFrame({
 				actions={
 					<>
 						{primaryActions}
-						<SmartHelpTrigger
-							title={`How to use ${title}`}
-							description={description}
-							steps={[
-								{ title: 'Check source status', body: 'Confirm whether ATLAS is using live source data or a saved setup copy.', target: 'Source chip' },
-								{ title: 'Review the first issue', body: 'Use the visible list or table to find the first row needing attention.', target: 'Setup list' },
-								{ title: 'Use one action first', body: 'Press the primary row action before opening advanced details.', target: 'Primary action' },
-								{ title: 'Narrow long lists', body: 'Use the filter controls in the toolbar above the list. On pages where the toolbar has a "More filters" button, the narrower lookups sit behind it.', target: 'More filters' },
-							]}
-						/>
+							{/* A5 c8 (2026-09-29) — THE `Narrow long lists` STEP IS GONE, and this
+							    comment is where its reasoning is kept.
+
+							    It read: *"Use the filter controls in the toolbar above the list. On
+							    pages where the toolbar has a `More filters` button, the narrower
+							    lookups sit behind it."* Every one of those buttons is deleted —
+							    `AdminSearchFilterToolbar` itself is gone from this file, and every
+							    list page now renders `@/ui/filter-bar`'s one wrapping row — so
+							    the step instructed a scheduler to hunt for a control that no
+							    longer exists anywhere in the product. A help step that points at
+							    nothing is worse than no help step, and the surviving three steps
+							    are the ones a first-time visitor actually performs. */}
+							<SmartHelpTrigger
+								title={`How to use ${title}`}
+								description={description}
+								steps={[
+									{ title: 'Check source status', body: 'Confirm whether ATLAS is using live source data or a saved setup copy.', target: 'Source chip' },
+									{ title: 'Review the first issue', body: 'Use the visible list or table to find the first row needing attention.', target: 'Setup list' },
+									{ title: 'Use one action first', body: 'Press the primary row action before opening advanced details.', target: 'Primary action' },
+								]}
+							/>
 						{secondaryActions ? (
 							<Popover>
 								<PopoverTrigger asChild>
@@ -229,131 +237,6 @@ export function AdminWorkspaceFrame({
 				</div>
 			) : null}
 			{children}
-		</div>
-	);
-}
-
-export function AdminSearchFilterToolbar({
-	searchValue,
-	onSearchChange,
-	searchPlaceholder,
-	filtersOpen,
-	onToggleFilters,
-	hasActiveFilters,
-	primaryFilterCount,
-	primaryFilterLayout,
-	searchMaxWidthClassName,
-	searchInputClassName,
-	children,
-}: {
-	searchValue: string;
-	onSearchChange: (value: string) => void;
-	searchPlaceholder: string;
-	filtersOpen: boolean;
-	onToggleFilters: () => void;
-	hasActiveFilters: boolean;
-	/**
-	 * A3-15 (additive, default-off): how many leading `children` are PRIMARY
-	 * filters that stay directly visible instead of collapsing behind the
-	 * "More filters" disclosure.
-	 *
-	 * Omitted / undefined behaves as 0, which is byte-for-byte the previous
-	 * contract: every child renders only when `filtersOpen` is true, inside the
-	 * same bordered disclosure row, and the disclosure button is unchanged.
-	 * Consumers that do not opt in (the Sections page, and every page that
-	 * renders this toolbar without the prop) keep today's collapse behaviour.
-	 */
-	primaryFilterCount?: number;
-	/**
-	 * A3-C9 (additive, default-off): WHERE the always-visible primary filters
-	 * sit.
-	 *
-	 * - `'own-row'` (the default, and what an omitted prop means): today's
-	 *   separate `admin-primary-filter-row` BELOW the search row.
-	 * - `'inline'`: inside the SAME flex row as the search input, so the whole
-	 *   toolbar is one row of controls.
-	 *
-	 * This does not change who opts in, how many children are primary, or the
-	 * disclosure's behaviour — only the placement. Every existing consumer
-	 * omits it and is byte-for-byte unchanged; the two sibling pages measured
-	 * at authoring time (`src/pages/Sections.tsx`, `src/pages/Faculty.tsx`)
-	 * never pass `primaryFilterCount` either, so they keep the full collapse.
-	 */
-	primaryFilterLayout?: 'own-row' | 'inline';
-	/**
-	 * A3-C9 (additive, default-off): the width class on the search wrapper.
-	 * Defaults to `sm:max-w-sm`, so an omitted prop renders the pre-existing
-	 * width exactly. An `inline` consumer with a wide filter set needs a narrower
-	 * search box to keep the single row inside 1366px.
-	 */
-	searchMaxWidthClassName?: string;
-	/**
-	 * A5 (additive, default-off): the size classes on the search INPUT itself.
-	 * Defaults to `'h-8 pl-9'`, which is what an omitted prop renders, so
-	 * `Sections` and `Faculty` — the only other consumers, and neither of which
-	 * passes it — are unchanged.
-	 *
-	 * It is separate from `searchMaxWidthClassName` because a compact filter row
-	 * (operator items 9.1 / 41: `h-9 text-xs` beside `h-9 text-xs` selects) needs
-	 * the input to match its neighbours' height, and widening a shared input's
-	 * default would change every other page's toolbar. Merged after the base
-	 * classes with `cn`, so a caller's value wins.
-	 */
-	searchInputClassName?: string;
-	children?: ReactNode;
-}) {
-	// A3-15: split the children into the always-visible primary group and the
-	// overflow that keeps the pre-existing disclosure. Clamped so a caller
-	// cannot address past the end of the list.
-	const childList = Children.toArray(children);
-	const primaryCount = Math.min(Math.max(primaryFilterCount ?? 0, 0), childList.length);
-	const primaryChildren = childList.slice(0, primaryCount);
-	const overflowChildren = childList.slice(primaryCount);
-	// A3-C9: default-off. Resolved once so the branch below cannot disagree
-	// with the data attribute a control reads.
-	const layout = primaryFilterLayout ?? 'own-row';
-	const inline = layout === 'inline';
-	return (
-		<div className="space-y-1.5" data-testid="admin-search-filter-toolbar" data-primary-filter-layout={layout}>
-			<div className="flex gap-2 md:items-center md:justify-between">
-				<div className="flex min-w-0 flex-1 items-center gap-2">
-					<div className={cn('relative min-w-0 flex-1', searchMaxWidthClassName ?? 'sm:max-w-sm')}>
-						<Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-						<Input
-							placeholder={searchPlaceholder}
-							value={searchValue}
-							onChange={(event) => onSearchChange(event.target.value)}
-							className={cn('h-8 pl-9', searchInputClassName)}
-						/>
-					</div>
-					{/* A3-C9 inline layout. `flex-nowrap` + `min-w-0` on the children
-						wrapper is what makes "one row" a promise: a child that is too
-						wide shrinks or truncates inside its own width class instead
-						of pushing the toolbar onto a second row. The width budget is
-						verified by source-level arithmetic in the Subjects control,
-						not by this component. */}
-					{inline && primaryChildren.length > 0 ? (
-						<div className="flex min-w-0 flex-1 flex-nowrap items-center gap-2" data-testid="admin-inline-filter-row">
-							{primaryChildren}
-						</div>
-					) : null}
-					{overflowChildren.length > 0 ? (
-						<Button variant={filtersOpen ? 'secondary' : 'outline'} size="sm" className="h-8 shrink-0 gap-2 font-bold" onClick={onToggleFilters}>
-							<SlidersHorizontal className="size-4" />
-							More filters
-							{hasActiveFilters && <Badge className="ml-1 bg-primary text-primary-foreground">Active</Badge>}
-						</Button>
-					) : null}
-				</div>
-			</div>
-			{!inline && primaryChildren.length > 0 ? (
-				<div className="flex flex-wrap items-center gap-2" data-testid="admin-primary-filter-row">
-					{primaryChildren}
-				</div>
-			) : null}
-			{filtersOpen && overflowChildren.length > 0 ? (
-				<div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-1.5">{overflowChildren}</div>
-			) : null}
 		</div>
 	);
 }
