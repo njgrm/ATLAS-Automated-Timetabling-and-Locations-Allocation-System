@@ -487,8 +487,40 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
-- **— LIVE: `e75d6b8f5a430578c551e4177d7cc6f065db697c` @ DEPLOYED TO PRODUCTION 2026-09-29 15:25 +08 by Lane A4
-  (train 9) on Lane C GO. Rollback basis `3216d383` (the incumbent).**
+- **— LIVE: `cd54224522d44c39f8f3877134b08488541f415f` @ DEPLOYED TO PRODUCTION 2026-09-29 19:48 +08 by Lane A4
+  (train 10) on the operator's GO after Lane C's staging walk. Rollback basis `e75d6b8f` (the incumbent).**
+
+  | | |
+  |---|---|
+  | **LIVE** | **`cd54224522d44c39f8f3877134b08488541f415f`** |
+  | **Live dir** | `E:\ATLAS-worktrees\lane-a4-release-20260929-10prod`, branch `release/2026-09-29-10-prod`, HEAD == pin, `status --short` empty, 0 reparse points, own dependency trees (seeded from `-9prod` + `prisma generate`; server `tsc` 0, client `vite` 0 with `VITE_ENROLLPRO_URL`) |
+  | **Listeners** | 5001 → **49120**, 5174 → **47192** (were 20432 / 17156) |
+  | **Machine scope** | both runtime variables repointed to `-10prod` / `cd542245…`; task `ATLAS-Runtime-Supervisor` **Running**, action + Start In both `-10prod` |
+  | **Rollback basis** | **`e75d6b8f5a430578c551e4177d7cc6f065db697c`**, dir `E:\ATLAS-worktrees\lane-a4-release-20260929-9prod` @ HEAD == pin. One-step supervised reset. |
+  | **Scope** | 153 paths vs `e75d6b8f`, **0 `prisma/`** → no migration (11 before and after) |
+  | **Cutover** | `deploy-runner.ps1` dry run first (`mutates: false`, `secretsPrinted: false`, supervisor lineage verified, `Assert-LiveReleaseRecorded` **passed**), then `-Execute` → **`CUTOVER_STARTED`**. Audit `C:\ProgramData\ATLAS\release-audit\cd542245-20260929-194826\` |
+  | **Acceptance** | **DEPLOYED, all rows PASS.** Loopback + Tailnet health/ready **200** with DB-backed `GET /api/v1/subjects?schoolId=1` **200 (19 482 B)** · **zero write** — all 10 signature tables byte-identical before/after, baseline captured **before** the quiesce · **live-data invariant 1 active mirror, `2023-2024`** · **S-D1 non-vacuous** served `index.html` → `/assets/index-BdvkYd2N.js` **200 (307 649 B)**, old `/assets/index-GM9QISwG.js` **404** |
+  | **Data-portability fix** | the incumbent's **10 runtime campus uploads** (referenced by `schools.campus_image_url`) were copied into the new tree before the cutover; `/atlas-server/uploads/` is in `.git/info/exclude` so the target passes `Get-GitIdentity`'s clean gate. |
+  | **Evidence** | `docs/handoffs/lane-c-to-a2.md`, "A4 LIVE at `cd542245`" |
+
+  Supervisor log: `All targets healthy (liveness and dependency readiness)`, `DB connected, 2 school(s) found`,
+  `[rollover-automation] Disabled via ROLLOVER_AUTO_SYNC_ENABLED=false` — a restart cannot reach `applyRolloverSync`.
+
+- **— CUTOVER TARGET, recorded 2026-09-29 ahead of the cutover by Lane A4 (AGENTS.md §13 — a pin is a commit, not a
+  description). Required by `deploy-runner.ps1` `Assert-LiveReleaseRecorded`, which fails closed without it. Target
+  release `cd542245` (full `cd54224522d44c39f8f3877134b08488541f415f`), rollback basis `e75d6b8f` (full
+  `e75d6b8f5a430578c551e4177d7cc6f065db697c`, the incumbent).** Train 10, on the operator's GO after Lane C's staging
+  walk. Target tree `E:\ATLAS-worktrees\lane-a4-release-20260929-10prod`, branch `release/2026-09-29-10-prod`,
+  HEAD == pin, `status --short` empty, own dependency trees (seeded from `-9prod` + `prisma generate`; server
+  `tsc` 0, client `vite` 0 with `VITE_ENROLLPRO_URL`), live entry chunk `index-BdvkYd2N.js` which is NOT the
+  incumbent's `index-GM9QISwG.js`, and the incumbent's 10 runtime campus uploads copied in for data portability.
+  Train 10 = **153 paths** vs `e75d6b8f`, **0 `prisma/`** → no migration. Staging already served this exact pin;
+  staging leg recorded in `docs/handoffs/lane-c-to-a2.md`, "A4 STAGING at `cd542245`". **Superseded — the cutover
+  ran; see the LIVE row above.**
+
+- **— PREVIOUS LIVE (was): `e75d6b8f5a430578c551e4177d7cc6f065db697c` @ DEPLOYED TO PRODUCTION 2026-09-29 15:25 +08 by Lane A4
+  (train 9) on Lane C GO. Rollback basis `3216d383` (the incumbent).** Displaced by train 10; retained as the
+  **current rollback basis**.
 
   | | |
   |---|---|
@@ -5673,6 +5705,47 @@ created 5 `schools` rows "ROLLOVER-AUTOMATION DISPOSABLE PREMISE — SAFE TO DEL
 `atlas_staging` (backup `atlas-server-dotenv.before` there). Live and staging runtimes do not read that file (supervisor
 injects D:/ATLAS-runtime-config). Older residue kept: school 261 "C01R2 … Quarterly" (2026-09-12) on live and staging.
 
+## Lane A9 — c7 home-room picker, 2026-09-29 19:40 +08 (written only by Lane A9)
+
+**ON `main` at `7c2bc4b6` (candidate `fa57114c..1f377866`). 0 fixes live and seen / 2 fixes integrated and SEEN RENDERED
+on real staging data / 0 dropped. NOT deployed — A4 owns every release (§14).** Lane C packet
+`docs/prompts/fix-3-2026-09-29.md` item 46 + the binding 15:55 addendum; handoff
+`docs/handoffs/a9-c7-to-lane-c-20260929.md`; evidence `docs/reviews/a9-c7-home-room-picker-20260929/` (11 PNGs).
+`main` moved 84 commits during the cycle (train 10 cutover `cd542245`, A9 m1 packet) — **no overlap** on the sections
+paths; the merged product files are byte-identical to the reviewed candidate.
+
+- **Item 46 fixed on every row at 1366x768 and 1280x720.** Rows 1 / mid-panel open `side=bottom` at 396 / 248 / 224px
+  with 5 / 3 rooms on screen, clearing the header and `Sync sections`; every row's list viewport measures
+  `clientHeight < scrollHeight 5448`, so all 78 rooms are scrollable.
+- **The bottom-most row of a bottom-scrolled list opens UPWARD, deliberately.** Only 86px sit below it — exactly the
+  popover's 86px of chrome. Unfixed it opened with the room list at `clientHeight 0`: a search box, a footer and **no
+  rooms**. It now opens up at 192px with two rooms and covers nothing.
+- **The 15:55 addendum is honoured** — one outlined chevroned button per row, guided bulk step still primary, and the
+  row height **83px before and after an assignment** (measured on `Luna`).
+- **QA found what I missed, and it is visible in my own screenshot**: the restored control had pushed the table 35px
+  past its panel, `DETAILS` rendering as `DETA` and every row's "More actions" button outside the visible area. The table
+  now fits exactly at both widths (1070/1070, 984/984, overflow 0, kebab inside the panel).
+- **QA verdicts**: pass 1 `CORRECTION_REQUIRED` 6/8 (0px list, table overflow, two false measurements in comments);
+  pass 2 on the delta 5/6 with both BLOCKING findings **reproduced read-only in the browser and PASS**, the one failure
+  being three false comment statements, applied and verified by me as documentation-only (§11). Gates on the merged tree:
+  27/27, 42/42, 22/23, 17/17, 9/9 — the one red row is **pre-existing and blob-identical** at base and tip.
+- **Disclosures (2026-09-29):** (1) staging's home-room assignments were changed by this browser session, 1 of 20
+  assigned → 20 of 20, staging API `:5101` only and never live; the roster has since re-streamed on its own and no
+  manual restore was attempted after I noticed. (2) Choosing `Unassigned` issues **no request** — pre-existing, not this
+  range; route to the home-room write-path owner. (3) I **exceeded the two-round guidance** (3 corrections + 2
+  micro-rounds), each measured and each on Lane C's own proof rows, flagged rather than hidden.
+- **My own mistakes, recorded so they are not repeated:** my R2 "the list jumps to the top" was a Playwright auto-scroll
+  artefact, not a product defect; I **mislabelled two mid-panel rows as "the last visible row"**, which is why the bottom
+  of the list went unrendered until QA found it; and my own `max-h` instruction caused the clipped list — **a maximum is
+  not a height**, it leaves the flex container's height indefinite so the ScrollArea viewport never shrinks.
+- **Follow-ups, none blocking:** the status line repeats the button's label (packet-mandated — the C4 suites assert that
+  wording); the `Unassigned` no-write above; `/sections`' header is four rows over §8's budget; and
+  `docs/reference/ux-communication-rubric` does not exist although the directive cites it.
+- **Worktree** `E:/ATLAS-worktrees/lane-a9-c7-home-room` = `RETIRE_AFTER_INTEGRATION`, pushed and clean,
+  `node_modules` is a real directory, not a junction. Preview `:5262` (PID 2620) still running, mine to kill on request.
+- **Next action (single):** Lane C runs the deployed rows for `/sections` — three rows at 1366x768 and 1280x720, an
+  assign-and-clear from the row picker, and a before/after row height — once A4 ships a train containing `7c2bc4b6`.
+
 ## Lane A9 — TEACHING personnel only (written only by Lane A9)
 
 **`A9 ready for release at 98cc1e34`. 0 fixes live and seen / 1 integrated / 0 dropped. NOT deployed — A4 owns
@@ -5864,6 +5937,9 @@ DB-backed suggestion suites: `apply-parity` / `authority` / `authority-c03` **PA
   `requirePrivilegedRole`**, so any authenticated user can flip the blanket `canTeachOutsideDepartment` — which
   is strictly broader authority than the officer-only `subject-permissions` surface A6's switch sits beside.
   A one-line guard, but it is an **auth-boundary change and needs its own packet**; I did not touch it.
+- **2026-09-29 19:5x — CAPACITY, routed to A4: E: free is 24.55 GiB, BELOW the §3 25 GiB warn line** (D: 39.45).
+  Reclaim before the next release build; §3 says run it at the warning, not at the 15 GiB fail-closed line.
+  My own worktree is `PRESERVE_FOR_DECISION` and can be retired on A4's word once the candidate is in a train.
 
 **Next action (single):** A4 picks up the candidate for the next train and runs the **D-row browser proof** —
 the cover window itself is A6 c10's rendered evidence, not mine. Nothing else is owed by A8 c4.

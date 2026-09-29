@@ -36,3 +36,7 @@ menu, not just Teachers. Proof: Teachers row menu on a to-be-hired teacher at 13
 Proof: real staging data at 1366x768, screenshots of Profile for a real teacher and a to-be-hired teacher, Teachers roster,
 Teaching Load teacher view; `ux-audit.js` with the Profile open: 0 MAJOR; `npm run test:encoding` green. Commit and push wip
 every 30 min; handoff with before/after on-screen words per row.
+
+## Addendum 20:10 — A3 c17 row 7 (staging re-check)
+Review load dialog (`FacultyWorkloadModal.tsx`) does not resize: side-handle drags left it at 672 px (the right drag
+selected text). Profile and Subjects coverage do resize. Fix the Review load dialog so both handles work; prove by drag.

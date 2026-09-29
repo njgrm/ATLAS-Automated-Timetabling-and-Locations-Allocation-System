@@ -724,6 +724,33 @@
 }
 
 @layer utilities {
+	/* ─── A7 C9 (operator, 2026-09-29) — the badge pill's line box ───────────────
+	   WHY THIS IS A CLASS OF ITS OWN AND NOT `leading-none`.
+
+	   `badgeVariants()` already asked for `leading-none`, and it did not survive.
+	   `cn()` runs tailwind-merge, and in Tailwind v4 a `text-*` SIZE utility emits
+	   BOTH `font-size` and `line-height`, so twMerge classifies `text-xs` as
+	   conflicting with the `leading-*` group and deletes the primitive's
+	   `leading-none` the moment a consumer re-states a size. The pill is a fixed
+	   `h-5` with a 1px border and `py-0.5`, i.e. a 14px content box, so the 20px
+	   line height that comes back is cut: measured on staging at 1366x768,
+	   119 clipped chips across 11 pages, every one of them rendering through the
+	   shared `<Badge>` (the `Admin` role chip on all 11, 103 `Ready` chips on
+	   /map, `View only` on /teaching-load/history).
+
+	   twMerge never removes a class name it does not recognise, so a line height
+	   published under its own class name cannot be merged away. The selector is
+	   written TWICE on purpose: two class selectors is specificity (0,2,0), which
+	   beats every single-class utility Tailwind emits for `line-height`, so this
+	   wins by specificity and not by source order — an ordering-dependent fix would
+	   flip silently on the next Tailwind release. It is a unitless `1`, so the line
+	   box is exactly the font size (14px at `text-xs`) and the pill stays 20px tall:
+	   we re-fit the text into the existing box, we do not grow the box.
+	   ───────────────────────────────────────────────────────────────────────── */
+	.badge-line-box.badge-line-box {
+		line-height: 1;
+	}
+
 	.bg-app-surface {
 		background-color: transparent;
 	}
