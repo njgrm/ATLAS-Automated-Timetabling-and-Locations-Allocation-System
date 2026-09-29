@@ -228,7 +228,11 @@ test('S5b3 B3 one change, one destination on a history row', async () => {
 	// the class went.
 	const cleanSwap = {
 		...autoFixSwap,
-		afterPayload: { strategy: 'DIRECT_SWAP', ...autoFixSwap.afterPayload, entryA: autoFixSwap.beforePayload.entryA, entryB: autoFixSwap.beforePayload.entryB },
+		afterPayload: {
+			strategy: 'DIRECT_SWAP',
+			entryA: autoFixSwap.beforePayload.entryA,
+			entryB: autoFixSwap.beforePayload.entryB,
+		},
 	};
 	assert.ok(historyEditReceiptSentence(cleanSwap as never, () => 'TLE'), 'a clean exchange keeps its receipt');
 });

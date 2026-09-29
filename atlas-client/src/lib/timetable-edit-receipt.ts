@@ -155,7 +155,7 @@ export function receiptClassLabel(input: {
  * the preview carried no conflict the operator can be told about.
  */
 export function receiptProblemSentence(
-	conflicts: ReadonlyArray<{ code: string; severity: string; humanDetail: string }> | null | undefined,
+	conflicts: ReadonlyArray<{ code: string; severity: string; humanTitle?: string; humanDetail: string }> | null | undefined,
 ): string | null {
 	const all = conflicts ?? [];
 	const hard = all.find((conflict) => conflict.severity === 'HARD');
