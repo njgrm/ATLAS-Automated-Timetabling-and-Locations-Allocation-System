@@ -12,9 +12,38 @@ import { TimetableSubNav } from '@/components/timetable/TimetableSubNav';
  * A2 C13 (item 1) — how long the operator waits before the page offers a way out.
  *
  * Exported so a test asserts the VALUE and advances to it, rather than restating
- * "about 8 seconds" and hoping. "About 8 s" is the operator's number.
+ * "about 8 seconds" and hoping. "About 8 s" is the operator's number, and it is
+ * the PROMISE. It is not changed by A2 c14.
  */
 export const LOADING_RETRY_AFTER_MS = 8000;
+
+/**
+ * A2 c14 follow-up (item 2) — the lead, and why the promise needed one.
+ *
+ * Lane C's train-8 walk measured the page settling at 14.1 s and reported: *"no
+ * Retry was visible at the 8 s check"*. Codex was right, and the cause is not the
+ * diagnostic, not the gate, and not the copy.
+ *
+ * `state.loadAll()` is a real refetch that can be issued at ANY instant, so the
+ * control was never blocked on anything resolving — the C13 deferral is a
+ * deliberate "do not invite a pointless click at 0.2 s" choice, not a dependency,
+ * and it is kept below. What was wrong is the LANDING. The timer was armed at
+ * exactly `LOADING_RETRY_AFTER_MS`, so the state update fired at 8.000 s and
+ * still needed a render and a paint before anything was on screen. The control
+ * was therefore offered ON the promised instant, not BY it: an operator who
+ * looked at 8 s — the number they were given — saw nothing, and had to keep
+ * waiting for a second they were never promised.
+ *
+ * So the promise and the arming are separated. The offer is armed a lead early
+ * enough that the control is in the DOM and painted with real slack before the
+ * promised instant, which is what "about 8 seconds" has to mean for it to be
+ * true. Nothing was added to the band and no sentence changed: the same single
+ * sentence, the same one verb.
+ */
+export const LOADING_RETRY_LEAD_MS = 500;
+
+/** The instant the offer is ARMED. Strictly before the promise; asserted, not assumed. */
+export const LOADING_RETRY_ARM_AFTER_MS = LOADING_RETRY_AFTER_MS - LOADING_RETRY_LEAD_MS;
 
 /**
  * A2 C13 (item 1a) — the sentence, in full.
@@ -85,7 +114,10 @@ export function TimetableSkeleton({
 	const [offered, setOffered] = useState(false);
 
 	useEffect(() => {
-		const timer = window.setTimeout(() => setOffered(true), LOADING_RETRY_AFTER_MS);
+		// Armed at ARM, not at the promise: see `LOADING_RETRY_LEAD_MS`. The
+		// offered control must already be painted when the promised instant
+		// arrives, which a timer armed AT that instant cannot achieve.
+		const timer = window.setTimeout(() => setOffered(true), LOADING_RETRY_ARM_AFTER_MS);
 		return () => window.clearTimeout(timer);
 	}, [attempt]);
 

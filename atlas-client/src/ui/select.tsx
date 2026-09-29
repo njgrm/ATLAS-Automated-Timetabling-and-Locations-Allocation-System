@@ -31,6 +31,28 @@ import { cn } from '@/lib/utils';
 export const SELECT_TRIGGER_PICKER_CLASS =
 	'h-9 rounded-xl border border-border/60 bg-background px-2.5 text-xs transition-colors hover:bg-muted/40';
 
+/**
+ * §8 "One look per control", and now also one BEHAVIOUR for the same control — the
+ * ONE value that means "this picker is controlled and nothing is chosen yet".
+ *
+ * Radix reads `value={undefined}` as "be UNCONTROLLED", so a picker that passes
+ * `undefined` while its options are still loading mounts uncontrolled and becomes
+ * controlled when they arrive. React then warns — "Select is changing from
+ * uncontrolled to controlled. Components should not switch from controlled to
+ * uncontrolled (or vice versa). Decide between using a controlled or uncontrolled
+ * value for the lifetime of the component." — which is a real defect on every
+ * platform, not a nuisance to be suppressed. The empty string is the DEFINED
+ * "nothing chosen" value: the picker stays controlled for its whole lifetime and
+ * `SelectValue` renders its placeholder, so the control claims only what is true.
+ *
+ * It lives here, beside the primitive, for the reason the chrome constant does: two
+ * call sites had the same shape and must not grow two different workarounds. It is
+ * safe as a value because Radix REJECTS an empty-string `SelectItem`, so a blank
+ * item can never collide with it — the sentinel belongs on the control, never in
+ * the list.
+ */
+export const SELECT_NO_VALUE = '';
+
 const Select = SelectPrimitive.Root;
 const SelectGroup = SelectPrimitive.Group;
 const SelectValue = SelectPrimitive.Value;

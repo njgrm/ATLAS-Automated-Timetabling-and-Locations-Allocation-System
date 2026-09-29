@@ -57,6 +57,8 @@ const { MemoryRouter } = await import('react-router-dom');
 const {
 	TimetableSkeleton,
 	LOADING_RETRY_AFTER_MS,
+	LOADING_RETRY_ARM_AFTER_MS,
+	LOADING_RETRY_LEAD_MS,
 	LOADING_SENTENCE,
 	LOADING_RETRY_LABEL,
 	LAST_PUBLISHED_SCHEDULE_LABEL,
@@ -176,18 +178,58 @@ test('L1 the loading band reads exactly "Your schedule is still loading." and na
  * so `count(host, 'timetable-loading-retry')` is 0 at 8 s and this row fails on
  * the first assert, not on the reset.
  */
-test('L2 no Retry before the limit; exactly one at it; clicking re-runs the load and resets the timer', () => {
+/**
+ * L2 — nothing offered in the first second; the way out is already on screen BY
+ * the promised 8 s; exactly one control; clicking it re-runs the real load and
+ * resets the timer.
+ *
+ * RENAMED (A2 c14 R1, 2026-09-29). The old name was "no Retry before the limit;
+ * exactly one at it", and after the L2R supersession below the body asserts the
+ * OPPOSITE of the first clause: at 7.999 s — inside the limit, one millisecond
+ * before it — the control IS present. A test name that contradicts its own body
+ * is worse than a stale one, because a reviewer scanning the green list reads the
+ * name. The name now states what the row decides. The old name is retained here
+ * for the same reason the superseded assertions are:
+ *
+ *   'L2 no Retry before the limit; exactly one at it; clicking re-runs the load and resets the timer'
+ *
+ * The ANTI-MOTION claim is not gone, it is simply no longer true at 7.999 s — it
+ * is true at 1 s, which is where the control moved to, and that probe is kept.
+ */
+test('L2 nothing offered in the first second, the way out is on screen BY the promised 8 s, and clicking re-runs the load and resets the timer', () => {
 	clock.install();
 	let retries = 0;
 	const host = renderSkeleton({ onRetry: () => { retries += 1; } });
 
 	assert.equal(count(host, 'timetable-loading-retry'), 0, 'before the limit the band offers no control at all');
 
-	act(() => clock.advance(LOADING_RETRY_AFTER_MS - 1));
-	assert.equal(count(host, 'timetable-loading-retry'), 0, 'still nothing one millisecond before the limit');
+	// The anti-motion control, KEPT and unchanged in substance: a scheduler who
+	// glances at the page in the first second must not be invited to click Retry
+	// into a load that is still legitimately in flight. Probed at 1 s, which is
+	// inside the hidden window under both the old arm and the new one.
+	act(() => clock.advance(1000));
+	assert.equal(count(host, 'timetable-loading-retry'), 0, 'one second in, a still-loading page offers nothing to click');
+
+	// SUPERSEDED (A2 c14 follow-ups, 2026-09-29, authority: the Codex train-8
+	// walk MINOR row, "no Retry was visible at the 8 s check"). This probe
+	// demanded the control be ABSENT one millisecond before the promised 8 s,
+	// which is the pin that made the product promise untrue rather than fixing
+	// it: armed at exactly 8.000 s, the state update and its paint land AFTER the
+	// instant the operator was told to look, so the band offered its way out only
+	// once the promised second had passed. Original retained:
+	//
+	//   act(() => clock.advance(LOADING_RETRY_AFTER_MS - 1));
+	//   assert.equal(count(host, 'timetable-loading-retry'), 0, 'still nothing one millisecond before the limit');
+	//
+	// L2R (replacement) — the promise is the operator's number and it is now KEPT
+	// by it: inside the promised window the way out is already on screen. This
+	// is the row that fails on the old behaviour, at 7.999 s, where the old arm
+	// offered nothing and this asserts 1.
+	act(() => clock.advance(LOADING_RETRY_AFTER_MS - 1 - 1000));
+	assert.equal(count(host, 'timetable-loading-retry'), 1, 'BY the promised 8 s the way out is already on screen, not waiting for the instant to pass');
 
 	act(() => clock.advance(1));
-	assert.equal(count(host, 'timetable-loading-retry'), 1, 'exactly ONE Retry at the limit');
+	assert.equal(count(host, 'timetable-loading-retry'), 1, 'still exactly ONE Retry at the promised limit');
 	assert.equal(
 		byTestId(host, 'timetable-loading-retry')?.textContent,
 		LOADING_RETRY_LABEL,
@@ -228,5 +270,65 @@ test('L3 "Show the last published schedule" appears only with a published run, a
 	act(() => clock.advance(LOADING_RETRY_AFTER_MS));
 	assert.equal(count(withoutPublished, 'timetable-loading-last-published'), 0, 'NO published run means the control does not render AT ALL');
 	assert.equal(count(withoutPublished, 'timetable-loading-retry'), 1, 'and the primary Retry is still offered');
+	clock.restore();
+});
+
+/**
+ * L4 — the promise and the arming are separate, and the arming is EARLIER.
+ *
+ * This row exists because the fake clock cannot see the defect on its own: with
+ * `advance(8000)` a timer armed at 8000 fires and the control appears, so a
+ * naive "is it there at 8 s" probe passes against the broken product. What the
+ * walk actually hit is a PAINT race — the state update fired at 8.000 s and the
+ * control was not on screen until after the promised second had begun. So this
+ * row pins the relationship itself, and pins it in rendered DOM, rather than
+ * pretending a fake clock can observe a paint.
+ *
+ * MADE DISCRIMINATING (A2 c14 R1). QA's correction round caught that this row, as
+ * first written, passed on the old-arming mutant: it read the CONSTANTS and then
+ * advanced all the way to the promise, where the control is present under either
+ * arming. So it was a helper row, not a control, and it would have stayed green
+ * if the component had been reverted to `LOADING_RETRY_AFTER_MS` while the
+ * constants remained.
+ *
+ * The fix is the ARM-INSTANT probe below, which is what actually separates the
+ * two behaviours: the offer must be on screen AT `LOADING_RETRY_ARM_AFTER_MS`, not
+ * merely by the promise. Revert the component's timer to the promise and the
+ * control is still absent at 7.5 s, so this row fails. L2R remains the row that
+ * carries the operator-facing promise; L4 carries the mechanism.
+ */
+test('L4 the offer is armed before the promised instant, so the 8 s promise is kept', () => {
+	// The operator's number is the PROMISE and is not moved to make a row pass.
+	assert.equal(LOADING_RETRY_AFTER_MS, 8000, 'the stated wait is still the operator\'s 8 seconds');
+	assert.ok(LOADING_RETRY_LEAD_MS > 0, 'a lead exists: arming ON the promise cannot be painted in time');
+	assert.equal(
+		LOADING_RETRY_ARM_AFTER_MS,
+		LOADING_RETRY_AFTER_MS - LOADING_RETRY_LEAD_MS,
+		'the arming is the promise minus the lead, and is derived rather than a second literal',
+	);
+	assert.ok(LOADING_RETRY_ARM_AFTER_MS < LOADING_RETRY_AFTER_MS, 'the arming is STRICTLY before the promise');
+
+	clock.install();
+	const host = renderSkeleton({ onRetry: () => {} });
+
+	// THE DISCRIMINATING PROBE. One millisecond before the arming instant the
+	// control is absent; AT the arming instant it is present. Under the old arming
+	// — the timer set to the promise — nothing is on screen at 7.5 s, so this
+	// assertion fails there and passes only when the component really uses the
+	// arming constant. Advancing to the promise instead would pass either way,
+	// which is exactly the weakness QA found.
+	act(() => clock.advance(LOADING_RETRY_ARM_AFTER_MS - 1));
+	assert.equal(count(host, 'timetable-loading-retry'), 0, 'nothing one millisecond before the arming instant');
+	act(() => clock.advance(1));
+	assert.equal(count(host, 'timetable-loading-retry'), 1, 'the offer is on screen AT the arming instant, which is what the lead is for');
+
+	// …and it is still there at the promised instant, with the band otherwise
+	// unchanged: the lead moved the control, and nothing else.
+	act(() => clock.advance(LOADING_RETRY_AFTER_MS - LOADING_RETRY_ARM_AFTER_MS));
+	assert.equal(count(host, 'timetable-loading-retry'), 1, 'the way out is on screen by the promised instant');
+	assert.equal(count(host, 'timetable-loading-last-published'), 0, 'no published run still means no secondary, whatever the timing');
+	const sentence = byTestId(host, 'timetable-loading-sentence');
+	assert.equal(sentence?.textContent, LOADING_SENTENCE, 'the lead moved the CONTROL only; the sentence still claims nothing that has not arrived');
+	assert.doesNotMatch(sentence?.parentElement?.textContent ?? '', /latest run resolves|navigation is ready now/, 'the lead added no mechanism copy to the band');
 	clock.restore();
 });
