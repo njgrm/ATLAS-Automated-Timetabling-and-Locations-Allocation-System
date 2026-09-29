@@ -95,13 +95,19 @@ export const DEFAULT_SSE_HEARTBEAT_MS = 15_000;
  * (`useNotificationStream.ts:213-214`) opens 2 connections per authenticated
  * tab — the school-year stream plus the school stream, which is conditional on
  * `schoolEventsEnabled`. `OfficerPreferences.tsx:171` and
- * `OfficerRoomPreferences.tsx:118` each add 1, but they are separate routes, so
+ * `OfficerRoomPreferences.tsx:118` each add 1, but they are sibling routes, so
  * an officer has at most one of them mounted at a time: **3 per tab**, not 4.
  * Four tabs is therefore ~12, and 20 leaves headroom.
  *
  * Two honest limits of this cap, both NON_BLOCKING and both about the refusal
  * rather than the bound:
- *  - the key is per user, so this bounds one account, not a school's total;
+ *  - **20 is a per-key ceiling, not a per-account one.** The key is
+ *    `user:school:schoolYearId`, so one account streaming two different school
+ *    years, or a year-less school stream alongside a year stream, holds one
+ *    independent budget per key. QA measured 40 concurrent streams for a single
+ *    account (20 in `8500:1:1` plus 20 in the year-less `8500:1:0` bucket).
+ *    The account-wide bound is therefore ~20 x (number of distinct keys), and
+ *    the real client ceiling of 3 per tab still sits far below it;
  *  - a client refused here gets a 429, which a browser `EventSource` treats as
  *    fatal and will not retry. That is acceptable only because the cap is set
  *    far above any legitimate ceiling; lowering it turns a bounded resource
@@ -189,11 +195,14 @@ export class SseStreamRegistry {
 	}
 
 	/**
-	 * Live heartbeat timers — the per-tick background work this class exists to
-	 * bound: one timer per managed stream, and managed streams are capped per
-	 * principal. Counted at the point the interval is created and cleared, not
-	 * inferred from the admission map, so a timer that outlives its stream is
-	 * visible here.
+	 * Live heartbeat timers, for observability: one per managed stream, bounded
+	 * because managed streams are bounded per principal.
+	 *
+	 * This counter is NOT the proof that a timer cannot outlive its stream.
+	 * QA showed it survives reverting to `byId.size` with the suite still 10/10,
+	 * so a reader must not treat it as a control. The row that actually catches
+	 * a surviving timer is behavioural: the committed test asserts that no
+	 * further write reaches the response after teardown.
 	 */
 	get activeHeartbeatCount(): number {
 		return this.liveTimers;

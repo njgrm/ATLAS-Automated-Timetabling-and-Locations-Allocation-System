@@ -37,12 +37,15 @@ const SSE_ROUTES = [
 ] as const;
 
 /**
- * Comments are removed before any positional or literal check. Without this the
- * guard read its own explanatory comment — which names `flushHeaders()` above
- * the real call — and reported a correct route as wrongly ordered. A text
- * search cannot tell working code from a comment quoting it; that is the same
- * defect A7's QA caught in a different lane, and it is why the strip is part of
- * the guard rather than a comment on it.
+ * Comments are removed before any positional or literal check, so a comment that
+ * merely *names* a construct cannot be mistaken for a call to it.
+ *
+ * Scoped honestly, because the first version of this guard overclaimed: on the
+ * committed code, neutralising this strip alone leaves the suite 10/10, since no
+ * route comment currently contains the full `res.flushHeaders()` token. The strip
+ * is load-bearing for that class of edit — neutralising the strip AND adding such
+ * a comment turns the suite red — and QA confirmed that with its own M12c. So it
+ * is protection against a future comment, not a fix that is exercised today.
  */
 function stripComments(src: string): string {
 	return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
