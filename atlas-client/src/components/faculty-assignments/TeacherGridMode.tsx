@@ -452,15 +452,18 @@ export function TeacherGridMode({
 													
 												{/* Name, always visible, never collapsed behind initials. */}
 												<div className="flex-1 min-w-0">
-													<div className="flex items-center gap-2">
+													{/* Lane C train 12: the row wraps so the adviser line drops below a
+														long name instead of squeezing it into "FERNANDEZ, JANELLA ...". */}
+													<div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
 														{/* Fix 22: canonical `Last, First`; the CSS `uppercase` shout on a
 															Filipino given name is removed. Stored value unchanged. */}
-														<h4 className="text-sm font-semibold tracking-tight truncate">
+														<h4 className="text-sm font-semibold tracking-tight truncate max-w-full">
 															{formatFacultyDisplayName(member)}
 														</h4>
 														<AdviserSectionLine
 															isClassAdviser={member.isClassAdviser}
 															advisedSectionName={member.advisedSectionName}
+															className="shrink-0"
 														/>
 														{hasDraft && <Badge variant="secondary" className="h-4 px-1.5 text-xs font-semibold uppercase bg-sky-100 text-sky-700 animate-pulse">Draft</Badge>}
 													</div>
