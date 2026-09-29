@@ -103,3 +103,11 @@ Return the verdict, exact commit or blocker, and one next action. Include awaite
 roles, parallel boundaries, locked successors, or a handoff path only when they
 are non-empty or decision-relevant. Do not repeat evidence already pinned in the
 named artifact.
+
+**Real staging data in previews (2026-09-29).** Browser proof must use real staging data, not fixtures. Start the
+preview with `scripts/dev/start-preview.ps1` on a port in 5200–5299 (it points at the staging API `:5101`), then sign
+in on the preview's `/login` with the STAGING-ONLY QA login from `D:\ATLAS-runtime-config\atlas-staging-qa.env`
+(`ATLAS_STAGING_QA_IDENTIFIER` / `ATLAS_STAGING_QA_PASSWORD`). Read the file inside the tool call; never print,
+log, commit or echo the password. Use it only on 127.0.0.1/localhost preview origins backed by `:5101`; never on
+live (`:5001`, `:5174`, the Tailnet origin without `:8443`). If login fails, run
+`node scripts/dev/ensure-staging-qa-account.cjs` once (staging is re-streamed from live on each deploy).
