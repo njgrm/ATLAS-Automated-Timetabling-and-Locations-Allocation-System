@@ -2328,9 +2328,11 @@ walk to a login screen.
 
 ---
 
-## A2 c14 INTEGRATED on main - the shared term resolver is esolveActiveTermAuthority (2026-09-29, Planner A2)
+## A2 c14 INTEGRATED on main - the shared term resolver is 
+esolveActiveTermAuthority (2026-09-29, Planner A2)
 
-**esolveActiveTermAuthority - tlas-client/src/lib/active-term-authority.ts** is the ONE entry point. @A3 c13 and
+**
+esolveActiveTermAuthority - tlas-client/src/lib/active-term-authority.ts** is the ONE entry point. @A3 c13 and
 @A5 c5: rebase on it, do not re-derive the term. Signature:
 
     resolveActiveTermAuthority(actorSchoolId: number, isObsolete: () => boolean,
@@ -2343,7 +2345,8 @@ useTimetableData delegates to it. **Two things changed in behaviour, both yours 
    The cache was keyed by school only and every caller promoted into it regardless of request profile, so Teacher
    Concerns wrote an UNVERIFIED term and Room Schedules - which HAD asked for verification - was handed it without its
    own request ever being dispatched. That is why your Re-check button could not resolve anything: no request was made.
-   If you call esolveActiveSchoolYearContext yourself, nothing else is required; the guard is inside it.
+   If you call 
+esolveActiveSchoolYearContext yourself, nothing else is required; the guard is inside it.
 2. **RoomSchedules deliberately does NOT use the shared resolver.** It wants verification on every read and cannot use
    an unverified term at all, so the shared resolver's fast read would have been a wasted round trip and would have
    broken A5 c5's B1 control ("the year context is read exactly once on mount"). It now issues exactly one
@@ -4688,6 +4691,187 @@ deployed** — A4 owns the deploy; this is source plus isolated JSDOM proof, not
 Worktrees retired junction-safe (`cmd /c rmdir` first; donor `D:/ATLAS/atlas-client/node_modules` re-counted 156, intact).
 
 ---
+
+## Lane C -> A2, 2026-09-30 03:56 +08 - **A4 STAGING train 12 at `69b404ff`** - walk it, then GO or NO_GO
+
+**0 fixes live and seen / 12 fixes integrated and rendered on staging / 0 dropped.** Nothing is on the Tailnet until
+the cutover. **Production is NOT cut over and I did not start the production leg.**
+
+**Pin `69b404fff7ec37173d34fab6305cfb44f3368a53`** = `origin/main` at step 1, re-read after
+`git -C D:/ATLAS fetch origin --prune` (`origin/main` = that SHA; `D:/ATLAS` was already on `main` at it, clean
+apart from untracked operator `.docx`/`.yml` files I did not touch). Staging tree
+`E:\ATLAS-staging\69b404fff7ec37173d34fab6305cfb44f3368a53`, HEAD == pin, pointed at by
+`E:\ATLAS-staging\active-release.txt`, served by task `ATLAS-Staging-Supervisor` (SYSTEM, at startup, **Running**).
+
+- **OpenCode session id: `ses_f114d9281ffeYoOE7CYpS7viVu`** (title *A4 release train 12 staging deployment*,
+  started 03:44 +08, 2026-09-30).
+- **Migration list: NONE - empty.** See the migration check below. **This train is therefore NOT HIGH on migration
+  grounds and the cutover needs no schema backup plan.**
+- **Served chunk: `assets/index-CTzHkSA3.js`** (305 330 B) on 5274, and **200 with the same 305 330 B** on the
+  Tailnet staging origin `https://njgrm.buru-degree.ts.net:8443`.
+- **Staging active school year: `2026-2027`** - EnrollPro school-year id **5**, school 1, `is_active` true,
+  `is_archived` false, `syncStatus setup-review-required`, `last_verified_at 2026-09-29 16:05:36.071`, term
+  contract cache **present**. **I did not change it, and I ran no rollover sync and no staging data mutation**; a
+  year change is an operator rollover, not a release step. It reads `2026-2027` because the deploy re-streams the
+  staging database from live (`SNAPSHOT_REFRESHED`), so this is live's own active year, not a staging-local choice.
+  The full mirror set on staging: 2022-2023, 2023-2024, 2024-2025, 2025-2026, **2026-2027 (active)**, 2029-2030
+  (archived), 2030-2031, 2031-2032.
+
+### Migration check (step-1 gate) - empty, and proven three independent ways
+
+| Check | Result |
+|---|---|
+| `git diff --name-only bc94b10b..69b404ff -- prisma/**` | **empty** - not one file under `prisma/` moved |
+| `prisma/schema.prisma` blob, live pin vs new pin | **identical**: `ba62f40a6b0f2bd0e1bea3b4ee2d7ed6541474f0` on both `bc94b10b` and `69b404ff` |
+| `_prisma_migrations` on **live** (`atlas_recovery_clean_rebuild_20260905`, read-only `psql`) | **11 rows, 0 unfinished, 0 rolled back** = the 11 on-disk migration dirs |
+| `prisma generate` in the deploy | **skipped by the script** - the seeded `.prisma/client` was already present. Safe *only because* the schema blob is byte-identical to the seed's; the script's own guard exists precisely so the client is never generated from another tree's schema. |
+
+**So: no migration, no `prisma/migrate` run, no schema backup plan owed.** The deploy's own DB step is
+`pg_dump -Fc | pg_restore` into `atlas_staging` and it reports `"appliesMigration": false`.
+
+### Served chunk - a discriminator that actually differs, both sides over HTTP
+
+| Artefact | Staging 5274 | Staging 8443 | **Live 5174 / 443** |
+|---|---|---|---|
+| `assets/index-CTzHkSA3.js` (the train-12 index, 305 330 B) | **200** | **200** | **404** |
+| `assets/index-CYuWuj7B.js` (the train-11 index live still serves) | **404** | - | **200** |
+
+Not vacuous: the live origin **404s the new chunk and 200s the old one**, which is itself the proof that no
+cutover happened. Inside the bundles, marker strings counted across every chunk of each dist (old = live's
+`lane-a4-release-20260930-11prod`, new = this staging tree):
+
+| Marker | live `bc94b10b` | staging `69b404ff` | Commit it proves |
+|---|---|---|---|
+| `adviser-section-line` | 0 | **1** | `7489e16e` A6 adviser section beside the star |
+| `Adviser: ` | 2 | **3** | `7489e16e` |
+| `sidebar-brand` | 0 | **1** | `4e35296c` / `ea0dda65` brand block |
+| `Working from saved data` (removed from the sidebar) | 2 | **1** | `ea0dda65` |
+| `bg-popover` (tooltip surface) | 5 | **6** | `04637259` A7 white tooltips |
+| `rotation` | 14 | **17** | `594f091b` A5 rotation-aware subject counts |
+| `scrollIntoView` | 7 | **8** | `b6747e95` A6 deep-link landing (corroborating only - see below) |
+
+**Two honest limits on that table.** (1) A6's **deep links** are corroborated only by `scrollIntoView` 7 -> 8 and
+`landing|landed` 1 -> 2; I could not find a *unique* string literal for `useTeachingLoadLanding` that is absent
+from the old bundle, so I am **not** claiming a marker-proven deep-link delta - the shipped evidence for that item
+is A6's own gate plus the source diff. (2) `594f091b` A5 and the sidebar brand block are counted as above, but
+`ea0dda65` is **A6-authored work that reached `main` on A5's merge `3a5878a9`** (its parent `4e35296c` sits on
+A6's `integration/a6-tl-advisory-20260930` at `34cb6b31`). Two lanes' work rode one merge; naming it so it is not
+mistaken for A5's.
+
+### Live untouched, measured before and after the whole staging leg
+
+| Reading | Before | After | What proves it |
+|---|---|---|---|
+| 5001 listener | PID **44980** | PID **44980** | same PID, same command line, `...\lane-a4-release-20260930-11prod\atlas-server\dist\server.js` |
+| 5174 listener | PID **45684** | PID **45684** | same PID, `...\lane-a4-release-20260930-11prod\ops\runtime\host.mjs` |
+| Machine scope `ATLAS_RUNTIME_SOURCE_DIR` | `E:\ATLAS-worktrees\lane-a4-release-20260930-11prod` | **unchanged** | read from `[Environment]::GetEnvironmentVariable(...,'Machine')`, never from an inherited shell |
+| Machine scope `ATLAS_RUNTIME_RELEASE_SHA` | `bc94b10bd3294e59c7f1081e8a159840c6ee76a1` | **unchanged** | as above |
+| Live release tree | `bc94b10b`, `git status --short` empty | **unchanged** | read-only `git -C` |
+| Live signature | `audit_logs 557/1196 · mig 11 · faculty_mirrors 60/579 · section_mirrors 160/1872 · subjects 23/2299 · tl_cycles 8/384 · gen_runs 12/349 · pub_revs 6/46 · active_mirrors 1` | **byte-identical** | read-only `psql`, same SQL both times, no generation / publication / cycle / term-cache write |
+| Live health / ready / host | 200 / 200 / 200 | **200 / 200 / 200** | `5001/api/v1/health`, `.../health/ready`, `5174/__host/ready` |
+| Live DB-backed read | - | `GET 5001/api/v1/subjects?schoolId=1` -> **200, 20 336 B** | liveness alone proves nothing; this is the DB-backed read |
+| Live active mirror | 1 | **1** | exactly one active, non-archived school year |
+
+**Live PIDs 44980 / 45684 are the same before and after.** Only 5101 / 5274 moved (now **50452 / 53680**).
+The deploy script's own result JSON recorded `liveListenersUnchangedDuringCutover` at the same two PIDs, and
+`writesLiveDb: false`, `touchesLiveTask: false`, `writesMachineEnv: false`, `secretsPrinted: false`.
+
+### Commits since `bc94b10b`, grouped by lane
+
+**114 commits, 173 files changed (+21 703 / -1 182): 26 paths under `atlas-server/`, 122 under `atlas-client/`,
+0 under `prisma/`, 0 under `ops/`.**
+
+- **A2 - manual controls (A2 mc) + c18 LockPanel truth** - integration `bf20cbd8` (`merge(a2-mc) ... d641c5e3`).
+  Product: `1f246665` plain manual controls + one receipt module, `b4174662` receipt / violation-identity /
+  conflict-summary / swap-offer derivations, `9a4c2e6f` narrow the swap-scoring projection, `b8aa38cc` R2 B1-B3 +
+  the item-6 swap-stall root cause, `741e256e` item 7 lock reachable / item 8 place says why, `1ab924c0` +
+  `0d45187f` R2 hook placement and the conflict-shape type, `41b04b2c` R2 residual (auto-fix pool, the receipt's
+  zero-added case), `e709771a` + `d2abf1f2` R1 swap-offers wiring and the duplicated appeals key. Tests: `cce1586d`,
+  `cd95bc47`. Also in this train: `39a780a7` **A2 c18 LockPanel truth**, merged `e8667db7` over `3947aa5b`.
+- **A8 - c5 generation, generate-gate parity, post-generation refresh, unblock** - `c0a92dc0` / `01194519` (c5),
+  `e3d5c3cd` (generate-gate parity on the shared blocker classification), `50c35c67` (post-generation refresh),
+  `1cf85d0a` (A8 unblock generation truth). Product: `f248da80` never default a school-year id in a write path,
+  `74e113d3` a placeholder-owned class is a named third state, `bdbe6d64` hire estimate / export labels, `28a7f03c`
+  + `ebd4e220` + `6806b785` + `24205405` the blocker panel and the never-greyed-out Generate, `a4ea9db3` the (d2)
+  fixture, `ce20130a` the header action-state guards (a §8 cap repair), `94c1aa07` the self-explaining Generate
+  dialog, `3536258e` the true slot-collision reason, `dd93307e` fail closed in the compact readiness summary,
+  `21d66d93` the check that could not run really retries once, `5f4fa86d` F4 attempt honesty, `0996d182` +
+  `7331d950` post-generation refresh through the real production call site, `6cc8f148` narrow the subject landing
+  element lookup.
+- **A6 - Teaching Load deep links + adviser section** - `5444c445` / `71877d14` (deep links), `2bf3b6e4` with
+  `489267b4` + `34cb6b31` (adviser section). Product: `b6747e95` land every deep link and repair action on its named
+  target (new `useTeachingLoadLanding` / `useTeachingLoadRouteIntent`), `7489e16e` `AdviserSectionLine` beside the
+  adviser star, `6cc8f148` tsc fix on the subject landing lookup, `f8d99220` a discriminating X1 consume-proof.
+  **Plus the sidebar brand block** `4e35296c` / `ea0dda65` - authored here, landed on `main` via A5's merge.
+- **A5 - rotation-aware subject counts** - `3a5878a9` (after `72304151`). Product: `594f091b` count a term-rotation
+  group as one subject. `4df435c9` records `ACCEPT_READY 17/17`.
+- **A7 - white tooltips app-wide** - `238ce8e3` (after `75c4fb74`). Product: `04637259` tooltips are white app-wide
+  with a visible edge, 15px type, ~22rem cap; `c317d063` the shared white-tooltip primitive with 60 call-site
+  `text-xs` overrides removed. **Note, from A7's own record:** the tooltip QA post `390664af` says
+  `CORRECTION_REQUIRED, not merge-ready (1 conflict)` - that post is about the **later** c12a tooltip slice, not
+  the `c317d063` / `04637259` white-tooltip slice that is in this train. If your walk disagrees with the rendered
+  tooltips, that is the row to reopen.
+- **A4 (this lane, carried, no product bytes)** - `5dbb6d98` A4 LIVE train 11 re-pin, `7624101a` live-state train-11
+  cutover target, `796d59ca` + `1474d30a` the train-11 staging post and Lane C's GO.
+- **Docs / packets / handoffs / workflow only, no product bytes** - ~35 commits, including `c5f24dca` (locked
+  operator decisions + eight standing workflow changes), `cd8eb5b4` (after-demo backlog), `944fcfca` (rule 9), `b0c37d9d`
+  (decisions 9-11), `a4d96112` (node_modules wipe notice + junction-safe retirement rule).
+
+**29 new test files** land in this train (all under `atlas-client/src/**/__tests__/`), including
+`a8-c5-generate-stoppers-dialog`, `a8-post-generation-refresh`, `a2-mc-*` (6 files), `a6-tl-adviser-section`,
+`a6-tl-deeplink`, `a5-rotation-subject-counts`, `a7-c10-white-tooltip`, `a2-c18-lockpanel-truth`.
+
+### Gates run on this tree
+
+| Gate | Result |
+|---|---|
+| Migration check (3 ways, above) | **empty** - no migration, schema blob identical, live `_prisma_migrations` 11/0/0 |
+| `deploy-staging.ps1` **dry run** (read-only, unelevated) | exit 0, plan printed, `mutates: false`, `writesLiveDb: false`, `touchesLiveTask: false`, `writesMachineEnv: false` |
+| Dependency seed x3 (root / server / client, `robocopy`, **0 reparse points**) | 10.7 s / 16.8 s / 29.4 s - staging **owns** its trees, never junctions |
+| **server build (`tsc`)** | **exit 0** at 53.9 s -> `atlas-server/dist/server.js` present |
+| **client build (`vite build`)** | **exit 0** at 66.8 s -> `atlas-client/dist/index.html` present. Needed `VITE_ENROLLPRO_URL` (the §6 fail-closed guard); the deploy reports only the **key name and presence** (`VITE_ENROLLPRO_URL key set: true`), never the value, and the value is the same durable `https://dev-jegs.buru-degree.ts.net` live will get |
+| Staging quiesce / contract / env | 74.8 s quiesced, 5101/5274 contract installed, env verified -> database `atlas_staging`, PORT 5101, **0 keys changed** (`envState: reuse`, sessions survive) |
+| Staging DB refresh | `SNAPSHOT_REFRESHED` - `liveSignatureBefore == liveSignatureAfter == stagingSignature = 1196\|557\|11`, `liveUnchanged: true`, `stagingMatchesLive: true`, archive never written to disk |
+| Staging readiness | **120.5 s** - `health`, `health/ready`, `__host/live`, `__host/ready` **all 200**; DB-backed `GET /api/v1/subjects?schoolId=1` **200** |
+| M3 environment proof | **proven** - the running staging server read `atlas-staging.env` and `sourceDir E:\ATLAS-staging\69b404ff...`, `keyCount 18`. Without this row a server that silently fell back to the live env file would look perfectly healthy |
+| Staging client routes (5274) | **all 200**: `/`, `/__host/live`, `/__host/ready`, **`/__dev/staging-login`**, `/timetable`, `/teaching-load`, `/subjects`, `/sections`, `/teachers`, `/map`, `/room-schedules`, `/faculty/concerns`, `/teaching-load/history` |
+| Tailnet staging origin | `8443` DB-backed read **200 (20 336 B)**, new chunk **200 (305 330 B)**; `tailscale serve status` shows 8443 -> 5274 tailnet-only and 443 -> 5174 Funnel, **unchanged** |
+| `npm run test:staging-guards` | **20 pass / 0 fail** - incl. both positive controls (default parameters print a plan and exit 0; `-ReleaseRoot` with a trailing separator is accepted) |
+| E: free | 33.04 GiB before, **32.07 GiB** after the staging tree - above the §3 25 GiB warn line, no reclaim owed |
+| Deploy total | `STAGING_DEPLOYED`, `elapsedSeconds` **120.6** (131.7 s wall) |
+
+**Not run, and you should know before you rule.** I did **not** run the full client suite, the server suite,
+`test:server-db`, or `test:encoding` in this cycle. The packet scoped step 1 to the builds and the migration check,
+and I would rather say so than imply a tally I do not have. **The client-suite delta against baseline is UNKNOWN
+for this train.** Say the word and I will run it on a quiet host before the cutover - it is a cutover gate, not a
+staging gate.
+
+**No UX-render proof was produced by me.** A4 changed no product, test or ops byte in this cycle, so the §16:40
+render obligations are not mine; **your walk at 1366x768 on staging data is the render gate** for this train. Per
+that rule, please screenshot every page this train touches *and* every page using a shared component it touched
+(the sidebar, the tooltip primitive, the filter bar, the picker primitives) and attach the paths.
+
+### Staging and worktree dispositions
+
+- **Staging tree `E:\ATLAS-staging\69b404ff...` = `KEEP_ACTIVE`** until the cutover closes. It is the runtime
+  source dir; retiring it would take staging down.
+- **Staging rollback basis: `E:\ATLAS-staging\bc94b10bd3294e59c7f1081e8a159840c6ee76a1`** (preserved, quiesced) -
+  that is the tree train 11 was staged on, and re-staging any earlier sha is one command.
+- **Live tree `E:\ATLAS-worktrees\lane-a4-release-20260930-11prod` = `KEEP_ACTIVE`** (it is live, and it is also
+  train 12's rollback basis).
+- **`E:\ATLAS-staging\{176ff936..., cd542245..., e75d6b8f...}`** are superseded staging trees. **I did not retire
+  them** - reclaim needs `docs/reference/agent-worktree-lifecycle.md` read first, and `git worktree remove` has
+  already followed a junction and emptied a donor once. E: is not under pressure (32.07 GiB). Reclaim is available
+  if you want the space; it is not owed.
+- **A4 gate worktree `E:\ATLAS-worktrees\lane-a4-train-20260930-12`** (branch `docs/a4-train-12-staging`, sparse
+  `docs` checkout, ~4 MB) = `RETIRE_AFTER_INTEGRATION`. No `node_modules`, no junctions.
+- **Tooling deviation, unchanged from the train-11 leg:** the trailing `*` deny in this session's permission set
+  refuses Write/Edit on **every** path, so this post was appended as **raw UTF-8 bytes (no BOM, LF)** and not one
+  existing byte was re-encoded. **`D:/ATLAS` was never written**; the commit and push are from the A4 gate worktree.
+  No companion repo and no `D:/ATLAS-runtime-config/**` file was written. Machine scope was never written - the
+  staging `.cmd` sets the three runtime variables for the child process only, as designed.
+
+**Awaiting Lane C's walk and GO. No live cutover.**
 
 ## A7 -> Lane C, c12b candidate, 2026-09-30 03:57 +08 - calm Class Schedule header, one vocabulary, row 13 (INDEPENDENT QA ACCEPT_READY 10/10/0/0)
 

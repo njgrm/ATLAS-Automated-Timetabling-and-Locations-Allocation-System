@@ -7,6 +7,46 @@ changes.
 Last reconciled: 2026-09-26 (Lane A — fresh session; capacity, live-release identity, cross-lane debt and the
 credential incident re-derived. See the dated correction blocks in the Lane A section).
 
+## Lane A4 — release lane, 2026-09-30 03:56 +08 (train 12 UP AT STAGING; train 11 remains the live release)
+
+- **STAGING IS UP at `69b404ff` (train 12).** Loopback `http://127.0.0.1:5274`, Tailnet
+  `https://njgrm.buru-degree.ts.net:8443` (API 5101). Release dir
+  `E:\ATLAS-staging\69b404fff7ec37173d34fab6305cfb44f3368a53`, HEAD == pin, owns its dependency trees
+  (0 reparse points). `STAGING_DEPLOYED` in **120.6 s**; DB re-streamed from live (`SNAPSHOT_REFRESHED`,
+  `liveSignatureBefore == liveSignatureAfter == stagingSignature = 1196|557|11`, `liveUnchanged: true`).
+  Served chunk `assets/index-CTzHkSA3.js` (305 330 B) on 5274 and on 8443; the live origin **404s** it.
+  **114 commits / 173 paths** since `bc94b10b`; **0 `prisma/`**, **0 `ops/`**.
+- **MIGRATION LIST: NONE - empty.** `prisma/**` unchanged across the range; `schema.prisma` blob
+  `ba62f40a…` identical on both pins; live `_prisma_migrations` **11 / 0 unfinished / 0 rolled back**. **Not HIGH
+  on migration grounds; no schema backup plan owed for the cutover.**
+- **GATE: PASS.** Dry run `mutates:false` · dep seed 3/3 · **server `tsc` exit 0** · **client `vite` exit 0**
+  (`VITE_ENROLLPRO_URL key set: true`, value never printed) · staging env **0 keys changed** (`reuse`) · readiness
+  120.5 s all four 200 + DB-backed `subjects?schoolId=1` 200 · **M3 proven** (server read `atlas-staging.env` and
+  the staging `sourceDir`, `keyCount 18`) · `test:staging-guards` **20/20** · all 13 client routes 200 including
+  `/__dev/staging-login`. **Not run: client/server suites, `test:server-db`, `test:encoding`** — the client-suite
+  delta for this train is **UNKNOWN** and is a cutover gate, not a staging gate. **No UX render proof by A4**
+  (A4 changed no product byte); Lane C's 1366x768 walk is the render gate.
+- **LIVE UNTOUCHED, measured before and after (2026-09-30 03:44–03:56 +08).** 5001 -> PID **44980**, 5174 -> PID
+  **45684**, same PIDs and command lines throughout; machine scope still `-11prod` / `bc94b10b`; live tree clean at
+  `bc94b10b`; live signature **byte-identical** (`audit_logs 557/1196 · mig 11 · faculty_mirrors 60/579 ·
+  section_mirrors 160/1872 · subjects 23/2299 · tl_cycles 8/384 · gen_runs 12/349 · pub_revs 6/46`); live health /
+  ready / host 200; DB-backed read 200 (20 336 B); exactly 1 active mirror. Only 5101/5274 moved (50452 / 53680).
+- **Staging active school year: `2026-2027`** (EnrollPro id 5, `syncStatus setup-review-required`, term cache
+  present). **A4 did not change it and ran no rollover sync** — a year change is an operator rollover, not a
+  release step.
+- **Routed, not fixed here (A4 edits no product/ops code):** the sidebar **brand block is A6-authored work that
+  reached `main` on A5's merge `3a5878a9`** — two lanes on one merge, named so it is not read as A5's. A6's
+  **deep links** have no unique marker string absent from the old bundle, so their shipped proof is A6's own gate
+  plus the source diff, not a bundle delta.
+- **Worktrees:** staging `E:\ATLAS-staging\69b404ff…` = `KEEP_ACTIVE`; staging rollback basis
+  `E:\ATLAS-staging\bc94b10b…` = `KEEP_ACTIVE`; live `lane-a4-release-20260930-11prod` = `KEEP_ACTIVE` (live **and**
+  train 12's rollback basis); `lane-a4-train-20260930-12` (`docs/a4-train-12-staging`, sparse docs) =
+  `RETIRE_AFTER_INTEGRATION`; the three superseded staging trees were **not** retired — E: is at 32.07 GiB, so
+  reclaim is available but **not owed**.
+- **Next action (single):** Lane C runs the 1366x768 walk on staging at `69b404ff` and posts **GO** in
+  `docs/handoffs/lane-c-to-a2.md`. **A4 stops here — no live cutover.** Full record: that file, "A4 STAGING
+  train 12 at `69b404ff`".
+
 ## Lane A3 — current lane (written only by Planner A3)
 
 - **Stream:** c17 **Teachers profile grouping / hours / to-be-hired identity** — **INTEGRATED on `main` at
