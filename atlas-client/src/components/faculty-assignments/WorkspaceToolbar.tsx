@@ -886,7 +886,8 @@ export function WorkspaceToolbar({
 					 * clause — `A6-C2-3` and `a6-tl-header-budget` `A6c4-G2-1` read
 					 * this surface for the cause, and none of them needed to change.
 					 */
-					<Tooltip>
+					<>
+						<Tooltip>
 						<TooltipTrigger asChild>
 							<span
 								data-testid="teaching-load-degraded-notice"
@@ -901,6 +902,26 @@ export function WorkspaceToolbar({
 							{degradedDetail}
 						</TooltipContent>
 					</Tooltip>
+					/*
+					 * A6 c7 — THE LINE IS NOT REPLACED BY THE PILL, IT SITS BESIDE IT.
+					 *
+					 * This branch used to be `degradedLead ? pill : hasShortageLine ?
+					 * line : sentence`, which is the SAME conflation as c5's
+					 * `isLive` one level up: a source-freshness surface won the slot
+					 * and the shortage claim disappeared, so staging (whose source was
+					 * `cached`) showed the pill and nothing else. The pill is
+					 * `bg-warning-muted` and the line is `bg-background` with a neutral
+					 * border, so carrying both leaves c4's G2.1 ratchet at exactly ONE
+					 * filled amber surface — which `A6C7-3` measures, with the line
+					 * present, rather than asserting it.
+					 *
+					 * The pill is still the single place that says the roster is the
+					 * last saved one, and it is not reworded; the line adds the
+					 * subjects, the figures and the one action, and qualifies itself
+					 * in the cover control's tooltip.
+					 */
+					{hasShortageLine && shortageLineSlot}
+					</>
 				) : hasShortageLine ? (
 					/* A6 c5: the page's shortage line IS the status claim, so neither
 					 * the `% staffed` sentence nor the alert clause is printed beside

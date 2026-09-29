@@ -42,8 +42,14 @@ export function TeachingLoadOutageSurface({
 	onShowCoverageDetail,
 	children = null,
 }: TeachingLoadOutageSurfaceProps) {
-	const { cover, shortageLine, shortage, primarySubject, isLive } = outage;
-	if (!isLive) return <>{children}</>;
+	const { cover, shortageLine, shortage, primarySubject, figuresVerified, hasShortageToShow } = outage;
+	// A6 c7: the surface renders whenever classes lack a teacher. The `isLive`
+	// gate that used to stand here conflated "is this snapshot confirmed?" with
+	// "is there something to show?", and a `cached` source therefore suppressed
+	// the line, the button and the dialog on staging. Freshness QUALIFIES the
+	// claim now (the cover tooltip says the preview is computed from the last
+	// saved roster and re-checked at apply); it no longer hides it.
+	if (!hasShortageToShow) return <>{children}</>;
 
 	return (
 		<>
@@ -51,6 +57,7 @@ export function TeachingLoadOutageSurface({
 				line={shortageLine}
 				totalShortClasses={shortage.totalShortClasses}
 				primarySubject={primarySubject}
+				figuresVerified={figuresVerified}
 				writeBlockedReason={writeBlockedReason}
 				onCover={cover.openFor}
 				onShowCoverageDetail={onShowCoverageDetail}

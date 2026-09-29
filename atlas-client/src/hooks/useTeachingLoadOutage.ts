@@ -33,14 +33,40 @@
  * anywhere: A9 removes non-teaching personnel at fetch, so the roster reaching
  * this hook already excludes them.
  *
- * THE `isLive` GATE IS THE SUBTLE PART. A shortage is only CLAIMED when the
- * source is verified. While ATLAS is checking EnrollPro or cannot reach it, the
- * ownership index describes the last saved snapshot, and the header's amber
- * degraded line already withholds every derived figure. Printing a live-sounding
- * shortage sentence beside that amber line would be the "two claims, one fact"
- * defect in its worst form — and `isTeachingLoadSourceDegraded` is the SAME
- * predicate the header and the repair queue already share, so there is one
- * answer to "are these figures confirmed?" rather than three.
+ * A6 c7 — THE GATE THAT WAS TWO QUESTIONS, SPLIT BACK IN TWO.
+ *
+ * A6 c5 exported ONE name, `isLive`, and it answered both "are these figures
+ * CONFIRMED?" and "should this surface RENDER?". Conflating them is what put
+ * c5's whole surface on the floor in staging: Lane C's Codex walk of train 7
+ * (`docs/reviews/codex-staging-train7-e9ddda71/report.md`, MAJOR line 24) saw
+ * only the generic `25 classes still need a real teacher.` — no per-subject line,
+ * no `Cover these classes` — because staging's source was `cached`, so a
+ * SOURCE-FRESHNESS predicate answered a VISIBILITY question. A scheduler whose
+ * roster is the saved one is precisely the scheduler who most needs to be told
+ * which classes have no teacher.
+ *
+ * The two questions are now two names, and neither pretends to be the other:
+ *
+ *  - `figuresVerified` — `!isTeachingLoadSourceDegraded({...})`, the predicate
+ *    UNCHANGED. It is still the one answer to "are these figures confirmed?", and
+ *    the header, the repair queue and this hook still share it.
+ *  - `hasShortageToShow` — `shortageLine.visible.length > 0`. The claim is
+ *    renderable whenever classes lack a teacher, from the saved roster as much as
+ *    from the live one.
+ *
+ * WHERE THE SAFETY WENT, and why this is not a regression. c5's gate was
+ * protecting a real property — a cover plan computed from a stale snapshot must
+ * not be applied to a changed one — and that property is NOT restored by hiding
+ * the button. It is restored by `CoverShortageDialog`'s existing `drift` re-check
+ * at apply time, which the server performs against the live snapshot and which
+ * already 409s with the changed classes named. Hiding the button protected
+ * nothing that the drift check does not protect, and cost a scheduler the only
+ * attributable figure on the screen. Honesty is preserved by QUALIFYING the
+ * action in its own tooltip, not by removing it.
+ *
+ * `isLive` no longer exists as a name, in either branch: a name that said "live"
+ * on a surface that deliberately renders from the last saved roster would lie,
+ * and the name is how the two questions got fused in the first place.
  */
 import { useMemo } from 'react';
 
@@ -121,11 +147,17 @@ export function useTeachingLoadOutage(params: UseTeachingLoadOutageParams) {
 		[params.fetchedAt, shortage.entries, shortage.totalShortClasses],
 	);
 
-	const isLive = !isTeachingLoadSourceDegraded({
+	// A6 c7: TWO questions, TWO names. `figuresVerified` is the unchanged
+	// freshness predicate and is still the shared answer to "are these figures
+	// confirmed?". `hasShortageToShow` is the separate answer to "is there
+	// something a scheduler needs to be told?" — and a saved roster is still a
+	// roster, so it does not make the answer go away.
+	const figuresVerified = !isTeachingLoadSourceDegraded({
 		dataSource: params.dataSource,
 		isOnline: params.isOnline,
 		dataSourceNotice: params.degradedNotice,
-	}) && shortageLine.visible.length > 0;
+	});
+	const hasShortageToShow = shortageLine.visible.length > 0;
 
 	const cover = useCoverShortage({
 		schoolId: params.schoolId,
@@ -139,8 +171,10 @@ export function useTeachingLoadOutage(params: UseTeachingLoadOutageParams) {
 		staffingFigures,
 		shortage,
 		shortageLine,
-		/** Whether row 2 should CLAIM the shortage rather than withhold it. */
-		isLive,
+		/** Whether the source is CONFIRMED. Qualifies the claim; never gates it. */
+		figuresVerified,
+		/** Whether classes lack a teacher — the only question that shows the line. */
+		hasShortageToShow,
 		/** The subject the cover dialog opens on: the worst, by class count. */
 		primarySubject: shortage.entries[0] ?? null,
 		cover,

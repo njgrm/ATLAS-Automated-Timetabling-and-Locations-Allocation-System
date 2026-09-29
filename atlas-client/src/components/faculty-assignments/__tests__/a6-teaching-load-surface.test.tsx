@@ -2596,6 +2596,11 @@ function RealFacultyQueueHost(props: {
 	sourceState: { dataSource: 'live' | 'cached' | 'refreshing' | 'none'; isOnline: boolean };
 	activeItemId: string;
 	coverageUnassigned?: number;
+	/** A6 c7 §1.4: the built items, so a row can assert a title and a status
+	 *  SEPARATELY. The chip renders them as two unaddressable spans, and the
+	 *  superseded prefix assertions need the two claims apart rather than
+	 *  matched out of one concatenated `textContent`. */
+	onItems?: (items: Array<{ id: string; title: string; status: string }>) => void;
 }) {
 	const queue = useTeachingLoadRepairQueue({
 		searchParams: new URLSearchParams(),
@@ -2619,6 +2624,7 @@ function RealFacultyQueueHost(props: {
 		onShowPlaceholder: () => {},
 		onOpenReview: () => {},
 	});
+	props.onItems?.(queue.repairQueueItems as never);
 	return createElement(TeachingLoadRepairQueue as any, {
 		items: queue.repairQueueItems,
 		// Focused by id so EVERY row can be read from the real component, not
@@ -2645,11 +2651,13 @@ test('A6-C3-3-N2 the withholding is PER ITEM: a department survives, every figur
 	assert.ok(queue, 'the real queue must render');
 
 	/** Re-render the same real queue focused on one item, and read that row. */
-	function rowFor(itemId: string): { text: string; actionLabel: string | null; disabled: boolean } {
+	function rowFor(itemId: string): { text: string; actionLabel: string | null; disabled: boolean; title: string; status: string } {
+		let built: Array<{ id: string; title: string; status: string }> = [];
 		const host = render(createElement(RealFacultyQueueHost as any, {
 			sourceState: STATE,
 			activeItemId: itemId,
 			coverageUnassigned: 2,
+			onItems: (items: Array<{ id: string; title: string; status: string }>) => { built = items; },
 		}));
 		const chip = host.querySelector('[data-testid="teaching-load-current-repair"]');
 		assert.ok(chip, `${itemId}: the item must still be in the queue, not dropped`);
@@ -2660,7 +2668,18 @@ test('A6-C3-3-N2 the withholding is PER ITEM: a department survives, every figur
 		);
 		const button = host.querySelector('[data-testid="teaching-load-repair-review"]') as HTMLButtonElement;
 		assert.ok(button, `${itemId}: the row must keep its ONE action \u2014 a withheld row must never be a dead row`);
-		return { text: chip!.textContent ?? '', actionLabel: button.getAttribute('aria-label'), disabled: button.disabled };
+		const kind = chip!.getAttribute('data-repair-kind')!;
+		// The `activeItemId` this row was focused on IS the item the hook built
+		// (`missing-load`, `teacher-missing-11`, `over-cap-12`).
+		const item = built.find((row) => row.id === itemId);
+		assert.ok(item, `${itemId}: the item must be one the hook actually built`);
+		return {
+			text: chip!.textContent ?? '',
+			actionLabel: button.getAttribute('aria-label'),
+			disabled: button.disabled,
+			title: item!.title,
+			status: item!.status,
+		};
 	}
 
 	// (1) `teacher-missing-load` KEEPS its department. It is a label on a record
@@ -2677,21 +2696,50 @@ test('A6-C3-3-N2 the withholding is PER ITEM: a department survives, every figur
 		/Unverified/,
 		'and it must not be replaced by the withheld string either \u2014 that was the over-reach',
 	);
-	// (4) …but its TITLE is still qualified: `… has no load` is a
-	// snapshot-derived state and must not sit flatly on the row.
-	assert.match(
-		missing.text,
-		/Last saved data \u2014 Bautista, Ana has no load/,
-		'a snapshot-derived title must be qualified, not printed as current',
+	// (4) SUPERSEDED 2026-09-29 by A6 c7 §1.4 - RETAINED HERE VERBATIM, NOT
+	// DELETED. The old assertion was:
+	//
+	//   assert.match(missing.text, /Last saved data \u2014 Bautista, Ana has no load/,
+	//     'a snapshot-derived title must be qualified, not printed as current');
+	//
+	// It is superseded because the packet ruled the QUALIFIER ITSELF was the
+	// defect: `useTeachingLoadQueue.ts` prepended `Last saved data — ` to every
+	// non-draft title while the chip already carried c6's plain status clause
+	// AND the header already carried the degraded pill. Lane C read the stacked
+	// form as jargon (report.md older-user line 31). The fact is now stated ONCE,
+	// by the status clause. The replacement is strictly stronger: it asserts the
+	// unprefixed title EXACTLY, which the old shape-matching assertion never had
+	// to do, and rows (2) and (3) below keep proving that the qualification
+	// survives on the rows whose status IS withheld.
+	assert.equal(
+		missing.title,
+		'Bautista, Ana has no load',
+		'the teacher-specific title is unprefixed: the chip is the task, then one status',
 	);
 	assert.equal(missing.actionLabel, 'Assign teaching load', 'and the action must be the operator\u2019s own, unchanged');
 
 	// (2) `over-cap` loses its figure AND its qualification is explicit.
+	// SUPERSEDED 2026-09-29 by A6 c7 §1.4 - RETAINED, NOT DELETED. The old
+	// assertion was:
+	//
+	//   assert.match(overCap.text, /Last saved data \u2014 Cruz, Rene is over the weekly max/,
+	//     'the over-cap title must be qualified too');
+	//
+	// Superseded for the same reason as (4): the prefix WAS the second, stacked
+	// statement of the saved-roster fact. The replacement asserts the unprefixed
+	// title EXACTLY, which a shape match never had to do, and then proves on the
+	// item's OWN status - not on the chip's concatenated text - that the
+	// qualification is still there.
 	const overCap = rowFor('over-cap-12');
-	assert.match(
-		overCap.text,
-		/Last saved data \u2014 Cruz, Rene is over the weekly max/,
-		'the over-cap title must be qualified too',
+	assert.equal(
+		overCap.title,
+		'Cruz, Rene is over the weekly max',
+		'the over-cap title is unprefixed too',
+	);
+	assert.equal(
+		overCap.status,
+		'These numbers come from the last saved roster, not the current one.',
+		'and its qualification is the ONE plain status clause, read off the item itself',
 	);
 	assert.doesNotMatch(
 		overCap.text,
@@ -2715,14 +2763,34 @@ test('A6-C3-3-N2 the withholding is PER ITEM: a department survives, every figur
 		/These numbers come from the last saved roster, not the current one\./,
 		'and it must be replaced by the plain withheld sentence, verbatim',
 	);
+	assert.equal(
+		(overCap.text.match(/last saved roster/gi) ?? []).length,
+		1,
+		'ONE saved-roster claim on the chip, and it is the status - the title no longer repeats it',
+	);
 	assert.equal(overCap.actionLabel, 'Move classes', 'the over-cap action must be untouched');
 
 	// (3) `missing-load` keeps its task and loses its count badge.
+	// SUPERSEDED 2026-09-29 by A6 c7 §1.4 - RETAINED, NOT DELETED. The old
+	// assertion was:
+	//
+	//   assert.match(open.text, /Last saved data \u2014 Assign teachers to open classes/,
+	//     'the open-class title is also snapshot-derived and must be qualified');
+	//
+	// This is the row Lane C quoted verbatim (report.md older-user line 31):
+	// `Next step Last saved data - Assign teachers to open classes Unverified`.
+	// The title is the TASK and is printed as the task; the saved-roster fact is
+	// the status clause beside it, stated once.
 	const open = rowFor('missing-load');
-	assert.match(
-		open.text,
-		/Last saved data \u2014 Assign teachers to open classes/,
-		'the open-class title is also snapshot-derived and must be qualified',
+	assert.equal(
+		open.title,
+		'Assign teachers to open classes',
+		'the open-class title is the plain task, unprefixed',
+	);
+	assert.equal(
+		open.status,
+		'These numbers come from the last saved roster, not the current one.',
+		'and the saved-roster qualification rides on the status, not on the title',
 	);
 	assert.doesNotMatch(
 		open.text,

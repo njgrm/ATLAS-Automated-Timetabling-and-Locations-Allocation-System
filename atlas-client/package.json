@@ -52,6 +52,7 @@
     "test:a6-tl-header-budget": "tsx --test src/components/faculty-assignments/__tests__/a6-tl-header-budget.test.ts",
     "test:a6-c5-outage": "tsx --test src/components/faculty-assignments/__tests__/a6-c5-outage.test.tsx src/components/faculty-assignments/__tests__/a6-c5-outage-derivation.test.tsx",
     "test:a6-c6-calm-tl": "tsx --test src/components/faculty-assignments/__tests__/a6-c6-calm-teaching-load.test.tsx",
+    "test:a6-c7-shortage-undo": "tsx --test src/components/faculty-assignments/__tests__/a6-c7-shortage-owner-undo.test.tsx",
     "test:a3-teachers-load": "tsx --test src/components/faculty-assignments/__tests__/a3-teachers-load-c3.test.tsx src/components/faculty-assignments/__tests__/a3-swap-confirmation-c3.test.tsx src/components/faculty-assignments/__tests__/a3-teaching-load-review-c2.test.tsx",
     "test:a3-c10-workload-audit": "tsx --test src/components/faculty-assignments/__tests__/a3-c10-workload-audit-summary.test.tsx",
     "test:a3-c4-tl-truth": "node --experimental-test-module-mocks --import tsx --test src/components/faculty-assignments/__tests__/a3-c4-draft-truth.test.tsx",
