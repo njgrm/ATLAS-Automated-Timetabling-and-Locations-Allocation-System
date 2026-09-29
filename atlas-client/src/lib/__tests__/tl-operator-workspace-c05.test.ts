@@ -8,6 +8,8 @@ import { dirname, resolve } from 'node:path';
 
 import { TooltipProvider } from '@/ui/tooltip';
 import { WorkspaceToolbar } from '@/components/faculty-assignments/WorkspaceToolbar';
+/** A6 c11: R1 now reads the chip MODEL as well as the render, so the two can be compared. */
+import { buildTeachingLoadAlertChip } from '@/components/faculty-assignments/workspaceToolbarHeaderFacts';
 import { TeachingLoadCandidateDiagnostics } from '@/components/faculty-assignments/TeachingLoadCandidateDiagnostics';
 import {
 	matchesOwnershipDepartment,
@@ -450,13 +452,66 @@ function renderToolbar(overrides: Record<string, unknown> = {}) {
 }
 
 test('R1 the Temporary substitutes chip is a real, enabled control', () => {
+	// SUPERSEDED IN ITS ASSERTION BY A6 c11 (2026-09-29) — RETAINED, NOT DELETED,
+	// and it was ALREADY RED at the base commit, which is how the defect was found.
+	// The assertions this row made were exactly:
+	//
+	//   assert.match(markup, /Temporary substitutes: 3/);
+	//   assert.match(markup, /data-testid="teaching-load-alert-teacher-x"/);
+	//   assert.match(markup, /<button[^>]*data-testid="teaching-load-alert-teacher-x"/);
+	//   assert.doesNotMatch(markup, /cursor-default/);
+	//
+	// and the third failed on the base tree: `WorkspaceToolbar` rendered a bare
+	// `<span data-testid={alertChip.testId} …>· {alertChip.label}</span>` while the
+	// MODEL beside it carried an `onClick` and a `disabled`. That is the defect the
+	// cover-class packet names verbatim — "a `<span>` whose onClick is dropped" — and
+	// the operator's own rule ("clickable must look clickable", and its converse, a
+	// read-only figure must not look pressable) says only one of them can be true.
+	//
+	// A6 c11 CHOSE THE SECOND HONEST SHAPE, and the reasoning is at
+	// `workspaceToolbarHeaderFacts.ts`: the chip's three branches are all FIGURES,
+	// row 2 holds exactly ONE action (`a6-teaching-load-surface` `A6-C2-2` asserts
+	// `row2Buttons.length === 1`), and every teacher those figures name is already
+	// listed one row below with its own action in the repair queue. So the model no
+	// longer claims an action, and the render is plain text with a `cursor-help`
+	// Tooltip — the header's one established way to explain a figure it will not
+	// make clickable. A model promising what no surface does is the defect either
+	// way; it now promises nothing, and nothing is lost.
+	//
+	// The row's INTENT — "this chip must be honest about what it is" — is unchanged
+	// and is asserted below, in the shape that intent actually requires.
 	const markup = renderToolbar({ syntheticPlaceholderPairs: 3, unassignedPairs: 0 });
 	assert.match(markup, /Temporary substitutes: 3/);
 	assert.match(markup, /data-testid="teaching-load-alert-teacher-x"/);
-	// Rendered as an interactive <button ...> with its handler wired, never a
-	// disabled/`cursor-default` decoration.
-	assert.match(markup, /<button[^>]*data-testid="teaching-load-alert-teacher-x"/);
-	assert.doesNotMatch(markup, /cursor-default/);
+	assert.match(markup, /data-alert-key="teacherx"/, 'and it keeps its `data-alert-key` contract');
+	assert.doesNotMatch(
+		markup,
+		/<button[^>]*data-testid="teaching-load-alert-teacher-x"/,
+		'A6 c11: the chip is NOT a button — it opens nothing, so it must not be one',
+	);
+	assert.doesNotMatch(
+		markup,
+		/cursor-default/,
+		'A6 c11: and never the disabled-cursor decoration either',
+	);
+	// A6 c11: the FIGURE half of the rule, which the base row never checked because
+	// the base render was the very thing this change removed.
+	assert.match(
+		markup,
+		/class="shrink-0 cursor-help font-bold text-destructive"/,
+		'A6 c11: it explains itself with the header\'s `cursor-help` — the affordance of a FIGURE with a tooltip, not of a control',
+	);
+	// A6 c11: the model agrees with the render. This is the row that would have
+	// caught the original defect from the model side, and it reads the real module.
+	const chipModel = buildTeachingLoadAlertChip({
+		overCapCount: 0,
+		excessTeachingCount: 0,
+		policyReady: true,
+		syntheticPlaceholderPairs: 3,
+	}) as unknown as Record<string, unknown>;
+	assert.ok(chipModel, 'the chip model is built');
+	assert.equal('onClick' in chipModel, false, 'A6 c11: the model carries NO action no surface performs');
+	assert.equal('disabled' in chipModel, false, 'A6 c11: and no disabled rule for one');
 });
 
 test('R1 the Temporary substitutes chip renders no button when there are no placeholder rows', () => {

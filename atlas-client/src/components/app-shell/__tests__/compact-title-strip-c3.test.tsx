@@ -338,6 +338,19 @@ test('every preserved data-testid is still on the tree, with data-source-state i
 	// Ids that live inside a CLOSED popover render nothing, and ids that arrive
 	// through a prop (the alert chip's `testId`) are not attribute literals, so
 	// these are pinned as strings against the source that owns them.
+	//
+	// A6 c11 (2026-09-29) — THE OWNER SET IS NOW THREE FILES, additively. The three
+	// `teaching-load-alert-*` ids are the chip MODEL's `testId` values, and they have
+	// never been attribute literals in either strip: they are written in
+	// `workspaceToolbarHeaderFacts.ts` and arrive by prop. This row therefore failed
+	// at the base commit for a reason nobody wrote — it was looking in the toolbar,
+	// which has not held those three strings. Widening the search to the file that
+	// actually owns them is what makes the row DECIDE its own claim. The chip's own
+	// markup moved to `TeachingLoadAlertChipNotice.tsx` in the same cycle (a real
+	// `@/ui` Tooltip pushed `WorkspaceToolbar.tsx` past §8's 1000-line cap), so that
+	// file is included too. No assertion is removed or relaxed.
+	const chipModelOwner = source('src/components/faculty-assignments/workspaceToolbarHeaderFacts.ts');
+	const chipRenderOwner = source('src/components/faculty-assignments/TeachingLoadAlertChipNotice.tsx');
 	for (const testId of [
 		'setup-source-details-popover',
 		'setup-source-last-verified',
@@ -347,7 +360,12 @@ test('every preserved data-testid is still on the tree, with data-source-state i
 		'teaching-load-alert-teacher-x',
 	]) {
 		assert.ok(
-			source(STRIP_A_FILE).includes(testId) || source(STRIP_B_FILE).includes(testId),
+			source(STRIP_A_FILE).includes(testId)
+				|| source(STRIP_B_FILE).includes(testId)
+				// A6 c11: the chip's model (which owns the ids) and its render node,
+				// added beside the two strips rather than replacing either.
+				|| chipModelOwner.includes(testId)
+				|| chipRenderOwner.includes(testId),
 			'lost data-testid: ' + testId,
 		);
 	}

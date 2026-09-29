@@ -600,10 +600,10 @@ export default function Dashboard() {
 										{activeTerm?.activeTerm && (
 											<Popover>
 												<PopoverTrigger asChild>
-													<Badge
-														className='border-white/20 bg-white/20 text-white font-semibold gap-1.5 px-2.5 py-1.5 rounded-full cursor-pointer hover:bg-white/30'
-														data-testid='dashboard-active-term'
-													>
+											<Badge
+													className='h-7 gap-1.5 rounded-full border-white/20 bg-white/20 px-2.5 font-semibold text-white cursor-pointer hover:bg-white/30'
+													data-testid='dashboard-active-term'
+												>
 														Active Term: {activeTerm.activeTerm}
 													</Badge>
 												</PopoverTrigger>
@@ -639,7 +639,7 @@ export default function Dashboard() {
 										<Popover>
 											<PopoverTrigger asChild>
 												<Badge
-													className='border-white/20 bg-white/20 text-white font-semibold gap-1.5 px-2.5 py-1.5 rounded-full cursor-pointer hover:bg-white/30'
+													className='h-7 gap-1.5 rounded-full border-white/20 bg-white/20 px-2.5 font-semibold text-white cursor-pointer hover:bg-white/30'
 													data-testid='dashboard-source-health-panel'
 													data-source-decision={readinessSourceState}
 												>

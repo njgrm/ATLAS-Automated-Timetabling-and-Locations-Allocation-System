@@ -209,9 +209,22 @@ test('fix 03 control: the popover is viewport-relative, so nothing is clipped at
 	const vwMargin = Number(widthToken![0].match(/100vw-([\d.]+)rem/)?.[1] ?? '0');
 	const resolvedWidth = Math.min(minRem * remPx(1), VIEWPORT_W - vwMargin * remPx(1));
 	assert.ok(resolvedWidth <= VIEWPORT_W, `the popover must fit the viewport width, got ${resolvedWidth}px`);
-	const heightToken = /\bh-(\d+)\b/.exec(className);
-	assert.ok(heightToken, 'the popover must declare a bounded height');
-	const resolvedHeight = Number(heightToken![1]) * 4; // Tailwind's h-<n> unit is 0.25rem
+	// The vertical bound is still bounded, but A9 C7 (item 46, 2026-09-29) stopped
+	// declaring it as a FIXED `h-100`. The row this replaces, quoted:
+	//   const heightToken = /\bh-(\d+)\b/.exec(className);
+	//   assert.ok(heightToken, 'the popover must declare a bounded height');
+	//   const resolvedHeight = Number(heightToken![1]) * 4;
+	// A fixed 400px body is what Radix had to resolve by COLLISION near the top of
+	// the viewport, flipping the popover up over the sticky toolbar. The bound is
+	// now a `max-h-` against the space Radix reports, so the body SHRINKS to what
+	// is below the trigger. The 400px ceiling itself is unchanged, so this row's
+	// real property — "the popover fits a 1280x768 viewport on both axes" — still
+	// gets the same arithmetic.
+	assert.doesNotMatch(className, /\bh-\d/, 'the popover must not return to a FIXED height');
+	const heightCap = /max-h-\[min\((\d+(?:\.\d+)?)rem,var\(--radix-popover-content-available-height\)\)\]/.exec(className);
+	assert.ok(heightCap, `the popover must declare a bounded, available-relative height; got ${className}`);
+	const resolvedHeight = Number(heightCap![1]) * remPx(1);
+	assert.equal(resolvedHeight, 400, `the ceiling must be the old 400px in rem; got ${resolvedHeight}px`);
 	assert.ok(resolvedHeight <= VIEWPORT_H, `the popover must fit the viewport height, got ${resolvedHeight}px`);
 
 	// The footer is the last thing the user needs, so it must not be the
