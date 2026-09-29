@@ -4,6 +4,42 @@ import { Check, ChevronRight, Circle } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
+/**
+ * A5 c8b (2026-09-29) — THE ONE ROW-MENU RECIPE, and the reason it is opt-in.
+ *
+ * The operator's teachers.docx round, item 6: *"Row 3-dots menu items wrap to
+ * two lines."* Every roster fixed its row menu at one hand-picked width
+ * (`w-52` on Teachers, `w-48` on Sections, `w-56`/`min-w-[13rem]` on Subjects,
+ * `w-44` on the Subjects mobile card and the Teaching Load teacher grid), and on
+ * the Teachers roster the fixed 208px box wrapped "Edit temporary teacher
+ * details" onto two lines. A menu item is a VERB PHRASE, not a word, and a
+ * phrase that breaks after "temporary" is what makes the menu look broken to
+ * the older, mouse-first scheduler who has to read it before clicking it.
+ *
+ * So the width stops being a per-page decision. The menu is as wide as its
+ * longest item (`w-max`), never narrower than 13rem so a two-word menu does not
+ * look collapsed, and never wider than `min(28rem, 90vw)` so a long label cannot
+ * spill off the right edge of the window. The item side is the half that
+ * actually stops the wrap: `whitespace-nowrap` plus the `gap-2` that every row
+ * menu wants between its icon and its label.
+ *
+ * WHY IT IS NOT THE PRIMITIVE'S BASE, and this is the part that must not be
+ * "tidied" later. `DropdownMenuContent` / `DropdownMenuItem` are shared with
+ * pickers, toolbars, the app sidebar and the timetable menus, whose items
+ * (`ScheduleReviewWorkspaceHeader`, `WorkspaceToolbar`, `TimetableSimpleHeader`)
+ * are long SENTENCES that are meant to wrap and are read as a help panel. Forcing
+ * `whitespace-nowrap` on the primitive would push those off the viewport. The
+ * recipe therefore stays a CALL-SITE contract: a roster row opts in, everything
+ * else keeps exactly the look it has today. The primitive's own base classes
+ * (`min-w-[8rem]`, padding, animations) are unchanged, which is what
+ * `subjects-ux-a3.test.ts` A3-19 asserts.
+ *
+ * `min-w-52` is 13rem — deliberately the same 208px the Subjects call site had
+ * hand-written as `min-w-[13rem]`, so adopting the recipe there moved nothing.
+ */
+export const rowMenuContentClassName = 'w-max min-w-52 max-w-[min(28rem,90vw)]';
+export const rowMenuItemClassName = 'gap-2 whitespace-nowrap';
+
 const DropdownMenu = DropdownMenuPrimitive.Root;
 
 const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
@@ -182,6 +218,8 @@ DropdownMenuShortcut.displayName = 'DropdownMenuShortcut';
 
 export {
 	DropdownMenu,
+	rowMenuContentClassName,
+	rowMenuItemClassName,
 	DropdownMenuTrigger,
 	DropdownMenuContent,
 	DropdownMenuItem,

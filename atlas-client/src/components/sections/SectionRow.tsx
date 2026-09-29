@@ -13,6 +13,8 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
+	rowMenuContentClassName,
+	rowMenuItemClassName,
 } from '@/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { Link } from 'react-router-dom';
@@ -324,14 +326,14 @@ export function SectionRow({
 								<MoreVertical className="size-4" />
 							</Button>
 						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end" className="w-48">
-							<DropdownMenuItem onClick={() => onShowDetails(section)}>
-								<Users className="mr-2 size-4" />
+						<DropdownMenuContent align="end" className={rowMenuContentClassName}>
+							<DropdownMenuItem onClick={() => onShowDetails(section)} className={rowMenuItemClassName}>
+								<Users className="size-4" />
 								<span>View class coverage</span>
 							</DropdownMenuItem>
-							<DropdownMenuItem asChild>
+							<DropdownMenuItem asChild className={rowMenuItemClassName}>
 								<Link to={`/teaching-load?sectionId=${section.id}`}>
-									<ClipboardList className="mr-2 size-4" />
+									<ClipboardList className="size-4" />
 									<span>Open teaching load</span>
 								</Link>
 							</DropdownMenuItem>

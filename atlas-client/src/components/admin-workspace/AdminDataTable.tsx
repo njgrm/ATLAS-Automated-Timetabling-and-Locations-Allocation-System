@@ -10,6 +10,8 @@ import {
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
+	rowMenuContentClassName,
+	rowMenuItemClassName,
 } from '@/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
@@ -173,16 +175,16 @@ function AdminDataTableActionMenu({
 					<MoreHorizontal className="size-4" />
 				</Button>
 			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end" className="w-52">
+			<DropdownMenuContent align="end" className={rowMenuContentClassName}>
 				{actions.map((action, index) => (
-					<DropdownMenuItem key={`${action.label}-${index}`} disabled={action.disabled} onSelect={action.onSelect} className="gap-2 font-semibold">
+					<DropdownMenuItem key={`${action.label}-${index}`} disabled={action.disabled} onSelect={action.onSelect} className={`${rowMenuItemClassName} font-semibold`}>
 						{action.icon}
 						{action.label}
 					</DropdownMenuItem>
 				))}
 				{actions.length > 0 && destructiveActions.length > 0 && <DropdownMenuSeparator />}
 				{destructiveActions.map((action, index) => (
-					<DropdownMenuItem key={`${action.label}-${index}`} disabled={action.disabled} onSelect={action.onSelect} className="gap-2 font-semibold text-destructive">
+					<DropdownMenuItem key={`${action.label}-${index}`} disabled={action.disabled} onSelect={action.onSelect} className={`${rowMenuItemClassName} font-semibold text-destructive`}>
 						{action.icon}
 						{action.label}
 					</DropdownMenuItem>

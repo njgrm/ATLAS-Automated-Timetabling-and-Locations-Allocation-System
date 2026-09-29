@@ -14,6 +14,8 @@ import {
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
+	rowMenuContentClassName,
+	rowMenuItemClassName,
 } from '@/ui/dropdown-menu';
 import { gradeLabel } from '@/lib/grade-labels';
 import { ROOM_TYPE_LABELS } from '@/lib/subject-constants';
@@ -113,29 +115,32 @@ export function SubjectMobileCard({
 							<MoreVertical className="size-4" />
 						</Button>
 					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end" className="w-44">
-						<DropdownMenuItem onClick={() => onEdit(subject)}>
-							<Pencil className="mr-2 size-4" />
-							<span>Edit subject</span>
+				{/* A5 c8b: the SAME recipe the desktop `SubjectRow` uses. The mobile card
+					is the same roster row at a narrower viewport, and a card that keeps
+					`w-44` here is a second look for one control. */}
+				<DropdownMenuContent align="end" className={rowMenuContentClassName}>
+					<DropdownMenuItem onClick={() => onEdit(subject)} className={rowMenuItemClassName}>
+						<Pencil className="size-4" />
+						<span>Edit subject</span>
+					</DropdownMenuItem>
+					{subject.isActive && (
+						<DropdownMenuItem onClick={() => onArchive(subject)} className={rowMenuItemClassName}>
+							<Archive className="size-4" />
+							<span>Archive for new schedules</span>
 						</DropdownMenuItem>
-						{subject.isActive && (
-							<DropdownMenuItem onClick={() => onArchive(subject)}>
-								<Archive className="mr-2 size-4" />
-								<span>Archive for new schedules</span>
-							</DropdownMenuItem>
-						)}
-						{!subject.isActive && (
-							<DropdownMenuItem onClick={() => onReactivate(subject)}>
-								<RotateCcw className="mr-2 size-4" />
-								<span>Make schedulable again</span>
-							</DropdownMenuItem>
-						)}
-						<DropdownMenuSeparator />
-						<DropdownMenuItem onClick={() => onDelete(subject)} className="text-red-600 focus:text-red-600">
-							<Trash2 className="mr-2 size-4" />
-							<span>Delete permanently</span>
+					)}
+					{!subject.isActive && (
+						<DropdownMenuItem onClick={() => onReactivate(subject)} className={rowMenuItemClassName}>
+							<RotateCcw className="size-4" />
+							<span>Make schedulable again</span>
 						</DropdownMenuItem>
-					</DropdownMenuContent>
+					)}
+					<DropdownMenuSeparator />
+					<DropdownMenuItem onClick={() => onDelete(subject)} className={`${rowMenuItemClassName} text-red-600 focus:text-red-600`}>
+						<Trash2 className="size-4" />
+						<span>Delete permanently</span>
+					</DropdownMenuItem>
+				</DropdownMenuContent>
 				</DropdownMenu>
 			</div>
 		</div>

@@ -15,7 +15,7 @@ import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
 import { Skeleton } from '@/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, rowMenuContentClassName, rowMenuItemClassName } from '@/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import {
 	resolveTeachingActualHours,
@@ -586,15 +586,16 @@ export function TeacherGridMode({
 																		<MoreHorizontal className="size-4" />
 																	</Button>
 																</DropdownMenuTrigger>
-																<DropdownMenuContent align="end" className="w-44">
-																	<DropdownMenuItem
-																		onClick={onResetAssignments}
-																		disabled={saving || isReadOnlyMode}
-																	>
-																		<RotateCcw className="size-4 mr-2" />
-																		Reset assignments
-																	</DropdownMenuItem>
-																</DropdownMenuContent>
+															<DropdownMenuContent align="end" className={rowMenuContentClassName}>
+																<DropdownMenuItem
+																	onClick={onResetAssignments}
+																	disabled={saving || isReadOnlyMode}
+																	className={rowMenuItemClassName}
+																>
+																	<RotateCcw className="size-4" />
+																	Reset assignments
+																</DropdownMenuItem>
+															</DropdownMenuContent>
 															</DropdownMenu>
 														</div>
 

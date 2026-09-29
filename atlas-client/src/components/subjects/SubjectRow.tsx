@@ -15,6 +15,8 @@ import {
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
+	rowMenuContentClassName,
+	rowMenuItemClassName,
 } from '@/ui/dropdown-menu';
 import { ROOM_TYPE_LABELS } from '@/lib/subject-constants';
 import { GRADE_COLORS } from '@/lib/grade-labels';
@@ -442,41 +444,52 @@ export function SubjectRow({
 								<MoreVertical className="size-4" />
 							</Button>
 						</DropdownMenuTrigger>
-					{/* A3-19 (route-scoped): the shared `DropdownMenuContent` primitive
-						ships `min-w-[8rem]` and its items carry no `whitespace-nowrap`,
-						so "Archive for new schedules" wrapped and clipped inside the old
-						w-44. The primitive is shared with timetable/other routes and is
-						NOT changed here; the width and no-wrap are applied at this call
-						site only. `w-56` replaces `w-44` (tailwind-merge resolves the two
-						width classes in the primitive/base pair last-wins) and
-						`min-w-[13rem]` is the load-bearing guard against the primitive's
-						own `min-w-[8rem]`. */}
-					<DropdownMenuContent align="end" className="min-w-[13rem] w-56">
-						<DropdownMenuItem onClick={() => onEdit(subject)} className="whitespace-nowrap">
-							<Pencil className="mr-2 size-4" />
-							<span>Edit subject</span>
+				{/* A3-19 (route-scoped), and A5 c8b (2026-09-29) has since given the
+					fix a shared name. The ORIGINAL A3-19 finding stands: the shared
+					`DropdownMenuContent` primitive ships `min-w-[8rem]` and its items
+					carry no `whitespace-nowrap`, so "Archive for new schedules"
+					wrapped and clipped inside the old w-44. A3-19 solved that here and
+					NOT in the primitive, because the primitive is shared with timetable
+					and picker menus; it hand-wrote `min-w-[13rem] w-56` plus a
+					`whitespace-nowrap` on each item.
+
+					A5 c8b keeps the boundary and replaces the hand-written numbers with
+					`@/ui/dropdown-menu`'s opt-in `rowMenuContentClassName` /
+					`rowMenuItemClassName`, because the identical defect was then found on
+					Teachers (`w-52`), Sections (`w-48`) and two more call sites — five
+					rosters fixing one problem five ways is the "one look per control"
+					defect AGENTS.md §8 names. Two facts carry over and still load-bear:
+					(a) the call site must beat the primitive's own `min-w-[8rem]`, and
+					`min-w-52` is 13rem — the very width A3-19 wrote by hand, so the
+					guard is unchanged, only named; (b) the primitive is still NOT
+					changed, and the recipe is opt-in precisely so the sentence-length
+					menus that share it keep wrapping. */}
+				<DropdownMenuContent align="end" className={rowMenuContentClassName}>
+					<DropdownMenuItem onClick={() => onEdit(subject)} className={rowMenuItemClassName}>
+						<Pencil className="size-4" />
+						<span>Edit subject</span>
+					</DropdownMenuItem>
+					{subject.isActive && (
+						<DropdownMenuItem onClick={() => onArchive(subject)} className={rowMenuItemClassName}>
+							<Archive className="size-4" />
+							<span>Archive for new schedules</span>
 						</DropdownMenuItem>
-						{subject.isActive && (
-							<DropdownMenuItem onClick={() => onArchive(subject)} className="whitespace-nowrap">
-								<Archive className="mr-2 size-4" />
-								<span>Archive for new schedules</span>
-							</DropdownMenuItem>
-						)}
-						{!subject.isActive && (
-							<DropdownMenuItem onClick={() => onReactivate(subject)} className="whitespace-nowrap">
-								<RotateCcw className="mr-2 size-4" />
-								<span>Make schedulable again</span>
-							</DropdownMenuItem>
-						)}
-						<DropdownMenuSeparator />
-						<DropdownMenuItem
-							onClick={() => onDelete(subject)}
-							className="whitespace-nowrap text-red-600 focus:text-red-600"
-						>
-							<Trash2 className="mr-2 size-4" />
-							<span>Delete permanently</span>
+					)}
+					{!subject.isActive && (
+						<DropdownMenuItem onClick={() => onReactivate(subject)} className={rowMenuItemClassName}>
+							<RotateCcw className="size-4" />
+							<span>Make schedulable again</span>
 						</DropdownMenuItem>
-					</DropdownMenuContent>
+					)}
+					<DropdownMenuSeparator />
+					<DropdownMenuItem
+						onClick={() => onDelete(subject)}
+						className={`${rowMenuItemClassName} text-red-600 focus:text-red-600`}
+					>
+						<Trash2 className="size-4" />
+						<span>Delete permanently</span>
+					</DropdownMenuItem>
+				</DropdownMenuContent>
 					</DropdownMenu>
 				</div>
 			</td>
