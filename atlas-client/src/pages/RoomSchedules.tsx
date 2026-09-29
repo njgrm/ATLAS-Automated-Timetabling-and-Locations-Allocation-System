@@ -34,6 +34,7 @@ import {
 	DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
 import { SearchableSelect } from '@/ui/searchable-select';
+import { FilterBar } from '@/ui/filter-bar';
 import { pickerTriggerClass } from '@/ui/picker-trigger';
 import { Skeleton } from '@/ui/skeleton';
 import { TooltipProvider } from '@/ui/tooltip';
@@ -691,9 +692,28 @@ export default function RoomSchedules() {
 							</Button>
 						);
 					})}
-					<div className="min-w-40 flex-1">
+					{/* A5 c8 (2026-09-29) — THE ENTITY PICKER IS THE ONE SHARED BAR'S CHILD.
+					    * It is the only FILTER on this page; the three mode buttons above it
+					    * choose WHAT is listed rather than narrowing a list, so they stay
+					    * where they are, and `ScheduleSourceBand` beside it is a status band,
+					    * not a filter.
+					    * WHAT CHANGED: `width="fill"` inside a `min-w-40 flex-1` wrapper is
+					    * gone. `fill` claims a layout SLOT, so the trigger stretched to the
+					    * slot's width and the sweep recorded "the very wide `Choose a room`
+					    * select" as this page looking different from its peers. The shared
+					    * `auto` variant is BOUNDED (`min-w-32 max-w-[22rem]`) and its face
+					    * WRAPS, so a long room name grows the control instead of making it
+					    * 600px wide.
+					    * WHAT MOVED: the face now NAMES ITSELF — `Room: …`, `Teacher: …`,
+					    * `Section: …` — so it is never confused with the `Term` / `Year`
+					    * pickers elsewhere, and it is no longer a bare `Choose a room`
+					    * placeholder with nothing to say what it filters.
+					    * WHAT IS UNCHANGED: the three option lists, the grouping by grade,
+					    * the `ariaLabel`, the `schedules-entity-picker` `data-testid`, and
+					    * the skeleton while rooms load. */}
+					<FilterBar dataTestId="room-schedules-filter-bar">
 						{roomsLoading ? (
-							<Skeleton className="h-9 w-full rounded-lg" />
+							<Skeleton className="h-9 w-56 shrink-0 rounded-lg" />
 						) : (
 							<SearchableSelect
 								value={selectedEntityId}
@@ -701,13 +721,19 @@ export default function RoomSchedules() {
 								groups={activeSelector.groups}
 								placeholder={activeSelector.placeholder}
 								ariaLabel={`Schedule for ${activeSelector.noun}`}
+								triggerLabelPrefix={activeSelector.noun === 'room' ? 'Room' : activeSelector.noun === 'teacher' ? 'Teacher' : 'Section'}
+								triggerLabelValue={
+									selectedEntityId
+										? activeSelector.groups.flatMap((group) => group.items).find((item) => item.value === String(selectedEntityId))?.label
+										: undefined
+								}
 								// A5 c4 shared picker chrome; the page's previous
 								// `h-10 text-sm w-full rounded-xl bg-white shadow-sm` restated it locally.
-								triggerClassName={pickerTriggerClass('fill')}
+								triggerClassName={pickerTriggerClass('auto')}
 								triggerTestId="schedules-entity-picker"
 							/>
 						)}
-					</div>
+					</FilterBar>
 					<ScheduleSourceBand
 						termOptions={viewTermOptions}
 						orderedTerms={orderedTerms}

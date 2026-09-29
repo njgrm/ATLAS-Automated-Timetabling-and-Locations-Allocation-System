@@ -81,7 +81,7 @@ const { SubjectTermAuthorityBanner } = await import('../SubjectTermAuthorityBann
 const { SubjectTermContractPopover } = await import('../SubjectTermContractPopover');
 const { SubjectCoverageSheet } = await import('../SubjectCoverageSheet');
 const { SubjectRow } = await import('../SubjectRow');
-const { AdminSearchFilterToolbar } = await import('../../admin-workspace/AdminWorkspace');
+const { FilterBar } = await import('@/ui/filter-bar');
 const { subjectToFormValues } = await import('../subject-form-utils');
 const { buildTermFilterOptions, matchesTermFilter } = await import('../subject-term-filter');
 const constants = await import('../../../lib/subject-constants');
@@ -661,121 +661,82 @@ test('A3-20: Cancel is a non-action - no save call, no request, form state intac
 
 // ===========================================================================
 // CHECK 3 — shared-primitive regression control. Protects the sibling lanes
-// (Sections.tsx, Faculty.tsx) that consume AdminSearchFilterToolbar.
+// (Sections.tsx, Faculty.tsx) that now share @/ui/filter-bar with this page.
+//
+// A5 c8 (2026-09-29), RE-POINTED. These two rows used to police
+// `AdminSearchFilterToolbar`'s `primaryFilterCount` opt-in: how many leading
+// children stayed visible and how many sat behind a `More filters` disclosure.
+// That component is DELETED — it was the last consumer, and the packet forbids
+// leaving a second filter-bar implementation in the codebase.
+//
+// The rows are RETAINED, not deleted (`AGENTS.md` §16), and their claim is
+// stronger after the change, not weaker. "How many filters are always visible"
+// was a per-page dial. "None are concealed" is now a property of the only bar
+// there is, and it is stated once and checkable on any page.
 // ===========================================================================
-test('A3-15: the additive opt-in does not change the default collapse contract (Sections / Faculty)', async () => {
-	// Real source evidence first: neither sibling page passes the new prop, so
-	// both take the default of 0. If one ever started passing it, this fails.
+test('A3-15, RE-POINTED 2026-09-29 (A5 c8): every filter a list page offers is in the DOM on first render, on every sibling page', async () => {
+	// Real source evidence first. Both sibling pages render the ONE shared bar, and
+	// neither of them carries any disclosure prop, count or state — because the bar
+	// has none to carry.
 	for (const page of ['src/pages/Sections.tsx', 'src/pages/Faculty.tsx']) {
-		assert.ok(
-			!/AdminSearchFilterToolbar[\s\S]{0,400}?primaryFilterCount/.test(code(page)),
-			`${page} now passes primaryFilterCount; it is sibling-owned and must keep the default collapse contract`,
+		assert.match(code(page), /<FilterBar/, `${page} no longer renders the shared @/ui/filter-bar`);
+		assert.doesNotMatch(
+			code(page),
+			/filtersOpen|onToggleFilters|primaryFilterCount|AdminSearchFilterToolbar/,
+			`${page} still carries a disclosure prop or the retired toolbar; the concealment contract is gone from the product`,
 		);
 	}
-	assert.match(code('src/pages/Sections.tsx'), /<AdminSearchFilterToolbar/);
-	assert.match(code('src/pages/Faculty.tsx'), /<AdminSearchFilterToolbar/);
+	// And the retirement is total: the hooks these rows used to read are gone from
+	// the shared file too, so a future page cannot reach for them.
+	const adminWorkspace = code('src/components/admin-workspace/AdminWorkspace.tsx');
+	for (const retired of ['admin-primary-filter-row', 'admin-inline-filter-row', 'admin-search-filter-toolbar', 'More filters']) {
+		assert.doesNotMatch(adminWorkspace, new RegExp(retired), `AdminWorkspace still offers \`${retired}\`; there must be one bar, not two`);
+	}
 
-	// Behavioural: default (prop omitted) must still collapse everything.
-	const closed = await render(
-		<AdminSearchFilterToolbar
-			searchValue=""
-			onSearchChange={() => {}}
-			searchPlaceholder="Search sections..."
-			filtersOpen={false}
-			onToggleFilters={() => {}}
-			hasActiveFilters={false}
-		>
-			<button type="button">Sections child filter</button>
-		</AdminSearchFilterToolbar>,
-	);
-	assert.ok(byLabel(closed, 'x') === null);
-	assert.equal(
-		Array.from(document.body.querySelectorAll('button')).filter((b) => b.textContent === 'Sections child filter').length,
-		0,
-		'a default-off toolbar rendered its children while collapsed',
-	);
-	assert.equal(query(closed, 'admin-primary-filter-row'), null, 'default-off toolbar grew a primary row');
-	assert.ok(
-		Array.from(document.body.querySelectorAll('button')).some((b) => b.textContent?.includes('More filters')),
-		'default-off toolbar lost its More filters disclosure',
-	);
-	await unmount();
-
-	// And with filtersOpen the child appears, exactly as before.
+	// Behavioural, on the bar itself: a child is rendered immediately. There is no
+	// state in which a filter exists but is hidden.
 	const open = await render(
-		<AdminSearchFilterToolbar
-			searchValue=""
-			onSearchChange={() => {}}
-			searchPlaceholder="Search sections..."
-			filtersOpen
-			onToggleFilters={() => {}}
-			hasActiveFilters
-		>
+		<FilterBar search={{ value: '', onChange: () => {}, placeholder: 'Search sections...' }}>
 			<button type="button">Sections child filter</button>
-		</AdminSearchFilterToolbar>,
+		</FilterBar>,
 	);
 	assert.equal(
 		Array.from(document.body.querySelectorAll('button')).filter((b) => b.textContent === 'Sections child filter').length,
 		1,
-		'default-off toolbar hid a child that should be visible when open',
+		'the shared bar did not render its child on first render',
 	);
-	assert.ok(
-		Array.from(document.body.querySelectorAll('button')).some((b) => b.textContent?.includes('Active')),
-		'the hasActiveFilters badge regressed',
+	assert.equal(
+		Array.from(document.body.querySelectorAll('button')).filter((b) => b.textContent?.includes('More')).length,
+		0,
+		'the shared bar rendered a "More" control; a second click to discover a filter is the defect this change removes',
 	);
 });
 
-test('A3-15: the opt-in keeps the first N children visible and leaves the rest behind the disclosure', async () => {
+test('A3-15 opt-in, RETIRED 2026-09-29 (A5 c8) and REPLACED by the no-concealment row above: the dial itself is gone', async () => {
+	/* The old row proved `primaryFilterCount={2}` kept two children visible and put
+	 * the rest behind a disclosure. There is no dial to prove any more, and a row
+	 * that demanded the dial come back would be a row demanding the defect return.
+	 *
+	 * What replaces it is the property the dial used to serve, asserted on the ONE
+	 * bar: a bar with MANY children renders ALL of them, in the order given, in one
+	 * row — which is the state the old opt-in could not express (five filters plus a
+	 * search box plus a reset, with nothing behind anything). */
 	const host = await render(
-		<AdminSearchFilterToolbar
-			searchValue=""
-			onSearchChange={() => {}}
-			searchPlaceholder="Search..."
-			filtersOpen={false}
-			onToggleFilters={() => {}}
-			hasActiveFilters={false}
-			primaryFilterCount={2}
-		>
+		<FilterBar search={{ value: '', onChange: () => {}, placeholder: 'Search...' }}>
 			<button type="button">primary-1</button>
 			<button type="button">primary-2</button>
 			<button type="button">secondary-1</button>
 			<button type="button">secondary-2</button>
-		</AdminSearchFilterToolbar>,
+		</FilterBar>,
 	);
-	const primaryRow = query(host, 'admin-primary-filter-row');
-	assert.ok(primaryRow, 'no primary filter row rendered');
+	const bar = host.firstElementChild as HTMLElement;
 	assert.deepEqual(
-		Array.from(primaryRow.querySelectorAll('button')).map((b) => b.textContent),
-		['primary-1', 'primary-2'],
+		Array.from(bar.querySelectorAll('button')).map((b) => b.textContent),
+		['primary-1', 'primary-2', 'secondary-1', 'secondary-2'],
+		'the bar did not render every child, in order, with nothing collapsed',
 	);
-	assert.equal(
-		Array.from(document.body.querySelectorAll('button')).filter((b) => b.textContent === 'secondary-1').length,
-		0,
-		'an overflow child leaked into the always-visible row',
-	);
-
-	// A count at or above the child count collapses the disclosure entirely,
-	// because there is nothing left to put behind it.
-	await act(async () => { root?.unmount(); });
-	const all = await render(
-		<AdminSearchFilterToolbar
-			searchValue=""
-			onSearchChange={() => {}}
-			searchPlaceholder="Search..."
-			filtersOpen={false}
-			onToggleFilters={() => {}}
-			hasActiveFilters={false}
-			primaryFilterCount={2}
-		>
-			<button type="button">primary-1</button>
-			<button type="button">primary-2</button>
-		</AdminSearchFilterToolbar>,
-	);
-	assert.equal(
-		Array.from(document.body.querySelectorAll('button')).filter((b) => b.textContent?.includes('More filters')).length,
-		0,
-		'a redundant More filters button was rendered',
-	);
+	assert.equal(query(host, 'admin-primary-filter-row'), null, 'the retired always-visible sub-row is back');
+	assert.equal(query(host, 'admin-inline-filter-row'), null, 'the retired inline sub-row is back');
 });
 
 // ===========================================================================

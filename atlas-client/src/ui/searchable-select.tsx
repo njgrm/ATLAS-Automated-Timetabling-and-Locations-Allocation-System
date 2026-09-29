@@ -315,13 +315,47 @@ export function SearchableSelect({
 				    is what keeps A5's prefix and value-shortening behaviour intact; the
 				    discarded `value ? selectedLabel : placeholder` was this range's
 				    pre-A5 reading of the same expression and would have silently undone
-				    A5's work. Mechanical union, both sides' behaviour preserved. */}
-				<span>{visibleLabel}</span>
+				    A5's work. Mechanical union, both sides' behaviour preserved.
+
+				    A5 c8 (2026-09-29) — `min-w-0 break-words` ON THE SPAN ITSELF. A flex
+				    child's default `min-width` is `auto`, so with no floor of its own this
+				    span refuses to shrink below its content and the composed face runs
+				    straight out through the trigger's border. That is the `/sections`
+				    defect Lane C measured in words ("Home room: Home room assigned spills
+				    outside its select"), and it is why `pickerTriggerClass` pairs a
+				    content-sized width with `h-auto min-h-9`: the face needs somewhere to
+				    WRAP once `min-w-0` lets it. `break-words` covers a single
+				    over-long token (a raw program code, a data-driven department name).
+				    No `truncate` and no `whitespace-nowrap` — §8 forbids a cut-off face. */}
+				<span className="min-w-0 break-words text-left">{visibleLabel}</span>
 					<ChevronsUpDown className="ml-1 size-3 shrink-0 opacity-50" />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
-				className={cn('w-[var(--radix-popover-trigger-width)] min-w-[200px] max-h-[var(--radix-popover-content-available-height)] overflow-hidden p-0', className)}
+				/* A5 c8 §4.3 — THE MENU IS AT LEAST AS WIDE AS ITS TRIGGER, AND NEVER
+				 * NARROWER THAN 18rem. `w-[var(--radix-popover-trigger-width)]` was
+				 * already here, but `min-w-[200px]` was a 200px FLOOR that a
+				 * content-sized trigger could sit above, so a `Room: …` face of 160px
+				 * opened a 200px menu and a 128px `Archived year` opened one barely
+				 * wider than the ellipsis the trigger was already showing. `min-w-72`
+				 * (18rem) is the packet's number and `min-width` is a floor, so the
+				 * rendered width is `max(trigger, 18rem)`.
+				 *
+				 * `max-w-[min(28rem,calc(100vw-2rem))]` is the viewport cap: a long
+				 * department list then WRAPS its option labels instead of forcing the
+				 * panel wider than the window, which is the other half of "never
+				 * ellipsise an option".
+				 *
+				 * A5 c8 §4.5 — `side="bottom"` + `avoidCollisions` are stated HERE, in
+				 * `@/ui`, rather than at each call site. Radix already flips the side on
+				 * collision, and `avoidCollisions` keeps it inside the viewport; stating
+				 * them means no page can ask for a menu that escapes upward with no
+				 * reason. The panel is portalled by `@/ui/popover` already, so no
+				 * ancestor's `overflow` can clip it. */
+				side="bottom"
+				align="start"
+				avoidCollisions
+				className={cn('w-[var(--radix-popover-trigger-width)] min-w-72 max-w-[min(28rem,calc(100vw-2rem))] max-h-[var(--radix-popover-content-available-height)] overflow-hidden p-0', className)}
 				collisionPadding={8}
 				onOpenAutoFocus={(e) => { e.preventDefault(); inputRef.current?.focus(); }}
 			>
@@ -375,7 +409,15 @@ export function SearchableSelect({
 										onClick={() => choose(item.value)}
 										onMouseEnter={() => setActiveIndex(index)}
 										className={cn(
-											'relative flex h-auto min-h-10 w-full cursor-pointer select-none items-center justify-start rounded-md px-2.5 py-2 text-sm font-normal outline-none hover:bg-accent hover:text-accent-foreground hover:[&_*]:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:[&_*]:text-accent-foreground aria-selected:bg-accent aria-selected:text-accent-foreground aria-selected:[&_*]:text-accent-foreground',
+											/* A5 c8 §4.4 — `items-start` and a WRAPPING label. The row was
+											 * `items-center` with `<span className="truncate">`, which is the
+											 * "ellipses in dropdowns" the operator reported: a `Science and
+											 * Technology Laboratory` or a data-driven department name was cut
+											 * with no cue that there was more to read. The label now takes
+											 * `whitespace-normal break-words text-left` and the row aligns to the
+											 * top, so a two-line option reads correctly against its check
+											 * glyph instead of straddling it. */
+											'relative flex h-auto min-h-10 w-full cursor-pointer select-none items-start rounded-md px-2.5 py-2 text-left text-sm font-normal outline-none hover:bg-accent hover:text-accent-foreground hover:[&_*]:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:[&_*]:text-accent-foreground aria-selected:bg-accent aria-selected:text-accent-foreground aria-selected:[&_*]:text-accent-foreground',
 											value === item.value && 'bg-accent text-accent-foreground [&_*]:text-accent-foreground',
 											active && 'ring-1 ring-inset ring-primary/60',
 											/* A disabled option is still readable — the count beside a
@@ -386,11 +428,11 @@ export function SearchableSelect({
 									>
 										<Check
 											className={cn(
-												'mr-2 size-4 shrink-0',
+												'mr-2 mt-0.5 size-4 shrink-0',
 												value === item.value ? 'opacity-100' : 'opacity-0',
 											)}
 										/>
-										<span className="truncate">{item.label}</span>
+										<span className="min-w-0 flex-1 whitespace-normal break-words text-left">{item.label}</span>
 									</Button>
 								);
 							})}

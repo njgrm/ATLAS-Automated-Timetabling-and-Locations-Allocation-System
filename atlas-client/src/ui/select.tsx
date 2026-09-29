@@ -64,12 +64,26 @@ const SelectTrigger = React.forwardRef<
 	<SelectPrimitive.Trigger
 		ref={ref}
 		className={cn(
-			'flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-4 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1',
+			/* A5 c8 (2026-09-29) — `[&>span]:line-clamp-1` is GONE. That is a
+			 * truncating clamp, and it is the ellipsis Lane C measured on the
+			 * Teaching Load history's `Archived year: 2029-2030` control: 128px of
+			 * box, 186px of scroll width, and the tail of the value simply not
+			 * painted. `AGENTS.md` §8 forbids a cut-off sentence, and the same rule
+			 * applied only to `SearchableSelect` while the Radix picker kept cutting
+			 * — which is how `/timetable` and `/teaching-load/history` read as two
+			 * different products. The label span below now wraps, and a caller that
+			 * needs a one-line face asks for a width that fits it. */
+			'flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-4 py-2 text-left text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
 			className,
 		)}
 		{...props}
 	>
-		{children}
+		{/* A5 c8 — the same two rules §4.6 states: the value WRAPS inside its box and
+		 * is never clamped. `min-w-0` lets the flex child shrink (its default
+		 * `min-width: auto` is what pushed the face out through the border), and
+		 * `whitespace-normal break-words` puts a long value on a second line instead
+		 * of cutting it. */}
+		<span className="min-w-0 break-words whitespace-normal text-left">{children}</span>
 		<SelectPrimitive.Icon asChild>
 			<ChevronDown className='h-4 w-4 opacity-50' />
 		</SelectPrimitive.Icon>
@@ -132,8 +146,14 @@ const SelectContent = React.forwardRef<
 				<SelectPrimitive.Viewport
 					className={cn(
 						'p-1 scroll-smooth scrollbar-thin scrollbar-track-transparent scrollbar-thumb-border hover:scrollbar-thumb-muted-foreground/50',
+						/* A5 c8 §4.6 — the menu is AT LEAST as wide as its trigger
+						 * (`min-w-(--radix-select-trigger-width)`) and capped at the
+						 * viewport (`max-w-[min(28rem,calc(100vw-2rem))]`), so a long
+						 * option WRAPS instead of escaping the window. Same contract as
+						 * `SearchableSelect`'s `PopoverContent`, for the same reason:
+						 * one look per menu. */
 						position === 'popper' &&
-							'h-(--radix-select-trigger-height) w-full min-w-(--radix-select-trigger-width)',
+							'h-(--radix-select-trigger-height) w-full min-w-(--radix-select-trigger-width) max-w-[min(28rem,calc(100vw-2rem))]',
 					)}
 				>
 					{children}
@@ -194,7 +214,10 @@ const SelectItem = React.forwardRef<
 			</SelectPrimitive.ItemIndicator>
 		</span>
 
-		<SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+		{/* A5 c8 §4.6 — a long option WRAPS rather than being cut. Same reason as the
+		 * trigger's label span, and the reason `SearchableSelect`'s option rows lost
+		 * their `truncate` in the same change. */}
+		<SelectPrimitive.ItemText className='min-w-0 whitespace-normal break-words text-left'>{children}</SelectPrimitive.ItemText>
 	</SelectPrimitive.Item>
 ));
 SelectItem.displayName = SelectPrimitive.Item.displayName;
