@@ -114,6 +114,358 @@ test('A7C8-1: no production file declares an arbitrary sub-14px type size', () =
 	);
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// A7C8-1 .. A7C8-4 ABOVE WERE THE SLICE'S ORIGINAL GATE. A7C8-1 IS A HARD FAIL
+// ON THE `text-[9|10|11|12]px]` VALUES AND IT STAYS EXACTLY AS IT WAS — IT IS NOT
+// PART OF ANY ALLOWLIST, AND NOTHING BELOW WEAKENS IT.
+//
+// WHAT WAS WRONG WITH IT, AND WHY 5 AND 6 EXIST. The planner rendered Sections,
+// Subjects and Teachers on real staging data at 1366x768 after this slice landed
+// and measured text at 9.6-11.2px with a ux-audit MAJOR count of 17/21/15. The
+// tokens were right — `text-xs` computed to 14px — but those pages are still
+// broken, because the sizes that are actually on them are written in REM:
+// `text-[0.65rem]` (10.4px), `text-[0.625rem]` (10px), `text-[0.6875rem]` (11px),
+// `text-[0.8rem]` (12.8px). A7C8-1 matches a PX LITERAL only, so it reported a
+// clean page while that page was rendering 10px type.
+//
+// A GATE THAT CERTIFIES "NO TEXT UNDER 14px" WHILE IGNORING AN ENTIRE UNIT CLASS
+// IS FALSE ASSURANCE — WORSE THAN NO GATE, because it converts an unfixed
+// operator complaint into a green tick. So the detection rule below is UNIT-SAFE
+// AND GENERAL: it parses the numeric value and converts it (rem/em x16, pt x4/3,
+// px as written) before comparing against the floor. Nothing here enumerates the
+// values that happen to exist today.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** The operator's floor: "There is a lot of text that is too small" — nothing under 14px. */
+const MIN_TEXT_PX = 14;
+/** Tailwind's initial root font size; the same 16px A7C8-4 derives rem against. */
+const ROOT_FONT_PX = 16;
+
+/**
+ * One `text-[<length>]` arbitrary font size, unit optional.
+ *
+ * THE SHAPE IS DELIBERATE: the bracket content must be a bare number with an
+ * optional unit, so `text-[#0f172a]`, `text-[rgb(2_6_23)]` and `text-[50%]` do not
+ * match. Those are colours and relative sizes, not type sizes, and flagging them
+ * would be noise that trains people to ignore the row. A `%` font-size is
+ * genuinely not comparable to a px floor without knowing its parent's size, so it
+ * is left out rather than guessed at; see `arbitraryFontSizePx`.
+ */
+const ARBITRARY_SIZE_TOKEN = /text-\[\s*(\d*\.?\d+)(px|rem|em|pt)?\s*\]/;
+const ARBITRARY_SIZE_SCAN = new RegExp(ARBITRARY_SIZE_TOKEN.source, 'g');
+
+/**
+ * The px a `text-[...]` token computes to, or `undefined` when it is not a font
+ * size at all / not comparable to a px floor.
+ *
+ * Returning `undefined` rather than a guess is the point: a detector that invents
+ * a number for a value it cannot resolve becomes a gate that is wrong in the
+ * direction nobody notices.
+ */
+function arbitraryFontSizePx(token: string): number | undefined {
+	const m = ARBITRARY_SIZE_TOKEN.exec(token);
+	if (!m) return undefined;
+	const n = Number.parseFloat(m[1]);
+	switch (m[2]) {
+		// A bare number is CSS-invalid, so Tailwind treats it as px. Match that.
+		case undefined:
+		case 'px':
+			return n;
+		// `em` resolves against the ELEMENT's own inherited size, which is not
+		// knowable here. Treating it as the root is the closest safe reading and it
+		// still errs toward flagging, which is the correct direction for a floor.
+		case 'rem':
+		case 'em':
+			return n * ROOT_FONT_PX;
+		case 'pt':
+			return (n * 96) / 72;
+		default:
+			return undefined;
+	}
+}
+
+/**
+ * A7C8-5 — THE PARSER IS GENERAL, NOT A LIST OF TODAY'S VALUES.
+ *
+ * This is the row that stops the rule rotting back into an enumeration. It feeds
+ * the detector values the repository does NOT contain (`text-[0.3rem]`, `text-[8px]`,
+ * `text-[1pt]`) plus the non-type arbitrary values it must NOT flag, so a future
+ * slice cannot satisfy the gate by editing the allowlist when a NEW sub-14px value
+ * appears — the arithmetic itself is pinned here.
+ */
+test('A7C8-5: arbitrary font sizes are detected in px, rem and pt, and non-sizes are not', () => {
+	/** [token, expected px or undefined] */
+	const cases: [string, number | undefined][] = [
+		// px — including values below the floor that no longer exist in production.
+		['text-[9px]', 9],
+		['text-[13px]', 13],
+		['text-[14px]', 14],
+		['text-[8px]', 8],
+		['text-[22px]', 22],
+		// rem at the 16px root — the values that are actually breaking the three pages.
+		['text-[0.5rem]', 8],
+		['text-[0.5625rem]', 9],
+		['text-[0.625rem]', 10],
+		['text-[0.65rem]', 10.4],
+		['text-[0.6875rem]', 11],
+		['text-[0.7rem]', 11.2],
+		['text-[0.75rem]', 12],
+		['text-[0.8rem]', 12.8],
+		['text-[0.8125rem]', 13],
+		// rem at and above the floor must NOT be flagged.
+		['text-[0.875rem]', 14],
+		['text-[1rem]', 16],
+		// A value the repo has never had, to prove nothing is enumerated.
+		['text-[0.3rem]', 4.8],
+		// pt is a real authored unit for a font size and must convert, not be ignored.
+		['text-[1pt]', 96 / 72],
+		['text-[0.5pt]', 48 / 72],
+		// Whitespace inside the bracket is legal and must not hide the value.
+		['text-[ 0.65rem ]', 10.4],
+		// NOT font sizes — a colour, a ratio, a relative size, and a text colour.
+		['text-[#0f172a]', undefined],
+		['text-[rgb(2_6_23)]', undefined],
+		['text-[50%]', undefined],
+		['text-[length:var(--x)]', undefined],
+		// Not the font-size utility at all.
+		['text-slate-400', undefined],
+		['text-xs', undefined],
+	];
+
+	const wrong = cases
+		.map(([token, want]) => ({ token, want, got: arbitraryFontSizePx(token) }))
+		.filter((c) => c.got !== c.want);
+	assert.deepEqual(
+		wrong,
+		[],
+		'A7C8-5: the arbitrary font-size parser mis-resolved a token:\n  ' +
+			wrong.map((c) => `${c.token} -> ${String(c.got)} (expected ${String(c.want)})`).join('\n  '),
+	);
+
+	// The floor itself, stated once, from the parser — so "does it detect rem" and
+	// "is the floor 14px" cannot drift apart.
+	for (const token of ['text-[0.65rem]', 'text-[10px]', 'text-[9pt]']) {
+		const px = arbitraryFontSizePx(token);
+		assert.ok(
+			px !== undefined && px < MIN_TEXT_PX,
+			`A7C8-5: ${token} must resolve below the ${MIN_TEXT_PX}px floor, got ${px}`,
+		);
+	}
+	for (const token of ['text-[0.875rem]', 'text-[14px]', 'text-[11pt]']) {
+		const px = arbitraryFontSizePx(token);
+		assert.ok(
+			px !== undefined && px >= MIN_TEXT_PX,
+			`A7C8-5: ${token} must resolve at or above the ${MIN_TEXT_PX}px floor, got ${px}`,
+		);
+	}
+});
+
+/**
+ * A7C8-6 — THE SUB-14px RATCHET OVER THE PRE-EXISTING POPULATION. READ THIS
+ * BEFORE "FIXING" IT, AND BEFORE ADDING TO IT.
+ *
+ * THE PACKET ASKED FOR A HARD FAIL HERE AND A HARD FAIL IS NOT AVAILABLE TODAY.
+ * 264 production occurrences of an arbitrary font-size that computes below 14px
+ * are real, still-shipped, user-visible text — 255 of them in rem. They are not
+ * this slice's: this slice removed exactly 137 (401 -> 264 in production), and
+ * every one of those 137 was a px literal. A hard-fail gate on `main` right now
+ * is a RED `main`, which is not landable and trains everyone to ignore the gate.
+ *
+ * SO: a RATCHET WITH A NAMED, DATED, OWNER-TAGGED ALLOWLIST, the same shape as
+ * A7C8-2 above. The allowlist is keyed by `<file>|text-[<value>]` -> OCCURRENCE
+ * COUNT, not by line number. Line numbers would be the more obvious key and the
+ * worse one: a single unrelated edit above a site shifts its line and the gate
+ * fails for no reason, which is how ratchets get deleted. Keying on file+value
+ * survives line drift, and carrying the COUNT is what stops `text-[0.6875rem]`
+ * being added twenty more times to a file that already has twenty.
+ *
+ * IT FAILS IN ALL THREE DIRECTIONS:
+ *   - a NEW file or a NEW value appears            -> fails (no new sub-14px text)
+ *   - an EXISTING count goes UP                     -> fails (no growth)
+ *   - a recorded site is REMOVED, i.e. a site is FIXED -> ALSO fails, deliberately
+ * The last one is the point: fixing a site has to be a RECORDED event in which the
+ * owner edits this list in the same commit, so the retirement is visible in the
+ * diff instead of a silent drift nobody can audit. A gate that only fails on new
+ * violations rewards nobody for fixing anything.
+ *
+ *   ALLOWLIST RECORDED 2026-09-29 (A7 C8 slice 1) — 89 keys, 264 occurrences,
+ *   57 files. 255 occurrences are rem; 9 are `text-[13px]` (pre-existing, in
+ *   `components/faculty-dashboard/` and `components/faculty-shared/`). Both
+ *   populations are in here because BOTH are real sub-14px text and leaving the
+ *   px ones out would reintroduce exactly the px-only blind spot this row exists
+ *   to close.
+ *
+ *   OWNER: A7 C8 RE-FIT PASS (the next slice), which raises these to 14px and
+ *   re-fits each surface. Several of these sites sit in FIXED-HEIGHT boxes, so a
+ *   blind bump to `text-xs` clips them — that is why this is its own slice with
+ *   rendered proof per surface, and why this commit does not touch them.
+ *   Per-file inventory: docs/reviews/a7-c8-type-scale/sub-14px-rem-inventory.md
+ *
+ *   DO NOT ADD AN ENTRY. An entry is not a permission slip; it is a claim that
+ *   this sub-14px text is intended and still needed. If a new site is unavoidable,
+ *   say so in review rather than in this map.
+ */
+const UNDER_14PX_ALLOWLIST_2026_09_29: Record<string, number> = {
+	'components/BuildingPanel.tsx|text-[0.6875rem]': 23,
+	'components/BuildingPanel.tsx|text-[0.72rem]': 5,
+	'components/BuildingPanel.tsx|text-[0.8125rem]': 1,
+	'components/CampusMapEditor.tsx|text-[0.65rem]': 2,
+	'components/CampusMapEditor.tsx|text-[0.7rem]': 2,
+	'components/CampusMapEditor.tsx|text-[0.75rem]': 1,
+	'components/ConflictInspectorSheet.tsx|text-[0.625rem]': 2,
+	'components/ConflictInspectorSheet.tsx|text-[0.6875rem]': 2,
+	'components/ExplainabilityDrawer.tsx|text-[0.625rem]': 6,
+	'components/LockPanel.tsx|text-[0.5rem]': 2,
+	'components/LockPanel.tsx|text-[0.5625rem]': 4,
+	'components/LockPanel.tsx|text-[0.625rem]': 20,
+	'components/LockPanel.tsx|text-[0.6875rem]': 11,
+	'components/ManualEditPanel.tsx|text-[0.55rem]': 5,
+	'components/ManualEditPanel.tsx|text-[0.5625rem]': 5,
+	'components/ManualEditPanel.tsx|text-[0.625rem]': 9,
+	'components/ManualEditPanel.tsx|text-[0.65rem]': 4,
+	'components/ManualEditPanel.tsx|text-[0.6875rem]': 6,
+	'components/PolicyImpactSummary.tsx|text-[0.5625rem]': 1,
+	'components/PolicyImpactSummary.tsx|text-[0.625rem]': 3,
+	'components/PolicyImpactSummary.tsx|text-[0.6875rem]': 1,
+	'components/SchedulingPolicyPane.tsx|text-[0.625rem]': 2,
+	'components/SchedulingPolicyPane.tsx|text-[0.6875rem]': 8,
+	'components/TutorialOverlay.tsx|text-[0.625rem]': 1,
+	'components/admin-workspace/AdminDataTable.tsx|text-[0.7rem]': 5,
+	'components/admin-workspace/AdminWorkspace.tsx|text-[0.65rem]': 3,
+	'components/audit/AuditFindingsPanel.tsx|text-[0.68rem]': 2,
+	'components/campus-map/BuildingGradeScopeControl.tsx|text-[0.6875rem]': 2,
+	'components/campus-map/BuildingGradeScopeControl.tsx|text-[0.72rem]': 1,
+	'components/campus-map/BuildingPlacementFields.tsx|text-[0.6875rem]': 4,
+	'components/campus-map/BuildingPlacementFields.tsx|text-[0.72rem]': 1,
+	'components/dashboard/LifecycleSummary.tsx|text-[0.6875rem]': 1,
+	'components/dashboard/NextActionPanel.tsx|text-[0.65rem]': 1,
+	'components/dashboard/RoomSchedulePreview.tsx|text-[0.5625rem]': 2,
+	'components/dashboard/RoomSchedulePreview.tsx|text-[0.625rem]': 4,
+	'components/dashboard/RoomSchedulePreview.tsx|text-[0.6875rem]': 2,
+	'components/dashboard/SetupChecklist.tsx|text-[0.625rem]': 1,
+	'components/faculty-assignments/AutoFillSummaryModal.tsx|text-[0.7rem]': 3,
+	'components/faculty-assignments/SubjectRow.tsx|text-[0.75rem]': 1,
+	'components/faculty-dashboard/ActionQueue.tsx|text-[13px]': 1,
+	'components/faculty-dashboard/FacultyObjectiveStateCard.tsx|text-[13px]': 1,
+	'components/faculty-dashboard/MobileDashboardLayout.tsx|text-[13px]': 3,
+	'components/faculty-dashboard/TeachingIdentityPanel.tsx|text-[13px]': 3,
+	'components/faculty-shared/FacultyGlobalHeader.tsx|text-[13px]': 1,
+	'components/faculty/FacultyProfileSheet.tsx|text-[0.65rem]': 5,
+	'components/faculty/FacultyProfileSheet.tsx|text-[0.7rem]': 7,
+	'components/faculty/FacultyRow.tsx|text-[0.6rem]': 3,
+	'components/faculty/FacultyRow.tsx|text-[0.65rem]': 6,
+	'components/room-schedules/OccupancyTemplatePreview.tsx|text-[0.625rem]': 1,
+	'components/scheduling-policy/PolicyPaneConstraintWeights.tsx|text-[0.6875rem]': 1,
+	'components/scheduling-policy/PolicyPanePrimitives.tsx|text-[0.5625rem]': 1,
+	'components/scheduling-policy/PolicyPanePrimitives.tsx|text-[0.625rem]': 2,
+	'components/scheduling-policy/PolicyPanePrimitives.tsx|text-[0.6875rem]': 2,
+	'components/scheduling-policy/PolicyPaneSchedulingMode.tsx|text-[0.6875rem]': 2,
+	'components/scheduling-policy/SchedulingPolicyDialogs.tsx|text-[0.6875rem]': 4,
+	'components/scheduling-policy/ShiftSettingsEditor.tsx|text-[0.6875rem]': 4,
+	'components/sections/SectionDetailsSheet.tsx|text-[0.6875rem]': 11,
+	'components/sections/SectionDetailsSheet.tsx|text-[0.7rem]': 2,
+	'components/sections/SectionRow.tsx|text-[0.6875rem]': 5,
+	'components/smart/AccessibleInfo.tsx|text-[0.65rem]': 1,
+	'components/subjects/ProgramScopeChips.tsx|text-[0.6rem]': 1,
+	'components/subjects/SubjectFormModal.tsx|text-[0.7rem]': 1,
+	'components/subjects/SubjectMobileCard.tsx|text-[0.65rem]': 2,
+	'components/subjects/SubjectMutationDetailPopover.tsx|text-[0.65rem]': 1,
+	'components/subjects/SubjectRow.tsx|text-[0.6rem]': 1,
+	'components/subjects/SubjectRow.tsx|text-[0.65rem]': 2,
+	'components/subjects/SubjectRow.tsx|text-[0.7rem]': 3,
+	'components/subjects/SyncPreviewSheet.tsx|text-[0.6rem]': 1,
+	'components/subjects/SyncPreviewSheet.tsx|text-[0.65rem]': 1,
+	'components/timetable/GeneratedRunRailPanels.tsx|text-[0.6875rem]': 2,
+	'components/timetable/ScheduleReviewWorkspaceHeader.tsx|text-[0.68rem]': 1,
+	'components/timetable/ScheduleReviewWorkspaceTaskModes.tsx|text-[0.65rem]': 1,
+	'components/timetable/SimplePublishReadinessSheet.tsx|text-[0.625rem]': 1,
+	'components/timetable/SimplePublishReadinessSheet.tsx|text-[0.65rem]': 2,
+	'components/timetable/TacticalSandboxDock.parts.tsx|text-[0.65rem]': 1,
+	'components/timetable/TeacherDepartureRecoverySheet.tsx|text-[0.6rem]': 1,
+	'components/timetable/TeacherDepartureRecoverySheet.tsx|text-[0.64rem]': 1,
+	'components/timetable/TimetableStatusLegend.tsx|text-[0.68rem]': 1,
+	'components/timetable/TimetableTaskDrawer.tsx|text-[0.65rem]': 1,
+	'components/timetable/TimetableTaskDrawer.tsx|text-[0.68rem]': 4,
+	'components/timetable/TimetableTaskDrawer.tsx|text-[0.7rem]': 1,
+	'components/timetable/UnassignedInsertionWorkflow.tsx|text-[0.7rem]': 1,
+	'components/timetable/modals/ReviewActionSheet.tsx|text-[0.68rem]': 1,
+	'components/timetable/modals/TimetablePlacementDialogs.tsx|text-[0.68rem]': 1,
+	'components/timetable/simple/SimpleTaskDrawerHelpers.tsx|text-[0.625rem]': 1,
+	'components/timetable/simple/SimpleTaskDrawerHelpers.tsx|text-[0.6875rem]': 2,
+	'pages/HowItWorks.tsx|text-[0.6875rem]': 1,
+	'pages/SpecializationMapping.tsx|text-[0.65rem]': 1,
+	'ui/button-variants.ts|text-[0.8rem]': 1,
+};
+
+test('A7C8-6: no arbitrary sub-14px font size outside the dated, owner-tagged ratchet', () => {
+	// Scan production, comment-stripped, counting EVERY match on a line (not one per
+	// line) so `text-[0.625rem] text-[0.6875rem]` counts twice, as it renders.
+	const counts = new Map<string, number>();
+	for (const abs of PRODUCTION_FILES) {
+		stripComments(readFileSync(abs, 'utf8'))
+			.split('\n')
+			.forEach((line) => {
+				ARBITRARY_SIZE_SCAN.lastIndex = 0;
+				let m: RegExpExecArray | null;
+				while ((m = ARBITRARY_SIZE_SCAN.exec(line)) !== null) {
+					const token = m[0].replace(/\s+/g, '');
+					const px = arbitraryFontSizePx(token);
+					if (px === undefined || px >= MIN_TEXT_PX) continue;
+					const key = `${rel(abs)}|${token}`;
+					counts.set(key, (counts.get(key) ?? 0) + 1);
+				}
+			});
+	}
+
+	const found = [...counts.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+	const recorded = Object.entries(UNDER_14PX_ALLOWLIST_2026_09_29).sort(([a], [b]) =>
+		a < b ? -1 : a > b ? 1 : 0,
+	);
+
+	const added = found.filter(([k]) => !UNDER_14PX_ALLOWLIST_2026_09_29[k]);
+	const removed = recorded.filter(([k]) => !counts.has(k));
+	const grown = found.filter(([k, c]) => UNDER_14PX_ALLOWLIST_2026_09_29[k] < c);
+
+	assert.deepEqual(
+		added,
+		[],
+		'A7C8-6: NEW sub-14px arbitrary font size(s) in production.\n  ' +
+			added.map(([k, c]) => `${k}  x${c}  (${arbitraryFontSizePx(k.split('|')[1])}px)`).join('\n  ') +
+			'\n  The floor is 14px and `text-xs` IS 14px, so there is no reason to reach for ' +
+			'an arbitrary value. Use a named size, or fix the box the text is overflowing.',
+	);
+	assert.deepEqual(
+		grown,
+		[],
+		'A7C8-6: a recorded site GREW — the ratchet counts occurrences, not just files.\n  ' +
+			grown.map(([k, c]) => `${k}  was ${UNDER_14PX_ALLOWLIST_2026_09_29[k]}, now ${c}`).join('\n  '),
+	);
+	assert.deepEqual(
+		removed,
+		[],
+		'A7C8-6: a recorded site is GONE, which also fails on purpose.\n  ' +
+			removed.map(([k]) => k).join('\n  ') +
+			'\n  A fix has to be a recorded event: delete the matching entry from ' +
+			'UNDER_14PX_ALLOWLIST_2026_09_29 in the SAME commit that removes the site, so the ' +
+			'retirement is reviewable. Do not silence this row; shorten the list.',
+	);
+
+	// The totals are pinned, not just the membership, so a silent deletion or an
+	// off-by-one in the count cannot hide behind a matching set of keys.
+	assert.equal(
+		recorded.length,
+		89,
+		'A7C8-6: the allowlist must hold exactly 89 keys (recorded 2026-09-29).',
+	);
+	assert.equal(
+		found.reduce((a, [, c]) => a + c, 0),
+		264,
+		'A7C8-6: production must hold exactly 264 sub-14px arbitrary font-size ' +
+			'occurrences (255 rem + 9 text-[13px]). Update this number and the ' +
+			'inventory doc in the same commit that changes it.',
+	);
+});
+
 /**
  * A7C8-2 — THE `More filters` RATCHET. READ THIS BEFORE "FIXING" IT.
  *
