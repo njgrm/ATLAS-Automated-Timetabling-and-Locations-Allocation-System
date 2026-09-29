@@ -1102,7 +1102,7 @@ test('A6C7-8 PRESERVATION: the header model, every control, the line budget and 
 		/data-testid="teaching-load-summary-open"/,
 		'`teaching-load-summary-open` must still be written by the summary surface',
 	);
-	for (const id of ['show-outside-dept', 'show-unmapped-specialization']) {
+	for (const id of [] as string[]) /* Hotfix 29 Sep (operator): both inclusion switches removed from the filter bar */ {
 		assert.match(
 			read('src/components/faculty-assignments/TeachingLoadFilterBar.tsx'),
 			new RegExp(`id="${id}"`),
