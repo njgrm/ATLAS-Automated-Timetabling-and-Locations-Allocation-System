@@ -110,7 +110,20 @@ test('UX-C01R: derived-ready with a missing exact Teaching Load owner stays bloc
 		generationDiagnostic: summarizeGenerationReadiness(state),
 		readinessRepair: state.state === 'blocked' ? state.repair : null,
 	}));
-	assert.equal(caps.generation.enabled, false, 'generation must remain disabled');
+	// ── SUPERSEDED 2026-09-29 by A8-C5 S2.3 (packet addendum 20:05). The
+	// DEFENSE-IN-DEPTH this row exists for is UNCHANGED and still asserted on the
+	// line below: the server's `generateAllowed` still governs whether a run may
+	// start, and `deriveGenerateDecision`
+	// (atlas-server/src/services/generation-blocker-groups.service.ts:258) still
+	// refuses on its own terms. What changed is the client's RESPONSE to a refusal:
+	// it is now a named stopper inside a dialog the operator can open, instead of a
+	// button that cannot be pressed. `was: assert.equal(caps.generation.enabled,
+	// false, 'generation must remain disabled');`
+	assert.equal(caps.generation.enabled, true, 'A8-C5 S2.3: the unverified decision is a named stopper, not a greyed button');
+	assert.equal(caps.generationStoppers.some((stopper) => stopper.key === 'readiness-unverified'), true,
+		'the dialog names the unverified readiness decision as its own cause');
+	assert.equal(caps.generationStoppers[0]?.count, state.diagnostic.blockerCount,
+		'and states the count the SERVER measured, so the operator is not back to counting rows');
 	assert.equal(caps.generation.repair.href, '/teaching-load');
 });
 
@@ -134,7 +147,14 @@ test('UX-C01R: an ALGORITHM_LIMIT repair is a real in-place retry, never a self-
 		generationDiagnostic: summarizeGenerationReadiness(state),
 		readinessRepair: state.state === 'blocked' ? state.repair : null,
 	}));
-	assert.equal(caps.generation.enabled, false);
+	// ── SUPERSEDED 2026-09-29 by A8-C5 S2.3: enabled is now true, because the
+	// in-place retry the row already requires is offered INSIDE the dialog as a
+	// Retry button. The two assertions below it — the repair stays a `retry`, and
+	// it is never a self-link to /timetable — are UNCHANGED and are the real
+	// contract of this row.
+	//   was: assert.equal(caps.generation.enabled, false);
+	assert.equal(caps.generation.enabled, true, 'A8-C5 S2.3: an in-place retry belongs in the dialog, not in a disabled button');
+	assert.equal(caps.generationStoppers.some((stopper) => stopper.key === 'readiness-unverified'), true);
 	assert.equal(caps.generation.repair.kind, 'retry', 'the shared capability model must preserve the retry repair');
 	assert.notEqual(caps.generation.repair.href, '/timetable');
 	// Negative control: a genuinely external owning surface still navigates.
@@ -174,7 +194,20 @@ test('UX-C01R: derived-ready with an out-of-shape entry stays blocked with an in
 		curriculumState: state.state,
 		generationDiagnostic: summarizeGenerationReadiness(state),
 	}));
-	assert.equal(caps.generation.enabled, false);
+	// ── SUPERSEDED 2026-09-29 by A8-C5 S2.3: an out-of-shape entry is now a named
+	// stopper in the dialog rather than a greyed button. The state is still
+	// `blocked` above and the repair is still the in-place retry, so the run is
+	// still refused by the server's own decision.
+	//   was: assert.equal(caps.generation.enabled, false);
+	assert.equal(caps.generation.enabled, true, 'A8-C5 S2.3: an out-of-shape entry is a named stopper, not a greyed button');
+	// Two real causes here (the blocked setup and the unverified decision), so the
+	// row is stated as "the cause is named", not "the cause is first".
+	assert.equal(
+		caps.generationStoppers.some((stopper) => stopper.key === 'readiness-unverified'),
+		true,
+		'the dialog owes a line for the unverified decision as well as for the blocked setup',
+	);
+	assert.equal(caps.generationStoppers.length, 2, 'and it does not collapse two real causes into one');
 });
 
 test('UX-C01R: derived-ready with a stale source revision stays blocked', () => {
@@ -253,7 +286,13 @@ test('UX-C01R: a diagnostic for another school/year is unavailable, never reused
 		curriculumState: state.state,
 		generationDiagnostic: summarizeGenerationReadiness(state),
 	}));
-	assert.equal(caps.generation.enabled, false);
+	// ── SUPERSEDED 2026-09-29 by A8-C5 S2.3. The row's actual subject SURVIVES and
+	// is still asserted above: the diagnostic for another school/year is
+	// `unavailable` and is never reused as ready. Only the greyed button became a
+	// named stopper.   was: assert.equal(caps.generation.enabled, false);
+	assert.equal(caps.generation.enabled, true, 'A8-C5 S2.3: a foreign diagnostic is a named stopper, not a greyed button');
+	assert.equal(caps.generationStoppers[0]?.key, 'setup-check-failed');
+	assert.equal(caps.generationStoppers[0]?.checkFailed, true, 'and it is honestly a check that could not be completed');
 });
 
 test('UX-C01R: a malformed diagnostic is failed, and failed never enables generation', () => {
@@ -263,7 +302,14 @@ test('UX-C01R: a malformed diagnostic is failed, and failed never enables genera
 		curriculumState: state.state,
 		generationDiagnostic: summarizeGenerationReadiness(state),
 	}));
-	assert.equal(caps.generation.enabled, false);
+	// ── SUPERSEDED 2026-09-29 by A8-C5 S2.3, and the test NAME is now the stale
+	// part of it: Generate IS enabled here, because the operator must be able to
+	// open the dialog and read why the check failed. The row's real subject is
+	// unchanged and still asserted: the repair is a `retry`, because a malformed
+	// payload is re-runnable. A malformed diagnostic is still never trusted.
+	//   was: assert.equal(caps.generation.enabled, false);
+	assert.equal(caps.generation.enabled, true, 'A8-C5 S2.3: a failed check is a named stopper with a Retry, not a greyed button');
+	assert.equal(caps.generationStoppers[0]?.key, 'setup-check-failed');
 	assert.equal(caps.generation.repair.kind, 'retry');
 });
 
@@ -274,7 +320,18 @@ test('UX-C01R: summary gate refuses a ready state whose diagnostic does not prov
 		curriculumState: 'ready',
 		generationDiagnostic: { generateAllowed: false, zeroWrite: true, blockerCount: 0, gapCount: 620, gapClassCount: 50 },
 	}));
-	assert.equal(caps.generation.enabled, false);
+	// ── SUPERSEDED 2026-09-29 by A8-C5 S2.3. The DEFENSE-IN-DEPTH is unchanged and
+	// is what the two assertions below still prove: the client does not treat a
+	// "ready" label as permission, it follows the diagnostic, and its repair is an
+	// in-place retry rather than a self-link back to the route already rendering
+	// the state. What changed is that the refusal is a named stopper in a dialog
+	// the operator can open.
+	//   was: assert.equal(caps.generation.enabled, false);
+	assert.equal(caps.generation.enabled, true, 'A8-C5 S2.3: the unproven decision is a named stopper, not a greyed button');
+	assert.equal(caps.generationStoppers[0]?.key, 'readiness-unverified');
+	// A zero blocking count with an unproven decision must NOT be dressed up with
+	// a count the server never measured.
+	assert.equal(caps.generationStoppers[0]?.count, null);
 	// The unproven-readiness repair must be an in-place retry, never a self-link
 	// back to the route that is already rendering the blocked state.
 	assert.equal(caps.generation.repair.kind, 'retry');

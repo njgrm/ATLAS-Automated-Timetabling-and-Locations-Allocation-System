@@ -95,6 +95,62 @@ export type TimetableCapabilities = {
 	/** The one readiness decision both Simple and Advanced generation triggers consume. */
 	generation: TimetableActionGate;
 	gates: Record<TimetableCapabilityId, TimetableActionGate>;
+	/**
+	 * A8-C5 S2.3 — what genuinely prevents a timetable, one named entry per cause.
+	 *
+	 * Before this, every one of these conditions produced a DISABLED Generate
+	 * button and a sentence beside it. The operator, verbatim: *"it should never
+	 * be disabled."* A disabled control with a tooltip is a dead end — a
+	 * scheduler cannot act on it, cannot see what would change, and has no way to
+	 * tell "nothing is wrong yet" from "this will never work". Generate is now
+	 * clickable in every state except a run already in progress; clicking opens
+	 * the dialog, and the dialog reads THIS list.
+	 */
+	generationStoppers: TimetableGenerationStopper[];
+};
+
+/**
+ * A8-C5 S2.3 — one plain line per cause, with a count where one was measured and
+ * ONE real fix route.
+ *
+ * This is PRESENTATION. It is not a gate and it does not replace one: the
+ * canonical decision remains `deriveGenerateDecision`
+ * (`atlas-server/src/services/generation-blocker-groups.service.ts:258`), called
+ * in production from `generation-readiness.service.ts`, and it still refuses on
+ * its own terms. "Always enabled" means the operator always gets the dialog and
+ * an honest list — it does not mean the client became the only gate.
+ */
+export type TimetableGenerationStopper = {
+	/** Stable key for the cause. Carries no engine text into the DOM. */
+	key: string;
+	/** One plain sentence. Never a code, never a truncated sentence. */
+	line: string;
+	/** The SAME sentence in at most six words, for a tight header. Authored, never sliced. */
+	shortReason: string;
+	/**
+	 * The count the SERVER measured, or null when nothing was measured. Null is
+	 * honest and load-bearing: an invented count is the "651 setup items" defect
+	 * this lane exists to remove, so a cause with no measurement says no number.
+	 */
+	count: number | null;
+	/** ONE real fix route. Always a mounted app path. */
+	href: string;
+	/** The ONE button label on that route. */
+	actionLabel: string;
+	/**
+	 * True when the CAUSE is that a check could not run, not that setup is wrong.
+	 * The dialog retries these by itself once, and then says so plainly with a
+	 * Retry button — it never spins forever and it never pretends to know.
+	 */
+	checkFailed: boolean;
+	/** The Retry label, present exactly when `checkFailed`. */
+	retryLabel: string | null;
+	/**
+	 * The real repair for this cause, carried through to the header unchanged.
+	 * `none` is legitimate: a cause whose fix is only a fix ROUTE (which the
+	 * dialog offers) has no in-place action to perform.
+	 */
+	repair: TimetableRepair;
 };
 
 const NONE: TimetableRepair = { kind: 'none', label: null, href: null };
@@ -120,6 +176,144 @@ function allowed(): TimetableActionGate {
  */
 function denied(reason: string, repair: TimetableRepair = NONE, shortReason: string | null = null): TimetableActionGate {
 	return { enabled: false, reason, shortReason, repair };
+}
+
+/**
+ * A8-C5 S2.3 — every condition that used to DISABLE Generate, expressed as a
+ * named stopper the dialog can explain.
+ *
+ * Each former `denied(...)` branch of the generation gate appears here exactly
+ * once, with its sentence, its count (or an honest null), and its fix route. The
+ * gate below then reads the FIRST stopper for its reason and repair, so the
+ * header and the dialog cannot disagree about what is wrong or where it is
+ * fixed — the same single-source rule S2.2 applied to the blocker panel.
+ *
+ * ORDER IS PRIORITY, not severity: scope, then a check still running, then a
+ * blocked setup, then a check that could not run, then an unverified decision,
+ * then drift. The first entry is the one the header repairs, so it is the one
+ * that has to be the one an operator can act on.
+ */
+export function deriveTimetableGenerationStoppers(input: TimetableCapabilityInput): TimetableGenerationStopper[] {
+	const stoppers: TimetableGenerationStopper[] = [];
+
+	if (!input.scopeResolved) {
+		stoppers.push({
+			key: 'scope-unresolved',
+			line: 'ATLAS could not load your school and school year, so it does not yet know which year to build a timetable for.',
+			shortReason: 'Waiting for school and year',
+			count: null,
+			href: YEAR_SETUP_HREF,
+			actionLabel: 'Open Year Setup',
+			checkFailed: true,
+			retryLabel: 'Retry schedule check',
+			repair: NONE,
+		});
+	}
+
+	if (input.curriculumState === 'loading') {
+		stoppers.push({
+			key: 'setup-loading',
+			line: 'The schedule check is still running for this school year. It retries once on its own, then waits for you.',
+			shortReason: 'Checking schedule information',
+			count: null,
+			href: YEAR_SETUP_HREF,
+			actionLabel: 'Open Year Setup',
+			checkFailed: true,
+			retryLabel: 'Retry schedule check',
+			repair: NONE,
+		});
+	}
+
+	if (input.curriculumState === 'blocked') {
+		// The readiness adapter already resolved the real repair for the exact
+		// blocker, and it distinguishes a fix ROUTE from an in-place re-run. Both
+		// are carried: the repair is what the header acts on, the route is what
+		// the dialog's button opens when the repair is a retry.
+		const repair: TimetableRepair = input.readinessRepair
+			? input.readinessRepair.kind === 'retry'
+				? retry(input.readinessRepair.label)
+				: navigate(input.readinessRepair.label, input.readinessRepair.href)
+			: navigate('Open Year Setup', YEAR_SETUP_HREF);
+		const navigates = repair.kind === 'navigate' && repair.href !== null;
+		const blocking = input.generationDiagnostic?.blockerCount ?? null;
+		stoppers.push({
+			key: 'setup-blocked',
+			line: blocking !== null && blocking > 0
+				? `${blocking} setup ${blocking === 1 ? 'item needs' : 'items need'} fixing before ATLAS can make a timetable.`
+				: 'Setup inputs for the active school year are not ready yet.',
+			shortReason: 'Setup inputs are not ready',
+			count: blocking !== null && blocking > 0 ? blocking : null,
+			href: navigates ? repair.href! : YEAR_SETUP_HREF,
+			actionLabel: navigates ? repair.label! : 'Open Year Setup',
+			// A blocked setup is a REAL setup fact, not a check that failed, so it
+			// is never retried behind the operator's back.
+			checkFailed: false,
+			retryLabel: null,
+			repair,
+		});
+	}
+
+	if (input.curriculumState === 'unavailable' || input.curriculumState === 'failed') {
+		stoppers.push({
+			key: 'setup-check-failed',
+			line: 'The schedule check could not read this school year. ATLAS does not know yet whether the setup is ready.',
+			shortReason: 'Schedule information unavailable',
+			count: null,
+			href: YEAR_SETUP_HREF,
+			actionLabel: 'Open Year Setup',
+			checkFailed: true,
+			retryLabel: 'Retry schedule check',
+			repair: retry('Retry schedule check'),
+		});
+	}
+
+	// UX-C01R — the server's own decision, never a raw row count. A8 C3: a teacher
+	// gap is a setup fact the run carries and names, so `blockerCount` alone must
+	// not produce a stopper and does not appear in the expression below.
+	if (input.generationDiagnostic
+		&& (!input.generationDiagnostic.generateAllowed || !input.generationDiagnostic.zeroWrite)) {
+		const repair: TimetableRepair = input.readinessRepair
+			? input.readinessRepair.kind === 'retry'
+				? retry(input.readinessRepair.label)
+				: navigate(input.readinessRepair.label, input.readinessRepair.href)
+			: retry('Retry schedule check');
+		const navigates = repair.kind === 'navigate' && repair.href !== null;
+		const blocking = input.generationDiagnostic.blockerCount;
+		stoppers.push({
+			key: 'readiness-unverified',
+			line: blocking > 0
+				? `ATLAS checked this school year and ${blocking} setup ${blocking === 1 ? 'item is' : 'items are'} not ready. The full list, with the place to fix each one, opens from Generate.`
+				: 'ATLAS has not verified that this school year is ready to make a timetable.',
+			shortReason: 'Readiness is not verified',
+			count: blocking > 0 ? blocking : null,
+			href: navigates ? repair.href! : YEAR_SETUP_HREF,
+			actionLabel: navigates ? repair.label! : 'Open Year Setup',
+			// A `retry` repair means the decision is re-runnable, which is exactly
+			// the "a check that could not run" case the packet wants retried once.
+			checkFailed: repair.kind === 'retry',
+			retryLabel: repair.kind === 'retry' ? repair.label : null,
+			repair,
+		});
+	}
+
+	if (input.driftBlocked) {
+		// REVERTED (A2 C13 correction, 2026-09-29) and preserved here: the repair is
+		// Year Setup, NOT a retry. An operator blocked by a drifted school year must
+		// be sent to the one place drift is actually fixed, not told to re-check.
+		stoppers.push({
+			key: 'setup-drift',
+			line: input.driftMessage ?? 'The active school year is out of sync with setup.',
+			shortReason: 'School year out of sync',
+			count: null,
+			href: YEAR_SETUP_HREF,
+			actionLabel: 'Open Year Setup',
+			checkFailed: false,
+			retryLabel: null,
+			repair: navigate('Open Year Setup', YEAR_SETUP_HREF),
+		});
+	}
+
+	return stoppers;
 }
 
 function lifecycleState(input: TimetableCapabilityInput): TimetableLifecycleState {
@@ -159,59 +353,33 @@ const LIFECYCLE_LABELS: Record<TimetableLifecycleState, string> = {
 export function deriveTimetableCapabilities(input: TimetableCapabilityInput): TimetableCapabilities {
 	const lifecycle = lifecycleState(input);
 
+	// A8-C5 S2.3 — Generate is never greyed out.
+	//
+	// The operator, verbatim (addendum 20:05): "it should never be disabled." So
+	// this gate is `enabled` in every state except a run already in progress, and
+	// every condition that used to deny it is now a NAMED STOPPER the dialog
+	// explains with a count and a fix route. The first stopper still supplies this
+	// gate's `reason` and `repair`, so the header's existing sentence and its
+	// "Open Year Setup" action keep working unchanged — nothing was removed to
+	// make the button look enabled.
+	//
+	// WHAT THIS IS NOT: a new server gate. `deriveGenerateDecision`
+	// (atlas-server/src/services/generation-blocker-groups.service.ts:258) remains
+	// the canonical decision and still refuses on its own terms, exercised by
+	// generation-canonical-readiness-genc02.test.ts. "Always enabled" means the
+	// operator always reaches the dialog and an honest list, never that the client
+	// became the only thing standing between a bad year and a run.
+	const generationStoppers = deriveTimetableGenerationStoppers(input);
+
 	const generation: TimetableActionGate = (() => {
-		if (!input.scopeResolved) return denied('Waiting for your school and school year to load.', NONE, 'Waiting for school and year');
-		if (input.generating) return denied('A generation run is already in progress.', NONE, 'A generation run is in progress');
-		if (input.curriculumState === 'loading') return denied('Checking schedule information for this school year.', NONE, 'Checking schedule information');
-		if (input.curriculumState === 'blocked') {
-			const repair: TimetableRepair = input.readinessRepair
-				? input.readinessRepair.kind === 'retry'
-					? retry(input.readinessRepair.label)
-					: navigate(input.readinessRepair.label, input.readinessRepair.href)
-				: navigate('Open Year Setup', YEAR_SETUP_HREF);
-			return denied('Setup inputs for the active school year are not ready yet.', repair, 'Setup inputs are not ready');
+		// The ONE state that still disables it: a run is in progress, and a second
+		// run would collide with the first.
+		if (input.generating) {
+			return denied('A generation run is already in progress.', NONE, 'A generation run is in progress');
 		}
-		if (input.curriculumState === 'unavailable' || input.curriculumState === 'failed') {
-			return denied('Schedule information could not be checked.', retry('Retry schedule check'), 'Schedule information unavailable');
-		}
-		// UX-C01R — never allow generation from a "ready" state whose canonical
-		// diagnostic does not prove allow + zero-write.
-		//
-		// A8 C3: `blockerCount` is DELIBERATELY not part of this expression. The
-		// old form (`blockerCount > 0`) let a raw row count independently block,
-		// and on live S.Y. 2023-2024 620 of the operator's 651 rows were ONE fact
-		// at two grains — 50 classes with no Teaching Load owner, reported once
-		// per pair and once per session of it. The server's `generateAllowed` is
-		// now computed from the BLOCKING count, so following it is both stricter
-		// (a real hard violation, a dry run that did not happen, or a writing
-		// diagnostic still blocks) and correct about teacher gaps. The count is
-		// still carried on the summary for REPORTING only.
-		if (input.generationDiagnostic
-			&& (!input.generationDiagnostic.generateAllowed || !input.generationDiagnostic.zeroWrite)) {
-			return denied(
-				'Generation readiness is not verified for this school year.',
-				retry('Retry schedule check'),
-				'Readiness is not verified',
-			);
-		}
-		if (input.driftBlocked) {
-			return denied(
-				input.driftMessage ?? 'The active school year is out of sync with setup.',
-				// REVERTED (A2 C13 correction, 2026-09-29). This candidate had changed
-				// the repair to `retry('Retry schedule check')`, which was NOT requested
-				// and is strictly worse: an operator blocked by a drifted school year was
-				// told to re-check the schedule instead of being sent to Year Setup, the
-				// one place drift is actually fixed. `timetable-capabilities.test.ts ::
-				// R1 drift blocks generation and points at Year Setup` caught it. The
-				// repair is restored to base; ONLY the short reason is added.
-				navigate('Open Year Setup', YEAR_SETUP_HREF),
-				// A2 C13 correction: this was 7 words ("School year out of sync with
-				// setup") and the rule is SIX. Caught by `R8C`, which is why the bound is
-				// asserted rather than trusted. The full sentence above keeps the detail.
-				'School year out of sync',
-			);
-		}
-		return allowed();
+		if (generationStoppers.length === 0) return allowed();
+		const first = generationStoppers[0];
+		return { enabled: true, reason: first.line, shortReason: first.shortReason, repair: first.repair };
 	})();
 
 	const runReady = input.hasGeneratedRun;
@@ -255,6 +423,7 @@ export function deriveTimetableCapabilities(input: TimetableCapabilityInput): Ti
 		lifecycleLabel: LIFECYCLE_LABELS[lifecycle],
 		generation,
 		gates,
+		generationStoppers,
 	};
 }
 

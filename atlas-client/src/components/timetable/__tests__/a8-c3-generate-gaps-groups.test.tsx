@@ -226,6 +226,14 @@ test('C3.2 a year whose ONLY gap is teacher coverage reads READY, and the Genera
 });
 
 test('C3.3 the gate still refuses when the diagnostic did not prove zero-write or did not allow', () => {
+	// ── SUPERSEDED 2026-09-29 by A8-C5 S2.3 (packet addendum 20:05: "it should
+	// never be disabled"). The CLAIM this row made is still true and is what it
+	// now asserts: a gap never substitutes for allow + zero-write, so the
+	// capability model still reports the decision as unverified. What changed is
+	// the response — a named stopper inside a dialog the operator can open,
+	// rather than a button that cannot be pressed. The old expectation is
+	// recorded, not deleted.
+	//   was: assert.equal(capabilities.gates.generation.enabled, false, 'a gap never substitutes for allow + zero-write');
 	for (const summary of [
 		{ generateAllowed: true, zeroWrite: false, blockerCount: 0, gapCount: 620, gapClassCount: 50 },
 		{ generateAllowed: false, zeroWrite: true, blockerCount: 0, gapCount: 620, gapClassCount: 50 },
@@ -245,7 +253,12 @@ test('C3.3 the gate still refuses when the diagnostic did not prove zero-write o
 			requestPendingCount: 0,
 			generationDiagnostic: summary,
 		});
-		assert.equal(capabilities.gates.generation.enabled, false, 'a gap never substitutes for allow + zero-write');
+		assert.equal(capabilities.gates.generation.enabled, true, 'A8-C5 S2.3: the unverified decision is a named stopper, not a greyed button');
+		assert.equal(
+			capabilities.generationStoppers.some((stopper) => stopper.key === 'readiness-unverified'),
+			true,
+			'a gap never substitutes for allow + zero-write — the dialog says so by name',
+		);
 	}
 });
 
