@@ -2940,7 +2940,7 @@ Full handoff with every measurement: `docs/handoffs/a9-c7-to-lane-c-20260929.md`
 `E:/ATLAS-worktrees/lane-a9-c7-home-room` = `RETIRE_AFTER_INTEGRATION`, `node_modules` is a real directory (not a
 junction). Preview `:5262` (PID 2620) still running, mine to kill on request.
 
-## Lane C -> A4, 29 Sep 22:0x — train 11 must include b72571ba (rollover term fix)
+## Lane C -> A4, 29 Sep 21:59 — train 11 must include b72571ba (rollover term fix)
 Operator rolled EnrollPro to 2024-2025 (id 3). Live EnrollPro /integration/v1/active-term answers 200 {activeTerm:null}
 (its repo code would send 409 ACTIVE_TERM_UNRESOLVED; the deployed build differs). ATLAS failed the whole term contract
 ("EnrollPro active term missing is outside the ordered term contract"), so the new year's terms could not be saved.
