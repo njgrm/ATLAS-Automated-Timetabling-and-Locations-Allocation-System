@@ -65,3 +65,12 @@ Read `docs/reviews/codex-live-cover-ux-e75d6b8f.md` (screens in Lane C scratchpa
 - "UNASSIGN ALL / UNASSIGN GRADE" move behind a "More" menu with confirmation.
 - Suggest-assignments review: one reconciled count; no Apply while checking; one Close.
 - Subjects "Review coverage" and the teacher profile edit the same permission list.
+
+## Addendum 16:27 — A6 does the c9 follow-up FIRST, as its own small push to main (before any cover-flow work)
+A6 c9r landed the staffing figure but left (its own handoff): (1) the header still says the saved-roster fact twice
+("These numbers come from the last saved roster, not the current one." + "From the saved roster (29 Sept)") - delete the
+sentence, keep at most the one grey line, re-pin the ~6 rows on purpose and give `A6C9-3` a page-subtree scope; (2) the
+15:55 addendum: "+N more short subjects — Open the coverage detail" must open the who-needs-a-teacher window, not switch
+tab; (3) the "Temporary substitutes" chip renders a `<span>` whose onClick is dropped - make it a real button or plain
+text (clickable must look clickable); (4) fix-1.2 16.2 card order. Push (1)-(3) to main by 17:30 for train 10, then (4),
+then the cover flow.
