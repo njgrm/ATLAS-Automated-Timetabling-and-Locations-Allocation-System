@@ -1,7 +1,32 @@
 import type { AdminSourceState } from '@/components/admin-workspace/AdminWorkspace';
 import type { TermAuthority } from '@/types';
+import { formatCatalogServedAt, type SubjectCatalogReceipt } from './subject-catalog-receipt';
 
-export function resolveSubjectSourceCopy(sourceState: AdminSourceState) {
+/**
+ * The source-state copy for the Subjects surface, carrying a REAL receipt.
+ *
+ * A8-C5 S3: the receipt is not a new pattern. It is the same two-part
+ * `description` / `nextAction` this resolver has always produced, rendered in the
+ * same shared `AdminSourceStateChip` Popover — but it now states WHAT WAS SERVED
+ * and WHEN, read from the same record that produced the rows on screen. Before
+ * this, the chip said "Using saved data" and nothing else, so an operator waiting
+ * 20.5 s for `/subjects` had no way to tell a slow request from an empty catalog.
+ *
+ * The `receipt` is optional and every existing caller is unaffected: without one
+ * the sentences are byte-identical to the accepted A3-C4 copy, so this is purely
+ * additive and cannot regress a committed assertion.
+ */
+export function resolveSubjectSourceCopy(
+	sourceState: AdminSourceState,
+	receipt?: SubjectCatalogReceipt | null,
+) {
+	// One sentence, built once, naming the rows and the time. Never a filter
+	// count, never a page size: `receipt.count` is the catalog the page painted.
+	const servedLine = receipt
+		? `ATLAS is showing ${receipt.count} ${receipt.count === 1 ? 'subject' : 'subjects'} `
+			+ `${receipt.source === 'saved' ? 'from the copy saved on this device' : 'from the server'}, `
+			+ `${receipt.source === 'saved' ? 'saved' : 'loaded'} at ${formatCatalogServedAt(receipt.servedAt)}.`
+		: null;
 	return {
 		description:
 			sourceState === 'verified-live'
@@ -9,7 +34,12 @@ export function resolveSubjectSourceCopy(sourceState: AdminSourceState) {
 			: sourceState === 'checking-source'
 				? 'ATLAS is loading the subject catalog for this school.'
 			: sourceState === 'saved-data'
-				? 'ATLAS is showing the saved subject catalog for this school.'
+				// A8-C5 S3: the saving clause is kept AND the receipt is added, so
+				// the honest "this is the local copy" statement survives while the
+				// operator learns what they are looking at and how old it is.
+				? (servedLine
+					? `ATLAS is showing the saved subject catalog for this school. ${servedLine}`
+					: 'ATLAS is showing the saved subject catalog for this school.')
 				: 'ATLAS could not load a usable subject catalog.',
 		nextAction:
 			sourceState === 'verified-live'
@@ -17,7 +47,12 @@ export function resolveSubjectSourceCopy(sourceState: AdminSourceState) {
 			: sourceState === 'checking-source'
 				? 'Wait for the catalog to load before making curriculum changes.'
 			: sourceState === 'saved-data'
-				? 'Add a subject if the catalog is missing one, or open coverage for subjects at risk.'
+				// A8-C5 S3: an operator looking at a painted catalog is NOT waiting,
+				// so this must not tell them to wait. It says what is happening and
+				// what they can do meanwhile.
+				? (receipt?.refreshing
+					? 'You can keep working. ATLAS is refreshing this list in the background and will update it when it finishes.'
+					: 'Add a subject if the catalog is missing one, or open coverage for subjects at risk.')
 				: 'Check the school connection, then retry loading the catalog.',
 	};
 }
