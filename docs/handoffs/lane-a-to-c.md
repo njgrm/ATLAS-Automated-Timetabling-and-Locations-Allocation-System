@@ -1,5 +1,52 @@
 # A2 -> Lane C: what I need tested, and what I need answered
 
+## A7 -> Lane C + A4, 2026-09-29 ~13:2x +08 - **A7 ready for release at `ebedb7b3`** - the four palette reds are green, and the cause was not where the failures pointed
+
+**0 fixes live and seen / 1 integrated on `main` at `ebedb7b3` / 0 dropped.** **A4 owns the deploy; A7 has not deployed and will not (§14).** No deploy, no preview, no sign-in, no generation, no publication, no migration, no live-data write. This closes A5's c5 "@A7/@A3: those four reds are yours to re-derive" with the pins re-derived **on the current main tip**, not on `29b44aae`.
+
+Test-only, **3 files, 0 product source, 0 `prisma/`, 0 `ops/`**, no production change. `atlas-client/src/lib/__tests__/palette-ratchet-a3-s-e.test.ts` (+22/-1), `palette-slate400-step2-a3-s-f.test.ts` (+123/-18), `palette-token-sweep-a3-s-e.test.ts` (+47/-4).
+
+### The derivation, and where it stops being about Dashboard
+
+A5's read was that "the pins went stale when the c6 Dashboard commits landed." That is true, and it is **not the whole cause** — and the difference matters, because one of the four reds is a **RISE**.
+
+**What actually moved.** `342d45e6` extracted the setup-readiness card out of `pages/Dashboard.tsx` into `components/dashboard/ReadinessCard.tsx` to bring the page under the AGENTS.md §8 1000-line cap. Two `ChevronRight className='w-4 h-4 text-slate-300 mt-1'` chevrons travelled with their markup:
+
+| file | before | after | what |
+|---|---|---|---|
+| `src/pages/Dashboard.tsx` | 3 | **1** | `:663` `text-slate-600`, the source-decision sentence, is the only survivor |
+| `src/components/dashboard/ReadinessCard.tsx` | 0 | **2** | `:111`, `:138`, the two chevrons |
+| **corpus total** | 95 | **95** | **unchanged** |
+
+Measured on `94daebf7` with each file's own counting method (one match per `\btext-(?:slate|zinc|gray|neutral|stone)-\d{2,3}\b` occurrence in the bytes). Because the total is flat, this is the **SPLIT** the token-sweep file's own derivation already names, not a sweep, and **`PINNED_TOTAL` is deliberately untouched at 95**.
+
+**The one that needed judgement.** The file count **ROSE 29 -> 30**, and it is the red a blind re-pin would have quietly absorbed. A rise means a new file entered the corpus, so the new file is **named in all three mirrors** rather than the digit being raised: the file-list delta over `342d45e6~1`..`94daebf7` is exactly `only-in-new = ReadinessCard.tsx`, `only-in-old = SectionsHomeRoomActions.tsx` + `RoomSchedules.tsx` (emptied by other lanes), so `31 - 2 + 1 = 30`, matching the `PRE_SWEEP_FILES(34) - 6 + 1 + 1` derivation. The token-sweep file gained a **second `+ 1` extraction term** for the A7 C6 split, mirroring the one A5 C4 had to add for the `/audit` split — left at `- 6 + 1` it aborted the control *before* it could reach the line reporting the real pre-existing debt, which is the exact failure mode that file's own comment warns about.
+
+**Two of the three slate400 class strings no longer exist anywhere**, and I did not delete the rows (§16). `text-xs font-bold uppercase tracking-wider` survives in `NextActionPanel.tsx:139` as `text-[10px]`; the `state === 'done' ? 'text-emerald-600' : ...` conditional is gone (`ReadinessCard.tsx:157` now renders the emerald unconditionally). Both are recorded in a new `SUPERSEDED_SITES` list, with a control asserting each **stays dead**. The third anchor (`text-muted-foreground line-through`) moved to `SetupChecklist.tsx` at multiplicity **2**, not the 1 Dashboard held — pinned at the measured 2, because at 1 a partial reversion of the second identical site passes. Site total 15 -> 14 is neither a sweep nor a subtraction, and the arithmetic is written out in the file.
+
+### The gates, and that the proof discriminates
+
+**Failing-first, both trees measured:** base `94daebf7` = ratchet **4/1**, slate400 **7/2**, token-sweep **8/1** = **4 reds**. Candidate = **5/0, 9/0, 9/0** = **0 reds**.
+
+**Fresh independent QA `ACCEPT_READY` 8/8/0/0**, three mutation controls, all caught, every mutated file restored byte-exact:
+
+- reverting one of the two `SetupChecklist.tsx` sites to `text-slate-400` -> red, naming that file;
+- **rewording** ONE of the two identical sites (from-string still absent) -> `8/1`, *"holds the replacement ... 1 time(s), expected 2"* — **the pin of 2 is load-bearing**;
+- re-introducing a superseded class string -> red on the new control.
+
+**`assert.` counts per file: ratchet 14 -> 14, token-sweep 50 -> 50, slate400 67 -> 69.** Discriminating power rose. The only deleted `assert` line in the range is one literal replaced by a named constant.
+
+**No regression.** `test:client-suite` (128 files) fails on the **identical 41 rows** on the candidate and on a clean detached `94daebf7` — 1296 / 1255 / 41 on both, **0 introduced, 0 fixed**; the script lists **zero** palette files. Those 41 are other lanes' pre-existing debt (timetable / A2 / C07B) and are **not re-pinned here**. `typecheck` is the same **5** pre-existing errors on both trees (3 `playwright` not installed), none in these files.
+
+**Rebased twice onto the moving tip** (`12a5062f`, then `28ff97c3`) — both times only docs prompts landed, no overlap, and all three suites plus the file set were re-verified after each rebase before pushing.
+
+### Two follow-ups recorded, not fixed
+
+- **F2 (one line, owning lane's call):** `OWNED_FILES` in the slate400 suite does not yet list `components/dashboard/ReadinessCard.tsx`, so its blunt `text-slate-400 === 0` sweep no longer covers the markup that moved out of the owned `pages/Dashboard.tsx`. The ratchet total and file-count assertions still catch a reversion there, and the two chevrons are `text-slate-300`, not `text-slate-400`, so the specific accessibility guarantee is not currently at risk. **Not a palette regression** — a consequence of `342d45e6`.
+- I corrected two numbers QA caught in **my own** comment text in the same commit (a "seven-owned-file total unchanged at 34" that is really 6 files falling 32 -> 30, and a "29 -> 29" that means 28 other files). Comments only, no behaviour change, no second review round spent.
+
+**Next action (not mine):** A4 includes `ebedb7b3` in train 9. **Nothing here needs a browser row** — no product code changed, so there is no screen to re-render. `npm run build` remains blocked by the repo's own fail-closed `VITE_ENROLLPRO_URL` guard; **A4, that is your value at release.**
+
 ## A5 -> Lane C, 2026-09-29 ~13:40 +08 - **A5 c5 ready for release at `d9c57103`** - I rendered it on staging, it found 3 real defects, I fixed them. Two browser rows are still unperformable.
 
 **1 fix live and seen** (the one that matters: the page now renders truthfully on real staging data) **/ 1 integrated on `main` / 0 dropped.** **A4 owns the deploy; A5 has not deployed and will not (§14).** Packet `docs/prompts/a5-room-schedules-2026-09-29.md`, your 09:45 direction. Candidate `0e5be336`, proven an ancestor of `origin/main` at `d9c57103`; all three fix files byte-identical on `main`. Thanks for the session blocker lift - **the staging-only QA login works, and the `ensure-staging-qa-account.cjs` remedy was needed** (the account had been dropped by a staging re-stream, so the first two sign-ins 404'd silently; running it once fixed it).
