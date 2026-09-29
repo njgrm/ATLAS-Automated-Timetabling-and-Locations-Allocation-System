@@ -24,8 +24,6 @@ const DEFAULT_SCHOOL_ID = 1;
 const MAX_WEEKLY_HOURS = 40;
 
 type FieldErrors = {
-	firstName?: string;
-	lastName?: string;
 	customDept?: string;
 	maxHours?: string;
 };
@@ -43,7 +41,6 @@ export function CreatePlaceholderDialog({
 	const [lastName, setLastName] = useState('');
 	const [selectedDept, setSelectedDept] = useState('');
 	const [customDept, setCustomDept] = useState('');
-	const [specialization, setSpecialization] = useState('');
 	const [maxHours, setMaxHours] = useState(30);
 	const [canTeachOutside, setCanTeachOutside] = useState(true);
 	const [localNotes, setLocalNotes] = useState('');
@@ -70,7 +67,6 @@ export function CreatePlaceholderDialog({
 					setCustomDept('');
 				}
 
-				setSpecialization(facultyToEdit.specialization || '');
 				setMaxHours(facultyToEdit.maxHoursPerWeek);
 				setCanTeachOutside(facultyToEdit.canTeachOutsideDepartment ?? true);
 				setLocalNotes(facultyToEdit.localNotes || '');
@@ -80,9 +76,12 @@ export function CreatePlaceholderDialog({
 				// "Teacher X". The hint suggests a meaningful temporary name.
 				setFirstName('');
 				setLastName('');
-				setSelectedDept(departments[0] || 'PLACEHOLDER');
+				// Docx1 T7 (operator 30 Sep 2026): no department is preselected — the
+				// trigger shows its `Select Department` placeholder. Saving a blank
+				// choice sends `department: null`, and the server stores its own
+				// 'PLACEHOLDER' default.
+				setSelectedDept('');
 				setCustomDept('');
-				setSpecialization('');
 				setMaxHours(30);
 				setCanTeachOutside(true);
 				setLocalNotes('');
@@ -93,9 +92,11 @@ export function CreatePlaceholderDialog({
 	}, [open, facultyToEdit, departments]);
 
 	// Phase 3.5: validate before saving, render inline errors (not only toasts).
+	// Docx1 T7 (operator 30 Sep 2026): names are OPTIONAL. A blank name is submitted
+	// as-is and the server defaults it (`faculty.service.ts` `sanitizeName(input.firstName,
+	// 'Teacher')` / `sanitizeName(input.lastName, 'X')`), so the record still becomes
+	// "Teacher X" rather than being blocked here.
 	const nextErrors: FieldErrors = {};
-	if (!firstName.trim()) nextErrors.firstName = 'First name is required.';
-	if (!lastName.trim()) nextErrors.lastName = 'Last name is required.';
 	if (selectedDept === 'CUSTOM' && !customDept.trim()) nextErrors.customDept = 'Enter the department name.';
 	if (!Number.isFinite(Number(maxHours)) || Number(maxHours) < 1 || Number(maxHours) > MAX_WEEKLY_HOURS) {
 		nextErrors.maxHours = `Enter a number between 1 and ${MAX_WEEKLY_HOURS} hours.`;
@@ -116,7 +117,9 @@ export function CreatePlaceholderDialog({
 					firstName: firstName.trim(),
 					lastName: lastName.trim(),
 					department: finalDept || null,
-					specialization: specialization.trim() || null,
+					// `specialization` is intentionally OMITTED (docx1 T7): the field is
+					// removed from this form, and omitting the key leaves any existing
+					// stored value untouched by the server's Prisma update.
 					maxHoursPerWeek: Number(maxHours),
 					canTeachOutsideDepartment: canTeachOutside,
 					localNotes: localNotes.trim() || null,
@@ -129,7 +132,9 @@ export function CreatePlaceholderDialog({
 					firstName: firstName.trim(),
 					lastName: lastName.trim(),
 					department: finalDept || null,
-					specialization: specialization.trim() || null,
+					// `specialization` is intentionally OMITTED (docx1 T7): the field is
+					// removed from this form, and omitting the key leaves any existing
+					// stored value untouched by the server's Prisma update.
 					maxHoursPerWeek: Number(maxHours),
 					canTeachOutsideDepartment: canTeachOutside,
 					localNotes: localNotes.trim() || null,
@@ -179,49 +184,31 @@ export function CreatePlaceholderDialog({
 				>
 					<div className="grid grid-cols-2 gap-4">
 						<div className="space-y-2">
-							<Label htmlFor="firstName" className="text-sm font-semibold">
-								First name
-								<span className="text-destructive ml-0.5" aria-label="required">*</span>
-							</Label>
+							<Label htmlFor="firstName" className="text-sm font-semibold">First name (optional)</Label>
 							<Input
 								id="firstName"
 								ref={firstNameRef}
 								value={firstName}
 								onChange={(e) => setFirstName(e.target.value)}
-								placeholder="e.g. To Be Hired"
-								aria-invalid={Boolean(fieldErrors.firstName) || undefined}
-								aria-describedby={fieldErrors.firstName ? 'firstName-error' : undefined}
 								className="h-9"
 							/>
-							{fieldErrors.firstName ? (
-								<p id="firstName-error" role="alert" className="flex items-center gap-1 text-xs font-semibold text-destructive">
-									<AlertTriangle className="size-3" /> {fieldErrors.firstName}
-								</p>
-							) : null}
 						</div>
 						<div className="space-y-2">
-							<Label htmlFor="lastName" className="text-sm font-semibold">
-								Last name
-								<span className="text-destructive ml-0.5" aria-label="required">*</span>
-							</Label>
+							<Label htmlFor="lastName" className="text-sm font-semibold">Last name (optional)</Label>
 							<Input
 								id="lastName"
 								value={lastName}
 								onChange={(e) => setLastName(e.target.value)}
-								placeholder="e.g. (Math)"
-								aria-invalid={Boolean(fieldErrors.lastName) || undefined}
-								aria-describedby={fieldErrors.lastName ? 'lastName-error' : undefined}
 								className="h-9"
 							/>
-							{fieldErrors.lastName ? (
-								<p id="lastName-error" role="alert" className="flex items-center gap-1 text-xs font-semibold text-destructive">
-									<AlertTriangle className="size-3" /> {fieldErrors.lastName}
-								</p>
-							) : null}
 						</div>
 					</div>
 
-					<div className="grid grid-cols-2 gap-4">
+					{/* Docx1 T7: the Specialization field is removed entirely. Existing
+					    stored values are left untouched — the key is omitted from both the
+					    PATCH and the POST bodies. The Department trigger now occupies the
+					    row alone, so it is no longer half-width beside a missing field. */}
+					<div className="grid grid-cols-1 gap-4">
 						<div className="space-y-2">
 							<Label htmlFor="department" className="text-sm font-semibold">Department</Label>
 							<Select value={selectedDept} onValueChange={setSelectedDept}>
@@ -235,17 +222,6 @@ export function CreatePlaceholderDialog({
 									<SelectItem value="CUSTOM">Other...</SelectItem>
 								</SelectContent>
 							</Select>
-						</div>
-
-						<div className="space-y-2">
-							<Label htmlFor="specialization" className="text-sm font-semibold">Specialization (optional)</Label>
-							<Input
-								id="specialization"
-								value={specialization}
-								onChange={(e) => setSpecialization(e.target.value)}
-								placeholder="e.g. Algebra"
-								className="h-9"
-							/>
 						</div>
 					</div>
 
