@@ -265,10 +265,10 @@ function renderedFontSizePx(markup: string, tagPattern: RegExp, rootPx: number):
 // Renders every flag the static surface can reach: the ceremony overlay, the per-entry term
 // label, and the cohort badge. Placement/Current are drag-state-only, so the source contract
 // in the next test carries their floor.
-function renderGridFlags(): string {
+function renderGridFlags(eventName = 'Flag Ceremony'): string {
 	return renderToStaticMarkup(createElement(TimetableGrid, {
 		entries: [entryFor('e-1', 1), { ...entryFor('e-2', 1), entryKind: 'COHORT', cohortCode: 'G7AW' } as unknown as ScheduledEntry],
-		timeSlots: [{ startTime: '11:30', endTime: '12:15', eventName: 'Flag Ceremony', dayOfWeek: 'MONDAY' }],
+		timeSlots: [{ startTime: '11:30', endTime: '12:15', eventName, dayOfWeek: 'MONDAY' }],
 		violationIndex: new Map(),
 		highlightedEntryIds: new Set<string>(),
 		selectedEntry: null,
@@ -334,6 +334,27 @@ test('F4/R1: grid flags hold an absolute ≥12px floor no rem token can shrink',
 		}
 	}
 });
+
+test('F4/R1: the ceremony-overlay label wraps the full event name instead of clipping it (A7 c13)', () => {
+	// The operator saw `Flag Ceremony / Homeroom …` in a grid cell (train 13, 1366×768).
+	// The label is the only place the cell says WHICH ceremony occupies the slot, so it
+	// must wrap; the cell already has a `min-height`, so a taller cell is correct.
+	const markup = renderGridFlags('Flag Ceremony / Homeroom');
+	const tag = markup.match(/<span[^>]*>Flag Ceremony \/ Homeroom<\/span>/)?.[0]
+		// The overlay span is always the one right after the Flag glyph.
+		?? markup.match(/data-testid="timetable-ceremony-overlay-label"[\s\S]*?<span[^>]*>([\s\S]*?)<\/span>/)?.[0]
+		?? '';
+	assert.ok(tag, 'the ceremony-overlay label renders with the long event name');
+	const classMatch = tag.match(/class="([^"]*)"/);
+	const tokens = new Set((classMatch?.[1] ?? '').split(/\s+/).filter(Boolean));
+	assert.equal(tokens.has('truncate'), false, 'the ceremony label must not clip with an ellipsis');
+	assert.equal(tokens.has('lg:truncate'), false, 'the ceremony label must not clip with an ellipsis');
+	assert.equal(tokens.has('text-ellipsis'), false, 'the ceremony label must not clip with an ellipsis');
+	assert.ok(tokens.has('break-words'), `the ceremony label must wrap; got: ${[...tokens].join(' ')}`);
+	assert.ok(markup.includes('Flag Ceremony / Homeroom'), 'the full event name is rendered, not a prefix');
+});
+
+/* ── F4 / R1 (UX-AUDIT-SIZE-C01) — no-scroll preserved ───────────────────── */
 
 test('F4: the no-scroll architecture is preserved (scroll only inside the grid region)', () => {
 	const grid = source('src/components/timetable/TimetableGrid.tsx');
