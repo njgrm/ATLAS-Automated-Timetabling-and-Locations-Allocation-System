@@ -33,3 +33,9 @@ authority -> integrate -> post `ready for release`. **Browser proof with REAL st
 - **36.2** (stretch, only after 7.2 and 10.2 are on main) Editor canvas grows in all four directions: centered world,
   prepend-and-translate on left/top with scroll compensation so nothing jumps (`campusEditorCanvas.ts:164-166` clamps
   to zero today).
+
+## Addendum 15:40 — A5, safety, do this FIRST (from A7 c7's QA)
+`a5-c2a-active-term-resolver.test.ts` contains a committed read-write script with **no disposable-database guard**:
+it writes to whatever `DATABASE_URL` points at. That is exactly how fixture rows reached live at 01:58 today. Add the
+same guard the other DB tests use (refuse unless the database name is a disposable `atlas_restore_drill_*`/test db),
+prove it refuses `atlas_recovery_clean_rebuild_20260905` and `atlas_staging`, and commit it before anything else.
