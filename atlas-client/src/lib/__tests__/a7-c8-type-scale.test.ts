@@ -461,32 +461,33 @@ test('A7C8-6: no arbitrary sub-14px font size outside the dated, owner-tagged ra
 	// The totals are pinned, not just the membership, so a silent deletion or an
 	// off-by-one in the count cannot hide behind a matching set of keys.
 	//
-	// A9 m1 (2026-09-29): 89 -> 87 keys and 264 -> 259 occurrences.
+	// A9 m1 (2026-09-29): 89 -> 87 keys and 264 -> 260 occurrences.
 	//
-	// TWO separate things moved, and they are recorded separately on purpose:
-	//   1. A9 m1 retired FOUR sites — the static "History" and "Save" captions
-	//      (`text-[0.65rem]` x2) and the Rooms summary and save-state chip
-	//      (`text-[0.7rem]` x2) in `components/CampusMapEditor.tsx`. 264 - 4 = 260.
-	//   2. The original pin of 264 was ALREADY one higher than this row measures.
-	//      The scan strips comments before counting (`:409`), and
-	//      `components/FacultyRow.tsx` carries a `text-[0.6rem]` mention inside a
-	//      block comment that post-dates the 2026-09-29 recording. That is a
-	//      pre-existing off-by-one in the pin, not something A9 m1 introduced; it
-	//      is corrected here rather than left to make this row permanently red,
-	//      and it is called out here so nobody reads the 260 -> 259 step as a
-	//      silent removal of a fifth site.
+	// ONE thing moved. A9 m1 retired FOUR sites in `components/CampusMapEditor.tsx`
+	// — the static "History" and "Save" captions (`text-[0.65rem]` x2) and the Rooms
+	// summary and save-state chip (`text-[0.7rem]` x2) — which is TWO allowlist keys
+	// and FOUR occurrences, so 89 - 2 = 87 keys and 264 - 4 = 260 occurrences.
+	// `campusMapBackground` and `CampusMapEditorToolbar` add no sub-14px site.
+	//
+	// MEASURED, not assumed (A9 m1 planner probe, 2026-09-29): a detached worktree at
+	// `origin/main` with ONE unrelated allowlist entry added
+	// (`components/faculty/TeacherSubjectPermissions.tsx|text-[0.7rem]`: 1, from
+	// 319ab761, not this slice) and the key pin moved 89 -> 90 passes this row 6/6 at
+	// the UNCHANGED 264. So 264 is what this row measures on main; there is no
+	// pre-existing off-by-one to correct, and any total other than 260 after these
+	// four retirements is a silent fifth removal.
 	assert.equal(
 		recorded.length,
 		87,
-		'A7C8-6: the allowlist must hold exactly 87 keys (89 recorded 2026-09-29, less the 2 retired by A9 m1).',
+		'A7C8-6: the allowlist must hold exactly 87 keys (89 recorded 2026-09-29, less the 2 keys A9 m1 retired).',
 	);
 	assert.equal(
 		found.reduce((a, [, c]) => a + c, 0),
-		259,
-		'A7C8-6: production must hold exactly 259 sub-14px arbitrary font-size ' +
-			'occurrences (250 rem + 9 text-[13px]) after comment stripping. 260 is ' +
-			'the count before the pre-existing comment-stripping off-by-one is ' +
-			'corrected. Update this number and the inventory doc in the same commit.',
+		260,
+		'A7C8-6: production must hold exactly 260 sub-14px arbitrary font-size ' +
+			'occurrences (251 rem + 9 text-[13px]) after comment stripping. ' +
+			'Update this number and the inventory doc in the same commit that ' +
+			'changes a site.',
 	);
 });
 
