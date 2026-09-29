@@ -866,8 +866,20 @@ test('A3-15 [SUPERSEDED IN BEHAVIOUR by A3-C9 on the disclosure assertions, verb
 	assert.ok(trigger.getAttribute('aria-controls'), 'the primary trigger is not wired to its listbox');
 });
 
+/**
+ * A5 c8 (2026-09-29) — RE-POINTED. `admin-primary-filter-row` belonged to
+ * `AdminSearchFilterToolbar`, which is DELETED: it was the last consumer, and the
+ * packet forbids leaving a second filter-bar implementation in the codebase. The
+ * function is RETAINED (rather than removed) because the rows that call it are
+ * retained, and they still mean "the row of controls a scheduler always sees" —
+ * which is now the ONE shared `@/ui/filter-bar` row.
+ *
+ * `subjects-filter-cluster` is the hook this page already used for that row, and
+ * A5 c8 moved it onto the bar's own container, so the same testid keeps naming the
+ * same thing: the element that holds the search box and all five filters.
+ */
 function primaryRow(host: HTMLElement): HTMLElement | null {
-	return query(host, 'admin-primary-filter-row');
+	return query(host, 'subjects-filter-cluster');
 }
 
 /**
@@ -878,9 +890,13 @@ function primaryRow(host: HTMLElement): HTMLElement | null {
  * always sees", so the assertion states the property and not the placement. A
  * control that hard-coded one testid would fail on a legitimate re-layout
  * without any behaviour having changed.
+ *
+ * A5 c8 (2026-09-29): there is now only ONE such row in the product, and
+ * `admin-inline-filter-row` is a retired hook. The search box and the filters are
+ * siblings in it, which is the property every caller below is actually asserting.
  */
 function alwaysVisibleRow(host: HTMLElement): HTMLElement | null {
-	return query(host, 'admin-inline-filter-row') ?? primaryRow(host);
+	return query(host, 'subjects-filter-cluster') ?? primaryRow(host);
 }
 
 // The no-crowding / no-page-scrollbar half of Fix 15, asserted over the class
@@ -901,35 +917,70 @@ test('A3-15 [SUPERSEDED IN BEHAVIOUR by A3-C9 on the row shape and the width bud
 	// properties against the row that actually renders.
 	const row = alwaysVisibleRow(host);
 	assert.ok(row, 'no always-visible filter row');
-	// SUPERSEDED ASSERTION (A3-C9), recorded rather than removed: A3-15 required
-	// `flex-wrap` so a too-wide set of filters would wrap into the next row
-	// rather than overflow the page. The inline row is `flex-nowrap` instead,
-	// which achieves the same "never a second row, never a page scrollbar"
-	// outcome by making every control carry its own declared width. The old
-	// expectation is asserted false and the replacement is asserted beside it.
+	// SUPERSEDED A SECOND TIME (A5 c8, 2026-09-29) — and this time the ORIGINAL
+	// A3-15 expectation is what the product does again.
+	//
+	//   A3-15 required `flex-wrap` so a too-wide set of filters would wrap onto a
+	//   second line rather than overflow the page.
+	//   A3-C9 replaced it with a `flex-nowrap` inline row plus declared widths,
+	//   on the reasoning that "never a second row" was the better promise.
+	//   A5 c8 replaces it AGAIN, for the reason the operator gave: "we want filters
+	//   to be shown instantly". A nowrap row that only fits because every control
+	//   was forced into a fixed rectangle is how `Home room: Home room assigned` came
+	//   to spill outside its select, and how a page's row silently lost a control
+	//   when the data grew. The shared `@/ui/filter-bar` is `flex-wrap`, so a state
+	//   that cannot fit degrades onto a second LINE — which §8 explicitly allows —
+	//   and never onto a hidden control or a sideways scrollbar.
+	//
+	// Both earlier expectations are recorded rather than deleted (`AGENTS.md` §16).
 	assert.equal(
 		/flex-wrap/.test(row.className),
-		false,
-		'SUPERSEDED IN BEHAVIOUR by A3-C9: the single row wraps again, so the header can spill onto a second line',
+		true,
+		'the single row no longer wraps, so a filter set that does not fit will overflow the page instead of moving to a second line',
 	);
-	assert.equal(/flex-nowrap/.test(row.className), true, 'the single filter row is neither flex-wrap nor flex-nowrap; the "one row" property is unenforced');
+	assert.equal(
+		/flex-nowrap/.test(row.className),
+		false,
+		'the single row is nowrap, so a filter set that does not fit will be clipped instead of wrapping',
+	);
+	// The A3-C9 expectation, kept on record:
+	//
+	//   assert.equal(/flex-wrap/.test(row.className), false,
+	//     'SUPERSEDED IN BEHAVIOUR by A3-C9: the single row wraps again …');
+	//   assert.equal(/flex-nowrap/.test(row.className), true, '…the "one row" property is unenforced');
 	assert.equal(row.className.includes('overflow-y-auto'), false, 'the filter row became its own scroll region');
 
-	// Tailwind width steps actually used by the three primary triggers:
-	// w-36=9rem, w-52=13rem, w-36=9rem, plus the search sm:max-w-sm=24rem.
+	// A5 c8 (2026-09-29), RE-ARITHMETICKED A THIRD TIME. The budget below used to add
+	// up FIXED widths (three triggers at 9/13/9rem, a 24rem search) and then assert
+	// the sum fitted 1366px. It cannot be restated that way now, and the reason is the
+	// fix rather than a loss of rigour: all five filters take the shared `auto`
+	// variant, which is CONTENT-SIZED between a 8rem floor and a 22rem ceiling, so
+	// there is no single sum. What is decidable from a class list — and is the
+	// property that actually mattered — is the CEILING: the widest the row can be is
+	// 240px search + 5 x 352px + 6 x 8px gaps = 2048px, which is why the row MUST
+	// wrap rather than nowrap, and `flex-wrap` is asserted above.
+	//
+	// The old expectations are recorded rather than deleted (`AGENTS.md` §16):
+	//
+	//   const search = rem(24);
+	//   const filters = rem(9) + rem(13) + rem(9);
+	//   const gaps = 4 * 8;
+	//   assert.ok(search + filters + gaps < 1366 - 32, '…');
+	//   assert.ok(toolbar.className.includes('space-y-1.5'));
 	const rem = (n: number) => n * 16;
-	const search = rem(24);
-	const filters = rem(9) + rem(13) + rem(9);
-	const gaps = 4 * 8; // gap-2 between search / 3 triggers
-	const toolbar = query(host, 'admin-search-filter-toolbar')!;
-	assert.ok(toolbar.className.includes('space-y-1.5'));
+	const searchWrapper = document.body.querySelector('input[placeholder="Search name or code..."]')!.parentElement!;
+	const searchPx = rem(15); // w-[240px], read off the shared bar's own token below
+	assert.match(searchWrapper.className, /w-\[240px\]/, 'the search box is not the shared fixed 240px every list page now uses');
+	const ceilingPx = rem(22);
+	const gaps = 6 * 8;
+	const widest = searchPx + 5 * ceilingPx + gaps;
 	assert.ok(
-		search + filters + gaps < 1366 - 32,
-		`the toolbar's declared width budget (${search + filters + gaps}px) does not fit 1366px with page padding`,
+		widest > 1366 - 32,
+		`the row's declared ceiling (${widest}px) would fit 1366px, which would mean the \`auto\` ceiling is not doing its job`,
 	);
 	// The root is a plain block flow inside the admin frame: it adds no fixed
 	// height and no overflow, so it cannot spawn a global scrollbar.
-	assert.equal(/h-\[|max-h-\[|overflow-y-auto|overflow-auto/.test(toolbar.className), false, 'the toolbar gained a height/overflow constraint');
+	assert.equal(/h-\[|max-h-\[|overflow-y-auto|overflow-auto/.test(row.className), false, 'the toolbar gained a height/overflow constraint');
 });
 
 // ===========================================================================
@@ -1342,7 +1393,7 @@ test('A3-C10: the six filters wrap instead of overflowing, Reset appears only wh
 	const host = await render(
 		<MemoryRouter><SubjectFilterToolbar {...EDITABLE} hasActiveFilters /></MemoryRouter>,
 	);
-	const row = query(host, 'admin-inline-filter-row');
+	const row = alwaysVisibleRow(host);
 	assert.ok(row, 'no single filter row');
 
 	// (1) The shared inline row stays `flex-nowrap` (it is the sibling-owned
@@ -1568,11 +1619,18 @@ test('A3-C9 [SUPERSEDED IN PART by A3-C10 on the width budget, verbatim otherwis
 	const host = await render(
 		<MemoryRouter><SubjectFilterToolbar {...EDITABLE} hasActiveFilters /></MemoryRouter>,
 	);
-	const row = query(host, 'admin-inline-filter-row');
+	const row = alwaysVisibleRow(host);
 	assert.ok(row, 'no single filter row');
 	assert.equal(/h-\[|max-h-\[|overflow-y-auto|overflow-auto/.test(row.className), false, 'the filter row became its own scroll region');
 
-	assert.ok(row.className.includes('min-w-0'), 'the filter row cannot shrink, so it can overflow the page instead of fitting');
+	/* A5 c8 (2026-09-29), RE-POINTED. This asserted `min-w-0` on the row, because the
+	 * old shared toolbar's children wrapper was `min-w-0 flex-1` so the cluster could
+	 * shrink rather than overflow the page. The shared bar has no such wrapper: it is
+	 * `flex flex-wrap items-center gap-2` with `[&>*]:shrink-0` on every CHILD, so a
+	 * filter keeps its own face and the ROW wraps instead. The property this row
+	 * protects — "the row cannot push the page sideways" — is now carried by
+	 * `flex-wrap` plus the absence of any overflow class, both asserted above. */
+	assert.equal(/overflow/.test(row.className), false, 'the filter row is a scroll region');
 
 	// The width budget is read FROM THE RENDERED CLASS NAMES, not from a
 	// restatement of the design, so editing a trigger's width without editing

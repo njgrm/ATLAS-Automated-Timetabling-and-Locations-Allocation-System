@@ -89,7 +89,7 @@ const { TooltipProvider } = await import('@/ui/tooltip');
 /* A6 c8: the DECLARED face budget the shared primitive publishes, used by
  * `A6-39-1c` to state the `auto` width contract from `@/ui` rather than from a
  * page-local string. */
-const { pickerTriggerFaceFits, PICKER_TRIGGER_WIDTH_CLASS, PICKER_TRIGGER_FACE_BUDGET_CHARS } = await import('@/ui/picker-trigger');
+const { pickerTriggerFaceFits, pickerTriggerClass, PICKER_TRIGGER_WIDTH_CLASS, PICKER_TRIGGER_FACE_BUDGET_CHARS } = await import('@/ui/picker-trigger');
 
 const { TeachingLoadFilterBar } = await import('@/components/faculty-assignments/TeachingLoadFilterBar');
 const { TeacherGridMode } = await import('@/components/faculty-assignments/TeacherGridMode');
@@ -1145,12 +1145,29 @@ test('A6-39-1 SUPERSEDED IN PART by A6-39-1b then MOSTLY RESTORED by A6 c8 item 
 			'the filter bar must not introduce a scroll container',
 		);
 	}
-	// A suppressed variant: with active filters the badge row still renders and
-	// the control row is unchanged.
+	// A suppressed variant. A5 c8 (2026-09-29) RETIRED the active-filter badge row,
+	// so this is re-pointed rather than deleted (`AGENTS.md` §16). It used to read:
+	//
+	//   assert.ok(active.querySelector('[data-testid="teaching-load-active-filters"]'),
+	//     'the active-filter badge row must still render');
+	//
+	// That row was four `text-[11px] uppercase` `Badge`s restating, in a second
+	// visual row, values the triggers in the row above already showed in full, and
+	// it carried a SECOND `Clear all`. Two chips that say the same thing is what
+	// `AGENTS.md` §8's header budget forbids, and the second `Clear all` is what made
+	// the row a second place to apply a filter from. The property it protected —
+	// "with a search term set the user can see it filtering and can undo it" — is
+	// now carried by the ONE `Clear all` the shared bar renders, asserted here.
 	const active = render(createElement(TeachingLoadFilterBar as any, filterBarProps({ searchQuery: 'dela' })));
-	assert.ok(
+	assert.equal(
 		active.querySelector('[data-testid="teaching-load-active-filters"]'),
-		'the active-filter badge row must still render',
+		null,
+		'the second summary row of `text-[11px]` chips is rendering again, restating values the triggers already show',
+	);
+	assert.equal(
+		Array.from(active.querySelectorAll('button')).filter((b) => (b.textContent ?? '').trim() === 'Clear all').length,
+		1,
+		'with a filter set there must be exactly ONE `Clear all`, and it belongs to the shared bar',
 	);
 	assert.equal(
 		active.querySelectorAll('[data-testid="teaching-load-primary-filters"]').length,
@@ -1377,10 +1394,25 @@ test('A6-39-1c no `More filters` element exists in any state, BOTH switches are 
 	// `auto` is the shared variant `@/ui/picker-trigger` already declares; this row
 	// proves all FOUR picks resolve that one variant, which is the §8 "one look per
 	// control" claim at the level the change actually touched.
+	// The retired expectation, kept on record (`AGENTS.md` §16):
+	//
+	//   assert.equal(PICKER_TRIGGER_WIDTH_CLASS.auto, 'w-auto whitespace-nowrap', ...);
+	//
+	// A5 c8 (2026-09-29) made `auto` BOUNDED and WRAPPING:
+	// `w-auto min-w-32 max-w-[22rem]`, paired in the shared builder with
+	// `h-auto min-h-9`. The `whitespace-nowrap` is the class Lane C measured letting
+	// `Home room: Home room assigned` spill outside its select on `/sections`; a
+	// ceiling with nothing to wrap into just moves the same defect further right.
+	// The claim this row exists for — the four picks resolve the ONE shared variant,
+	// not a page-local string — is unchanged.
 	assert.equal(
 		PICKER_TRIGGER_WIDTH_CLASS.auto,
-		'w-auto whitespace-nowrap',
-		'the shared `auto` variant must still be the content-sized one the row is measured against',
+		'w-auto min-w-32 max-w-[22rem]',
+		'the shared `auto` variant must still be the one bounded, wrapping, content-sized variant the row is measured against',
+	);
+	assert.ok(
+		!/whitespace-nowrap/.test(pickerTriggerClass('auto')),
+		'an `auto` trigger that forbids wrapping is how a long face escapes its own box',
 	);
 	const PICKERS: Array<[string, string]> = [
 		['Status', 'Filter by status'],
@@ -1392,10 +1424,31 @@ test('A6-39-1c no `More filters` element exists in any state, BOTH switches are 
 		const trigger = primary.querySelector(`[aria-label^="${ariaLabel}"]`)!;
 		const cls = trigger.getAttribute('class') ?? '';
 		assert.match(cls, /\bw-auto\b/, `the ${name} pick must take the shared content-sized \`auto\` width`);
-		assert.match(cls, /\bwhitespace-nowrap\b/, `the ${name} pick must keep the variant's nowrap, or a long value wraps mid-label`);
+		/* A5 c8 (2026-09-29), RE-POINTED. This used to read
+		 *   assert.match(cls, /\bwhitespace-nowrap\b/, 'the pick must keep the variant's nowrap …')
+		 * and the three fixed-width bans used `/\bw-52\b/`, `/\bw-44\b/`, `/\bw-32\b/`.
+		 *
+		 * The nowrap half is REVERSED, deliberately: `whitespace-nowrap` on a
+		 * content-sized face is what let `Home room: Home room assigned` spill
+		 * outside its select — the defect Lane C measured on `/sections`. The face now
+		 * WRAPS inside its own box and the trigger grows, which is the row below's
+		 * `min-w-32` / `max-w-[22rem]` contract.
+		 *
+		 * The width bans needed their boundaries fixed for a mechanical reason worth
+		 * recording: `min-w-32` — the floor A5 c8 gave `auto` — CONTAINS the substring
+		 * `w-32`, and `\b` matches at the `-`. So the old pattern reported a fixed
+		 * 128px width on a trigger that declares a 128px MINIMUM and a 352px maximum.
+		 * The bans now require a real class boundary, which is what they always meant.
+		 */
+		assert.doesNotMatch(cls, /whitespace-nowrap/, `the ${name} pick forbids its face from wrapping, so a long value escapes its own box`);
 		for (const fixed of [/\bw-52\b/, /\bw-44\b/, /\bw-32\b/]) {
-			assert.doesNotMatch(cls, fixed, `the ${name} pick still carries a fixed width; \`xl\` is what overflowed the 1078px row`);
+			const boundary = new RegExp(`(^|\\s)${fixed.source.slice(2, fixed.source.length - 2)}(\\s|$)`);
+			assert.doesNotMatch(cls, boundary, `the ${name} pick still carries a fixed width; \`xl\` is what overflowed the 1078px row`);
 		}
+		/* The two halves of the new `auto` contract, on the REAL composed class. */
+		assert.match(cls, /(^|\s)min-w-32(\s|$)/, `the ${name} pick lost the 8rem floor, so a short filter reads narrower than the search box beside it`);
+		assert.match(cls, /(^|\s)max-w-\[22rem\](\s|$)/, `the ${name} pick lost the 22rem ceiling, so a data-driven label runs until it hits something else`);
+		assert.match(cls, /(^|\s)min-h-9(\s|$)/, `the ${name} pick lost its 36px floor, so the row stopped being one height`);
 		// The DECLARED predicate, on the REAL composed face read off the render, in
 		// the WORST state this row mounts (a selected, long department).
 		const face = textOf(trigger);

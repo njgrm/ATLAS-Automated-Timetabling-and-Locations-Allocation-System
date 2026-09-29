@@ -489,7 +489,22 @@ test('A6C6-1c MUTANT ROW: this page and /subjects share ONE mechanism for a cont
 	 *      class — a retired token with no replacement would be a regression, so
 	 *      the replacement is asserted.
 	 * The original expectation is kept verbatim, as a comment, so the round that
-	 * moved it is on record (`AGENTS.md` §16).
+	 * moved it is on record (`AGENTS.md` 16).
+	 *
+	 *  A5 c8 (2026-09-29) - THE WORKED EXAMPLES MOVED AGAIN; THE RULE DID NOT.
+	 *  `auto` is no longer `w-auto whitespace-nowrap`. It is
+	 *  `w-auto min-w-32 max-w-[22rem]`, and the shared builder pairs it with
+	 *  `h-auto min-h-9` so a long face WRAPS inside its own box. The
+	 *  `whitespace-nowrap` this row used to pin is the class Lane C measured
+	 *  letting `Home room: Home room assigned` spill outside its select on
+	 *  `/sections`; keeping it would keep the defect. The claim this row exists
+	 *  for - ONE mechanism, shared, rather than a second token invented beside
+	 *  it - is unchanged and is what the new expectation asserts.
+	 *
+	 *  `/subjects` no longer renders a `More filters` disclosure either (that is
+	 *  the change this lane is implementing), so the "two call sites that DO
+	 *  exist" are now `/subjects`' five `FilterPicker`s and this page's four,
+	 *  plus the sections and teachers rows added by the same change.
 	 */
 	const pt = readSource('src/ui/picker-trigger.ts');
 	const fb = readSource('src/components/faculty-assignments/TeachingLoadFilterBar.tsx');
@@ -498,8 +513,22 @@ test('A6C6-1c MUTANT ROW: this page and /subjects share ONE mechanism for a cont
 	// A5's variant survives, intact, with its own rationale.
 	assert.match(
 		stripComments(pt),
-		/auto:\s*'w-auto whitespace-nowrap'/,
+		/auto:\s*'w-auto min-w-32 max-w-\[22rem\]'/,
 		'`/subjects`\'s `auto` width variant must survive this lane - it is the adopted mechanism, not something this slice competes with',
+	);
+	// The retired expectation, kept on record rather than deleted (`AGENTS.md` 16):
+	//
+	//   assert.match(stripComments(pt), /auto:\s*'w-auto whitespace-nowrap'/,
+	//     'A5 C4 pinned `w-auto whitespace-nowrap`');
+	//
+	// A5 c8 replaced it. `whitespace-nowrap` on a content-sized face is how a face
+	// runs past its own border, and a ceiling with no wrapping has nowhere to put a
+	// long value; `min-w-32 max-w-[22rem]` plus the shared `h-auto min-h-9` is the
+	// bounded-and-wrapping form the sweep asked for.
+	assert.doesNotMatch(
+		stripComments(pt),
+		/auto:\s*'[^']*whitespace-nowrap/,
+		'`auto` is nowrap again, so a long face escapes its own box instead of wrapping inside it',
 	);
 
 	// The competing token is gone from the primitive AND from every call site.
@@ -522,10 +551,31 @@ test('A6C6-1c MUTANT ROW: this page and /subjects share ONE mechanism for a cont
 	// `/teaching-load` no longer builds a trigger by hand at all — that is the fix.
 	// The rule it guarded ("a retired token must not leave a hole") is now asserted
 	// where the two real call sites are.
+	// A5 c8 (2026-09-29), RE-POINTED AGAIN. The assertion used to be:
+	//
+	//   assert.match(stripComments(subjects), /pickerTriggerClass\('auto'\)/,
+	//     "and `/subjects`' `More filters` disclosure must still use the shared factory - the A5 C4 example this row was built on");
+	//
+	// `/subjects` no longer builds a trigger by hand and no longer has a disclosure
+	// to build one for: its five `FilterPicker`s each pass `width="auto"`, and
+	// `FilterPicker` — the shared primitive — is what calls the factory. The CLAIM is
+	// unchanged and is what the new expectation asserts: `/subjects` asks the shared
+	// primitive for the `auto` variant and never restates a width class. A page that
+	// went back to `triggerClassName="w-auto …"` would fail this.
 	assert.match(
 		stripComments(subjects),
-		/pickerTriggerClass\('auto'\)/,
-		"and `/subjects`' `More filters` disclosure must still use the shared factory - the A5 C4 example this row was built on",
+		/width="auto"/,
+		"and `/subjects`' pickers must still ask the shared primitive for the `auto` variant - a retired mechanism must not leave a hole",
+	);
+	assert.equal(
+		(stripComments(subjects).match(/width="auto"/g) ?? []).length,
+		5,
+		'all five of `/subjects`\'s pickers must take the SAME shared `auto` variant',
+	);
+	assert.doesNotMatch(
+		stripComments(subjects),
+		/triggerClassName|className="[^"]*\bw-/,
+		'`/subjects` restated a width class on a picker instead of naming the shared variant',
 	);
 	assert.equal(
 		(stripComments(fb).match(/width="auto"/g) ?? []).length,
@@ -1358,8 +1408,21 @@ test('A6C6-8 SUPERSEDED IN WHOLE by A6 c8 item 39 (2026-09-29). RETAINED, NOT DE
 		'and neither disclosure element may exist in any state',
 	);
 
-	// The bar still adds NO scroll container, and the active-filter summary plus the
-	// sr-only announcement are untouched.
+	// The bar still adds NO scroll container, and the sr-only announcement is
+	// untouched. A5 c8 (2026-09-29) THEN REMOVED the active-filter summary: the
+	// assertion below used to be
+	//
+	//   assert.ok(active.querySelector('[data-testid="teaching-load-active-filters"]'),
+	//     'the `Active filters:` chip row still renders');
+	//
+	// and it is RE-POINTED, not deleted (`AGENTS.md` 16). That row was four
+	// `text-[11px] uppercase` `Badge`s each restating a value the trigger beside
+	// it already showed in full, PLUS a second `Clear all` button - which is what
+	// made it a second place to apply a filter from, and what `AGENTS.md` 8's "two
+	// chips that say the same thing" forbids. The property it was really
+	// protecting - "with a search term set, the user can see the search is
+	// filtering and can undo it" - is now carried by the ONE `Clear all` on the
+	// bar itself, which is asserted here and in `A6C6-8b`.
 	assert.ok(host.querySelector('[data-testid="teaching-load-filter-announcement"]'), 'the sr-only announcement survives');
 	for (const el of Array.from(host.querySelectorAll('*'))) {
 		assert.doesNotMatch(
@@ -1369,7 +1432,16 @@ test('A6C6-8 SUPERSEDED IN WHOLE by A6 c8 item 39 (2026-09-29). RETAINED, NOT DE
 		);
 	}
 	const active = render(createElement(TeachingLoadFilterBar as any, filterBarProps({ searchQuery: 'dela' })));
-	assert.ok(active.querySelector('[data-testid="teaching-load-active-filters"]'), 'the `Active filters:` chip row still renders');
+	assert.equal(
+		active.querySelector('[data-testid="teaching-load-active-filters"]'),
+		null,
+		'the second summary row of `text-[11px]` chips is rendering again, restating values the triggers already show',
+	);
+	assert.equal(
+		Array.from(active.querySelectorAll('button')).filter((b) => (b.textContent ?? '').trim() === 'Clear all').length,
+		1,
+		'with a filter set there must be exactly ONE `Clear all`, and it belongs to the shared bar',
+	);
 	// Close the popover's mount before the next row opens a menu.
 	dispose(host);
 });

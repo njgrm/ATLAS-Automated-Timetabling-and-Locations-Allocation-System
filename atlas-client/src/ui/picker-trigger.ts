@@ -100,7 +100,7 @@ export const PICKER_TRIGGER_WIDTH_CLASS = {
 	lg: 'w-44',
 	xl: 'w-52',
 	fill: 'w-full',
-	auto: 'w-auto min-w-32 max-w-[22rem]',
+	auto: 'w-auto min-w-32 max-w-[22rem] h-auto min-h-9 items-center py-1',
 } as const;
 
 export type PickerTriggerWidth = keyof typeof PICKER_TRIGGER_WIDTH_CLASS;
@@ -261,20 +261,26 @@ export const SEARCHABLE_OPTION_THRESHOLD = 8;
  */
 
 /**
- * A5 c8 (2026-09-29) — THE HEIGHT A TRIGGER MAY GROW FROM.
+ * A5 c8 (2026-09-29) — THE HEIGHT A CONTENT-SIZED TRIGGER MAY GROW FROM.
  *
- * `h-9` is the MINIMUM, not a cap. `h-auto min-h-9` is one line when the composed face
- * fits the variant's width and two lines when it does not, and `py-1` keeps the wrapped
- * line from touching the border. The alternative — a fixed `h-9` with no floor growth —
- * has exactly two bad endings and no good one: the text either spills out of the box
- * (the `/sections` defect) or is cut off (an ellipsis, which `AGENTS.md` §8 forbids
- * outright). `min-h-9` keeps every trigger the same height as the search input beside it
- * in the common case, which is the property the filter bar's arithmetic is built on.
+ * `h-9` is the MINIMUM, not a cap. `h-auto min-h-9` is one line when the composed
+ * face fits the variant's width and two lines when it does not, and `py-1` keeps the
+ * wrapped line from touching the border. The alternative — a fixed `h-9` with no floor
+ * growth — has exactly two bad endings and no good one: the text either spills out of
+ * the box (the `/sections` defect) or is cut off (an ellipsis, which `AGENTS.md` §8
+ * forbids outright).
+ *
+ * IT IS STATED IN THE `auto` VARIANT AND NOWHERE ELSE, on purpose. A FIXED width is
+ * budget-bound: `PICKER_TRIGGER_FACE_BUDGET_CHARS` is the declared promise of what
+ * fits, and a caller that exceeds it has a bug to fix, not a trigger to grow. Giving
+ * every variant the growth behaviour would let a fixed rectangle quietly become a
+ * two-line box and break the one-row arithmetic three other suites measure.
  *
  * The bare `PICKER_CONTROL_HEIGHT_CLASS` stays the ONE token the search input and the
- * switches take, so `h-9` is still stated once and never retyped at a call site.
+ * fixed-width triggers take, so `h-9` is still stated once and never retyped at a
+ * call site. `h-auto` is composed AFTER it, so tailwind-merge resolves the growth
+ * for `auto` and leaves the fixed variants at exactly 36px.
  */
-export const PICKER_TRIGGER_GROWTH_CLASS = 'h-auto min-h-9 items-center py-1';
 
 /** The composed trigger class. Call sites pass a `width`; they never pass a class string. */
 export function pickerTriggerClass(width: PickerTriggerWidth = 'md'): string {
@@ -296,7 +302,6 @@ export function pickerTriggerClass(width: PickerTriggerWidth = 'md'): string {
 		 * "declared floor beats the width" bug B5 was written to close. */
 		'min-w-0',
 		PICKER_TRIGGER_WIDTH_CLASS[width],
-		PICKER_TRIGGER_GROWTH_CLASS,
 		'shrink-0 px-3 text-xs',
 		PICKER_TRIGGER_TYPE_CLASS,
 	].join(' ');
