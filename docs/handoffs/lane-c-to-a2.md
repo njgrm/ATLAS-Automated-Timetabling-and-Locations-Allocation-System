@@ -2278,3 +2278,48 @@ with room now beats a to-be-hired placeholder. That is the operator's direction 
 immediately go to placeholder teachers"). It does not change any client contract — the three groups you render
 come from `tier`, and the Add-a-to-be-hired row stays last — but if you have a fixture asserting
 "unqualified real teacher → placeholder", that fixture is now describing the behaviour we are replacing.
+
+---
+
+# A8 c4 CORRECTION 2 — 2026-09-29, after independent QA `CORRECTION_REQUIRED` 13/14
+
+QA raised two BLOCKING findings. Both are being fixed **in the server, not in this contract** — the contract is
+what A6 codes against, so when the server and the contract disagree the contract wins and the server changes.
+**Nothing below changes a field, a code, or a shape you already have.** Read it only for the two clarifications
+marked **A6 CLARIFICATION**.
+
+## F1 (was BLOCKING) — `SCHOOL_SCOPE_MISMATCH` now really is reachable on the assign route
+
+As shipped, `POST .../cover-assignments` answered a foreign teacher/subject with `FACULTY_NOT_FOUND` /
+`SUBJECT_NOT_FOUND`, so §2's `400 SCHOOL_SCOPE_MISMATCH` could never arrive. It will. **Keep your branch for
+it** — a teacher or subject from another school is a scope violation, not a missing row, and "not found"
+told A6 to look in the wrong place. `FACULTY_NOT_FOUND` / `SUBJECT_NOT_FOUND` now mean "no such row **in your
+school**".
+
+## F2 (was BLOCKING) — you are unaffected, and here is why I am telling you
+
+Independently: the `ANYONE` tier, made reachable by default, was flowing into the persisted
+`suggestion-proposals/:id/apply` INSERT path, which re-validates receiver qualification for *moves* but not
+for *inserts* — so a "Suggest assignments" apply could persist class ownership for a teacher the canonical
+resolver scores `tier: null`. That is a write-authority defect on a reviewed path and it is being closed by
+defaulting the unqualified-real-teacher behaviour **off** on the proposal path and decoupling it from
+`allowPlaceholders` ("never hire a placeholder" and "an unqualified teacher is acceptable" are two different
+decisions, and I had welded them together).
+
+**What this means for you: `cover-candidates` and `cover-assignments` keep `ANYONE` exactly as specified above.**
+The change is confined to the bulk suggestion path you do not call. **Your three groups do not shrink.**
+
+## A6 CLARIFICATION 1 — `heldByName` is the person's real name, not a label
+
+§3's example showed `"heldByName": "— TO BE HIRED, MAPEH —"`. That string was illustrative and is **never
+returned**. A placeholder's `heldByName` is whatever that placeholder record is actually named. **Render the
+"to be hired" label from `heldByIsPlaceholder`, never from the name text** — one checkbox beats string
+matching, and on live data the names do not say what the label says.
+
+## A6 CLARIFICATION 2 — `hasRoom` is about this one class, not about auto-fill
+
+`hasRoom` / `cap` are computed with the ONE capacity contract
+(`effectiveWeeklyCapMinutes`). The bulk auto-fill and the suggestion apply use a slightly different ceiling
+(`resolveRealFacultyCapMinutes`, which also subtracts advisory/ancillary minutes). **A row can read
+`hasRoom: true` and still be refused by a bulk path.** That is correct and intentional — do not treat
+`hasRoom` as a promise from the suggestion engine, and do not surface that disagreement to the operator.
