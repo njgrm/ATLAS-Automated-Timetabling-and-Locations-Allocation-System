@@ -43,7 +43,6 @@ Object.assign(globalThis, {
 	cancelAnimationFrame: (id: number) => clearTimeout(id),
 	ResizeObserver: class { observe() {} unobserve() {} disconnect() {} },
 	DOMRect: dom.window.DOMRect,
-	Element: dom.window.Element,
 	IS_REACT_ACT_ENVIRONMENT: true,
 });
 Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, configurable: true });
@@ -56,16 +55,18 @@ type Report = import('@/lib/preference-adherence').PreferenceAdherenceReport;
 
 /** The transport double: one queued answer per call, recorded verbatim. */
 const calls: Array<{ url: string; params: unknown }> = [];
-let answer: { data: Report } | { error: Error } | null = null;
+type Queued = { data: Report } | { fail: true } | null;
+let answer: Queued = null;
 
 const apiModule = await import('@/lib/api');
 (apiModule.default as unknown as { get: unknown }).get = (url: string, config?: { params?: unknown }) => {
 	calls.push({ url, params: config?.params });
-	if (answer === null) return new Promise(() => {});
+	const queued: Queued = answer;
+	if (queued === null) return new Promise(() => {});
 	// The component destructures the axios envelope, so the queued answer IS that
 	// envelope. Wrapping it again would hand the component `{ data: report }` and
 	// it would correctly refuse to render a report it cannot read.
-	return answer instanceof Error ? Promise.reject(answer) : Promise.resolve(answer);
+	return 'fail' in queued ? Promise.reject(new Error('read failed')) : Promise.resolve(queued);
 };
 
 const { PreferenceAdherenceLine } = await import('@/components/timetable/PreferenceAdherenceLine');
@@ -126,7 +127,7 @@ after(async () => {
 	dom.window.close();
 });
 
-function render(node: ReactElement) {
+function render(node: ReactElement | null) {
 	act(() => { root?.render(node); });
 }
 
@@ -297,7 +298,7 @@ test('R6 [client]: a report with nothing to say renders NOTHING — not an empty
 
 test('R6b: a failed read is silence, never a "0 of 0" claim', async () => {
 	calls.length = 0;
-	answer = new Error('read failed');
+	answer = { fail: true };
 	renderLine();
 	await settle();
 
