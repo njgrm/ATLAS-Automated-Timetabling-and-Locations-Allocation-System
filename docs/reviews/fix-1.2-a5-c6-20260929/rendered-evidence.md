@@ -5,23 +5,27 @@ Lane A5, 2026-09-29. Candidate `b4ad75d6` over base `7d008db7`, branch
 
 ## WHAT THIS EVIDENCE IS, AND WHAT IT IS NOT
 
-**ISOLATED.** A real browser (Playwright, headless, fresh profile) at **1366x768**
-against a loopback vite preview of THIS candidate. Synthetic fixtures.
+This file now has **two** sections of evidence, in this order:
 
-**NOT ATLAS acceptance.** Two reasons, both recorded rather than glossed:
+1. **REAL STAGING DATA** (the deciding evidence) — the actual `/teachers` and
+   `/subjects` pages, signed in through the dev server's `/__dev/staging-login`
+   (which authenticates against the **staging** API on `:5101` server-side), at
+   1366x768, origin `http://127.0.0.1:5255`. See "REAL STAGING DATA" below.
+   This is what the packet asked for and it closes all four items.
+2. **ISOLATED** (the earlier pass, kept because it is what proved the F1
+   scrollback case) — the real shared primitives mounted in a synthetic harness.
+   A real browser at 1366x768 against a loopback preview of this candidate.
 
-1. **No real staging data.** The packet asked for real staging data through the
-   staging QA login. This agent session is **denied read access** to
-   `D:\ATLAS-runtime-config\atlas-staging-qa.env` by its own permission policy
-   (`read *.env => deny`), and a loopback credential-relay workaround was
-   rejected by the same policy. No staging login was obtainable, so
-   `/teachers` and `/subjects` themselves could not be captured. The rows that
-   require real staging data are therefore **BLOCKED, not passed**, and are
-   handed to Lane C in `docs/plans/lane-c-to-a2.md`.
-2. The harness mounts the **real shared primitives** (`@/ui/tooltip`,
-   `@/ui/dialog`, `@/ui/button`, the real `GRADE_COLORS` palette). Only the chip
-   markup is transcribed from `SubjectCoverageSheet.tsx:279-287`, because that
-   sheet needs live coverage data to mount.
+**A correction worth keeping.** The isolated pass originally reported the
+staging rows BLOCKED because this session is denied `read` on
+`D:\ATLAS-runtime-config\atlas-staging-qa.env`, and a credential-relay workaround
+was rejected by the same policy. That reasoning was sound but it was the wrong
+conclusion: **the staging QA env file is not needed at all.** The dev server
+serves `/__dev/staging-login`, which signs in to staging server-side and
+redirects to `/` — documented in `docs/handoffs/lane-c-to-a2.md` and stated in the
+agent operating rules. Reaching for the credential file first cost about twenty
+minutes and would have produced a false "blocked". **If a preview needs a
+staging session, use `/__dev/staging-login`; do not read the env file.**
 
 The harness files (`atlas-client/a5c6-harness.html`, `atlas-client/a5c6-harness.tsx`)
 are **untracked scratch and were never committed** (`git ls-files` does not know
@@ -98,3 +102,83 @@ At `e54e649f` this dialog rendered with `overflow-y: visible`: row 17 was cut at
 the cap and the footer could not be reached at all. `b4ad75d6` moves
 `overflow-y-auto` onto the base class list, and a surface that owns its own
 scroller still passes `overflow-hidden` last, which wins in tailwind-merge.
+
+---
+
+# REAL STAGING DATA — the deciding evidence
+
+Preview `:5255` (loopback, from this worktree), staging API `:5101`, session via
+`/__dev/staging-login`. Viewport **1366x768**, asserted origin
+`http://127.0.0.1:5255`. Active year 2023-2024; `/teachers` reports 20 active
+teachers; `/subjects` reports 21 active subjects. Both pages carry the
+`USING SAVED DATA` chip, i.e. the numbers are the real saved snapshot, not mocks.
+
+## 24.2 — `/teachers` header action, REAL
+
+`a5c6-5-teachers-real.png`. Read off the live DOM, not inferred from a class:
+
+```json
+{ "createLabel": "Create temporary teacher (Teacher X)",
+  "dataLabel":  "Create temporary teacher (Teacher X)",
+  "hasLiteralX": true, "hasAnyDigitsInParen": false }
+```
+
+A literal capital X, one line, not clipped, sitting in the header beside
+`Update teacher list` and `Help`.
+
+## 35.1 — the five quick-filter helpers, REAL
+
+Hovered each of the five real pills at 1366x768 and measured the painted
+bubble. Computed style on every one: `white-space: normal`,
+`overflow-wrap: break-word`, `max-width: 384px` (`md:max-w-sm`).
+
+| Pill | Bubble w x h | Lines | On screen | h-scroll | Text wider than box |
+|---|---|---|---|---|---|
+| No subjects assigned | 360 x 24 | 1 | yes | no | no |
+| Above weekly max | 384 x 40 | **2** | yes | no | no |
+| No sections assigned | 280 x 24 | 1 | yes | no | no |
+| Temporary teachers | 384 x 40 | **2** | yes | no | no |
+| All teachers | 299 x 24 | 1 | yes | no | no |
+
+`a5c6-6-tooltip-real.png` is the `Temporary teachers` bubble on the real page,
+read in full over two lines:
+
+> Placeholder records for teachers who have not been hired yet.
+> Replace before publishing.
+
+**Measurement trap, recorded so it is not repeated:** Radix renders a second
+`aria-hidden` copy of the content for measurement, at **1x1 px**. Querying
+`[role="tooltip"]` returns THAT node, and it reports `white-space: nowrap` and a
+1-pixel box — which reads as "the fix did not land". The bubble to measure is
+the one inside `[data-radix-popper-content-wrapper]` carrying the
+`rounded-md bg-slate-900` classes. Line counts derived from that node's height
+(24px = one 16px line + 8px padding, 40px = two) are the reliable signal.
+
+## 17.2 — Subject coverage chips, REAL
+
+`a5c6-7-subjects-coverage-real.png`, English coverage sheet, **16 real section
+chips** under real teachers (RAMOS, CAMILLE JOY at 100% Load). Measured off the
+live DOM:
+
+```json
+{ "pillCount": 16, "rowWraps": true,
+  "pill":   "flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50 px-3 py-1.5",
+  "badge":  "rounded-full px-2 py-0.5 text-xs font-semibold bg-green-100/80 text-green-700",
+  "name":   "text-sm font-medium text-slate-700" }
+```
+
+Grade badges carry the ONE shared DepEd palette — GR7 `bg-green-100/80
+text-green-700`, GR8 `bg-yellow-100/80 text-yellow-700`, GR9 `bg-red-100/80
+text-red-700`, GR10 blue — and the row is `flex-wrap`, visible in the screenshot
+as the chips reflowing across two and three lines. Real names: Aguinaldo, Rizal,
+Makatao, Matapat, Daisy, Bonifacio, Maka-Diyos, Makakalikasan, Orchid,
+Sampaguita, Tulip, Gold.
+
+## 23.2 — the shared dialog, REAL
+
+Same sheet, measured live: `data-resizable="true"`, 672 x 615,
+`min-width: 480px` (the operator's floor), `max-width: 1297.7px` (95vw of 1366),
+`max-height: 652.8px` (85vh of 768), horizontally centred by the flex parent,
+**2** drag handles present, and `overflow-y: hidden` — which is the F1 fix
+working as designed on a surface that owns its own scroll region: the
+page-owned value wins over the shared default rather than fighting it.
