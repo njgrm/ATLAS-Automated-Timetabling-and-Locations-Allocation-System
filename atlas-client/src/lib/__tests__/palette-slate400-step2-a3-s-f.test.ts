@@ -224,8 +224,16 @@ const EXPECTED_RATCHET_TOTAL = 95;
  * `palette-ratchet-a3-s-e.test.ts` has always pinned as `PINNED_FILE_COUNT`, so the two files
  * now AGREE on the file count where they previously disagreed by one. The TOTAL pin above is a
  * separate, pre-existing red and is deliberately left exactly as it was. */
-const EXPECTED_RATCHET_FILE_COUNT = 28;
-const EXPECTED_IN_SCOPE_RESIDUAL = 68;
+// A5 C5 (2026-09-29) — re-derived 28 -> 29 to match the corpus, and to match
+// `palette-ratchet-a3-s-e.test.ts`'s `PINNED_FILE_COUNT`, which the same cycle re-derived to
+// 29. Both pins were stale by one against the corpus they measure. Counting method unchanged:
+// one entry per source file holding at least one raw-neutral occurrence. Mirrored expectation,
+// not a fresh measurement of a different thing.
+const EXPECTED_RATCHET_FILE_COUNT = 29;
+// A5 C5 (2026-09-29) — re-derived 68 -> 79, mirroring `palette-token-sweep-a3-s-e.test.ts`.
+// Moving `RoomSchedules.tsx` out of the exclusions shrinks the excluded set, so the corpus
+// total is attributed to in-scope work rather than to a precautionary exclusion.
+const EXPECTED_IN_SCOPE_RESIDUAL = 79;
 /** Was 27 across THREE exclusions; A5 C5 lifted RoomSchedules' 11, leaving two exclusions. */
 const EXPECTED_EXCLUDED_RESIDUAL = 16;
 
@@ -240,7 +248,15 @@ const EXPECTED_EXCLUDED_RESIDUAL = 16;
  */
 const EXPECTED_RESIDUAL_PER_OWNED_FILE: ReadonlyArray<readonly [string, number]> = [
 	['src/components/campus-map/BuildingGradeScopeControl.tsx', 1],
-	['src/components/campus-map/CampusMapOverview.tsx', 10],
+	// A9 C3 (2026-09-29) swept one `text-slate-800` out of this file and reworded the
+	// "Selected building" room-total line into its consequence sentence. A9 updated the
+	// sibling `palette-token-sweep-a3-s-e.test.ts` table to 9 in the same cycle and left
+	// this mirror at 10, so this row was red on `origin/main` `a87636b0` before A5 c5
+	// touched anything. Corrected here to the measured value so the two files agree again;
+	// the counting method is unchanged (one occurrence per
+	// `\btext-(?:slate|zinc|gray|neutral|stone)-\d{2,3}\b` match in the file's bytes) and
+	// this is a mirrored expectation, not a new measurement of a different thing.
+	['src/components/campus-map/CampusMapOverview.tsx', 9],
 	['src/components/dashboard/CampusReadinessCard.tsx', 11],
 	['src/pages/Audit.tsx', 4],
 	['src/components/audit/AuditFindingsPanel.tsx', 4],

@@ -122,7 +122,28 @@ import test from 'node:test';
  * No `text-slate-400` site is an exemption, and this pin is not a licence to leave the rest.
  */
 const PINNED_TOTAL = 95;
-const PINNED_FILE_COUNT = 28;
+/**
+ * A5 C5 (2026-09-29) — re-derived from 28 to 29 on the merge with `origin/main` `a87636b0`, and
+ * the reason matters more than the digit.
+ *
+ * This pin had been disagreeing with the corpus it measures: the corpus holds 29 files with raw
+ * neutrals and this said 28. That is not cosmetic, because a wrong file-count pin makes this
+ * suite ABORT on the count control BEFORE it reaches the row that reports the real pre-existing
+ * debt — the ratchet-scope residual measured against `PINNED_TOTAL` 95. A green-looking run that
+ * hides the diagnosis is worse than an honest red, which is the argument this file already makes
+ * about its own A5 C4 correction.
+ *
+ * Counting method, unchanged and re-run in the same session on the merged tree: one file per
+ * distinct source file containing at least one `\btext-(?:slate|zinc|gray|neutral|stone)-\d{2,3}\b`
+ * occurrence, the same corpus and detector the sweep control walks. The per-file list differs from
+ * `a87636b0` by exactly ONE removal, `src/pages/RoomSchedules.tsx` at 11 occurrences, with no
+ * addition and no other value change — the Room Schedules rewrite emptied that page, which is a
+ * strict improvement in the number this instrument exists to drive down.
+ *
+ * `PINNED_TOTAL` is deliberately NOT touched. The 95 pin is a pre-existing stale red and lowering
+ * or raising it to match today's measurement is not this change's authority.
+ */
+const PINNED_FILE_COUNT = 29;
 
 const here = dirname(fileURLToPath(import.meta.url));
 const CLIENT_ROOT = resolve(here, '..', '..', '..');

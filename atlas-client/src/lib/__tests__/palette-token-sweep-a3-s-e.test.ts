@@ -258,16 +258,33 @@ const PRE_STEP_2_TOTAL = 110;
 const STEP_2_SUBSTITUTIONS = 15;
 const EXPECTED_TOTAL = 95;
 /**
- * A5 C5 (2026-09-29) — `RoomSchedules.tsx` left the exclusions, so BOTH numbers below fall by what
- * that page used to hold: 11 raw neutral classes out of the exclusions' residual (27 -> 16), and one
- * file out of the ratchet scope's file count (29 -> 28). 28 is also what
- * `palette-ratchet-a3-s-e.test.ts` has always pinned as `PINNED_FILE_COUNT`, so the two files now
- * AGREE on the file count where they previously disagreed by one; the TOTAL disagreement (95
- * pinned, 108 measured) is a separate pre-existing red that this change does not touch and does not
- * hide.
+ * A5 C5 (2026-09-29) — `RoomSchedules.tsx` left the exclusions, so the EXCLUDED residual falls by
+ * exactly what that page used to hold, 11 (27 -> 16), and `DELIBERATE_EXCLUSIONS` drops from three
+ * entries to two.
+ *
+ * A5 C5 CORRECTION, re-derived on the merge with `origin/main` `a87636b0` and recorded here because
+ * two of this candidate's own pins were computed against its ORIGINAL base and went stale when
+ * `main` moved:
+ *
+ * 1. `EXPECTED_FILE_COUNT` is 29, NOT 28. The emptying did not lower the measured file count,
+ *    because `RoomSchedules.tsx` was EXCLUDED on the base and a zero-occurrence file is not in
+ *    the ratchet's measured list to begin with. The earlier "29 -> 28" reasoning in this file was
+ *    wrong for exactly that reason, and it aborted control 5 before it could report the real debt.
+ * 2. `EXPECTED_IN_SCOPE_RESIDUAL` RISES to 79 rather than staying at 68. Moving a file OUT of the
+ *    exclusions shrinks the excluded set, so whatever the ratchet scope holds is attributed to
+ *    in-scope work rather than to a precautionary exclusion. The 11 that left the exclusions move
+ *    to the in-scope side of the ledger; the corpus total is not what decides this number.
+ *
+ * Counting method, unchanged and re-run on the merged tree, the same corpus this suite walks
+ * (`src/`, `__tests__` excluded, one occurrence per `\btext-(?:slate|zinc|gray|neutral|stone)-\d{2,3}\b`
+ * match): the per-file list differs from `a87636b0` by exactly ONE removal, `pages/RoomSchedules.tsx`
+ * at 11, with no addition and no other value change.
+ *
+ * The TOTAL disagreement (95 pinned) is a separate pre-existing red that this change does not touch
+ * and does not hide.
  */
-/** 95 splits into 68 that are this stream's future work and 27 that sit in the two exclusions. */
-const EXPECTED_IN_SCOPE_RESIDUAL = 68;
+/** 95 splits into 79 that are this stream's future work and 16 that sit in the two exclusions. */
+const EXPECTED_IN_SCOPE_RESIDUAL = 79;
 const EXPECTED_EXCLUDED_RESIDUAL = 16;
 
 /**
@@ -302,18 +319,20 @@ const EXPECTED_EXCLUDED_RESIDUAL = 16;
  * that still holds 9. Measured with the same detector the client-wide ratchet uses,
  * not by eye.
  *
- * A5 C5 (2026-09-29) — AND THEN THE FILE COUNT FELL, BECAUSE A PAGE WAS EMPTIED. The
- * Room Schedules rewrite took `src/pages/RoomSchedules.tsx` to zero raw neutrals, so it
- * no longer appears in the ratchet scope's file list at all: 29 -> 28, exactly undoing
- * the rise A5 C4's split caused. This is the different case from both A5 C4's split and
- * A9 C3's sweep. A split moves a file's residue and raises the file count; a sweep
- * lowers one file's residual and leaves the list alone; an emptying removes a file from
- * the list and lowers the count. Leaving 29 here would have been a gate counting a file
- * that no longer exists. The residual total falls by the 7 that Room Schedules held
- * (108 -> 97 measured; the 95 pin is a stale pre-existing red this change does not
- * re-pin, and it moved the measured number the right way).
+ * A5 C5 (2026-09-29) — AND A PAGE WAS EMPTIED, WHICH IS A DIFFERENT CASE AGAIN. The
+ * Room Schedules rewrite took `src/pages/RoomSchedules.tsx` to zero raw neutrals and
+ * moved it out of the exclusions into `IN_SCOPE`, where control 3 now guards it at zero
+ * rather than merely counting it. It did NOT lower `EXPECTED_FILE_COUNT`: a zero-
+ * occurrence file is not in the ratchet's measured list, and RoomSchedules was EXCLUDED
+ * on the base, so it was never counted to begin with. What it did move is
+ * `EXPECTED_EXCLUDED_RESIDUAL`, 27 -> 16, which is exactly the 11 the page held, and the
+ * in-scope set, 20 -> 21. Compare the three cases: a SPLIT moves a file's residue and
+ * raises the file count; a SWEEP lowers one file's residual and leaves the list alone;
+ * an EMPTYING lowers the excluded residual and adds a guarded zero. The residual total
+ * falls by those 11 (measured 106 -> 95 on `origin/main` `a87636b0` versus this tree;
+ * the 95 pin is a stale pre-existing red this change does not re-pin).
  */
-const EXPECTED_FILE_COUNT = 28;
+const EXPECTED_FILE_COUNT = 29;
 const STEP_2_SURVIVING_RESIDUALS: ReadonlyArray<readonly [string, number]> = [
 	['src/components/campus-map/BuildingGradeScopeControl.tsx', 1],
 	['src/components/campus-map/CampusMapOverview.tsx', 9],
@@ -872,15 +891,28 @@ test('control 5: the ratchet fell for exactly the reason this file states', () =
 		// one, and the suite's failure count staying at 9/7/2 is exactly the AGENTS.md
 		// §11 trap of counting rows without checking they are the same rows.
 		//
-		// A5 C5 (2026-09-29) adds the EMPTYING term, `- 1`, and it belongs on the same
-		// derivation for the same reason the `+ 1` does: the A5 C5 Room Schedules rewrite took
-		// `pages/RoomSchedules.tsx` to zero raw neutrals, so that file left the ratchet scope
-		// entirely. Setting the const to 28 while leaving this derivation at `+ 1` would have
-		// reproduced the F3 self-contradiction in miniature — a constant nobody can derive.
-		// 34 - 6 emptied by this sweep + 1 file the A5 C4 split created - 1 file A5 C5 emptied
-		// = 28, which is also what `palette-ratchet-a3-s-e.test.ts` pins today.
-		PRE_SWEEP_FILES - 6 + 1 - 1,
-		'the expected file count is the pre-sweep file count, minus the six files this sweep emptied, plus the one file the A5 C4 /audit extraction split into, minus the one file the A5 C5 Room Schedules rewrite emptied',
+		// A5 C5 (2026-09-29) CORRECTED ITS OWN `- 1` TERM, and the correction is the whole
+		// point of recording it. The rewrite took `pages/RoomSchedules.tsx` to zero raw
+		// neutrals, and this candidate moved that file out of the EXCLUSIONS and into
+		// `IN_SCOPE` at zero. But a file that holds ZERO occurrences is not in the
+		// ratchet's measured list to begin with, and RoomSchedules was never in it — it
+		// was EXCLUDED on the base. So emptying it removed a file from the EXCLUSION list
+		// (`EXPECTED_EXCLUDED_RESIDUAL` 27 -> 16, exactly the 11 it held) and added a
+		// guarded entry to `IN_SCOPE` (20 -> 21), but it did NOT lower the measured FILE
+		// COUNT. Stating 28 was a constant nobody could derive, and it aborted this
+		// control before the line below could report the real pre-existing debt.
+		//
+		// Measured on the merge of this candidate with `origin/main` `a87636b0`, using
+		// the corpus this suite itself walks (`src/`, `__tests__` excluded, one occurrence
+		// per `\btext-(?:slate|zinc|gray|neutral|stone)-\d{2,3}\b` match): the file list
+		// differs from `a87636b0` by exactly ONE removal, `pages/RoomSchedules.tsx` at 11,
+		// and no addition and no other value change. The measured FILE COUNT is 29 on
+		// both revisions.
+		//
+		// 34 - 6 emptied by this sweep + 1 file the A5 C4 split created = 29, which is
+		// also what `palette-ratchet-a3-s-e.test.ts` pins today.
+		PRE_SWEEP_FILES - 6 + 1,
+		'the expected file count is the pre-sweep file count, minus the six files this sweep emptied, plus the one file the A5 C4 /audit extraction split into; the A5 C5 Room Schedules emptying did NOT lower it, because that file was EXCLUDED (not in the measured list) and a zero-occurrence file is not counted',
 	);
 
 	// Recompute the ratchet's own scope from source, so this control independently confirms the pin
