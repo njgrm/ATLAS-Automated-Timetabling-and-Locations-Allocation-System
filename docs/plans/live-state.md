@@ -7,45 +7,68 @@ changes.
 Last reconciled: 2026-09-26 (Lane A — fresh session; capacity, live-release identity, cross-lane debt and the
 credential incident re-derived. See the dated correction blocks in the Lane A section).
 
-## Lane A4 — release lane, 2026-09-30 03:56 +08 (train 12 UP AT STAGING; train 11 remains the live release)
+## Lane A4 — release lane, 2026-09-30 05:14 +08 (train 12b UP AT STAGING at `a46505ce`; train 11 `bc94b10b` remains the live release)
 
-- **STAGING IS UP at `69b404ff` (train 12).** Loopback `http://127.0.0.1:5274`, Tailnet
-  `https://njgrm.buru-degree.ts.net:8443` (API 5101). Release dir
-  `E:\ATLAS-staging\69b404fff7ec37173d34fab6305cfb44f3368a53`, HEAD == pin, owns its dependency trees
-  (0 reparse points). `STAGING_DEPLOYED` in **120.6 s**; DB re-streamed from live (`SNAPSHOT_REFRESHED`,
-  `liveSignatureBefore == liveSignatureAfter == stagingSignature = 1196|557|11`, `liveUnchanged: true`).
-  Served chunk `assets/index-CTzHkSA3.js` (305 330 B) on 5274 and on 8443; the live origin **404s** it.
-  **114 commits / 173 paths** since `bc94b10b`; **0 `prisma/`**, **0 `ops/`**.
-- **MIGRATION LIST: NONE - empty.** `prisma/**` unchanged across the range; `schema.prisma` blob
-  `ba62f40a…` identical on both pins; live `_prisma_migrations` **11 / 0 unfinished / 0 rolled back**. **Not HIGH
-  on migration grounds; no schema backup plan owed for the cutover.**
-- **GATE: PASS.** Dry run `mutates:false` · dep seed 3/3 · **server `tsc` exit 0** · **client `vite` exit 0**
-  (`VITE_ENROLLPRO_URL key set: true`, value never printed) · staging env **0 keys changed** (`reuse`) · readiness
-  120.5 s all four 200 + DB-backed `subjects?schoolId=1` 200 · **M3 proven** (server read `atlas-staging.env` and
-  the staging `sourceDir`, `keyCount 18`) · `test:staging-guards` **20/20** · all 13 client routes 200 including
-  `/__dev/staging-login`. **Not run: client/server suites, `test:server-db`, `test:encoding`** — the client-suite
-  delta for this train is **UNKNOWN** and is a cutover gate, not a staging gate. **No UX render proof by A4**
-  (A4 changed no product byte); Lane C's 1366x768 walk is the render gate.
-- **LIVE UNTOUCHED, measured before and after (2026-09-30 03:44–03:56 +08).** 5001 -> PID **44980**, 5174 -> PID
-  **45684**, same PIDs and command lines throughout; machine scope still `-11prod` / `bc94b10b`; live tree clean at
-  `bc94b10b`; live signature **byte-identical** (`audit_logs 557/1196 · mig 11 · faculty_mirrors 60/579 ·
-  section_mirrors 160/1872 · subjects 23/2299 · tl_cycles 8/384 · gen_runs 12/349 · pub_revs 6/46`); live health /
-  ready / host 200; DB-backed read 200 (20 336 B); exactly 1 active mirror. Only 5101/5274 moved (50452 / 53680).
-- **Staging active school year: `2026-2027`** (EnrollPro id 5, `syncStatus setup-review-required`, term cache
-  present). **A4 did not change it and ran no rollover sync** — a year change is an operator rollover, not a
-  release step.
-- **Routed, not fixed here (A4 edits no product/ops code):** the sidebar **brand block is A6-authored work that
-  reached `main` on A5's merge `3a5878a9`** — two lanes on one merge, named so it is not read as A5's. A6's
-  **deep links** have no unique marker string absent from the old bundle, so their shipped proof is A6's own gate
-  plus the source diff, not a bundle delta.
-- **Worktrees:** staging `E:\ATLAS-staging\69b404ff…` = `KEEP_ACTIVE`; staging rollback basis
-  `E:\ATLAS-staging\bc94b10b…` = `KEEP_ACTIVE`; live `lane-a4-release-20260930-11prod` = `KEEP_ACTIVE` (live **and**
-  train 12's rollback basis); `lane-a4-train-20260930-12` (`docs/a4-train-12-staging`, sparse docs) =
-  `RETIRE_AFTER_INTEGRATION`; the three superseded staging trees were **not** retired — E: is at 32.07 GiB, so
-  reclaim is available but **not owed**.
-- **Next action (single):** Lane C runs the 1366x768 walk on staging at `69b404ff` and posts **GO** in
-  `docs/handoffs/lane-c-to-a2.md`. **A4 stops here — no live cutover.** Full record: that file, "A4 STAGING
-  train 12 at `69b404ff`".
+- **STAGING IS UP at `a46505cee3ab9f4d8d24bd87dabdf7a1d280964d` (train 12b — a re-pin).** Loopback
+  `http://127.0.0.1:5274`, API 5101. Release dir `E:\ATLAS-staging\a46505cee3ab9f4d8d24bd87dabdf7a1d280964d`,
+  HEAD == the pin, owns its dependency trees. Task `ATLAS-Staging-Supervisor` **Running**: 5101 -> pid **50948**,
+  5274 -> pid **3512**. `/api/v1/health` **200**, `/api/v1/health/ready` **200**. Swap was
+  `schtasks /end` (5101/5274 -> 0 listeners) then `schtasks /run`; live 5001/5174 stayed at 2 listeners throughout.
+- **CONTENT: one product file.** `git diff --name-only 69b404ff a46505ce` = **3 paths** —
+  `atlas-client/src/components/faculty-assignments/TeacherGridMode.tsx` (Lane C hotfix: the teacher row is
+  `flex flex-wrap`, the name `max-w-full`, the adviser line `shrink-0`, so the adviser line **drops below a long
+  name** instead of clipping to "FERNANDEZ, JANELLA ...") plus two docs files. `package.json` / `package-lock.json`
+  / both package manifests **unchanged** across the range.
+- **MIGRATION LIST: NONE - empty**, three independent ways: `prisma/**` diff **empty**; `schema.prisma` blob
+  `ba62f40a…` **identical** on `69b404ff` and `a46505ce`; staging `_prisma_migrations` **11 rows / 0 unfinished /
+  0 rolled back** = the 11 on-disk migration dirs. **Not HIGH on migration grounds; no schema backup plan owed.**
+- **GATE: PASS.** `npm ci` root/client/server exit 0 -> `prisma generate` exit 0 **with the staging env loaded
+  into the child by name** -> server `tsc` **exit 0** -> client `vite` **exit 0** in 15.10 s **with
+  `VITE_ENROLLPRO_URL` from `ENROLLPRO_PROXY_ORIGIN` = `https://dev-jegs.buru-degree.ts.net`** (the fail-closed
+  vite guard; value never printed). No secret printed at any step. **Not run: client/server suites,
+  `test:server-db`, `test:encoding`** — the client-suite delta is **UNKNOWN** and is a cutover gate, not a
+  staging gate. **No UX render proof by A4** (A4 changed no product byte); Lane C's 1366x768 walk is the render gate.
+- **Served chunk `assets/index-DuhBU3ed.js` (305 330 B) 200 on 5274.** Not vacuous: staging **404s** the train-12
+  index `index-CTzHkSA3.js`, and **LIVE 5174 404s the new chunk while 200s the train-11 `index-CYuWuj7B.js`
+  (305 923 B)** — that is the proof no cutover happened. In-bundle: the class string
+  `flex flex-wrap items-center gap-x-2 gap-y-0.5` occurs **1**x in the new `dist` (`TeachingLoad-CzXAUMO9.js`)
+  and **0**x in the train-12 `dist`.
+- **LIVE UNTOUCHED (measured 2026-09-30 04:44–05:14 +08).** 5001 -> pid **44980**, 5174 -> pid **45684**, same
+  PIDs and command lines throughout; live release still train 11 `bc94b10b`; **no live deploy, no live data write,
+  no migration, no generation, no publication, no rollover sync.** Only 5101/5274 moved.
+- **Staging active school year: `2026-2027`** (EnrollPro id 5, mirror row 633, school 1, `is_active` true,
+  `is_archived` false, `syncStatus setup-review-required`, `last_verified_at 2026-09-29T16:05:36.071Z`, term
+  contract cache present). **A4 did not change it.** I ran **no re-stream** this leg — that is a data action
+  nobody asked for — so staging data is exactly what train 12 left behind. **QA account re-created** (step 3):
+  `node scripts/dev/ensure-staging-qa-account.cjs` **exit 0**, school 1 / officer; secret read by name from
+  `D:\ATLAS-runtime-config\atlas-staging-qa.env` and never printed.
+- **`origin/main` has already moved past this pin to `4f377e29`** (A6 Teaching Load demand source + A2
+  place-one-action tests; **22 product/test files** differ from the staging pin). Staging deliberately does **not**
+  contain that work — a staging verdict is not a verdict on `main`. Re-pin if the walk needs A6/A2.
+- **Staging runtime contract** installed into the new tree by copying the healthy train-12 file verbatim:
+  `git diff` vs the pin shows **exactly five** substitutions — `$comment`, `stream`
+  (`RUNTIME-SUPERVISION-STAGING-C01`), `releaseLabel` (`atlas-staging`), ports **5101/5274**, and
+  `readinessTimeoutMs` **45000** (the running staging value; the pin says 180000 — kept 45000 to reproduce the
+  working supervision, recorded not hidden). Not in git; **never copied to the live release dir.**
+- **Two build attempts failed before the third passed, both my own error, not the pin's** — recorded so it is not
+  re-diagnosed as a broken tree: `$ErrorActionPreference="Stop"` died on the server `npm ci` deprecation warning
+  (stderr), and `npx prisma generate` exits 1 without `DATABASE_URL` (`prisma.config.ts` loads it), so the client
+  was never generated and server `tsc` failed with a wall of `has no exported member`.
+- **Worktrees:** staging `E:\ATLAS-staging\a46505ce…` = `KEEP_ACTIVE` (serving; next staging re-pin's rollback);
+  staging `E:\ATLAS-staging\69b404ff…` = `PRESERVE_FOR_DECISION` (quiesced, superseded, **not** retired);
+  `E:\ATLAS-staging\cd542245…` = deeper staging rollback basis, preserved; live
+  `lane-a4-release-20260930-11prod` = `KEEP_ACTIVE`; gate worktree
+  `E:/ATLAS-worktrees/lane-a4-train-20260930-12b` (`docs/a4-train-12b-staging`, sparse docs, no `node_modules`) =
+  `RETIRE_AFTER_INTEGRATION`. **E: was 28.0 GiB free before this build and a staging tree with all three
+  `node_modules` costs ~0.9 GiB**, so this re-pin was not a capacity problem and **no reclaim is owed**; reclaim
+  still needs `docs/reference/agent-worktree-lifecycle.md` read first and the junction-`rmdir`-then-`worktree
+  remove` sequence.
+- **Next action (single):** Lane C walks the adviser-line hotfix on Teaching Load at 1366x768 on **staging**
+  (a long name such as `FERNANDEZ, JANELLA ...` must show the adviser line **below** it, not clipped) and posts
+  **GO** or **NO_GO** in `docs/handoffs/lane-c-to-a2.md`. **A4 stops here — no live cutover; live stays train 11
+  `bc94b10b` until Lane C sends GO.** Full record: that file, "A4 STAGING train 12b at `a46505ce`" (post
+  `38c759a4`). **Superseded:** the train-12 staging record of 2026-09-30 03:56 +08 (staging was then up at
+  `69b404ff`, DB re-streamed from live) — same file, prior section, retained in git history.
 
 ## Lane A3 — current lane (written only by Planner A3)
 
