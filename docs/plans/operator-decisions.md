@@ -13,3 +13,6 @@ fails if the decision is undone. Only the operator changes this list (Lane C rec
 | 6 | 29 Sep | **Presentation outranks function**; UX regressions and wrong values block a train. | walk standard |
 | 7 | 29 Sep | **Rollover must never leave a year stuck:** terms are saved from EnrollPro automatically with a receipt; no "confirm term order" step. | A3 (train 12) |
 | 8 | 30 Sep 00:40 | **A7's calm Class Schedule proposal (post "A7 -> Lane C, proposal — Step 0", 00:12) is approved as written**, with one change: the unplaced-classes label is **"N classes need a time slot"** (not "need a time"). | A7 c12 rendered control-budget + copy tests |
+| 9 | 30 Sep 02:15 | **Teacher Profile and Review load are ONE dialog**: load figures on top (Review load), classes taught below (Profile layout); the row keeps only "Review load". | A3 teacher-one rendered test |
+| 10 | 30 Sep 02:15 | **Dialogs open at a normal centered width** (about 42rem), never near full screen; resizing is optional. Temporary-teacher form has no Specialization field. | A3/A5/A9 default-width tests |
+| 11 | 30 Sep 02:15 | **No second confirmation after a review dialog**: applying saves at once with a plain receipt and Undo (Apply rooms first). | A9 X4 test |
