@@ -487,6 +487,30 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **— LIVE: `8d98628d3829977db7dabffbbd720f8f4fc86a2b` @ DEPLOYED TO PRODUCTION 2026-09-29 22:40 +08 by Lane A4 —
+  operator-approved **retry** of the second hotfix. Rollback basis `9462d82d`.** This is the same code as the failed
+  `f4d34c75` (its parent) plus **one line**: `ops/runtime/runtime-contract.json` `readinessTimeoutMs` **45 000 ->
+  180 000**. **No rebuild** — the `dist` built for the failed attempt was reused verbatim.
+
+  | | |
+  |---|---|
+  | **LIVE** | **`8d98628d3829977db7dabffbbd720f8f4fc86a2b`** |
+  | **Live dir** | `E:\ATLAS-worktrees\lane-a4-hotfix-tl-prod`, branch `release/2026-09-29-10-hotfix-tl`, **fast-forwarded `f4d34c75` → `8d98628d`**, HEAD == pin, `status --short` empty, 0 reparse points, own dependency trees (209/155), 10 runtime campus uploads |
+  | **Listeners** | 5001 → **16084**, 5174 → **50512** |
+  | **Machine scope** | both runtime variables repointed to `-hotfix-tl-prod` / `8d98628d…`; task action **and** `Start In** both `-hotfix-tl-prod`, **Running**; `supervisor-state.json` `releaseSha: 8d98628d…` |
+  | **Rollback basis** | **`9462d82d3a57f87d9020784ed12850ef91024869`**, dir `E:\ATLAS-worktrees\lane-a4-hotfix-term-prod`. One-step supervised reset. |
+  | **Cold start** | supervisor launch → `All targets healthy` = **83.8 s** (`14:40:00.653Z` → `14:41:24.490Z`); `CUTOVER_STARTED` → first 200/200 on both ports **102.3 s**. **A 45 s budget could never have booted this release** (see the boot-time `hybrid-scheduler` ejection repair and a 33 200 ms event-loop stall). |
+  | **Cutover** | `deploy-runner.ps1` dry run first (`mutates: false`, lineage verified, `Assert-LiveReleaseRecorded` **passed**), then `-Execute` → **`CUTOVER_STARTED`**. Audit `C:\ProgramData\ATLAS\release-audit\8d98628d-20260929-223942\` |
+  | **Acceptance** | **DEPLOYED, all rows PASS.** 5001 ready **200**, 5174 ready **200**, Tailnet health **200** + ready **200**, DB-backed `GET /api/v1/subjects?schoolId=1` **200 (20 335 B)** · **chunk `index-BfzPMwrg.js` served on BOTH `http://127.0.0.1:5174/` and `https://njgrm.buru-degree.ts.net/`**, **200 (307 649 B)**, previous `index-BdvkYd2N.js` **404** · **true zero-write** — all **10 signature tables byte-identical** to the 22:39:12 pre-quiesce baseline, `audit_logs` **532/1171 unchanged with zero new rows**, **0 `prisma/`**, no generation/publication/cycle/term-cache write · **live-data invariant exactly 1 active mirror (`2024-2025`)** |
+  | **One transient, disclosed** | the first `5001/api/v1/health` probe errored **inside the boot-time 33 s event-loop stall**; **four consecutive re-probes returned 200** and readiness was 200 throughout. Liveness under a stall, not a boot failure. |
+  | **Cumulative vs `cd542245`** | 8 product paths (7 client Teaching Load + 1 server transaction timeouts) + 1 contract line, plus hotfix #1's 2 term-contract paths. The Teaching Load `Past years` / switch removal, the per-teacher `Show other subjects`, and the `P2028` transaction timeouts are all in this build. |
+  | **Evidence** | `docs/handoffs/lane-c-to-a2.md`, "A4 LIVE hotfix `8d98628d`" |
+
+  **Still UNPERFORMED by A4:** the rendered rows on `https://njgrm.buru-degree.ts.net` (Teaching Load surface, and a
+  real suggestion apply proving `P2028` is gone). Those are Lane C's browser acceptance rows, asserting
+  `window.location.origin`. **Train 11 should be cut from `main`** — `029e5425`, `75c068d6` and `b72571ba` already
+  carry these changes on newer `main` — and this hotfix chain retired afterwards.
+
 - **— CUTOVER TARGET (RETRY), recorded 2026-09-29 22:3x +08 by Lane A4 ahead of the operator-approved **retry** of the
   second hotfix. Required by `deploy-runner.ps1` `Assert-LiveReleaseRecorded`, which fails closed without it. Target
   release `8d98628d` (full `8d98628d3829977db7dabffbbd720f8f4fc86a2b`), rollback basis `9462d82d` (the incumbent,
