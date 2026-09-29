@@ -129,3 +129,28 @@ node_modules junction; client tests in every junctioned worktree broke silently 
 - Room Schedules: "Room occupancy sheet" adds two unexplained buttons `11x6` / `13x6` that do nothing visible (page is WIP; redesign later).
 - Teacher Preferences: "Load the teacher roster first." shown on entry.
 - Sweep coverage gaps: Teachers (0 clicks, browser session collision) and Teaching Load (3 clicks) need a re-run after train 12.
+
+### Double-time rules (30 Sep 06:55 +08, operator: "we desperately need to double time")
+
+Night of 29-30 Sep: 4 trains (11, 12b, 13, 14), but about 3 h lost to dead or waiting work nobody saw, 35-60 min of
+overhead per train, and 45-90 min planner cycles for one-line fixes. Rules from train 15 on:
+
+11. **Lane C checks `status.sh` every 15 minutes**, not only on notifications. It now flags `DIED-EMPTY` launches and
+    lists pushed `work/`/`fix/` branches not on main. Anything in either list is acted on in the same check.
+12. **Planners land their own QA-passed work on main.** "Awaiting Lane C judgement" is allowed only for a HIGH action
+    (deploy, generation, publication, live data). A UX candidate that passes QA is integrated at once; Lane C judges it
+    on the next train's walk, and a REJECT_UX becomes the next cycle.
+13. **LOW fixes skip the planner cycle.** Copy, CSS, layout and label fixes (like the 30 Sep grid wrap and adviser line)
+    are Lane C hotfix commits with a test and client tsc, same hour. Planner/executor/QA cycles are for behaviour and data.
+14. **Trains run on a clock: every 90 minutes**, from the main tip, carrying what is there. Never hold a train for one
+    lane, never restart a build to add a late candidate: it rides the next train.
+15. **A4 posts three lines** (pin, migrations, served chunk + live PIDs) and nothing else. Before every build it
+    reclaims old staging trees if E: is under 25 GiB, and after every staging deploy it runs
+    `ensure-staging-qa-account.cjs`. Staging and GO may run in one A4 session when Lane C has posted GO in advance
+    conditional on the walk.
+16. **At most 4 planners, on pages that do not overlap** (e.g. timetable / Teaching Load / Sections+Rooms /
+    Subjects+Teachers). Two planners never edit the same page in the same hour; queue the second.
+17. **Walk before build where possible.** Planners attach a staging-preview screenshot of the changed page at
+    1366x768 to their post; Lane C rejects clipped text, raw codes or extra confirms from that screenshot before the
+    train, so a train walk only finds regressions, not first looks.
+18. **Launcher prompts are single-line** (`launch.ps1` now collapses newlines and strips `< > | & ^ %`).
