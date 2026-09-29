@@ -258,15 +258,38 @@ test('UX-QUICKFIX-C01 (d) the visible dispatch guards fail closed on a closed ga
 	assert.equal(publishAction.reason, 'Fix 1 hard blocker before publishing.');
 });
 
-test('UX-QUICKFIX-C01 (d2) a closed generation gate renders a disabled Generate with the truthful reason', () => {
+test('UX-QUICKFIX-C01 (d2) an unverified schedule check opens the Generate dialog and names the cause', () => {
 	// DRAFT-UX-C01: rendered in the no-run state, where Generate is the visible primary.
 	const markup = renderHeader({
 		draft: null,
 		curriculumReadiness: { state: 'unavailable', message: 'Setup check unavailable.' },
 	});
 	const generate = tagFor(markup, 'timetable-simple-generate-action');
-	assert.match(generate, /disabled=""/, 'the disabled generation control cannot dispatch');
-	assert.match(generate, /aria-label="Generate schedule — Schedule information could not be checked\."/);
+	// ── SUPERSEDED 2026-09-29 by A8-C5 S2.3 (packet addendum 20:05; the operator,
+	// verbatim: "it should never be disabled"). A disabled control with a tooltip
+	// is a dead end: the operator cannot act on it, cannot see what would change,
+	// and cannot tell "not ready yet" from "this will never work". An unverified
+	// check is now a NAMED STOPPER inside the dialog Generate opens, and the
+	// accessible name below is still asserted, so the cause is still announced.
+	//   was: assert.match(generate, /disabled=""/, 'the disabled generation control cannot dispatch');
+	assert.doesNotMatch(generate, /disabled=""/, 'A8-C5 S2.3: a check that could not run is a named stopper, not a disabled button');
+	// The cause is still announced, in the S2.3 stopper's own words. The sentence
+	// CHANGED and the old one is recorded rather than deleted:
+	//   was: "Generate schedule — Schedule information could not be checked."
+	// The new one states both halves an operator needs — what failed, and that
+	// ATLAS does not yet know whether the setup is ready — which is strictly more
+	// than "could not be checked" said.
+	assert.match(generate, /aria-label="Generate schedule — The schedule check could not read this school year\./,
+		'the cause is still announced to assistive technology, now in the named stopper\'s words');
+	// Nothing is rendered BESIDE an enabled control: the visible short sentence
+	// belongs to a disabled one (AGENTS.md section 8, "less on screen").
+	assert.doesNotMatch(markup, /timetable-simple-generate-short-reason/,
+		'an enabled Generate wears no disabled-control sentence beside it');
+	// The ONE state that may still refuse a dispatch, asserted here so this row
+	// does not become "the button is never disabled" with nothing left to check.
+	const running = renderHeader({ draft: null, generating: true, curriculumReadiness: { state: 'ready', message: 'Setup ready' } });
+	assert.match(tagFor(running, 'timetable-simple-generate-action'), /disabled=""/,
+		'a run already in progress is the one state that still refuses, or the rule above is vacuous');
 });
 
 test('UX-QUICKFIX-C01 (d3) a closed publication gate renders a disabled Publish and still shows the next step', () => {

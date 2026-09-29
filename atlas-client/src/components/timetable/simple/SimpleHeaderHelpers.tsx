@@ -967,7 +967,20 @@ export function resolveSimpleGenerateActionState(input: {
 	/** A2 C13 — the gate's own short form, carried beside its full reason. */
 	gateShortReason?: string | null;
 }): SimpleHeaderActionState {
-	if (input.canPlanOrGenerate) return { disabled: false, reason: null, shortReason: null };
+	if (input.canPlanOrGenerate) {
+		// A8-C5 S2.3: the control is ENABLED here, but the cause is still
+		// announced. Generate is no longer disabled for an unverified check — it
+		// opens the dialog that explains it — so returning `reason: null` would
+		// leave a screen-reader user with a bare "Generate schedule" and no way to
+		// learn what the dialog is about to tell them.
+		//
+		// Nothing is rendered beside the button: `SimpleGenerateAction` shows the
+		// visible short sentence only for a DISABLED control, and wears the solid
+		// primary variant when this is false. So the reason reaches the accessible
+		// name and nothing else — which is exactly the "less on screen" rule, not
+		// an exception to it.
+		return { disabled: false, reason: input.gateReason ?? null, shortReason: null };
+	}
 	if (input.generating) return { disabled: true, reason: 'A generation run is already in progress.', shortReason: 'A generation run is in progress' };
 	if (input.loading) return { disabled: true, reason: 'The timetable is still loading.', shortReason: 'The schedule is still loading' };
 	return {

@@ -154,31 +154,40 @@ test('A2.2 the placeholder-owned class is listed by name, and it is not in the o
 // Fails on base: base returned LACKING_FACULTY for this exact item.
 // ─────────────────────────────────────────────────────────────────────────────
 test('A2.3 the unassigned violation code stops collapsing a placeholder-owned class into LACKING_FACULTY', () => {
-	const verdict = resolveUnassignedViolationCode({
+	// The ids are carried so the probe reads as the item it is, but the resolver's
+	// parameter is a `Pick<...>` of the three fields it actually reads. Passing an
+	// object LITERAL would trip TypeScript's excess-property check, so each probe
+	// is named first: a variable is not checked for excess properties, and the
+	// three fields the resolver reads are still exactly the three it declares.
+	type UnassignedProbe = Parameters<typeof resolveUnassignedViolationCode>[0];
+	const placeholderOwned: UnassignedProbe & { sectionId: number; subjectId: number } = {
 		sectionId: 502,
 		subjectId: 12,
 		reason: 'NO_QUALIFIED_FACULTY',
 		roomAssignmentReason: 'NO_QUALIFIED_FACULTY',
 		ownerIsPlaceholder: true,
-	});
+	};
+	const verdict = resolveUnassignedViolationCode(placeholderOwned);
 	assert.equal(verdict.code, PLACEHOLDER_OWNED_VIOLATION_CODE);
 	assert.equal(verdict.severity, 'SOFT', 'it is never a HARD violation');
 
 	// The pre-fix result for the SAME item, reproduced: base had no
 	// `ownerIsPlaceholder`, so it returned LACKING_FACULTY / HARD.
-	const preFix = resolveUnassignedViolationCode({
+	const preFix: UnassignedProbe & { sectionId: number; subjectId: number } = {
 		sectionId: 502,
 		subjectId: 12,
 		reason: 'NO_QUALIFIED_FACULTY',
 		roomAssignmentReason: 'NO_QUALIFIED_FACULTY',
-	});
-	assert.equal(preFix.code, 'LACKING_FACULTY', 'without the flag the item is an OPEN class — that is the control');
-	assert.equal(preFix.severity, 'HARD');
-	assert.notEqual(preFix.code, verdict.code, 'the placeholder state discriminates from the open state');
+	};
+	const preFixVerdict = resolveUnassignedViolationCode(preFix);
+	assert.equal(preFixVerdict.code, 'LACKING_FACULTY', 'without the flag the item is an OPEN class — that is the control');
+	assert.equal(preFixVerdict.severity, 'HARD');
+	assert.notEqual(preFixVerdict.code, verdict.code, 'the placeholder state discriminates from the open state');
 
 	// An item that is NOT placeholder-owned is unaffected in every other branch.
+	const noAvailableSlot: UnassignedProbe = { reason: 'NO_AVAILABLE_SLOT' };
 	assert.equal(
-		resolveUnassignedViolationCode({ sectionId: 1, subjectId: 2, reason: 'NO_AVAILABLE_SLOT' }).code,
+		resolveUnassignedViolationCode(noAvailableSlot).code,
 		'UNASSIGNED_SECTION',
 		'the time-slot branch is untouched',
 	);

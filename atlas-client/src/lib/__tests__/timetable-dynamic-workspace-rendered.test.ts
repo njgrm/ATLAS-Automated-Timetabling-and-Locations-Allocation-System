@@ -555,7 +555,18 @@ test('ALGORITHM_LIMIT/self-route repair renders a real in-place primary action, 
 	// assert.match(markup, /data-testid="timetable-simple-primary-action"/);
 	// assert.match(markup, /<button[^>]*data-testid="timetable-simple-primary-action"/);
 	// assert.match(markup, /Recheck generation readiness/);
-	assert.match(markup, /<button[^>]*data-testid="timetable-simple-generate-action"[^>]*disabled=""|<button[^>]*disabled=""[^>]*data-testid="timetable-simple-generate-action"/, 'Generate is the visible primary and cannot dispatch while blocked');
+	// ── SUPERSEDED 2026-09-29 by A8-C5 S2.3 (packet addendum 20:05: "it should
+	// never be disabled"). The first half of this row is UNCHANGED and still
+	// asserted above: Generate is the one visible primary while blocked. What
+	// changed is that it can now be pressed — it opens the dialog that names what
+	// is stopping a run — so "cannot dispatch while blocked" is no longer the
+	// contract. The old expectation is recorded, not deleted:
+	//   was: assert.match(markup, /<button[^>]*data-testid="timetable-simple-generate-action"[^>]*disabled=""|.../, 'Generate is the visible primary and cannot dispatch while blocked');
+	assert.match(markup, /<button[^>]*data-testid="timetable-simple-generate-action"[^>]*>/, 'Generate is the visible primary while blocked');
+	assert.doesNotMatch(markup, /<button[^>]*data-testid="timetable-simple-generate-action"[^>]*disabled=""|<button[^>]*disabled=""[^>]*data-testid="timetable-simple-generate-action"/,
+		'A8-C5 S2.3: a blocked year opens the dialog with a named cause, not a greyed button');
+	// The cause is still announced, so "enabled" did not become "silent".
+	assert.match(markup, /aria-label="Generate schedule — /, 'and the cause is still in the accessible name');
 	assert.doesNotMatch(
 		markup,
 		/href="\/timetable"[^>]*data-testid="timetable-simple-primary-action"|data-testid="timetable-simple-primary-action"[^>]*href="\/timetable"/,

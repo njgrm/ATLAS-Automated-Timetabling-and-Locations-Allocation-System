@@ -348,7 +348,10 @@ test('A1.4 a valid caller-supplied schoolYearId is honoured — the resolver sub
 // ─────────────────────────────────────────────────────────────────────────────
 test('A1.5 FAILING-FIRST CONTROL: the pre-fix default resolves to year 1, the shipped resolver refuses', async () => {
 	// The exact pre-fix expression, applied to the same unreachable-upstream null.
-	const preFixActiveYear: { id: number; yearLabel: string } | null = null;
+	// The value comes from a call so TypeScript keeps the declared union: a `const`
+	// initialised to `null` is narrowed to `null`, and `null?.id` is `never`, which
+	// would make this control a type error instead of a control.
+	const preFixActiveYear = ((): { id: number; yearLabel: string } | null => null)();
 	const preFixSchoolYearId = preFixActiveYear?.id ?? 1;
 	assert.equal(preFixSchoolYearId, 1, 'the old code silently wrote into year 1');
 
