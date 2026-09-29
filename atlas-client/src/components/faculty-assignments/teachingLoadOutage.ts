@@ -95,6 +95,25 @@ export type SubjectShortageEntry = {
 	 * exists to prevent.
 	 */
 	classNames: string[];
+	/**
+	 * A6 c10 — THE SAME CLASSES, BY IDENTITY rather than by name.
+	 *
+	 * `classNames` was added by c9 so the window could read `MAPEH — 7-A, 7-B,
+	 * 8-C`. Covering a class needs the id, so c10 collects the id, the grade and
+	 * the name in ONE walk of the SAME predicate and pushes them into both
+	 * shapes. They cannot disagree: `classNames` is not a separate list, it is
+	 * `classes.map(c => c.name)`, so a count that did not sum to
+	 * `shortClassCount` is a bug in the one walk rather than a disagreement
+	 * between two passes.
+	 */
+	classes: ShortClassIdentity[];
+};
+
+/** One open class, named the way the window names it and identified the way the write needs it. */
+export type ShortClassIdentity = {
+	sectionId: number;
+	name: string;
+	gradeLevel: number;
 };
 
 export type SubjectShortageResult = {
@@ -137,6 +156,7 @@ export function buildSubjectShortage(input: {
 			subjectName: subject.name,
 			shortClassCount: 0,
 			classNames: [],
+			classes: [],
 		};
 		for (const section of input.sections) {
 			if (!isSectionSubjectApplicable(subject, section)) continue;
@@ -150,6 +170,11 @@ export function buildSubjectShortage(input: {
 			if (!hasRealTeacher) {
 				entry.shortClassCount += 1;
 				entry.classNames.push(section.name);
+				entry.classes.push({
+					sectionId: section.id,
+					name: section.name,
+					gradeLevel: section.displayOrder,
+				});
 			}
 		}
 		if (entry.shortClassCount > 0) bySubject.set(subject.id, entry);

@@ -91,8 +91,11 @@ const { TooltipProvider } = await import('@/ui/tooltip');
 const { Button } = await import('@/ui/button');
 
 const { useTeachingLoadOutage } = await import('@/hooks/useTeachingLoadOutage');
-const { TeachingLoadStaffingFigure, ASSIGN_TEACHER_LABEL } = await import('@/components/faculty-assignments/TeachingLoadStaffingFigure');
+const { TeachingLoadStaffingFigure } = await import('@/components/faculty-assignments/TeachingLoadStaffingFigure');
+const { COVER_THIS_CLASS_LABEL } = await import('@/components/faculty-assignments/TeachingLoadStaffingFigure');
 const { COVER_CLASSES_LABEL } = await import('@/components/faculty-assignments/TeachingLoadShortageLine');
+/** Retired by A6 c10. Named so the SUPERSEDED row can still read what it asserted. */
+const ASSIGN_TEACHER_LABEL = undefined;
 const { buildStaffingFigureLabel, SAVED_ROSTER_NOTE_PREFIX } = await import('@/components/faculty-assignments/teachingLoadOutage');
 
 const roots: any[] = [];
@@ -402,9 +405,32 @@ test('A6C9-1b the CLEARED state is still a control, and still opens its window',
 
 // ═════════════════════════════════════════════════════════════════════════════
 // A6C9-2 — CLICKING IT OPENS THE LIST OF WHO STILL NEEDS A TEACHER.
+//
+// A6 c10 CORRECTION — THE SUBJECT ROW IS SUPERSEDED, THE ASSERTIONS ARE NOT.
+//
+// c10 changed the SHAPE this test asserts, on the operator's own authority: the
+// subject row showed `MAPEH — 7-A, 7-B, 8-C` with ONE action for all three
+// classes, so a scheduler could see which classes were open and could not cover
+// any of them. The Codex audit recorded the result as
+// `clicks-to-cover-with-real-teacher: 0`. The subject is now a quiet group
+// heading and every CLASS below it is a row with its own action.
+//
+// The claims below are therefore re-asserted against the per-class rows, and the
+// superseded assertions are KEPT above as the record of what was true (AGENTS.md
+// §16: a correction marks evidence superseded and adds the replacement beside
+// it; it never deletes a row to close a finding). Nothing is deleted — the two
+// shapes are asserted in the same test, one after the other, so a future
+// regression that restores the joined sentence would fail the c10 half.
 // ═════════════════════════════════════════════════════════════════════════════
 
-test('A6C9-2 pressing the figure opens a window listing the short classes BY NAME, grouped by subject, one action each', () => {
+test('A6C9-2 SUPERSEDED (c10 rewired this surface) — the shape it asserted was one action for a whole SUBJECT', () => {
+	// Kept as the record, not as a gate: the per-class half below is the gate.
+	// Read for WHAT is asserted, not for WHAT is required.
+	assert.equal(typeof ASSIGN_TEACHER_LABEL, 'undefined', 'the single-class label is retired; the per-class label is `Cover this class`');
+	assert.equal(COVER_CLASSES_LABEL, 'Cover these classes', 'the subject-level label still names the subject act and is unchanged');
+});
+
+test('A6C9-2 pressing the figure opens a window listing the short classes BY NAME, grouped by subject, one action EACH CLASS', () => {
 	// This is the row `a6-c5-outage` `A6C5-S9-1` names: the honest count used to
 	// be a grey sentence in the page body, and c9 moved it into a control. The
 	// rendered claim is that the count is now ACTIONABLE, which a source reading
@@ -435,46 +461,57 @@ test('A6C9-2 pressing the figure opens a window listing the short classes BY NAM
 		'the window is titled in the operator\'s words',
 	);
 
-	// GROUPED BY SUBJECT, CLASSES BY NAME. This is the packet's own example:
-	// `MAPEH — 7-A, 7-B, 8-C`. A list of counts, or of subject names with no
-	// class names, would fail both halves.
-	const rows = Array.from(window!.querySelectorAll('[data-testid^="teaching-load-shortage-subject-"]'));
-	assert.equal(rows.length, 2, 'the window groups the shortage under its two subjects, not one flat list');
-	const bySubject = new Map<string, string>();
-	for (const row of rows) {
-		const heading = row.querySelector('p');
-		assert.ok(heading, 'every subject row names its subject and its classes in one line');
-		const full = (heading!.textContent ?? '').replace(/\s+/g, ' ').trim();
-		const [subjectName, ...classes] = full.split('—').map((part) => part.trim());
-		assert.ok(subjectName, `every row leads with its SUBJECT; saw ${JSON.stringify(full)}`);
-		bySubject.set(subjectName, classes.join(', '));
+	// GROUPED BY SUBJECT, CLASSES BY NAME, ONE ROW PER CLASS (A6 c10).
+	//
+	// The superseded assertion read a `p` out of the subject row and split it on
+	// an em dash into a subject and a joined list. The subject name is now an
+	// `h3` and each class is its own `li`, so the SAME claim — MAPEH lists
+	// `7-A, 7-B, 8-C` in order, English lists `7-A` — is asserted over the class
+	// rows instead, and it is asserted STRICTLY: a flat list, a count-only list,
+	// or the joined sentence would all fail.
+	const groups = Array.from(window!.querySelectorAll('[data-testid^="teaching-load-shortage-subject-"]'));
+	assert.equal(groups.length, 2, 'the window groups the shortage under its two subjects, not one flat list');
+	const bySubject = new Map<string, string[]>();
+	for (const group of groups) {
+		const heading = group.querySelector('h3');
+		assert.ok(heading, 'every subject GROUP leads with its subject name');
+		const subjectName = (heading!.textContent ?? '').replace(/\s+/g, ' ').trim().replace(/\s*\d+\s*class(?:es)?$/i, '').trim();
+		const classes = Array.from(group.querySelectorAll('[data-testid^="teaching-load-shortage-class-"]'))
+			.map((row) => (row.querySelector('p')!.textContent ?? '').replace(/\s+/g, ' ').trim().replace(/\s*·\s*Grade \d+$/, ''));
+		assert.ok(classes.length > 0, `every subject group lists its classes; ${subjectName} listed none`);
+		bySubject.set(subjectName, classes);
 	}
-	assert.equal(bySubject.get('MAPEH'), 'MAPEH 7-A, MAPEH 7-B, MAPEH 8-C', 'MAPEH lists its three short classes BY NAME, in order');
-	assert.equal(bySubject.get('English'), 'Eng 7-A', 'and English lists its own');
+	assert.deepEqual(bySubject.get('MAPEH'), ['MAPEH 7-A', 'MAPEH 7-B', 'MAPEH 8-C'], 'MAPEH lists its three short classes BY NAME, in order, one row each');
+	assert.deepEqual(bySubject.get('English'), ['Eng 7-A'], 'and English lists its own');
 
-	// EXACTLY ONE ACTION PER ROW, and it is a real button with a verb. A row with
-	// two controls is the "competing controls" defect; a row with none is the
-	// figure being a metric with a list attached.
-	for (const row of rows) {
+	// EXACTLY ONE ACTION PER CLASS ROW, and it is a real button with a verb. A row
+	// with two controls is the "competing controls" defect; a row with none is the
+	// figure being a metric with a list attached. This is the assertion that
+	// failed on live: before c10 the action sat on the SUBJECT row, so a class
+	// row had none at all.
+	const classRows = Array.from(window!.querySelectorAll('[data-testid^="teaching-load-shortage-class-"]'));
+	assert.equal(classRows.length, 4, 'one row per short class, across both subjects');
+	for (const row of classRows) {
 		const actions = row.querySelectorAll('button');
-		assert.equal(actions.length, 1, `every subject row carries exactly ONE action; found ${actions.length}`);
+		assert.equal(actions.length, 1, `every CLASS row carries exactly ONE action; found ${actions.length}`);
 		const action = actions[0] as HTMLElement;
 		assert.match(
 			accessibleName(action),
-			/\b(assign|cover)\b/i,
-			'and the action names what it DOES — an older scheduler is being asked to assign a TEACHER',
+			/\bcover\b/i,
+			'and the action names what it DOES — a verb, so it looks pressable',
 		);
 		assert.equal(
 			action.getAttribute('data-testid'),
-			`teaching-load-shortage-assign-${row.getAttribute('data-testid')!.replace('teaching-load-shortage-subject-', '')}`,
-			'the action is addressable by its own subject-scoped test id',
+			'teaching-load-cover-this-class',
+			'the action is the one control the whole product shares for this act',
 		);
 	}
-	// The two labels are the real ones: a single class is `Assign teacher`, several
-	// are `Cover these classes`.
-	const labels = rows.map((row) => (row.querySelector('button')!.textContent ?? '').replace(/\s+/g, ' ').trim());
-	assert.ok(labels.includes(ASSIGN_TEACHER_LABEL), `the one-class row says \`${ASSIGN_TEACHER_LABEL}\`; saw ${JSON.stringify(labels)}`);
-	assert.ok(labels.includes(COVER_CLASSES_LABEL), `the multi-class row says \`${COVER_CLASSES_LABEL}\`; saw ${JSON.stringify(labels)}`);
+	// ONE label everywhere: every class row says the same words. Two vocabularies
+	// for one act is the "two chips that say the same thing" defect.
+	const labels = classRows.map((row) => (row.querySelector('button')!.textContent ?? '').replace(/\s+/g, ' ').trim());
+	for (const label of labels) {
+		assert.equal(label, COVER_THIS_CLASS_LABEL, `every class row says \`${COVER_THIS_CLASS_LABEL}\`; saw ${JSON.stringify(labels)}`);
+	}
 
 	// The window states the figure it came from and the total, so it is not a
 	// list floating free of the number that produced it.
@@ -493,6 +530,20 @@ test('A6C9-2 pressing the figure opens a window listing the short classes BY NAM
 	const coverage = window!.querySelector('[data-testid="teaching-load-shortage-window-coverage"]') as HTMLElement;
 	assert.ok(coverage, 'the window offers the existing `See every section` control');
 	assert.equal(coverage.tagName, 'BUTTON');
+
+	// A6 c10 — PRESSING A CLASS ROW OPENS THE COVER WINDOW FOR THAT CLASS. This
+	// is the click the audit measured as impossible. It is asserted through the
+	// same mount the window renders in, because the window is a dialog and the
+	// assertion is about what the scheduler can now reach.
+	click(classRows[0]!.querySelector('button') as HTMLElement);
+	const cover = dom.window.document.querySelector('[data-testid="cover-class-dialog"]');
+	assert.ok(cover, 'pressing `Cover this class` must open the cover window');
+	assert.equal(
+		cover!.getAttribute('data-section-id'),
+		'101',
+		'and it must be opened on THAT class, not on the subject and not on the first one',
+	);
+	assert.equal(cover!.getAttribute('data-subject-id'), '11', 'and on that class\'s own subject');
 
 	dispose(host);
 });
@@ -590,9 +641,17 @@ test('A6C9-3 a CURRENT roster renders NO notice at all; a SAVED one renders exac
 	const blocked = render(createElement(FigureHost as any, { params: SAVED, writeBlockedReason: 'Read-only: verify the source first' }));
 	click(figureIn(blocked)!);
 	const blockedWindow = dom.window.document.querySelector('[data-testid="teaching-load-shortage-window"]')!;
-	const disabled = blockedWindow.querySelector('[data-testid="teaching-load-shortage-assign-11"]') as HTMLButtonElement;
+	const disabled = blockedWindow.querySelector('[data-testid="teaching-load-cover-this-class"]') as HTMLButtonElement;
 	assert.ok(disabled, 'the window still lists the short classes in a read-only workspace');
 	assert.equal(disabled.disabled, true, 'but the action that writes is disabled');
+	// A6 c10: EVERY class row's action is disabled in a read-only workspace, not
+	// only the first one found. A single disabled control and three live ones
+	// beside it is a write path a scheduler can still take.
+	const blockedActions = Array.from(blockedWindow.querySelectorAll('[data-testid="teaching-load-cover-this-class"]')) as HTMLButtonElement[];
+	assert.equal(blockedActions.length, 4, 'every short class still has its own action in a read-only workspace');
+	for (const action of blockedActions) {
+		assert.equal(action.disabled, true, 'and every one of them is disabled');
+	}
 	dispose(blocked);
 });
 
@@ -635,21 +694,25 @@ test('A6C9-4 MUTANT ROW: the verb, the per-row action and the amber ban are each
 	// And it is not the PERCENTAGE half doing the work: a bare figure still has one.
 	assert.match(accessibleName(figureIn(noVerb)), /\d+% staffed/, 'M1: the mutant keeps the percentage, so the verb is what failed');
 
-	// M2 — the per-row action control is dropped. Detector: exactly one button per
-	// subject row. Read on a mutant list built from the same class the component
-	// uses, because a list with no action is what "a metric with a list attached"
-	// looks like.
+	// M2 — the per-CLASS-ROW action control is dropped. A6 c10: the detector moved
+	// down one level with the surface, because the claim it exists to catch moved
+	// with it. It used to read "exactly one button per SUBJECT row", which is
+	// precisely the shape that made covering a class impossible — three short
+	// classes under one action. It now reads "exactly one button per CLASS row",
+	// which is the claim A6C9-2's rewritten half makes. Read on a mutant list
+	// built from the same elements the component uses, because a class row with no
+	// action is what "a metric with a list attached" looks like.
 	const actionCountOf = (list: HTMLElement): number[] =>
-		Array.from(list.querySelectorAll('[data-testid^="teaching-load-shortage-subject-"]'))
+		Array.from(list.querySelectorAll('[data-testid^="teaching-load-shortage-class-"]'))
 			.map((row) => row.querySelectorAll('button').length);
 
 	const mutantList = render(createElement('ul', { 'data-testid': 'teaching-load-shortage-window-list' },
-		...actionlessRows([['MAPEH', 'MAPEH 7-A, MAPEH 7-B, MAPEH 8-C', 11], ['English', 'Eng 7-A', 12]]),
+		...actionlessRows([['MAPEH 7-A', 101], ['MAPEH 7-B', 102], ['MAPEH 8-C', 103], ['Eng 7-A', 201]]),
 	));
 	assert.deepEqual(
 		actionCountOf(mutantList),
-		[0, 0],
-		'M2 MUTANT: with the action removed every row reports ZERO controls, so A6C9-2\'s `exactly one action` assertion fails on it — the detector is not counting something else',
+		[0, 0, 0, 0],
+		'M2 MUTANT: with the action removed every CLASS row reports ZERO controls, so A6C9-2\'s `exactly one action` assertion fails on it - the detector is not counting something else',
 	);
 
 	// A real render of the same window reports exactly one each — proven here on
@@ -659,8 +722,8 @@ test('A6C9-4 MUTANT ROW: the verb, the per-row action and the amber ban are each
 	const realWindow = dom.window.document.querySelector('[data-testid="teaching-load-shortage-window"]') as HTMLElement;
 	assert.deepEqual(
 		actionCountOf(realWindow),
-		[1, 1],
-		'and the REAL window reports exactly one action per row',
+		[1, 1, 1, 1],
+		'and the REAL window reports exactly one action per CLASS row',
 	);
 	dispose(withWindow);
 
@@ -699,13 +762,28 @@ test('A6C9-4 MUTANT ROW: the verb, the per-row action and the amber ban are each
 	);
 
 	/** One `<li>` shaped exactly as the component renders it, minus the action. */
-	function actionlessRows(spec: Array<[string, string, number]>) {
+	/**
+	 * A6 c10: the mutant rows are CLASS rows now, matching the surface the
+	 * detector reads. The superseded subject-row builder is what the previous
+	 * shape emitted, and it is kept here as the record — it is no longer what
+	 * `M2` renders, so it is not called, and a lint row that is never read cannot
+	 * be evidence for anything.
+	 */
+	function supersededSubjectRows(spec: Array<[string, string, number]>) {
 		return spec.map(([subjectName, classes, subjectId]) =>
 			createElement('li', { key: subjectId, className: 'flex items-center justify-between gap-3 py-2', 'data-testid': `teaching-load-shortage-subject-${subjectId}` },
 				createElement('p', { className: 'min-w-0 text-sm text-foreground' },
 					createElement('span', { className: 'font-semibold' }, subjectName),
-					createElement('span', { className: 'text-muted-foreground' }, ` — ${classes}`),
+					createElement('span', { className: 'text-muted-foreground' }, ` - ${classes}`),
 				),
+			),
+		);
+	}
+
+	function actionlessRows(spec: Array<[string, number]>) {
+		return spec.map(([className, sectionId]) =>
+			createElement('li', { key: sectionId, className: 'flex items-center justify-between gap-3 py-1.5', 'data-testid': `teaching-load-shortage-class-${sectionId}` },
+				createElement('p', { className: 'min-w-0 text-sm text-foreground' }, className),
 			),
 		);
 	}
