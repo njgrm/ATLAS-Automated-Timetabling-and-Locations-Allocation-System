@@ -15,7 +15,7 @@ import {
 } from '@/lib/faculty-assignment-helpers';
 import { COVERAGE_MODE_CONFIG, formatTeachingLoadSaveError, buildSectionsBySubject, transferExactSectionPair, buildSaveCommitReceipt } from '@/lib/teaching-load-helpers';
 import { appliedSuggestionMessage, teachingLoadShortageNote } from '@/lib/teaching-load-suggestion-presentation';
-import { TooltipProvider } from '@/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { createScopeEpoch, captureEpoch } from '@/lib/scope-request-epoch';
 import { useTeachingLoadData } from '@/hooks/useTeachingLoadData';
 import { useTeachingLoadUI } from '@/hooks/useTeachingLoadUI';
@@ -766,10 +766,8 @@ export default function TeachingLoad() {
 							/>
 						</TeachingLoadSummarySurface>
 					)}
-					// A6 C2 (Major 1): the `Archived load` link, built HERE and
-					// positioned by the toolbar's More menu. `client-quality-c01` reads
-					// both the test id and the `to` in this file, so keeping the node
-					// here keeps one place to read the reachability claim.
+					// A6 C2 (Major 1): the `Archived load` link, built HERE and positioned by the toolbar's
+					// More menu — `client-quality-c01` reads its test id and `to` in THIS file; do not move it.
 					historyAction={(
 						<Link to="/teaching-load/history" data-testid="teaching-load-history-link">
 							<History className="size-3.5" aria-hidden="true" />
@@ -793,17 +791,19 @@ export default function TeachingLoad() {
 					{/* Main Grid Area */}
 					<div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-y-auto">
 						{data.schoolId != null && (
-							/* A9 c5 item 5: `Past years` is VISIBLE, not only under More — the Codex
-							 * audit reached history in two clicks and called that a navigation problem.
-							 * It reuses the ONE `shrink-0` band `a3-c10` T4 allows, so
-							 * `TEACHING_LOAD_HEADER_MODEL` and the header-model tests are untouched. */
-							<div className="flex shrink-0 items-start justify-between gap-3 px-3 pt-1 lg:px-5 [@media(max-height:640px)]:hidden">
-								<div className="min-w-0 flex-1">
+							/* A9 c5 r1 (D4): left-aligned; the guidance column is content-sized because an EMPTY `flex-1` still claimed the row, and dropping `justify-between` alone changed nothing. */
+							<div className="flex shrink-0 items-start gap-3 px-3 pt-1 lg:px-5 [@media(max-height:640px)]:hidden">
+								<div className="min-w-0">
 									<RolloverGuidanceCard compact schoolId={data.schoolId} />
 								</div>
-								<Button asChild type="button" variant="outline" size="sm" className="min-h-11 gap-1.5">
-									<Link to="/teaching-load/history" data-testid="teaching-load-past-years"><History className="size-3.5" aria-hidden="true" />Past years</Link>
-								</Button>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button asChild type="button" variant="outline" size="sm" className="min-h-11 gap-1.5">
+											<Link to="/teaching-load/history" data-testid="teaching-load-past-years"><History className="size-3.5" aria-hidden="true" />Past years</Link>
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent>Read-only Teaching Load for every past school year.</TooltipContent>
+								</Tooltip>
 							</div>
 						)}
 

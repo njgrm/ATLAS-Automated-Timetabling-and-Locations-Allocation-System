@@ -38,6 +38,16 @@ export type TlHistoryAssignment = {
 	facultySubjectId: number;
 	subjectCode: string;
 	subjectName: string;
+	/**
+	 * A9 c5 r1 (D2): the PLAIN name (`Developmental Reading`), sent beside the code
+	 * rather than in place of it.
+	 *
+	 * OPTIONAL on purpose. The server is additive here, so a payload saved before this
+	 * field existed — or a page served by an older API — has no `subjectLabel`, and the
+	 * row must still read. Every reader below falls back to `subjectName`, so making
+	 * this required would turn a back-compat field into a crash.
+	 */
+	subjectLabel?: string;
 	minutesPerWeek: number;
 	sections: TlHistorySection[];
 };
@@ -234,14 +244,54 @@ export function tlHistorySectionLine(assignment: TlHistoryAssignment): string {
 	return `${assignment.sections[0].gradeLevelName} — ${tlHistorySectionList(names)}`;
 }
 
-/** The plain subject name. Never the code — the code is a detail. */
+/**
+ * The plain subject name. Never the code — the code is a detail.
+ *
+ * A9 c5 r1 (D2). This used to be `subjectName`, which on this data IS the code, so the
+ * row led with `DEVL_READING` and the plain name never appeared anywhere on the page.
+ * The label is read first and `subjectName` is the fallback, so a payload without the
+ * new field still renders instead of throwing.
+ */
 export function tlHistorySubjectPrimary(assignment: TlHistoryAssignment): string {
+	const label = assignment.subjectLabel?.trim();
+	if (label) return label;
 	return assignment.subjectName;
 }
 
-/** The muted detail under a subject. This is the only place a code may appear. */
+/**
+ * The muted detail under a subject: the code, and ONLY when it says something the
+ * label does not.
+ *
+ * A9 c5 r1 (D2). The old row printed the code unconditionally, under a label that was
+ * often the code again — `DEVL_READING` above `DEVL_READING`. Returning `''` for a
+ * label that already IS the code is what makes "the code appears once, as a detail"
+ * true by construction rather than by reviewer attention; the view renders nothing
+ * when this is empty.
+ */
 export function tlHistorySubjectCodeDetail(assignment: TlHistoryAssignment): string {
-	return assignment.subjectCode;
+	const label = tlHistorySubjectPrimary(assignment).trim().toLowerCase();
+	const code = (assignment.subjectCode ?? '').trim();
+	if (!code) return '';
+	return code.toLowerCase() === label ? '' : code;
+}
+
+/**
+ * A9 c5 r1 (D2) — the collapsed row, and the WHOLE of it.
+ *
+ * Name, then the muted load. That is all, and the omissions are the point: the old row
+ * carried a third cell holding `teacher.department`, which on this data is a bare
+ * subject code (`FIL`, `MATH`, `TLE`) that duplicated the subject line it sat beside
+ * and meant nothing to an older scheduler.
+ *
+ * Modelled here rather than in JSX so the "no machine code in the default view" rule is
+ * a testable table. If someone re-adds a third cell, this is the function that has to
+ * change, and the row's own test fails.
+ */
+export function tlHistoryCollapsedRow(teacher: TlHistoryTeacher): { name: string; detail: string } {
+	return {
+		name: teacher.facultyName,
+		detail: tlHistoryLoadLine({ weeklyMinutes: teacher.weeklyMinutes, classCount: teacher.classCount }),
+	};
 }
 
 /**
@@ -293,4 +343,94 @@ export function tlHistoryVisibleTeachers(
 		if (matches) rows.push({ teacher, matches });
 	}
 	return rows;
+}
+
+/* ─── the honest no-match answer ──────────────────────────────────────────── */
+
+export type TlHistoryNoMatch = {
+	/** Names the year and says plainly that nothing matches. Never an ellipsis. */
+	sentence: string;
+	/** The lead-in to the one-click answers, or `''` when there is nothing to offer. */
+	lead: string;
+	/** Grade names when a subject is selected, subject names when only a grade is. */
+	suggestions: string[];
+	/** Which filter a suggestion button sets. The other one is left selected. */
+	axis: 'grade' | 'subject';
+};
+
+/**
+ * A9 c5 r1 (D3) — a truthful no-match answer that is not a DEAD END.
+ *
+ * THE DEFECT. `Grade 8` + `MAPEH` in 2022-2023 returns nothing, and the page said
+ * "No teacher in this year matches those filters." That is TRUE — MAPEH was only taught
+ * in Grade 7 that year — and it is still useless: a scheduler who asked the audit's
+ * question 1 is now told no, with nothing to do next and no way to find the answer.
+ *
+ * So the same facts are answered, not just refused: the year is named, the absence is
+ * stated plainly, and the grades in which the selected subject WAS taught that year are
+ * offered as one-click buttons. Every one of those is derived from the year the client
+ * ALREADY holds — no extra request, and no claim the page cannot support.
+ *
+ * WHY THE OTHER AXIS. With a subject selected the useful next move is a grade; with only
+ * a grade selected it is a subject. The suggestion always sets the filter the scheduler
+ * did NOT just set, and leaves the one they did alone, so one click is a narrower
+ * question rather than a different question.
+ *
+ * A SEARCH TERM ALONE IS DELIBERATELY NOT ANSWERED HERE. "No teacher matches
+ * `agui`" has no enumerable answer set, so inventing one would be a guess; that case
+ * keeps its plain one-liner and `null` here is what keeps it.
+ */
+export function tlHistoryNoMatchAnswer(
+	teachers: TlHistoryTeacher[],
+	filters: TlHistoryFilters,
+	yearLabel: string | null | undefined,
+): TlHistoryNoMatch | null {
+	const year = yearLabel ?? 'this year';
+	const grade = filters.grade;
+	const subject = filters.subject;
+	const hasGrade = grade !== 'all' && grade !== '';
+	const hasSubject = subject !== 'all' && subject !== '';
+
+	// No grade and no subject: the only reason nothing matched is the search box, and
+	// this is not the place to answer it.
+	if (!hasGrade && !hasSubject) return null;
+
+	if (hasSubject) {
+		const grades = new Set<string>();
+		for (const teacher of teachers) {
+			for (const assignment of teacher.assignments) {
+				// The filter's own identity is `subjectName`, so the suggestion is derived
+				// from the same field the filter compares against.
+				if (assignment.subjectName !== subject) continue;
+				for (const section of assignment.sections) grades.add(section.gradeLevelName);
+			}
+		}
+		const suggestions = Array.from(grades).sort(compareGradeNames);
+		return {
+			sentence: hasGrade
+				? `No one taught ${subject} in ${grade} in ${year}.`
+				: `No one taught ${subject} in ${year}.`,
+			lead: suggestions.length > 0 ? `${subject} was taught in:` : '',
+			suggestions,
+			axis: 'grade',
+		};
+	}
+
+	// A grade with no subject: the answer is what that grade WAS taught.
+	const counts = new Map<string, number>();
+	for (const teacher of teachers) {
+		for (const assignment of teacher.assignments) {
+			if (!assignment.sections.some((section) => section.gradeLevelName === grade)) continue;
+			counts.set(assignment.subjectName, (counts.get(assignment.subjectName) ?? 0) + 1);
+		}
+	}
+	const suggestions = Array.from(counts.entries())
+		.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+		.map(([name]) => name);
+	return {
+		sentence: `No teacher in ${year} taught ${grade}.`,
+		lead: suggestions.length > 0 ? `Subjects taught in ${grade}:` : '',
+		suggestions,
+		axis: 'subject',
+	};
 }

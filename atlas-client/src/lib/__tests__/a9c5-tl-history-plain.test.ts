@@ -20,12 +20,14 @@ import {
 	TL_HISTORY_READ_ONLY_NOTE,
 	TL_HISTORY_VIEW_ONLY_CHIP,
 	tlHistoryCarryForwardLine,
+	tlHistoryCollapsedRow,
 	tlHistoryCommaList,
 	tlHistoryFutureYearSentence,
 	tlHistoryGradeOptions,
 	tlHistoryHeading,
 	tlHistoryHours,
 	tlHistoryLoadLine,
+	tlHistoryNoMatchAnswer,
 	tlHistoryPlural,
 	tlHistorySectionLine,
 	tlHistorySubjectCodeDetail,
@@ -315,6 +317,161 @@ test('A9C5-P12: drill years are named, comma-listed, and never hidden silently',
 	assert.equal(tlHistoryCommaList(['a', 'b', 'c']), 'a, b and c');
 	assert.equal(tlHistoryCommaList(['a', 'b']), 'a and b');
 	assert.equal(tlHistoryCommaList(['a']), 'a');
+});
+
+/* ─── A9 c5 ROUND 1: the plain name leads, the code is a detail (D2) ────────── */
+
+/**
+ * The fixture that failed on the operator's rendered proof: a subject whose
+ * `outputLabel` — and therefore whose `subjectName` — IS the machine code. This is
+ * the real 2022-2023 shape for `DEVL_READING`, whose stored name is
+ * `Developmental Reading`.
+ */
+const codelabelled = assignment({
+	facultySubjectId: 1,
+	subjectCode: 'DEVL_READING',
+	subjectName: 'DEVL_READING',
+	subjectLabel: 'Developmental Reading',
+	sections: [{ sectionId: 1, sectionName: 'Rizal', gradeLevelName: 'Grade 7' }],
+});
+
+test('A9C5-R1-P1: an outputLabel that is a code still renders the PLAIN name first', () => {
+	assert.equal(
+		tlHistorySubjectPrimary(codelabelled),
+		'Developmental Reading',
+		'the row must lead with the plain name even though subjectName is the code',
+	);
+	assert.equal(
+		tlHistorySubjectPrimary(codelabelled).includes('DEVL_READING'),
+		false,
+		'the machine code must not be the primary label — that was audit problem 5',
+	);
+	// The code is still available, exactly once, as a muted detail.
+	assert.equal(tlHistorySubjectCodeDetail(codelabelled), 'DEVL_READING');
+	// And the two are genuinely different, so the detail is not a repeat of the label.
+	assert.notEqual(tlHistorySubjectPrimary(codelabelled), tlHistorySubjectCodeDetail(codelabelled));
+});
+
+test('A9C5-R1-P2: the code is NOT repeated when the label already IS the code', () => {
+	// A subject with no plain name anywhere: name, outputLabel and code are all `MAPEH`.
+	// Repeating it under itself is the `DEVL_READING` / `DEVL_READING` defect.
+	const noPlainName = assignment({
+		facultySubjectId: 2,
+		subjectCode: 'MAPEH',
+		subjectName: 'MAPEH',
+		subjectLabel: 'MAPEH',
+	});
+	assert.equal(tlHistorySubjectPrimary(noPlainName), 'MAPEH');
+	assert.equal(
+		tlHistorySubjectCodeDetail(noPlainName),
+		'',
+		'when the label already carries the code the detail is empty, so the code cannot print twice',
+	);
+	// A payload from before the field existed must still render rather than throw.
+	const legacy = assignment({ facultySubjectId: 3, subjectCode: 'SCI_BIO', subjectName: 'SCIENCE' });
+	assert.equal(tlHistorySubjectPrimary(legacy), 'SCIENCE', 'a payload with no subjectLabel falls back to subjectName');
+	assert.equal(tlHistorySubjectCodeDetail(legacy), 'SCI_BIO');
+	// An empty label string is not a label.
+	assert.equal(
+		tlHistorySubjectPrimary(assignment({ facultySubjectId: 4, subjectLabel: '   ' })),
+		'SCIENCE',
+		'a whitespace-only label falls back rather than rendering blank',
+	);
+});
+
+test('A9C5-R1-P3: the collapsed row carries a name and a load, and NO subject code', () => {
+	const row = teacher({
+		facultyId: 11,
+		facultyName: 'Aguilar, Carlo Miguel',
+		// On the real data this is a bare subject code, which is why the cell is gone.
+		department: 'FIL',
+		weeklyMinutes: 1410,
+		classCount: 9,
+		assignments: [
+			assignment({ facultySubjectId: 1, subjectCode: 'DEVL_READING', subjectName: 'DEVL_READING', subjectLabel: 'Developmental Reading' }),
+			assignment({ facultySubjectId: 2, subjectCode: 'FIL', subjectName: 'FIL', subjectLabel: 'Filipino' }),
+		],
+	});
+	const collapsed = tlHistoryCollapsedRow(row);
+	assert.equal(collapsed.name, 'Aguilar, Carlo Miguel');
+	assert.equal(collapsed.detail, '23.5 hours/week · 9 classes');
+
+	const rendered = `${collapsed.name} ${collapsed.detail}`;
+	for (const code of ['DEVL_READING', 'FIL', 'SCI_BIO', 'SCIENCE']) {
+		assert.equal(
+			rendered.includes(code),
+			false,
+			`the collapsed row must not carry the code "${code}"; it is a detail of the expanded row only`,
+		);
+	}
+	assert.equal(
+		rendered.includes(row.department as string),
+		false,
+		'the third cell that held a bare department code is removed, not reworded',
+	);
+	// The keys are the contract: name and detail, so a third cell cannot be added
+	// without this test seeing it.
+	assert.deepEqual(Object.keys(collapsed).sort(), ['detail', 'name']);
+});
+
+/* ─── A9 c5 ROUND 1: the no-match answer is not a dead end (D3) ────────────── */
+
+const mapezYear: TlHistoryTeacher[] = [
+	teacher({
+		facultyId: 1,
+		facultyName: 'Reyes, Ana',
+		assignments: [assignment({ facultySubjectId: 1, subjectCode: 'MAPEH', subjectName: 'MAPEH', sections: [{ sectionId: 1, sectionName: 'Sampaguita', gradeLevelName: 'Grade 7' }] })],
+	}),
+	teacher({
+		facultyId: 2,
+		facultyName: 'Santos, Liza',
+		assignments: [assignment({ facultySubjectId: 2, subjectCode: 'AP', subjectName: 'AP', sections: [{ sectionId: 2, sectionName: 'Luna', gradeLevelName: 'Grade 8' }] })],
+	}),
+];
+
+test('A9C5-R1-P4: Grade 8 + MAPEH names the year and offers the grades MAPEH WAS taught', () => {
+	// The exact case the operator measured in staging: MAPEH was taught only in Grade 7
+	// in 2022-2023, so this filter truthfully returns nothing.
+	const answer = tlHistoryNoMatchAnswer(mapezYear, { query: '', grade: 'Grade 8', subject: 'MAPEH' }, '2022-2023');
+	assert.ok(answer, 'a grade or subject filter that yields nothing is answered, not refused');
+	assert.equal(answer!.sentence, 'No one taught MAPEH in Grade 8 in 2022-2023.');
+	assert.deepEqual(answer!.suggestions, ['Grade 7'], 'the grades where MAPEH WAS taught that year');
+	assert.equal(answer!.lead, 'MAPEH was taught in:');
+	assert.equal(answer!.axis, 'grade', 'a suggestion sets the filter the scheduler did NOT set');
+	// No sentence may end in an ellipsis (§8).
+	assert.equal(/…|\.\.\.$/.test(answer!.sentence), false);
+	assert.equal(answer!.sentence.endsWith('.'), true, 'it is a sentence');
+});
+
+test('A9C5-R1-P5: a subject with no grade still names the year, and a grade alone is answered too', () => {
+	const subjectOnly = tlHistoryNoMatchAnswer(mapezYear, { query: '', grade: 'all', subject: 'ESP' }, '2022-2023');
+	assert.equal(subjectOnly!.sentence, 'No one taught ESP in 2022-2023.');
+	assert.deepEqual(subjectOnly!.suggestions, [], 'a subject that was never taught that year has nothing to offer');
+	assert.equal(subjectOnly!.lead, '', 'and no lead-in inventing one');
+
+	const gradeOnly = tlHistoryNoMatchAnswer(mapezYear, { query: '', grade: 'Grade 10', subject: 'all' }, '2022-2023');
+	assert.equal(gradeOnly!.sentence, 'No teacher in 2022-2023 taught Grade 10.');
+	assert.equal(gradeOnly!.axis, 'subject');
+	assert.deepEqual(gradeOnly!.suggestions, [], 'Grade 10 held nothing that year');
+
+	// A grade that DOES exist is answered with what it was taught.
+	const gradeHeld = tlHistoryNoMatchAnswer(mapezYear, { query: 'zzz', grade: 'Grade 8', subject: 'all' }, '2022-2023');
+	assert.deepEqual(gradeHeld!.suggestions, ['AP']);
+	assert.equal(gradeHeld!.lead, 'Subjects taught in Grade 8:');
+});
+
+test('A9C5-R1-P6: a search term alone keeps the plain one-liner, and a full match is not an answer', () => {
+	assert.equal(
+		tlHistoryNoMatchAnswer(mapezYear, { query: 'nobody', grade: 'all', subject: 'all' }, '2022-2023'),
+		null,
+		'a search term has no enumerable answer set, so this case must not invent one',
+	);
+	// The one-liner the view falls back to is unchanged.
+	assert.equal(
+		tlHistoryNoMatchAnswer(mapezYear, { query: 'nobody', grade: 'all', subject: 'all' }, '2022-2023')?.sentence
+			?? 'No teacher in this year matches those filters.',
+		'No teacher in this year matches those filters.',
+	);
 });
 
 /* ─── nothing the audit called broken is still on the page ────────────────── */

@@ -28,6 +28,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import jwt from 'jsonwebtoken';
 
 import teachingLoadHistoryRouter from '../routes/teaching-load-history.router.js';
+import { teachingLoadHistorySubjectLabel } from '../services/teaching-load-history.service.js';
 import { withDataContext } from '../lib/data-context.js';
 
 const SECRET = 'a9c5-tl-history-hermetic-secret';
@@ -294,10 +295,79 @@ async function main(): Promise<void> {
 			// Plain subject name plus the code, both still available to the page.
 			assert.equal(alacantara.assignments[0].subjectName, 'SCIENCE', 'outputLabel is the plain label the page leads with');
 			assert.equal(alacantara.assignments[0].subjectCode, 'SCI_BIO');
+
+			/* ── ROW 5 (A9 c5 r1, D2): the PLAIN name is its OWN field ─────────────
+			 * `subjectName` and `subjectCode` are unchanged, so a client filtering on
+			 * `subjectName` cannot be moved under a saved bookmark by this addition. */
+			assert.equal(
+				alacantara.assignments[0].subjectLabel,
+				'Science - Biology',
+				'step 1: the plain name, which carries no colon, is used as it stands',
+			);
+			assert.equal(
+				byName.get('Diaz, Maria').assignments[0].subjectLabel,
+				'Filipino',
+				'the plain name wins over an outputLabel that is the code',
+			);
+			assert.equal(
+				byName.get('Diaz, Maria').assignments[0].subjectName,
+				'FILIPINO',
+				'the filter identity is untouched by the new field',
+			);
+			// A subject whose name, outputLabel and code are all the same code has no plain
+			// name to show; it falls through to the code rather than rendering an empty cell.
+			assert.equal(
+				alacantara.assignments[1].subjectLabel,
+				'MAPEH',
+				'step 2 then step 3: name === code, so outputLabel, then the code itself',
+			);
+			// Every assignment carries the field, so no row can be missing it.
+			for (const teacher of payload.teachers as any[]) {
+				for (const assignment of teacher.assignments) {
+					assert.equal(
+						typeof assignment.subjectLabel,
+						'string',
+						`${teacher.facultyName} has an assignment with no subjectLabel`,
+					);
+					assert.notEqual(assignment.subjectLabel.length, 0, 'a label is never empty');
+				}
+			}
 			assert.equal(alacantara.assignments[0].sections[0].gradeLevelName, 'Grade 8');
 			assert.equal(payload.totals.teachers, 2);
 			assert.equal(payload.totals.assignments, 3);
 			assert.equal(payload.totals.sections, 4, 'four distinct section ids across the three assignments');
+
+			/* ── the label rule itself, on the cases the fixture does not contain ──── */
+			assert.equal(
+				teachingLoadHistorySubjectLabel({ name: 'Special Program in the Arts: Specialization', code: 'SPA', outputLabel: 'SPA' }),
+				'Special Program in the Arts',
+				'step 1: everything after the first colon is dropped, so a specialization is not shown as a code with a suffix',
+			);
+			assert.equal(
+				teachingLoadHistorySubjectLabel({ name: '  Filipino  ', code: 'FIL', outputLabel: 'FILIPINO' }),
+				'Filipino',
+				'the name is trimmed before it is compared',
+			);
+			assert.equal(
+				teachingLoadHistorySubjectLabel({ name: 'fil', code: 'FIL', outputLabel: 'FILIPINO' }),
+				'FILIPINO',
+				'step 2: a name that is only the code, in any case, is not a plain name',
+			);
+			assert.equal(
+				teachingLoadHistorySubjectLabel({ name: ': Biology', code: 'SCI_BIO', outputLabel: 'SCIENCE' }),
+				'SCIENCE',
+				'a name that is nothing before its colon is empty, so it falls through',
+			);
+			assert.equal(
+				teachingLoadHistorySubjectLabel({ name: '', code: 'X', outputLabel: '' }),
+				'X',
+				'step 3: with no name and no outputLabel the code is better than an empty cell',
+			);
+			assert.equal(
+				teachingLoadHistorySubjectLabel({ name: 'MAPEH', code: 'MAPEH', outputLabel: null }),
+				'MAPEH',
+				'a null outputLabel is handled like an empty one',
+			);
 
 			/* ── unchanged guards: actor school, missing year, bad parameter ─────── */
 			const otherList = await get('/api/v1/teaching-load/history-years', officer8());

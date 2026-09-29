@@ -185,6 +185,49 @@ export async function listTeachingLoadHistoryYears(schoolId: number): Promise<Te
 	};
 }
 
+/**
+ * A9 c5 ROUND 1 (D2) — the PLAIN subject label, computed once per subject, with the
+ * code kept separate instead of standing in for the name.
+ *
+ * THE DEFECT. The row used to lead with `subject.outputLabel ?? subject.name`, and on
+ * this data `outputLabel` IS the machine code (`DEVL_READING`, `FIL`, `MAPEH`), so the
+ * default view showed a code as its primary label, repeated it in the muted detail, and
+ * never showed the plain name at all. A scheduler reads `Developmental Reading`.
+ *
+ * THE RULE, in order, and every step is a fall-through:
+ *
+ *   1. `subject.name`; if it contains a `:` keep the part BEFORE it, so
+ *      `Special Program in the Arts: Specialization` reads as
+ *      `Special Program in the Arts` and not as a code with a suffix.
+ *   2. If that is empty, or is just the code again, fall back to `outputLabel`.
+ *   3. If that is empty too, fall back to the code — a label is always something, and
+ *      an empty cell is worse than an ugly one.
+ *
+ * The comparison against the code is case-insensitive: `fil` and `FIL` are the same
+ * code, and treating them as different would put the code back in the primary slot.
+ *
+ * `subjectName` and `subjectCode` are UNCHANGED on the wire. This is additive on
+ * purpose: the client filters on `subjectName`, so a new field cannot silently move
+ * a filter's identity under a saved bookmark.
+ */
+export function teachingLoadHistorySubjectLabel(subject: {
+	name: string | null | undefined;
+	code: string | null | undefined;
+	outputLabel: string | null | undefined;
+}): string {
+	const code = String(subject.code ?? '').trim();
+	const isCode = (value: string) => code.length > 0 && value.toLowerCase() === code.toLowerCase();
+
+	const name = String(subject.name ?? '').trim();
+	const beforeColon = name.includes(':') ? name.slice(0, name.indexOf(':')).trim() : name;
+	if (beforeColon.length > 0 && !isCode(beforeColon)) return beforeColon;
+
+	const outputLabel = String(subject.outputLabel ?? '').trim();
+	if (outputLabel.length > 0) return outputLabel;
+
+	return code;
+}
+
 export async function getTeachingLoadHistory(schoolId: number, schoolYearId: number) {
 	const mirror = await db().enrollProSchoolYearMirror.findUnique({
 		where: { schoolId_enrollProSchoolYearId: { schoolId, enrollProSchoolYearId: schoolYearId } },
@@ -264,7 +307,10 @@ export async function getTeachingLoadHistory(schoolId: number, schoolYearId: num
 			facultySubjectId: number;
 			subjectId: number;
 			subjectCode: string;
+			/** UNCHANGED since c5: the filter identity. Do not repoint it at the label. */
 			subjectName: string;
+			/** A9 c5 r1: the PLAIN name. New field, additive; the two above are unchanged. */
+			subjectLabel: string;
 			minutesPerWeek: number;
 			assignedAt: string;
 			sections: Array<{ sectionId: number; sectionName: string; gradeLevelName: string }>;
@@ -291,6 +337,7 @@ export async function getTeachingLoadHistory(schoolId: number, schoolYearId: num
 			subjectId: assignment.subject.id,
 			subjectCode: assignment.subject.code,
 			subjectName: assignment.subject.outputLabel ?? assignment.subject.name,
+			subjectLabel: teachingLoadHistorySubjectLabel(assignment.subject),
 			minutesPerWeek: assignment.subject.minMinutesPerWeek,
 			assignedAt: assignment.assignedAt.toISOString(),
 			sections: assignment.sectionIds.map((sectionId) => {

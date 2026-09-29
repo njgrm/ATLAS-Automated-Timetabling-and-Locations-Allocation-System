@@ -33,10 +33,11 @@ import {
 	TL_HISTORY_READ_ONLY_NOTE,
 	TL_HISTORY_VIEW_ONLY_CHIP,
 	tlHistoryCarryForwardLine,
+	tlHistoryCollapsedRow,
 	tlHistoryFutureYearSentence,
 	tlHistoryGradeOptions,
 	tlHistoryHeading,
-	tlHistoryLoadLine,
+	tlHistoryNoMatchAnswer,
 	tlHistorySectionLine,
 	tlHistorySubjectCodeDetail,
 	tlHistorySubjectOptions,
@@ -50,12 +51,14 @@ import {
 	type TlHistoryTeacher,
 	type TlHistoryYear,
 } from '@/lib/teaching-load-history-plain';
+import { cn } from '@/lib/utils';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/ui/accordion';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { FilterPicker } from '@/ui/filter-picker';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
+import { PICKER_CONTROL_HEIGHT_CLASS } from '@/ui/picker-trigger';
 
 type HistoryYears = {
 	schoolId: number;
@@ -203,20 +206,49 @@ export default function TeachingLoadHistoryView() {
 				<p className="mt-2 text-xs text-muted-foreground" data-testid="teaching-load-history-read-only">
 					{TL_HISTORY_READ_ONLY_NOTE}
 				</p>
-				<p className="mt-1 text-xs text-muted-foreground">{tlHistoryCarryForwardLine(yearLabel)}</p>
+				{/*
+				 * A9 c5 r1 (D5): `max-w-xl` caps this at TWO comfortable lines. It was one
+				 * sentence running the full width under the header, where it read as a second
+				 * banner and had room to collide. Still ONE sentence, still `text-xs
+				 * text-muted-foreground` so it stays a note — and still the only sentence here.
+				 *
+				 * The cap is `xl` and not `3xl` on purpose: the sentence measures ~742px, so a
+				 * 768px (`3xl`) cap would never bind and the rendered page would be unchanged.
+				 * A 576px measure wraps it to two lines and makes the narrowing real.
+				 */}
+				<p className="mt-1 max-w-xl text-xs text-muted-foreground">{tlHistoryCarryForwardLine(yearLabel)}</p>
 			</div>
 
 			<div className="shrink-0 border-b bg-background px-4 pb-3 lg:px-5">
 				{/*
-				 * ONE filter row at 1366, four columns on a wide screen and two on a
-				 * narrow one. The audit's problem 3 was two labels colliding because the
-				 * row was two fixed-width columns with no `min-w-0`; the fix is the grid
-				 * below plus `min-w-0` on every cell, and the shared `@/ui/filter-picker`
-				 * for all three so they look like every other page's filters (§8 "One look
-				 * per control").
+				 * A9 c5 ROUND 1 (D1) — ONE look per control (AGENTS.md §8), and the
+				 * ROOT CAUSE of the render the operator graded.
+				 *
+				 * The columns were already a `space-y-1.5` stack and still rendered as
+				 * `School year  School year: 2022-2023` — label BESIDE the trigger, abutting
+				 * it, while `Find a teacher` put its label above its own input. Two looks in
+				 * one row.
+				 *
+				 * `space-y-*` sets `margin-top` on every child but the first, and
+				 * `margin-top` does NOTHING on an inline box. `@/ui/label` is a Radix
+				 * `<label>` with no `block` in its class list, so it is inline; it shares a
+				 * line box with the trigger that follows it and the stack never happened.
+				 * The fix is `flex flex-col`, which BLOCKIFIES each child — an inline
+				 * flex item is laid out as a block — and `gap-1.5` for a real gap that is
+				 * not a margin at all. Nothing about the primitives' look is restated here.
+				 *
+				 * Every trigger is `width="fill"`, the variant `@/ui/picker-trigger` already
+				 * declares for "a control that must occupy a layout slot (a grid cell)", and
+				 * it carries `min-w-0` in the variant itself. The old default `md` is a
+				 * fixed `w-32` rectangle, so three 128px triggers floated in 260px columns.
+				 *
+				 * The search box shares the pickers' height through
+				 * `PICKER_CONTROL_HEIGHT_CLASS` — the one token that file declares for
+				 * exactly this pair — instead of a page-local `min-h-11`, which is the
+				 * hand-matched literal that token exists to prevent.
 				 */}
 				<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-					<div className="min-w-0 space-y-1.5">
+					<div className="flex min-w-0 flex-col gap-1.5">
 						<Label htmlFor="teaching-load-history-year">School year</Label>
 						{/*
 						 * The live binding is `dataTestId`, which `FilterPicker` forwards to
@@ -230,6 +262,7 @@ export default function TeachingLoadHistoryView() {
 							name="School year"
 							ariaLabel="Past school year"
 							allValue=""
+							width="fill"
 							triggerId="teaching-load-history-year"
 							value={requestedYearId ? String(requestedYearId) : ''}
 							onValueChange={selectYear}
@@ -245,10 +278,11 @@ export default function TeachingLoadHistoryView() {
 							dataTestId="teaching-load-history-year-picker"
 						/>
 					</div>
-					<div className="min-w-0 space-y-1.5">
+					<div className="flex min-w-0 flex-col gap-1.5">
 						<Label htmlFor="teaching-load-history-grade">Grade</Label>
 						<FilterPicker
 							name="Grade"
+							width="fill"
 							value={grade}
 							onValueChange={setGrade}
 							triggerId="teaching-load-history-grade"
@@ -259,10 +293,11 @@ export default function TeachingLoadHistoryView() {
 							dataTestId="teaching-load-history-grade-picker"
 						/>
 					</div>
-					<div className="min-w-0 space-y-1.5">
+					<div className="flex min-w-0 flex-col gap-1.5">
 						<Label htmlFor="teaching-load-history-subject">Subject</Label>
 						<FilterPicker
 							name="Subject"
+							width="fill"
 							value={subject}
 							onValueChange={setSubject}
 							triggerId="teaching-load-history-subject"
@@ -273,11 +308,16 @@ export default function TeachingLoadHistoryView() {
 							dataTestId="teaching-load-history-subject-picker"
 						/>
 					</div>
-					<div className="min-w-0 space-y-1.5">
+					<div className="flex min-w-0 flex-col gap-1.5">
 						<Label htmlFor="teaching-load-history-search">Find a teacher</Label>
 						<div className="relative">
-							<Search className="pointer-events-none absolute left-3 top-3.5 size-4 text-muted-foreground" />
-							<Input id="teaching-load-history-search" className="min-h-11 pl-9" value={query} onChange={(event) => setQuery(event.target.value)} />
+							<Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" />
+							<Input
+								id="teaching-load-history-search"
+								className={cn('pl-9', PICKER_CONTROL_HEIGHT_CLASS)}
+								value={query}
+								onChange={(event) => setQuery(event.target.value)}
+							/>
 						</div>
 					</div>
 				</div>
@@ -301,43 +341,79 @@ export default function TeachingLoadHistoryView() {
 							{history ? tlHistoryTotalsLine(history.totals) : ''}
 						</p>
 						{visibleTeachers.length === 0 ? (
-							<div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-								{isFiltered
-									? 'No teacher in this year matches those filters.'
-									: `No teachers were saved for ${history?.yearLabel ?? 'this year'}.`}
-							</div>
+							/*
+							 * A9 c5 r1 (D3). A no-match answer that is not a dead end: it names the
+							 * year, says plainly that nothing matches, and offers the grades the
+							 * selected subject WAS taught in — one click, derived from the year
+							 * already in memory. A search term alone keeps the plain one-liner,
+							 * because `noMatch` is `null` for it.
+							 */
+							(() => {
+								const noMatch = tlHistoryNoMatchAnswer(teachers, { query, grade, subject }, history?.yearLabel);
+								return (
+									<div className="space-y-2 rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground" data-testid="teaching-load-history-no-match">
+										<p>{noMatch ? noMatch.sentence : isFiltered ? 'No teacher in this year matches those filters.' : `No teachers were saved for ${history?.yearLabel ?? 'this year'}.`}</p>
+										{noMatch && noMatch.suggestions.length > 0 ? (
+											<div className="flex flex-wrap items-center justify-center gap-1.5">
+												<span>{noMatch.lead}</span>
+												{noMatch.suggestions.map((suggestion) => (
+													<Button
+														key={suggestion}
+														type="button"
+														variant="outline"
+														size="sm"
+														className="min-h-9"
+														data-testid="teaching-load-history-no-match-suggestion"
+														onClick={() => (noMatch.axis === 'grade' ? setGrade(suggestion) : setSubject(suggestion))}
+													>
+														{suggestion}
+													</Button>
+												))}
+											</div>
+										) : null}
+									</div>
+								);
+							})()
 						) : (
 							<Accordion type="single" collapsible className="rounded-xl border bg-card px-3">
 								{visibleTeachers.map(({ teacher, matches }: { teacher: TlHistoryTeacher; matches: TlHistoryAssignment[] }) => (
 									<AccordionItem key={teacher.facultyId} value={String(teacher.facultyId)}>
-										<AccordionTrigger className="min-h-11 py-2.5 text-sm">
-											<span className="flex min-w-0 flex-col items-start gap-0.5">
-												<span className="font-semibold text-foreground">{teacher.facultyName}</span>
-												<span className="text-xs font-normal text-muted-foreground">
-													{tlHistoryLoadLine({ weeklyMinutes: teacher.weeklyMinutes, classCount: teacher.classCount })}
-												</span>
+									<AccordionTrigger className="min-h-11 py-2.5 text-sm">
+										{/*
+										 * A9 c5 r1 (D2): name and load, and NOTHING ELSE. The third cell
+										 * held `teacher.department`, which on this data is a bare subject code
+										 * (`FIL`, `MATH`, `TLE`) — the machine code the audit named as its
+										 * worst problem, sitting in the default view. Both strings come from
+										 * `tlHistoryCollapsedRow`, so "no code in the collapsed row" is a
+										 * tested property of the row model rather than of this JSX.
+										 */}
+										<span className="flex min-w-0 flex-col items-start gap-0.5">
+											<span className="font-semibold text-foreground">{tlHistoryCollapsedRow(teacher).name}</span>
+											<span className="text-xs font-normal text-muted-foreground">
+												{tlHistoryCollapsedRow(teacher).detail}
 											</span>
-											<span className="min-w-0 text-right">
-												{teacher.department ? (
-													<span className="block text-xs font-normal text-muted-foreground">{teacher.department}</span>
-												) : null}
-											</span>
-										</AccordionTrigger>
-										<AccordionContent>
-											<ul className="space-y-2 pb-2">
-												{matches.map((assignment) => (
+										</span>
+									</AccordionTrigger>
+									<AccordionContent>
+										<ul className="space-y-2 pb-2">
+											{matches.map((assignment) => {
+												/* A9 c5 r1 (D2): the code is a DETAIL and only when it adds
+												 * something — `tlHistorySubjectCodeDetail` returns '' when the
+												 * label already IS the code, which is what stopped
+												 * `DEVL_READING` printing twice. */
+												const codeDetail = tlHistorySubjectCodeDetail(assignment);
+												return (
 													<li key={assignment.facultySubjectId} className="min-w-0 text-sm">
 														<div className="flex flex-wrap items-baseline gap-x-2">
-															<span className="font-medium">{tlHistorySubjectPrimary(assignment)}</span>
+															<span className="font-semibold">{tlHistorySubjectPrimary(assignment)}</span>
 															<span className="text-muted-foreground">{tlHistorySectionLine(assignment)}</span>
 														</div>
-														{/* The code is a DETAIL, never the label: `SCI_BIO` is not scheduler
-														    language, and the audit recorded it as one of the worst problems. */}
-														<p className="text-xs text-muted-foreground">{tlHistorySubjectCodeDetail(assignment)}</p>
+														{codeDetail ? <p className="text-xs text-muted-foreground">{codeDetail}</p> : null}
 													</li>
-												))}
-											</ul>
-										</AccordionContent>
+												);
+											})}
+										</ul>
+									</AccordionContent>
 									</AccordionItem>
 								))}
 							</Accordion>
