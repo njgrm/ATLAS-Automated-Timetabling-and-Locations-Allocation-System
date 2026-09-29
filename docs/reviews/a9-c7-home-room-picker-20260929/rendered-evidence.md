@@ -8,18 +8,50 @@ directory.
 Data on screen: the real staging roster — 20 sections, 78 rooms (79 picker options including `Unassigned`),
 `S.Y. 2023-2024 · ACTIVE`, `USING SAVED DATA`.
 
-## The packet's proof rows, all PASS on the final candidate `e6b2cf63`
+## FINAL state, candidate `61494f99` — measured after independent QA's two BLOCKING findings
+
+Independent QA (`CORRECTION_REQUIRED`, 6/8, blocked 0, unperformed 0) found two defects this file had missed and
+recorded two false measurements in shipped comments. Both defects are now closed, and the labels in the first table
+below are corrected — **two rows I had called "the last visible row" were mid-panel rows**, which is precisely why
+the bottom of the list was never rendered until QA reproduced it.
+
+**F3 — the bottom-most row had a 0px room list. CLOSED.** QA measured row 20 `Silver` with the list at its maximum
+scroll: trigger bottom 662, viewport 768 → cap 86px, which is exactly the popover's 86px of `shrink-0` chrome, so the
+scroll viewport had `clientHeight 0` and the popover opened showing a search box, a footer and no rooms. After the
+fix, at 1366x768 and at 1280x720: inline `height: 192px`, viewport `clientHeight 104 < scrollHeight 5448`,
+**2 rooms on screen**, scrollable, clearing the header and `Sync sections`. **Disclosed: that row now opens
+`side="top"`** — with only 86px beneath it, the 192px floor is what keeps the list non-empty, and the popover covers
+nothing. It is the trade the correction packet asked for: a picker with zero rooms is never acceptable; an empty list
+on the very last row of a bottom-scrolled list is.
+
+**F4 — the table overflowed its panel and pushed the row's kebab off-screen. CLOSED.**
+
+| Viewport | table `scrollWidth` | panel `clientWidth` | overflow | `DETAILS` header | kebab right vs panel right |
+|---|---|---|---|---|---|
+| 1366x768 | **1070** | **1070** | **0** | `Details`, not clipped | 1330 ≤ 1346 |
+| 1280x720 | **984** | **984** | **0** | `Details`, not clipped | 1244 ≤ 1260 |
+
+Home room cell exactly 200px, the shared trigger 168px inside it with its own truncation reaching an ellipsis rather
+than pushing the column. `a9c7-11-TABLE-at-rest-*.png` is the page at rest at both widths.
+
+## The packet's proof rows on the final candidate — relabelled by what was actually clicked
 
 | Row | Viewport | `data-side` | Popover (top→bottom, height) | Clears header | Clears `Sync sections` | Inside viewport |
 |---|---|---|---|---|---|---|
-| mid-list row, list scrolled to 400 | 1366x768 | `bottom` | 341→741, **400px** | yes | yes | yes |
-| last visible row | 1366x768 | `bottom` | 396→752, **356px** | yes | yes | yes |
-| row 1 (measured on `cb9d218e`, unchanged since) | 1366x768 | `bottom` | 356→756, **400px** | yes | yes | yes |
-| row 1 | 1366x650 | `bottom` | 356→634, **278px** | yes | yes | yes |
-| deep row | 1366x650 | `bottom` | 445→634, **189px** | yes | yes | yes |
+| `Aguinaldo` row 1, top of list | 1366x768 | `bottom` | 356→752, **396px** | yes | yes | yes |
+| `Rizal` row 5, list scrolled to 400, trigger 301→337 | 1366x768 | `bottom` | 504→752, **248px** (centred to 464→500) | yes | yes | yes |
+| **`Silver` row 20, the bottom-most row, list at max scroll 1511** | 1366x768 | **`top`** | 430→622, **192px** | yes | yes | yes |
+| `Aguinaldo` row 1 | 1366x768 | `bottom` | 356→752, 396px | yes | yes | yes |
+| `Rizal` row 5 | 1280x720 | `bottom` | 480→704, **224px** | yes | yes | yes |
+| **`Silver` row 20, list at max scroll 1559** | 1280x720 | **`top`** | 382→574, **192px** | yes | yes | yes |
+| row 1 (measured on `cb9d218e`) | 1366x650 | `bottom` | 356→634, 278px | yes | yes | yes |
+| deep row (measured on `cb9d218e`) | 1366x650 | `bottom` | 445→634, 189px | yes | yes | yes |
 
-The measured cap equals `min(400, innerHeight − triggerBottom − 4 − 12 − 4)` on every row, and is applied as a
-**definite** inline `height` (`a9c7-07`, `a9c7-08`).
+Every row's viewport is `clientHeight < scrollHeight 5448`, so the 78-room list is reachable everywhere. Options
+actually on screen: 5 at the top row, 3 mid-panel, 2 on the last row.
+
+The measured cap equals `max(min(400, innerHeight − triggerBottom − 4 − 12 − 4), 192)` and is applied as a
+**definite** inline `height` (`a9c7-09-*`, `a9c7-10-*`).
 
 ## The list scrolls — the R3 row, measured
 
@@ -61,7 +93,10 @@ picker's own scroll root) is harmless and defensible, but it is **not** a proven
 | `a9c7-05-last-visible-row-opens-down.png` | last visible row, 1366x768, `side=bottom`, 504→752, 248px |
 | `a9c7-06-ROW1-assigned-opens-down-1366x768.png` | assigned row, popover down |
 | `a9c7-07-MIDLIST-row-opens-down-list-stays-put.png` | mid-list row at list `scrollTop 400`, `side=bottom`, 400px, list scrollable |
-| `a9c7-08-LASTVISIBLE-row-opens-down.png` | last visible row, `side=bottom`, 356px, list scrollable |
+| `a9c7-08-LASTVISIBLE-row-opens-down.png` | **mislabelled by me — this is `Gold`, a mid-panel row**, not the last visible one |
+| `a9c7-09-BOTTOMMOST-row-1366x768.png`, `…-1280x720.png` | the genuine bottom-most row `Silver` at both widths: 192px, 2 rooms on screen, scrollable, opens upward |
+| `a9c7-10-MIDPANEL-row-1366x768.png`, `…-1280x720.png` | mid-panel row `Rizal` at both widths: `side=bottom`, 248px / 224px |
+| `a9c7-11-TABLE-at-rest-1366x768.png`, `…-1280x720.png` | the page at rest after the width fix: `DETAILS` in full, both row actions inside the panel |
 
 ## Disclosed: staging data this session changed, and two behaviours worth another lane
 
@@ -83,3 +118,21 @@ path; it is **not** fixed by this packet.
 
 **3. `/enrollpro-api/settings/public` returns 502** on every load of the preview. That is the known EnrollPro proxy
 gap tracked as `ENROLLPRO-PROXY-RECOVERY-LIVE` (A4, not approved); it is unrelated to this change and the page works.
+
+**4. The roster moved under this session, on its own.** Between the two final screenshots the room assignments and the
+enrolled counts changed again (rows moved to `G7 Room 201`, `G7 Room 102`, `G7 Room 101`; `HOME ROOMS 20/20`), and
+the page showed `CHECKING SOURCE` / `Saving is paused while ATLAS checks the roster`. This is the staging re-stream
+A9 c5 recorded, not this lane. It is also why the pre-existing roster (1 of 20 assigned) has not been restored by
+hand and does not need to be: staging is re-streamed from live on every deploy.
+
+## Follow-up rows carried out of this cycle
+
+1. **The status line duplicates the control's label.** With a room set, the row prints `G7 Room 201 · Grade 7 …`
+   inside the button and again beneath it (`a9c7-11-TABLE-at-rest-1366x768.png`). It is packet-mandated — the A3 C4
+   suites assert that wording and the packet forbade changing it — so it is not this candidate's defect, but it is the
+   obvious subtraction for the owning lane and it costs a second line in every row.
+2. **Choosing `Unassigned` issues no request** (item 2 above) — route to the home-room write-path owner.
+3. **The page header is four rows above the table**, over §8's two-row budget, and with `HOME ROOMS 20/20` the guided
+   step has nothing to do. Pre-existing (A9 c3/c6), outside this packet.
+4. **`docs/reference/ux-communication-rubric` does not exist** in the repo although AGENTS.md and my own packet cite
+   it. QA scored the design gate against the criteria enumerated in the directive's design judgement gate instead.
