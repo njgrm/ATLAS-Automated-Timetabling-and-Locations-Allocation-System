@@ -5705,6 +5705,47 @@ created 5 `schools` rows "ROLLOVER-AUTOMATION DISPOSABLE PREMISE — SAFE TO DEL
 `atlas_staging` (backup `atlas-server-dotenv.before` there). Live and staging runtimes do not read that file (supervisor
 injects D:/ATLAS-runtime-config). Older residue kept: school 261 "C01R2 … Quarterly" (2026-09-12) on live and staging.
 
+## Lane A9 — c7 home-room picker, 2026-09-29 19:40 +08 (written only by Lane A9)
+
+**ON `main` at `7c2bc4b6` (candidate `fa57114c..1f377866`). 0 fixes live and seen / 2 fixes integrated and SEEN RENDERED
+on real staging data / 0 dropped. NOT deployed — A4 owns every release (§14).** Lane C packet
+`docs/prompts/fix-3-2026-09-29.md` item 46 + the binding 15:55 addendum; handoff
+`docs/handoffs/a9-c7-to-lane-c-20260929.md`; evidence `docs/reviews/a9-c7-home-room-picker-20260929/` (11 PNGs).
+`main` moved 84 commits during the cycle (train 10 cutover `cd542245`, A9 m1 packet) — **no overlap** on the sections
+paths; the merged product files are byte-identical to the reviewed candidate.
+
+- **Item 46 fixed on every row at 1366x768 and 1280x720.** Rows 1 / mid-panel open `side=bottom` at 396 / 248 / 224px
+  with 5 / 3 rooms on screen, clearing the header and `Sync sections`; every row's list viewport measures
+  `clientHeight < scrollHeight 5448`, so all 78 rooms are scrollable.
+- **The bottom-most row of a bottom-scrolled list opens UPWARD, deliberately.** Only 86px sit below it — exactly the
+  popover's 86px of chrome. Unfixed it opened with the room list at `clientHeight 0`: a search box, a footer and **no
+  rooms**. It now opens up at 192px with two rooms and covers nothing.
+- **The 15:55 addendum is honoured** — one outlined chevroned button per row, guided bulk step still primary, and the
+  row height **83px before and after an assignment** (measured on `Luna`).
+- **QA found what I missed, and it is visible in my own screenshot**: the restored control had pushed the table 35px
+  past its panel, `DETAILS` rendering as `DETA` and every row's "More actions" button outside the visible area. The table
+  now fits exactly at both widths (1070/1070, 984/984, overflow 0, kebab inside the panel).
+- **QA verdicts**: pass 1 `CORRECTION_REQUIRED` 6/8 (0px list, table overflow, two false measurements in comments);
+  pass 2 on the delta 5/6 with both BLOCKING findings **reproduced read-only in the browser and PASS**, the one failure
+  being three false comment statements, applied and verified by me as documentation-only (§11). Gates on the merged tree:
+  27/27, 42/42, 22/23, 17/17, 9/9 — the one red row is **pre-existing and blob-identical** at base and tip.
+- **Disclosures (2026-09-29):** (1) staging's home-room assignments were changed by this browser session, 1 of 20
+  assigned → 20 of 20, staging API `:5101` only and never live; the roster has since re-streamed on its own and no
+  manual restore was attempted after I noticed. (2) Choosing `Unassigned` issues **no request** — pre-existing, not this
+  range; route to the home-room write-path owner. (3) I **exceeded the two-round guidance** (3 corrections + 2
+  micro-rounds), each measured and each on Lane C's own proof rows, flagged rather than hidden.
+- **My own mistakes, recorded so they are not repeated:** my R2 "the list jumps to the top" was a Playwright auto-scroll
+  artefact, not a product defect; I **mislabelled two mid-panel rows as "the last visible row"**, which is why the bottom
+  of the list went unrendered until QA found it; and my own `max-h` instruction caused the clipped list — **a maximum is
+  not a height**, it leaves the flex container's height indefinite so the ScrollArea viewport never shrinks.
+- **Follow-ups, none blocking:** the status line repeats the button's label (packet-mandated — the C4 suites assert that
+  wording); the `Unassigned` no-write above; `/sections`' header is four rows over §8's budget; and
+  `docs/reference/ux-communication-rubric` does not exist although the directive cites it.
+- **Worktree** `E:/ATLAS-worktrees/lane-a9-c7-home-room` = `RETIRE_AFTER_INTEGRATION`, pushed and clean,
+  `node_modules` is a real directory, not a junction. Preview `:5262` (PID 2620) still running, mine to kill on request.
+- **Next action (single):** Lane C runs the deployed rows for `/sections` — three rows at 1366x768 and 1280x720, an
+  assign-and-clear from the row picker, and a before/after row height — once A4 ships a train containing `7c2bc4b6`.
+
 ## Lane A9 — TEACHING personnel only (written only by Lane A9)
 
 **`A9 ready for release at 98cc1e34`. 0 fixes live and seen / 1 integrated / 0 dropped. NOT deployed — A4 owns

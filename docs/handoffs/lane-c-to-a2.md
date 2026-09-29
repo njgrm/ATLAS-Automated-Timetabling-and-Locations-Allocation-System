@@ -2735,3 +2735,40 @@ PRESERVED, not reset**: `lane-a3-c10-s2-roomcards`, `lane-a2-c11-s1-qa`, `lane-a
 3. **`origin/main` moved past the pin twice during this train** (`1082ebb4`, `f925045c`, both docs-only), so my
    CUTOVER TARGET commit needed a merge and re-push before `Assert-LiveReleaseRecorded` would pass. The pin was
    **not** reopened: `cd542245` is what shipped, and the docs commits above it are docs-only.
+
+## A9 c7 → Lane C, 2026-09-29 — fix-3 item 46 + the 15:55 addendum are ON `main` at `7c2bc4b6`. NOT deployed.
+
+**0 fixes live and seen / 2 fixes integrated and seen rendered on real staging data / 0 dropped.** Candidate
+`fa57114c..1f377866`, merged to `main` in `7c2bc4b6` over the 84 commits `main` moved during the cycle (train 10 cutover
+`cd542245`, A9 m1 packet) with **no overlap** on the sections paths — the merged product files are byte-identical to the
+reviewed candidate. A4 owns the release.
+
+- **Item 46 is fixed on every row, at 1366x768 and 1280x720.** Rows 1 and mid-panel open `side=bottom` at 396/248/224px
+  with 5/3 rooms on screen, clearing the header and `Sync sections`. Every row's list viewport measures
+  `clientHeight < scrollHeight 5448`, so all 78 rooms are scrollable.
+- **The one row that still opens upward is the bottom-most row of a bottom-scrolled list, and it is deliberate.** Only
+  86px sit beneath it — exactly the popover's chrome. Unfixed it opened with a room list of `clientHeight 0`, i.e. a
+  search box, a footer and **no rooms**. It now opens upward at 192px with two rooms, covering nothing. Item 46's "always
+  down" was traded for item 46's intent on that single row.
+- **The 15:55 addendum is honoured**: one outlined, chevroned button per row, the guided bulk step still primary, and the
+  row height **83px before and after an assignment** (measured on `Luna`).
+- **QA found a defect I missed and it is in my own screenshot:** the restored control had pushed the table 35px past its
+  panel, rendering `DETAILS` as `DETA` and leaving every row's "More actions" button outside the visible area. Now the
+  table fits exactly at both widths (1070/1070 and 984/984, overflow 0, kebab inside the panel).
+- **QA verdicts:** pass 1 `CORRECTION_REQUIRED` 6/8 (F3 the 0px list, F4 the overflow, F1/F2 two false measurements in
+  comments); pass 2 on the delta 5/6 with **F3 and F4 reproduced read-only in the browser and PASS**, the one failure
+  being three false comment statements, which I applied and verified directly as documentation-only (§11).
+- **Four disclosures, in the handoff**: staging's home-room assignments were changed by my browser session (1 of 20
+  assigned → 20 of 20, staging API `:5101` only, and the roster has since re-streamed on its own); choosing
+  `Unassigned` issues no request (pre-existing, not this range); `/enrollpro-api` 502 is the known A4 proxy gap; and I
+  **exceeded the two-round guidance** — three corrections plus two micro-rounds, each measured and each on your own
+  proof rows, flagged rather than hidden.
+- **My own mistakes, recorded so they are not repeated:** my R2 "the list jumps to the top" was a Playwright auto-scroll
+  artefact, not a product defect; I mislabelled two mid-panel rows as "the last visible row", which is why the bottom of
+  the list went unrendered until QA found it; and my own `max-h` instruction caused the clipped list — a maximum is not a
+  height.
+
+Full handoff with every measurement: `docs/handoffs/a9-c7-to-lane-c-20260929.md`. Evidence
+`docs/reviews/a9-c7-home-room-picker-20260929/rendered-evidence.md` + 11 PNGs. Worktree
+`E:/ATLAS-worktrees/lane-a9-c7-home-room` = `RETIRE_AFTER_INTEGRATION`, `node_modules` is a real directory (not a
+junction). Preview `:5262` (PID 2620) still running, mine to kill on request.
