@@ -83,6 +83,7 @@ const MOVING = {
 	entryId: 'entry-1::t1',
 	day: 'MONDAY',
 	startTime: '06:00',
+	endTime: '06:45',
 	sectionId: 71,
 	subjectId: 11,
 	facultyId: 21,
@@ -248,8 +249,7 @@ test('S3f THE ONE RULE: an offer is exactly what findRegularSwapCandidate accept
 	// A caller that cannot answer "swap with whom?" gets NO offer, never a guess.
 	const withoutIdentity = describeMoveTargets({
 		slots: SLOTS,
-		occupants: OCCUPIED.map(({ entryId, day, startTime, endTime }) => ({ entryId, day, startTime, endTime })),
-		movingEntry: MOVING,
+		occupants: OCCUPIED.map(({ entryId, day, startTime, endTime }) => ({ entryId, day, startTime, endTime })),		movingEntry: MOVING,
 		subjectLabel,
 		facultyLabel,
 	});

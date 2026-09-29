@@ -50,7 +50,10 @@ const RUN_ENTRIES = [
 ];
 
 /** Shaped exactly like `constraint-validator.ts`: ids for the FACULTY only. */
-function validatorViolation(code: string, entryIds: string[]) {
+function validatorViolation(code: string, entryIds: string[]): never {
+	// `code` is cast, not narrowed: the wire type is `ViolationCode` and the point
+	// of this fixture is to be shaped like the server's emission, which is a plain
+	// object literal in that file too.
 	return {
 		code,
 		severity: 'SOFT' as const,
@@ -59,7 +62,7 @@ function validatorViolation(code: string, entryIds: string[]) {
 		schoolYearId: 1,
 		runId: 318,
 		entities: { facultyId: 21, day: 'MONDAY', startTime: '06:00', endTime: '06:45', entryIds },
-	};
+	} as never;
 }
 
 function draftWith(entries: unknown[]) {

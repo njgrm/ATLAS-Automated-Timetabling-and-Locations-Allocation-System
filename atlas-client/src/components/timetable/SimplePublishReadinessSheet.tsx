@@ -8,7 +8,7 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { ScrollArea } from '@/ui/scroll-area';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/ui/sheet';
-import { deriveSimplePublishReadiness, resolveBlockerDestination, type SimplePublishReadiness, type BlockerGroup, type BlockerItem, type WarningGroup, type RunWidePublishAuthority } from '@/components/timetable/simplePublishReadiness';
+import { deriveSimplePublishReadiness, resolveBlockerDestination, type SimplePublishReadiness, type BlockerGroup, type WarningGroup, type RunWidePublishAuthority } from '@/components/timetable/simplePublishReadiness';
 import type { DraftReport, Violation } from '@/types';
 
 type RepairIdentity = {
@@ -60,25 +60,25 @@ const VIOLATION_TO_BLOCKER_REASON: Record<string, string> = {
  * group so the repair link can deep-link with context instead of dropping the
  * operator into a generic page.
  *
- * A2 mc S1b — it now also accepts the SPECIFIC item, so one row's own fix button
- * carries THAT row's identity instead of the group's first. Without it every
- * must-fix row on the sheet pointed at the same entity, which made per-item
+ * A2 mc S1b — it now also accepts the SPECIFIC item's identity, so one row's own
+ * fix button carries THAT row's identity instead of the group's first. Without it
+ * every must-fix row on the sheet pointed at the same entity, which made per-item
  * buttons a decoration: nine different buttons, one destination.
  */
 function resolveRepairIdentity(
 	reason: string | undefined,
 	draft: DraftReport | null,
 	violations: Violation[],
-	item?: BlockerItem | null,
+	identity?: Pick<RepairIdentity, 'sectionId' | 'subjectId' | 'facultyId'> | null,
 ): RepairIdentity | null {
-	// The item's own resolved identity is the most specific answer available: it
+	// The row's own resolved identity is the most specific answer available: it
 	// was itself derived from the violation's own `entryIds` when the violation
 	// carried no ids (A2 mc S2).
-	if (item) {
+	if (identity) {
 		return {
-			sectionId: item.sectionId ?? null,
-			subjectId: item.subjectId ?? null,
-			facultyId: item.facultyId ?? null,
+			sectionId: identity.sectionId ?? null,
+			subjectId: identity.subjectId ?? null,
+			facultyId: identity.facultyId ?? null,
 		};
 	}
 	if (!reason) return null;

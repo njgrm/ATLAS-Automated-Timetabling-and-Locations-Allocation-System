@@ -170,7 +170,14 @@ export default function ManualEditPanel({
 	const timeSlotSwapOffers = useMemo(() => {
 		const entries = (draftEntries ?? []) as ScheduledEntry[];
 		const offers = describeMoveSwapOffers({
-			slots: timeSlots.filter((ts) => !ts.isSpecialEvent && ts.day === targetDay),
+			/* This panel's `timeSlots` prop carries NO day: the Target Day select
+			 * and the slot select together form ONE slot, and `buildOccupiedSlots`
+			 * above already scopes occupancy to `targetDay`. Stamping the selected
+			 * day onto the offered slots is therefore the same fact the panel is
+			 * already rendering, not an inference. */
+			slots: timeSlots
+				.filter((ts) => !ts.isSpecialEvent)
+				.map((ts) => ({ ...ts, day: String(targetDay) })),
 			occupants: entries.filter((candidate) => String(candidate.day) === String(targetDay)),
 			movingEntry: {
 				entryId: entry.entryId,

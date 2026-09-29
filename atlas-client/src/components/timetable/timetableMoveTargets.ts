@@ -185,6 +185,46 @@ export function swapOfferLabel(subject: string, teacher: string | null | undefin
 }
 
 /**
+ * The identity `findRegularSwapCandidate` needs, narrowed from the OPTIONAL
+ * identity a caller may supply.
+ *
+ * `hasSwapIdentity` has already proven `sectionId` and `roomId` are present, so
+ * this narrowing removes the `undefined | null` that the shared rule's own type
+ * does not accept — without inventing a value for anything it did not prove.
+ */
+function swapSourceFields(entry: MoveSourceEntry): {
+	entryId: string;
+	sectionId: number;
+	facultyId: number | null;
+	roomId: number;
+	termIndex?: number | null;
+} {
+	return {
+		entryId: entry.entryId,
+		sectionId: entry.sectionId as number,
+		facultyId: entry.facultyId ?? null,
+		roomId: entry.roomId as number,
+		termIndex: entry.termIndex ?? null,
+	};
+}
+
+function swapCandidateFields(entry: MoveOccupant): {
+	entryId: string;
+	sectionId: number;
+	facultyId: number | null;
+	roomId: number;
+	termIndex?: number | null;
+} {
+	return {
+		entryId: entry.entryId,
+		sectionId: entry.sectionId as number,
+		facultyId: entry.facultyId ?? null,
+		roomId: entry.roomId as number,
+		termIndex: entry.termIndex ?? null,
+	};
+}
+
+/**
  * A2 mc S3 — the swap offers for every occupied slot in view, in slot order.
  *
  * Partner selection is DELEGATED to `findRegularSwapCandidate`, so the
@@ -208,7 +248,7 @@ export function describeMoveSwapOffers(input: MoveSwapOfferInput): MoveSwapOffer
 		if (slotEntries.length === 0) continue;
 		if (!slotEntries.every((occupant) => hasSwapIdentity(occupant))) continue;
 
-		const partner = findRegularSwapCandidate(moving, slotEntries);
+		const partner = findRegularSwapCandidate(swapSourceFields(moving), slotEntries.map(swapCandidateFields));
 		if (partner == null) {
 			for (const occupant of slotEntries) {
 				offers.push({
@@ -227,6 +267,11 @@ export function describeMoveSwapOffers(input: MoveSwapOfferInput): MoveSwapOffer
 			}
 			continue;
 		}
+		/* The label is read from the OCCUPANT RECORD, not from the narrowed value the
+		 * shared rule scored. `findRegularSwapCandidate` returns only the fields it
+		 * compares, so reading `partner.subjectId` would name nothing — and a label
+		 * is a property of the class in the slot, not of the scoring projection. */
+		const partnerRecord = slotEntries.find((occupant) => occupant.entryId === partner.entryId) ?? slotEntries[0];
 		offers.push({
 			slotKey: slotKey(slot.day, slot.startTime),
 			day: slot.day,
@@ -234,8 +279,8 @@ export function describeMoveSwapOffers(input: MoveSwapOfferInput): MoveSwapOffer
 			endTime: slot.endTime,
 			occupantEntryId: partner.entryId,
 			label: swapOfferLabel(
-				partner.subjectId != null ? input.subjectLabel(partner.subjectId) : '',
-				partner.facultyId != null ? input.facultyLabel(partner.facultyId) : null,
+				partnerRecord.subjectId != null ? input.subjectLabel(partnerRecord.subjectId) : '',
+				partnerRecord.facultyId != null ? input.facultyLabel(partnerRecord.facultyId) : null,
 			),
 			allowed: true,
 		});
