@@ -1,9 +1,14 @@
 # A9 c8 — evidence (lane `a9-c8`, 2026-09-29)
 
-Candidate `bfd73e19` on `work/a9-c8-dashboard-truth`, base `origin/main` `24401f0b` (packet `e7583433`).
-Preview: `scripts/dev/start-preview.ps1 -ClientDir <worktree>\atlas-client -Port 5241` → PID **47872**,
-proxied to the **staging** API. Viewport **1366x768**, asserted on every row below:
-`window.location.origin === "http://127.0.0.1:5241"` (loopback staging preview, never 5001/LIVE).
+Range `24401f0b..8d740f8b` (round 1) plus the round-1 correction commit on top; the tip is named
+in the handoff. `24401f0b..HEAD` is four commits, the first of which is the packet commit
+`e7583433` (planner-authored, in the range) and the rest this lane's.
+
+Preview: `scripts/dev/start-preview.ps1 -ClientDir <worktree>\atlas-client -Port 5241` (round 1)
+and `-Port 5242` (the correction round), each proxied to the **staging** API. Viewport
+**1366x768**, asserted on every row below: `window.location.origin === "http://127.0.0.1:5241"`
+(round 1) and `"http://127.0.0.1:5242"` (correction round) — loopback staging previews, never
+5001/LIVE.
 
 ## 1. Screenshots (real staging data, school 1, S.Y. 2023-2024, run 347)
 
@@ -15,6 +20,23 @@ proxied to the **staging** API. Viewport **1366x768**, asserted on every row bel
 | `a9c8-03-map-room-readiness.png` | `/map`, problems region | `1 building has no room marked for classes.` (was `58 rooms need something fixed, in 7 buildings.`) |
 | `a9c8-04-timetable.png` | `/timetable` 1366x768 | `6 Must fix, 696 advisories — this schedule cannot be published yet.` |
 | `a9c8-05-dashboard-pending.png` | `/` with the readiness read delayed 12 s | no `ATLAS COULD NOT CHECK`, no `0 OF 10 READY`, no next-step card, four neutral `Checking source` footers, one reading line |
+| `a9c8-06-blocked-before.png` | `/` with `/auth/me` intercepted so the actor school is unresolvable — **the QA F-A defect, on the round-1 tip** | `Teaching Rooms 0 of 0` · `Subjects 0` · `Teachers 0` beside "We could not confirm your school" |
+| `a9c8-07-blocked-after.png` | the same interception, on the correction | `Teaching Rooms —` · `Subjects —` · `Teachers —` · `Sections —`, no number anywhere |
+
+## 1b. QA round 1 (`CORRECTION_REQUIRED`, 36 mandatory / 34 passed) and what this round did
+
+* **F-A (BLOCKING).** Reproduced on the round-1 tip, and it was **wider than the report**: the
+  room tile printed `0 of 0` *and* `Subjects 0` *and* `Teachers 0`; only `Sections` was safe, and
+  only because it separately tested `sectionCount === null`. All three were the same
+  hand-rolled ternary. Fix: one exported pure `dashboardTileValue` decides every tile's figure
+  — a figure is printed only when a measured value exists (`loading` → `…`; `reading`,
+  `!available` or `measured == null` → `—`), while a **measured zero still prints `0`**, because
+  0 is a fact and `null` is the absence of one.
+* **F-B (NON_BLOCKING).** The F2 guard now matches the URL alone (`/runs\/latest\/violations/`)
+  instead of `atlasApi\.get[^;\n]*violations`, which a re-typed generic full of semicolons walks
+  through. Four re-typings are pinned in `F2_RE_TYPED`, and the old pattern is asserted to MISS
+  the one QA used while the new one catches it.
+* **F-D (NON_BLOCKING).** The header above names the delivered tip and the true commit count.
 
 ## 2. Before / after on screen
 

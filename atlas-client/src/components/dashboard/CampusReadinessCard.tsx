@@ -30,6 +30,7 @@ import {
 	roomUtilizationLabel,
 } from '@/lib/room-utilization-display';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
+import { dashboardFigure } from '@/lib/dashboard-figure';
 import { selectedBuildingRoomsSentence, teachingRoomTotals, teachingRoomsFigure } from '@/lib/teaching-room-readiness';
 import { pivotDraftToView } from '@/lib/schedule-pivot';
 import { parseGradeFromSectionName } from '@/components/GradeLevelBadge';
@@ -484,11 +485,29 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 												Select a building, inspect rooms, and view the latest room schedules without leaving the dashboard.
 											</p>
 										<div className="mt-4 grid grid-cols-2 gap-3">
-											<MiniStat icon={Building2} label="Buildings" value={teachingBuildings.length.toString()} />
+											{/* A9 c8 R1 (QA F-A) — BOTH mini-stats are gated by the same rule as the
+											    four stat tiles, and neither is gated by a hand-rolled ternary. With no
+											    building list at all — an unresolvable actor school, or a campus read that
+											    failed — this card printed `BUILDINGS 0` and `TEACHING ROOMS 0 of 0`,
+											    two claims about a school it knows nothing about, beside "We could not
+											    confirm your school". A school that genuinely has buildings and no
+											    teaching rooms still prints its measured zeros. */}
+											<MiniStat icon={Building2} label="Buildings" value={dashboardFigure({ loading, reading: false, available: buildings.length > 0, measured: teachingBuildings.length })} />
 											{/* A9 c8 (F3): `78/103` -> `78 of 78`, the Campus page's own fraction
 											    over one population. The school's 103 rooms are not a readiness
-											    number and never were on this line. */}
-											<MiniStat icon={DoorOpen} label="Teaching rooms" value={teachingRoomsFigure(teachingRooms)} />
+											    number and never were on this line.
+
+											    A9 c8 R1 (QA F-A): the FIGURE is gated by the same rule as the four
+											    stat tiles. With no room list at all — an unresolvable actor school, or
+											    a campus read that failed — this printed `0 of 0`, a fabricated
+											    figure beside "We could not confirm your school". A school that
+											    genuinely has buildings but no teaching rooms still prints `0 of 0`,
+											    with the Campus page's own sentence under it.
+
+											    BOTH mini-stats are gated, not just the room one: re-rendering the
+											    blocked state with only the room figure fixed left `BUILDINGS 0` on
+											    the same card, which claims the school has no buildings. */}
+											<MiniStat icon={DoorOpen} label="Teaching rooms" value={dashboardFigure({ loading, reading: false, available: buildings.length > 0, measured: teachingRoomsFigure(teachingRooms) })} />
 										</div>
 										{/* A9 c8 (F3) — the `7 ready` BADGE IS GONE. It counted BUILDINGS
 										    that hold at least one teaching room, so it said "7 ready" while

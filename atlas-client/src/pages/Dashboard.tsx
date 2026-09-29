@@ -464,6 +464,18 @@ export function ActiveTermHardViolationsRow(props: { count: number | null }) {
 	);
 }
 
+/**
+ * A9 c8 R1 (QA F-A) — WHAT A TILE MAY PRINT.
+ *
+ * The rule itself lives in `@/lib/dashboard-figure` (`dashboardFigure`), because the campus
+ * panel needs it too and a page cannot be imported by a component the page imports. It is
+ * re-exported here under the name the four tiles call, so a reader of this file does not have
+ * to go looking for it.
+ */
+import { dashboardFigure } from '@/lib/dashboard-figure';
+
+export const dashboardTileValue = dashboardFigure;
+
 export default function Dashboard() {
 	const [rolloverStatus, setRolloverStatus] = useState<RolloverStatus | null>(null);
 	const rolloverAligned = rolloverStatus?.drift.status === 'aligned';
@@ -514,12 +526,14 @@ export default function Dashboard() {
 	const teachingRooms = teachingRoomTotals(buildings);
 
 	const stats: StatTile[] = [
-		{ label: 'Sections', value: loading ? '\u2026' : unread(domainAvailability.sections) || sectionCount === null ? '\u2014' : `${sectionCount}`, footer: reading ? readingLabel : unread(domainAvailability.sections) || sectionCount === null ? 'Enrollment unavailable' : activeSchoolYearLabel ? `S.Y. ${activeSchoolYearLabel}` : 'Active school year', icon: GraduationCap, tone: 'violet', warn: !reading && (unread(domainAvailability.sections) || sectionCount === null), pending: reading, href: '/sections', actionLabel: 'Check sections' },
-		{ label: 'Subjects', value: loading ? '\u2026' : unread(domainAvailability.subjects) ? '\u2014' : `${subjectCount ?? 0}`, footer: reading ? readingLabel : unread(domainAvailability.subjects) ? 'Unavailable' : 'Subject catalog loaded', icon: BookOpen, tone: 'brand', warn: !reading && unread(domainAvailability.subjects), pending: reading, href: '/subjects', actionLabel: 'Review subjects' },
-		{ label: 'Teachers', value: loading ? '\u2026' : unread(domainAvailability.faculty) ? '\u2014' : `${facultyCount ?? 0}`, footer: reading ? readingLabel : unread(domainAvailability.faculty) ? 'Unavailable' : 'Synced from EnrollPro', icon: UserCheck, tone: 'sky', warn: !reading && unread(domainAvailability.faculty), pending: reading, href: '/teachers', actionLabel: 'Review teachers' },
+		{ label: 'Sections', value: dashboardTileValue({ loading, reading, available: domainAvailability.sections, measured: sectionCount }), footer: reading ? readingLabel : unread(domainAvailability.sections) || sectionCount === null ? 'Enrollment unavailable' : activeSchoolYearLabel ? `S.Y. ${activeSchoolYearLabel}` : 'Active school year', icon: GraduationCap, tone: 'violet', warn: !reading && (unread(domainAvailability.sections) || sectionCount === null), pending: reading, href: '/sections', actionLabel: 'Check sections' },
+		{ label: 'Subjects', value: dashboardTileValue({ loading, reading, available: domainAvailability.subjects, measured: subjectCount }), footer: reading ? readingLabel : unread(domainAvailability.subjects) ? 'Unavailable' : 'Subject catalog loaded', icon: BookOpen, tone: 'brand', warn: !reading && unread(domainAvailability.subjects), pending: reading, href: '/subjects', actionLabel: 'Review subjects' },
+		{ label: 'Teachers', value: dashboardTileValue({ loading, reading, available: domainAvailability.faculty, measured: facultyCount }), footer: reading ? readingLabel : unread(domainAvailability.faculty) ? 'Unavailable' : 'Synced from EnrollPro', icon: UserCheck, tone: 'sky', warn: !reading && unread(domainAvailability.faculty), pending: reading, href: '/teachers', actionLabel: 'Review teachers' },
 		// The room tile prints the Campus page's OWN figure and words. It is not a new
 		// control and not a new panel: same tile, same label, same link, one honest fraction.
-		{ label: 'Teaching Rooms', value: loading ? '\u2026' : unread(domainAvailability.campus) ? '\u2014' : teachingRoomsFigure(teachingRooms), footer: reading ? readingLabel : unread(domainAvailability.campus) ? 'Unavailable' : teachingRoomsStatusLine(teachingRooms), icon: Building2, tone: unread(domainAvailability.campus) || (teachingRooms.ready < teachingRooms.teaching && !reading) ? 'amber' : 'brand', warn: !reading && (unread(domainAvailability.campus) || teachingRooms.ready < teachingRooms.teaching), pending: reading, href: '/map', actionLabel: 'Check rooms' },
+		// Its `measured` is computed unconditionally and gated by the SAME rule as the other
+		// three — A9 c8 R1: `0 of 0` from an empty room list is not a school with no rooms.
+		{ label: 'Teaching Rooms', value: dashboardTileValue({ loading, reading, available: domainAvailability.campus, measured: teachingRoomsFigure(teachingRooms) }), footer: reading ? readingLabel : unread(domainAvailability.campus) ? 'Unavailable' : teachingRoomsStatusLine(teachingRooms), icon: Building2, tone: unread(domainAvailability.campus) || (teachingRooms.ready < teachingRooms.teaching && !reading) ? 'amber' : 'brand', warn: !reading && (unread(domainAvailability.campus) || teachingRooms.ready < teachingRooms.teaching), pending: reading, href: '/map', actionLabel: 'Check rooms' },
 	];
 
 	// UX-C01 — derived-demand authority, in operator order: EnrollPro structure,

@@ -48,6 +48,10 @@ import * as DashboardDataModule from '@/hooks/useDashboardData';
 import * as DashboardPage from '@/pages/Dashboard';
 import * as ReadinessCardModule from '@/components/dashboard/ReadinessCard';
 import * as TeachingRooms from '@/lib/teaching-room-readiness';
+// The shared rule is imported from where it is DEFINED, not through the page's re-export: the
+// campus panel uses the same one, and a test that only ever read the page's copy could not
+// notice the two drifting apart.
+import { dashboardFigure } from '@/lib/dashboard-figure';
 import {
 	buildRoomProblemGroups,
 	roomProblemSummary,
@@ -78,6 +82,30 @@ const READINESS_CARD_SOURCE = source('components/dashboard/ReadinessCard.tsx');
 const HOOK_SOURCE = source('hooks/useDashboardData.ts');
 const ROOM_LIST_SOURCE = source('components/campus-map/RoomReadinessList.tsx');
 const CAMPUS_OVERVIEW_SOURCE = source('components/campus-map/CampusMapOverview.tsx');
+
+/**
+ * A9 c8 R1 (QA F-B) — THE F2 GUARD, as one named pattern.
+ *
+ * It matches the URL and nothing else. The previous guard required `atlasApi.get` and then
+ * anything that is not a `;` or a newline, which a re-typed generic type argument full of
+ * semicolons (`get<{ counts?: { runWide?: { soft?: number } } }>(...)`) walks straight
+ * through — QA demonstrated 13/13 green with the request restored that way. A URL is the
+ * one thing a second read of this report cannot be re-written around, so the guard names the
+ * URL. `F2_RE_TYPED` below is the discrimination table that keeps it that way.
+ */
+const F2_DELETED_READ_GUARD = /runs\/latest\/violations/;
+
+/** The request as it was deleted, and as a developer would type it back in. */
+const F2_RE_TYPED = [
+	// the original line, verbatim from the pre-fix hook
+	"atlasApi.get<ViolationReport>(`/generation/${schoolId}/${syIdForTerm}/runs/latest/violations`, { params: { termIndex } })",
+	// the shape QA re-typed, whose generic contains semicolons — the hole in the old guard
+	"atlasApi.get<{ counts?: { runWide?: { blockingHard?: number; soft?: number } } }>('/generation/1/2/runs/latest/violations', { params: { termIndex } })",
+	// no generic at all
+	"atlasApi.get('/generation/1/2/runs/latest/violations')",
+	// a wrapper, so the guard does not depend on the caller being spelled `atlasApi`
+	"const counts = await loadReport(`/generation/${schoolId}/${syIdForTerm}/runs/latest/violations`)",
+];
 const SERVER_SUMMARY_SOURCE = readFileSync(
 	resolve(CLIENT_ROOT, '..', 'atlas-server', 'src', 'services', 'dashboard-readiness.service.ts'),
 	'utf8',
@@ -115,8 +143,9 @@ function renderCard(over: Record<string, unknown> = {}): string {
 		),
 	);
 }
-const { buildRunReviewChecklistItem } = DashboardPage as unknown as {
+const { buildRunReviewChecklistItem, dashboardTileValue } = DashboardPage as unknown as {
 	buildRunReviewChecklistItem: (args: Record<string, unknown>) => { label: string; done: boolean; hint?: string; unresolved?: boolean };
+	dashboardTileValue: (args: { loading: boolean; reading: boolean; available: boolean; measured: string | number | null | undefined }) => string;
 };
 const { resolveRunWideCountsFromSummary, resolveRunWideHardViolationCount, resolveRunWideSoftViolationCount } =
 	DashboardDataModule as unknown as {
@@ -281,7 +310,14 @@ test('A9C8-F2: the run-review row is decided by the SUMMARY counts, and the seco
 	// ONE READ. The duplicate `runs/latest/violations` request is the F2 defect: a slower
 	// second read of a fact the summary already carried, able to turn an answered fact into
 	// "could not check" or into a clean run.
-	assert.doesNotMatch(HOOK_CODE, /atlasApi\.get[^;\n]*violations/, 'the second read of the run report must be gone from the hook');
+	//
+	// A9 c8 R1 (QA F-B) — THIS ASSERTION WAS DEFEATABLE AND IS NOW NOT. It used to be
+	// `/atlasApi\.get[^;\n]*violations/`, and `[^;\n]*` cannot cross a `;`, so the request
+	// re-typed the way a developer actually types it — with a generic type argument
+	// containing semicolons — passed this gate 13/13. The guard now matches the URL alone,
+	// which no amount of generic punctuation can hide, and the case below proves each
+	// re-typing is caught.
+	assert.doesNotMatch(HOOK_CODE, F2_DELETED_READ_GUARD, 'the second read of the run report must be gone from the hook');
 	// The two report-shape resolvers remain as this side's statement of the server's
 	// predicate (the parity test above uses them), but nothing may CALL them any more: a
 	// resolver nothing calls is documentation, a resolver something calls is a second source.
@@ -467,6 +503,128 @@ test('A9C8-F4: the sentence is rendered through the pure function, and the regio
 	// And the `needs-section` room is still LISTED under its group, so nothing is hidden by
 	// the omission from the count.
 	assert.match(ROOM_LIST_SOURCE, /group\.problems\.map/, 'every problem room in a group is still named');
+});
+
+/* ───────────────────────── F-A: an unresolved school prints nothing (QA R1) ───────────────────────── */
+
+/**
+ * THE MEASURED BLOCKED STATE, as QA rendered it on the candidate at
+ * `http://127.0.0.1:5242/__dev/staging-login` with `/auth/me` intercepted so the actor
+ * school is unresolvable:
+ *
+ *   roomTile    : "Teaching Rooms | 0 of 0 | Checking source"
+ *   sectionsTile: "Sections | — | Checking source"
+ *   subjectsTile: "Subjects | 0 | Checking source"
+ *   teachersTile: "Teachers | 0 | Checking source"
+ *   scopeCard   : "We could not confirm your school | ATLAS could not determine the authenticated school."
+ *
+ * The scope branch calls `resetDomainState()` — which sets `readinessPending = true` — and then
+ * `setLoading(false)` with `buildings` still `[]`. So `loading` cannot be the guard: it is
+ * false. And `teachingRoomTotals([])` is `{ready: 0, teaching: 0}`, whose figure `0 of 0` reads
+ * as a school with no rooms rather than as no room data at all.
+ *
+ * These are the exact inputs of that render. `measured` is what each tile's value would have
+ * been had nothing suppressed it, so the test is the render, not a paraphrase of it.
+ */
+const BLOCKED_INPUTS = {
+	loading: false,
+	reading: true,
+	available: false,
+	roomFigure: teachingRoomsFigure(teachingRoomTotals([])),
+};
+
+test('A9C8-FA: the BLOCKED state prints nothing, exactly as the base did — never a figure from an empty read', () => {
+	// The regression, tile for tile, from QA's own render.
+	assert.equal(dashboardTileValue({ ...BLOCKED_INPUTS, measured: BLOCKED_INPUTS.roomFigure }), '\u2014', 'Teaching Rooms must print the honest "nothing", not `0 of 0`');
+	assert.equal(dashboardTileValue({ ...BLOCKED_INPUTS, measured: null }), '\u2014', 'Sections must print "nothing"');
+	assert.equal(dashboardTileValue({ ...BLOCKED_INPUTS, measured: null }), '\u2014', 'Subjects must print "nothing", not `0`');
+	assert.equal(dashboardTileValue({ ...BLOCKED_INPUTS, measured: null }), '\u2014', 'Teachers must print "nothing", not `0`');
+	assert.equal(
+		dashboardTileValue({ loading: false, reading: true, available: false, measured: BLOCKED_INPUTS.roomFigure }),
+		'\u2014',
+		'the literal screen QA captured, asserted directly',
+	);
+});
+
+test('A9C8-FA: the rule distinguishes NO DATA from a MEASURED ZERO, which is the whole defect', () => {
+	// A school that genuinely has no teaching rooms, with the campus read ANSWERED, is a
+	// fact and prints a figure — `0 of 0` with the Campus page's own sentence under it.
+	const answeredEmptyCampus = { loading: false, reading: false, available: true };
+	assert.equal(dashboardTileValue({ ...answeredEmptyCampus, measured: '0 of 0' }), '0 of 0', 'a measured zero is a fact, not an absence');
+	assert.equal(dashboardTileValue({ ...answeredEmptyCampus, measured: 0 }), '0', 'and for the count tiles too');
+	// The same `0 of 0` with the read still in flight is NOT a fact.
+	assert.equal(dashboardTileValue({ loading: false, reading: true, available: true, measured: '0 of 0' }), '\u2014');
+	// And with the campus read failed, it is not a fact either.
+	assert.equal(dashboardTileValue({ loading: false, reading: false, available: false, measured: '0 of 0' }), '\u2014');
+
+	// `null` is never a figure; `undefined` is never a figure; an answer is a figure.
+	assert.equal(dashboardTileValue({ ...answeredEmptyCampus, measured: null }), '\u2014');
+	assert.equal(dashboardTileValue({ ...answeredEmptyCampus, measured: undefined }), '\u2014');
+	assert.equal(dashboardTileValue({ ...answeredEmptyCampus, measured: 21 }), '21');
+	assert.equal(dashboardTileValue({ ...answeredEmptyCampus, measured: '78 of 78' }), '78 of 78');
+
+	// The normal loading beat is unchanged, so the settled screen is untouched by this rule.
+	assert.equal(dashboardTileValue({ loading: true, reading: true, available: false, measured: null }), '\u2026', 'a read in flight shows an ellipsis, never a dash or a number');
+});
+
+test('A9C8-FA: all four tiles route through the one rule, so the hole cannot reopen on the fifth', () => {
+	// The defect reached three of four tiles because three of them decided for themselves.
+	// One function, four call sites, and a fourth tile added later has nowhere else to go.
+	const callSites = [...DASHBOARD_CODE.matchAll(/dashboardTileValue\(\{/g)];
+	assert.equal(callSites.length, 4, 'every stat tile must decide its figure through the tested rule');
+	assert.doesNotMatch(
+		DASHBOARD_CODE,
+		/label: '(Sections|Subjects|Teachers|Teaching Rooms)', value: loading \?/,
+		'a tile must not hand-roll its own value ternary again',
+	);
+	// The rule is SHARED, not copied: the campus panel's own figure was the last `0 of 0` on
+	// that screen, and it is in a component the Dashboard imports — so the rule lives in
+	// `@/lib/dashboard-figure` and both sides import it. A second copy would be the defect.
+	assert.match(DASHBOARD_CODE, /from '@\/lib\/dashboard-figure'/, 'the Dashboard must import the shared rule, not define it');
+	assert.match(CAMPUS_PANEL_CODE, /from '@\/lib\/dashboard-figure'/, 'and so must the campus panel');
+	assert.match(CAMPUS_PANEL_CODE, /dashboardFigure\(\{ loading, reading: false, available: buildings\.length > 0, measured: teachingRoomsFigure\(teachingRooms\) \}\)/,
+		'the panel figure is gated on HAVING a room list, so a measured zero still prints and an absent list prints nothing');
+	// Re-rendering the blocked state with only the ROOM figure fixed left `BUILDINGS 0` on the
+	// same card, so the building count is gated by the same rule and asserted here.
+	assert.match(CAMPUS_PANEL_CODE, /dashboardFigure\(\{ loading, reading: false, available: buildings\.length > 0, measured: teachingBuildings\.length \}\)/,
+		'the building count is gated the same way — a school it cannot read has no building count to print');
+	assert.equal(
+		[...CAMPUS_PANEL_CODE.matchAll(/dashboardFigure\(\{/g)].length,
+		2,
+		'both panel figures go through the shared rule',
+	);
+	assert.equal(
+		dashboardFigure({ loading: false, reading: false, available: false, measured: '0 of 0' }),
+		'\u2014',
+		'the panel with no room list prints nothing, which is the state QA captured',
+	);
+	assert.equal(
+		dashboardFigure({ loading: false, reading: false, available: true, measured: '0 of 0' }),
+		'0 of 0',
+		'a school that really has buildings and no teaching rooms still prints its measured zero',
+	);
+});
+
+/* ───────────────────────── F-B: the deleted read cannot be re-typed back in (QA R1) ───────────────────────── */
+
+test('A9C8-FB: every re-typing of the deleted read is caught by the guard, including the one that beat it', () => {
+	for (const snippet of F2_RE_TYPED) {
+		assert.match(snippet, F2_DELETED_READ_GUARD, `the guard must catch: ${snippet.slice(0, 70)}…`);
+	}
+	// The discriminator. The OLD guard is `atlasApi\.get[^;\n]*violations`, and the generic
+	// type argument QA re-typed contains semicolons, so the old guard MISSES it while the
+	// new one catches it. This is why the pattern was replaced and not merely re-spelled.
+	const OLD_GUARD = /atlasApi\.get[^;\n]*violations/;
+	assert.doesNotMatch(F2_RE_TYPED[1], OLD_GUARD, 'the previous guard is defeatable — the shape that beat it is still in the table');
+	assert.match(F2_RE_TYPED[1], F2_DELETED_READ_GUARD, 'and the replacement catches it');
+	// The guard must also be OFF the live source, in the hook and in the page: the read is
+	// gone, not merely moved out of the file this guard happens to read.
+	assert.doesNotMatch(HOOK_CODE, F2_DELETED_READ_GUARD, 'the hook must not issue the deleted read');
+	assert.doesNotMatch(DASHBOARD_CODE, F2_DELETED_READ_GUARD, 'nor may the page re-introduce it');
+	// The guard must not be narrowed to a path that only one call site would use. Compared as	// a STRING, not a regex: `RegExp.source` for this pattern is the text `runs\/latest\/violations`,
+	// backslashes included, and writing that comparison as a regex literal parses `/runs\\/` as a
+	// complete pattern followed by a stray identifier.
+	assert.equal(F2_DELETED_READ_GUARD.source, 'runs\\/latest\\/violations', 'the guard names the URL, not a caller spelling');
 });
 
 /* ───────────────────────── the reading is real, not a source grep ───────────────────────── */
