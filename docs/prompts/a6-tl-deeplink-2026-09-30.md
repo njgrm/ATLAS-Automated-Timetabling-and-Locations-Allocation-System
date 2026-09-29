@@ -63,9 +63,19 @@ applied exactly once against the loaded lists, then is consumed.
 | E4 | Subjects → Delete subject dialog — `DeleteSubjectDialog.tsx:275` | `/teaching-load?subjectId=N` | subject N focus applied and in view (today: ignored) |
 | E5 | Subject coverage — `SubjectCoverageSheet.tsx:303,327,357`; `Dashboard.tsx:277,564`; `Audit.tsx:501` | `/teaching-load?view=subjects&subjectId=N&filter=missing-coverage` | coverage view narrowed to the **uncovered** sections for subject N (today: `filter` ignored) |
 | E6 | Class Schedule blocker — `TimetableSimpleHeader.tsx:148-156` | `/teaching-load?facultyId&sectionId&subjectId&task=missing-load` | class in view + its teacher (today: load-order loss) |
-| E7 | Class Schedule owner repair — `ScheduleReviewWorkspace.tsx:498-511` | `/teaching-load?facultyId&sectionId&subjectId&task=change-owner&returnTo=…` | class + its own teacher in view |
+| E7 | Class Schedule owner repair — `ScheduleReviewWorkspace.tsx:498-511` | `/teaching-load?facultyId&sectionId&subjectId&task=change-owner&returnTo=…` | class + its own teacher in view — **PARTIAL 2026-09-30 (R1/F2):** the class's own teacher is landed and proven; the class itself is **excluded**, not claimed, because `change-owner` resolves to teacher mode (contract pinned by `useTeachingLoadRouteIntent-change-owner-a2.test.ts` R1/R2) and teacher mode renders no section row. The link's `sectionId`/`subjectId` are preserved on the landing target and applied to `ui.selectedSectionId`/`selectedSubjectId`, but not visible in teacher mode. |
 | E8 | Audit findings — `Audit.tsx:460,471,482,501` | `/teaching-load?facultyId&subjectId`, `?subjectId`, `?facultyId`, `?sectionId&subjectId` | each named target reached |
 | E9 | In-page repair queue — `useTeachingLoadRepairQueue.ts:506-535` (`Assign teaching load` / `Move classes` / `Review temporary` primary button, item select, next-teacher step) | button click | teacher selected, scrolled, focused; Assign opens the editor |
+
+**Known asymmetry (F3, 2026-09-30, recorded not unified).** The URL path derives its
+landing target through `parseRouteIntent`, so a teacher deep link carries
+`viewMode:'teacher'`; the in-page repair path normalizes `viewMode:null`. Their
+consumed keys therefore differ (`teacher:9:-:-:-` vs `-:9:-:-:-`). That is
+deliberate — a URL entry and an in-page entry are separately consumable events —
+so the two paths are left as they are rather than unified into one key, which
+would let one path silently suppress the other. F1's `?facultyId=9&task=review`
+control stays inside the URL path, where both the mount and the rewrite parse at
+`viewMode:'teacher'` and the same key.
 
 ## 4. Tests (write them first; rendered, one row per entry)
 

@@ -18,6 +18,22 @@
  * target). `scrollIntoView` and `focus` are spied so R-b and R-c are asserted,
  * not assumed.
  *
+ * HONEST PARTIALS (recorded 2026-09-30, A6-TL-DEEPLINK R1 QA correction):
+ *   - E7 "class + its own teacher in view" is PARTIAL. The teacher lands (proven
+ *     below). The class half is excluded, not met: `change-owner` resolves to
+ *     teacher mode — a contract pinned by the committed A2 row
+ *     `useTeachingLoadRouteIntent-change-owner-a2.test.ts` R1/R2 — and teacher
+ *     mode renders no section row. The exclusion is asserted in the E7 row and
+ *     in packet §3 E7, not silently skipped.
+ *   - X1 rewrites the URL to a DIFFERENT query string (`?facultyId=9&task=review`)
+ *     that parses to the SAME landing-target key, so the URL-key short-circuit
+ *     cannot hide the consumption guard. The row asserts that precondition, and
+ *     the QA mutation control (guard disabled → X1 fails) is recorded in the
+ *     cycle handoff.
+ *   - F3 known asymmetry (recorded in packet §3): the URL path's target carries
+ *     `viewMode:'teacher'` while the in-page repair path normalizes `viewMode:null`;
+ *     they are different entries and deliberately consume by distinct keys.
+ *
  * Run: `npm run test:a6-tl-deeplink` (wired in atlas-client/package.json in the
  * same commit, and added to `test:client-suite`).
  */
@@ -284,6 +300,10 @@ const { MemoryRouter, useSearchParams } = await import('react-router-dom');
 const { TooltipProvider } = await import('@/ui/tooltip');
 const { setLocalToken } = await import('@/lib/auth');
 const { default: TeachingLoad } = await import('@/pages/TeachingLoad');
+// F1: the intent parser and the landing-target key, so X1 can ASSERT that its
+// rewrite is a different URL string parsing to the SAME landing target.
+const { parseRouteIntent } = await import('@/hooks/useTeachingLoadRouteIntent');
+const { landingTargetKey, normalizeLandingTarget } = await import('@/hooks/useTeachingLoadLanding');
 
 const roots: any[] = [];
 const hosts: HTMLElement[] = [];
@@ -434,14 +454,33 @@ test('E6 ?facultyId=15&sectionId=142&subjectId=6&task=missing-load lands the tea
 	assert.ok(host.querySelector(`#subject-${SUBJECT_MATH}`), 'E6: the named subject is in view inside the opened editor');
 });
 
-// ── E7: change-owner keeps the class and lands its own teacher ───────────────
-test('E7 ?facultyId=9&sectionId=141&subjectId=6&task=change-owner lands its own teacher', async () => {
+// ── E7: change-owner lands its own teacher — "class in view" is an honest PARTIAL ─
+//
+// E7 PARTIAL, recorded 2026-09-30 (A6-TL-DEEPLINK R1, F2). The packet's E7 target
+// is "class + its own teacher in view". The landed teacher IS demonstrated below.
+// The "class in view" half is NOT met in teacher mode and is deliberately not
+// claimed: `change-owner` resolves to `viewMode: 'teacher'` (a contract pinned by
+// the committed A2 row `useTeachingLoadRouteIntent-change-owner-a2.test.ts` R1/R2,
+// which requires the class's own teacher to be selected), the page mounts the
+// Teacher grid (no Sections grid), and no editor opens for `change-owner`. The
+// link's `sectionId`/`subjectId` ARE preserved on the landing target and applied
+// to `ui.selectedSectionId`/`selectedSubjectId`, but teacher mode renders no
+// section row to see them on. This is the honest disposition in place of a row
+// that would assert a class the screen is not showing.
+test('E7 (PARTIAL: teacher landed; class-in-view excluded — see the note above) ?facultyId=9&sectionId=141&subjectId=6&task=change-owner lands its own teacher', async () => {
 	reset();
 	const host = await mount(`/teaching-load?facultyId=${TEACHER_ENTRY}&sectionId=${SECTION_A}&subjectId=${SUBJECT_MATH}&task=change-owner`);
 	const row = teacherRow(host, TEACHER_ENTRY);
 	assert.ok(row, 'E7: the class\'s own teacher row did not render');
 	assert.ok(isSelected(row), 'E7: the class\'s own teacher is selected');
 	assert.ok(focused(row), 'E7: and focused — the preserved change-owner intent still lands');
+	// The excluded half, asserted as EXCLUDED (not silently skipped): the change
+	// calendar-owner view is teacher mode, so no section row is rendered.
+	assert.equal(
+		host.querySelector(`#teaching-load-section-row-${SECTION_A}`),
+		null,
+		'E7 PARTIAL: teacher mode renders no section row, so "class in view" is excluded by the A2 change-owner contract',
+	);
 });
 
 // ── E8: Audit findings — each named target is reached ───────────────────────
@@ -484,6 +523,9 @@ test('X1 after E2 arrives, selecting another teacher is never overridden by the 
 	const host = await mount(`/teaching-load?facultyId=${TEACHER_ENTRY}`);
 	assert.ok(isSelected(teacherRow(host, TEACHER_ENTRY)), 'X1: precondition — the entry target landed');
 
+	const mountIntent = parseRouteIntent(new URLSearchParams({ facultyId: String(TEACHER_ENTRY) }));
+	const rewriteIntent = parseRouteIntent(new URLSearchParams({ facultyId: String(TEACHER_ENTRY), task: 'review' }));
+
 	// The operator edits ANOTHER teacher: the explicit `Edit assignments` control
 	// selects it without opening the read-only profile.
 	const otherRow = teacherRow(host, TEACHER_OTHER);
@@ -496,9 +538,35 @@ test('X1 after E2 arrives, selecting another teacher is never overridden by the 
 	await flush();
 	assert.ok(isSelected(teacherRow(host, TEACHER_OTHER)), 'X1: a later render did not re-apply the entry target');
 
-	// …and a URL rewrite back to the entry URL must NOT re-apply the entry target.
+	// …and a URL rewrite must NOT re-apply the entry target.
+	//
+	// F1 (QA correction): the rewrite MUST be a DIFFERENT query string that parses
+	// to the SAME landing target. At base this row rewrote to `?facultyId=9` —
+	// byte-identical to the mount query — so the URL effect's
+	// `if (lastUrlKeyRef.current === key) return;` short-circuited and the
+	// CONSUMED guard was never reached: X1 passed even with the guard deleted.
+	// `?facultyId=9&task=review` is a distinct `searchParams.toString()` whose
+	// parsed target key excludes `task`, so it is the same target — the guard is
+	// now load-bearing. The precondition is asserted, not assumed.
+	const mountKey = landingTargetKey(normalizeLandingTarget({
+		viewMode: mountIntent.viewMode, facultyId: mountIntent.facultyId,
+		sectionId: mountIntent.sectionId, subjectId: mountIntent.subjectId,
+		missingCoverageOnly: mountIntent.filter === 'missing-coverage',
+	}));
+	const rewriteKey = landingTargetKey(normalizeLandingTarget({
+		viewMode: rewriteIntent.viewMode, facultyId: rewriteIntent.facultyId,
+		sectionId: rewriteIntent.sectionId, subjectId: rewriteIntent.subjectId,
+		missingCoverageOnly: rewriteIntent.filter === 'missing-coverage',
+	}));
+	assert.equal(rewriteKey, mountKey, 'X1 precondition: the rewrite parses to the SAME landing target key');
+	assert.notEqual(
+		new URLSearchParams({ facultyId: String(TEACHER_ENTRY), task: 'review' }).toString(),
+		new URLSearchParams({ facultyId: String(TEACHER_ENTRY) }).toString(),
+		'X1 precondition: the rewrite is a DIFFERENT query string (otherwise the URL-key short-circuit hides the guard)',
+	);
+
 	assert.ok(rewriteUrl, 'X1: the URL rewriter is mounted');
-	act(() => { rewriteUrl!(new URLSearchParams({ facultyId: String(TEACHER_ENTRY) })); });
+	act(() => { rewriteUrl!(new URLSearchParams({ facultyId: String(TEACHER_ENTRY), task: 'review' })); });
 	await flush();
 	assert.ok(isSelected(teacherRow(host, TEACHER_OTHER)), 'X1: a URL rewrite did not re-apply the consumed entry target');
 	assert.equal(isSelected(teacherRow(host, TEACHER_ENTRY)), false, 'X1: the entry target did not hijack the operator selection');
