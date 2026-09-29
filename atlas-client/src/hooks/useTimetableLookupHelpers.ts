@@ -87,10 +87,21 @@ export function useTimetableLookupHelpers({
 	const gradeForSection = useCallback((sectionId: number): number | null => {
 		const section = sectionMap.get(sectionId);
 		if (!section) return null;
-		// Use the shared resolver, NOT `displayOrder`: displayOrder is the section's
-		// order WITHIN its grade (Luna=1, Aguinaldo=2, …), so reading it as the grade
-		// labelled every Grade 10 section "Grade 1" and sorted it first.
-		// The resolver also normalizes EnrollPro's internal gradeLevelId (17→7 … 20→10).
+		// A2 c15 (B2): the ONE client authority reads `gradeLevelName` first, then
+		// `displayOrder` (only when it is a real grade, 7-12). It does NOT
+		// normalize the EnrollPro internal `gradeLevelId` any more: that id is an
+		// opaque FK which re-mints on every wipe (observed 5..8, then 17..20, then
+		// 1..4 as of 2026-09-28), and rescuing it here is exactly what let a
+		// section with no usable grade adopt another grade's shape. A section
+		// naming no real grade resolves to null.
+		//
+		// DISCLOSED DIVERGENCE (A2 c15 correction B2): the comment above this one
+		// used to claim `displayOrder` is a section's order WITHIN its grade
+		// (Luna=1, Aguinaldo=2). The measured staging surface contradicts that —
+		// `display_order` is 7..10 in every school year, i.e. the grade itself.
+		// That claim is not repeated here because the packet's measurement, not a
+		// hand-written fixture, is the authority. Any site that relied on the
+		// within-grade reading is a follow-up row, named in the handoff.
 		return resolveSectionGradeNumber(section);
 	}, [sectionMap]);
 

@@ -348,7 +348,15 @@ test('7.2 e regression: `buildRoomProblemGroups` and `roomProblemSummary` behave
 		'None of its 2 rooms is marked as a teaching classroom, so no class can be held there.',
 		'the zero-teaching-rooms case still reads the way it did',
 	);
-	assert.deepEqual(roomProblemSummary(groups), { rooms: 2, buildings: 2 });
+	// A9 c8 CORRECTION (2026-09-29) — `roomProblemSummary` COUNTS WHAT THE LINE SAYS, and
+	// the live line said "0 rooms need something fixed, in 1 building" about the Annex, which
+	// has no teaching room at all, while counting a `needs-section` room as broken on a page
+	// that reports those rooms as ready. The GROUPING is unchanged and is still asserted
+	// above in full; only the summary's two numbers moved, and a third field now exists so
+	// the sentence can name a building with no room in its own words. See
+	// `a9-c8-dashboard-truth.test.ts` (F4) for the corrected contract.
+	assert.deepEqual(roomProblemSummary(groups), { rooms: 1, buildings: 2, buildingsWithoutTeachingRooms: 1 });
+	assert.equal(groups[0].problems.length, 2, 'the per-group detail is UNCHANGED: the needs-section room is still named under the group, it is just not counted as a room needing a fix');
 
 	// The ORDER of the problems region must not have been taken from the new comparator.
 	// This is stated as a discrimination check: a comparator-aware region would put

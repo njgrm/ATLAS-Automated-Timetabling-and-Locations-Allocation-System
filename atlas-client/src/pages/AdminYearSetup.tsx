@@ -72,7 +72,14 @@ function YearTruthBanner({ schoolId, nonce, onRetry }: { schoolId: number; nonce
 		// guaranteed the server's unverified default, so this banner could
 		// report the active term unresolved while the header beside it said the
 		// year was active.
-		resolveActiveTermAuthority(schoolId, () => cancelled)
+		//
+		// A3 p1 — the second parameter is the caller's LIVENESS: `true` KEEPS the
+		// read. `{ isStillCurrent: () => !cancelled }` therefore means exactly what
+		// `() => cancelled` meant under the old discard parameter, so this page's
+		// meaning is UNCHANGED. It is spelled out because Teacher Preferences had
+		// the opposite sense at the same boundary and silently disabled its whole
+		// write path.
+		resolveActiveTermAuthority(schoolId, { isStillCurrent: () => !cancelled })
 			.then((resolution) => {
 				if (cancelled) return;
 				if (resolution == null) return;

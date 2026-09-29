@@ -10,11 +10,10 @@
  * Both are recorded rather than one being "corrected", because a cap that is checked with two
  * different counters is a cap that will eventually be checked wrong.)
  *
- * The filter row moves out whole: the four filters, the `More filters` disclosure's contents and
- * the conditional `Reset filters` button. What does NOT move is the disclosure decision — how
- * many filters are always visible versus behind `More` is a page question about layout, not
- * about how a control looks, and A3-15's `primaryFilterCount` behaviour in
- * `AdminSearchFilterToolbar` is unchanged by this slice.
+ * The filter row moves out whole: the four filters, the disclosure's contents and
+ * the conditional `Reset filters` button. What does NOT move is the layout decision — how
+ * many filters are always visible versus behind a disclosure — which A5 c8 settled for the
+ * whole product: ALL of them, in one wrapping row, with no disclosure anywhere.
  *
  * BEFORE: four Radix `@/ui/select` triggers at `h-10 w-44 text-sm bg-background` and
  * `h-10 w-36 text-sm bg-background` — a taller, wider, larger-type control than every other
@@ -28,9 +27,22 @@
  * `All grades`, `Grade {n}`. The accessible names keep the long form, and
  * `data-testid="teachers-grade-filter"` is preserved so the committed suites that reach for it
  * keep working.
+ *
+ * A5 c8 (2026-09-29) — TWO THINGS CHANGED IN THIS FILE, both subtraction.
+ *
+ *   1. The `Reset filters` BUTTON IS GONE from here. It is `FilterBar`'s single
+ *      `onReset` control now, rendered at the end of the same row with the same
+ *      ghost chrome, and this page's `hasActiveFilters` / `onClearAllFilters` feed
+ *      it through the bar's props. Two reset controls on one row is the "two
+ *      controls that say the same thing" `AGENTS.md` §8 forbids, and the props
+ *      stay on `FacultyFilterRow` only as far as the bar needs them — which is not
+ *      at all, so they are gone too.
+ *   2. The fragment this file returns is unchanged (`<>…</>`): it is a set of
+ *      sibling PICKERS, and `FilterBar` is what gives them a row. The row is not
+ *      this file's to build, which is the whole point of §3's "no page may be left
+ *      with two filter-bar implementations".
  */
 import { FilterPicker } from '@/ui/filter-picker';
-import { Button } from '@/ui/button';
 import { GRADE_OPTIONS } from '@/lib/subject-constants';
 import { departmentLabel } from '@/lib/deped-glossary';
 
@@ -45,8 +57,6 @@ export type FacultyFilterRowProps = {
 	onDepartmentFilterChange: (value: string) => void;
 	gradeLevelFilter: number | 'all';
 	onGradeLevelFilterChange: (value: number | 'all') => void;
-	hasActiveFilters: boolean;
-	onClearAllFilters: () => void;
 };
 
 export function FacultyFilterRow({
@@ -59,13 +69,12 @@ export function FacultyFilterRow({
 	onDepartmentFilterChange,
 	gradeLevelFilter,
 	onGradeLevelFilterChange,
-	hasActiveFilters,
-	onClearAllFilters,
 }: FacultyFilterRowProps) {
 	return (
 		<>
 			<FilterPicker
 				name="Roster"
+				width="auto"
 				ariaLabel="Filter by teacher roster state"
 				value={schedulingFilter}
 				onValueChange={onSchedulingFilterChange}
@@ -77,6 +86,7 @@ export function FacultyFilterRow({
 			/>
 			<FilterPicker
 				name="Load"
+				width="auto"
 				ariaLabel="Filter by teaching load state"
 				value={assignmentFilter}
 				onValueChange={onAssignmentFilterChange}
@@ -89,6 +99,7 @@ export function FacultyFilterRow({
 			{departments.length > 0 && (
 				<FilterPicker
 					name="Department"
+					width="auto"
 					ariaLabel="Filter by department"
 					value={departmentFilter}
 					onValueChange={onDepartmentFilterChange}
@@ -103,6 +114,7 @@ export function FacultyFilterRow({
 			)}
 			<FilterPicker
 				name="Grade"
+				width="auto"
 				ariaLabel="Filter by grade taught"
 				value={String(gradeLevelFilter)}
 				onValueChange={(v) => onGradeLevelFilterChange(v === 'all' ? 'all' : Number(v))}
@@ -112,16 +124,6 @@ export function FacultyFilterRow({
 				]}
 				dataTestId="teachers-grade-filter"
 			/>
-			{hasActiveFilters && (
-				<Button
-					variant="ghost"
-					size="sm"
-					className="px-3 text-sm text-muted-foreground hover:text-foreground font-semibold"
-					onClick={onClearAllFilters}
-				>
-					Reset filters
-				</Button>
-			)}
 		</>
 	);
 }

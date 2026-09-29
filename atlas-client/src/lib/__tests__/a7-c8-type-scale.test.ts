@@ -497,25 +497,25 @@ test('A7C8-6: no arbitrary sub-14px font size outside the dated, owner-tagged ra
  * in the same commit that removes the occurrence, so the retirement is a recorded
  * event rather than a silent drift.
  *
- *   ALLOWLIST (recorded 2026-09-29, A7 C8 SLICE 1)
- *  1. components/admin-workspace/AdminWorkspace.tsx
+ *   ALLOWLIST (recorded 2026-09-29, A7 C8 SLICE 1) — NOW EMPTY.
+ *   1. components/admin-workspace/AdminWorkspace.tsx
  *        - a help-tour step whose body names the control in prose
  *        - the rendered `More filters` trigger label
- *   (components/subjects/SubjectFilterToolbar.tsx was ALSO here when this slice
- *    started — A5 C7, which has since landed on main (fef3f77a / 78ef01c4), moved
- *    /subjects to one always-inline filter row and deleted that `moreFiltersLabel`
- *    disclosure. That removal is the recorded event this ratchet exists to force, so
- *    the entry is now gone and a reintroduced subjects `More filters` fails the row.)
- *   OWNER: A5 C8, which deletes every `More filters` disclosure in favour of
- *   always-inline filters. When A5 C8 lands, DELETE the AdminWorkspace entry here in
- *   that same commit and this row becomes a hard fail on the empty set. Do not widen
- *   this list.
+ *   2. components/subjects/SubjectFilterToolbar.tsx
+ *        - deleted by A5 C7 (fef3f77a / 78ef01c4), which moved /subjects to one
+ *          always-inline filter row
+ *
+ *   A3 c17 (2026-09-29) — THE LAST ENTRY IS GONE. A5 C8 has now landed on main
+ *   and deleted the AdminWorkspace `More filters` disclosure, which is exactly the
+ *   recorded event this ratchet exists to force. The list is therefore EMPTY and
+ *   this row is now a HARD FAIL on any occurrence at all — which is what the row's
+ *   own contract above promised. Filters are always inline; there is no disclosure
+ *   to put behind, so any new `More filters` is a regression with no owner to name.
+ *   Do not widen this list.
  */
-const MORE_FILTERS_ALLOWLIST_2026_09_29 = [
-	'components/admin-workspace/AdminWorkspace.tsx',
-];
+const MORE_FILTERS_ALLOWLIST_2026_09_29: string[] = [];
 
-test('A7C8-2: `More filters` exists only in its two recorded A5-C8-owned files', () => {
+test('A7C8-2: `More filters` exists nowhere — A5 C8 deleted the last disclosure', () => {
 	const hits = findInProduction(/More filters/);
 	const files = [...new Set(hits.map((h) => h.file))].sort();
 	assert.deepEqual(

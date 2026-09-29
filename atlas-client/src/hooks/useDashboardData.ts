@@ -4,7 +4,7 @@ import atlasApi from '@/lib/api';
 import { expireAtlasSession, getAtlasTokenEpochVersion, getPreferredAccessToken, subscribeAtlasTokenEpoch } from '@/lib/auth';
 import { countSubjectsWithMissingCoverage } from '@/lib/coverage';
 import { resolveActorSchoolId } from '@/lib/settings';
-import type { Building, SubjectCoverageSummary, ViolationReport } from '@/types';
+import type { Building, SubjectCoverageSummary } from '@/types';
 
 export type BuildingSetupStatus = {
 	done: boolean;
@@ -102,6 +102,17 @@ export function resolveDashboardRequestScope(actorSchoolId: number | null | unde
  * are TERM-FILTERED and include SOFT, so they are never a HARD count and are
  * never used here. When no run-wide count exists the truthful answer is
  * `null` (unavailable) — never `0`, which would read as "clean".
+ *
+ * A9 c8 — THIS IS NO LONGER A PRODUCTION READ. The Dashboard drove its
+ * "Timetable made and checked" row from a SECOND request for the same run's
+ * report while the readiness summary it had already received carried the
+ * canonical count, and the second read is the slower of the two: on the live
+ * drill the row read "made and checked" beside a `/timetable` that said there
+ * was no timetable for that year. `resolveRunWideCountsFromSummary` is what
+ * the Dashboard uses now. These two remain the client-side statement of what
+ * the server's `canonicalRunViolationCounts` computes, and
+ * `a9-c8-dashboard-truth.test.ts` pins the two against one fixture so the
+ * summary field and the report field cannot drift apart.
  */
 export function resolveRunWideHardViolationCount(
 	report: { counts?: { runWide?: { hard?: number; blockingHard?: number } } } | null | undefined,
@@ -120,8 +131,31 @@ export function resolveRunWideHardViolationCount(
 export function resolveRunWideSoftViolationCount(
 	report: { counts?: { runWide?: { soft?: number } } } | null | undefined,
 ): number | null {
-	const soft = report?.counts?.runWide?.soft;
-	return typeof soft === 'number' ? soft : null;
+	return typeof report?.counts?.runWide?.soft === 'number' ? report.counts.runWide.soft : null;
+}
+
+/**
+ * A9 c8 (F2) — the run-wide counts AS THE READINESS SUMMARY CARRIES THEM.
+ *
+ * `GET /dashboard/readiness-summary` already returns the canonical
+ * publication-allowlist HARD count (`generation.blockingHardCount`) and the
+ * run-wide SOFT advisory count (`generation.softViolationCount`) for the run it
+ * selected for the ACTIVE school year — the same year `/timetable` reads. The
+ * Dashboard used to re-request that run's report and re-derive both numbers, so
+ * one fact had two reads and two chances to disagree, and the slower read
+ * decided whether the row read "made and checked" or "could not check".
+ *
+ * One source, one definition, one number: the summary is the authority and this
+ * is the only place the Dashboard takes those two figures from. `null` stays
+ * `null` (unavailable) — never `0`, which would read as "clean".
+ */
+export function resolveRunWideCountsFromSummary(
+	summary: { generation?: { blockingHardCount?: number | null; softViolationCount?: number | null } } | null | undefined,
+): { hard: number | null; soft: number | null } {
+	return {
+		hard: typeof summary?.generation?.blockingHardCount === 'number' ? summary.generation.blockingHardCount : null,
+		soft: typeof summary?.generation?.softViolationCount === 'number' ? summary.generation.softViolationCount : null,
+	};
 }
 
 /**
@@ -311,8 +345,16 @@ export type DashboardData = {
 	sectionCount: number | null;
 	unassignedSubjectCount: number | null;
 	missingCoverageSubjectIds: number[] | null;
-	teachingRoomCount: number;
-	totalRoomCount: number;
+	/**
+	 * A9 c8 (F3) — GONE: `teachingRoomCount` and `totalRoomCount`.
+	 *
+	 * They were the Dashboard's `Teaching Rooms 78/103` tile: 78 teaching rooms over 103 rooms
+	 * in the school, printed as if it were a readiness fraction, beside the Campus page's
+	 * `78 of 78 teaching rooms are ready to be used for classes.` for the same rooms. The
+	 * school's total room count is a different population and is not a readiness number, so
+	 * the Dashboard now derives the ONE honest pair itself, from the same room list, through
+	 * `@/lib/teaching-room-readiness` — which `/map` and `/timetable` share.
+	 */
 	buildingSetupStatus: BuildingSetupStatus;
 	dataSource: 'live' | 'cached' | 'none';
 	activeSchoolYearId: number | null;
@@ -320,9 +362,9 @@ export type DashboardData = {
 	activeTerm: { activeTerm: string | null; termIndex: number | null } | null;
 	activeTermPublished: boolean | null;
 	activeTermUnassignedCount: number | null;
-	/** DASHBOARD-TRUTH-C01 — run-wide HARD blockers from the latest violation report; null = unavailable. */
+	/** DASHBOARD-TRUTH-C01 — run-wide HARD blockers for the run the SUMMARY resolved; null = unavailable. */
 	runWideHardViolationCount: number | null;
-	/** DASHBOARD-TRUTH-C01 — run-wide SOFT warnings from the same report; null = unavailable. */
+	/** DASHBOARD-TRUTH-C01 — run-wide SOFT warnings from that same summary; null = unavailable. */
 	runWideSoftViolationCount: number | null;
 	latestRunStatus: LatestRunStatus | null;
 	latestRunId: number | null;
@@ -340,6 +382,22 @@ export type DashboardData = {
 	readinessSourceState: DashboardReadinessSourceState;
 	readinessSourceMessage: string;
 	readinessResolvedAt: string | null;
+	/**
+	 * A9 c8 (F1) — TRUE while the readiness summary for the CURRENT actor school has not
+	 * answered yet. It is not an error state and it is not an empty state: nothing is known,
+	 * so nothing may be claimed from it.
+	 *
+	 * This is the distinction the live screen got wrong. `domainAvailability` starts as all
+	 * `false`, so a read that had not ARRIVED was indistinguishable from a read that had
+	 * FAILED, and `ReadinessCard` published "9 ATLAS COULD NOT CHECK" beside a working
+	 * system for as long as the request took (a 17.5 s event-loop stall on live). "Could not
+	 * check" is now earned only by a read that answered and failed; until then the screen
+	 * says it is reading, in the `checking_source` words it already owns.
+	 *
+	 * It is per-school, not per-request: a "Check for updates" refresh keeps the previous
+	 * snapshot visible, so it must not blank the region back to a reading state.
+	 */
+	readinessPending: boolean;
 	domainAvailability: DashboardDomainAvailability;
 	refreshDashboard: () => void;
 	retryActorScope: () => void;
@@ -385,13 +443,12 @@ export function useDashboardData(): DashboardData {
 	const [unassignedCount, setUnassignedCount] = useState<number | null>(null);
 	const [hardViolationCount, setHardViolationCount] = useState<number | null>(null);
 	const [derivedDemand, setDerivedDemand] = useState<DashboardDerivedDemandState | null>(null);
-	const [summaryTeachingRoomCount, setSummaryTeachingRoomCount] = useState<number | null>(null);
-	const [summaryTotalRoomCount, setSummaryTotalRoomCount] = useState<number | null>(null);
 	const [summaryBuildingSetupStatus, setSummaryBuildingSetupStatus] = useState<BuildingSetupStatus | null>(null);
 	const [summaryLifecyclePhase, setSummaryLifecyclePhase] = useState<LifecyclePhase | null>(null);
 	const [readinessSourceState, setReadinessSourceState] = useState<DashboardReadinessSourceState>('checking_source');
 	const [readinessSourceMessage, setReadinessSourceMessage] = useState('Checking readiness source.');
 	const [readinessResolvedAt, setReadinessResolvedAt] = useState<string | null>(null);
+	const [readinessPending, setReadinessPending] = useState(true);
 	const [domainAvailability, setDomainAvailability] = useState<DashboardDomainAvailability>(unavailableDomainAvailability());
 	const [refreshNonce, setRefreshNonce] = useState(0);
 	const boundActorRef = useRef<number | null>(null);
@@ -416,13 +473,14 @@ export function useDashboardData(): DashboardData {
 		setActiveSchoolYearId(cleared.activeSchoolYearId);
 		setActiveSchoolYearLabel(cleared.activeSchoolYearLabel);
 		setDomainAvailability(cleared.domainAvailability);
+		// A9 c8 (F1) — a cleared domain state has no answer behind it, so the screen must
+		// return to "reading" rather than keep publishing a previous school's failures.
+		setReadinessPending(true);
 		setActiveTerm(null);
 		setActiveTermPublished(null);
 		setActiveTermUnassignedCount(null);
 		setRunWideHardViolationCount(null);
 		setRunWideSoftViolationCount(null);
-		setSummaryTeachingRoomCount(null);
-		setSummaryTotalRoomCount(null);
 		setSummaryBuildingSetupStatus(null);
 		setSummaryLifecyclePhase(null);
 	}, []);
@@ -547,14 +605,21 @@ export function useDashboardData(): DashboardData {
 				setLatestRunStatus(summary.generation.latestRunStatus);
 				setLatestRunId(summary.generation.latestRunId);
 				setBlockingHardCount(summary.generation.blockingHardCount);
-				setSummaryTeachingRoomCount(summary.campus.teachingRoomCount);
-				setSummaryTotalRoomCount(summary.campus.totalRoomCount);
+				// A9 c8 (F2) — the summary IS the authority for the run's counts. The
+				// second `runs/latest/violations` request is gone: one fact, one read, one
+				// number, and the row can no longer be decided by the slower of two reads.
+				const runCounts = resolveRunWideCountsFromSummary(summary);
+				setRunWideHardViolationCount(runCounts.hard);
+				setRunWideSoftViolationCount(runCounts.soft);
 				setSummaryBuildingSetupStatus(summary.campus.buildingSetupStatus);
 				setSummaryLifecyclePhase(summary.lifecyclePhase);
 				setReadinessSourceState(summary.sourceState);
 				setReadinessSourceMessage(summary.sourceMessage);
 				setReadinessResolvedAt(summary.resolvedAt);
 				setDomainAvailability(availabilityFromSummary(summary));
+				// A9 c8 (F1) — the read ANSWERED. Whether it failed is now a fact the
+				// screen may report; until this line runs there was nothing to report.
+				setReadinessPending(false);
 				setActiveTerm(
 					summary.activeTerm && summary.activeTerm.activeTerm
 						? { activeTerm: summary.activeTerm.activeTerm, termIndex: summary.activeTerm.termIndex }
@@ -583,22 +648,14 @@ export function useDashboardData(): DashboardData {
 							if (!cancelled) setActiveTermPublished(r.data?.source?.termScope === 'explicit' || r.data?.source?.termScope === 'active');
 						})
 						.catch(() => { if (!cancelled) setActiveTermPublished(null); });
-					// DASHBOARD-TRUTH-C01 — the report's top-level `violations` are
-					// TERM-FILTERED HARD+SOFT and it has no `totalCount`; the
-					// run-wide HARD/SOFT counts live on `counts.runWide`. Source the
-					// truthful counts from there and never relabel the term list.
-					atlasApi.get<ViolationReport>(`/generation/${schoolId}/${syIdForTerm}/runs/latest/violations`, { params: { termIndex } })
-						.then((r) => {
-							if (cancelled) return;
-							setRunWideHardViolationCount(resolveRunWideHardViolationCount(r.data));
-							setRunWideSoftViolationCount(resolveRunWideSoftViolationCount(r.data));
-						})
-						.catch(() => {
-							if (!cancelled) {
-								setRunWideHardViolationCount(null);
-								setRunWideSoftViolationCount(null);
-							}
-						});
+					// A9 c8 (F2) — the `runs/latest/violations` request that used to sit here
+					// is REMOVED, and nothing replaces it. Its two counts are already on the
+					// summary this screen received (`resolveRunWideCountsFromSummary`, above),
+					// computed server-side by the same `canonicalRunViolationCounts` predicate
+					// for the same run and the same active year that `/timetable` reads. A
+					// second read of one fact is a second chance to disagree with the page the
+					// row links to, and it was the slower of the two, so it decided the row
+					// while the summary was still in flight.
 					atlasApi.get<{ run?: { unassignedItems?: Array<{ termIndex?: number }> } }>(`/generation/${schoolId}/${syIdForTerm}/runs/latest`)
 						.then((r) => {
 							if (cancelled) return;
@@ -613,8 +670,10 @@ export function useDashboardData(): DashboardData {
 				} else {
 					setActiveTermPublished(null);
 					setActiveTermUnassignedCount(null);
-					setRunWideHardViolationCount(null);
-					setRunWideSoftViolationCount(null);
+					// A9 c8 (F2) — the run counts are deliberately NOT cleared here. They come
+					// from the summary, which answered: "there is no verified active term" is a
+					// fact about the TERM, and blanking the run's figures because of it is how
+					// an answered fact used to turn into "could not check".
 				}
 			})
 			.catch((error) => {
@@ -636,6 +695,11 @@ export function useDashboardData(): DashboardData {
 					lastSuccessSchoolIdRef.current = null;
 					resetDomainState();
 				}
+				// A9 c8 (F1) — the read ANSWERED, and the answer was a failure. THIS is the
+				// only state that earns "could not check", so the region must stop reading.
+				// It is set after `resetDomainState()` on purpose: a retained same-school
+				// snapshot is a settled screen, not a reading one.
+				setReadinessPending(false);
 				setDataSource(decision.retainSnapshot ? 'cached' : 'none');
 				setReadinessSourceState(decision.sourceState);
 				setReadinessSourceMessage(decision.sourceMessage);
@@ -648,16 +712,17 @@ export function useDashboardData(): DashboardData {
 		};
 	}, [refreshNonce, actorSchoolId, actorScopeResolved, resetDomainState]);
 
-	const totalRoomCount = useMemo(() => summaryTotalRoomCount ?? buildings.reduce((sum, b) => sum + b.rooms.length, 0), [buildings, summaryTotalRoomCount]);
-	const teachingRoomCount = useMemo(
-		() => summaryTeachingRoomCount ?? buildings.reduce(
-			(sum, b) => sum + (b.isTeachingBuilding !== false ? b.rooms.filter((r) => r.isTeachingSpace).length : 0),
-			0,
-		),
-		[buildings, summaryTeachingRoomCount],
-	);
+	// A9 c8 (F3) — the `totalRoomCount` / `teachingRoomCount` memos that fed the Dashboard's
+	// `78/103` tile are removed. The one honest pair now comes from
+	// `@/lib/teaching-room-readiness`, which `/map` renders from, so the two pages cannot
+	// print different room answers from the same room list.
 
 	const buildingSetupStatus = useMemo<BuildingSetupStatus>(() => {
+		// A9 c8 (F1) — nothing has been read yet, so nothing may be called unavailable.
+		// Without this the panel and the readiness hint would print "Campus readiness is
+		// unavailable" over a request that is still in flight — the same lie as "could not
+		// check", one region over.
+		if (readinessPending) return { done: false };
 		if (!domainAvailability.campus) return { done: false, subMessage: 'Campus readiness is unavailable.' };
 		if (summaryBuildingSetupStatus) return summaryBuildingSetupStatus;
 		const teachingBuildings = buildings.filter((b) => b.isTeachingBuilding !== false);
@@ -673,13 +738,18 @@ export function useDashboardData(): DashboardData {
 			else if (teachingBuildingsWithoutRooms.length > 0 && placeholderNamedBuildings.length > 0) {
 				subMessage = `${teachingBuildingsWithoutRooms.length} without rooms, ${placeholderNamedBuildings.length} need a name`;
 			} else if (teachingBuildingsWithoutRooms.length > 0) {
-				subMessage = `${teachingBuildingsWithoutRooms.length} building${teachingBuildingsWithoutRooms.length !== 1 ? 's' : ''} have no rooms`;
+				// A9 c8 (F3) — GRAMMAR. The live screen read "1 building have no rooms".
+				// `subMessage` is the string the Dashboard prints, the readiness row hints
+				// with, and the campus panel badges with, so the verb has to agree with the
+				// number. The server builds the same sentence in `summarizeCampus`; both are
+				// corrected, and the plural branch still reads "buildings have no rooms".
+				subMessage = `${teachingBuildingsWithoutRooms.length} building${teachingBuildingsWithoutRooms.length === 1 ? ' has' : 's have'} no rooms`;
 			} else if (placeholderNamedBuildings.length > 0) {
 				subMessage = `${placeholderNamedBuildings.length} building${placeholderNamedBuildings.length !== 1 ? 's' : ''} need a name`;
 			}
 		}
 		return { done, subMessage };
-	}, [buildings, summaryBuildingSetupStatus, domainAvailability.campus]);
+	}, [buildings, summaryBuildingSetupStatus, domainAvailability.campus, readinessPending]);
 
 	const lifecyclePhase = useMemo<LifecyclePhase>(() => {
 		if (summaryLifecyclePhase) return summaryLifecyclePhase;
@@ -723,8 +793,6 @@ export function useDashboardData(): DashboardData {
 		sectionCount,
 		unassignedSubjectCount,
 		missingCoverageSubjectIds,
-		teachingRoomCount,
-		totalRoomCount,
 		buildingSetupStatus,
 		dataSource,
 		activeSchoolYearId,
@@ -745,6 +813,7 @@ export function useDashboardData(): DashboardData {
 		readinessSourceState,
 		readinessSourceMessage,
 		readinessResolvedAt,
+		readinessPending,
 		domainAvailability,
 		refreshDashboard,
 		retryActorScope,

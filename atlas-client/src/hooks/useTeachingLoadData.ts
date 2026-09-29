@@ -465,6 +465,9 @@ export function useTeachingLoadData() {
 				schoolId: actorSchoolId,
 				forceRefresh,
 				allowEnrollProFallback: false,
+				// Hotfix 29 Sep: without this the server answers `atlas-persisted` (no EnrollPro check), which
+				// `isUpstreamBackedSchoolYearSource` rejects, so the page said "Teaching Load not verified" forever.
+				verifyUpstream: true,
 			});
 			const scope = teachingLoadScopeParams(actorSchoolId, schoolYearContext.activeSchoolYearId);
 			resolvedSchoolId = scope.schoolId;

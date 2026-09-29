@@ -7,6 +7,31 @@ changes.
 Last reconciled: 2026-09-26 (Lane A — fresh session; capacity, live-release identity, cross-lane debt and the
 credential incident re-derived. See the dated correction blocks in the Lane A section).
 
+## Lane A3 — current lane (written only by Planner A3)
+
+- **Stream:** p1 **Teacher Preferences Save** — **INTEGRATED on `main` at `effc8362`** (candidate `33d54706`;
+  range `7d894255...33d54706`, branch `fix/a3-prefs-save`). QA `ACCEPT_READY` 9/9/0/0 after one correction
+  round; one planner-applied pin commit included. **Client-only** — no server production, generation,
+  publication or migration file moved. **NOT deployed**; A4 owns the train. Handoff:
+  `docs/handoffs/lane-c-to-a2.md` (A3 → Lane C, 2026-09-29 22:50).
+- **Root cause (2026-09-29, proven on real staging data):** `resolveActiveTermAuthority`'s second parameter is a
+  *discard* predicate (`true` = obsolete) and `TeacherConcerns.tsx` passed its `isCurrent` closure, whose
+  `true` means the opposite. Every healthy term resolution was discarded, `schoolYearId` stayed `null`, the
+  availability read never fired, and Save/"Anything else" stayed disabled **with no on-screen reason** (the
+  term card is gated on `schoolYearId != null`). The term data was healthy throughout. Fixed at the contract:
+  a named `{ isStillCurrent }` option; a bare predicate is now a compile error (TS2345).
+- **Dated blocker for the operator's demo — 2026-09-29 14:44 UTC, measured on staging:** EnrollPro has rolled
+  over. `GET /api/v1/runtime/context?schoolId=1&verifyUpstream=true` returns `upstream.verified:false`,
+  `matched:false`, `activeSchoolYearId: 3 (2024-2025)`, `activeYearDrift.status:"atlas-stale"`,
+  `recommendedAction:"RUN_ROLLOVER_SYNC"`, `activeTerm.code:"ACTIVE_TERM_YEAR_MISMATCH"`. The same endpoint
+  returned a verified `T1` for ATLAS year 2 at 11:29 UTC the same day. So after this fix reaches live, Save
+  will still read disabled — now with the real reason named — **until the rollover/term-cache sync runs**.
+- **Next action (not A3's):** A4/operator — put `effc8362` in the next train, then run the rollover sync
+  (HIGH) before the demo. A3's remaining rows are release-acceptance only: one staging generation proving the
+  Unavailable slot stays empty, and in-repo rendered artifacts.
+- **Worktrees:** `E:/ATLAS-worktrees/lane-a3-prefs-save` (`PRESERVE_FOR_DECISION`),
+  `E:/ATLAS-worktrees/lane-a3-integration` (`RETIRE_AFTER_INTEGRATION`). `D:\ATLAS` never written.
+
 ## Writing protocol — four planner lanes share this file
 
 This file is co-maintained so three planners can work in parallel without a custody defect. The
@@ -487,6 +512,119 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **— LIVE: `8d98628d3829977db7dabffbbd720f8f4fc86a2b` @ DEPLOYED TO PRODUCTION 2026-09-29 22:40 +08 by Lane A4 —
+  operator-approved **retry** of the second hotfix. Rollback basis `9462d82d`.** This is the same code as the failed
+  `f4d34c75` (its parent) plus **one line**: `ops/runtime/runtime-contract.json` `readinessTimeoutMs` **45 000 ->
+  180 000**. **No rebuild** — the `dist` built for the failed attempt was reused verbatim.
+
+  | | |
+  |---|---|
+  | **LIVE** | **`8d98628d3829977db7dabffbbd720f8f4fc86a2b`** |
+  | **Live dir** | `E:\ATLAS-worktrees\lane-a4-hotfix-tl-prod`, branch `release/2026-09-29-10-hotfix-tl`, **fast-forwarded `f4d34c75` → `8d98628d`**, HEAD == pin, `status --short` empty, 0 reparse points, own dependency trees (209/155), 10 runtime campus uploads |
+  | **Listeners** | 5001 → **16084**, 5174 → **50512** |
+  | **Machine scope** | both runtime variables repointed to `-hotfix-tl-prod` / `8d98628d…`; task action **and** `Start In** both `-hotfix-tl-prod`, **Running**; `supervisor-state.json` `releaseSha: 8d98628d…` |
+  | **Rollback basis** | **`9462d82d3a57f87d9020784ed12850ef91024869`**, dir `E:\ATLAS-worktrees\lane-a4-hotfix-term-prod`. One-step supervised reset. |
+  | **Cold start** | supervisor launch → `All targets healthy` = **83.8 s** (`14:40:00.653Z` → `14:41:24.490Z`); `CUTOVER_STARTED` → first 200/200 on both ports **102.3 s**. **A 45 s budget could never have booted this release** (see the boot-time `hybrid-scheduler` ejection repair and a 33 200 ms event-loop stall). |
+  | **Cutover** | `deploy-runner.ps1` dry run first (`mutates: false`, lineage verified, `Assert-LiveReleaseRecorded` **passed**), then `-Execute` → **`CUTOVER_STARTED`**. Audit `C:\ProgramData\ATLAS\release-audit\8d98628d-20260929-223942\` |
+  | **Acceptance** | **DEPLOYED, all rows PASS.** 5001 ready **200**, 5174 ready **200**, Tailnet health **200** + ready **200**, DB-backed `GET /api/v1/subjects?schoolId=1` **200 (20 335 B)** · **chunk `index-BfzPMwrg.js` served on BOTH `http://127.0.0.1:5174/` and `https://njgrm.buru-degree.ts.net/`**, **200 (307 649 B)**, previous `index-BdvkYd2N.js` **404** · **true zero-write** — all **10 signature tables byte-identical** to the 22:39:12 pre-quiesce baseline, `audit_logs` **532/1171 unchanged with zero new rows**, **0 `prisma/`**, no generation/publication/cycle/term-cache write · **live-data invariant exactly 1 active mirror (`2024-2025`)** |
+  | **One transient, disclosed** | the first `5001/api/v1/health` probe errored **inside the boot-time 33 s event-loop stall**; **four consecutive re-probes returned 200** and readiness was 200 throughout. Liveness under a stall, not a boot failure. |
+  | **Cumulative vs `cd542245`** | 8 product paths (7 client Teaching Load + 1 server transaction timeouts) + 1 contract line, plus hotfix #1's 2 term-contract paths. The Teaching Load `Past years` / switch removal, the per-teacher `Show other subjects`, and the `P2028` transaction timeouts are all in this build. |
+  | **Evidence** | `docs/handoffs/lane-c-to-a2.md`, "A4 LIVE hotfix `8d98628d`" |
+
+  **Still UNPERFORMED by A4:** the rendered rows on `https://njgrm.buru-degree.ts.net` (Teaching Load surface, and a
+  real suggestion apply proving `P2028` is gone). Those are Lane C's browser acceptance rows, asserting
+  `window.location.origin`. **Train 11 should be cut from `main`** — `029e5425`, `75c068d6` and `b72571ba` already
+  carry these changes on newer `main` — and this hotfix chain retired afterwards.
+
+- **— CUTOVER TARGET (RETRY), recorded 2026-09-29 22:3x +08 by Lane A4 ahead of the operator-approved **retry** of the
+  second hotfix. Required by `deploy-runner.ps1` `Assert-LiveReleaseRecorded`, which fails closed without it. Target
+  release `8d98628d` (full `8d98628d3829977db7dabffbbd720f8f4fc86a2b`), rollback basis `9462d82d` (the incumbent,
+  currently live).** Branch `hotfix/rollover-term-20260929`. **Parent of `8d98628d` IS `f4d34c75`** - the exact tree
+  that failed to boot - so this retry carries **the same code** and changes only the budget.
+  **The cause of the rollback, as measured: `ops/runtime/runtime-contract.json` `readinessTimeoutMs: 45000`, and the
+  new tree needed ~80 s to boot under memory pressure.** `8d98628d` raises it to **`180000`** and touches **one
+  file, `ops/runtime/runtime-contract.json`, one line** - no product source, so the already-built `dist` and
+  `node_modules` from the failed attempt are reused verbatim (**no rebuild**): server `dist/server.js` present,
+  client entry chunk **`index-BfzPMwrg.js`**, server/client `node_modules` 209/155, **0 reparse points**,
+  10 runtime campus uploads.
+  Target tree `E:\ATLAS-worktrees\lane-a4-hotfix-tl-prod`, branch `release/2026-09-29-10-hotfix-tl`,
+  **fast-forwarded from `f4d34c75` to `8d98628d`**, HEAD == pin, `status --short` empty. The same 45 s -> 180 s
+  change is already on `main` as `029e5425`. Contract / supervisor / deploy-runner tests pass per the operator.
+  The hotfix chain still totals **8 product paths vs `9462d82d`** (7 client Teaching Load + 1 server transaction
+  timeouts) plus this 1 contract line, **0 `prisma/`**.
+
+- **— FAILED ATTEMPT (rolled back), 2026-09-29 22:28 +08 by Lane A4: the operator-approved SECOND HOTFIX
+  `f4d34c75` reached `CUTOVER_STARTED` but its tree never finished booting inside the supervisor's fixed
+  `readinessTimeoutMs: 45000`, twice (restart attempts 1 and 2), and both live listeners went absent. Rolled back
+  to `9462d82d` by restoring `task-before.xml` from audit `f4d34c75-20260929-222820\` plus the two machine runtime
+  variables. Downtime ~3 min 20 s; `9462d82d` verified healthy afterwards.** The **build was clean** (server `tsc` 0,
+  client `vite` 0, `term-contract-atlas-consumption-c02.test.ts` 9/9, 0 `prisma/`), and both discriminators were
+  proven on the artifacts before the cutover (entry chunk `index-BfzPMwrg.js` vs `index-BdvkYd2N.js`; `Show other
+  subjects` 1 vs 0; `Cross-subject` 0 vs 1; `timeout: 30_000, maxWait: 10_000` 3 sites vs 0). **Leading hypothesis
+  is host contention, not the code** - hotfix #1's own cold start was **43 s, only 2 s inside the 45 s budget**,
+  and eight lanes were running builds concurrently - but **that is NOT exoneration.** The built tree is retained at
+  `E:\ATLAS-worktrees\lane-a4-hotfix-tl-prod` (`f4d34c75`, branch `release/2026-09-29-10-hotfix-tl`, HEAD == pin)
+  as **PRESERVE_FOR_DECISION: do not retire**; it is the artifact the next staging boot must time. Full record and
+  the data note (nine content tables byte-identical; `audit_logs` +4 rows of **operator** activity, ids 1168-1171)
+  are in `docs/handoffs/lane-c-to-a2.md`, "SECOND HOTFIX `f4d34c75` FAILED TO START".
+
+- **— CUTOVER TARGET, recorded 2026-09-29 22:2x +08 by Lane A4 ahead of the **operator-approved SECOND HOTFIX** (not
+  train 11). Required by `deploy-runner.ps1` `Assert-LiveReleaseRecorded`, which fails closed without it. Target
+  release `f4d34c75` (full `f4d34c7565b58e9201639e33d9e42527d7c94f07`), rollback basis `9462d82d` (the incumbent,
+  currently live).** Branch `hotfix/rollover-term-20260929`. **`9462d82d` is verified an ancestor of `f4d34c75`**
+  (`git merge-base --is-ancestor 9462d82d f4d34c75` → true), reached via the intermediate `11f103ed`, so the target
+  is exactly *live + the two approved changes*:
+  (a) **client** `atlas-client/src/pages/TeachingLoad.tsx` + `TeacherGridMode.tsx` + `TeachingLoadFilterBar.tsx` +
+  4 test files — the `Past years` button is removed from under the header (the tools-menu item keeps the name), the
+  `Cross-subject` and `No subject match` switches are gone, and a per-teacher **`Show other subjects`** control is
+  in the load editor;
+  (b) **server** `teaching-load-suggestion-proposal.service.ts` — all **three** Serializable transactions
+  (`create`, `apply`, `cancel`) get **`timeout: 30_000, maxWait: 10_000`**, replacing Prisma's 5 s default that
+  produced live `P2028` at 22:17.
+  Target tree `E:\ATLAS-worktrees\lane-a4-hotfix-tl-prod`, branch `release/2026-09-29-10-hotfix-tl`, HEAD == pin,
+  `status --short` empty, own dependency trees (seeded from `-hotfix-term-prod` + `prisma generate`; server `tsc` 0,
+  client `vite` 0 with `VITE_ENROLLPRO_URL`), the incumbent's **10 runtime campus uploads** copied in.
+  **8 paths vs live, 0 `prisma/`.** Regression: `term-contract-atlas-consumption-c02.test.ts` **9 pass / 0 fail,
+  exit 0**, so hotfix #1's term fix is carried forward intact. New entry chunk **`index-BfzPMwrg.js`**, old
+  **`index-BdvkYd2N.js`**.
+
+- **— LIVE: `9462d82d3a57f87d9020784ed12850ef91024869` @ DEPLOYED TO PRODUCTION 2026-09-29 22:13 +08 by Lane A4 —
+  operator-approved HOTFIX (not train 11). Rollback basis `cd542245` (the incumbent).**
+
+  | | |
+  |---|---|
+  | **LIVE** | **`9462d82d3a57f87d9020784ed12850ef91024869`** (branch `hotfix/rollover-term-20260929`; parent **is** `cd542245`) |
+  | **Live dir** | `E:\ATLAS-worktrees\lane-a4-hotfix-term-prod`, branch `release/2026-09-29-10-hotfix-term`, HEAD == pin, `status --short` empty, 0 reparse points, own dependency trees (seeded from `-10prod` + `prisma generate`; server `tsc` 0, client `vite` 0) |
+  | **Listeners** | 5001 → **4060**, 5174 → **26472** (were 49120 / 47192) |
+  | **Machine scope** | both runtime variables repointed to `-hotfix-term-prod` / `9462d82d…`; task action **and** `Start In** both `-hotfix-term-prod`, **Running** |
+  | **Rollback basis** | **`cd54224522d44c39f8f3877134b08488541f415f`**, dir `E:\ATLAS-worktrees\lane-a4-release-20260929-10prod` @ HEAD == pin. One-step supervised reset. |
+  | **Scope** | **2 paths, both `atlas-server/src`**, **0 `prisma/`** → no migration (11 before and after) |
+  | **Cutover** | `deploy-runner.ps1` dry run first (`mutates: false`, `secretsPrinted: false`, supervisor lineage verified, `Assert-LiveReleaseRecorded` **passed**), then `-Execute` → **`CUTOVER_STARTED`**. Audit `C:\ProgramData\ATLAS\release-audit\9462d82d-20260929-221354\` |
+  | **Acceptance** | **DEPLOYED, all rows PASS.** Loopback + Tailnet health/ready **200** with DB-backed `GET /api/v1/subjects?schoolId=1` **200 (20 335 B)** · `tsx --test src/__tests__/term-contract-atlas-consumption-c02.test.ts` **9 pass / 0 fail, exit 0** · **zero write** — 10 signature tables byte-identical, baseline captured **22:13:35, before** the quiesce · **live-data invariant exactly 1 active mirror (`2024-2025`)** |
+  | **Discriminator — SERVER** | the hotfix bundle contains `if (suppliedIdentity === null \|\| suppliedIdentity === undefined)`, which is **absent** from the live `cd542245` bundle (`verified independently` 4 vs 3, `ACTIVE_TERM_UNRESOLVED` 6 vs 4) |
+  | **Discriminator — CLIENT** | **byte-identical by design.** `atlas-client/dist` is **218 files with an identical SHA-256** to `cd542245`, so the served entry chunk is legitimately still **`index-BdvkYd2N.js`** (200, 307 649 B). The hotfix changes no client byte, so the chunk-name test cannot discriminate here and is **not** claimed as proof — the server bundle is the proof. |
+  | **Data-portability fix** | the incumbent's **10 runtime campus uploads** (referenced by `schools.campus_image_url`) copied into the new tree before the cutover; `/atlas-server/uploads/` is in `.git/info/exclude`, so the target still passes `Get-GitIdentity`'s clean gate. |
+  | **Evidence** | `docs/handoffs/lane-c-to-a2.md`, "A4 LIVE hotfix 9462d82d" |
+
+  Supervisor log: `All targets healthy (liveness and dependency readiness)`, `DB connected, 2 school(s) found`,
+  `[rollover-automation] Disabled via ROLLOVER_AUTO_SYNC_ENABLED=false`. Cold start was ~43 s (Prisma init),
+  so the 60 s wait before health-checking is what made this cutover a PASS rather than a false alarm.
+
+- **— CUTOVER TARGET, recorded 2026-09-29 22:0x +08 by Lane A4 ahead of the **operator-approved HOTFIX** (not train
+  11). Required by `deploy-runner.ps1` `Assert-LiveReleaseRecorded`, which fails closed without it. Target release
+  `9462d82d` (full `9462d82d3a57f87d9020784ed12850ef91024869`), rollback basis `cd542245` (the incumbent, currently
+  live).** Branch `hotfix/rollover-term-20260929`, and the parent of `9462d82d` **is** `cd542245` — the hotfix is
+  live + exactly one server fix: an EnrollPro **200 with `activeTerm: null`** is now `UNRESOLVED /
+  ACTIVE_TERM_UNRESOLVED` instead of a contract failure, so a rolled-over year can save its terms.
+  Target tree `E:\ATLAS-worktrees\lane-a4-hotfix-term-prod`, branch `release/2026-09-29-10-hotfix-term`,
+  HEAD == pin, `status --short` empty, own dependency trees (seeded from `-10prod` + `prisma generate`; server
+  `tsc` 0, client `vite` 0 with `VITE_ENROLLPRO_URL`), the incumbent's **10 runtime campus uploads** copied in,
+  and `tsx --test src/__tests__/term-contract-atlas-consumption-c02.test.ts` = **9 pass / 0 fail, exit 0**.
+  **2 paths, both `atlas-server/src`, 0 `prisma/`.** The client `dist` is **byte-identical** to live (218 files,
+  identical SHA-256), so the served entry chunk is legitimately still `index-BdvkYd2N.js`; the discriminator for
+  this hotfix is the **server** bundle, where `if (suppliedIdentity === null || suppliedIdentity === undefined)`
+  is present and is **absent** from the live bundle.
+
 - **— LIVE: `cd54224522d44c39f8f3877134b08488541f415f` @ DEPLOYED TO PRODUCTION 2026-09-29 19:48 +08 by Lane A4
   (train 10) on the operator's GO after Lane C's staging walk. Rollback basis `e75d6b8f` (the incumbent).**
 
@@ -4972,6 +5110,18 @@ decidable from source. Worktrees `lane-a3-c10-{s1-sections,s3-tldensity,s4-teach
 
 ## Lane A5 — current lane (written only by Planner A5)
 
+- **✅ A5 c8 (UI foundation, "one filter bar everywhere, dropdowns that fit") is ON `main` at `dd8fcd98` as of 2026-09-29 ~22:0x +08. NOT deployed — A4 owns the release (§14).** **0 fixes live and seen / 1 integrated and rendered on real staging data / 0 dropped.** Candidate `ef1547cf`, range `316f967e..ef1547cf`, 25 paths; branch `work/a5-c8-filterbar`; worktree `lane-a5-c8-filterbar` (`KEEP_ACTIVE` until A4 deploys and Lane C walks). Client-only. Packet `docs/prompts/a5-c8-one-filter-bar-2026-09-29.md`; evidence `docs/reviews/a5-c8-filter-bar-20260929/` (walk report, `ux-audit-1366x768.json`, 18 screenshots). Channel post: `docs/handoffs/lane-c-to-a2.md`.
+  - **New shared `@/ui/filter-bar`.** Search (240px) then every filter, one left-aligned wrapping row, `gap-2`, one height token, no disclosure, no legend line inside the bar. Adopted on **`/subjects` `/sections` `/teachers` `/teaching-load` (each view) `/teaching-load/history` `/room-schedules` `/faculty/concerns` `/timetable` (Expert)**. `AdminSearchFilterToolbar` — the last holder of a `More filters` button, and of the help step that pointed at it — is DELETED, so no second filter bar remains.
+  - **Every `More filters` / `Filters` disclosure is gone from the product.** `/teaching-load`'s third row of `text-[11px]` uppercase badges, each restating a value the trigger beside it already showed, is deleted; `Clear all` is the single reset control.
+  - **Dropdowns fit.** Trigger follows its content (8rem floor, 22rem ceiling, face WRAPS rather than clips; no `truncate`, no `line-clamp-1`); menu at least as wide as the trigger and never under 18rem; items wrap; opens downward, portalled, 8px collision padding. Measured: `Home room: Home room assigned` 243px with `scrollWidth-clientWidth = 0` — **Lane C's "spills outside its select" is closed**; `Archived year: 2029-2030`'s ellipsis is closed (`School year: 2022-2023`, 188px).
+  - **Proof:** ux-audit capture over 12 rendered surfaces — **mojibake 0, `More filters` 0, `overflowing` 0, no sideways scroll, 1366×768 asserted on every page.** Fresh QA `CORRECTION_REQUIRED` 14/20: one real source defect (a `§` lost in a comment) fixed, one evidence gap (`/timetable` reported UNPERFORMED) CLOSED with rendered evidence — the bar renders in the **Expert** layout, which the first capture had not entered — and one reported finding reproduced as a false positive (the second `§` loss does not exist).
+  - **⚠ THE MERGE WITH A7 c8 WAS NOT MECHANICAL — A7 MUST READ THIS.** A7 moved the shared control height `h-9` → `h-10` while A5 c8's content-sized trigger carried a literal `min-h-9`; merged, every filter trigger would have rendered **4px shorter than every other control on the page**. Fixed at the root: `@/ui/picker-trigger` now exports `PICKER_CONTROL_MIN_HEIGHT_CLASS`, the `auto` variant composes it, and gate row **`A5-C8-B5b`** fails if the two tokens ever disagree. The same fix took `/teaching-load`'s switches off a page-local `h-9`, and the shared picker guard now matches a RE-DECLARATION rather than a mention (so composing the token is allowed; re-declaring it is still red). **The next lane that moves the height token must move both.**
+  - **Gates on the merged tree:** `test:ux-filter-bar` 15/15 · `test:a6-c8-subjects-coverage` 90/90 · `test:a6-c8-more-filters` 119 pass / 0 fail / 16 skipped · `test:a3-c10-tl-density` 9/9 · `test:encoding` 1/1 · client `tsc` unchanged at the 5 pre-existing errors (4 = missing hoisted `playwright` in junctioned `node_modules`, 1 in an untouched file). `test:client-suite`: 1311 tests, 42 fail, **zero new failures by name** vs a base extraction (fresh QA reproduced the direction independently).
+  - **Not A5 c8's rows, named so nobody re-reports them:** every sub-14px and sub-12px text row on `/sections` `/subjects` `/teachers` `/map` and the timetable grid is **A7 c8's type scale** (this range changes no font size, no `--theme`, no `index.css`); the sidebar brand truncation at 239px, `/sections`' double scroll + sticky paginator, the duplicate `CLOSE PROFILE`/`Close` and the modal primitive are Codex-sweep MINORs owned elsewhere.
+  - **Two judgement calls reserved to Lane C's older-user walk:** `/faculty/concerns` keeps its searchable combo-box rather than becoming a plain text search; `/room-schedules` has no search slot.
+  - **Next action for A5:** none until A4 deploys `dd8fcd98` and Lane C walks it. Worktree stays `KEEP_ACTIVE`; its `atlas-client/node_modules` is a JUNCTION to `lane-a5-c3-20260929` — `cmd /c rmdir` it before any `git worktree remove`, then re-count the donor.
+
+
 - **✅ A5 c7 (fix-3 items 43 + 44) is ON `main` at `78ef01c4` as of 2026-09-29 ~18:2x +08. NOT deployed — A4 owns the release (§14).** **0 fixes live and seen / 2 integrated, neither live / 0 dropped.** Candidate `fef3f77a` (proof is the merge `78ef01c4`); base `cf7defa2`; worktree `lane-a5-c7-subjects`; branch `work/a5-c7-subjects-filters-action-header`. Client-only, 8 code+test paths + 12 evidence files. Packet `docs/prompts/fix-3-2026-09-29.md` §A5 c7.
   - **43 — all five filters inline, `More filters` gone.** The `More filters` trigger, its popover, the `Refine the subjects shown` heading, the `(n)` count and the sliders icon are deleted; `Status`, `Room`, `Term` sit in the one cluster beside `Grade`/`Program`. **Measured on real staging data at 1366×768, 22 real subject rows:** all five at `top: 150` (one line), `scrollWidth == clientWidth` on every trigger, **0** buttons matching `/more filters/i`, `AdminWorkspace.tsx` and all of `@/ui` untouched. **This is a move, not a rewrite** — the Status/Room/Term picker bodies are character-identical to base, and every `shortLabels` map, `ariaLabel` and `dataTestId` survives.
   - **44 — the ACTION header survives scroll.** `thead` `z-10 → z-30`, its `bg-muted/90 backdrop-blur-md` → opaque `bg-muted`, and one `w-44 shrink-0 px-4` constant shared by the `th` and every `td` via a new `subject-action-column.ts`. **The `th`'s own `z-20` is deliberately deleted** — a child's `z-index` resolves inside the parent's stacking context, so it could never have worked. **Proof is a hit-test, not a class name:** at 1130px scrolled (16 rows past), all four `elementFromPoint` probes across the header's right edge return `TH` "ACTION", `insideTh: true`. On the base cascade the same probes return the row's `Review` `TD`, so the control **discriminates**. Header `z-30` vs body `td` `z-10`; `th` width 155.66px == every `td` 155.66px.
@@ -5796,6 +5946,50 @@ paths; the merged product files are byte-identical to the reviewed candidate.
   `node_modules` is a real directory, not a junction. Preview `:5262` (PID 2620) still running, mine to kill on request.
 - **Next action (single):** Lane C runs the deployed rows for `/sections` — three rows at 1366x768 and 1280x720, an
   assign-and-clear from the row picker, and a before/after row height — once A4 ships a train containing `7c2bc4b6`.
+
+## Lane A9 — c8 dashboard/campus truth, 2026-09-29 21:0x +08 (written only by Lane A9)
+
+**ON `main` at `4ad0bb77` (candidate `e7583433..2eb92ac4`, merged over the moving `main`). 0 fixes live and seen /
+4 fixes integrated and SEEN RENDERED on real staging data at 1366x768 / 0 dropped. NOT deployed — A4 owns every
+release (§14).** Packet `docs/prompts/a9-c8-dashboard-campus-truth-2026-09-29.md` (root cause measured by me, not
+guessed); evidence `docs/reviews/a9-c8-20260929/` (8 PNGs + before/after words); posted to
+`docs/handoffs/lane-c-to-a2.md`.
+
+- **The live "9 ATLAS COULD NOT CHECK" was the PENDING state, not a failed read.** `dashboard/readiness-summary`
+  answers **200 with all six domains `available:true`**; `useDashboardData` initialises every availability flag to
+  `false`, so a read that had not arrived yet rendered as a read that failed. Delaying that one request 12 s in the
+  browser reproduced Lane C's exact screen. Live is slow (log ~1.5 s best, a 17.5 s event-loop stall, a 22.7 s
+  sibling route) and there was no retry or timeout, so a slow read left the lie up. The pages had data because
+  they read their own endpoints.
+- **Fixed:** the reading state claims nothing (no count, no next step, no warning colour) and a genuine failure
+  still says "could not check" and now offers **Check again**; the duplicate `/runs/latest/violations` read is
+  deleted so the run row equals `/timetable` (6 problems / 696 advisories, same run); one room figure with one
+  definition — `78/103`, `7 ready`, `100%` and `0 teaching rooms ready` all become `78 of 78`, the same words `/map`
+  prints; the campus problems region counts rooms that need something **fixed** (not rooms merely not scheduled
+  yet) and names the building with no teaching room, so `0 rooms need something fixed, in 1 building` is
+  unrepresentable.
+- **QA:** round 1 `CORRECTION_REQUIRED` 34/36 — the BLOCKING finding was mine to take: the blocked-auth path
+  printed a fabricated `0 of 0` where the base printed `—` (and three more figures, per the executor). One bounded
+  correction replaced the hand-rolled ternaries with one shared, tested rule, and closed a defeatable test guard.
+  Round 2 `ACCEPT_READY` 16/16, blocked 0, unperformed 0, with F1 and F2 failing-first proofs QA reproduced itself.
+- **Gates on the merged tree:** `test:a9-c8-dashboard-truth` 17/17, `dashboard-truth-c01` 20/20,
+  `a9-c3-sections-rooms` 17/17, `ux-guardrails` 31/31, `test:encoding` 1/1; `tsc --noEmit` 5 errors, all proved
+  identical at base and none in a changed file. `ux-audit.js` `major: 0` on `/`, `/map`, `/timetable`.
+- **For A4 (dated 2026-09-29):** the `1 building **has** no rooms` grammar fix is in the **server** summary, so the
+  rendered string stays `have` until a cutover carries it — a post-deploy browser row. Everything else is client
+  and renders as soon as the client build ships.
+- **Follow-up rows, none blocking:** F-1 `CampusReadinessCard` gates on `buildings.length > 0`, so a school with a
+  measured zero buildings prints `—` in the panel while the tile above prints `0 of 0` (under-claims; needs the
+  campus availability flag threaded in). F-C `/map`'s room-list chips (`All rooms 103 · Ready 78 · Needs attention
+  0 · Unavailable 25`) still sit above a listed problem group — pre-existing, `roomReadinessCounts` untouched here.
+  F-E the app shell clips its first two sidebar lines at 1364 px on every page. The `/dashboard/readiness-summary`
+  *latency* itself is a separate performance item, not fixed by this cycle.
+- **Worktree** `E:/ATLAS-worktrees/lane-a9-c8-dashboard-truth` = **RETIRED 2026-09-29 21:1x +08** in the closure
+  that pushed `640958ab`: pushed, clean, `node_modules` a real directory (not a junction), non-forced removal, and
+  preview `:5240` was already gone with port 5240 free (no listener of mine left running).
+- **Next action (single):** A4 ships train 11 with `4ad0bb77` and runs the two post-deploy browser rows — the
+  settled Dashboard reading `78 of 78` beside `/map`'s identical figure, and the readiness hint reading
+  `1 building has no rooms` from the new server build.
 
 ## Lane A9 — TEACHING personnel only (written only by Lane A9)
 

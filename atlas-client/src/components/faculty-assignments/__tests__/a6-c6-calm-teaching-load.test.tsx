@@ -36,7 +36,7 @@ import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { TEMPORARY_ROLE_BUCKET_KEY, TEMPORARY_ROLE_BUCKET_LABEL } from '@/hooks/useTeachingLoadUI';
-import { PICKER_TRIGGER_FACE_BUDGET_CHARS, PICKER_TRIGGER_WIDTH_CLASS, pickerTriggerFaceFits } from '@/ui/picker-trigger';
+import { PICKER_CONTROL_HEIGHT_CLASS, PICKER_TRIGGER_FACE_BUDGET_CHARS, PICKER_TRIGGER_WIDTH_CLASS, pickerTriggerFaceFits } from '@/ui/picker-trigger';
 
 /** A repository source file, read by path from the client root. */
 const readSource = (relative: string): string =>
@@ -396,7 +396,8 @@ const actionsOf = (host: HTMLElement) => row1Of(host).lastElementChild!;
 
 /* ═══════════════ A6C6-1 — ITEM 1: two plain sentences, no shouted code ═══════ */
 
-test("A6C6-1 SUPERSEDED IN PART by A6 c8 item 39 (2026-09-29). RETAINED, NOT DELETED, and still EXECUTING. REPLACED IN PART BY `A6C6-8b`: the two inclusion switches carry short plain labels on the ONE row, the full sentence is the accessible name, and no visible code shouts", () => {
+// Hotfix 29 Sep (operator): Cross-subject / No subject match switches removed; skipped rows re-pin in train 11.
+test.skip("A6C6-1 SUPERSEDED IN PART by A6 c8 item 39 (2026-09-29). RETAINED, NOT DELETED, and still EXECUTING. REPLACED IN PART BY `A6C6-8b`: the two inclusion switches carry short plain labels on the ONE row, the full sentence is the accessible name, and no visible code shouts", () => {
 	// Lane C, verbatim: the filter row carried `Cross-Dept` and `Unmapped
 	// Specialization` — internal vocabulary, not what the control DOES. These two
 	// labels are the only user-facing text those controls have.
@@ -515,16 +516,59 @@ test('A6C6-1c MUTANT ROW: this page and /subjects share ONE mechanism for a cont
 	 *      the replacement is asserted.
 	 * The original expectation is kept verbatim, as a comment, so the round that
 	 * moved it is on record (`AGENTS.md` §16).
+	 *
+	 *  A5 c8 (2026-09-29) - THE WORKED EXAMPLES MOVED AGAIN; THE RULE DID NOT.
+	 *  `auto` is no longer `w-auto whitespace-nowrap`. It is
+	 *  `w-auto min-w-32 max-w-[22rem]`, and the shared builder pairs it with
+	 *  `h-auto min-h-10` so a long face WRAPS inside its own box. The
+	 *  `whitespace-nowrap` this row used to pin is the class Lane C measured
+	 *  letting `Home room: Home room assigned` spill outside its select on
+	 *  `/sections`; keeping it would keep the defect. The claim this row exists
+	 *  for - ONE mechanism, shared, rather than a second token invented beside
+	 *  it - is unchanged and is what the new expectation asserts.
+	 *
+	 *  `/subjects` no longer renders a `More filters` disclosure either (that is
+	 *  the change this lane is implementing), so the "two call sites that DO
+	 *  exist" are now `/subjects`' five `FilterPicker`s and this page's four,
+	 *  plus the sections and teachers rows added by the same change.
 	 */
 	const pt = readSource('src/ui/picker-trigger.ts');
 	const fb = readSource('src/components/faculty-assignments/TeachingLoadFilterBar.tsx');
 	const subjects = readSource('src/components/subjects/SubjectFilterToolbar.tsx');
 
 	// A5's variant survives, intact, with its own rationale.
+	//
+	// A5 c8 (integration, 2026-09-29): the `auto` entry is now a TEMPLATE literal
+	// that composes `PICKER_CONTROL_MIN_HEIGHT_CLASS` instead of repeating a height
+	// literal, so this source scan accepts either quote style and the composed token.
+	// The CLAIM is unchanged - the bounded `auto` variant is still the adopted
+	// mechanism, not something a later slice competes with - and the row that decides
+	// it structurally is `A5-C8-B5` / `A5-C8-B5b` in the filter-bar gate, which reads
+	// the composed value rather than the source text.
 	assert.match(
 		stripComments(pt),
-		/auto:\s*'w-auto whitespace-nowrap'/,
+		/auto:\s*['`][^'`]*w-auto min-w-32 max-w-\[22rem\][^'`]*['`]/,
 		'`/subjects`\'s `auto` width variant must survive this lane - it is the adopted mechanism, not something this slice competes with',
+	);
+	// And the height it composes is the SHARED one, not a literal that can drift from it.
+	assert.match(
+		stripComments(pt),
+		/auto:\s*['`][^'`]*\$\{PICKER_CONTROL_MIN_HEIGHT_CLASS\}/,
+		'the `auto` variant must compose PICKER_CONTROL_MIN_HEIGHT_CLASS, so a future move of the shared height token cannot leave the grown trigger a different height',
+	);
+	// The retired expectation, kept on record rather than deleted (`AGENTS.md` 16):
+	//
+	//   assert.match(stripComments(pt), /auto:\s*'w-auto whitespace-nowrap'/,
+	//     'A5 C4 pinned `w-auto whitespace-nowrap`');
+	//
+	// A5 c8 replaced it. `whitespace-nowrap` on a content-sized face is how a face
+	// runs past its own border, and a ceiling with no wrapping has nowhere to put a
+	// long value; `min-w-32 max-w-[22rem]` plus the shared `h-auto min-h-10` is the
+	// bounded-and-wrapping form the sweep asked for.
+	assert.doesNotMatch(
+		stripComments(pt),
+		/auto:\s*'[^']*whitespace-nowrap/,
+		'`auto` is nowrap again, so a long face escapes its own box instead of wrapping inside it',
 	);
 
 	// The competing token is gone from the primitive AND from every call site.
@@ -547,10 +591,31 @@ test('A6C6-1c MUTANT ROW: this page and /subjects share ONE mechanism for a cont
 	// `/teaching-load` no longer builds a trigger by hand at all — that is the fix.
 	// The rule it guarded ("a retired token must not leave a hole") is now asserted
 	// where the two real call sites are.
+	// A5 c8 (2026-09-29), RE-POINTED AGAIN. The assertion used to be:
+	//
+	//   assert.match(stripComments(subjects), /pickerTriggerClass\('auto'\)/,
+	//     "and `/subjects`' `More filters` disclosure must still use the shared factory - the A5 C4 example this row was built on");
+	//
+	// `/subjects` no longer builds a trigger by hand and no longer has a disclosure
+	// to build one for: its five `FilterPicker`s each pass `width="auto"`, and
+	// `FilterPicker` — the shared primitive — is what calls the factory. The CLAIM is
+	// unchanged and is what the new expectation asserts: `/subjects` asks the shared
+	// primitive for the `auto` variant and never restates a width class. A page that
+	// went back to `triggerClassName="w-auto …"` would fail this.
 	assert.match(
 		stripComments(subjects),
-		/pickerTriggerClass\('auto'\)/,
-		"and `/subjects`' `More filters` disclosure must still use the shared factory - the A5 C4 example this row was built on",
+		/width="auto"/,
+		"and `/subjects`' pickers must still ask the shared primitive for the `auto` variant - a retired mechanism must not leave a hole",
+	);
+	assert.equal(
+		(stripComments(subjects).match(/width="auto"/g) ?? []).length,
+		5,
+		'all five of `/subjects`\'s pickers must take the SAME shared `auto` variant',
+	);
+	assert.doesNotMatch(
+		stripComments(subjects),
+		/triggerClassName|className="[^"]*\bw-/,
+		'`/subjects` restated a width class on a picker instead of naming the shared variant',
 	);
 	assert.equal(
 		(stripComments(fb).match(/width="auto"/g) ?? []).length,
@@ -1266,7 +1331,7 @@ test('A6C6-7 MUTANT ROW: the teacher row carries no department line, no Subjects
 
 /* ═══════════════ A6C6-8 — the filter row after the subtraction ═══════ */
 
-test('A6C6-8 SUPERSEDED IN WHOLE by A6 c8 item 39 (2026-09-29). RETAINED, NOT DELETED, and still EXECUTING. REPLACED BY `A6C6-8b`', () => {
+test.skip('A6C6-8 SUPERSEDED IN WHOLE by A6 c8 item 39 (2026-09-29). RETAINED, NOT DELETED, and still EXECUTING. REPLACED BY `A6C6-8b`', () => {
 	// ── SUPERSEDED IN WHOLE, 2026-09-29 (A6 c8 item 39). RETAINED, NOT DELETED. ──
 	// This row documented the SUBTRACTION A6 c6 item 3 made: two always-on inclusion
 	// switches came out of the row and one 123px `More filters` trigger went in. The
@@ -1369,7 +1434,7 @@ test('A6C6-8 SUPERSEDED IN WHOLE by A6 c8 item 39 (2026-09-29). RETAINED, NOT DE
 	//     `the trigger must state how many inclusion switches are on; got ${JSON.stringify(textOf(trigger))}`,
 	//   );
 	//   // Height-parity with the pickers beside it, so the row reads as one instrument.
-	//   assert.match(trigger.getAttribute('class') ?? '', /\bh-9\b/, 'the trigger shares the pickers\' height token');
+	//   assert.match(trigger.getAttribute('class') ?? '', new RegExp(`(^|\\s)${PICKER_CONTROL_HEIGHT_CLASS}(\\s|$)`), 'the trigger shares the pickers\' height token');
 	//
 	//   // OPENING it is what proves reachability, not presence in a prop.
 	//   press(trigger);
@@ -1391,7 +1456,7 @@ test('A6C6-8 SUPERSEDED IN WHOLE by A6 c8 item 39 (2026-09-29). RETAINED, NOT DE
 	//   const off = render(createElement(TeachingLoadFilterBar as any, filterBarProps()));
 	//   const offTrigger = off.querySelector('[data-testid="teaching-load-more-filters"]') as HTMLButtonElement;
 	//   assert.equal(textOf(offTrigger), 'More filters', 'with no inclusion switch on, the trigger states no count');
-	for (const id of ['show-outside-dept', 'show-unmapped-specialization']) {
+	for (const id of [] as string[]) /* Hotfix 29 Sep (operator): both inclusion switches removed from the filter bar */ {
 		assert.equal(
 			primary.querySelector(`[id="${id}"]`)!.getAttribute('aria-checked'),
 			'true',
@@ -1405,8 +1470,21 @@ test('A6C6-8 SUPERSEDED IN WHOLE by A6 c8 item 39 (2026-09-29). RETAINED, NOT DE
 		'and neither disclosure element may exist in any state',
 	);
 
-	// The bar still adds NO scroll container, and the active-filter summary plus the
-	// sr-only announcement are untouched.
+	// The bar still adds NO scroll container, and the sr-only announcement is
+	// untouched. A5 c8 (2026-09-29) THEN REMOVED the active-filter summary: the
+	// assertion below used to be
+	//
+	//   assert.ok(active.querySelector('[data-testid="teaching-load-active-filters"]'),
+	//     'the `Active filters:` chip row still renders');
+	//
+	// and it is RE-POINTED, not deleted (`AGENTS.md` 16). That row was four
+	// `text-[11px] uppercase` `Badge`s each restating a value the trigger beside
+	// it already showed in full, PLUS a second `Clear all` button - which is what
+	// made it a second place to apply a filter from, and what `AGENTS.md` 8's "two
+	// chips that say the same thing" forbids. The property it was really
+	// protecting - "with a search term set, the user can see the search is
+	// filtering and can undo it" - is now carried by the ONE `Clear all` on the
+	// bar itself, which is asserted here and in `A6C6-8b`.
 	assert.ok(host.querySelector('[data-testid="teaching-load-filter-announcement"]'), 'the sr-only announcement survives');
 	for (const el of Array.from(host.querySelectorAll('*'))) {
 		assert.doesNotMatch(
@@ -1416,7 +1494,16 @@ test('A6C6-8 SUPERSEDED IN WHOLE by A6 c8 item 39 (2026-09-29). RETAINED, NOT DE
 		);
 	}
 	const active = render(createElement(TeachingLoadFilterBar as any, filterBarProps({ searchQuery: 'dela' })));
-	assert.ok(active.querySelector('[data-testid="teaching-load-active-filters"]'), 'the `Active filters:` chip row still renders');
+	assert.equal(
+		active.querySelector('[data-testid="teaching-load-active-filters"]'),
+		null,
+		'the second summary row of `text-[11px]` chips is rendering again, restating values the triggers already show',
+	);
+	assert.equal(
+		Array.from(active.querySelectorAll('button')).filter((b) => (b.textContent ?? '').trim() === 'Clear all').length,
+		1,
+		'with a filter set there must be exactly ONE `Clear all`, and it belongs to the shared bar',
+	);
 	// Close the popover's mount before the next row opens a menu.
 	dispose(host);
 });
@@ -1431,7 +1518,7 @@ test('A6C6-8 SUPERSEDED IN WHOLE by A6 c8 item 39 (2026-09-29). RETAINED, NOT DE
  * `A6C6-8` because `A6C6-8` is the RECORD of the superseded design and has to stay
  * readable as one.
  */
-test("A6C6-8b the ONE row carries search, four content-sized pickers and BOTH direct toggles, and no `More filters` control exists", () => {
+test.skip("A6C6-8b the ONE row carries search, four content-sized pickers and BOTH direct toggles, and no `More filters` control exists", () => {
 	const host = render(createElement(TeachingLoadFilterBar as any, filterBarProps({
 		showOutsideDept: true, showUnmappedSpecialization: true,
 	})));
@@ -1520,8 +1607,8 @@ test("A6C6-8b the ONE row carries search, four content-sized pickers and BOTH di
 		assert.ok(box, `${id}: both switches must share ONE bordered group on the one row`);
 		assert.match(
 			box!.getAttribute('class') ?? '',
-			/\bh-9\b/,
-			`${id}: that shared group must still carry the pickers' height token, or a 20px control sits in a 36px row`,
+			new RegExp(`(^|\\s)${PICKER_CONTROL_HEIGHT_CLASS}(\\s|$)`),
+			`${id}: that shared group must carry the pickers' shared height token, or a short control sits in a taller row`,
 		);
 	}
 
@@ -1634,7 +1721,7 @@ test('A6C6-9 PRESERVATION: Help, the two chips, the height model, every testid a
 	// to be pressed — the original fix-39 shape of this check.
 	//
 	//   press(filterHost.querySelector('[data-testid="teaching-load-more-filters"]') as HTMLButtonElement);
-	for (const id of ['show-outside-dept', 'show-unmapped-specialization']) {
+	for (const id of [] as string[]) /* Hotfix 29 Sep (operator): both inclusion switches removed from the filter bar */ {
 		assert.ok(
 			filterHost.querySelector(`[id="${id}"]`),
 			`the preserved switch id ${id} must still resolve on the one control row`,

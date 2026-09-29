@@ -615,7 +615,25 @@ export async function readCarryForwardSourceSnapshot(
 		sectionsByExternalId.set(section.externalId, {
 			sectionMirrorId: 0,
 			externalId: section.externalId,
-			// Authoritative grade from gradeLevelId; displayOrder is never grade truth.
+			// A2 c15 (2026-09-29) comment truthfulness, second pass. The former
+			// comment here read "Authoritative grade from gradeLevelId; displayOrder
+			// is never grade truth." The first half was already false: the
+			// authoritative grade is the EnrollPro grade NAME ("Grade 7"), because
+			// `grade_level_id` is an opaque FK that re-mints on every wipe (5..8, then
+			// 17..20, then 1..4 as of 2026-09-28) and is reached only when the name
+			// is absent and no registry helps. The second half is true, and the
+			// reason is structural rather than editorial: this call passes the name
+			// and the id and NOTHING else, so `resolveSectionGradeLevel` has no
+			// `displayOrder` available to read — the order leg in `gradeNumberOf` is
+			// unreachable on this path by construction, not by policy.
+			// An earlier version of this comment went further and claimed the order
+			// leg had "turned two exact carries into three" in
+			// `teaching-load-carry-forward-postgres.test.ts`. That attribution was
+			// wrong: re-executing that control with the name/order legs forced to
+			// base behaviour reproduced the identical failure, and its fixture sets
+			// `gradeLevelName: 'Grade 7'` on every row, so the name leg answers first
+			// and `displayOrder = 9` is never read. See the same note in
+			// `grade-level-resolver.ts`.
 			gradeLevel: resolveCarryForwardGrade(section.gradeLevelId, section.gradeLevelName),
 			programType: section.programType,
 			name: section.name,
@@ -733,7 +751,25 @@ export async function readCarryForwardTargetSnapshot(
 		sections: (sections as any[]).map((section) => ({
 			sectionMirrorId: section.id,
 			externalId: section.externalId,
-			// Authoritative grade from gradeLevelId; displayOrder is never grade truth.
+			// A2 c15 (2026-09-29) comment truthfulness, second pass. The former
+			// comment here read "Authoritative grade from gradeLevelId; displayOrder
+			// is never grade truth." The first half was already false: the
+			// authoritative grade is the EnrollPro grade NAME ("Grade 7"), because
+			// `grade_level_id` is an opaque FK that re-mints on every wipe (5..8, then
+			// 17..20, then 1..4 as of 2026-09-28) and is reached only when the name
+			// is absent and no registry helps. The second half is true, and the
+			// reason is structural rather than editorial: this call passes the name
+			// and the id and NOTHING else, so `resolveSectionGradeLevel` has no
+			// `displayOrder` available to read — the order leg in `gradeNumberOf` is
+			// unreachable on this path by construction, not by policy.
+			// An earlier version of this comment went further and claimed the order
+			// leg had "turned two exact carries into three" in
+			// `teaching-load-carry-forward-postgres.test.ts`. That attribution was
+			// wrong: re-executing that control with the name/order legs forced to
+			// base behaviour reproduced the identical failure, and its fixture sets
+			// `gradeLevelName: 'Grade 7'` on every row, so the name leg answers first
+			// and `displayOrder = 9` is never read. See the same note in
+			// `grade-level-resolver.ts`.
 			gradeLevel: resolveCarryForwardGrade(section.gradeLevelId, section.gradeLevelName),
 			programType: section.programType,
 			name: section.name,

@@ -1104,10 +1104,20 @@ export async function buildDerivedDemand(
 		sections: sectionRows.map((section) => ({
 			sectionMirrorId: section.id,
 			externalId: section.externalId,
-			// Hotfix 2026-09-28: the authoritative grade is the EnrollPro grade
-			// NAME ("Grade 7"); the internal `gradeLevelId` is only a fallback.
-			// `displayOrder` is presentation ordering only and must never determine
-			// curriculum demand scope (GEN-C02R Correction 6).
+			// A2 c15 (2026-09-29) comment truthfulness. The former comment here read
+			// "`displayOrder` is presentation ordering only and must never determine
+			// curriculum demand scope (GEN-C02R Correction 6)". After the correction
+			// round that is accurate again, and the reason matters: the shared
+			// authority on this path is `resolveSectionGradeLevel`, which reads the
+			// grade NAME, then the school-year registry learned from names, then the
+			// legacy id map. It does NOT read `displayOrder` — that separation is
+			// load-bearing, because `teaching-load-carry-forward-postgres.test.ts`
+			// seeds archived source sections with `displayOrder = 9` against a
+			// `gradeLevelName` of "Grade 7" to prove that identity comes from the
+			// name, not the order. Sites that DO want the `displayOrder` leg call
+			// `gradeNumberOf` (name, then order 7-12, then null) instead.
+			// The half of the old rule that still holds: the raw `grade_level_id`
+			// alone never determines demand scope, and it is the half that matters.
 			gradeLevel: resolveSectionGradeLevel(section, gradeRegistry),
 			programType: section.programType,
 			isActiveForScheduling: section.isActiveForScheduling,

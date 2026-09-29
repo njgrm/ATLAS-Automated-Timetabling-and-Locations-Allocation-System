@@ -25,8 +25,8 @@
 
 import { prisma } from '../lib/prisma.js';
 import { getDataContext } from '../lib/data-context.js';
-import { normalizeGradeLevelSync } from './class-program-slot.service.js';
 import { applyTemplateSignatoryFallback, resolveExportSignatoryProfile, type TeacherProgramSignatoryProfile } from './export-presentation.service.js';
+import { gradeNumberOf } from './grade-level-resolver.js';
 
 // ─── Types ───
 
@@ -210,14 +210,16 @@ export function compactDayLabel(days: string[]): string {
 	return sorted.map((day) => DAY_LABELS[day] ?? day).join(', ');
 }
 
-function parseGradeNumber(section: { gradeLevelId?: number | null; gradeLevelName?: string | null }): number | null {
-	const fromName = section.gradeLevelName?.match(/Grade\s+(\d+)/i);
-	if (fromName) return Number.parseInt(fromName[1], 10);
-	if (typeof section.gradeLevelId === 'number' && Number.isFinite(section.gradeLevelId)) {
-		return normalizeGradeLevelSync(section.gradeLevelId);
-	}
-	return null;
-}
+// A2 c15 (FOURTH private resolver, 2026-09-29): this function was a private
+// copy of the D1/D2 pattern already deleted from `workbook-export.service.ts`
+// and `official-program-docx.service.ts` — a narrow `/Grade\s+(\d+)/i` regex
+// that cannot read "grade7" or "GR7", falling back to the EnrollPro internal
+// `gradeLevelId`. Its result feeds the `grades` array matched against
+// `classProgramSlot.gradeLevel` (a real 7..10) when a teacher's canonical shift
+// is resolved, so an unnamed section collapsed that teacher's canonical shift
+// onto the wrong grade scope. It is deleted. The ONE authority is
+// `gradeNumberOf` from `services/grade-level-resolver.ts`: the grade name, then
+// `displayOrder` bounded to 7..12, then `null` — and it NEVER reads the id.
 
 // ─── Canonical shift intervals ───
 
@@ -652,7 +654,7 @@ export async function buildTeacherProgramExportShape(params: {
 						{ id: { in: sectionIds }, schoolId, schoolYearId },
 					],
 				},
-				select: { id: true, externalId: true, name: true, gradeLevelId: true, gradeLevelName: true, programType: true },
+				select: { id: true, externalId: true, name: true, gradeLevelId: true, gradeLevelName: true, displayOrder: true, programType: true },
 			})
 			: [];
 		sectionByExternalId = new Map(sections.filter((s: any) => s.externalId != null).map((s: any) => [s.externalId, s]));
@@ -663,11 +665,13 @@ export async function buildTeacherProgramExportShape(params: {
 		return sectionByExternalId.get(sectionId) ?? sectionByLocalId.get(sectionId) ?? null;
 	}
 
-	// 8. Canonical shift intervals for the grades the teacher actually teaches.
+	// A2 c15: the teacher's grades are the REAL grades, through the one
+	// authority. A section naming no real grade contributes no scope rather than
+	// contributing the EnrollPro id as one.
 	const grades: number[] = [...new Set(
 		[...sectionByExternalId.values()]
-			.map((section: any) => parseGradeNumber(section))
-			.filter((grade): grade is number => typeof grade === 'number' && Number.isFinite(grade)),
+			.map((section: any) => gradeNumberOf(section))
+			.filter((grade): grade is number => grade !== null),
 	)];
 	const canonicalIntervals = await resolveCanonicalIntervals({
 		db,

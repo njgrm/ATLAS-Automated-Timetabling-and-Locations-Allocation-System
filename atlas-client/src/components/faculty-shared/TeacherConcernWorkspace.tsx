@@ -33,7 +33,10 @@ import { SectionRoomPicker, type RoomOption } from '@/components/sections/Sectio
  *                           already chose, an optional pick, one reason line, a
  *                           plain-words preview, and one button that moves it.
  *   4. Anything else      — the notes box.
- *   5. Save               — ONE sticky action, at the end of the form.
+ *   5. Save               — ONE sticky action, at the end of the form, and one
+ *                           plain sentence beside it for the ONE case that
+ *                           matters: when the page itself is what makes the
+ *                           write impossible (A3 p1).
  *
  * REMOVED, and why it is safe to remove:
  *   · the "Reviewer decision" card (heading, sentence, reviewer-notes box,
@@ -86,6 +89,17 @@ type TeacherConcernWorkspaceProps = {
 	savedMessage?: string | null;
 	/** Set when a save is refused by the server and the reason must be visible. */
 	saveFailure?: string | null;
+	/**
+	 * A3 p1 — WHY Save is off, in one plain sentence, on the SAME row as the
+	 * button. Before this the page could disable Save for five different reasons
+	 * and explain exactly one of them, so a healthy teacher saw a dead Save with
+	 * no sentence anywhere on the page.
+	 *
+	 * Rendered BESIDE the button, never as a new card, chip or helper line
+	 * under it (AGENTS §8 header budget). Optional so the committed control that
+	 * builds the OLD prop set still renders.
+	 */
+	saveDisabledReason?: string | null;
 
 	/* ── Retired ceremony: still accepted, deliberately not rendered ── */
 	roomRequests?: string;
@@ -137,12 +151,18 @@ export default function TeacherConcernWorkspace({
 	legacyRoomNote = null,
 	savedMessage = null,
 	saveFailure = null,
+	saveDisabledReason = null,
 }: TeacherConcernWorkspaceProps) {
 	const rooms = roomState?.entries ?? [];
 	const roomNeeds = rooms.filter((entry) => {
 		const draft = roomDrafts[entry.entryId];
 		return draft?.requestedRoomId != null || entry.requestedRoomId != null;
 	}).length;
+	// The button's own disable condition, minus `saving`: a save in flight is not
+	// a REASON, it is the button's normal busy state, and naming it would flicker
+	// a sentence on every press. The reason is shown exactly when the page itself
+	// is what makes the write impossible.
+	const blockedByPage = facultyName == null || writesDisabled;
 
 	return (
 		<div className='space-y-4'>
@@ -261,8 +281,18 @@ export default function TeacherConcernWorkspace({
 						{saveFailure}
 					</p>
 				) : null}
-				<div className='flex justify-end'>
-					<Button type='button' onClick={onSave} disabled={facultyName == null || writesDisabled || saving}>
+				<div className='flex flex-wrap items-center justify-between gap-2 gap-x-4'>
+					{blockedByPage && saveDisabledReason ? (
+						<p
+							data-testid='concern-save-disabled-reason'
+							className='min-w-0 flex-1 text-xs leading-relaxed text-muted-foreground'
+						>
+							{saveDisabledReason}
+						</p>
+					) : (
+						<span aria-hidden='true' />
+					)}
+					<Button type='button' onClick={onSave} disabled={blockedByPage || saving} data-testid='concern-save-button'>
 						<Save className='size-4' aria-hidden='true' />
 						Save
 					</Button>
