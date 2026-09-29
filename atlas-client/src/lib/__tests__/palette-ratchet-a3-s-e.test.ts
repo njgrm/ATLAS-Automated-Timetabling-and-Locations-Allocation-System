@@ -142,8 +142,29 @@ const PINNED_TOTAL = 95;
  *
  * `PINNED_TOTAL` is deliberately NOT touched. The 95 pin is a pre-existing stale red and lowering
  * or raising it to match today's measurement is not this change's authority.
+ *
+ * A7 C6 (2026-09-29) — re-derived 29 -> 30 on `origin/main` `94daebf7`, and THIS is a RISE, so it
+ * gets the stricter treatment rather than the quieter one. A rise means a new file entered the
+ * corpus, and re-pinning a rise without naming the file is how another lane's debt gets hidden.
+ *
+ * The file that entered is `src/components/dashboard/ReadinessCard.tsx`, and it is a SPLIT, not a
+ * regression: commit `342d45e6` extracted the setup-readiness card out of `pages/Dashboard.tsx`
+ * to bring that page under the AGENTS.md §8 1000-line cap, and the two
+ * `ChevronRight className='w-4 h-4 text-slate-300 mt-1'` occurrences (`:111`, `:138`) travelled
+ * with the markup they were attached to. Counted live on `94daebf7` with this file's own
+ * `measure()` — one file per distinct source file holding at least one raw-neutral occurrence,
+ * `src/components/timetable/` excluded by the existing walk:
+ *
+ *   `src/pages/Dashboard.tsx`  3 -> 1   (`:663` `text-slate-600`, the source-decision sentence)
+ *   `src/components/dashboard/ReadinessCard.tsx`  0 -> 2
+ *   the 29 other files in the list  unchanged (29 total before, of which 28 are unaffected)
+ *   corpus total  95 -> 95  UNCHANGED, which is why `PINNED_TOTAL` stays at 95
+ *
+ * So the file count rose by exactly one while the residue did not move: the count is describing a
+ * relocation, and the number this instrument exists to drive down (`PINNED_TOTAL`) is flat. A new
+ * file is a new file and is named here so the next reader does not have to re-derive it.
  */
-const PINNED_FILE_COUNT = 29;
+const PINNED_FILE_COUNT = 30;
 
 const here = dirname(fileURLToPath(import.meta.url));
 const CLIENT_ROOT = resolve(here, '..', '..', '..');
