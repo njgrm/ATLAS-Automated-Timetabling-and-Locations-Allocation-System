@@ -4,7 +4,7 @@
 #   powershell -File scripts/dev/start-preview.ps1 -ClientDir <worktree>\atlas-client -Port 5399
 param([Parameter(Mandatory)][string]$ClientDir, [Parameter(Mandatory)][int]$Port)
 $out = Join-Path $env:TEMP "atlas-preview-$Port.log"
-$cl = "cmd /c `"cd /d $ClientDir && set VITE_ATLAS_API=http://127.0.0.1:5101&& node node_modules/vite/bin/vite.js --port $Port --strictPort --host 127.0.0.1 > $out 2>&1`""
+$cl = "cmd /c `"cd /d $ClientDir && set VITE_ATLAS_API=http://127.0.0.1:5101/api/v1&& node node_modules/vite/bin/vite.js --port $Port --strictPort --host 127.0.0.1 > $out 2>&1`""
 $r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $cl }
 $deadline = (Get-Date).AddSeconds(60)
 while ((Get-Date) -lt $deadline) {
