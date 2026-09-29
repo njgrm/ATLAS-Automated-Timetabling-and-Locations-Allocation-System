@@ -200,11 +200,19 @@ export function resolveHardViolationCount(
 	return violations.filter((violation) => violation.severity === 'HARD').length;
 }
 
-type FetchOptions = {
+export type FetchOptions = {
 	preferCache?: boolean;
 	backgroundRefresh?: boolean;
 	forceRefresh?: boolean;
 };
+
+/**
+ * A8 — the active-scope re-read options, shared by the hook contract and its
+ * callers so neither can silently narrow back to the legacy boolean form.
+ * `force` bypasses the 60 s Timetable cache window; a boolean is the legacy
+ * `preserveRun` shape.
+ */
+export type LoadAllOptions = { preserveRun?: boolean; force?: boolean };
 
 function sameDraftSnapshot(previous: DraftReport | null, next: DraftReport): boolean {
 	if (!previous) return false;
@@ -468,7 +476,7 @@ export type TimetableDataState = {
 	termAuthorityNotice: string | null;
 	fetchRuns: (syId: number) => Promise<GenerationRun[]>;
 	fetchRunData: (syId: number, runId: string) => Promise<void>;
-	fetchDraftBoardSummary: (syId: number) => Promise<DraftBoardState['counts'] | null>;
+	fetchDraftBoardSummary: (syId: number, options?: FetchOptions) => Promise<DraftBoardState['counts'] | null>;
 	loadRoomRequestSummary: (
 		syId: number,
 		statusFilter: 'ALL' | RoomPreferenceStatus,
@@ -479,7 +487,7 @@ export type TimetableDataState = {
 	openMapWorkspace: () => Promise<void>;
 	openBuildingWorkspace: (buildingId: number) => Promise<void>;
 	openRoomGridWorkspace: (roomId: number) => void;
-	loadAll: (preserveRun?: boolean) => Promise<void>;
+	loadAll: (options?: LoadAllOptions | boolean) => Promise<void>;
 	handleRefresh: () => void;
 	subjectLabel: (id: number) => string;
 	facultyLabel: (id: number) => string;
@@ -1744,7 +1752,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		switchCenterViewWithGuard(() => setCenterView(preGenMapContext ? 'pre-generation' : (draft ? 'schedule' : 'pre-generation')));
 	}, [draft, preGenMapContext, roomMap, setMapBuildingId, setMapRoomId, setViewMode, setEntityFilter, setPreGenMapContext, switchCenterViewWithGuard, setCenterView]);
 
-	const loadAll = useCallback(async (options?: { preserveRun?: boolean; force?: boolean } | boolean) => {
+	const loadAll = useCallback(async (options?: LoadAllOptions | boolean) => {
 		const loadSequence = loadSequenceRef.current + 1;
 		loadSequenceRef.current = loadSequence;
 		const isCurrentLoad = () => loadSequenceRef.current === loadSequence;
