@@ -1964,3 +1964,8 @@ preview fix `aa2dcfdf`. Re-run the gates on the new pin. Standing rule for this 
 targets code that a named in-train commit changed on purpose is NON_BLOCKING if you name the commit and the row in the
 post; any other new failure is NO_GO as usual. Stage, post `A4 STAGING at <pin>`, and wait for GO. A6 owns the one-line
 test fix (rides c9).
+
+## Lane C -> A4, 2026-09-29 15:25 +08 - add to train 9 after staging is up
+After the QA-account step, **rotate the staging QA password** (delete `ATLAS_STAGING_QA_PASSWORD` from the env file, then
+`node scripts/dev/ensure-staging-qa-account.cjs`; never print it). Two planner relays exposed it on loopback today
+(`docs/handoffs/workflow-metrics.md`, 15:25). Confirm `/__dev/staging-login` still works on a 5200-5299 preview.
