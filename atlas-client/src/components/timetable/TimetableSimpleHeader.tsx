@@ -83,43 +83,22 @@ import { ExportPresentationSettingsDialog } from '@/components/timetable/simple/
 import { SchedulerPrintDialog } from '@/components/timetable/simple/SchedulerPrintDialog';
 import { fetchRolloverStatus, type RolloverStatus } from '@/lib/settings';
 
-type TimetableSimpleHeaderProps = {
-	context: ScheduleReviewWorkspaceHeaderContext;
-	layoutMode: TimetableLayoutMode;
-	onLayoutModeChange: (mode: TimetableLayoutMode) => void;
-	activeTask: TimetableSimpleTask | null;
-	onTaskChange: (task: TimetableSimpleTask | null) => void;
-	onOpenTeacherDeparture?: () => void;
-	onSetRepairOrigin?: (origin: RepairOrigin | null) => void;
-	readinessSheetOpen?: boolean;
-	onReadinessSheetOpenChange?: (open: boolean) => void;
-	swapClassTimesMode?: 'select-first' | 'select-second' | null;
-	onSwapClassTimesStart?: () => void;
-	onSwapClassTimesCancel?: () => void;
-	/**
-	 * C11 M5 — the single existing Undo / Redo / History control, rendered by the
-	 * caller into the draft strip. It is passed IN rather than built here so there
-	 * is exactly one Undo surface in the app: the Expert toolbar copy that used
-	 * to own it was removed in the same commit (A2-TIMETABLE-CUSTODY's rule).
-	 */
-	undoRedoControl?: React.ReactNode;
-	/**
-	 * C11 D — the workspace's EXISTING reset-draft confirmation, so `Discard
-	 * draft` opens that dialog and never a second discard path.
-	 */
-	onDiscardDraft?: () => void;
-};
-
-/* A2 HEADER-BUDGET — the repair input shape moved to its own module to fit §8's cap.
-   The DISPATCHER stays here: `ux-r03e-timetable-runs-setup` pins `export function
-   dispatchSimpleReadinessRepair`, `resolveBlockerDestination(reason, href)` and
-   `dispatchSimpleReadinessRepair({` in THIS file, and TimetableSetupPane imports it
-   from this exact path. Both types are re-exported below. */
+/* A2 C13 — the prop shape moved to `simple/SimpleHeaderReadinessTypes.ts` for the
+   same reason the two types below moved there under A2 HEADER-BUDGET: this file sat
+   at 999 physical lines and §8 says to EXTRACT a block, never to delete a comment
+   to make room. It is pure data, re-exported below, so the component signature and
+   every importer path are unchanged. */
 import {
 	SimpleReadinessRepairDeps,
 	SimpleReadinessRepairIdentity,
+	TimetableSimpleHeaderProps,
 } from '@/components/timetable/simple/SimpleHeaderReadinessTypes';
-export type { SimpleReadinessRepairDeps, SimpleReadinessRepairIdentity };
+export type { SimpleReadinessRepairDeps, SimpleReadinessRepairIdentity, TimetableSimpleHeaderProps };
+
+/* A2 HEADER-BUDGET — the repair DISPATCHER stays here: `ux-r03e-timetable-runs-setup`
+   pins `export function dispatchSimpleReadinessRepair`, `resolveBlockerDestination(reason, href)`
+   and `dispatchSimpleReadinessRepair({` in THIS file, and TimetableSetupPane imports it
+   from this exact path. */
 
 /**
  * The `SimplePublishReadinessSheet` repair dispatch. Canonical home is this
@@ -435,11 +414,15 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		loading: context.loading,
 		generating: context.generating,
 		gateReason: generationGate.reason,
+		// A2 C13 — the gate's own short form, so the visible sentence beside the
+		// disabled control comes from the same `denied()` call as its aria-label.
+		gateShortReason: generationGate.shortReason,
 	});
 	const publishActionState = resolveSimplePublishActionState({
 		publicationEnabled: capabilities.gates.publication.enabled,
 		isRunPublished,
 		gateReason: capabilities.gates.publication.reason,
+		gateShortReason: capabilities.gates.publication.shortReason,
 	});
 	// C01R C1 — one publish control per state: while the publish slot owns its
 	// lifecycle step, no More "Next step" entry is added either.
@@ -748,22 +731,20 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					    exists. The draft's own verb is NOT traded for it; it is an entry
 					    of the More menu beside `Discard draft`. See
 					    `resolveSimpleHeaderPrimary`. */}
-					{headerPrimary === 'generate' ? (
-						<SimpleGenerateAction
-							primary
-							disabled={generateActionState.disabled}
-							disabledReason={generateActionState.reason}
-							onClick={handleGenerateClick}
-							published={false}
-						/>
-					) : headerPrimary === 'publish' ? (
-						<SimplePublishAction
-							enabled={!publishActionState.disabled}
-							disabledReason={publishActionState.reason}
-							primary
-							onClick={handlePublishActionClick}
-						/>
-					) : headerPrimary === 'published' ? (
+				{headerPrimary === 'generate' ? (
+					<SimpleGenerateAction
+						primary
+						actionState={generateActionState}
+						onClick={handleGenerateClick}
+						published={false}
+					/>
+				) : headerPrimary === 'publish' ? (
+					<SimplePublishAction
+						actionState={publishActionState}
+						primary
+						onClick={handlePublishActionClick}
+					/>
+				) : headerPrimary === 'published' ? (
 						<SimplePublishedState followUpCount={context.summary?.unassignedCount ?? 0} />
 					) : null}
 

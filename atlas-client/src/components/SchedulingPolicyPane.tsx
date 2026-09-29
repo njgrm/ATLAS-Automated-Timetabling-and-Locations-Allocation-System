@@ -64,6 +64,7 @@ import {
 	type LocalPolicy,
 } from '@/components/scheduling-policy/policyPaneModel';
 import { ensureTimetablePolicyAuxiliary } from '@/lib/timetable-data/timetableServerState';
+import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
 import { Badge } from '@/ui/badge';
 
 /* G��G��G�� Types G��G��G�� */
@@ -494,10 +495,10 @@ export default function SchedulingPolicyPane({
 						<TooltipTrigger asChild>
 							<Button variant="ghost" size="sm" className="h-7 gap-1.5 text-muted-foreground" onClick={onBack}>
 								<ArrowLeft className="size-3.5" />
-								Back to Timetable
+								Back to {CLASS_SCHEDULE_LABEL}
 							</Button>
 						</TooltipTrigger>
-						<TooltipContent side="bottom">Return to the timetable grid view</TooltipContent>
+						<TooltipContent side="bottom">Return to the {CLASS_SCHEDULE_LABEL} grid view</TooltipContent>
 					</Tooltip>
 				</TooltipProvider>
 

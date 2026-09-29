@@ -1,6 +1,7 @@
 import { LoaderCircle } from 'lucide-react';
 
 import type { TimetableLoadingIntent } from '@/components/timetable/timetable-route-loading-intent';
+import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
 
 export function TimetableRouteLoadingState({ intent }: { intent: TimetableLoadingIntent }) {
 	return (
@@ -10,7 +11,7 @@ export function TimetableRouteLoadingState({ intent }: { intent: TimetableLoadin
 			aria-live="polite"
 		>
 			<div className="w-full max-w-md rounded-xl border border-border bg-card px-6 py-7 shadow-sm">
-				<p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Timetable workspace</p>
+				<p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{CLASS_SCHEDULE_LABEL}</p>
 				<h1 className="mt-2 text-xl font-semibold tracking-tight text-foreground">{intent.title}</h1>
 				<p className="mt-2 text-sm leading-relaxed text-muted-foreground">{intent.message}</p>
 				<div className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-primary" role="status">

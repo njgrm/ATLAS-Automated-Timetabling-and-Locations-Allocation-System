@@ -20,14 +20,14 @@ export function TimetableFacultyIssuePivotDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent data-testid="timetable-faculty-issue-pivot-dialog">
 				<DialogHeader>
-					<DialogTitle>Open {teacherLabel}&apos;s timetable?</DialogTitle>
-					<DialogDescription>
-						This issue belongs to {teacherLabel}. Switch to that teacher&apos;s timetable and highlight the affected session?
-					</DialogDescription>
-				</DialogHeader>
-				<DialogFooter>
-					<Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-					<Button type="button" onClick={onConfirm}>Open teacher timetable</Button>
+				<DialogTitle>Open {teacherLabel}&apos;s schedule?</DialogTitle>
+				<DialogDescription>
+					This issue belongs to {teacherLabel}. Switch to that teacher&apos;s schedule and highlight the affected session?
+				</DialogDescription>
+			</DialogHeader>
+			<DialogFooter>
+				<Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+				<Button type="button" onClick={onConfirm}>Open teacher schedule</Button>
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>

@@ -15,6 +15,7 @@ import { after, test } from 'node:test';
 import { act, createElement } from 'react';
 import type { Root } from 'react-dom/client';
 import { JSDOM } from 'jsdom';
+import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
 
 const ORIGIN = 'https://njgrm.buru-degree.ts.net';
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: `${ORIGIN}/timetable` });
@@ -405,7 +406,15 @@ for (const [label, width, height, rootPx] of [
 			assert.notEqual(size, null, `${selector} resolves a font size at ${label}`);
 			return size as number;
 		};
-		assert.ok(sizeOf('table[aria-label="Timetable"]') >= 14, 'the grid table base is absolute ≥14px');
+		// SUPERSEDED (A2 C13, 2026-09-29) — the selector only. The ORIGINAL row read:
+		//     assert.ok(sizeOf('table[aria-label="Timetable"]') >= 14, …)
+		// The grid table's accessible name is now the place-name constant,
+		// `Class Schedule`, so the same table is now
+		// `table[aria-label="Class Schedule"]`. Only the NAME moved; the property this
+		// row decides — the grid table's type scale is absolute, never relative — is
+		// untouched, and the row still decides it. `L6c` pins that the route table and
+		// every `to` are byte-identical, so the name is the only thing that changed.
+		assert.ok(sizeOf(`table[aria-label="${CLASS_SCHEDULE_LABEL}"]`) >= 14, 'the grid table base is absolute ≥14px');
 		assert.ok(sizeOf('td.whitespace-nowrap.font-mono') >= 14, 'the time label is absolute ≥14px');
 		assert.ok(sizeOf('[data-testid="timetable-cell-detail"]') >= 14, 'the teacher/room line is absolute ≥14px');
 		assert.ok(sizeOf('[data-timetable-entry="true"] div.font-semibold') >= 14, 'the entry subject line is absolute ≥14px');

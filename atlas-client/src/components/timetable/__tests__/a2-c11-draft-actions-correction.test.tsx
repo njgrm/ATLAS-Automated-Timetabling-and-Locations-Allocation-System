@@ -580,7 +580,7 @@ test('F2R1 RENDERED (QA-B2 re-point): the Expert header has the single Undo, and
 	assert.ok(view.has('timetable-draft-state-strip'), 'the Expert layout renders the SAME persistent state sentence as Simple');
 	assert.ok(view.text.includes('not visible to teachers until you publish'), 'and it names the run state from the one derivation');
 
-	const undo = view.byLabel('Undo last manual timetable change');
+	const undo = view.byLabel('Undo last manual schedule change');
 	assert.ok(undo, 'layoutMode === advanced HAS an Undo, in the toolbar it was always reachable from');
 	assert.equal((undo as HTMLButtonElement).disabled, false, 'and it is live with one edit in the draft');
 	act(() => { (undo as HTMLElement).dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })); });
@@ -651,7 +651,7 @@ test('F2R2 RENDERED (QA-B2 re-point): the Simple header mounts the same sentence
 		'and the header still names the run state from the one derivation, consequence and all');
 	assert.match(view.text, /\(Run \d+\)/,
 		'and the surviving sentence keeps the run number — the one thing here a scheduler can act on');
-	assert.equal((view.byLabel('Undo last manual timetable change') as HTMLButtonElement).disabled, false, 'Undo is live');
+	assert.equal((view.byLabel('Undo last manual schedule change') as HTMLButtonElement).disabled, false, 'Undo is live');
 	// DRAFT-UX-C01 (operator, 2026-09-25) — the ONE solid primary once a run exists is
 	// `Publish schedule`, so the action row renders NO Edit control. The draft's own
 	// verb is a More-menu entry (asserted below), and the row still holds exactly one
@@ -690,7 +690,7 @@ test('F2R2 RENDERED (QA-B2 re-point): the Simple header mounts the same sentence
 	assert.ok(discardAgain, 'Discard draft is in the reopened menu');
 	assert.equal(cannotAct(discardAgain), false, 'and is still enabled — a fresh menu, not a cached node');
 	discardAgain.click();
-	act(() => { (view.byLabel('Undo last manual timetable change') as HTMLElement).dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })); });
+	act(() => { (view.byLabel('Undo last manual schedule change') as HTMLElement).dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })); });
 	assert.deepEqual([discarded, reverted], [1, 1], 'and both dispatch their real actions');
 });
 
@@ -745,7 +745,7 @@ test('M5R RENDERED (correction 4, F4 re-point): the REAL Simple header puts the 
 		'and it still names the run state AND its audience — in one sentence now, not two');
 	// The Undo is the header's own control, reachable without opening a menu — the
 	// property the superseded row could not see.
-	const undo = view.byLabel('Undo last manual timetable change');
+	const undo = view.byLabel('Undo last manual schedule change');
 	assert.ok(undo, 'the single Undo the workspace builds is on screen, not buried in a menu');
 	assert.equal((undo as HTMLButtonElement).disabled, false, 'and it is live with one edit in the draft');
 	assert.equal(view.host.querySelectorAll('[data-testid="timetable-draft-state-strip"]').length, 1,

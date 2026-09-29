@@ -16,6 +16,7 @@ import { DraggableEntry, useTimetableEntryReadOnly } from '@/components/timetabl
 import { useTimetableGridPointerPreview } from '@/components/timetable/useTimetableGridPointerPreview';
 import { SandboxEntryBadge, TeacherDepartureEntryBadge } from '@/components/timetable/TimetableGridEntryBadges';
 import type { GridCellProps } from '@/components/timetable/TimetableGridCell.types';
+import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
 import {
 	GridDropContainer,
 	inactiveDragCellState,
@@ -805,7 +806,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 	return (
 		<TooltipProvider>
 			<GridDropContainer>
-				<table aria-label="Timetable" className="w-full table-fixed border-collapse text-[14px] min-w-160">
+				<table aria-label={CLASS_SCHEDULE_LABEL} className="w-full table-fixed border-collapse text-[14px] min-w-160">
 					<thead>
 						<tr>
 							<th className="w-20 px-2 py-2 text-left text-muted-foreground font-medium border-b border-border">

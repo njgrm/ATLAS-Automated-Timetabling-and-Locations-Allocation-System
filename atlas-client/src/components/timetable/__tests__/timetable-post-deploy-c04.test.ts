@@ -99,20 +99,25 @@ test('C04 teacher issue confirmation blocks the grid, cancel is inert, and confi
 		const page = await browser.newPage();
 		await page.goto(`${origin}/src/components/timetable/__tests__/timetable-post-deploy-c04.harness.html`);
 		await page.getByRole('button', { name: 'Select Fernandez issue' }).click();
-		await page.getByRole('heading', { name: "Open Fernandez, Luz's timetable?" }).waitFor();
+		// SUPERSEDED (A2 C13, operator adjudication 2026-09-29) — the WORD only. This
+		// dialog names the TEACHER'S OWN weekly schedule, so it takes the plain word
+		// "schedule" and not the `CLASS_SCHEDULE_LABEL` place name. The row is kept and
+		// still decides the same thing: the confirmation dialog opens for that one
+		// teacher. Only the noun moved.
+		await page.getByRole('heading', { name: "Open Fernandez, Luz's schedule?" }).waitFor();
 		const underlying = await page.locator('main > button').first().boundingBox();
 		assert.ok(underlying);
 		await page.mouse.click(underlying.x + underlying.width / 2, underlying.y + underlying.height / 2);
 		let state = await page.evaluate(() => window.__c04State);
 		assert.equal(state?.confirmCount, 0, 'modal overlay prevents the click reaching the timetable cell');
-		if (await page.getByRole('heading', { name: "Open Fernandez, Luz's timetable?" }).count() > 0) {
+		if (await page.getByRole('heading', { name: "Open Fernandez, Luz's schedule?" }).count() > 0) {
 			await page.getByRole('button', { name: 'Cancel' }).click();
 		}
 		state = await page.evaluate(() => window.__c04State);
 		assert.deepEqual(state, { viewMode: 'section', entityFilter: '7', selectedEntry: 'existing', selectedViolation: 'existing-issue', confirmCount: 0 }, 'cancel leaves current context and selection unchanged');
 		await page.getByRole('button', { name: 'Select Fernandez issue' }).click();
-		await page.getByRole('heading', { name: "Open Fernandez, Luz's timetable?" }).waitFor();
-		await page.getByRole('button', { name: 'Open teacher timetable' }).click();
+		await page.getByRole('heading', { name: "Open Fernandez, Luz's schedule?" }).waitFor();
+		await page.getByRole('button', { name: 'Open teacher schedule' }).click();
 		state = await page.evaluate(() => window.__c04State);
 		assert.deepEqual(state, { viewMode: 'faculty', entityFilter: '12', selectedEntry: 'affected-second', selectedViolation: 'FACULTY_CONSECUTIVE_MINUTES', confirmCount: 1 }, 'confirm pivots only after consent and selects/highlights the canonical teacher’s affected session');
 	} finally {

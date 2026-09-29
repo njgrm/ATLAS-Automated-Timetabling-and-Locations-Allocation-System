@@ -140,6 +140,62 @@ test('R8 disabled gates always expose a short reason', () => {
 	}
 });
 
+/**
+ * A2 C13 (operator 2026-09-29) — ADDITIVE, and a stricter reading of the SAME
+ * property as the row above. `shortReason` was added to `TimetableActionGate` so
+ * the header can print a ≤ 6-word reason BESIDE a disabled control, authored at the
+ * same `denied()` call as the full sentence.
+ *
+ * The two properties this must never have:
+ *   - a gate with a reason but no short form would make the header fall back to a
+ *     generic sentence, i.e. the two forms COULD drift. So the pairing is required.
+ *   - a short form longer than six words would be a truncated full sentence on
+ *     screen, which §8 forbids. So the length is a hard bound, not a style note.
+ *
+ * There is NO deep-equal on a gate object anywhere in the tree, so adding a key is
+ * not a structural risk; the risk these rows close is the gate returning a reason
+ * with no short form, which is exactly what would let the two drift.
+ */
+test('R8C the two header gates pair their full reason with a ≤ 6-word short form', () => {
+	// SCOPE, deliberately narrow: only `generation` and `gates.publication` are
+	// rendered as a disabled LIFECYCLE CONTROL with a visible sentence beside them,
+	// and only those two are wired to a `shortReason` by the header. The remaining
+	// gates (`move`, `swap`, `roomRequests`, …) render as More-menu entry points that
+	// show their full reason in their own surface, so requiring a six-word form on
+	// them would be a contract this feature does not make.
+	const headerGates = (caps: ReturnType<typeof deriveTimetableCapabilities>) => [
+		['generation', caps.generation],
+		['publication', caps.gates.publication],
+	] as const;
+
+	for (const input of [base(), base({ driftBlocked: true, driftMessage: 'Sync the active school year first.' })]) {
+		const caps = deriveTimetableCapabilities(input);
+		for (const [id, gate] of headerGates(caps)) {
+			if (gate.enabled) continue;
+			assert.ok(gate.shortReason, `${id}: a disabled header gate carries a short form, or the header falls back to a generic sentence`);
+			assert.ok(
+				gate.shortReason.split(/\s+/).length <= 6,
+				`${id}: the visible reason is ≤ 6 words, got "${gate.shortReason}"`,
+			);
+			assert.doesNotMatch(gate.shortReason, /…|\.\.\.$/, `${id}: a short form is never a truncated sentence`);
+		}
+	}
+	// The blocked-setup and no-run shapes are the two the header really hits.
+	const blocked = deriveTimetableCapabilities(base({ curriculumState: 'blocked' }));
+	assert.equal(blocked.generation.enabled, false);
+	assert.equal(blocked.generation.shortReason, 'Setup inputs are not ready');
+	const noRun = deriveTimetableCapabilities(base());
+	assert.equal(noRun.gates.publication.enabled, false);
+	assert.equal(noRun.gates.publication.shortReason, 'No generated schedule to publish');
+});
+
+test('R8D an ALLOWED gate carries no reason and no short form', () => {
+	const caps = deriveTimetableCapabilities(base());
+	assert.equal(caps.generation.enabled, true);
+	assert.equal(caps.generation.reason, null);
+	assert.equal(caps.generation.shortReason, null, 'a control that can act prints no reason beside itself');
+});
+
 // --- R2 setup copy never points at the superseded page ---
 
 test('R2 setup copy never names the superseded curriculum requirements repair', () => {

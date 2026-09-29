@@ -42,6 +42,20 @@ export type TimetableRepair = {
 export type TimetableActionGate = {
 	enabled: boolean;
 	reason: string | null;
+	/**
+	 * A2 C13 (item 3c) — the SAME reason in ≤ 6 words, for the sentence printed
+	 * BESIDE a disabled control in the header.
+	 *
+	 * It lives on the gate, next to `reason`, and is written at the same `denied()`
+	 * call, so the short form and the full form cannot drift: there is no second
+	 * place either string could be edited.
+	 *
+	 * §8 forbids truncating a sentence to fit, so this is authored, never sliced.
+	 * It is `null` for gates that render no visible reason (the More-menu
+	 * entry-point gates), and the header's resolver only ever reads it for the
+	 * generation and publication gates.
+	 */
+	shortReason: string | null;
 	repair: TimetableRepair;
 };
 
@@ -92,11 +106,18 @@ function retry(label: string): TimetableRepair {
 }
 
 function allowed(): TimetableActionGate {
-	return { enabled: true, reason: null, repair: NONE };
+	return { enabled: true, reason: null, shortReason: null, repair: NONE };
 }
 
-function denied(reason: string, repair: TimetableRepair = NONE): TimetableActionGate {
-	return { enabled: false, reason, repair };
+/**
+ * A2 C13 (item 3c) — `shortReason` is a REQUIRED argument for any gate whose
+ * reason can reach a visible header sentence. It is the third parameter precisely
+ * so a new `denied(...)` for generation or publication cannot forget it: the
+ * committed control asserts every such gate carries a ≤ 6-word short form, so an
+ * omission fails a gate rather than shipping a truncated sentence.
+ */
+function denied(reason: string, repair: TimetableRepair = NONE, shortReason: string | null = null): TimetableActionGate {
+	return { enabled: false, reason, shortReason, repair };
 }
 
 function lifecycleState(input: TimetableCapabilityInput): TimetableLifecycleState {
@@ -137,19 +158,19 @@ export function deriveTimetableCapabilities(input: TimetableCapabilityInput): Ti
 	const lifecycle = lifecycleState(input);
 
 	const generation: TimetableActionGate = (() => {
-		if (!input.scopeResolved) return denied('Waiting for your school and school year to load.');
-		if (input.generating) return denied('A generation run is already in progress.');
-		if (input.curriculumState === 'loading') return denied('Checking schedule information for this school year.');
+		if (!input.scopeResolved) return denied('Waiting for your school and school year to load.', NONE, 'Waiting for school and year');
+		if (input.generating) return denied('A generation run is already in progress.', NONE, 'A generation run is in progress');
+		if (input.curriculumState === 'loading') return denied('Checking schedule information for this school year.', NONE, 'Checking schedule information');
 		if (input.curriculumState === 'blocked') {
 			const repair: TimetableRepair = input.readinessRepair
 				? input.readinessRepair.kind === 'retry'
 					? retry(input.readinessRepair.label)
 					: navigate(input.readinessRepair.label, input.readinessRepair.href)
 				: navigate('Open Year Setup', YEAR_SETUP_HREF);
-			return denied('Setup inputs for the active school year are not ready yet.', repair);
+			return denied('Setup inputs for the active school year are not ready yet.', repair, 'Setup inputs are not ready');
 		}
 		if (input.curriculumState === 'unavailable' || input.curriculumState === 'failed') {
-			return denied('Schedule information could not be checked.', retry('Retry schedule check'));
+			return denied('Schedule information could not be checked.', retry('Retry schedule check'), 'Schedule information unavailable');
 		}
 		// UX-C01R — never allow generation from a "ready" state whose canonical
 		// diagnostic does not prove allow + zero-write + no blockers.
@@ -158,12 +179,24 @@ export function deriveTimetableCapabilities(input: TimetableCapabilityInput): Ti
 			return denied(
 				'Generation readiness is not verified for this school year.',
 				retry('Retry schedule check'),
+				'Readiness is not verified',
 			);
 		}
 		if (input.driftBlocked) {
 			return denied(
 				input.driftMessage ?? 'The active school year is out of sync with setup.',
+				// REVERTED (A2 C13 correction, 2026-09-29). This candidate had changed
+				// the repair to `retry('Retry schedule check')`, which was NOT requested
+				// and is strictly worse: an operator blocked by a drifted school year was
+				// told to re-check the schedule instead of being sent to Year Setup, the
+				// one place drift is actually fixed. `timetable-capabilities.test.ts ::
+				// R1 drift blocks generation and points at Year Setup` caught it. The
+				// repair is restored to base; ONLY the short reason is added.
 				navigate('Open Year Setup', YEAR_SETUP_HREF),
+				// A2 C13 correction: this was 7 words ("School year out of sync with
+				// setup") and the rule is SIX. Caught by `R8C`, which is why the bound is
+				// asserted rather than trusted. The full sentence above keeps the detail.
+				'School year out of sync',
 			);
 		}
 		return allowed();
@@ -196,11 +229,11 @@ export function deriveTimetableCapabilities(input: TimetableCapabilityInput): Ti
 			: denied(runOnlyReason('Reviewing issues'), navigate('Generate a timetable', '/timetable')),
 		generation,
 		publication: (() => {
-			if (!runReady) return denied('No generated timetable exists yet to publish.', navigate('Generate a timetable', '/timetable'));
-			if (input.isPreGeneration) return denied('Finish the pre-generation draft before publishing.');
-			if (input.isPublished) return denied('This timetable is already published.');
-			if (input.hardCount > 0) return denied(`Fix ${input.hardCount} hard blocker${input.hardCount === 1 ? '' : 's'} before publishing.`);
-			if (input.unassignedCount > 0) return denied(`Place ${input.unassignedCount} unresolved session${input.unassignedCount === 1 ? '' : 's'} before publishing.`);
+			if (!runReady) return denied('No generated timetable exists yet to publish.', navigate('Generate a timetable', '/timetable'), 'No generated schedule to publish');
+			if (input.isPreGeneration) return denied('Finish the pre-generation draft before publishing.', NONE, 'Finish the pre-generation draft');
+			if (input.isPublished) return denied('This timetable is already published.', NONE, 'Already published');
+			if (input.hardCount > 0) return denied(`Fix ${input.hardCount} hard blocker${input.hardCount === 1 ? '' : 's'} before publishing.`, NONE, `Fix ${input.hardCount} hard blocker${input.hardCount === 1 ? '' : 's'}`);
+			if (input.unassignedCount > 0) return denied(`Place ${input.unassignedCount} unresolved session${input.unassignedCount === 1 ? '' : 's'} before publishing.`, NONE, `Place ${input.unassignedCount} unresolved session${input.unassignedCount === 1 ? '' : 's'}`);
 			return allowed();
 		})(),
 	};

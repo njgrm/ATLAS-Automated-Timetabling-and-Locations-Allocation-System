@@ -44,6 +44,7 @@ import { deriveTimetableCapabilities, YEAR_SETUP_HREF } from '@/lib/timetable-ca
 import { summarizeGenerationReadiness } from '@/lib/timetable-generation-readiness';
 import { createSyncSetupInFlightGuard, runSyncSetup } from '@/lib/timetable-sync-setup';
 import { resolveTermAuthorityNotice } from '@/hooks/useTimetableData';
+import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
 
 type ScheduleReviewWorkspaceHeaderProps = {
 	context: ScheduleReviewWorkspaceHeaderContext;
@@ -229,7 +230,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context, onEditDraft, onDiscardDraf
 				}
 				handleRefresh();
 			} else if (outcome.status === 'REPLAYED') {
-				toast.success('Timetable setup already matches the current run. Nothing to change.');
+				toast.success(`${CLASS_SCHEDULE_LABEL} setup already matches the current run. Nothing to change.`);
 				handleRefresh();
 			} else if (outcome.status === 'FAILED') {
 				toast.error(outcome.error.message);
@@ -711,7 +712,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context, onEditDraft, onDiscardDraf
 								Requests
 							</Button>
 						</TooltipTrigger>
-						<TooltipContent>Open the room requests queue inside Timetable</TooltipContent>
+						<TooltipContent>Open the room requests queue inside {CLASS_SCHEDULE_LABEL}</TooltipContent>
 					</Tooltip>
 				</TooltipProvider>
 

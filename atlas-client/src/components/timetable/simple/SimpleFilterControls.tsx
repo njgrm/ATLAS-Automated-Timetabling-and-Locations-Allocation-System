@@ -2,6 +2,7 @@ import { SlidersHorizontal, X } from 'lucide-react';
 
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
 import { SimpleFiltersContent } from '@/components/timetable/simple/SimpleHeaderHelpers';
+import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from '@/ui/popover';
@@ -191,7 +192,7 @@ export function SimpleFilterControls({ context, renderActiveFilters = true }: { 
 					className="relative z-10 flex min-w-0 basis-full items-center gap-1.5 overflow-x-auto scrollbar-thin sm:basis-auto"
 					data-testid="timetable-active-filters"
 					role="group"
-					aria-label="Active timetable filters"
+					aria-label={`Active ${CLASS_SCHEDULE_LABEL.toLowerCase()} filters`}
 				>
 					{activeFilters.map((filter) => (
 						<Button

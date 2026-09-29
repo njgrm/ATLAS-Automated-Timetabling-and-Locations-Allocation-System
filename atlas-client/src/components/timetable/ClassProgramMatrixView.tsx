@@ -5,6 +5,7 @@ import { Button } from '@/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/ui/card';
 import { ScrollArea } from '@/ui/scroll-area';
 import { cn, formatTime } from '@/lib/utils';
+import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
 import type { ScheduledEntry } from '@/types';
 
 const DAYS: Array<'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY'> = [
@@ -156,7 +157,7 @@ export function ClassProgramMatrixView({
 							</CardHeader>
 							<CardContent className="p-0">
 								<div className="overflow-auto scrollbar-thin">
-									<table aria-label="Timetable" className="min-w-230 w-full border-collapse text-xs">
+									<table aria-label={CLASS_SCHEDULE_LABEL} className="min-w-230 w-full border-collapse text-xs">
 										<colgroup>
 											<col className="w-48" />
 											{DAYS.map((day) => <col key={day} />)}
