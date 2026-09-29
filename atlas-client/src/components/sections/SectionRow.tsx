@@ -182,7 +182,16 @@ export function SectionRow({
 				</span>
 			</td>
 
-			<td className="px-4 py-3">
+			{/* A9 C7 R4: the column carries an explicit width and this cell matches it,
+			    so the table cannot be pushed wider than the panel it scrolls in. The
+			    trigger keeps its own `w-full` and truncate, so the CONTROL is unchanged
+			    on all three surfaces (§8 one look per control) — only the column that
+			    holds it in this one table is sized. Measured before the fix at
+			    1366x768: table `scrollWidth 1105` inside a panel of `clientWidth
+			    1070`, `DETAILS` cut to `DETA`, and the row's "More actions" kebab at
+			    right edge 1365 against a panel edge of 1346 — outside the visible
+			    panel on every row. */}
+			<td className="w-[200px] min-w-0 px-4 py-3">
 				{/* A9 C7 (2026-09-29) — THE ROW PICKER IS BACK, ON LANE C's BINDING ADDENDUM.
 				    THE HISTORY, so this cell is not re-litigated a third time. A9 C3
 				    (`86665f48`) removed the inline picker from this table and left a plain

@@ -182,6 +182,76 @@ export function popoverMaxHeightPx(triggerBottomPx: number, viewportHeightPx: nu
 	return Math.min(POPOVER_MAX_PX, Math.max(0, Math.round(spaceBelow)));
 }
 
+/**
+ * THE BOTTOM-ROW CASE, and why `scrollIntoView` alone could not fix it.
+ * Measured on real staging data (QA, 2026-09-29, 1366x768, list scrolled to its
+ * end at `scrollTop 1511`, bottom-most row `Silver`, trigger bottom 662):
+ *
+ *   popoverMaxHeightPx(662, 768) = 86px   → body 86px, side=bottom, 666→752
+ *   scroll viewport                clientHeight 0   scrollHeight 5448
+ *
+ * The chrome is `header 41 + footer 45 = 86px`, so a body of exactly 86px is
+ * consumed entirely by the two `shrink-0` rows: the popover opened showing a
+ * search box, a `BROWSE INTERACTIVE MAP` footer, and **no room at all**. R1's
+ * `scrollIntoView({ block: 'center' })` could not rescue it, because the trigger
+ * is the last row of an ALREADY bottom-scrolled list — there is nothing further
+ * down to move, so centring is a no-op and the re-read returns 86 again.
+ *
+ * So the container is MOVED, by writing its own `scrollTop` — the same "write one
+ * element's scrollTop, never walk ancestors" rule R2 applied to the option list.
+ * The trigger's centre lands at `TRIGGER_CENTRE_FRACTION` of the window, and the
+ * write is clamped to the container's real scroll range, so a container already
+ * at either end simply stays where it is and the caller falls through to its
+ * `scrollIntoView` fallback. For the measured row the container is written so
+ * the trigger moves to ≈346, leaving ≈380px of list.
+ *
+ * Returns true when it moved the trigger, so the caller knows whether to re-read.
+ *
+ * AND WHEN IT CANNOT. If the container is already scrolled to its end, the write
+ * is clamped to the same value, the helper reports no move, and the caller's
+ * `POPOVER_MIN_USABLE_PX` floor is what stands between the operator and a 0px
+ * list. That is exactly QA's measured case: list at `scrollTop 1511`, trigger
+ * bottom 662, 86px below. The floor is the safety net for the rows the write
+ * cannot reach; the write is what keeps an ordinary row from needing the floor.
+ */
+export const TRIGGER_CENTRE_FRACTION = 0.45;
+
+/** The nearest ancestor that can actually be scrolled, or null. */
+export function nearestScrollableAncestor(el: HTMLElement | null): HTMLElement | null {
+	for (let node = el?.parentElement ?? null; node; node = node.parentElement) {
+		// `scrollHeight > clientHeight` is the definition of "can scroll", and it
+		// is decided by the element's own content — not by a class name, which a
+		// change to a shared primitive could silently remove.
+		if (node.scrollHeight > node.clientHeight) return node;
+	}
+	return null;
+}
+
+/**
+ * Move `trigger` down the screen by writing its nearest scrollable ancestor's
+ * `scrollTop`, so the space BELOW it grows. Never asks the browser to walk
+ * ancestors. Returns true when the trigger was moved.
+ */
+export function centreTriggerForPopover(trigger: HTMLElement | null, viewportHeightPx: number): boolean {
+	if (!trigger) return false;
+	const container = nearestScrollableAncestor(trigger);
+	// No scrollable ancestor: nothing to write, and the caller falls back to
+	// `scrollIntoView` where one exists.
+	if (!container) return false;
+	const before = trigger.getBoundingClientRect();
+	const targetCentre = viewportHeightPx * TRIGGER_CENTRE_FRACTION;
+	// How far the trigger must move UP for its centre to reach the target. The
+	// sign is inverted on the way to `scrollTop`: scrolling a container DOWN moves
+	// its content UP the screen, so the container is written by `-delta`.
+	const delta = (before.top + before.height / 2) - targetCentre;
+	if (delta === 0) return false;
+	const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+	const next = Math.min(maxScrollTop, Math.max(0, container.scrollTop + delta));
+	if (next === container.scrollTop) return false;
+	container.scrollTop = next;
+	return true;
+}
+
 /* ═══════════════ A9 C7 R2 — bring the current room into view, INSIDE the list ═══════════════ */
 
 /** The picker's own scroll region. Row 01 pins that exactly one exists. */
@@ -356,22 +426,44 @@ export function SectionRoomPicker({
 	/* ─────────────── A9 C7 R1 — measure the popover's height BEFORE Radix does ─────────────── */
 
 	/**
-	 * Read the cap from the trigger's rect, centring the trigger first when the
-	 * space below is too small to be usable. The scroll happens BEFORE the popover
-	 * mounts, so it cannot be seen as a jump, and the re-read afterwards is what
-	 * the cap is computed from — scrolling first and using the stale number is the
-	 * bug, not the fix.
+	 * Read the cap from the trigger's rect, moving the trigger down the screen
+	 * first when the space below is too small to be usable, and re-reading
+	 * afterwards. The move happens BEFORE the popover mounts, so it cannot be seen
+	 * as a jump, and the re-read is what the cap is computed from — moving and then
+	 * using the stale number would be the bug, not the fix.
+	 *
+	 * A9 C7 R4 — `centreTriggerForPopover` replaced the bare `scrollIntoView` here.
+	 * Measured on the bottom-most row of a bottom-scrolled list (trigger bottom
+	 * 662, viewport 768) `scrollIntoView({ block: 'center' })` was a NO-OP: the
+	 * list was already at its end, so the re-read returned the same 86px and the
+	 * popover opened with a 0px room list. Writing the container's own `scrollTop`
+	 * moves the trigger UP out of that corner; `scrollIntoView` is kept only as
+	 * the fallback for a trigger with no scrollable ancestor, where there is
+	 * nothing to write.
+	 *
+	 * The floor is a safety net, not the mechanism: on an ordinary viewport the
+	 * centring write does the work and the floor never binds. It exists because a
+	 * picker with ZERO rooms in it is never acceptable — a body that overhangs the
+	 * window edge is merely ugly, a body with an empty list is unusable — and
+	 * because the window itself can be shorter than the chrome plus one row.
 	 */
 	const measureOpenMaxHeight = React.useCallback((): number | undefined => {
 		const trigger = triggerRef.current;
 		if (!trigger) return undefined;
 		const read = () => popoverMaxHeightPx(trigger.getBoundingClientRect().bottom, window.innerHeight);
 		let next = read();
-		if (next < POPOVER_MIN_USABLE_PX && typeof trigger.scrollIntoView === 'function') {
-			trigger.scrollIntoView({ block: 'center', behavior: 'auto' });
-			next = read();
+		if (next < POPOVER_MIN_USABLE_PX) {
+			if (centreTriggerForPopover(trigger, window.innerHeight)) {
+				// The trigger moved, so the rect is stale and MUST be re-read.
+				next = read();
+			} else if (typeof trigger.scrollIntoView === 'function') {
+				// No scrollable ancestor to write (or the container was already at
+				// its limit): ask the browser, and re-read either way.
+				trigger.scrollIntoView({ block: 'center', behavior: 'auto' });
+				next = read();
+			}
 		}
-		return next;
+		return Math.max(next, POPOVER_MIN_USABLE_PX);
 	}, []);
 
 	/**
@@ -614,17 +706,21 @@ export function SectionRoomPicker({
 					 * staging data (planner, 2026-09-29, preview :5262, 79 options):
 					 *
 					 *   popover body     400px   (248px / 209px on lower rows — the cap works)
-					 *   ScrollArea root  160px   (clips)
-					 *   scroll viewport  clientHeight 5448  scrollHeight 5448  scrollTop 0
+					 *   room list        312px   ← the definite-height outcome
+					 *   scroll viewport  clientHeight 312   scrollHeight 5448   scrollTop 0
 					 *
-					 * `clientHeight === scrollHeight` is the whole story: the viewport
-					 * is as tall as every option, so it has nothing to scroll and the
-					 * root's `overflow-hidden` simply cuts it off. The operator saw
-					 * "Unassigned" plus one or two rooms of 78 and could not reach
-					 * the rest. One experiment on the same page and build settled it:
-					 * setting `height: 400px` inline on the open popover dropped the
-					 * viewport from `clientHeight 5448` to `160` and it then accepted
-					 * `scrollTop = 500`.
+					 * With only a maximum, the same body gave a viewport of
+					 * `clientHeight 5448  scrollHeight 5448`: it is the VIEWPORT that
+					 * becomes as tall as every option, so it has nothing to scroll,
+					 * and the ScrollArea root's `overflow-hidden` cuts the list off —
+					 * the operator saw "Unassigned" plus one or two rooms of 78 and
+					 * could not reach the rest. (The root's own rect stays small
+					 * throughout; a note here once said "root 160px, 240px of chrome",
+					 * which was wrong — the chrome is the `shrink-0` header and footer,
+					 * 86–88px, and the 312px above is the list.) One experiment on the
+					 * same page and build settled it: setting `height: 400px` inline
+					 * on the open popover dropped the viewport's `clientHeight` from
+					 * 5448 to 160 and it then accepted `scrollTop = 500`.
 					 *
 					 * So the measured number is applied as BOTH a `height` and a
 					 * `maxHeight`. The definite height is what lets the flex column

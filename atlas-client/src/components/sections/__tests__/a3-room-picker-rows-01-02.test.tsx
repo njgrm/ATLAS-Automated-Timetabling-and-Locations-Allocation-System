@@ -74,6 +74,8 @@ const { SectionRoomPicker } = await import('../SectionRoomPicker');
 type RoomOption = import('../SectionRoomPicker').RoomOption;
 const {
 	popoverMaxHeightPx,
+	centreTriggerForPopover,
+	nearestScrollableAncestor,
 	POPOVER_MAX_PX,
 	POPOVER_MIN_USABLE_PX,
 	POPOVER_SIDE_OFFSET_PX,
@@ -244,23 +246,25 @@ test('row 01 control: scrolling inside the picker cannot scroll the page behind 
 	 * measured cases, not a guess:
 	 *
 	 *   DEFINITE body height  → the flex column resolves `flex-1`, the viewport is
-	 *     what is left after the shrink-0 chrome, and it SCROLLS. Measured: a
-	 *     400px body left 160px for the list (`5448 → 160`, and it then accepted
-	 *     `scrollTop = 500`).
+	 *     what is left after the shrink-0 chrome, and it SCROLLS. Measured for a
+	 *     400px body: a 312px list, viewport `clientHeight 312` against
+	 *     `scrollHeight 5448`.
 	 *   MAXIMUM only          → the height is indefinite for the children, the
-	 *     root takes its full content height, the viewport equals its scroll
-	 *     height and CANNOT scroll. Measured: `clientHeight 5448  scrollHeight
-	 *     5448`, root clipping at 160px.
+	 *     viewport equals its scroll height and CANNOT scroll. Measured:
+	 *     `clientHeight 5448  scrollHeight 5448`, the list cut off by the root.
 	 *
-	 * 160px of list in a 400px body is also the measured chrome figure (the search
-	 * header and the map footer are `shrink-0`), and the content is the 40-option
-	 * fixture at the committed `OPTION_ROW_CLASS` `h-16` = 64px each. */
+	 * 312px of list in a 400px body is the measured chrome figure — the `shrink-0`
+	 * search header and map footer — and the content is the 41-option fixture at
+	 * the committed `OPTION_ROW_CLASS` `h-16` = 64px each. (An earlier note here
+	 * said "root 160px, 240px of chrome", which QA measured as wrong: the root's
+	 * own rect stays small and it is the VIEWPORT that grows; the chrome is the
+	 * two `shrink-0` rows, 86–88px. The figures below are the measured ones.) */
 	const viewport = viewports[0] as HTMLElement;
 	const CONTENT_H = options.length * 64; // h-16, the committed option height
-	const CHROME_H = 400 - 160; // the measured 400px body → 160px of list
+	const LIST_IN_400_BODY = 312; // measured: a 400px body leaves a 312px list
 	Object.defineProperty(viewport, 'clientHeight', {
 		configurable: true,
-		get: () => (body.style.height === '' ? CONTENT_H : Math.max(0, Number.parseFloat(body.style.height) - CHROME_H)),
+		get: () => (body.style.height === '' ? CONTENT_H : Math.max(0, Number.parseFloat(body.style.height) - (400 - LIST_IN_400_BODY))),
 	});
 	Object.defineProperty(viewport, 'scrollHeight', { configurable: true, get: () => CONTENT_H });
 	try {
@@ -402,16 +406,30 @@ test('R1 control: the popover caps itself to the space BELOW the trigger, measur
 		// than re-derived here: 768 − 600 − 4 (sideOffset) − 12 (collisionPadding)
 		// − 4 (safety) = 148.
 		const expected = popoverMaxHeightPx(TRIGGER_BOTTOM, VIEWPORT_H);
-		assert.equal(capPx, expected, `the inline cap must be the measured space below; expected ${expected}px, got ${capPx}px`);
+		assert.equal(expected, 148, `the measured space below must be the arithmetic the comment claims; got ${expected}px`);
 		assert.equal(
 			expected,
 			VIEWPORT_H - TRIGGER_BOTTOM - POPOVER_SIDE_OFFSET_PX - POPOVER_COLLISION_PX - POPOVER_SAFETY_PX,
 			'the exported arithmetic must be the one the comment claims',
 		);
+		// A9 C7 R4: the value APPLIED is the measured number floored at
+		// `POPOVER_MIN_USABLE_PX`, so a trigger this low gets a body that can hold
+		// chrome plus a room instead of chrome alone. R1's row asserted the cap WAS
+		// the measured space below; that is superseded and quoted, not deleted —
+		// the arithmetic above still pins the measurement, and the assertion below
+		// pins what is applied. QA's measured defect was exactly this: 86px of body
+		// against 86px of chrome, a viewport of clientHeight 0, no rooms at all.
+		const appliedExpected = Math.max(expected, POPOVER_MIN_USABLE_PX);
+		assert.equal(
+			capPx,
+			appliedExpected,
+			`the applied cap must be the measured space below, floored so the list is never empty; expected ${appliedExpected}px, got ${capPx}px`,
+		);
 		assert.ok(capPx < POPOVER_MAX_PX, `the cap must be BELOW the 400px ceiling for this row; got ${capPx}px`);
 		assert.ok(
-			capPx <= VIEWPORT_H - TRIGGER_BOTTOM - POPOVER_SIDE_OFFSET_PX - POPOVER_COLLISION_PX - POPOVER_SAFETY_PX,
-			`the popover must never be taller than the space below the trigger; got ${capPx}px`,
+			capPx <= VIEWPORT_H - TRIGGER_BOTTOM - POPOVER_SIDE_OFFSET_PX - POPOVER_COLLISION_PX - POPOVER_SAFETY_PX
+				|| capPx === POPOVER_MIN_USABLE_PX,
+			`the popover must never be taller than the space below the trigger, except for the documented floor; got ${capPx}px`,
 		);
 		assert.ok(capPx > 0, 'a measurable row must not be capped to nothing');
 
@@ -419,8 +437,8 @@ test('R1 control: the popover caps itself to the space BELOW the trigger, measur
 		// cap is re-read AFTER that scroll — a bottom row gets a popover you can
 		// use instead of a strip, and the scroll happens before the popover mounts.
 		assert.ok(
-			capPx < POPOVER_MIN_USABLE_PX,
-			`precondition: the measured cap is below the usable minimum; got ${capPx}px`,
+			expected < POPOVER_MIN_USABLE_PX,
+			`precondition: the MEASURED cap is below the usable minimum, which is what triggers the centring; measured ${expected}px, floor ${POPOVER_MIN_USABLE_PX}px`,
 		);
 		assert.equal(centred, 1, 'a row with no usable room below is scrolled to centre before the cap is read');
 
@@ -664,8 +682,8 @@ test('R3 control: the measured cap is applied as a DEFINITE height, not only a m
 		);
 		assert.equal(
 			measured!.style.height,
-			'148px',
-			`the height must be the measured space below the trigger; got ${JSON.stringify(measured!.style.height)}`,
+			'192px',
+			`the height must be the measured space below the trigger, floored; got ${JSON.stringify(measured!.style.height)}`,
 		);
 		// And it is a HEIGHT, so the flex column can resolve `flex-1` and the
 		// viewport can be smaller than its content — the row-01 assertion above is
@@ -673,6 +691,10 @@ test('R3 control: the measured cap is applied as a DEFINITE height, not only a m
 		assert.ok(
 			Number.parseFloat(measured!.style.height) <= POPOVER_MAX_PX,
 			'the definite height must never exceed the 400px ceiling',
+		);
+		assert.ok(
+			Number.parseFloat(measured!.style.height) >= 41 + 45 + 64,
+			'the definite height must leave room for the chrome plus one option row',
 		);
 
 		// The committed class string is still the no-measurement fallback and is
@@ -687,4 +709,225 @@ test('R3 control: the measured cap is applied as a DEFINITE height, not only a m
 		dom.window.HTMLElement.prototype.getBoundingClientRect = realRect;
 		Object.defineProperty(dom.window, 'innerHeight', { value: realInnerHeight, configurable: true, writable: true });
 	}
+});
+
+/* ─── A9 C7 R4: the bottom row's popover must still show ROOMS, not just chrome ─── */
+
+test('R4 control: the popover body is never smaller than its chrome plus one option row', () => {
+	// F3, measured on real staging data (QA, 2026-09-29, 1366x768, list scrolled to
+	// its end at `scrollTop 1511`, bottom-most row `Silver`, trigger bottom 662):
+	//
+	//   popoverMaxHeightPx(662, 768) = 86px  →  body 86px, side=bottom, 666→752
+	//   scroll viewport                clientHeight 0   scrollHeight 5448
+	//
+	// The chrome is `header 41 + footer 45 = 86px`, so a body of exactly 86px was
+	// consumed entirely by the two `shrink-0` rows: the popover opened with a
+	// search box, a `BROWSE INTERACTIVE MAP` footer and **no room at all**. R1's
+	// `scrollIntoView({ block: 'center' })` could not rescue it — the trigger is the
+	// last row of an already-bottom-scrolled list, so centring had nothing to move
+	// and the re-read returned 86 again.
+	//
+	// The harness's own terms: whatever cap is applied, the body must be at least
+	// the chrome it contains PLUS one option row, or there is no room in the
+	// picker. The chrome is measured at 86px (41 header + 45 footer) and one row
+	// is the committed `h-16` = 64px, so the minimum viable body is 150px. The
+	// floor the component applies is `POPOVER_MIN_USABLE_PX` (192), which clears it
+	// with room to spare; a component that floored at, say, 100px would fail here.
+	const CHROME_H = 41 + 45; // measured: the shrink-0 search header and map footer
+	const OPTION_ROW_H = 64; // the committed OPTION_ROW_CLASS h-16
+	const MIN_VIABLE_BODY = CHROME_H + OPTION_ROW_H; // 150px
+	assert.equal(MIN_VIABLE_BODY, 150, 'the chrome and the row height are the measured figures');
+	assert.ok(
+		POPOVER_MIN_USABLE_PX >= MIN_VIABLE_BODY,
+		`the applied floor must leave room for at least one option row: floor ${POPOVER_MIN_USABLE_PX}px, minimum viable body ${MIN_VIABLE_BODY}px`,
+	);
+
+	// The measured case, through the component's own arithmetic, with the centring
+	// write given nothing to do (a container already at both ends — the harness's
+	// stand-in for a list that is already scrolled to its end).
+	const capBeforeCentring = popoverMaxHeightPx(662, 768);
+	assert.equal(capBeforeCentring, 86, `the measured pre-fix cap must be 86px; got ${capBeforeCentring}px`);
+	assert.ok(
+		capBeforeCentring < POPOVER_MIN_USABLE_PX,
+		'precondition: 86px is below the floor, which is why the floor exists',
+	);
+
+	// The FLOOR is what the component applies, so this is the number the body
+	// actually gets in the measured case — and it fits chrome plus a row.
+	const applied = Math.max(capBeforeCentring, POPOVER_MIN_USABLE_PX);
+	assert.equal(applied, POPOVER_MIN_USABLE_PX, 'the floor is the applied cap when the space below is smaller');
+	assert.ok(
+		applied >= MIN_VIABLE_BODY,
+		`THE fix: the body must be at least chrome + one row (${MIN_VIABLE_BODY}px); got ${applied}px`,
+	);
+
+	// And the same at the two viewports the proof rows use, with a trigger at the
+	// bottom of each — the case that produced 0px.
+	for (const vh of [768, 650, 720]) {
+		for (const bottom of [vh - 106, vh - 40, vh]) {
+			const cap = Math.max(popoverMaxHeightPx(bottom, vh), POPOVER_MIN_USABLE_PX);
+			assert.ok(
+				cap <= POPOVER_MAX_PX && cap >= MIN_VIABLE_BODY,
+				`a trigger at bottom ${bottom} in a ${vh}px viewport must yield a usable body; got ${cap}px (ceiling ${POPOVER_MAX_PX}, minimum ${MIN_VIABLE_BODY})`,
+			);
+		}
+	}
+});
+
+test('R4 control: the centring write moves the trigger instead of asking the browser to walk ancestors', () => {
+	// The mechanism behind the floor: a scrollable ancestor is written directly.
+	// `scrollIntoView` was a NO-OP for the measured row because the list was
+	// already at its end, which is why the fix writes `scrollTop` and keeps
+	// `scrollIntoView` only for a trigger with no scrollable ancestor.
+	const host = dom.window.document.createElement('div');
+	dom.window.document.body.appendChild(host);
+	hosts.push(host);
+	const scroller = dom.window.document.createElement('div');
+	host.appendChild(scroller);
+	const trigger = dom.window.document.createElement('button');
+	scroller.appendChild(trigger);
+
+	// A tall list in a 600px window. Scrolling the container DOWN moves its
+	// content UP the screen, so the write INCREASES `scrollTop` to lift the
+	// trigger away from the window edge.
+	Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => 3000 });
+	Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 600 });
+	const SCROLL_END = 3000 - 600; // the list scrolled to its end
+	const SCROLL_MID = 1500;
+	// How far this row sits ABOVE the last one, in px of list. The LAST row
+	// (`0`) is immovable: it is already at the bottom of the content, so no
+	// `scrollTop` can lift it. That is exactly why R1's `scrollIntoView` could not
+	// save QA's 86px case, and why the floor is the safety net behind the write.
+	let pxAboveLastRow = 320;
+	scroller.scrollTop = SCROLL_MID;
+	// The trigger's rect MOVES as the container scrolls, which is the whole point.
+	Object.defineProperty(trigger, 'getBoundingClientRect', {
+		configurable: true,
+		writable: true,
+		value: function rect(this: HTMLElement) {
+			const bottom = 662 + (SCROLL_END - scroller.scrollTop) - pxAboveLastRow;
+			return { width: 160, height: 36, top: bottom - 36, left: 0, right: 160, bottom, x: 0, y: bottom - 36, toJSON: () => ({}) } as DOMRect;
+		},
+	});
+
+	// The measured case, exactly: the LAST row of a list at its end. 86px below,
+	// which is the chrome and nothing else.
+	scroller.scrollTop = SCROLL_END;
+	pxAboveLastRow = 0;
+	assert.equal(
+		popoverMaxHeightPx(trigger.getBoundingClientRect().bottom, 768),
+		86,
+		'precondition: the last row of a bottom-scrolled list has the measured 86px below it',
+	);
+	assert.ok(
+		popoverMaxHeightPx(trigger.getBoundingClientRect().bottom, 768) < POPOVER_MIN_USABLE_PX,
+		'precondition: 86px is below the usable floor',
+	);
+
+	// The write lifts the trigger OFF the window edge, so a row that merely sits
+	// NEAR the end is fixed by the mechanism.
+	pxAboveLastRow = 320;
+	scroller.scrollTop = SCROLL_MID;
+	assert.ok(
+		popoverMaxHeightPx(trigger.getBoundingClientRect().bottom, 768) < POPOVER_MIN_USABLE_PX,
+		'precondition: mid-list this row still has too little space below',
+	);
+	assert.equal(
+		centreTriggerForPopover(trigger as HTMLElement, 768),
+		true,
+		'the centring write must report that it moved the trigger',
+	);
+	assert.ok(
+		scroller.scrollTop > SCROLL_MID,
+		`the container must have been written DOWN to lift the trigger; scrollTop ${scroller.scrollTop}`,
+	);
+	// Clamped to the container's real range — never past the end, never before the
+	// start.
+	assert.ok(
+		scroller.scrollTop <= SCROLL_END && scroller.scrollTop >= 0,
+		`the write must be clamped to the scroll range; scrollTop ${scroller.scrollTop}`,
+	);
+	// With the trigger moved, the space below is usable on its own: the mechanism
+	// did the work and the floor never has to bind.
+	const capAfter = popoverMaxHeightPx(trigger.getBoundingClientRect().bottom, 768);
+	assert.ok(
+		capAfter > POPOVER_MIN_USABLE_PX,
+		`after centring the space below must be usable on its own; got ${capAfter}px`,
+	);
+
+	// AND THE CASE THAT MADE QA BLOCK IT: the last row of a list already at its
+	// end. There is no `scrollTop` that lifts it, so the write is clamped to the
+	// same value, reports no move, and the caller's floor is the only thing between
+	// the operator and a 0px list. `scrollIntoView` was equally a no-op here, which
+	// is why the write alone was not enough.
+	scroller.scrollTop = SCROLL_END;
+	pxAboveLastRow = 0;
+	assert.equal(
+		centreTriggerForPopover(trigger as HTMLElement, 768),
+		false,
+		'a container already at its end cannot be moved, and the helper must say so rather than pretend',
+	);
+	assert.equal(scroller.scrollTop, SCROLL_END, 'and it must leave the container exactly where it was');
+
+	// A trigger with NO scrollable ancestor is not moved by the write, and the
+	// caller falls back to `scrollIntoView` for that case.
+	assert.equal(nearestScrollableAncestor(trigger as HTMLElement), scroller, 'the scroller must be found as the ancestor');
+	const noScroller = dom.window.document.createElement('div');
+	const lone = dom.window.document.createElement('button');
+	noScroller.appendChild(lone);
+	assert.equal(nearestScrollableAncestor(lone), null, 'a non-scrolling ancestor chain yields null');
+	assert.equal(centreTriggerForPopover(lone, 768), false, 'with nothing to write, the helper reports no move');
+	assert.equal(centreTriggerForPopover(null, 768), false, 'and a null trigger is not a move');
+});
+
+test('R4 control: the Home room column is sized, so the table cannot be pushed wider than its panel', () => {
+	// F4, measured on real staging data (QA, 2026-09-29, 1366x768): table
+	// `scrollWidth 1105` inside a `flex-1 min-h-0 overflow-auto` panel of
+	// `clientWidth 1070` — 35px of overflow. `DETAILS` rendered as `DETA`, and the
+	// last cell's right edge landed at x=1381 against a panel edge of 1346, so the
+	// row's "More actions" kebab (right 1365) was OUTSIDE the visible panel on
+	// every row. QA attributed it in place: hiding only the row picker buttons
+	// dropped the table to exactly 1070, and capping them at 180px removed it.
+	//
+	// The fix is the COLUMN, not the control: the header and the cell carry the
+	// same explicit width and the shared trigger keeps its own `w-full` and
+	// truncate, so the primitive is untouched and looks identical on all three
+	// surfaces (§8 one look per control). This row is a SOURCE assertion because
+	// the measurement is a browser one — its job is that the width cannot
+	// silently disappear, which is how the defect returned twice.
+	const header = source('src/pages/Sections.tsx')
+		.split(/\r?\n/)
+		.find((l) => l.includes('<th') && l.includes('Home room'));
+	assert.ok(header, 'precondition: the Home room <th> exists');
+	const cell = source('src/components/sections/SectionRow.tsx')
+		.split(/\r?\n/)
+		.find((l) => l.includes('<td') && l.includes('w-[200px]'));
+	assert.ok(cell, 'the Home room <td> must carry the same explicit width as its header');
+
+	// The SAME width on both, so the column is definite rather than one side
+	// merely suggesting it.
+	const headerWidth = /w-\[(\d+)px\]/.exec(header!)?.[1];
+	const cellWidth = /w-\[(\d+)px\]/.exec(cell!)?.[1];
+	assert.ok(headerWidth, `the Home room <th> must declare an explicit width; got ${header}`);
+	assert.equal(cellWidth, headerWidth, 'the Home room cell and header must declare the SAME explicit width');
+	assert.ok(Number(cellWidth) <= 220, `the column must fit inside the panel beside the other six; got ${cellWidth}px`);
+	for (const [what, line] of [['header', header!], ['cell', cell!]] as const) {
+		assert.match(line, /\bmin-w-0\b/, `the Home room ${what} must be min-w-0 so the content cannot force the column wider`);
+	}
+	// The control keeps its own truncate, so a long occupant name cannot widen the
+	// column from inside.
+	const picker = source('src/components/sections/SectionRoomPicker.tsx');
+	assert.match(
+		picker,
+		/\btruncate\b/,
+		'the trigger must keep its own truncation rather than pushing the column wider',
+	);
+	// And no page-local width cap was bolted onto the primitive to paper over the
+	// overflow — that is the fix §8 forbids, and it would make the control look
+	// different here than on the mobile card.
+	assert.doesNotMatch(
+		picker,
+		/max-w-\[\d+px\]/,
+		'the primitive must not gain a pixel width cap: the COLUMN is sized, not the control',
+	);
 });
