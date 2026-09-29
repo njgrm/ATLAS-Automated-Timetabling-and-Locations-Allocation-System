@@ -106,7 +106,7 @@ export function getFacultyLoadPresentation(faculty: FacultySummary): LoadPresent
 			// same word instead of two.
 			label: BELOW_STANDARD_LABEL,
 			// THE NEUTRAL TONE IS THE CUE. A teacher who is simply under the hours
-			// standard is not a defect, and amber made them read as one ΓÇö the operator
+			// standard is not a defect, and amber made them read as one — the operator
 			// saw a status they had to go and fix. `No load`, `Near cap`, `Over cap`
 			// and `Excluded` keep amber, orange, rose and slate, because those ARE
 			// actions: a coverage gap, a near ceiling, a blocked ceiling, a person who
@@ -117,7 +117,7 @@ export function getFacultyLoadPresentation(faculty: FacultySummary): LoadPresent
 			// that it is not a problem, and the ceiling. The old sentence said "below
 			// the 30h standard" and stopped, which left a scheduler deciding whether
 			// that was a warning.
-			help: `${actualTeachingHours} of the ${STANDARD_WEEKLY_TEACHING_HOURS}h standard so far. Not a problem ΓÇö this teacher can take more classes, up to ${maxHours}h.`,
+			help: `${actualTeachingHours} of the ${STANDARD_WEEKLY_TEACHING_HOURS}h standard so far. Not a problem — this teacher can take more classes, up to ${maxHours}h.`,
 		},
 		'above-standard': { label: 'Near cap', badgeClassName: 'border-orange-200 bg-orange-50 text-orange-700', help: `This teacher is above the ${STANDARD_WEEKLY_TEACHING_HOURS}h standard and still within the ${maxHours}h cap.` },
 		'over-cap': { label: 'Over cap', badgeClassName: 'border-rose-200 bg-rose-50 text-rose-700', help: `This teacher exceeds the ${maxHours}h cap. Move classes before generating the timetable.` },
@@ -140,7 +140,7 @@ export function getCompactLoadLabel(faculty: FacultySummary): string {
 }
 
 /**
- * A6 C3 (Lane C item #6) ΓÇö the same-name CUE, beside the name it belongs to.
+ * A6 C3 (Lane C item #6) — the same-name CUE, beside the name it belongs to.
  *
  * It is a cue and nothing more. The roster is NOT altered, merged, hidden,
  * reordered or paged: both records still render, each with its own load, and

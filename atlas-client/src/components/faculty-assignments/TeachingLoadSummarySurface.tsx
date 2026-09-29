@@ -79,7 +79,7 @@ const TeachingLoadSummaryMenuContext = createContext<{
 	open: boolean;
 	setOpen: (open: boolean) => void;
 	/**
-	 * A6 c9 (38.1) ΓÇö open ALREADY DRILLED INTO one teacher.
+	 * A6 c9 (38.1) — open ALREADY DRILLED INTO one teacher.
 	 *
 	 * The per-card `Review load` control has to open the staff workload audit
 	 * straight into that teacher's detail, with the `< All teachers` control that

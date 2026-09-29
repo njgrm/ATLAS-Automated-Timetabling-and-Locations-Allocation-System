@@ -688,13 +688,13 @@ function ScheduleReviewWorkspaceHeaderImpl({ context, onEditDraft, onDiscardDraf
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button asChild variant="outline" size="sm" className="h-8 gap-1.5">
-								<Link to="/faculty/concerns" data-testid="timetable-teacher-concerns-link">
+								<Link to="/faculty/preferences" data-testid="timetable-teacher-concerns-link">
 									<ClipboardList className="size-3.5" />
 									Teachers you have talked to
 								</Link>
 							</Button>
 						</TooltipTrigger>
-						<TooltipContent>Open each teacher&apos;s concerns — when they can teach, the rooms they need, and your notes</TooltipContent>
+						<TooltipContent>Open each teacher&apos;s preferences — when they can teach, the rooms they need, and your notes</TooltipContent>
 					</Tooltip>
 				</TooltipProvider>
 

@@ -49,6 +49,9 @@ const NON_TIMETABLE_PATHS = [
 	'/faculty/preferences',
 	'/faculty/room-preferences',
 	// S2 — the scheduler concern workspace is another non-timetable surface.
+	// A3 c15 — `/faculty/preferences` above is now that page's real route, and
+	// `/faculty/concerns` below is its retired alias. Both are non-timetable, so
+	// both keep their own exact key and still remount on navigation.
 	'/faculty/concerns',
 	'/timetabling/how-it-works',
 ];

@@ -16,6 +16,7 @@
     "test:lint-fixtures": "node ops/lint/verify-fixtures.cjs",
     "runtime:test": "node --test \"ops/runtime/__tests__/*.test.mjs\"",
     "test:staging-guards": "node --test \"ops/staging/__tests__/*.test.mjs\"",
+    "test:encoding": "node --test ops/quality/__tests__/no-mojibake.test.mjs",
     "runtime:start": "node ops/runtime/cli.mjs start",
     "runtime:stop": "node ops/runtime/cli.mjs stop",
     "runtime:status": "node ops/runtime/cli.mjs status",

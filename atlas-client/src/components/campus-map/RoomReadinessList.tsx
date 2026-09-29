@@ -421,7 +421,7 @@ export function RoomReadinessList({ buildings, roomOccupancy, compact = false }:
 									<ul className="mt-1.5 flex flex-wrap gap-1" data-testid="room-problem-rooms">
 										{group.problems.map((problem) => (
 											<li key={problem.id}>
-												<Badge variant="outline" className="gap-1 text-[11px] text-warning-foreground" data-room-status={problem.status}>
+												<Badge variant="outline" className="gap-1 text-xs text-warning-foreground" data-room-status={problem.status}>
 													<StatusIcon status={problem.status} />
 													{problem.name}
 												</Badge>
@@ -488,9 +488,9 @@ export function RoomReadinessList({ buildings, roomOccupancy, compact = false }:
 											    `Building · N seats` line beneath it is a secondary
 											    locator and still truncates on purpose. */}
 											<p className="break-words text-xs font-semibold text-slate-800">{room.name}</p>
-											<p className="truncate text-[11px] text-muted-foreground">{building.name} · {room.capacity ? `${room.capacity} seats` : 'Capacity missing'}</p>
+											<p className="truncate text-xs text-muted-foreground">{building.name} · {room.capacity ? `${room.capacity} seats` : 'Capacity missing'}</p>
 										</div>
-										<Badge variant="outline" className={`shrink-0 gap-1 text-[11px] ${copy.className}`}><StatusIcon status={status} />{copy.label}</Badge>
+										<Badge variant="outline" className={`shrink-0 gap-1 text-xs ${copy.className}`}><StatusIcon status={status} />{copy.label}</Badge>
 									</div>
 								);
 							})}

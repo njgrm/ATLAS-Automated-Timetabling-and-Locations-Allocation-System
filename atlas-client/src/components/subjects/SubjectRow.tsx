@@ -23,6 +23,7 @@ import { AccessibleInfo } from '@/components/smart/AccessibleInfo';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { splitSubjectFeatures, subjectFeatureHelp, ownerDepartmentRead } from './subject-feature-presentation';
 import { ProgramScopeChips } from './ProgramScopeChips';
+import { SUBJECT_ACTION_CELL_Z, SUBJECT_ACTION_COLUMN_WIDTH_CLASS } from './subject-action-column';
 import type { Subject, SubjectCoverageRow } from '@/types';
 import type { SubjectCoverageVerdict } from '@/components/subjects/subjects-coverage-truth';
 
@@ -405,8 +406,24 @@ export function SubjectRow({
 			  2. The visible label drops to one word. The accessible name keeps
 			     "Review teacher coverage for <subject>", so nothing is lost to a
 			     screen reader, and the shorter label is what buys the width back
-			     on the desktop table rather than trading the bug for a new one. */}
-		<td className="sticky right-0 z-10 border-l border-border/40 bg-white px-4 py-3 text-right">
+			     on the desktop table rather than trading the bug for a new one.
+
+			A5 C7 ITEM 44, ADDED. The fixed width comes from
+			`SUBJECT_ACTION_COLUMN_WIDTH_CLASS` — the SAME constant the header's
+			`<th>` uses, so the column's right-hand edge lines up instead of the
+			header and the cells each deciding it independently, which is what let
+			the right-hand edges drift. `shrink-0` is part of that constant
+			because a `w-*` is only a PREFERRED size: without it the table's own
+			layout can squeeze the column and the shared width is decorative.
+			`px-4` lives in the constant for the same reason, so the header's
+			`Action` label and the row's buttons pad identically and their right
+			edges line up too.
+
+			The cell's own `z-10` is UNCHANGED. The header row was raised above it
+			rather than these cells being lowered — see `subject-action-column.ts`
+			for why the header's own `z-20` could never have fixed the defect it
+			was presumably meant to. */}
+		<td className={`sticky right-0 ${SUBJECT_ACTION_CELL_Z} border-l border-border/40 bg-white py-3 text-right ${SUBJECT_ACTION_COLUMN_WIDTH_CLASS}`}>
 			<div className="flex items-center justify-end gap-2">
 				<Button
 					variant="outline"

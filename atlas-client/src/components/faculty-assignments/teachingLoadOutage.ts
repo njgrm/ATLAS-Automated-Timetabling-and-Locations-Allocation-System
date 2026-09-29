@@ -83,14 +83,14 @@ export type SubjectShortageEntry = {
 	/** Classes in this subject with no REAL teacher (unowned OR placeholder-held). */
 	shortClassCount: number;
 	/**
-	 * A6 c9 ΓÇö the SHORT classes by name, in the order the sections were supplied.
+	 * A6 c9 — the SHORT classes by name, in the order the sections were supplied.
 	 *
 	 * c5 counted them and named the subjects; c9's `See who needs a teacher`
-	 * window has to name the CLASSES too (`MAPEH ΓÇö 7-A, 7-B, 8-C`), because
+	 * window has to name the CLASSES too (`MAPEH — 7-A, 7-B, 8-C`), because
 	 * "who still needs assigning" is a scheduler's question about sections, not
 	 * about subjects. They are collected INSIDE the same walk that already
 	 * decides which pairs are short, so the names and the count can never come
-	 * from two different passes ΓÇö a list of names that did not sum to
+	 * from two different passes — a list of names that did not sum to
 	 * `shortClassCount` would be exactly the quiet disagreement this module
 	 * exists to prevent.
 	 */
@@ -331,7 +331,7 @@ export function buildStaffingTruthFigures(input: {
 }
 
 /**
- * A6 c9 ΓÇö THE HEADER'S PRIMARY CLAIM, as LABEL PARTS rather than one string.
+ * A6 c9 — THE HEADER'S PRIMARY CLAIM, as LABEL PARTS rather than one string.
  *
  * The operator overruled the previous arrangement twice over: the `% staffed`
  * figure was a read-only METRIC, so it was passed over as a number nobody acts
@@ -349,11 +349,11 @@ export const STAFFING_FIGURE_SEE_CLAUSE = 'See who needs a teacher';
 export const STAFFING_FIGURE_CLEARED_CLAUSE = 'Every class has a teacher';
 
 export type StaffingFigureLabel = {
-	/** `84% staffed` ΓÇö the measurement, never reworded. */
+	/** `84% staffed` — the measurement, never reworded. */
 	figure: string;
 	/** The verb clause, chosen by whether any class still lacks a teacher. */
 	clause: string;
-	/** The whole visible label, `84% staffed ΓÇö See who needs a teacher`. */
+	/** The whole visible label, `84% staffed — See who needs a teacher`. */
 	label: string;
 	/** The accessible name: the same words, plus the destination. */
 	accessibleLabel: string;
@@ -365,7 +365,7 @@ export function buildStaffingFigureLabel(input: StaffingTruthFigures): StaffingF
 	const figure = `${input.staffedPercent}% staffed`;
 	const hasShortage = input.withoutRealTeacherCount > 0;
 	const clause = hasShortage ? STAFFING_FIGURE_SEE_CLAUSE : STAFFING_FIGURE_CLEARED_CLAUSE;
-	const label = `${figure} ΓÇö ${clause}`;
+	const label = `${figure} — ${clause}`;
 	return {
 		figure,
 		clause,
@@ -376,13 +376,13 @@ export function buildStaffingFigureLabel(input: StaffingTruthFigures): StaffingF
 }
 
 /**
- * A6 c9 ΓÇö THE ONE QUIET SAVED-DATA LINE, and its date rule.
+ * A6 c9 — THE ONE QUIET SAVED-DATA LINE, and its date rule.
  *
  * The operator saw TWO amber surfaces making the same claim and asked for at
  * most one quiet line, and for it to carry the date of the roster it is really
  * showing. `SectionSummaryResponse.fetchedAt` is the only timestamp the client
  * genuinely holds, so the date is read from it and DROPPED when it is absent or
- * unparseable ΓÇö never synthesised, and never replaced by "today".
+ * unparseable — never synthesised, and never replaced by "today".
  */
 export const SAVED_ROSTER_NOTE_PREFIX = 'From the saved roster';
 

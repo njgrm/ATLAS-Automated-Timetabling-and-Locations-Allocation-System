@@ -11,7 +11,21 @@ const TabsList = React.forwardRef<
 	<TabsPrimitive.List
 		ref={ref}
 		className={cn(
-			'inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground',
+			/**
+			 * A7 C8 SLICE 1 — `h-9` -> `h-12`. The acting element is the TRIGGER, not
+			 * the list: the list is `p-1` (4px) top and bottom, so the trigger was
+			 * `h-9 - 8px` = 28px tall. A tab you have to hit accurately is the
+			 * definition of a control this audience cannot use, so the trigger is
+			 * what had to reach 40px — and reaching it from the list means the
+			 * list reaches 48px. Sizing the trigger directly instead would leave a
+			 * list whose padding no longer adds up to its own box, which is the
+			 * kind of drift §8 forbids.
+			 *
+			 * NO SECOND ROW, NO SECOND CONTROL. This is 12px more vertical space in
+			 * the row that already existed; §8's header budget (at most two calm
+			 * rows at 1366x768) is unchanged by it, because nothing was added.
+			 */
+			'inline-flex h-12 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground',
 			className,
 		)}
 		{...props}

@@ -77,8 +77,14 @@ const ROOM_PREFERENCES_ROUTE = '/faculty/room-preferences';
 const ROOM_PREFERENCES_LABEL = 'Room Preferences';
 const TEACHERS_AND_ROOMS_GROUP = 'Teachers and Rooms';
 const FACULTY_PREFERENCES_ROUTE = '/faculty/preferences';
-const CONCERNS_ROUTE = '/faculty/concerns';
-const CONCERNS_LABEL = 'Teacher Concerns';
+/**
+ * A3 c15 — the ONE page, its real route, and its one name. `/faculty/preferences`
+ * is the mounted page route now, so the sidebar item and both redirects point
+ * here; `/faculty/concerns` is the retired alias that redirects to it.
+ */
+const CONCERNS_ROUTE = FACULTY_PREFERENCES_ROUTE;
+const CONCERNS_LABEL = 'Teacher Preferences';
+const RETIRED_CONCERNS_ROUTE = '/faculty/concerns';
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * A3 c13 — SUPERSESSION RECORD (added 2026-09-29). Rows R1-R5 below are the
@@ -90,11 +96,11 @@ const CONCERNS_LABEL = 'Teacher Concerns';
  * registered route with zero inbound links, so no operator could reach it. The
  * recorded decision was LINK IT, and for that surface that was right.
  *
- * A3 c13 folded that queue INTO Teacher Concerns, per the operator direction
+ * A3 c13 folded that queue INTO Teacher Preferences, per the operator direction
  * ("room preferences should not be a different page, it should be folded into
- * teacher concerns so there is only one page the scheduler will fill out when
+ * teacher preferences so there is only one page the scheduler will fill out when
  * speaking to a teacher"). `pages/OfficerRoomPreferences.tsx` is now
- * `<Navigate to="/faculty/concerns" replace />`, and the queue's two real
+ * `<Navigate to="/faculty/preferences" replace />`, and the queue's two real
  * capabilities are both present on the selected teacher's form: the ZERO-WRITE
  * preview and the one button that applies through the existing review PATCH.
  *
@@ -115,7 +121,7 @@ const CONCERNS_LABEL = 'Teacher Concerns';
 
 const SUPERSEDED_ON = '2026-09-29';
 const SUPERSESSION_REASON =
-	'A3 c13 folded the room-request review queue into /faculty/concerns; the route now redirects and the sidebar shows one label.';
+	'A3 c13 folded the room-request review queue into /faculty/preferences; the route now redirects and the sidebar shows one label.';
 
 /**
  * Run a legacy assertion and require it to have STOPPED holding, naming the
@@ -377,7 +383,7 @@ test('R6: the detector flags a fabricated schedulerAccess:true item at this rout
  * replacement item, so these cannot pass by finding nothing at all.
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-test('R7a: the sidebar offers ONE teacher-concerns destination, labelled "Teacher Concerns", and no item for either folded route', () => {
+test('R7a: the sidebar offers ONE teacher-preferences destination, labelled "Teacher Preferences", and no item for either retired route', () => {
 	// Positive control FIRST: the same probe must find the replacement, or every
 	// "zero items" assertion below is vacuous.
 	const concernsItems = itemsAt(CONCERNS_ROUTE);
@@ -385,12 +391,13 @@ test('R7a: the sidebar offers ONE teacher-concerns destination, labelled "Teache
 	assert.equal(
 		concernsItems[0]!.label,
 		CONCERNS_LABEL,
-		'the one teacher-concerns destination carries exactly this name — one destination, one label',
+		'the one teacher-preferences destination carries exactly this name — one destination, one label',
 	);
 
-	// The fold: neither retired route may advertise itself anywhere in the nav.
-	for (const route of [ROOM_PREFERENCES_ROUTE, FACULTY_PREFERENCES_ROUTE]) {
-		assert.deepEqual(itemsAt(route), [], `${route} must not be advertised in the sidebar; it is folded into ${CONCERNS_ROUTE}`);
+	// The fold: A3 c15 retired `/faculty/concerns` as this page's alias, so
+	// neither it nor the room queue may advertise itself anywhere in the nav.
+	for (const route of [ROOM_PREFERENCES_ROUTE, RETIRED_CONCERNS_ROUTE]) {
+		assert.deepEqual(itemsAt(route), [], `${route} must not be advertised in the sidebar; it folds into ${CONCERNS_ROUTE}`);
 		assert.equal(
 			teachersAndRoomsNav.some((item) => item.to === route),
 			false,
@@ -409,9 +416,10 @@ test('R7a: the sidebar offers ONE teacher-concerns destination, labelled "Teache
 	}
 
 	// The retired LABELS must identify nothing at all — a label that survives on
-	// another row is the duplicate-link defect this lane exists to remove.
+	// another row is the duplicate-link defect this lane exists to remove, and
+	// "Teacher Concerns" is the name A3 c15 retired outright.
 	const everyLabel = breadcrumbGroups.flatMap((group) => group.items).map((item) => item.label);
-	for (const retired of [ROOM_PREFERENCES_LABEL, 'Faculty Preferences']) {
+	for (const retired of [ROOM_PREFERENCES_LABEL, 'Faculty Preferences', 'Teacher Concerns']) {
 		assert.equal(
 			everyLabel.includes(retired),
 			false,
@@ -420,12 +428,12 @@ test('R7a: the sidebar offers ONE teacher-concerns destination, labelled "Teache
 	}
 });
 
-test('R7b: both folded URLs resolve the chrome of the page they actually land on, so neither flashes the generic "ATLAS" title', () => {
+test('R7b: the page and both retired URLs resolve the chrome of the page they land on, so neither flashes the generic "ATLAS" title', () => {
 	// This is the A3-C13 correction of the ux-r01 shared-chrome row: a URL that
 	// still exists — even one whose component is a redirect — must resolve a
 	// specific title. `resolveRouteChrome` falls through to 'ATLAS' on a miss,
 	// which is the generic flash that row forbids.
-	for (const route of [ROOM_PREFERENCES_ROUTE, FACULTY_PREFERENCES_ROUTE, CONCERNS_ROUTE]) {
+	for (const route of [ROOM_PREFERENCES_ROUTE, RETIRED_CONCERNS_ROUTE, CONCERNS_ROUTE]) {
 		const chrome = resolveRouteChrome(route);
 		assert.notEqual(chrome.title, 'ATLAS', `${route} must not fall through to the generic ATLAS title`);
 		assert.equal(chrome.title, CONCERNS_LABEL, `${route} lands on the teacher form, so it must name it`);
@@ -443,14 +451,20 @@ test('R7b: both folded URLs resolve the chrome of the page they actually land on
 });
 
 test('R7c: both folded pages redirect to the teacher form, and the fold kept the server authority boundary intact', () => {
-	// The redirect itself, read from the real page source: the two components the
-	// route table lazy-imports must carry the redirect and nothing else.
-	for (const page of ['src/pages/OfficerRoomPreferences.tsx', 'src/pages/OfficerPreferences.tsx']) {
+	// The redirect itself, read from the real page source: these components must
+	// carry the redirect and nothing else. `OfficerRoomPreferences` is still the
+	// mounted element for its route; `OfficerPreferences` and the A3 c15 alias are
+	// the retained redirect records for paths that no longer mount a page.
+	for (const page of [
+		'src/pages/OfficerRoomPreferences.tsx',
+		'src/pages/OfficerPreferences.tsx',
+		'src/pages/TeacherConcernsAlias.tsx',
+	]) {
 		const text = source(page);
 		assert.match(
 			text,
-			/<Navigate\s+to=["']\/faculty\/concerns["']\s+replace\s*\/>/,
-			`${page} must render <Navigate to="/faculty/concerns" replace />`,
+			/<Navigate\s+to=["']\/faculty\/preferences["']\s+replace\s*\/>/,
+			`${page} must render <Navigate to="/faculty/preferences" replace />`,
 		);
 		// The retired review queue must not be resurrected behind the redirect.
 		assert.doesNotMatch(text, /useState|useEffect|atlasApi/, `${page} must be a redirect only, with no data fetching left behind`);
@@ -488,4 +502,135 @@ test('R7c: both folded pages redirect to the teacher form, and the fold kept the
 		true,
 		'control: the scheduler capability path is live for items that opt in',
 	);
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * A3 c15 — the RENAME. The operator asked for one word: the page called Teacher
+ * Concerns is now called Teacher Preferences, at `/faculty/preferences`.
+ *
+ * These three rows are ADDED, never substituted for anything above: R1-R5 stay
+ * as the superseded record and R7a-R7c stay as the folded-route contract. They
+ * pin the three facts a rename can quietly get wrong — which path MOUNTS the
+ * page, which path merely redirects to it, and whether the old word survives
+ * anywhere a scheduler can read it.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+const PAGES_NOT_NAMING_CONCERN = [
+	'src/pages/TeacherConcerns.tsx',
+	'src/components/timetable/simple/SimpleMoreMenuContent.tsx',
+	'src/components/timetable/ScheduleReviewWorkspaceHeader.tsx',
+	'src/components/timetable/timetableDriftRouting.ts',
+] as const;
+
+/**
+ * Persisted wire format, NOT copy. `teacher-concern-helpers.ts` stores these two
+ * headings inside the frozen `notes` column, so they must survive the rename
+ * byte-identically or every already-saved teacher record stops parsing. They are
+ * masked out below, and the row that reads them proves they are untouched.
+ */
+const PERSISTED_NOT_HEADINGS = ['Notes for the scheduler', 'Room requests'] as const;
+
+/**
+ * Return the prose a scheduler could actually READ, with everything that is not
+ * prose removed: block and line comments, `data-testid` attribute values (stable
+ * test hooks, never rendered as copy), and module specifiers (paths, not text).
+ *
+ * Identifiers are deliberately NOT stripped — stripping them would also remove
+ * JSX text and make the control vacuous. Instead a hit is judged by its word
+ * boundary, so `describeSavedConcern` and `loadConcern` are identifiers while a
+ * standalone "concern" or "concerns" is a word on screen.
+ */
+function readableProse(sourceText: string): string {
+	return sourceText
+		.replace(/\/\*[\s\S]*?\*\//g, ' ')
+		.replace(/(^|[^:])\/\/.*$/gm, '$1')
+		.replace(/\b(?:data-testid|testId|data-testid)\s*=\s*(['"`])[^'"`]*\1/g, 'data-testid=@')
+		.replace(/(['"])[.@/][^'"]*\1/g, '"@"');
+}
+
+test('A3C15-1: /faculty/preferences MOUNTS the page and the two retired paths redirect to it with replace', () => {
+	const app = source('src/App.tsx');
+	assert.match(
+		app,
+		/path: 'faculty\/preferences',\s*\n\s*element: <TeacherConcerns \/>/,
+		`${CONCERNS_ROUTE} must mount the page itself, not a redirect`,
+	);
+	assert.doesNotMatch(
+		app,
+		/path: 'faculty\/preferences',\s*\n\s*element: <OfficerPreferences \/>/,
+		'the folded Faculty Preferences page must no longer be mounted at the real route',
+	);
+	assert.match(
+		app,
+		/path: 'faculty\/concerns',\s*\n\s*element: <TeacherConcernsAlias \/>/,
+		`${RETIRED_CONCERNS_ROUTE} must mount the redirect alias, not a second page`,
+	);
+	assert.match(app, /path: 'faculty\/room-preferences',\s*\n\s*element: <OfficerRoomPreferences \/>/);
+
+	for (const page of ['src/pages/TeacherConcernsAlias.tsx', 'src/pages/OfficerRoomPreferences.tsx']) {
+		assert.match(
+			source(page),
+			/<Navigate\s+to=["']\/faculty\/preferences["']\s+replace\s*\/>/,
+			`${page} must redirect to ${CONCERNS_ROUTE} with replace`,
+		);
+	}
+	// Discrimination: the alias must be a redirect and nothing else, or the retired
+	// path would render a second copy of the page under the old name.
+	const alias = source('src/pages/TeacherConcernsAlias.tsx');
+	assert.doesNotMatch(alias, /TeacherConcerns(?!Alias)\b(?!Workspace)/, 'the alias must not import or mount the page itself');
+	assert.doesNotMatch(alias, /useState|useEffect|atlasApi/, 'the alias must carry no data fetching');
+});
+
+test('A3C15-2: exactly ONE sidebar item points at /faculty/preferences, and none points at either retired path', () => {
+	// Positive control first, so the zero rows below cannot pass vacuously.
+	const items = itemsAt(CONCERNS_ROUTE);
+	assert.equal(items.length, 1, `sanity: exactly one item must resolve ${CONCERNS_ROUTE}, found ${items.length}`);
+	assert.equal(items[0]!.label, CONCERNS_LABEL, 'one destination, one name');
+
+	for (const route of [RETIRED_CONCERNS_ROUTE, ROOM_PREFERENCES_ROUTE]) {
+		assert.deepEqual(
+			breadcrumbGroups.flatMap((group) => group.items).filter((item) => item.to === route),
+			[],
+			`${route} is a redirect, so no nav item may point at it`,
+		);
+	}
+	assert.equal(
+		breadcrumbGroups.flatMap((group) => group.items).filter((item) => item.to === CONCERNS_ROUTE).length,
+		1,
+		'the one page is advertised exactly once across every nav group',
+	);
+});
+
+test('A3C15-3: no user-visible string on the page, the More menu, the timetable header link or the drift card says "concern"', () => {
+	for (const page of PAGES_NOT_NAMING_CONCERN) {
+		const prose = readableProse(source(page));
+		const hits = prose.match(/(?<![A-Za-z0-9_$])concerns?(?![A-Za-z0-9_$])/gi) ?? [];
+		assert.deepEqual(
+			hits,
+			[],
+			`${page} still shows the retired word to a scheduler: ${JSON.stringify(hits)}\n${prose
+				.split('\n')
+				.filter((line) => /concern/i.test(line))
+				.join('\n')}`,
+		);
+	}
+	// The control must discriminate: masking data-testid values and identifiers is
+	// what lets it see prose, so prove it still catches a real sentence.
+	const control = readableProse(`<Badge data-testid='concern-save-state'>Save</Badge> Your concern was recorded.`);
+	assert.deepEqual(
+		control.match(/(?<![A-Za-z0-9_$])concerns?(?![A-Za-z0-9_$])/gi),
+		['concern'],
+		'the readable-prose probe must catch a sentence and ignore the data-testid value',
+	);
+
+	// The persisted headings the rename deliberately did NOT touch: their VALUES
+	// are byte-identical, because they are saved inside the frozen `notes` column.
+	const helpers = source('src/components/faculty-shared/teacher-concern-helpers.ts');
+	for (const heading of PERSISTED_NOT_HEADINGS) {
+		assert.ok(
+			helpers.includes(`= '${heading}'`),
+			`the persisted heading "${heading}" must survive the rename byte-identically`,
+		);
+		assert.equal(/concern/i.test(heading), false, 'a persisted heading is data, so it carries no retired word anyway');
+	}
 });

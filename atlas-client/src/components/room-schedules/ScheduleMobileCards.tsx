@@ -71,7 +71,7 @@ export function ScheduleMobileCards({
 									<div className="flex items-center justify-between gap-2 mb-1.5">
 										<span className="text-xs font-bold text-primary bg-primary/10 rounded-full px-2 py-0.5">{item.timeSlot}</span>
 										{item.conflict && (
-											<Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+											<Badge variant="destructive" className="text-xs px-1.5 py-0">
 												<AlertTriangle className="mr-0.5 size-2.5" />
 												Conflict
 											</Badge>

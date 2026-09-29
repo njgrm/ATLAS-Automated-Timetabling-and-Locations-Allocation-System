@@ -516,28 +516,28 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 
 			{hasActiveFilters && (
 				<div className="flex flex-wrap items-center gap-1.5" data-testid="teaching-load-active-filters">
-					<span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Active filters:</span>
+					<span className="text-xs font-bold tracking-wide text-muted-foreground">Active filters:</span>
 					{searchQuery.trim() && (
-						<Badge variant="secondary" className="gap-1 text-[11px] font-bold">
+						<Badge variant="secondary" className="gap-1 text-xs font-bold">
 							Search: {searchQuery.trim()}
 						</Badge>
 					)}
 					{filterStatus !== 'all' && (
-						<Badge variant="secondary" className="gap-1 text-[11px] font-bold">
+						<Badge variant="secondary" className="gap-1 text-xs font-bold">
 							{filterStatus === 'teaching-assigned' ? 'Teaching assigned' : filterStatus === 'no-teaching' ? 'No teaching load' : 'Adviser only'}
 						</Badge>
 					)}
 					{departmentFilter !== 'all' && (
-						<Badge variant="secondary" className="gap-1 text-[11px] font-bold">
+						<Badge variant="secondary" className="gap-1 text-xs font-bold">
 							{departmentOptions.find((option) => option.value === departmentFilter)?.label ?? departmentFilter}
 						</Badge>
 					)}
 					{loadFilter !== 'all' && (
-						<Badge variant="secondary" className="gap-1 text-[11px] font-bold">
+						<Badge variant="secondary" className="gap-1 text-xs font-bold">
 							{loadFilter === 'excess' ? 'Excess teaching load' : loadFilter === 'at-standard' ? 'At standard' : BELOW_STANDARD_LABEL}
 						</Badge>
 					)}
-					<Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-[11px] font-bold uppercase" onClick={onClearTeachingLoadFilters}>
+					<Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs font-bold" onClick={onClearTeachingLoadFilters}>
 						<RotateCcw className="size-3.5" />
 						Clear all
 					</Button>
