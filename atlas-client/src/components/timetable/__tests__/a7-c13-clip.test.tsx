@@ -62,15 +62,15 @@ test('ITEM 1: the change-notice sentence wraps at every width, never truncating 
 	assert.ok(tag, 'the sentence span renders');
 	assertWraps(classTokens(tag), 'the change-notice sentence');
 	// The whole sentence is the text the scheduler must be able to read.
-	assert.ok(markup.includes('Teaching Load and Teacher availability changed since this schedule was made.'),
+	assert.ok(markup.includes('Teaching Load and Teacher availability changed.'),
 		'the full two-area sentence is rendered');
 });
 
 test('ITEM 1: the historical 1-area and 3-area sentences are unchanged', () => {
 	assert.equal(changeNoticeSentence(['Teaching Load']),
-		'Teaching Load changed since this schedule was made.');
+		'Teaching Load changed.');
 	assert.equal(changeNoticeSentence(['Teaching Load', 'Rooms', 'Teacher availability']),
-		'Teaching Load and 2 other areas changed since this schedule was made.');
+		'Teaching Load and 2 other areas changed.');
 });
 
 /* ── ITEM 4 — the task-drawer step text wraps ───────────────────────────────── */

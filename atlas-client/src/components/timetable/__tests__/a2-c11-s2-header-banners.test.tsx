@@ -335,10 +335,10 @@ function expertHeader(context: Record<string, any>) {
 test('ITEM 1 the sentence NAMES what changed, and falls back to the generic claim when nothing is known', () => {
 	// The named branch: the areas come from the server's own changedDomains.
 	assert.equal(changeNoticeSentence(['Teaching Load', 'Rooms']),
-		'Teaching Load and Rooms changed since this schedule was made.');
-	assert.equal(changeNoticeSentence(['Rooms']), 'Rooms changed since this schedule was made.');
+		'Teaching Load and Rooms changed.');
+	assert.equal(changeNoticeSentence(['Rooms']), 'Rooms changed.');
 	assert.equal(changeNoticeSentence(['Teaching Load', 'Rooms', 'Subjects', 'Sections']),
-		'Teaching Load and 3 other areas changed since this schedule was made.');
+		'Teaching Load and 3 other areas changed.');
 	// DISCRIMINATION: the pre-fix row said "School information changed after this
 	// schedule was made…" regardless of WHAT changed, and these three inputs would
 	// all have produced that one sentence.
@@ -364,7 +364,7 @@ test('ITEM 1 RENDERED: the REAL Simple header prints ONE sentence, no second tit
 	// `Schedule information changed` heading span AND the message span, so the band
 	// carried two headings saying the same thing.
 	const bandText = visibleText(band!).trim();
-	assert.equal(bandText, 'Teaching Load and Rooms changed since this schedule was made.See what changedUpdate schedule',
+	assert.equal(bandText, 'Teaching Load and Rooms changed.See what changedUpdate schedule',
 		'the whole row is exactly one sentence plus the two actions — no second heading, no sub-clause');
 	assert.equal(band!.querySelectorAll('[data-testid="timetable-simple-drift-message"]').length, 1,
 		'there is exactly ONE message span');
@@ -555,7 +555,7 @@ test('ITEM 2 the EXPERT header renders the SAME one-sentence notice from the SAM
 	// Byte-identical claim to the Simple row: one implementation, so the two
 	// layouts cannot drift onto two different banners.
 	assert.equal(visibleText(notice!).trim(),
-		'Teaching Load and Rooms changed since this schedule was made.See what changedUpdate schedule',
+		'Teaching Load and Rooms changed.See what changedUpdate schedule',
 		'the Expert row reads exactly what the Simple row reads');
 	assert.equal(/\bchecked\b|\bago\b/i.test(notice!.textContent ?? ''), false,
 		'and carries no timestamp on this layout either');
