@@ -26,14 +26,14 @@ which reads `DATABASE_URL` from the runtime env file in memory and prints only `
 
 ## 2. OpenCode planners
 
-- Launch detached (survives a Claude crash):
-  `powershell -File ops/lane-c/launch.ps1 -Name <lane-cycle> -Agent <agent> -Prompt '<one line, no double quotes>' [-Elevated]`
-  - Agents: `atlas-planner` (default), `atlas-planner-ds` (DeepSeek lanes, e.g. A7). Never the default `build`.
+- Provision a pinned `E:\ATLAS-worktrees` worktree, then launch detached:
+  `powershell -File ops/lane-c/new-worktree.ps1 -Name <packet>; powershell -File ops/lane-c/launch.ps1 -Name <packet> -Agent atlas-executor -Dir E:\ATLAS-worktrees\<packet> -Prompt '<one line, no double quotes>' [-Elevated]`
+  - Agents: `atlas-planner`, `atlas-executor`, `atlas-qa`, and `atlas-wave-auditor` resolve to space-bunny-free. Never omit `-Agent` and never use the provider-refused default `build` agent.
   - `-Elevated` attaches to :4097 (A4 release lane only; A4 also passes `-Force` past the cap).
-  - Cap 6 planners and 6 GB commit free; when refused, use `bash ops/lane-c/queue-launch.sh <name> <agent> <promptfile>`.
+  - Cap 6 planners and 6 GB commit free; when refused, use `bash ops/lane-c/queue-launch.sh <name> <agent> <worktree> <promptfile>`.
 - Then `bash ops/lane-c/await.sh <name>` in the background.
-- Ended on a statement of intent / killed mid-turn: continue the SAME session —
-  `launch.ps1 -Name <name>-r -Session <ses_id> -Prompt '...'` (or `queue-resume.sh`). Session ids: `opencode session list`.
+- Ended on a statement of intent / killed mid-turn: continue the SAME session in its original worktree —
+  `launch.ps1 -Name <name>-r -Session <ses_id> -Dir E:\ATLAS-worktrees\<packet> -Prompt '...'` (or `queue-resume.sh <name> <agent> <session> <worktree>`). Session ids: `opencode session list`.
 - Read a finished session: `opencode export <ses_id>`. `opencode run` exits 0 even on model errors — read the tail.
 - DIED-EMPTY in status = the command line broke (prompt quoting); fix the prompt and relaunch.
 - A run log-idle >60 min with a dev server child at 0 CPU = hung foreground server: kill that server PID only.
@@ -72,7 +72,7 @@ Two Codex accounts, each with its own `CODEX_HOME`, can run at the same time:
 |---|---|---|
 | Manager (Lane C) | second account, `D:\codex-homes\manager` | `ops/lane-c/codex/manager-tick.ps1` loop |
 | QA + browser walks | main account, `~/.codex` (paired with Brave) | the manager, via `ops/lane-c/codex/codex-run.ps1` |
-| Executors (planners) | OpenCode (DeepSeek / :4097 for A4) | the manager, via `launch.ps1` |
+| Executors (planners) | OpenCode space-bunny-free; A4 only under its release gate | the manager, via `launch.ps1` in a pinned worktree |
 
 One-time setup (operator): `$env:CODEX_HOME='D:\codex-homes\manager'; codex login` (second account), then open a
 terminal and run `powershell -File ops/lane-c/codex/manager-tick.ps1`. The role card is `ops/lane-c/codex/MANAGER.md`.

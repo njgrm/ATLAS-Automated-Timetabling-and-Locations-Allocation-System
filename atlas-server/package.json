@@ -27,7 +27,7 @@
     "test:warning-readability": "tsx src/__tests__/warning-readability-c01.test.ts",
     "test:faculty-grade-preference": "tsx --test src/__tests__/faculty-grade-preference-s7.test.ts",
     "test:shift-coherence": "tsx --test src/__tests__/shift-coherence-s8.test.ts",
-    "test:request-timing": "tsx --test src/__tests__/request-timing.test.ts",
+    "test:request-timing": "tsx --test src/__tests__/request-timing.test.ts src/__tests__/live-use-activity-route.test.ts",
     "test:a8-sse-stream-lifecycle": "tsx --test src/__tests__/a8-sse-stream-lifecycle.test.ts",
     "test:published-swap-term": "tsx --test src/__tests__/published-swap-term-guard-c04.test.ts",
     "test:published-load-transfer": "tsx --test src/__tests__/published-teaching-load-transfer-c05.test.ts",

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createServer } from 'node:http';
+import { createServer, request as httpRequest } from 'node:http';
 import { connect } from 'node:net';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -298,6 +298,35 @@ test('production host exposes distinct liveness and dependency-readiness probes'
 	} finally {
 		await readyHost.close();
 		await degradedHost.close();
+		api.server.close();
+		rmSync(staticRoot, { recursive: true, force: true });
+	}
+});
+
+test('production host activity ignores probes, records a client request, and is loopback-only', async () => {
+	const staticRoot = makeStaticRoot();
+	const api = startFakeApi();
+	const apiPort = await listen(api.server);
+	const host = createProductionHost({ staticRoot, apiTarget: `http://127.0.0.1:${apiPort}`, enrollProTarget: `http://127.0.0.1:${apiPort}`, probeApiReadiness: async () => ({ ok: true, status: 200 }) });
+	const hostPort = await listen(host.server);
+	try {
+		const before = await (await fetch(`http://127.0.0.1:${hostPort}/__host/activity`)).json();
+		assert.equal(before.lastInteractiveAt, null);
+		await fetch(`http://127.0.0.1:${hostPort}/__host/live`);
+		assert.equal((await (await fetch(`http://127.0.0.1:${hostPort}/__host/activity`)).json()).lastInteractiveAt, null, 'host probes must not look like live use');
+		await fetch(`http://127.0.0.1:${hostPort}/timetable`);
+		assert.match((await (await fetch(`http://127.0.0.1:${hostPort}/__host/activity`)).json()).lastInteractiveAt ?? '', /^\d{4}-\d\d-\d\dT/);
+		const blockedStatus = await new Promise((resolvePromise, rejectPromise) => {
+			const request = httpRequest({ host: '127.0.0.1', port: hostPort, path: '/__host/activity', headers: { host: 'njgrm.buru-degree.ts.net' } }, (response) => {
+				response.resume();
+				resolvePromise(response.statusCode);
+			});
+			request.on('error', rejectPromise);
+			request.end();
+		});
+		assert.equal(blockedStatus, 404, 'a Tailnet host header cannot read activity telemetry');
+	} finally {
+		await host.close();
 		api.server.close();
 		rmSync(staticRoot, { recursive: true, force: true });
 	}

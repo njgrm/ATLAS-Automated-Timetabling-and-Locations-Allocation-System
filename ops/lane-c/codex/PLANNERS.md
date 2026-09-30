@@ -8,23 +8,24 @@ No agent, or a `-ds` agent, silently runs DeepSeek; the default `build` agent is
 ## Tiers (workflow v2)
 | Tier | What | Path |
 |---|---|---|
-| T1 | Wording, layout, styling, one component, <=50 lines, no data/generation/publish logic | One executor, short packet: focused tests + tsc + 1366x768 screenshot, lands on main. No QA round. |
+| T1 | Wording, layout, styling, one component, <=50 lines, no data/generation/publish logic | One executor, short packet: focused tests + tsc + 1366x768 screenshot; the named integration owner lands it after checking the report. No separate QA round. |
 | T2 | One page or behaviour | One executor; Codex verifies live against the quoted operator words. At most 1 fix-up round, then decide. |
 | T3 | Generator, publish, deploy path, migrations, live-data writes, auth | Executor on a branch; a second model reviews before landing (Codex high effort). Staging walk. Never self-graded. |
 
 Owners: **Timetable** (/timetable, header, grid, draft/swap/unassigned, generator UI), **Setup** (Teachers, Teaching Load,
 Subjects, Sections, Policies, Year Setup), **Reports** (Print Reports, exports, docx, Dashboard). Shared files (app shell,
 navigation, shared header helpers) belong to the manager. At most 3 feature planners plus A4.
-Releases: at most 2 windows a day (or when the operator writes `ship`), none 22:00-06:00, never while the operator is on
-live. Gate: full client and server suites green with no known red tests, a real build with `atlas-server/dist`, and
-screenshots of the /timetable header and grid at 1366x768.
+Releases follow decision 16a: at most 2 per day, none 22:00-06:00 unless the operator writes `ship`; the live-use
+gate, artifact checks, screenshots, post-cutover smoke, automatic rollback, and migration reviewer rules are mandatory.
+Pre-existing failures are compared against the pinned base and recorded; they are never silently accepted as green.
 
 ## Launch recipe (one packet)
-1. Write the packet to `docs/prompts/v2/<id>.md` (template below), commit and push it.
+1. Write the packet to `docs/prompts/v2/<id>.md` on the manager's docs branch; the named integration owner commits and
+   integrates it. Never write directly to `main`.
 2. `powershell -File ops/lane-c/new-worktree.ps1 -Name lane-<owner>-<id>` (pinned to origin/main).
 3. `powershell -File ops/lane-c/launch.ps1 -Name <id> -Agent atlas-executor -Dir E:\ATLAS-worktrees\lane-<owner>-<id> -Prompt 'Read docs/prompts/v2/<id>.md and execute it. End with the report block.'`
 4. Next ticks: `bash ops/lane-c/status.sh`; read the log tail in `D:/ATLAS-lane-c/runs/<id>.log`.
-5. After it lands: `powershell -File ops/lane-c/remove-worktree.ps1 -Path E:\ATLAS-worktrees\lane-<owner>-<id>`.
+5. After the integration owner lands it: `powershell -File ops/lane-c/remove-worktree.ps1 -Path E:\ATLAS-worktrees\lane-<owner>-<id>`.
 
 ## Known failure modes and the rule for each
 1. **It stops after stating intent** (exit 0, no report block). Mark it NEEDS_TRIAGE and resume the SAME session once:
@@ -37,7 +38,8 @@ screenshots of the /timetable header and grid at 1366x768.
    background with a timeout; stop them before reporting". Keep the reaper armed; a run idle over 60 min is hung.
 5. **It hangs on a denied .env read**, and multi-line prompts killed runs. The prompt is one line pointing at the
    packet file; packets forbid reading any .env or runtime-config file.
-6. **It leaves dirty worktrees.** Before any exit it commits `wip: <id>` to its branch and pushes.
+6. **It leaves dirty worktrees.** Before any exit it commits `wip: <id>` to its branch. If the executor is denied push,
+   it reports the SHA and the manager performs the permitted push; no worktree stays dirty.
 7. **It makes confident wrong diagnoses.** Every cause claim carries evidence (a read-only DB query, a log line or a
    failing test) or is labelled HYPOTHESIS.
 8. **It hits transport or free-tier errors** ("Cannot connect to API", uv_spawn EUNKNOWN). Retry once after 2 min,
@@ -54,8 +56,9 @@ OWNED FILES: <list>. Editing any other file = stop and report NEEDS_DECISION.
 FORBIDDEN: reading .env/runtime-config files, deploy, publish, generation or writes on live, other lanes' files,
   fixing the 5 known client tsc errors.
 DONE MEANS: failing test first -> fix -> focused tests + full client/server suite + tsc -> 1366x768 screenshot of the
-  changed screen (servers in background with a timeout, stopped after) -> commit -> T1/T2: merge to main and push;
-  T3: push the branch only. Before ANY exit, commit and push `wip: <id>` if anything is uncommitted.
+  changed screen (servers in background with a timeout, stopped after) -> commit -> report candidate SHA.
+  The designated integration owner merges T1/T2; T3 receives independent review first. Before ANY exit, commit
+  `wip: <id>` if anything is uncommitted and report the SHA for a manager-owned push.
 REPORT BLOCK (print exactly, last):
 RESULT: LANDED <sha> | PUSHED <branch>@<sha> | BLOCKED <reason> | NEEDS_DECISION <question>
 TESTS: <names and pass counts>   SCREENSHOT: <path>   EVIDENCE: <for any diagnosis>   WORKTREE: clean|wip@<sha>

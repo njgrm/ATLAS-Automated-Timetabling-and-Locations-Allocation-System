@@ -44,6 +44,15 @@ interface InFlightRequest {
 	res: Response;
 }
 
+export interface LiveUseActivity {
+	/** Earliest instant for which this process has observed interactive API traffic. */
+	observationStartedAt: string;
+	/** Most recent non-health API request. No identity, query, or path is retained. */
+	lastInteractiveAt: string | null;
+	/** A generation or publication write is currently being handled. */
+	generationOrPublicationInFlight: boolean;
+}
+
 interface FinishedRequest {
 	method: string;
 	path: string;
@@ -93,6 +102,8 @@ export function createRequestTiming(options: RequestTimingOptions = {}) {
 	// The monitor only observes a block after it ends, by which time the request
 	// that caused it has usually finished, so recent completions are kept too.
 	const recentFinished: FinishedRequest[] = [];
+	const observationStartedAt = Date.now();
+	let lastInteractiveAt: number | null = null;
 	let nextId = 0;
 	let monitor: NodeJS.Timeout | null = null;
 
@@ -100,6 +111,7 @@ export function createRequestTiming(options: RequestTimingOptions = {}) {
 		const id = nextId++;
 		const startedAt = performance.now();
 		const path = maskedPath(req);
+		if (isInteractiveApiRequest(req.method, path)) lastInteractiveAt = Date.now();
 		inFlight.set(id, { method: req.method, path, startedAt, res });
 		let settled = false;
 		const settle = () => {
@@ -171,5 +183,27 @@ export function createRequestTiming(options: RequestTimingOptions = {}) {
 		monitor = null;
 	}
 
-	return { middleware, start, stop, inFlightCount: () => inFlight.size };
+	function liveUseActivity(): LiveUseActivity {
+		return {
+			observationStartedAt: new Date(observationStartedAt).toISOString(),
+			lastInteractiveAt: lastInteractiveAt === null ? null : new Date(lastInteractiveAt).toISOString(),
+			generationOrPublicationInFlight: [...inFlight.values()].some((entry) => isGenerationOrPublicationWrite(entry.method, entry.path)),
+		};
+	}
+
+	return { middleware, start, stop, inFlightCount: () => inFlight.size, liveUseActivity };
+}
+
+function isInteractiveApiRequest(method: string, path: string): boolean {
+	if (method === 'OPTIONS') return false;
+	// Health, readiness, and this activity check are supervisor/manager probes;
+	// treating them as people would permanently suppress autonomous releases.
+	if (path === '/api/v1/health' || path.startsWith('/api/v1/health/')) return false;
+	return path.startsWith('/api/v1/');
+}
+
+function isGenerationOrPublicationWrite(method: string, path: string): boolean {
+	if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return false;
+	return path.startsWith('/api/v1/generation/') || path === '/api/v1/generation'
+		|| path.startsWith('/api/v1/publication-approvals/');
 }

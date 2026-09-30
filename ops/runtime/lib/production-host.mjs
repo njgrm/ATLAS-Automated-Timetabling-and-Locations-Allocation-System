@@ -30,6 +30,16 @@ const CONTENT_TYPES = {
 const IMMUTABLE_ASSET = /-[0-9a-zA-Z_-]{8,}\.[a-z0-9]+$/;
 const DEV_ARTIFACT_MARKERS = ['/@vite/client', '/@react-refresh', 'src/main.tsx', 'src/main.ts'];
 
+function isLoopbackRequest(req) {
+	const address = req.socket?.remoteAddress ?? '';
+	const rawHost = String(req.headers.host ?? '');
+	const host = rawHost.startsWith('[')
+		? rawHost.slice(1, rawHost.indexOf(']'))
+		: rawHost.split(':')[0];
+	return (address === '::1' || address === '::ffff:127.0.0.1' || address.startsWith('127.'))
+		&& (host === '127.0.0.1' || host === 'localhost' || host === '::1');
+}
+
 function errorBody(code, message) {
 	return JSON.stringify({ code, message });
 }
@@ -221,12 +231,34 @@ export function createProductionHost(options) {
 	const routes = normalizeTargets(options);
 	const livePath = options.livePath ?? '/__host/live';
 	const readyPath = options.readyPath ?? '/__host/ready';
+	const activityPath = options.activityPath ?? '/__host/activity';
 	const probeApiReadiness = options.probeApiReadiness ?? defaultProbeApiReadiness;
 	const apiTarget = options.apiTarget;
 	const readinessPath = options.apiReadinessPath ?? '/api/v1/health/ready';
+	const observationStartedAt = Date.now();
+	let lastInteractiveAt = null;
 
 	const server = createServer((req, res) => {
 		const pathname = String(req.url).split('?')[0];
+		if (pathname === activityPath) {
+			if (!isLoopbackRequest(req)) {
+				res.writeHead(404);
+				res.end();
+				return;
+			}
+			res.writeHead(200, { 'content-type': 'application/json' });
+			res.end(JSON.stringify({
+				observationStartedAt: new Date(observationStartedAt).toISOString(),
+				lastInteractiveAt: lastInteractiveAt === null ? null : new Date(lastInteractiveAt).toISOString(),
+			}));
+			return;
+		}
+		// These are supervisor/manager probes, not a person using ATLAS. All
+		// other client-host requests, including static assets and proxied API
+		// reads, reset the autonomous-release quiet window.
+		if (pathname !== livePath && pathname !== readyPath && pathname !== '/api/v1/health' && !pathname.startsWith('/api/v1/health/')) {
+			lastInteractiveAt = Date.now();
+		}
 		if (pathname === livePath) {
 			res.writeHead(200, { 'content-type': 'application/json' });
 			res.end(JSON.stringify({ status: 'live', service: 'atlas-production-host' }));
