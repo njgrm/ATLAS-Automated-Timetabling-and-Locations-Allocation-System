@@ -84,3 +84,8 @@ pre-existing reds (`test:ux-type-scale-a7c8`, `test:a3-palette-token-sweep`,
 **BLOCKED rows: none.** Worktree disposition **`KEEP_ACTIVE`**. No push, merge,
 deploy, generation/publication, runtime or live-DB action. `node_modules` junction
 not installed into; no worktree created or removed.
+
+The only browser use in R2 was an **isolated text-metric measurement** (a canvas
+`measureText` on a `data:` URL, no ATLAS origin, no page, no session) to choose the
+wrap track — it is NOT acceptance evidence, and no Tailnet row is claimed here. The
+planner's own re-measurement at 1366×768 and 1280×720 is the X3 acceptance.
