@@ -2198,6 +2198,20 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 	 * plain-words sentence. It never leaves a spinner standing: every exit writes a
 	 * decided state to `regularSwapPreview` and clears `regularSwapPending` on a
 	 * refusal.
+	 *
+	 * ── F2 CORRECTION (2026-09-30): NO DIALOG ON THE ONE-ACTION PATH ──────────
+	 *
+	 * The swap review dialog opens on `Boolean(regularSwapPending)`
+	 * (`TimetablePlacementDialogs.tsx:692`). The first cut of this function called
+	 * `setRegularSwapPending({entryA, entryB})`, so it OPENED that dialog by
+	 * construction and could leave it standing on the commit-error/timeout branch,
+	 * which omitted the clear. The one action must not put a review dialog between
+	 * the pick and the save, so `commitRegularSwapNow` no longer touches
+	 * `regularSwapPending` AT ALL (it stays null → the dialog stays closed), and
+	 * the published-run dialog path keeps its own `openRegularSwapPrompt` ->
+	 * `executeRegularSwap` state. Every exit of this function now ends the operator
+	 * in a decided state: receipt + Undo from the COMMITTED response, no dialog,
+	 * no spinner.
 	 */
 	const commitRegularSwapNow = useCallback(async (
 		entryA: ScheduledEntry,
@@ -2209,7 +2223,9 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			autoFixSourcePreview: null, autoFixSourceTarget: null, recommendedStrategy: null,
 			loading: true, error: null,
 		};
-		setRegularSwapPending({ entryA, entryB });
+		// F2: no `setRegularSwapPending` here. The one-action path must not open the
+		// review dialog; `regularSwapPending` stays null so
+		// `Boolean(regularSwapPending)` is false in `TimetablePlacementDialogs`.
 		setRegularSwapPreview(idlePreview);
 
 		let payload: RegularSwapPreviewPayload;
@@ -2283,18 +2299,35 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				SWAP_SAVE_TIMEOUT_MESSAGE,
 			);
 			setDraft(commit.draft);
-			if (schoolYearId && runIdNumeric) {
-				const violRes = await atlasApi.get<ViolationReport>(`/generation/${schoolId}/${schoolYearId}/runs/${runIdNumeric}/violations`);
-				setViolationReport(violRes.data);
-			}
-			await fetchEditHistory();
+			// F2: resolve the operator's state from the COMMITTED response, BEFORE any
+			// refresh. Receipt + Undo (returned to the state hook) are decided here;
+			// the dialog stays closed and the spinner is cleared.
 			setRegularSwapPending(null);
+			setRegularSwapPreview((current) => ({ ...(current ?? idlePreview), loading: false, error: null }));
 			setSelectedEntry(null);
 			const composed = composeSwapReceipt(entryA, entryB, commit, strategy);
 			setInlineActionStatus({ tone: composed.tone, message: composed.message });
+			/* F2 — the violations + edit-history refresh runs in the BACKGROUND and
+			 * does NOT gate the resolved state. The first cut awaited these two reads
+			 * outside the bound, so a stalled GET left the one-action swap unresolved.
+			 * `fetchEditHistory` is an unbounded `atlasApi.get`; it can now finish late
+			 * without holding the swap open, and a failure is not the decision. */
+			void (async () => {
+				try {
+					if (schoolYearId && runIdNumeric) {
+						const violRes = await atlasApi.get<ViolationReport>(`/generation/${schoolId}/${schoolYearId}/runs/${runIdNumeric}/violations`);
+						setViolationReport(violRes.data);
+					}
+					await fetchEditHistory();
+				} catch {
+					/* the edit landed; the refresh is best-effort and never the decision */
+				}
+			})();
 			return { ok: true, result: commit, strategy };
 		} catch (error) {
 			const message = swapCommitErrorMessage(error, 'ATLAS could not save the swap. Nothing changed; try again.');
+			// F2: EVERY exit ends the operator in a decided, dialog-free state.
+			setRegularSwapPending(null);
 			setRegularSwapPreview((current) => ({ ...(current ?? idlePreview), loading: false, error: message }));
 			setInlineActionStatus({ tone: 'error', message });
 			return { ok: false, message };

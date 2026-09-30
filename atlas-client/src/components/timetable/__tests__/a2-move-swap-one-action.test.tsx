@@ -57,6 +57,8 @@ let previewResponse: any;
 let previewNeverResolves = false;
 let commitResponse: any;
 let commitNeverResolves = false;
+/** F2 — the post-commit violations/edit-history reads never settle. */
+let getNeverResolves = false;
 
 mock.module(import.meta.resolve('@/lib/api'), {
 	defaultExport: {
@@ -73,6 +75,9 @@ mock.module(import.meta.resolve('@/lib/api'), {
 			return { data: {} };
 		},
 		get: async (url: string) => {
+			if (getNeverResolves && (url.includes('/violations') || url.includes('/manual-edits'))) {
+				return new Promise(() => {});
+			}
 			if (url.includes('/violations')) return { data: { violations: [], counts: { runWide: null } } };
 			if (url.includes('/manual-edits')) return { data: { edits: [] } };
 			return { data: {} };
@@ -111,6 +116,7 @@ function directPreview(overrides: Record<string, unknown> = {}) {
 function seedDirectSwap() {
 	previewNeverResolves = false;
 	commitNeverResolves = false;
+	getNeverResolves = false;
 	previewResponse = {
 		direct: directPreview(),
 		autoFixBlockingPreview: null, autoFixBlockingTarget: null,
@@ -165,6 +171,19 @@ function mutationInput(overrides: Record<string, unknown> = {}) {
 }
 
 let statuses: Array<{ tone: string; message: string }> = [];
+/**
+ * F2 — the swap review dialog opens on `Boolean(regularSwapPending)` in the
+ * state hook, which the mutations hook drives through this injected setter. The
+ * recorder is therefore the dialog's open state; a non-null value here IS a
+ * dialog the operator would see.
+ */
+let swapPendingCalls: Array<{ entryA: unknown; entryB: unknown } | null> = [];
+function recordSetRegularSwapPending(value: unknown) {
+	swapPendingCalls.push(typeof value === 'function' ? (value as (p: null) => never)(null) : (value as never));
+}
+function dialogWasOpened(): boolean {
+	return swapPendingCalls.some((value) => value != null);
+}
 let api: ReturnType<typeof useTimetableMutations> | null = null;
 function Probe() {
 	api = useTimetableMutations(currentInput);
@@ -177,6 +196,7 @@ async function mountInput(input: ReturnType<typeof mutationInput>): Promise<void
 	api = null;
 	posted = [];
 	statuses = [];
+	swapPendingCalls = [];
 	const host = dom.window.document.createElement('div');
 	dom.window.document.body.appendChild(host);
 	await act(async () => { createRoot(host).render(createElement(Probe)); });
@@ -265,4 +285,54 @@ test('S5 BLOCKED: a blocked preview refuses in plain words and dispatches ZERO c
 	assert.equal(outcome.ok, false, 'a blocked pair is refused');
 	assert.equal(swapCalls().length, 0, 'no commit is dispatched');
 	assert.match(String(outcome.message), /cannot trade times safely/i, 'and the refusal is plain words, not a code');
+});
+
+/* ── F2 CORRECTION (2026-09-30) ────────────────────────────────────────────────
+ *
+ * The swap review dialog opens on `Boolean(regularSwapPending)`
+ * (`TimetablePlacementDialogs.tsx:692`), so `regularSwapPending` IS the dialog
+ * state. S3/S4 could not see the defect because they only asserted the preview
+ * spinner; these two rows assert the dialog state itself and the non-gating
+ * refresh, which is what F2 was about.
+ */
+
+test('S6 F2 NO DIALOG + NON-GATING REFRESH: a successful one-action swap leaves no dialog standing, and a hung post-commit read cannot hold it open', { timeout: 8000 }, async () => {
+	seedDirectSwap();
+	// The violations + edit-history reads never settle. The resolved operator state
+	// (receipt + Undo from the COMMITTED response) must NOT wait on them.
+	getNeverResolves = true;
+	await mountInput(mutationInput({ setRegularSwapPending: recordSetRegularSwapPending }));
+
+	let outcome: any = null;
+	await act(async () => { outcome = await api!.commitRegularSwapNow(ENTRY_A as never, ENTRY_B as never); });
+
+	assert.equal(outcome.ok, true, 'the swap resolved from the commit response even while the refresh hung');
+	assert.equal(outcome.result.editId, 55, 'the Undo identity comes from the commit, not the refresh');
+	// THE DIALOG. `Boolean(regularSwapPending)` is the dialog’s open condition, so a
+	// non-null setter call here is a dialog the operator would see.
+	assert.equal(dialogWasOpened(), false, 'the one-action path never opened the swap review dialog');
+	assert.equal(api!.regularSwapPreview?.loading, false, 'and no spinner is left standing');
+	assert.match(lastStatus()?.message ?? '', /^Swapped 7-Rizal/, 'the receipt is on screen');
+});
+
+test('S7 F2 NO DIALOG ON ERROR: a commit timeout leaves no dialog open and no disabled control — the operator retries in plain words', async () => {
+	seedDirectSwap();
+	commitNeverResolves = true;
+	await mountInput(mutationInput({ setRegularSwapPending: recordSetRegularSwapPending }));
+
+	mock.timers.enable({ apis: ['setTimeout'] });
+	try {
+		let pending: Promise<any> | null = null;
+		await act(async () => { pending = api!.commitRegularSwapNow(ENTRY_A as never, ENTRY_B as never); });
+		mock.timers.tick(SWAP_COMMIT_BOUND_MS + 50);
+		let outcome: any = null;
+		await act(async () => { outcome = await pending; });
+
+		assert.equal(outcome.ok, false, 'the commit bound resolved to a decided state');
+		assert.equal(dialogWasOpened(), false, 'the swap review dialog is NOT left standing after a commit timeout');
+		assert.equal(api!.regularSwapPreview?.loading, false, 'and the commit control is not left pending');
+		assert.match(lastStatus()?.message ?? '', /could not save this swap in time/i, 'the operator is told, in plain words, to try again');
+	} finally {
+		mock.timers.reset();
+	}
 });
