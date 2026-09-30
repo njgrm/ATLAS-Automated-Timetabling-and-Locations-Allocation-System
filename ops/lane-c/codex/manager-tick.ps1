@@ -13,20 +13,50 @@ $repo = (Resolve-Path -LiteralPath $Repo -ErrorAction Stop).Path
 git -C $repo rev-parse --is-inside-work-tree | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "TICK_REPO_NOT_GIT:$repo" }
 $H = if ($env:LANE_C_HOME) { $env:LANE_C_HOME } else { 'D:\ATLAS-lane-c' }
+New-Item -ItemType Directory -Force $H | Out-Null
+$H = (Resolve-Path -LiteralPath $H -ErrorAction Stop).Path
 $snapshot = Join-Path $H 'manager-repo'
+function Normalize-Path([string]$Path) { (Resolve-Path -LiteralPath $Path -ErrorAction Stop).Path.Replace('\','/').TrimEnd('/').ToLowerInvariant() }
+function Get-RegisteredWorktrees {
+  @(git -C $repo worktree list --porcelain | Where-Object { $_ -like 'worktree *' } |
+    ForEach-Object { $_.Substring(9) })
+}
+function Assert-ExternalStateRoot {
+  $statePath = Normalize-Path $H
+  foreach ($tree in Get-RegisteredWorktrees) {
+    $treePath = Normalize-Path $tree
+    if ($statePath -eq $treePath -or $statePath.StartsWith("$treePath/")) { throw "INVALID_LANE_C_HOME_INSIDE_WORKTREE:$H" }
+  }
+}
+function Get-WorktreeFingerprints {
+  $rows = foreach ($tree in Get-RegisteredWorktrees) {
+    $treePath = Normalize-Path $tree
+    $head = (git -C $tree rev-parse HEAD).Trim()
+    $status = (git -C $tree status --porcelain) -join "`n"
+    "$treePath|$head|$status"
+  }
+  $rows | Sort-Object
+}
+function Assert-WorktreesUnchanged {
+  param([string[]]$Before)
+  $after = Get-WorktreeFingerprints
+  if ((Compare-Object -ReferenceObject $Before -DifferenceObject $after)) {
+    & (Join-Path $snapshot 'ops/lane-c/codex/notify.ps1') -Text 'Lane C manager stopped: a tick changed a registered worktree.'
+    throw 'TICK_WORKTREE_CHANGED'
+  }
+}
 function Sync-ManagerSnapshot {
   New-Item -ItemType Directory -Force $snapshot | Out-Null
-  New-Item -ItemType Directory -Force (Join-Path $snapshot 'ops') | Out-Null
-  foreach ($f in 'AGENTS.md', 'DESIGN.md', 'PRODUCT.md') {
-    Copy-Item -LiteralPath (Join-Path $repo $f) -Destination (Join-Path $snapshot $f) -Force
-  }
-  foreach ($d in 'ops\lane-c', 'ops\runtime\release') {
-    Copy-Item -LiteralPath (Join-Path $repo $d) -Destination (Join-Path $snapshot $d) -Recurse -Force
-  }
-  foreach ($f in 'docs\plans\live-state.md', 'docs\plans\operator-decisions.md', 'docs\handoffs\workflow-metrics.md') {
+  $files = @(
+    'AGENTS.md', 'DESIGN.md', 'PRODUCT.md', 'ops/lane-c/README.md', 'ops/lane-c/status.sh',
+    'ops/lane-c/codex/MANAGER.md', 'ops/lane-c/codex/PLANNERS.md', 'ops/lane-c/codex/notify.ps1',
+    'ops/runtime/release/README.md', 'docs/plans/live-state.md', 'docs/plans/operator-decisions.md',
+    'docs/handoffs/workflow-metrics.md'
+  )
+  foreach ($f in $files) {
     $destination = Join-Path $snapshot $f
     New-Item -ItemType Directory -Force (Split-Path -Parent $destination) | Out-Null
-    Copy-Item -LiteralPath (Join-Path $repo $f) -Destination $destination -Force
+    git -C $repo show "origin/main:$f" | Set-Content -LiteralPath $destination -Encoding utf8
   }
 }
 function Assert-CleanTickRepo {
@@ -40,7 +70,7 @@ function Assert-TickRepoUnchanged {
   $currentHead = (git -C $repo rev-parse HEAD).Trim()
   $changed = @(git -C $repo status --short)
   if ($currentHead -ne $Head -or $changed.Count) {
-    & (Join-Path $repo 'ops/lane-c/codex/notify.ps1') -Text "Lane C manager stopped: a tick changed its repository worktree."
+    & (Join-Path $snapshot 'ops/lane-c/codex/notify.ps1') -Text "Lane C manager stopped: a tick changed its repository worktree."
     throw "TICK_REPO_CHANGED:$repo"
   }
 }
@@ -56,13 +86,23 @@ function Process-DispatchRequest {
   }
   if ($request.agent -notin @('atlas-planner', 'atlas-executor', 'atlas-qa', 'atlas-wave-auditor')) { throw 'INVALID_DISPATCH_REQUEST:agent' }
   $dir = (Resolve-Path -LiteralPath $request.dir -ErrorAction Stop).Path
-  if ($dir -notlike 'E:\ATLAS-worktrees\*' -or -not (Test-Path -LiteralPath (Join-Path $dir $request.packet))) {
+  if ($dir -notlike 'E:\ATLAS-worktrees\*') { throw 'INVALID_DISPATCH_REQUEST:unpinned_worktree' }
+  $head = (git -C $dir rev-parse HEAD).Trim()
+  $main = (git -C $repo rev-parse origin/main).Trim()
+  $clean = @(git -C $dir status --short).Count -eq 0
+  git -C $repo cat-file -e "origin/main:$($request.packet)" 2>$null
+  if (-not $clean -or $head -ne $main -or $LASTEXITCODE -ne 0 -or
+      -not (Test-Path -LiteralPath (Join-Path $dir $request.packet))) {
     throw 'INVALID_DISPATCH_REQUEST:unpinned_or_missing_packet'
   }
-  & (Join-Path $repo 'ops/lane-c/launch.ps1') -Name $request.name -Agent $request.agent -Dir $dir -Prompt "Read $($request.packet) and execute it. End with the report block."
+  $launchResult = & (Join-Path $repo 'ops/lane-c/launch.ps1') -Name $request.name -Agent $request.agent -Dir $dir -Prompt "Read $($request.packet) and execute it. End with the report block."
+  if ($launchResult -notmatch "^$($request.name) PID \d+ log " -or -not (Test-Path -LiteralPath (Join-Path $H "runs\$($request.name).pid"))) {
+    throw 'DISPATCH_LAUNCH_FAILED'
+  }
   Move-Item -LiteralPath $requestPath -Destination (Join-Path $H "dispatch-processed-$($request.name)-$(Get-Date -Format yyyyMMdd-HHmmss).json")
 }
 Assert-CleanTickRepo
+Assert-ExternalStateRoot
 $ticks = Join-Path $H 'manager-ticks'; New-Item -ItemType Directory -Force $ticks | Out-Null
 foreach ($f in 'manager-state.md', 'operator-inbox.md', 'manager-outbox.md') {
   $p = Join-Path $H $f; if (-not (Test-Path $p)) { New-Item -ItemType File $p | Out-Null }
@@ -72,13 +112,10 @@ $lastDigest = ''; $lastTick = [datetime]::MinValue
 
 while ($true) {
   git -C $repo fetch -q origin 2>$null
-  # Keep the tick's own rules current: fast-forward the (clean) manager worktree to origin/main every loop.
-  # Without this each tick read a stale MANAGER.md/PLANNERS.md/status.sh (Lane C, 2026-09-30 21:20).
+  # The tick never fast-forwards its worktree: its disposable mirror reads current files from origin/main.
   Assert-CleanTickRepo
-  git -C $repo merge -q --ff-only origin/main 2>$null
-  if ($LASTEXITCODE -ne 0) { & (Join-Path $repo 'ops/lane-c/codex/notify.ps1') -Text 'Lane C manager: worktree cannot fast-forward to main.'; throw 'TICK_REPO_NOT_FF' }
   Sync-ManagerSnapshot
-  $status =& $bash (Join-Path $repo 'ops/lane-c/status.sh') 2>&1 | Out-String
+  $status =& $bash (Join-Path $snapshot 'ops/lane-c/status.sh') 2>&1 | Out-String
   # Digest ignores idle-minute counters so a tick fires on real change only.
   $runs = ($status -split "`n" | Where-Object { $_ -match '^\S+\s+(RUNNING|EXITED|DIED-EMPTY)' } |
            ForEach-Object { ($_ -split '\s+')[0..1] -join ' ' }) -join ';'
@@ -94,6 +131,7 @@ while ($true) {
   $due = ((Get-Date) - $lastTick).TotalMinutes -ge $HeartbeatMinutes
   if ($digest -ne $lastDigest -or $due) {
     Assert-CleanTickRepo
+    $worktreeBaseline = Get-WorktreeFingerprints
     $stamp = Get-Date -Format 'yyyyMMdd-HHmm'
     $why = if ($digest -ne $lastDigest) { 'change' } else { 'heartbeat' }
     $tickHead = (git -C $repo rev-parse HEAD).Trim()
@@ -120,11 +158,12 @@ $status
       -RedirectStandardInput $promptPath -RedirectStandardOutput $logPath -RedirectStandardError $errorPath
     if (-not $tickProcess.WaitForExit(120000)) {
       & cmd.exe /c "taskkill /pid $($tickProcess.Id) /t /f >NUL 2>&1"
-      & (Join-Path $repo 'ops/lane-c/codex/notify.ps1') -Text 'Lane C manager tick timed out after two minutes and was stopped.'
+      & (Join-Path $snapshot 'ops/lane-c/codex/notify.ps1') -Text 'Lane C manager tick timed out after two minutes and was stopped.'
     }
     Remove-Item Env:CODEX_HOME
     Remove-Item Env:ATLAS_MANAGER_REPO
     Assert-TickRepoUnchanged -Head $tickHead
+    Assert-WorktreesUnchanged -Before $worktreeBaseline
     Process-DispatchRequest
     Write-Host "$(Get-Date -Format HH:mm) tick ($why): $(Get-Content (Join-Path $ticks "$stamp.md") -Tail 1 -EA SilentlyContinue)"
     $lastTick = Get-Date
