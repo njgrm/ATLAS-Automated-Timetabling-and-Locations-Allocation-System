@@ -20,12 +20,22 @@ import {
 type TeachingLoadPlacementNoticeProps = {
 	blockers: PlacementBlocker[];
 	onUseAlternative?: (blocker: PlacementBlocker, alternative: PlacementAlternative) => void;
-	/** Clears the blockers (the way out when no replacement teacher fits). */
+	/**
+	 * Handler for the notice's OWN dismiss control. Rendered only when the host
+	 * has no dismiss/close of its own (`showDismiss`), so a host that already
+	 * offers a Close never shows two controls that say the same thing.
+	 */
 	onDismiss?: () => void;
+	/**
+	 * The host has NO dismiss/close of its own, so the notice provides the ONE
+	 * way out. Both Teaching Load hosts (the refusal dialog and the summary modal)
+	 * have their own Close, so neither sets this.
+	 */
+	showDismiss?: boolean;
 	busy?: boolean;
 };
 
-export function TeachingLoadPlacementNotice({ blockers, onUseAlternative, onDismiss, busy }: TeachingLoadPlacementNoticeProps) {
+export function TeachingLoadPlacementNotice({ blockers, onUseAlternative, onDismiss, showDismiss = false, busy }: TeachingLoadPlacementNoticeProps) {
 	if (!blockers || blockers.length === 0) return null;
 	return (
 		<div data-testid="teaching-load-placement-notice" className="space-y-2">
@@ -58,17 +68,18 @@ export function TeachingLoadPlacementNotice({ blockers, onUseAlternative, onDism
 								<p data-testid="teaching-load-placement-guidance" className="mt-1 text-xs text-muted-foreground">
 									Free a teacher for this time, or change who teaches the class, then save again.
 								</p>
-								<Button
-									type="button"
-									size="sm"
-									variant="outline"
-									className="mt-2 h-8 rounded-lg font-semibold"
-									data-testid="teaching-load-placement-dismiss"
-									onClick={onDismiss}
-									disabled={busy || !onDismiss}
-								>
-									Close
-								</Button>
+								{showDismiss && onDismiss && (
+									<Button
+										type="button"
+										variant="ghost"
+										className="mt-1 h-9 rounded-xl px-4 font-bold"
+										data-testid="teaching-load-placement-dismiss"
+										onClick={onDismiss}
+										disabled={busy}
+									>
+										Close
+									</Button>
+								)}
 							</>
 						)}
 					</div>

@@ -224,26 +224,46 @@ function modalsProps(blockers: any[], setBlockers: (next: any[]) => void) {
 	};
 }
 
-async function mountBlockedSaveDialog(): Promise<HTMLElement> {
+async function mountBlockedSaveDialog(alternatives?: any[]): Promise<HTMLElement> {
 	const host = dom.window.document.createElement('div');
 	dom.window.document.body.appendChild(host);
 	const root = createRoot(host);
 	mounts.push({ root, host });
 	function Harness() {
-		const [blockers, setBlockers] = useState<any[]>([blockerFixture()]);
+		const blocker = alternatives === undefined ? blockerFixture() : { ...blockerFixture(), alternatives };
+		const [blockers, setBlockers] = useState<any[]>([blocker]);
 		return createElement(TeachingLoadModals as any, modalsProps(blockers, (next) => setBlockers(next)));
 	}
 	await act(async () => { root.render(createElement(Harness)); });
 	return host;
 }
 
+function dialogEl(): HTMLElement | null {
+	return dom.window.document.querySelector('[data-testid="teaching-load-placement-dialog"]');
+}
+
+/** Labelled dismiss controls only — the primitive's X is chrome, not a labelled control. */
+function labelledDismissControls(): Element[] {
+	return Array.from(dom.window.document.querySelectorAll(
+		'[data-testid="teaching-load-placement-close"], [data-testid="teaching-load-placement-dismiss"]',
+	));
+}
+
+function visibleCloseButtons(): HTMLButtonElement[] {
+	const dialog = dialogEl();
+	if (!dialog) return [];
+	return Array.from(dialog.querySelectorAll('button')).filter((button) =>
+		button.textContent?.trim() === 'Close' && !button.querySelector('.sr-only'),
+	);
+}
+
 test('the blocked-save dialog is dismissed by Escape and clears the blockers', async () => {
 	await mountBlockedSaveDialog();
-	assert.ok(dom.window.document.querySelector('[data-testid="teaching-load-placement-dialog"]'), 'the refusal dialog is open');
+	assert.ok(dialogEl(), 'the refusal dialog is open');
 	await act(async () => {
 		dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 	});
-	assert.equal(dom.window.document.querySelector('[data-testid="teaching-load-placement-dialog"]'), null, 'Escape dismisses the refusal');
+	assert.equal(dialogEl(), null, 'Escape dismisses the refusal');
 });
 
 test('the blocked-save dialog has a visible Close control that clears the blockers', async () => {
@@ -251,10 +271,31 @@ test('the blocked-save dialog has a visible Close control that clears the blocke
 	const close = dom.window.document.querySelector('[data-testid="teaching-load-placement-close"]') as HTMLElement | null;
 	assert.ok(close, 'a visible way out is always rendered');
 	await act(async () => { close!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); });
-	assert.equal(dom.window.document.querySelector('[data-testid="teaching-load-placement-dialog"]'), null, 'Close dismisses the refusal');
+	assert.equal(dialogEl(), null, 'Close dismisses the refusal');
 });
 
-test('when no replacement teacher fits the notice still renders a way out', async () => {
+test('the no-alternative refusal has exactly ONE labelled dismiss control with ONE look', async () => {
+	await mountBlockedSaveDialog([]);
+	const dialog = dialogEl();
+	assert.ok(dialog, 'the refusal dialog is open');
+	assert.equal(labelledDismissControls().length, 1, `expected one labelled dismiss, got ${labelledDismissControls().length}`);
+	assert.equal(visibleCloseButtons().length, 1, `expected one visible Close button, got ${visibleCloseButtons().length}`);
+	assert.equal(dom.window.document.querySelectorAll('[data-testid="teaching-load-placement-dismiss"]').length, 0, 'the notice does not render a second dismiss');
+	const close = dom.window.document.querySelector('[data-testid="teaching-load-placement-close"]') as HTMLElement;
+	assert.match(close.className, /\bh-9\b/, 'the dismiss uses the app dialog-dismiss height');
+	assert.match(close.className, /\brounded-xl\b/, 'the dismiss uses the app dialog-dismiss shape');
+	assert.match(close.className, /\bfont-bold\b/, 'the dismiss uses the app dialog-dismiss weight');
+	assert.ok(dom.window.document.querySelector('[data-testid="teaching-load-placement-guidance"]'), 'the no-alternative guidance line is shown');
+});
+
+test('the alternative refusal keeps ONE Use control and ONE secondary dismiss', async () => {
+	await mountBlockedSaveDialog();
+	assert.equal(dom.window.document.querySelectorAll('[data-testid="teaching-load-placement-alternative"]').length, 1, 'exactly one Use control');
+	assert.equal(labelledDismissControls().length, 1, 'exactly one labelled dismiss');
+	assert.equal(dom.window.document.querySelectorAll('[data-testid="teaching-load-placement-dismiss"]').length, 0, 'no notice-level dismiss alongside the alternative');
+});
+
+test('the notice provides ONE dismiss only when its host has none', async () => {
 	const host = dom.window.document.createElement('div');
 	dom.window.document.body.appendChild(host);
 	const root = createRoot(host);
@@ -266,9 +307,16 @@ test('when no replacement teacher fits the notice still renders a way out', asyn
 	});
 	assert.equal(host.querySelector('[data-testid="teaching-load-placement-alternative"]'), null, 'no alternative button is offered');
 	assert.ok(host.querySelector('[data-testid="teaching-load-placement-guidance"]'), 'one short line says what to change');
-	const dismiss = host.querySelector('[data-testid="teaching-load-placement-dismiss"]') as HTMLElement | null;
-	assert.ok(dismiss, 'a way out is still rendered when nobody fits');
+	assert.equal(host.querySelectorAll('[data-testid="teaching-load-placement-dismiss"]').length, 0, 'no dismiss unless the host asks for it');
 	assert.equal(host.querySelector('[data-testid="teaching-load-placement-sentence"]')?.textContent, SENTENCE);
+	await act(async () => {
+		root.render(createElement(TeachingLoadPlacementNotice, { blockers: [blocker], onDismiss: () => { dismissed += 1; }, showDismiss: true }));
+	});
+	const dismiss = host.querySelector('[data-testid="teaching-load-placement-dismiss"]') as HTMLElement | null;
+	assert.ok(dismiss, 'a host without its own dismiss gets exactly one');
+	assert.equal(host.querySelectorAll('[data-testid="teaching-load-placement-dismiss"]').length, 1, 'exactly one dismiss');
+	assert.match(dismiss!.className, /\bh-9\b/, 'the dismiss matches the app dialog-dismiss look');
+	assert.match(dismiss!.className, /\brounded-xl\b/, 'the dismiss matches the app dialog-dismiss shape');
 	await act(async () => { dismiss!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); });
 	assert.equal(dismissed, 1, 'the way out clears the refusal');
 });

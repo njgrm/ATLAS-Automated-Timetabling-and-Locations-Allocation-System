@@ -72,7 +72,6 @@ type AutoFillSummaryModalProps = {
 	/** A6 (decision 14): classes the timetable cannot place, rendered inline. */
 	placementBlockers?: PlacementBlocker[];
 	onUsePlacementAlternative?: (blocker: PlacementBlocker, alternative: PlacementAlternative) => void;
-	onDismissPlacementBlockers?: () => void;
 	placementBusy?: boolean;
 };
 
@@ -212,7 +211,6 @@ export function AutoFillSummaryModal({
 	reviewOnly = false,
 	placementBlockers,
 	onUsePlacementAlternative,
-	onDismissPlacementBlockers,
 	placementBusy,
 }: AutoFillSummaryModalProps) {
 	const [expandedDepartments, setExpandedDepartments] = useState<Record<string, boolean>>({});
@@ -714,7 +712,6 @@ export function AutoFillSummaryModal({
 							<TeachingLoadPlacementNotice
 								blockers={placementBlockers}
 								onUseAlternative={onUsePlacementAlternative}
-								onDismiss={onDismissPlacementBlockers}
 								busy={placementBusy}
 							/>
 						)}

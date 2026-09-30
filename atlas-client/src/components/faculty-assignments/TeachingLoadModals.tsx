@@ -147,7 +147,6 @@ export function TeachingLoadModals({
 				applyDisabledReason={suggestionApplyDisabledReason}
 				placementBlockers={placementBlockers}
 				onUsePlacementAlternative={onUsePlacementAlternative}
-				onDismissPlacementBlockers={onDismissPlacementBlockers}
 				placementBusy={placementBusy}
 			/>
 
@@ -171,7 +170,6 @@ export function TeachingLoadModals({
 					<TeachingLoadPlacementNotice
 						blockers={placementBlockers}
 						onUseAlternative={onUsePlacementAlternative}
-						onDismiss={onDismissPlacementBlockers}
 						busy={placementBusy}
 					/>
 					<DialogFooter>
