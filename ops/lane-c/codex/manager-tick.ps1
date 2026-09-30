@@ -98,8 +98,8 @@ while ($true) {
     $why = if ($digest -ne $lastDigest) { 'change' } else { 'heartbeat' }
     $tickHead = (git -C $repo rev-parse HEAD).Trim()
     $prompt = @"
-The repository is read-only at $repo. Read $repo/ops/lane-c/codex/MANAGER.md and follow it. A tick may write ONLY
-under $H; it must not edit, commit, merge, push, revert, remove, or create files in the repository or any worktree.
+The repository mirror is read-only at $snapshot. Read $snapshot/ops/lane-c/codex/MANAGER.md and follow it. A tick may write ONLY
+under $H; it must not edit, commit, merge, push, revert, remove, or create files in the real repository or any worktree.
 Tick reason: $why at $(Get-Date -Format 'yyyy-MM-dd HH:mm').
 Events (status.sh output):
 $status
