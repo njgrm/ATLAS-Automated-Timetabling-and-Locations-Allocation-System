@@ -1,7 +1,16 @@
-# Lane C detached launcher. Starts an opencode planner OUTSIDE Claude Code's process tree (via CIM), so a Claude crash
-# cannot kill it. -Session <id> continues a session that ended its turn early (model stopped after stating intent). Usage: launch.ps1 -Name a2-c11r -Prompt "..." [-Elevated]. Prompt must not contain double quotes.
-param([string]$Name,[string]$Prompt,[switch]$Elevated,[string]$Session,[string]$Agent = 'atlas-planner',[switch]$Force,[string]$Dir = 'D:\ATLAS')
+# Lane C detached launcher. Every planner receives a manager-provisioned E: worktree;
+# D:\ATLAS is a dirty integration surface and is never a planner workspace.
+param(
+  [Parameter(Mandatory)][string]$Name,
+  [Parameter(Mandatory)][string]$Prompt,
+  [switch]$Elevated,
+  [string]$Session,
+  [ValidateSet('atlas-planner','atlas-executor','atlas-qa','atlas-wave-auditor')][string]$Agent = 'atlas-planner',
+  [switch]$Force,
+  [Parameter(Mandatory)][string]$Dir
+)
 $runs = if ($env:LANE_C_HOME) { Join-Path $env:LANE_C_HOME 'runs' } else { 'D:\ATLAS-lane-c\runs' }
+New-Item -ItemType Directory -Force $runs | Out-Null
 $log = Join-Path $runs "$Name.log"
 if ($Prompt -match '"') { throw 'Prompt contains a double quote' }
 # 30 Sep 05:45: a multi-line prompt split the cmd.exe line and the run died with an empty log (a9-ds-sections, a6-ds-tllayout, a5-ds-docx1). Collapse newlines; refuse cmd redirection characters.
@@ -18,10 +27,10 @@ if (-not $Force) {
 $oc = 'C:\Users\njgro\AppData\Roaming\npm\node_modules\opencode-ai\bin\opencode.exe'
 $attach = if ($Elevated) { '--attach http://127.0.0.1:4097 ' } else { '' }
 if ($Session) { $attach += "--session $Session " }
-# -Dir <worktree>: run the planner in its own pinned worktree (no pull; the manager pinned it). Default D:\ATLAS pulls first.
-if (-not (Test-Path $Dir)) { throw "Dir not found: $Dir" }
-$pull = if ($Dir -eq 'D:\ATLAS') { "(git pull -q --ff-only || (ping -n 6 127.0.0.1 >NUL & git pull -q --ff-only)) > `"$log`" 2>&1 & " } else { "echo dir $Dir > `"$log`" & " }
-$cmd = "cmd.exe /c set OPENCODE_SERVER_PASSWORD=&& cd /d $Dir && $pull`"$oc`" run $attach--dir $Dir --agent $Agent `"$Prompt`" < NUL >> `"$log`" 2>&1"  # a6-hdr1 lost a concurrent git-pull race and never started; pull failure no longer skips the run
+# The manager pins the worktree base before launch; never pull a shared root here.
+$resolvedDir = (Resolve-Path -LiteralPath $Dir -ErrorAction Stop).Path
+if ($resolvedDir -notlike 'E:\ATLAS-worktrees\*') { throw "REFUSING_UNPINNED_WORKTREE:$resolvedDir" }
+$cmd = "cmd.exe /c set OPENCODE_SERVER_PASSWORD=&& cd /d `"$resolvedDir`" && echo dir $resolvedDir > `"$log`" & `"$oc`" run $attach--dir `"$resolvedDir`" --agent $Agent `"$Prompt`" < NUL >> `"$log`" 2>&1"
 $si = New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ ShowWindow = [uint16]0 }  # hidden: an operator closing a stray console window killed a2-c12r
 $r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $cmd; CurrentDirectory = 'D:\ATLAS'; ProcessStartupInformation = $si }
 if ($r.ReturnValue -ne 0) { throw "Create failed: $($r.ReturnValue)" }
