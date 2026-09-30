@@ -1,7 +1,11 @@
 import type { ReactNode } from 'react';
 import { ConfirmationModal } from '@/ui/confirmation-modal';
+import { Button } from '@/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
 import { AutoFillSummaryModal, type AutoFillSummaryResult } from '@/components/faculty-assignments/AutoFillSummaryModal';
 import { ReviewTeachersModal } from '@/components/faculty-assignments/ReviewTeachersModal';
+import { TeachingLoadPlacementNotice } from '@/components/faculty-assignments/TeachingLoadPlacementNotice';
+import type { PlacementAlternative, PlacementBlocker } from '@/lib/teaching-load-placement';
 
 type TeachingLoadModalsProps = {
 	summaryModalOpen: boolean;
@@ -62,6 +66,16 @@ type TeachingLoadModalsProps = {
 	 * term-scoped draft can restore it without touching this component.
 	 */
 	pendingChangeScope: string;
+	/**
+	 * A6 (operator decision 14) — the classes a save or an "Apply suggested" could
+	 * not place. Empty means no refusal. The page owns the state; the notice is
+	 * rendered here (save path) and inline in the summary modal (apply path).
+	 */
+	placementBlockers?: PlacementBlocker[];
+	onUsePlacementAlternative?: (blocker: PlacementBlocker, alternative: PlacementAlternative) => void;
+	/** Clear the blockers and close the refusal (Escape / overlay / Close). */
+	onDismissPlacementBlockers?: () => void;
+	placementBusy?: boolean;
 };
 
 /**
@@ -113,6 +127,10 @@ export function TeachingLoadModals({
 	pendingChangeCount,
 	pendingChangeTeacherCount,
 	pendingChangeScope,
+	placementBlockers = [],
+	onUsePlacementAlternative,
+	onDismissPlacementBlockers,
+	placementBusy,
 }: TeachingLoadModalsProps) {
 	return (
 		<>
@@ -127,7 +145,47 @@ export function TeachingLoadModals({
 				onApplySuggestion={onApplySuggestion}
 				applyingSuggestion={suggestionApplying}
 				applyDisabledReason={suggestionApplyDisabledReason}
+				placementBlockers={placementBlockers}
+				onUsePlacementAlternative={onUsePlacementAlternative}
+				placementBusy={placementBusy}
 			/>
+
+			{/*
+			 * A6 (decision 14) — the SAVE path. When a save is refused because the
+			 * timetable cannot place a class, the refusal is a named dialog, never
+			 * a toast. Escape, overlay-click and the primitive's own close control
+			 * all dismiss it (a real `onOpenChange`), and a visible Close button is
+			 * always offered so a mouse-first scheduler is never trapped. Dismissing
+			 * is NOT success: it only clears the blockers; no save is issued.
+			 */}
+			<Dialog
+				open={placementBlockers.length > 0 && !summaryModalOpen}
+				onOpenChange={(open) => { if (!open) onDismissPlacementBlockers?.(); }}
+			>
+				<DialogContent className="max-w-md" data-testid="teaching-load-placement-dialog">
+					<DialogHeader>
+						<DialogTitle>The timetable cannot place this class</DialogTitle>
+						<DialogDescription>Assign a teacher who fits the free time, then save again.</DialogDescription>
+					</DialogHeader>
+					<TeachingLoadPlacementNotice
+						blockers={placementBlockers}
+						onUseAlternative={onUsePlacementAlternative}
+						busy={placementBusy}
+					/>
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="ghost"
+							className="h-9 rounded-xl px-4 font-bold"
+							data-testid="teaching-load-placement-close"
+							onClick={onDismissPlacementBlockers}
+							disabled={placementBusy}
+						>
+							Close
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
 		<ConfirmationModal
 			open={saveWarningOpen}

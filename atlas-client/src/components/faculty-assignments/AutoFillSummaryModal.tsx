@@ -25,6 +25,8 @@ import {
 	candidateRejectionsForResult,
 } from '@/lib/teaching-load-suggestion-diagnostics';
 import { TeachingLoadCandidateDiagnostics } from '@/components/faculty-assignments/TeachingLoadCandidateDiagnostics';
+import { TeachingLoadPlacementNotice } from '@/components/faculty-assignments/TeachingLoadPlacementNotice';
+import type { PlacementAlternative, PlacementBlocker } from '@/lib/teaching-load-placement';
 import { PLACEHOLDER_TRUTH_LABEL } from '@/components/faculty-assignments/teachingLoadOutage';
 import {
 	NO_DEMAND_DESCRIPTION,
@@ -67,6 +69,10 @@ type AutoFillSummaryModalProps = {
 	applyDisabledReason?: string | null;
 	reviewWarning?: string | null;
 	reviewOnly?: boolean;
+	/** A6 (decision 14): classes the timetable cannot place, rendered inline. */
+	placementBlockers?: PlacementBlocker[];
+	onUsePlacementAlternative?: (blocker: PlacementBlocker, alternative: PlacementAlternative) => void;
+	placementBusy?: boolean;
 };
 
 const ASSIGNMENT_TYPE_CONFIG: Record<string, { label: string; className: string; icon: typeof CheckCircle2 }> = {
@@ -203,6 +209,9 @@ export function AutoFillSummaryModal({
 	applyDisabledReason,
 	reviewWarning,
 	reviewOnly = false,
+	placementBlockers,
+	onUsePlacementAlternative,
+	placementBusy,
 }: AutoFillSummaryModalProps) {
 	const [expandedDepartments, setExpandedDepartments] = useState<Record<string, boolean>>({});
 	const report = result?.staffingReport ?? null;
@@ -699,6 +708,13 @@ export function AutoFillSummaryModal({
 
 				<DialogFooter className="p-4 bg-background border-t shrink-0 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<div className="min-w-0 space-y-1">
+						{placementBlockers && placementBlockers.length > 0 && (
+							<TeachingLoadPlacementNotice
+								blockers={placementBlockers}
+								onUseAlternative={onUsePlacementAlternative}
+								busy={placementBusy}
+							/>
+						)}
 						{reviewOnly ? (
 							<div className="flex flex-wrap items-center gap-2">
 								<Badge variant="outline" className="bg-blue-50 text-blue-700 font-bold uppercase tracking-widest text-xs h-5 px-1.5 shadow-none border-blue-200">

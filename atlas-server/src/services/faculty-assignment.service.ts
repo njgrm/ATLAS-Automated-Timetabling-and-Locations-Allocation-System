@@ -24,6 +24,7 @@ import { getEffectiveWorkloadPolicy } from './scheduling-policy.service.js';
 import { resolveTeachingLoadDemandPairs, type DerivedDemandBlocker } from './derived-demand.service.js';
 import { computeWorkload } from './workload-policy.service.js';
 import { readTeachingLoadCycleSource, refreshTeachingLoadCycle } from './teaching-load-cycle.service.js';
+import { evaluatePlacementWriteGate } from './teaching-load-placement-check.service.js';
 
 const db = () => getDataContext();
 
@@ -90,6 +91,7 @@ code:
 | 'INVALID_SUBJECTS'
 | 'INVALID_ASSIGNMENT_SCOPE'
 | 'DUPLICATE_SECTION_OWNERSHIP'
+| 'TEACHING_LOAD_UNPLACEABLE'
 | 'HG_ADVISORY_IMMUTABLE';
 error: string;
 details?: Record<string, unknown>;
@@ -5436,6 +5438,24 @@ export async function setAssignments(
 			}
 
 			normalizedAssignments.push(normalized.value);
+		}
+	}
+
+	// A6 (operator decision 14): the timetable must be able to place a class
+	// before Teaching Load saves it. This is a zero-write check; an unplaceable
+	// line refuses with a typed 409 and the named blockers, before any write.
+	// Demand/policy unavailability is NOT a refusal (`demandReady:false`).
+	if (normalizedAssignments.length > 0) {
+		const placementLines = normalizedAssignments.flatMap((assignment) =>
+			assignment.sectionIds.map((sectionId) => ({ sectionId, subjectId: assignment.subjectId, facultyId })),
+		);
+		const placementGate = await evaluatePlacementWriteGate(schoolId, schoolYearId, placementLines);
+		if (!placementGate.placeable) {
+			return buildServiceError(
+				'TEACHING_LOAD_UNPLACEABLE',
+				'The timetable cannot place one or more of these classes. Choose a teacher who fits the free time.',
+				{ blockers: placementGate.blockers },
+			);
 		}
 	}
 

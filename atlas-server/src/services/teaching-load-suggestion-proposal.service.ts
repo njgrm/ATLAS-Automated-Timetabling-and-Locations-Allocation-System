@@ -14,6 +14,7 @@ import { buildDerivedDemand, type DerivedDemandResult } from './derived-demand.s
 import { workloadPolicyRevision } from './workload-policy.service.js';
 import { getEffectiveWorkloadPolicyFromClient, type EffectiveWorkloadPolicy } from './scheduling-policy.service.js';
 import { resolveRealFacultyCapMinutes } from './teaching-load-capacity.service.js';
+import { evaluatePlacementWriteGate } from './teaching-load-placement-check.service.js';
 
 const db = () => getDataContext();
 
@@ -444,6 +445,21 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 	const unresolvedSuggestionCount = (refreshedPreview.suggestedRows ?? []).filter(
 		(row) => row.assignmentType === 'TEMPORARY_SUBSTITUTE' || row.facultyId == null,
 	).length;
+
+	// A6 (operator decision 14): "Apply suggested" must not save a load the
+	// timetable cannot place. This zero-write gate runs BEFORE the transaction,
+	// so a refusal consumes nothing and the pending proposal is left intact for
+	// the operator to re-apply with a teacher who fits.
+	const placementLines = candidateRows
+		.filter((row) => typeof row.facultyId === 'number' && (row.facultyId as number) > 0)
+		.map((row) => ({ sectionId: row.sectionId, subjectId: row.subjectId, facultyId: row.facultyId as number }));
+	const placementGate = await evaluatePlacementWriteGate(existing.schoolId, existing.schoolYearId, placementLines);
+	if (!placementGate.placeable) {
+		throw err(409, 'TEACHING_LOAD_UNPLACEABLE', 'The timetable cannot place one or more of these classes. Choose a teacher who fits the free time.', {
+			actionHint: 'Choose a teacher who fits the free time, then apply the suggestion again.',
+			details: { blockers: placementGate.blockers },
+		});
+	}
 
 	const txResult = await db().$transaction(async (tx) => {
 		await assertTeachingLoadWriteAuthority({
