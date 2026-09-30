@@ -9,7 +9,7 @@ import type { ScheduledEntry } from './constraint-validator.js';
 import * as genService from './generation.service.js';
 import { computeOccupiedMinutesByIntervalUnion, countUniqueEntryIds } from './room-schedule.metrics.js';
 import { buildCanonicalDisplayGrid, buildPeriodSlots, buildSpecialEventSlots, mergeDisplaySlots, type PolicyInput } from './schedule-constructor.js';
-import { effectiveTermsOverlap, entryTermScope } from './effective-scheduled-resources.js';
+import { roomEntriesConflict } from './effective-scheduled-resources.js';
 import * as policyService from './scheduling-policy.service.js';
 import { normalizeSubjectDisplayLabel } from './schedule-output-normalization.service.js';
 import { isRejectedFlagCeremonyRow, resolveSpecialEventDayOfWeek } from '../lib/policy-special-events.js';
@@ -263,7 +263,26 @@ export async function getRoomScheduleView(
 	}
 
 	// 5) Build grid row by row (time slot × day)
+	//
+	// The conflict set is computed ONCE per room-day with the ONE shared rule, so
+	// the summary count is the number of conflicting PAIRS — the same unit the
+	// generator's validator reports — not the number of grid cells a pair happens
+	// to span. A cell is flagged when it holds an entry that is part of a
+	// conflicting pair.
+	const conflictingEntryIds = new Set<string>();
 	let conflictCount = 0;
+	for (const [, dayEntries] of entriesByDay) {
+		for (let left = 0; left < dayEntries.length; left += 1) {
+			for (let right = left + 1; right < dayEntries.length; right += 1) {
+				const a = dayEntries[left];
+				const b = dayEntries[right];
+				if (!roomEntriesConflict(a, b)) continue;
+				conflictCount += 1;
+				conflictingEntryIds.add(a.entryId);
+				conflictingEntryIds.add(b.entryId);
+			}
+		}
+	}
 
 	const grid = PERIOD_SLOTS.map((slot) => {
 		const eventLabel = slot.eventName ?? null;
@@ -295,23 +314,15 @@ export async function getRoomScheduleView(
 				termIndex: typeof e.termIndex === 'number' ? e.termIndex : 0,
 			}));
 
-			// Term-aware conflict identity: the same physical slot across different
-			// ordered terms is intentional repetition, not a double-booking. Two
-			// distinct source slots overlapping in the SAME term are a conflict.
-			const sourceKeyOf = (e: ScheduledEntry): string =>
-				(e as ScheduledEntry & { sourceEntryId?: string }).sourceEntryId ?? e.entryId;
-			let hasConflict = false;
-			for (let left = 0; left < overlapping.length && !hasConflict; left += 1) {
-				for (let right = left + 1; right < overlapping.length; right += 1) {
-					const a = overlapping[left];
-					const b = overlapping[right];
-					if (sourceKeyOf(a) === sourceKeyOf(b)) continue;
-					if (!effectiveTermsOverlap(entryTermScope(a), entryTermScope(b))) continue;
-					hasConflict = true;
-					break;
-				}
-			}
-			if (hasConflict) conflictCount++;
+			// The ONE room-conflict rule, shared with the generator's validator so
+			// Print Reports and Class Schedule agree. Two entries conflict only when
+			// they overlap EACH OTHER in time, their term scopes overlap, and they
+			// are not the same cohort group. Overlapping the same display slot is
+			// NOT enough: the grid carries staggered slots (e.g. 09:15-10:00 and
+			// 09:45-10:30), so two back-to-back classes share a cell without ever
+			// overlapping, and the old slot-based check flagged them as a conflict
+			// the generated draft did not have.
+			const hasConflict = overlapping.some((e) => conflictingEntryIds.has(e.entryId));
 
 			return {
 				day,

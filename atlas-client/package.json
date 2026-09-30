@@ -16,6 +16,7 @@
     "test:schedule-clarity": "tsx --test src/lib/__tests__/schedule-clarity-c03.test.ts src/components/timetable/__tests__/schedule-clarity-c03-dom.test.tsx",
     "test:plain-tokens-c04": "tsx --test src/components/timetable/__tests__/plain-tokens-c04.test.tsx src/lib/__tests__/plain-tokens-c04-mapping.test.ts",
     "test:room-schedules-term-c01": "tsx --test src/lib/__tests__/room-schedules-term-c01.test.ts",
+    "test:room-schedule-conflict-parity-c01": "tsx --test src/lib/__tests__/room-schedule-conflict-parity-c01.test.ts",
     "test:schedule-lifecycle-c01": "tsx --test src/lib/__tests__/schedule-lifecycle-c01.test.ts",
     "test:plain-language-j2j3-c01": "tsx --test src/lib/__tests__/plain-language-j2j3-c01.test.ts",
     "test:publish-drift-revision-s4-client": "tsx --test src/lib/__tests__/published-revision-client.test.ts src/lib/__tests__/timetable-dynamic-workspace-drift.test.ts src/lib/__tests__/publish-drift-revision-s4-client.test.ts",
