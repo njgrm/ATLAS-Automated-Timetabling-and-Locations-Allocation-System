@@ -25,12 +25,11 @@ foreach ($f in 'manager-state.md', 'operator-inbox.md', 'manager-outbox.md') {
   $p = Join-Path $H $f; if (-not (Test-Path $p)) { New-Item -ItemType File $p | Out-Null }
 }
 $bash = 'C:\Program Files\Git\bin\bash.exe'
-$env:LANE_C_TICK_REPO = $repo
 $lastDigest = ''; $lastTick = [datetime]::MinValue
 
 while ($true) {
   git -C $repo fetch -q origin 2>$null
-  $status = & $bash -lc 'bash "$(cygpath -u "$LANE_C_TICK_REPO")/ops/lane-c/status.sh"' 2>&1 | Out-String
+  $status = & $bash (Join-Path $repo 'ops/lane-c/status.sh') 2>&1 | Out-String
   # Digest ignores idle-minute counters so a tick fires on real change only.
   $runs = ($status -split "`n" | Where-Object { $_ -match '^\S+\s+(RUNNING|EXITED|DIED-EMPTY)' } |
            ForEach-Object { ($_ -split '\s+')[0..1] -join ' ' }) -join ';'
