@@ -613,8 +613,10 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   command's environment, per `docs/reference/agent-runtime-deploy-facts.md` - the first bare client build
   failed closed on the guard, emitted no bundle, and was rerun). E: 31.68 GiB at 08:26 +08, **above** the 20
   GiB reclaim trigger, so no reclaim preceded this train; 29.19 GiB after the build. Acceptance owner:
-  **Lane C** (rendered Codex live check). Supersedes the train-16 in-flight line below, which is retained,
-  not deleted.
+  **Lane C** (rendered Codex live check). **NOT LIVE:** `origin/main` advanced to `27995f56` (A6/A3 Teachers
+  "Above weekly max", decision 13) at 08:45 +08, **after** this cutover - that commit is integrated in source
+  only and is **not** served by the live runtime; it is the next train's content. Supersedes the train-16
+  in-flight line below, which is retained, not deleted.
 - **LIVE CUTOVER IN FLIGHT - target release `a2b67f4c1641031ab653602bce3e6c04d5773bb0` (train 16, pinned to
   `origin/main`, direct to live under operator decision 12), rollback basis
   `48b4686d68987d18fa709e47b8b12dc0c1e8d64f` @ `E:\ATLAS-worktrees\lane-a4-release-20260930-15prod`
