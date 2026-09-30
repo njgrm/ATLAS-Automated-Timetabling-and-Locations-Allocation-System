@@ -2133,25 +2133,65 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		data: CommitResult,
 		strategy: RegularSwapStrategy,
 	): { message: string; tone: 'success' | 'warning' } => {
-		const swappedSection = entryA.sectionId != null ? sectionMap.get(entryA.sectionId) : undefined;
-		const swapReceipt = buildEditReceipt({
-			editType: 'SWAP_ENTRIES',
-			classLabel: receiptClassLabel({ sectionLabel: swappedSection?.name ?? null }),
-			from: { day: String(entryA.day), startTime: String(entryA.startTime) },
-			to: { day: String(entryB.day), startTime: String(entryB.startTime) },
-			problems: {
-				now: data.violationDelta.hardAfter + data.violationDelta.softAfter,
-				before: data.violationDelta.hardBefore + data.violationDelta.softBefore,
-			},
-		});
+		/* A2 move-swap c2 item 1 — THE VERB COMES FROM THE COMMITTED RECORD.
+		 *
+		 * The recorded defect: a move committed, but the receipt read
+		 * `Swapped Luna from Mon 6:00 to Tue 6:00` — the wrong verb, and one class
+		 * named under a verb that means two. `buildEditReceipt` already maps
+		 * `MOVE_ENTRY -> 'Moved'` and `SWAP_ENTRIES -> 'Swapped'`; the call site was
+		 * the defect. So the verb is derived here from what the SERVER actually
+		 * wrote: compare the committed entries for A and B against the slots the
+		 * client asked about. Exactly one class relocated -> a MOVE of that class;
+		 * both relocated -> a genuine EXCHANGE, and the sentence names BOTH classes. */
+		const sectionLabelFor = (entry: ScheduledEntry): string | null =>
+			entry.sectionId != null ? sectionMap.get(entry.sectionId)?.name ?? null : null;
+		const committed = data.draft?.entries ?? [];
+		const afterA = committed.find((entry) => entry.entryId === entryA.entryId) ?? null;
+		const afterB = committed.find((entry) => entry.entryId === entryB.entryId) ?? null;
+		const movedA = afterA != null && (afterA.day !== entryA.day || afterA.startTime !== entryA.startTime);
+		const movedB = afterB != null && (afterB.day !== entryB.day || afterB.startTime !== entryB.startTime);
+		const isExchange = movedA && movedB;
+		const movedEntry = movedB && !movedA ? entryB : entryA;
+		const movedAfter = movedB && !movedA ? afterB : afterA;
+		const labelA = receiptClassLabel({ sectionLabel: sectionLabelFor(entryA) });
+		const labelB = receiptClassLabel({ sectionLabel: sectionLabelFor(entryB) });
+		// Both classes named. When the two share a section (the live case: MATH and
+		// FIL in 7-Luna) the section label cannot tell them apart, so the sentence
+		// says there are TWO classes in that section rather than printing the same
+		// name twice.
+		const exchangeLabel = labelA && labelB
+			? (labelA === labelB ? `the two classes in ${labelA}` : `${labelA} and ${labelB}`)
+			: (labelA || labelB);
+
+		const receipt = isExchange
+			? buildEditReceipt({
+				editType: 'SWAP_ENTRIES',
+				classLabel: exchangeLabel,
+				from: { day: String(entryA.day), startTime: String(entryA.startTime) },
+				to: { day: String(entryB.day), startTime: String(entryB.startTime) },
+				problems: {
+					now: data.violationDelta.hardAfter + data.violationDelta.softAfter,
+					before: data.violationDelta.hardBefore + data.violationDelta.softBefore,
+				},
+			})
+			: buildEditReceipt({
+				editType: 'MOVE_ENTRY',
+				classLabel: receiptClassLabel({ sectionLabel: sectionLabelFor(movedEntry) }),
+				from: { day: String(movedEntry.day), startTime: String(movedEntry.startTime) },
+				to: { day: String(movedAfter?.day ?? entryB.day), startTime: String(movedAfter?.startTime ?? entryB.startTime) },
+				problems: {
+					now: data.violationDelta.hardAfter + data.violationDelta.softAfter,
+					before: data.violationDelta.hardBefore + data.violationDelta.softBefore,
+				},
+			});
 		const strategyClause = strategy === 'AUTO_FIX_MOVE_SOURCE'
 			? 'ATLAS also moved the source session to the nearest valid slot.'
 			: strategy === 'AUTO_FIX_MOVE_BLOCKING'
 				? 'ATLAS also relocated the blocking session.'
 				: 'The grid and edit history were updated.';
 		return {
-			message: `${swapReceipt.sentence} ${strategyClause}`,
-			tone: swapReceipt.tone === 'warning' || strategy !== 'DIRECT_SWAP' ? 'warning' : 'success',
+			message: `${receipt.sentence} ${strategyClause}`,
+			tone: receipt.tone === 'warning' || strategy !== 'DIRECT_SWAP' ? 'warning' : 'success',
 		};
 	}, [sectionMap]);
 

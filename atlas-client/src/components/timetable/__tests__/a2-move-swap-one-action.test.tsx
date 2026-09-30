@@ -136,7 +136,16 @@ function seedDirectSwap() {
 	};
 	commitResponse = {
 		editId: 55, newVersion: 4,
-		draft: { runId: 7, version: 4, entries: [ENTRY_A, ENTRY_B], unassignedItems: [], summary: { isPublished: false } },
+		// c2 item 1 — the COMMITTED record reflects a real DIRECT_SWAP: both entries
+		// trade slots. A receipt must be derived from THIS, not from the intent.
+		draft: {
+			runId: 7, version: 4,
+			entries: [
+				{ ...ENTRY_A, day: 'MONDAY', startTime: '06:45', endTime: '07:30' },
+				{ ...ENTRY_B, day: 'MONDAY', startTime: '06:00', endTime: '06:45' },
+			],
+			unassignedItems: [], summary: { isPublished: false },
+		},
 		violationDelta: { hardBefore: 0, hardAfter: 0, softBefore: 0, softAfter: 0 },
 		warnings: [],
 	};
@@ -241,7 +250,7 @@ test('S2 RECEIPT: the committed swap writes the ONE receipt sentence to the inli
 
 	const status = lastStatus();
 	assert.ok(status, 'the commit speaks');
-	assert.match(status.message, /^Swapped 7-Rizal from Mon 6:00 to Mon 6:45\./, 'the receipt names the class and both slots, from buildEditReceipt');
+	assert.match(status.message, /^Swapped the two classes in 7-Rizal from Mon 6:00 to Mon 6:45\./, 'a committed exchange names both classes (both are in 7-Rizal), from buildEditReceipt');
 	assert.match(status.message, /No new problems\./, 'and the honest problem clause');
 });
 
@@ -332,7 +341,7 @@ test('S6 F2 NO DIALOG + NON-GATING REFRESH: a successful one-action swap leaves 
 	// non-null setter call here is a dialog the operator would see.
 	assert.equal(dialogWasOpened(), false, 'the one-action path never opened the swap review dialog');
 	assert.equal(api!.regularSwapPreview?.loading, false, 'and no spinner is left standing');
-	assert.match(lastStatus()?.message ?? '', /^Swapped 7-Rizal/, 'the receipt is on screen');
+	assert.match(lastStatus()?.message ?? '', /^Swapped the two classes in 7-Rizal/, 'the receipt is on screen');
 });
 
 test('S7 F2 NO DIALOG ON ERROR: a commit timeout leaves no dialog open and no disabled control — the operator retries in plain words', async () => {
