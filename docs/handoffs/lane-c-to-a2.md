@@ -1,5 +1,29 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+## 🟢 A3 → Lane C, term-fallback, 2026-09-30 — **the offline fallback now keeps the last VERIFIED active term, not a date-derived guess** — on `main` at merge `315e3bca`
+
+**0 fixes live and seen / 1 fix integrated / 0 dropped.** Candidate `8acfab0e` (base `3b29bb44`, packet `4a7fa636`), integrated on `main` at merge **`315e3bca`**. **A4 owns the deploy; A3 has not deployed and will not.** No generation, publication, migration, live-data write, sign-in, runtime/env/task change or companion edit.
+
+### Cause (Step 0, read-only live)
+
+When EnrollPro went offline (~06:50), the app flipped to **Term 2**. The live active mirror row (`enrollpro_school_year_mirrors` id 633, school 1, year 5, `2026-2027`) had `term_contract_cache.activeTerm = null`, `term_contract_cached_at = 2026-09-29T16:05:37.197Z` (the rollover), terms T1 `2026-06-08..2026-09-15`, T2 `2026-09-16..2026-12-18`, T3 `2027-01-04..2027-04-08`. The offline fallback (`unreachableResolution` → `derivePersistedActiveTerm`) derived **T2 from the date ranges** (today 2026-09-30 falls inside T2), while the last EnrollPro-verified active term was **T1** (seen at 05:27 via a passive read). T1 was never persisted: the passive read path performs no writes, and the only writer (`syncActiveTermContractAuthority`) is idempotent on `semanticRevision` — which deliberately excludes the active term — so a verified active term that differs from the stored one was discarded.
+
+### The fix
+
+`persistVerifiedActiveTerm` writes the last EnrollPro-verified active term into the existing `termContractCache` JSONB under a new `verifiedActiveTerm` key via an atomic `jsonb_set` (never a whole-cache overwrite; identity-guarded; best-effort). It is called **only** from the runtime-context read (`resolveRuntimeActiveTerm`), so the availability/generation read and the `scheduling-authority` route stay zero-write. `loadPersistedActiveTermSnapshot` exposes it (validated against the snapshot's structure); `unreachableResolution` prefers it over the date-derived term. The degraded answer keeps `degraded: true` + a real `cachedAt`, so the client shows the existing calm **"Using saved term data from <time>."** note — not a verified term change.
+
+### Tally (independent QA)
+
+Range `3b29bb44..8acfab0e`: **`ACCEPT_READY` 14/14, blocked 0, unperformed 0.** Failing-first reproduced on base (`BASE_PROBE termIndex=2 T2`); two byte-exact mutants confirmed load-bearing (remove the preference → row 1 red; remove the persist → row 4 red); real-Postgres `jsonb_set` persist validated (`TERMS_INTACT`, `REVISION_INTACT`, `SQL_GUARD_IDEMPOTENT`). Merged-tree combined gates: `test:a3-term-fallback` 6/6, `test:a5-c2a-term-truth` 14/14, `test:active-term-live-resolution` 8/8, `test:server-suite` 514/514, disposable-DB `term-contract-cache-instrumentation` 32/32 zero residue, `tsc` exit 0, `git diff --check` clean.
+
+### For A4
+
+Deploy the merge (or the next release pin containing it). One labelled browser row after deploy: with EnrollPro unreachable, open the app in the 2026-2027 year and confirm the active term stays **T1** (not T2) and the term-scope surface shows the calm saved-data note. Not a source row.
+
+### Not done, dated 2026-09-30
+
+**0 rendered on live; 1 integrated, none live.** No deploy, no sign-in, no generation, no publication, no migration, no live-data write. Worktrees `E:/ATLAS-worktrees/lane-a3-term-fallback` and `…-integ` = `RETIRE_AFTER_INTEGRATION`.
+
 ## 🟢 A5 → Lane C, 2026-09-30 — **Print Reports and Class Schedule now share ONE room-conflict rule** — on `main` at `f65cb184`
 
 **Cause first:** Print Reports scored "two entries both overlap the same display slot" as a conflict; the grid carries overlapping staggered slots (09:15-10:00 and 09:45-10:30), so two back-to-back classes (09:45-10:30, 10:30-11:15) shared the 10:00-10:45 cell and were flagged although they never overlap each other — the generator checks the two entries directly and reported none.
