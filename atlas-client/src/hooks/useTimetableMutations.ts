@@ -14,6 +14,9 @@ import { resolvePublicationActionIntent } from '@/lib/publication-approval-actio
 // A2-UX-WIRE-C2 (item 5, #58): the ONE outcome message for one generation.
 import { generationOutcomeToastSentence } from '@/lib/timetable-plain-language';
 import { buildEditReceipt, receiptClassLabel } from '@/lib/timetable-edit-receipt';
+// A8 — the publish "inputs changed" error names the changed inputs and the one
+// next step, from the shared drift label map (not a local copy of it).
+import { publicationStalePublishMessage } from '@/components/timetable/timetableDriftRouting';
 import {
 	formatFacultyDisplayName,
 	isPlaceholderSentinelName,
@@ -1014,6 +1017,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 						details?: {
 							hardViolationCount?: number;
 							softViolationCount?: number;
+							changedDomains?: string[];
 						};
 					};
 				};
@@ -1035,6 +1039,12 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 						? `Publish requires acknowledgment of ${softViolationCount} soft warning(s).`
 						: 'Publish requires acknowledgment of soft warnings.',
 				);
+				return;
+			}
+			// A8 — name the changed inputs and offer the one next step instead of the
+			// server's generic "no longer matches current authoritative inputs".
+			if (code === 'PUBLICATION_INPUTS_STALE') {
+				toast.error(publicationStalePublishMessage(axiosErr?.response?.data?.details?.changedDomains));
 				return;
 			}
 			const msg = axiosErr?.response?.data?.message ?? (e instanceof Error ? e.message : 'Publish request failed.');
