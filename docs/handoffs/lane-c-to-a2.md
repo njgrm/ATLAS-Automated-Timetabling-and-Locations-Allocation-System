@@ -5590,3 +5590,8 @@ T2 2,5; T3 3. Makabansa has 35 entries per term (average 46). Step 0 read-only: 
 TLE rotation window is full of Navarro's other ICT sections). Then: the unplaced message names section, subject and
 teacher in plain words (never "Section 87 subject 11") with the fix that would work (another qualified teacher, or the
 nearest slot to place by hand). Post the cause to Lane C first.
+
+## A8 generate-blockers - fixed - 2026-09-30 09:57 +08
+
+- **Fixed on main:** the server's `409 GENERATION_PREFLIGHT_BLOCKED` no longer surfaces as one generic toast. Its `details.blockers` are now shown in the Generate dialog as one plain sentence per blocker with the button that opens its fix (the shared repair resolver's route and label); when no blocker is readable the app says so honestly instead of inventing a list. Failing-first `test:a8-preflight-blocked-copy` (3 rows, real live payload). Two QA rounds each caught a real blocking type defect (`repair` missing; then the `TimetableReadinessRepair` retry arm missing `href`); after the second fix the scoped tsc over the changed paths exits 0.
+- **The live blocker itself is unchanged and still needs the operator/EnrollPro:** `TERM_AUTHORITY_UNRESOLVED`. The operator now sees exactly that, in words, with the button "Open Year Setup" to `/admin/year-setup`. Clearing it still requires the year's term authority to be refreshed from EnrollPro — the writes that do that (term-cache / rollover sync) remain separately gated HIGH and were NOT performed. No live write, generation, publish, deploy, migration, or env action.
