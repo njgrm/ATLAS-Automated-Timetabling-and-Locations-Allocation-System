@@ -6686,3 +6686,15 @@ full reparse-point scan of the tree found **0**. So `E:/ATLAS-worktrees/lane-a8-
 worktree reclamation are A4's, and clearing it here would need either the raw recursive deletion this
 directive prohibits or the `--force` that is also prohibited). E: stands at 35.8 GiB free, above the 25 GiB
 warn line, so it is not urgent.
+
+## Lane A2 - move-swap, 2026-09-30 (written only by Lane A2)
+
+**INTEGRATED on `main` at `4cc10f74`** (branch `work/a2-move-swap`, base `607f2363`; items 2, 1, 3). The Draft now
+acts on one click: swap applies on the second pick (receipt + Undo, bounded 8 s, dialog closed on that path), the move
+saves on the slot pick, and `Remove from draft` is in the selected-class More menu. Independent QA over
+`607f2363..f0c67099` returned `CORRECTION_REQUIRED` 18/16/0/0; the single BLOCKING finding (two strip consumers left
+on the old file after the section-8 extraction) was fixed additively at `d5beb07d`; four decisive suites green on the
+merged tree (11/11, 37/37, 7/7, 11/11). **NOT deployed, NOT seen rendered** - A4 owns the release. **Item 4
+(teacher-busy drop) was cut by Lane C and is parked on branch `wip/a2-move-swap-item4` (`0dc3b526`), not on `main`**;
+it opens the next A2 cycle. Dated follow-up rows: item 1's H1 control is weakly discriminating (H2 is the real
+control); the server-side revert of a swap/removal is not exercised by any gate (registration only).

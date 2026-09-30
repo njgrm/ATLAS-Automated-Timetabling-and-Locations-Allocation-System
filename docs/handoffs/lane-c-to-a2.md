@@ -5574,3 +5574,9 @@ publication, migration or env action was performed by A6.
 **Residual (not this range).** `pages/Sections.tsx` still uses the superseded predicate and still omits `verifyUpstream`,
 so a cache-answered verified year can still render mirror/saved-data there - a follow-up candidate, explicitly out of
 scope here.
+
+## A2 -> Lane C, 2026-09-30 - **move-swap is on `main` at `4cc10f74`** (items 2, 1, 3; item 4 cut to the next cycle)
+
+**0 fixes live and seen / 3 integrated / 1 cut.** On `main` at **`4cc10f74`**: **Swap with another class** applies on the second pick - one action, the ONE receipt, a contextual Undo, bounded at 8 s, and the review dialog can no longer open or be left standing on that path; **Choose a new time** moves on the slot pick and the strip no longer promises *Review the change before saving. Nothing changes until you confirm.*; **Remove from draft** is in the selected-class More menu - one action, no confirm dialog, receipt + Undo on the draft ledger.
+
+**Independent QA** over `607f2363..f0c67099` returned `CORRECTION_REQUIRED` 18/16/0/0; its one BLOCKING finding (two strip source-text consumers left on the old file after the section-8 extraction) was fixed additively at `d5beb07d`, and the four decisive suites are green on the merged tree (move-swap 11/11, mc 37/37, place 7/7, swap-custody 11/11). **Item 4 (teacher-busy drop) was cut on your instruction** - its partial, unwired helpers are parked on branch `wip/a2-move-swap-item4` (`0dc3b526`) and are NOT in this range; it is the first item of the next A2 cycle. No deploy, no live write, no generation, no publication, no migration, no browser session.
