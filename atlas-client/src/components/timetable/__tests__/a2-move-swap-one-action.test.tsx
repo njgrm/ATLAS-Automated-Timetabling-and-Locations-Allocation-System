@@ -19,17 +19,24 @@
  * transport mocked at the module boundary and drives the production
  * `commitRegularSwapNow` the operator's second pick now calls:
  *
- *   S1 ONE ACTION — a legal DIRECT_SWAP pair issues exactly one preview POST and
- *                   exactly one commit POST, with no dialog commit step between.
+ *   S1 ONE ACTION — a legal pair issues exactly one commit POST and NO separate
+ *                   preview POST, with no dialog commit step between. (SUPERSEDED
+ *                   by c2 item 2: the original S1 asserted exactly one preview;
+ *                   the preview was the slow request, so the one-action path no
+ *                   longer dispatches one. The original assertion is kept as a
+ *                   documented supersession, and the replacement asserts ZERO.)
  *   S2 RECEIPT    — the committed swap writes the ONE receipt sentence, from
  *                   `buildEditReceipt`, to the inline status.
- *   S3 NO HANG    — a preview that never resolves is bounded: within
- *                   SWAP_COMMIT_BOUND_MS the surface resolves to a decided
- *                   { ok:false } with plain words, and `loading` is false. It is
- *                   NOT left on a spinner.
+ *   S3 NO HANG    — the REMOVED preview can never gate the swap: a preview that
+ *                   never resolves still lets the operator's swap land. (SUPERSEDED
+ *                   by c2 item 2; the pre-c2 row asserted the surface resolved to
+ *                   plain words at the bound when the preview hung.)
  *   S4 NO HANG (commit) — a commit that never resolves is bounded the same way.
- *   S5 BLOCKED    — a BLOCKED preview refuses with plain words and dispatches
- *                   ZERO commits.
+ *   S5 HARD BLOCK — a server refusal (422 HARD_VIOLATION_BLOCK) speaks plain words
+ *                   and dispatches ZERO further commits. (SUPERSEDED by c2 item 2:
+ *                   the pre-c2 row asserted a BLOCKED preview refused with zero
+ *                   commits; there is no preview any more, so the refusal is the
+ *                   server's own hard-block on the single commit.)
  *
  * Run: `npm run test:ux-a2-move-swap` (wired in atlas-client/package.json in the
  * same commit).
@@ -57,6 +64,8 @@ let previewResponse: any;
 let previewNeverResolves = false;
 let commitResponse: any;
 let commitNeverResolves = false;
+/** c2 item 2 — a server hard-block refusal on the single commit (no preview). */
+let commitError: any = null;
 /** F2 — the post-commit violations/edit-history reads never settle. */
 let getNeverResolves = false;
 
@@ -70,6 +79,7 @@ mock.module(import.meta.resolve('@/lib/api'), {
 			}
 			if (url.endsWith('/swap')) {
 				if (commitNeverResolves) return new Promise(() => {});
+				if (commitError) throw commitError;
 				return { data: commitResponse };
 			}
 			return { data: {} };
@@ -116,6 +126,7 @@ function directPreview(overrides: Record<string, unknown> = {}) {
 function seedDirectSwap() {
 	previewNeverResolves = false;
 	commitNeverResolves = false;
+	commitError = null;
 	getNeverResolves = false;
 	previewResponse = {
 		direct: directPreview(),
@@ -206,13 +217,16 @@ const previewCalls = () => posted.filter((call) => call.url.includes('/swap/prev
 const swapCalls = () => posted.filter((call) => call.url.endsWith('/swap'));
 const lastStatus = () => statuses[statuses.length - 1];
 
-test('S1 ONE ACTION: a legal pair dispatches exactly one preview and one commit, with no dialog step', async () => {
+test('S1 ONE ACTION: a legal pair dispatches exactly one commit and NO separate preview', async () => {
 	seedDirectSwap();
 	await mountInput(mutationInput());
 	let outcome: any = null;
 	await act(async () => { outcome = await api!.commitRegularSwapNow(ENTRY_A as never, ENTRY_B as never); });
 
-	assert.equal(previewCalls().length, 1, 'exactly one swap preview round-trip gates the commit');
+	// SUPERSEDED (c2 item 2): the pre-c2 assertion was `previewCalls().length === 1`.
+	// The preview was the request that timed out on live, so the one-action path no
+	// longer dispatches it; the replacement below asserts the ABSENCE.
+	assert.equal(previewCalls().length, 0, 'no separate swap preview gates the commit — it was the slow request');
 	assert.equal(swapCalls().length, 1, 'exactly one swap commit — no second step stands between the pick and the save');
 	assert.equal(outcome.ok, true, 'the second pick performed the commit');
 	assert.equal(outcome.result.editId, 55, 'and it returns the edit id the workspace registers for Undo');
@@ -231,7 +245,7 @@ test('S2 RECEIPT: the committed swap writes the ONE receipt sentence to the inli
 	assert.match(status.message, /No new problems\./, 'and the honest problem clause');
 });
 
-test('S3 NEVER HANGS (preview): a preview that never resolves is bounded to plain words, not a spinner', async () => {
+test('S3 THE REMOVED PREVIEW CANNOT GATE: a preview that never resolves still lets the swap land', async () => {
 	seedDirectSwap();
 	previewNeverResolves = true;
 	await mountInput(mutationInput());
@@ -240,15 +254,17 @@ test('S3 NEVER HANGS (preview): a preview that never resolves is bounded to plai
 	try {
 		let pending: Promise<any> | null = null;
 		await act(async () => { pending = api!.commitRegularSwapNow(ENTRY_A as never, ENTRY_B as never); });
-		mock.timers.tick(SWAP_COMMIT_BOUND_MS + 50);
+		// SUPERSEDED (c2 item 2): the pre-c2 row asserted the surface resolved to
+		// plain words at SWAP_COMMIT_BOUND_MS when the preview hung. The preview is no
+		// longer on the path, so only 2 s (not the 8 s bound) need pass for the swap.
+		mock.timers.tick(2000);
 		let outcome: any = null;
-		await act(async () => { outcome = await pending; });
+		await act(async () => { outcome = await Promise.race([pending, Promise.resolve('STILL_PENDING')]); });
 
-		assert.equal(outcome.ok, false, 'the bound resolves the surface to a DECIDED state');
-		assert.notEqual(lastStatus()?.message, 'Checking swap options.', 'never left on the pre-fix spinner sentence');
-		assert.match(lastStatus()?.message ?? '', /could not check this swap in time/i, 'plain words name what happened');
+		assert.notEqual(outcome, 'STILL_PENDING', 'the swap is not gated on the preview that timed out on live');
+		assert.equal(outcome.ok, true, 'the swap landed');
+		assert.equal(previewCalls().length, 0, 'and no preview was dispatched at all');
 		assert.equal(api!.regularSwapPreview?.loading, false, 'no spinner is left standing');
-		assert.equal(swapCalls().length, 0, 'nothing was committed on the timeout');
 	} finally {
 		mock.timers.reset();
 	}
@@ -275,16 +291,20 @@ test('S4 NEVER HANGS (commit): a commit that never resolves is bounded to plain 
 	}
 });
 
-test('S5 BLOCKED: a blocked preview refuses in plain words and dispatches ZERO commits', async () => {
+test('S5 HARD BLOCK: a server refusal speaks plain words and dispatches no further commit', async () => {
 	seedDirectSwap();
-	previewResponse = { ...previewResponse, recommendedStrategy: 'BLOCKED', autoFixBlockingPreview: null, autoFixSourcePreview: null };
+	// SUPERSEDED (c2 item 2): the pre-c2 row asserted a BLOCKED preview refused with
+	// zero commits. There is no preview now, so the refusal is the server's own
+	// hard-block on the single commit.
+	commitError = { response: { data: { code: 'HARD_VIOLATION_BLOCK', message: 'Swap creates 1 hard violation(s): Faculty 21 already teaches 7-Luna at that time.' } } };
 	await mountInput(mutationInput());
 	let outcome: any = null;
 	await act(async () => { outcome = await api!.commitRegularSwapNow(ENTRY_A as never, ENTRY_B as never); });
 
-	assert.equal(outcome.ok, false, 'a blocked pair is refused');
-	assert.equal(swapCalls().length, 0, 'no commit is dispatched');
-	assert.match(String(outcome.message), /cannot trade times safely/i, 'and the refusal is plain words, not a code');
+	assert.equal(outcome.ok, false, 'a genuinely impossible pair is refused');
+	assert.equal(swapCalls().length, 1, 'exactly the one commit was attempted — no retry loop');
+	assert.match(String(outcome.message), /already teaches/, 'and the refusal is the server\'s plain sentence, not a code');
+	assert.equal(api!.regularSwapPreview?.loading, false, 'no spinner is left standing');
 });
 
 /* ── F2 CORRECTION (2026-09-30) ────────────────────────────────────────────────
