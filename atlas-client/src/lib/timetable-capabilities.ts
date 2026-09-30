@@ -516,6 +516,9 @@ export function generationStoppersFromPreflightBlockers(raw: unknown): Timetable
 			checkFailed: false,
 			retryLabel: null,
 			retryNote: null,
+			// The repair is carried through to the header unchanged, exactly as
+			// `deriveTimetableGenerationStoppers` does for its own causes.
+			repair,
 		});
 	});
 	return stoppers;
