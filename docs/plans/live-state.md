@@ -585,6 +585,39 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **- LIVE: `3b29bb4426c3e4bc6cfc9d8de4e5a630eb218143` @ DEPLOYED TO PRODUCTION 2026-09-30 09:19 +08 by Lane A4
+  under operator decision 12 (direct to live). Train 17.** Rollback basis
+  **`a2b67f4c1641031ab653602bce3e6c04d5773bb0`** @ `E:\ATLAS-worktrees\lane-a4-release-20260930-16prod` (train
+  16, the incumbent), `KEEP_ACTIVE`; one-step supervised reset, task XML captured pre-cutover in
+  `C:\ProgramData\ATLAS\release-audit\3b29bb44-20260930-091615\`. Live dir
+  `E:\ATLAS-worktrees\lane-a4-release-20260930-17prod`, HEAD == pin, `status --short` empty, own dependency
+  trees (robocopy `/MIR /MT:16` from the live tree - client/server `package-lock.json` blobs byte-identical to
+  the pin, so no `npm ci`; client 18 583 / server 9 164 entries each side, real directories, no junction), own
+  dist, own runtime contract. Listeners **5001 -> pid 17752**, **5174 -> pid 30660** (were 13804/32732); machine
+  scope, task action **and** Start In repointed, task **Running**, `cli.mjs status` `releaseSha 3b29bb44`,
+  `restartFailures 0`, rollover auto-sync disabled. **Ready in 111 s** (cutover started 09:16:14,
+  `/api/v1/health/ready` 200 `database: ok` at 09:18:05, `GET /api/v1/subjects?schoolId=1` 200 / 20 336 B) -
+  inside the 180 s budget. Dry run first: `mutates false`, `secretsPrinted false`, incumbent pids 13804/32732.
+  **Proof is discriminating, chosen pre-cutover:** served chunk **`timetableDriftRouting-IGo9GULp.js` (200,
+  3 673 B, sha256 `7325f386e2c613a49e1693ad9bc52a6a80d52adc2e4860af144dcd73a74e479d` byte-identical to the
+  built asset)**, which carries **`Publish blocked: `** and no longer carries the generic server sentence
+  `no longer matches current authoritative inputs`; train 16's `timetableDriftRouting-YEOEybFV.js` now **404s**
+  (negative control), and `index-DubCG6ev.js` serves at 304 889 B. Both probes on the Tailnet origin
+  `https://njgrm.buru-degree.ts.net`. **No migration** - `prisma/**` and `migrations/**` diffs over
+  `a2b67f4c..3b29bb44` both empty, so `npm run migrate:guarded` was not run. **No generation, no publication.**
+  41 client chunks and 3 server modules (`constraint-validator`, `effective-scheduled-resources`,
+  `room-schedule.service`) differ from train 16. Delta from `a2b67f4c`: **36 commits, four lanes** - A3/A6
+  Teachers "Above weekly max" on true teaching hours (decision 13, `27995f56`, which train 16 explicitly did
+  **not** serve), A8 publish-stale message naming the changed inputs (`37678b34`), A5 Print Reports / Class
+  Schedule room-conflict parity (`45493ea9`), A9 sections items X1-X6 (receipt
+  `docs/plans/receipts/a9-docx-sections-20260930.receipt.json`). Builds: `prisma generate` from `atlas-server`
+  with the repo-root schema, server `tsc`, client `vite build` (with `VITE_ENROLLPRO_URL` on the command
+  environment) all exit 0. E: 27.84 GiB before, 27.82 GiB after - **above** the 25 GiB warning, so no reclaim
+  was due. **UNPERFORMED: the DB zero-write signature row** - the operator scoped this train's gates to build,
+  migration check, dry run, `-Execute`, readiness, Tailnet chunk and the LIVE post ("nothing else"), so no
+  data-signature row was captured. The runner executed no migration, generation or publication, and the delta is
+  client/server logic only; readiness nonetheless proves a working DB-backed read. Acceptance owner: **Lane C**
+  (rendered live check). Supersedes the train-16 LIVE line below, which is retained, not deleted.
 - **LIVE CUTOVER IN FLIGHT - target release `3b29bb4426c3e4bc6cfc9d8de4e5a630eb218143` (train 17, pinned to
   `origin/main`, direct to live under operator decision 12), rollback basis
   `a2b67f4c1641031ab653602bce3e6c04d5773bb0` @ `E:\ATLAS-worktrees\lane-a4-release-20260930-16prod`
