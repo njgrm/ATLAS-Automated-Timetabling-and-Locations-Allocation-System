@@ -41,6 +41,16 @@ type GeneratedSummary = NonNullable<LeftRailContentContext['summary']> & {
 	};
 };
 
+/**
+ * A2 move-swap c2 item 4 — the item's OWN ordered term, in the one vocabulary the
+ * rest of the timetable uses (`Term N`), or `All year` when the item carries no
+ * ordered term. A missing term identity is NEVER turned into Term 1
+ * (AGENTS.md §7 / `agent-timetable-invariants`).
+ */
+export function unassignedTermLabel(termIndex: number | null | undefined): string {
+	return typeof termIndex === 'number' && Number.isInteger(termIndex) && termIndex > 0 ? `Term ${termIndex}` : 'All year';
+}
+
 type GeneratedUnassignedPanelProps = {
 	context: LeftRailContentContext;
 	renderUnassignedReasonBadge: (reason: string) => ReactNode;
@@ -444,7 +454,7 @@ function UnassignedRailRow({
 								<span className="min-w-0 flex-1 truncate font-semibold">{sectionLabel(item.sectionId)}</span>
 							</div>
 							<p className="line-clamp-2 whitespace-normal text-xs leading-snug text-muted-foreground">
-								{subjectLabel(item.subjectId)} · Session {item.session}
+								{subjectLabel(item.subjectId)} · {unassignedTermLabel(item.termIndex)} · Session {item.session}
 							</p>
 						</div>
 					</div>

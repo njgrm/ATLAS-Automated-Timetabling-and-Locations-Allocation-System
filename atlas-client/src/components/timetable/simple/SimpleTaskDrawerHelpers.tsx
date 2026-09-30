@@ -5,6 +5,7 @@ import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
 import { ALL_SERIOUS_PROBLEMS_LABEL, HARD_COUNT_RELATIONSHIP_NOTE, MUST_FIX_LABEL, plainScopeLabel, runAnchorLabel } from '@/lib/timetable-plain-language';
 import { isBlockingHardViolation, resolveBlockerDestination } from '@/components/timetable/simplePublishReadiness';
+import { unassignedTermLabel } from '@/components/timetable/GeneratedUnassignedPanel';
 import {
 	NO_SECTION_ON_RECORD,
 	NO_SUBJECT_ON_RECORD,
@@ -43,6 +44,12 @@ export type BlockerGroup = {
 		sectionName: string;
 		subjectName: string;
 		facultyName: string;
+		/**
+		 * A2 move-swap c2 item 4 — the item's OWN ordered term and session, so five
+		 * same-section/subject/teacher rows are distinguishable. Empty when the
+		 * violation carries neither (most HARD codes do not).
+		 */
+		scopeLabel: string;
 		nextStep: string;
 	}>;
 };
@@ -87,6 +94,18 @@ const DEFAULT_GROUP_CONFIG = {
 	actionHref: '/timetable',
 	nextStep: 'Open the review rail and resolve this issue before publishing.',
 };
+
+/**
+ * A2 move-swap c2 item 4 — `Term N · Session N` for a violation that carries its
+ * OWN ordered term and session; '' otherwise, so no row invents either. A missing
+ * term identity never becomes Term 1.
+ */
+export function unassignedScopeLabel(meta: Record<string, unknown> | null | undefined): string {
+	const session = meta?.session;
+	if (typeof session !== 'number' || !Number.isFinite(session)) return '';
+	const termIndex = meta?.termIndex;
+	return `${unassignedTermLabel(typeof termIndex === 'number' ? termIndex : null)} · Session ${session}`;
+}
 
 function isGroupableBlocker(violation: Violation): boolean {
 	// A group is only a publication blocker when the server allowlist says so,
@@ -150,6 +169,10 @@ export function buildBlockerGroups(
 				sectionName: sectionName || NO_SECTION_ON_RECORD,
 				subjectName: subjectName || NO_SUBJECT_ON_RECORD,
 				facultyName: facultyName || 'No teacher assigned',
+				// A2 move-swap c2 item 4 — the unassigned violation carries its own
+				// ordered term and session in `meta` (`generation.service.ts:1144-1151`),
+				// so a row can state which of the identical-looking sessions it is.
+				scopeLabel: unassignedScopeLabel(v.meta),
 				nextStep: groupConfig.nextStep,
 			});
 		}
@@ -387,7 +410,7 @@ export function BlockerGroupCard({ group, onNavigate }: { group: BlockerGroup; o
 					{visibleItems.map((item, index) => (
 						<div key={index} className="rounded-lg border border-red-100 bg-white/60 px-2 py-1.5 text-xs">
 							<p className="font-medium text-red-800">{item.sectionName} · {item.subjectName}</p>
-							<p className="text-red-600">{item.facultyName}</p>
+							<p className="text-red-600">{item.facultyName}{item.scopeLabel ? ` · ${item.scopeLabel}` : ''}</p>
 						</div>
 					))}
 					{group.items.length > 3 && (
