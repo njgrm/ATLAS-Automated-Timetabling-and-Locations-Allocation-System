@@ -131,7 +131,17 @@ test('B3 every published move path schedules a dated change instead of the refus
 	const workspace = source('../../components/timetable/ScheduleReviewWorkspace.tsx');
 	assert.match(workspace, /if \(state\.publishedChangeScope\) \{\s*state\.setPublishedEntryChange\(\{ entry: state\.selectedEntry, target: null, mode: 'room' \}\);\s*return;/);
 	assert.match(workspace, /<PublishedEntryChangePanel/);
-	assert.match(workspace, /Published schedule: a change starts on a date you choose\./);
+	// A2 move-swap correction R2 (2026-09-30, QA G7): the selection strip was
+	// extracted to `ScheduleReviewWorkspaceSelectionStrip.tsx` (§8 cap). The
+	// sentence itself is unchanged. SUPERSEDED IN PLACE, additively — the
+	// workspace negation is kept beside the replacement.
+	//   was: assert.match(workspace, /Published schedule: a change starts on a date you choose\./);
+	assert.doesNotMatch(workspace, /Published schedule: a change starts on a date you choose\./);
+	assert.match(
+		source('../../components/timetable/ScheduleReviewWorkspaceSelectionStrip.tsx'),
+		/Published schedule: a change starts on a date you choose\./,
+		'replacement: the extracted strip owns the published-change sentence',
+	);
 	// ── C11 CORRECTION 2 (QA-B1) — RE-POINTED, additively ──────────────────────
 	// C11 slice 1 extracted the manual-edit empty pane into
 	// `CenterWorkspaceManualEditEmpty.tsx`, so `CenterWorkspace.tsx` no longer holds

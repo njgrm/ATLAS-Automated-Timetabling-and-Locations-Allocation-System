@@ -19,6 +19,7 @@ test('R3 the selected-class Swap arms the same workflow as the task path', () =>
 	// the `DropdownMenuItem` moved, so this row reads the extracted file for the testid and
 	// the workspace for the wiring. Every assertion below is still the original one.
 	const selectedActions = source('src/components/timetable/ScheduleReviewWorkspaceSelectedActions.tsx');
+	const strip = source('src/components/timetable/ScheduleReviewWorkspaceSelectionStrip.tsx');
 	const arming = source('src/components/timetable/timetableSwapArming.ts');
 	assert.match(workspace, /createSwapArmHandler/);
 	assert.match(selectedActions, /data-testid="timetable-simple-selected-swap-action"/);
@@ -31,7 +32,14 @@ test('R3 the selected-class Swap arms the same workflow as the task path', () =>
 	// chain and nothing joined them — nothing asserted that the workspace actually
 	// hands `armSwapSessions` to the extracted component. This is that link.
 	assert.match(workspace, /onSwap=\{armSwapSessions\}/);
-	assert.match(workspace, /<ScheduleReviewWorkspaceSelectedActions/);
+	// A2 move-swap correction R2 (2026-09-30, QA G7): the selected-class strip was
+	// extracted to `ScheduleReviewWorkspaceSelectionStrip.tsx` (§8: the workspace
+	// was at 998 physical lines against the 1000 cap), so this JSX moved with it.
+	// SUPERSEDED IN PLACE, additively (AGENTS.md §16) — the original assertion is
+	// kept as its negation, so a reintroduction in the workspace still fails here.
+	//   was: assert.match(workspace, /<ScheduleReviewWorkspaceSelectedActions/);
+	assert.doesNotMatch(workspace, /<ScheduleReviewWorkspaceSelectedActions/);
+	assert.match(strip, /<ScheduleReviewWorkspaceSelectedActions/, 'replacement: the extracted strip owns it');
 	assert.match(selectedActions, /onSelect=\{\(event\) => \{ event\.preventDefault\(\); onSwap\(\); \}\}/);
 	// The arming transition is the real production module, not a state-only no-op.
 	assert.match(arming, /mode: 'select-first'/);
