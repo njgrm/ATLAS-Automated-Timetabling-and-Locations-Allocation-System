@@ -789,8 +789,35 @@ test('S4 at desktop width the selected session opens a centred role="dialog", no
 	const calls = await renderSessionDetails(1366);
 	const dialog = document.querySelector<HTMLElement>('[role="dialog"][data-testid="timetable-simple-details-dialog"]');
 	assert.ok(dialog, 'a centred dialog renders at desktop width');
-	assert.match(dialog.className, /left-\[50%\]/);
-	assert.match(dialog.className, /top-\[50%\]/);
+	// ── SUPERSEDED IN PART (A5 item 23.2, `e54e649f`, operator 2026-09-29) ──────
+	// ORIGINAL ASSERTIONS, RETAINED VERBATIM (AGENTS.md §16):
+	//   assert.match(dialog.className, /left-\[50%\]/);
+	//   assert.match(dialog.className, /top-\[50%\]/);
+	//
+	// The shared `@/ui/dialog` primitive no longer anchors the box with
+	// `fixed left-[50%] top-[50%]` plus a translating open animation. It centres with
+	// a FLEX PARENT (`fixed inset-0 flex items-center justify-center`) because a
+	// translate computed for one box size slides a RESIZED box out from under the
+	// cursor — the primitive became resizable, and the old anchoring made that
+	// unusable. `a5-c6-shared-dialog-tooltip.test.tsx` owns the primitive's own
+	// contract; what this row owns is that THIS dialog is centred by it.
+	//
+	// The property the originals protected — a centred dialog — is asserted below in
+	// the form that is now true, and the translate anchors are asserted to be GONE,
+	// which is what stops a re-introduced `left-[50%]` from quietly un-resizing the
+	// primitive.
+	const centring = dialog.parentElement;
+	assert.ok(centring, 'the dialog has the centring wrapper around it');
+	assert.equal(centring!.getAttribute('data-dialog-centering'), 'flex',
+		'the centring is the shared FLEX PARENT, not a translate on the box');
+	for (const token of ['fixed', 'inset-0', 'flex', 'items-center', 'justify-center']) {
+		assert.ok((centring!.getAttribute('class') ?? '').split(/\s+/).includes(token),
+			`the centring wrapper declares \`${token}\``);
+	}
+	assert.doesNotMatch(dialog.className, /left-\[50%\]|top-\[50%\]/,
+		'and the box itself carries no translate anchor, which is what made a resized dialog slide away');
+	assert.doesNotMatch(dialog.className, /animate-modal-in/,
+		'and no longer uses the translating open animation');
 	assert.match(dialog.className, /max-w-\[720px\]/, 'about 720 px wide at most');
 	assert.match(dialog.className, /overflow-y-auto/, 'scrolls internally');
 	assert.equal(document.querySelector('[data-testid="timetable-simple-details-sheet"]'), null, 'no bottom drawer at desktop width');
@@ -1590,12 +1617,31 @@ test('PL-J4.1R the real blocking chip states the publish consequence, so "3 unre
 		softCount: 0,
 		summary: { assignedCount: 400, classesProcessed: 401, hardViolationCount: 7, unassignedCount: 0 },
 	});
-	const text = chip.textContent ?? '';
-	// The chip's own text carries the consequence, and it is the sentence the
-	// shared resolver produced — not a second wording invented here.
-	assert.match(text, /3 Must fix — this schedule cannot be published yet\./, 'the blocking chip states the count and the consequence');
-	assert.equal(text.trim(), publishBlockedSentence({ blockingHardCount: 3, unassignedCount: 0 }), 'the chip renders exactly the shared resolver sentence');
-	assert.doesNotMatch(text, /\d+ blocker/i, 'the consequence introduces no retired name');
+	// ORIGINAL ASSERTIONS, RETAINED VERBATIM (AGENTS.md §16):
+	//   const text = chip.textContent ?? '';
+	//   assert.match(text, /3 Must fix — this schedule cannot be published yet\./, 'the blocking chip states the count and the consequence');
+	//   assert.equal(text.trim(), publishBlockedSentence({ blockingHardCount: 3, unassignedCount: 0 }), 'the chip renders exactly the shared resolver sentence');
+	//
+	// SUPERSEDED on the FACE by `c82b8636` (operator screenshot at the 30 Sep demo:
+	// the chip was squeezed and clipped on both sides, so the long consequence came
+	// off the visible face and onto the consequence span's `title`). The properties
+	// the row protected — the count AND the consequence are on this one control, and
+	// the consequence is the SHARED resolver's sentence, not a second wording — are
+	// asserted below where the whole sentence now lives.
+	const consequence = chip.querySelector<HTMLElement>('[data-testid="timetable-simple-readiness-consequence"]');
+	assert.ok(consequence, 'the blocking chip renders its addressable consequence span');
+	const sentence = consequence!.getAttribute('title') ?? '';
+	assert.equal(sentence, publishBlockedSentence({ blockingHardCount: 3, unassignedCount: 0 }),
+		'the chip states EXACTLY the shared resolver sentence — count and consequence, in the wording every other surface uses');
+	// …and it is still ON this control, not merely in a tooltip on another one.
+	assert.ok((chip.getAttribute('aria-label') ?? '').includes(sentence),
+		'the accessible name carries the whole sentence, so no surface depends on a hover');
+	// The face names the count in plain words; it is simply no longer carrying a
+	// sentence wider than the chip.
+	const face = (chip.textContent ?? '').trim();
+	assert.match(face, /3 Must fix/, 'the visible face still names the count in the one plain word');
+	assert.doesNotMatch(face, /\d+ blocker/i, 'the consequence introduces no retired name');
+	assert.doesNotMatch(face, /cannot be published yet/, 'and the visible face does not print the long clause — that is what the demo clipped');
 	// The fact is still there, and still calm.
 	assert.match(chip.className, /\bh-6\b/, 'the calm height is preserved');
 	assert.doesNotMatch(chip.className, /destructive/, 'still no destructive register');
@@ -1608,6 +1654,7 @@ test('PL-J4.1S an unplaced-only block names CLASSES on the chip, the one unit ev
 	// same unit as every other surface, and that unit is now the one noun
 	// "class" (A2-UX-COPY-C2). The row's INTENT is unchanged and is the stronger
 	// claim now: the chip cannot reach for the retired word at all.
+	const { publishBlockedSentence } = await import('../../../lib/timetable-plain-language');
 	const { chip } = await renderRealReadinessChip({
 		blockingHardCount: 0,
 		hardCount: 0,
@@ -1615,11 +1662,21 @@ test('PL-J4.1S an unplaced-only block names CLASSES on the chip, the one unit ev
 		summary: { assignedCount: 400, classesProcessed: 401, hardViolationCount: 0, unassignedCount: 3 },
 		draft: draft([unassignedItem(2, 701, 1), unassignedItem(2, 702, 1), unassignedItem(2, 703, 1)], { hardViolationCount: 0, unassignedCount: 3 }),
 	});
-	const text = chip.textContent ?? '';
-	// R1-C2 (decision 8) SUPERSEDED the wording: `3 classes still need a time` is
-	// `3 classes need a time slot`. The property is unchanged.
-	assert.match(text, /3 classes need a time slot — this schedule cannot be published yet\./, 'the unplaced clause names classes');
-	assert.doesNotMatch(text, /session/i, 'the chip never falls back to the retired noun');
+	// ORIGINAL ASSERTION, RETAINED VERBATIM (AGENTS.md §16):
+	//   assert.match(text, /3 classes need a time slot — this schedule cannot be published yet\./, 'the unplaced clause names classes');
+	//   assert.doesNotMatch(text, /session/i, 'the chip never falls back to the retired noun');
+	//
+	// SUPERSEDED on the FACE by `c82b8636`: the whole sentence moved to the
+	// consequence span's `title`. So the row now asserts the clause where it is whole,
+	// by EXACT EQUALITY with the shared resolver sentence (imported, not restated),
+	// which pins the unit far more tightly than the old regex did.
+	const consequence = chip.querySelector<HTMLElement>('[data-testid="timetable-simple-readiness-consequence"]');
+	assert.ok(consequence, 'the unplaced-only chip renders its consequence span');
+	const sentence = consequence!.getAttribute('title') ?? '';
+	assert.equal(sentence, publishBlockedSentence({ blockingHardCount: 0, unassignedCount: 3 }),
+		'the chip states the shared resolver sentence for an unplaced-only run');
+	assert.match(sentence, /3 classes need a time slot/, 'and that sentence names CLASSES');
+	assert.doesNotMatch(sentence, /session/i, 'the chip never falls back to the retired noun');
 });
 
 test('PL-J4.1T the blocking and the non-blocking chip are distinguishable by TEXT and by a greyscale-visible border, not by colour or the data attribute', async () => {
@@ -1641,10 +1698,22 @@ test('PL-J4.1T the blocking and the non-blocking chip are distinguishable by TEX
 
 	// (1) DISTINGUISHABLE BY TEXT ALONE. This is the assertion that fails if the
 	// two states are made to render identically.
+	//
+	// ORIGINAL, RETAINED VERBATIM (AGENTS.md §16):
+	//   assert.equal(blockedText, publishBlockedSentence({ blockingHardCount: 3, unassignedCount: 0 }), 'the blocked chip states the consequence');
+	//
+	// SUPERSEDED on the FACE by `c82b8636` — the visible face is now the count plus a
+	// short marker, and the whole sentence is on the consequence span's `title`. The
+	// claim "only the blocking chip says publishing is shut" is now asserted on the
+	// sentence, where it is whole, and on the face, where the marker is.
+	const blockedSentence = blocked.chip.querySelector<HTMLElement>('[data-testid="timetable-simple-readiness-consequence"]')?.getAttribute('title') ?? '';
+	assert.equal(blockedSentence, publishBlockedSentence({ blockingHardCount: 3, unassignedCount: 0 }),
+		'the blocked chip states the shared consequence sentence');
+	assert.equal(warned.chip.querySelector('[data-testid="timetable-simple-readiness-consequence"]'), null,
+		'and the NON-blocking chip states no consequence at all — not a shortened one');
 	assert.notEqual(blockedText, warnedText, 'the two states read differently');
-	assert.equal(blockedText, publishBlockedSentence({ blockingHardCount: 3, unassignedCount: 0 }), 'the blocked chip states the consequence');
 	assert.equal(warnedText, '5 warnings', 'the non-blocked chip states only its warning count');
-	assert.match(blockedText, /cannot be published yet/, 'only the blocking chip says publishing is shut');
+	assert.match(blockedSentence, /cannot be published yet/, 'only the blocking chip says publishing is shut');
 	assert.doesNotMatch(warnedText, /cannot be published|before publish/i, 'the non-blocking chip does not imply publishing is shut');
 	// The plain word, too: the blocking chip is the one carrying the consequence.
 	assert.match(blockedText, /Must fix/, 'the blocking chip names the problem in the one plain word');
@@ -1758,21 +1827,47 @@ test('PL-J4.3 a drift we could not CHECK is not styled as a confirmed drift, and
 	assert.equal(stale.getAttribute('data-drift-status'), 'STALE');
 	assert.equal(unknown.getAttribute('data-drift-status'), 'UNKNOWN');
 
-	// Different confidence must not share one alarm.
-	assert.match(stale.className, /amber/, 'a confirmed change keeps the amber register');
-	assert.doesNotMatch(unknown.className, /amber/, '"could not be checked" is not styled as a confirmed change');
-	assert.notEqual(stale.className, unknown.className, 'the two confidences are visually distinct');
+	// Different confidence must not share one register.
+	//
+	// ORIGINAL ASSERTIONS, RETAINED VERBATIM (AGENTS.md §16):
+	//   assert.match(stale.className, /amber/, 'a confirmed change keeps the amber register');
+	//   assert.doesNotMatch(unknown.className, /amber/, '"could not be checked" is not styled as a confirmed change');
+	//
+	// SUPERSEDED by C11 S2 item 1 (`c9c92f41`): the amber/red alarm styling is GONE
+	// from this row for BOTH confidences — "nothing is wrong yet: the run on screen is
+	// unchanged, and the change is a notice". The operator's screenshot showed the
+	// alarming band. What survives is the rule the originals were reaching for, and it
+	// is now carried by the SENTENCE (which survives a monochrome read) rather than by
+	// a hue: `SimpleChangeNotice` takes `tone="neutral"` for a claimed change and
+	// `tone="calm-note"` when ATLAS could not check, and the two differ in class AND in
+	// wording.
+	assert.doesNotMatch(stale.className, /amber|destructive|red/,
+		'a confirmed change is a NOTICE, not an alarm — nothing is wrong with the run on screen');
+	assert.doesNotMatch(unknown.className, /amber|destructive|red/,
+		'and neither is an unchecked comparison, which is a calmer statement still');
+	assert.notEqual(stale.className, unknown.className,
+		'the two confidences are visually distinct, and that distinction is not colour');
 	// And the wording distinguishes them too, so colour is not the only signal.
 	//
-	// A2-C6-TRUTH (T3e) — the three assertions below are CORRECTED ADDITIVELY and
-	// the row is marked SUPERSEDED on its wording only. Each pinned the exact
-	// 21-/25-word sentence this packet measured as too long to read before the
-	// one fact; the INTENT of every one of them is unchanged and is asserted
-	// immediately after, in wording-agnostic form, plus a new row below bounds
-	// the length. Nothing was deleted.
-	assert.match(stale.textContent ?? '', /School information changed/, 'SUPERSEDED (T3e): STALE says the information changed');
-	assert.match(unknown.textContent ?? '', /[Cc]ould not check/, 'SUPERSEDED (T3e): UNKNOWN says it could not be checked');
-	assert.match(unknown.textContent ?? '', /This schedule is unchanged/, 'SUPERSEDED (T3e): UNKNOWN says plainly that nothing is known to have changed');
+	// A2-C6-TRUTH (T3e) — the three assertions below were CORRECTED ADDITIVELY and
+	// the row marked SUPERSEDED on its wording only: each pinned an exact sentence the
+	// packet measured as too long to read before the one fact. `a2b67f4c` (operator,
+	// 2026-09-30) then shortened the STALE sentence again — the notice now names the
+	// changed AREA ("Teaching Load changed.") instead of the server's long
+	// "School information changed after this run." — so those exact-phrase rows are
+	// stale a second time. They are RETAINED VERBATIM below and the property each
+	// protected is asserted against the PRODUCTION sentence, imported, immediately
+	// after. Nothing is deleted.
+	//
+	//   assert.match(stale.textContent ?? '', /School information changed/, 'SUPERSEDED (T3e): STALE says the information changed');
+	//   assert.match(unknown.textContent ?? '', /[Cc]ould not check/, 'SUPERSEDED (T3e): UNKNOWN says it could not be checked');
+	//   assert.match(unknown.textContent ?? '', /This schedule is unchanged/, 'SUPERSEDED (T3e): UNKNOWN says plainly that nothing is known to have changed');
+	const { changeNoticeSentence, CHANGE_NOTICE_UNVERIFIED_SENTENCE } = await import('../simple/SimpleChangeNotice');
+	const messageOf = (node: Element) => node.querySelector<HTMLElement>('[data-testid="timetable-simple-drift-message"]')?.textContent?.trim() ?? '';
+	assert.equal(messageOf(stale), changeNoticeSentence(['Teaching Load']),
+		'STALE names the changed area, in the production sentence — not the server\'s long form');
+	assert.equal(messageOf(unknown), CHANGE_NOTICE_UNVERIFIED_SENTENCE,
+		'UNKNOWN says it could not be checked, in the production sentence, and nothing more');
 	// The intents those three rows existed to protect, now wording-agnostic:
 	assert.match(stale.textContent ?? '', /changed/i, 'INTENT PRESERVED: the confirmed change is stated');
 	assert.doesNotMatch(unknown.textContent ?? '', /\bconfirmed\b|\bverified\b|\bhas changed\b/,
@@ -1801,9 +1896,19 @@ test('PL-J4.3R (A2-C6-TRUTH T3e) the drift banner states its fact in twelve word
 		assert.ok(countWords(text) <= 12,
 			`the ${label} message reads ${countWords(text)} words ("${text}"), above the twelve-word ceiling A2-C6-TRUTH set`);
 	}
-	// The alarm survives the shortening: a confirmed change must still alarm.
-	assert.match(stale.className, /amber/, 'a confirmed change still carries the amber register');
-	assert.doesNotMatch(unknown.className, /amber/, 'an unchecked comparison is still not an alarm');
+	// The alarm survives the shortening — as a DIFFERENCE, not as a hue.
+	// ORIGINAL ASSERTIONS, RETAINED VERBATIM (AGENTS.md §16):
+	//   assert.match(stale.className, /amber/, 'a confirmed change still carries the amber register');
+	//   assert.doesNotMatch(unknown.className, /amber/, 'an unchecked comparison is still not an alarm');
+	// Both are superseded by C11 S2 item 1, which deleted the amber register from this
+	// row entirely; what replaces them is that the two confidences still read
+	// differently, and differently in WORDS (the property that survives greyscale).
+	assert.notEqual(stale.className, unknown.className,
+		'a confirmed change and an unchecked comparison are still distinguishable after the shortening');
+	assert.doesNotMatch(stale.textContent ?? '', /[Cc]ould not check/,
+		'and only the unchecked one says it could not check');
+	assert.doesNotMatch(unknown.textContent ?? '', /\bconfirmed\b|\bverified\b|\bhas changed\b/,
+		'while the unchecked one never claims a confirmed change');
 });
 
 test('PL-J4.4 the "schedule stays unchanged" reassurance is not wrapped in alarm styling', async () => {
