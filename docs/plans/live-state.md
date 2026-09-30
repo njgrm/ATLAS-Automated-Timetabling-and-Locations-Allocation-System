@@ -585,6 +585,24 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **- LIVE CUTOVER IN FLIGHT — target release `9e2bfb240df2a5c26e01e2ab7dad97ecfae5a630eb218143` (train 18,
+  pinned to `origin/main` tip, direct to live under operator decision 12), rollback basis
+  `3b29bb4426c3e4bc6cfc9d8de4e5a630eb218143` @ `E:\ATLAS-worktrees\lane-a4-release-20260930-17prod`
+  (train 17, the incumbent), `KEEP_ACTIVE`; one-step supervised reset, task XML captured pre-cutover by
+  `deploy-runner.ps1`.** Recorded 2026-09-30 by Lane A4 **before any mutation**, so `Assert-LiveReleaseRecorded`
+  leads the cutover. Target dir `E:\ATLAS-worktrees\lane-a4-release-20260930-18prod`, HEAD == pin,
+  `status --short` empty, 0 reparse points, own dependency trees (robocopy `/MIR /MT:16` from the live tree —
+  root / client / server `package-lock.json` blobs **byte-identical** to the pin, so **no `npm ci`**; root
+  14 054 / client 18 583 / server 9 164 entries each side, real directories, no junction). **No migration**:
+  `prisma` and `migrations` diffs over `3b29bb44..9e2bfb24` both empty, so `npm run migrate:guarded` will not
+  be run. Delta from `3b29bb44`: **6 product/test paths, 2 docs, 0 server, 0 prisma, 0 ops** — A2
+  `useScheduleReviewWorkspaceState.ts` (Term setup reads **Verified** when the active term is
+  EnrollPro-verified, `9e2bfb24`) and A6 `2897f0bc` teaching-load source truth from provenance not a
+  cache-shaped label (`useTeachingLoadData.ts`, `enrollpro-public-settings.ts`, `Faculty.tsx` + its committed
+  `test:a6-source-truth` script entry, which is the only `package.json` change and is **scripts-only**).
+  Builds green: `prisma generate` from `atlas-server` with the repo-root schema, server `tsc`, client
+  `vite build` with `VITE_ENROLLPRO_URL` on the command environment. Acceptance owner: **Lane C** (rendered live
+  check). No generation, no publication. Supersedes the train-17 in-flight line below, which is retained.
 - **- LIVE: `3b29bb4426c3e4bc6cfc9d8de4e5a630eb218143` @ DEPLOYED TO PRODUCTION 2026-09-30 09:19 +08 by Lane A4
   under operator decision 12 (direct to live). Train 17.** Rollback basis
   **`a2b67f4c1641031ab653602bce3e6c04d5773bb0`** @ `E:\ATLAS-worktrees\lane-a4-release-20260930-16prod` (train
