@@ -585,6 +585,58 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **- LIVE: `a2b67f4c1641031ab653602bce3e6c04d5773bb0` @ DEPLOYED TO PRODUCTION 2026-09-30 08:41 +08 by Lane A4
+  under operator decision 12 (direct to live). Train 16.** Rollback basis
+  **`48b4686d68987d18fa709e47b8b12dc0c1e8d64f`** @ `E:\ATLAS-worktrees\lane-a4-release-20260930-15prod` (train
+  15, the incumbent), `KEEP_ACTIVE`; one-step supervised reset, task XML captured pre-cutover in
+  `C:\ProgramData\ATLAS\release-audit\a2b67f4c-20260930-083945\`. Live dir
+  `E:\ATLAS-worktrees\lane-a4-release-20260930-16prod`, HEAD == pin, `status --short` empty, own dependency
+  trees (robocopy `/MIR /MT:16` from the live tree - all three `package-lock.json` byte-identical, so no
+  `npm ci`; root 218 / client 155 / server 209 entries, real directories, no junction), own dist, own runtime
+  contract. Listeners **5001 -> pid 13804**, **5174 -> pid 32732** (were 20164/14888); machine scope, task
+  action **and** Start In repointed, task **Running**, `cli.mjs status` `releaseSha a2b67f4c`, `restartFailures 0`,
+  rollover auto-sync disabled. **Ready in 125 s** (cutover started 08:39:45, `/api/v1/health/ready` 200
+  `database: ok` at 08:41:49, `GET /api/v1/subjects?schoolId=1` 200) - inside the 180 s budget. Served chunk
+  **`index-CX2nQctr.js` (200, 304 893 B)** on the Tailnet, where train 15's `index-DqiL26vK.js` now **404s**;
+  rendered proof of the hotfix in **`TimetableSimpleHeader-SjMGE80w.js` (200, 193 014 B), which carries
+  `timetable-simple-header-change-row` (1) and no longer carries `changed since this schedule was made` (0)**,
+  while train 15's `TimetableSimpleHeader-Cnc3rsIH.js` -> **404**. **No migration** (`prisma/**` diff empty,
+  `schema.prisma` blob `ba62f40a...` identical both sides, 11 migration dirs each side, live
+  `_prisma_migrations` **11 / 0 unfinished**), **no data write** (post-cutover read-only signature byte-identical
+  to the 08:29 +08 pre-cutover baseline: schools 2, section_mirrors 160, faculty_mirrors 60, subjects 23,
+  generation_runs 14, published_schedule_revisions 6, manual_schedule_edits 13, notifications 272,
+  **audit_logs 560 / max id 1199**), **no generation, no publication**. Delta from `48b4686d`: **6 non-docs
+  paths, client-only, one lane (Lane C)** - the timetable change notice on its own slim line with a short
+  sentence so the filters stay put (`SimpleChangeNotice.tsx`, `TimetableSimpleHeader.tsx`, 4 `__tests__`
+  files); `atlas-server/**` and `prisma/**` untouched, `package-lock.json` unchanged on all three.
+  Builds: `prisma generate` 0, server `tsc` 0, client `vite build` 0 (needed `VITE_ENROLLPRO_URL` on the
+  command's environment, per `docs/reference/agent-runtime-deploy-facts.md` - the first bare client build
+  failed closed on the guard, emitted no bundle, and was rerun). E: 31.68 GiB at 08:26 +08, **above** the 20
+  GiB reclaim trigger, so no reclaim preceded this train; 29.19 GiB after the build. Acceptance owner:
+  **Lane C** (rendered Codex live check). **NOT LIVE:** `origin/main` advanced to `27995f56` (A6/A3 Teachers
+  "Above weekly max", decision 13) at 08:45 +08, **after** this cutover - that commit is integrated in source
+  only and is **not** served by the live runtime; it is the next train's content. Supersedes the train-16
+  in-flight line below, which is retained, not deleted.
+- **LIVE CUTOVER IN FLIGHT - target release `a2b67f4c1641031ab653602bce3e6c04d5773bb0` (train 16, pinned to
+  `origin/main`, direct to live under operator decision 12), rollback basis
+  `48b4686d68987d18fa709e47b8b12dc0c1e8d64f` @ `E:\ATLAS-worktrees\lane-a4-release-20260930-15prod`
+  (train 15, the incumbent), `KEEP_ACTIVE`; one-step supervised reset, task XML captured pre-cutover by
+  `deploy-runner.ps1`.** Recorded 2026-09-30 08:30 +08 by Lane A4 **before** any mutation, so
+  `Assert-LiveReleaseRecorded` leads the cutover. Target dir
+  `E:\ATLAS-worktrees\lane-a4-release-20260930-16prod`, HEAD == pin, `status --short` empty, own dependency
+  trees (robocopy `/MIR /MT:16` from the live tree, real directories, no junction - root 218 / client 155 /
+  server 209 entries, all three `package-lock.json` **byte-identical** live-vs-target), own dist.
+  **No migration** - `prisma/**` diff empty, `schema.prisma` blob `ba62f40a...` identical on both sides,
+  11 migration dirs on each side, live `_prisma_migrations` 11 / 0 unfinished - so decision 12's "a train with a
+  migration still goes through staging" carve-out does **not** apply and direct-to-live stands.
+  **No data write, no generation, no publication** in this train; pre-cutover live signature (read-only, taken
+  08:29 +08): schools 2, section_mirrors 160, faculty_mirrors 60, subjects 23, generation_runs 14,
+  published_schedule_revisions 6, manual_schedule_edits 13, notifications 272, **audit_logs 560 / max id 1199**.
+  Delta from `48b4686d`: **6 non-docs paths, client-only, one lane (Lane C)** - the timetable change notice on
+  its own slim line with a short sentence so the filters stay put (`SimpleChangeNotice.tsx`,
+  `TimetableSimpleHeader.tsx`, 4 `__tests__` files); `atlas-server/**` and `prisma/**` untouched,
+  `package-lock.json` unchanged on all three. E: 31.68 GiB free at 08:26 +08, **above** the 20 GiB reclaim
+  trigger, so no reclaim preceded this train.
 - **- LIVE: `48b4686d68987d18fa709e47b8b12dc0c1e8d64f` @ DEPLOYED TO PRODUCTION 2026-09-30 07:36 +08 by Lane A4
   under operator decision 12 (direct to live). Train 15.** Rollback basis
   **`f821fcd26ac7462b2499c02bb0570ad9612e18a7`** @ `E:\ATLAS-worktrees\lane-a4-release-20260930-14prod` (train

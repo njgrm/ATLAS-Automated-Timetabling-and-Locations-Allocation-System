@@ -50,7 +50,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
 
 /** Used when the comparison names no area. Never a specific claim. */
-export const CHANGE_NOTICE_GENERIC_SENTENCE = 'School information changed since this schedule was made.';
+export const CHANGE_NOTICE_GENERIC_SENTENCE = 'School information changed.';
 
 /**
  * The unverified branch. It is a DIFFERENT fact from the changed branch, so it
@@ -70,8 +70,8 @@ export const CHANGE_NOTICE_UNVERIFIED_SENTENCE = 'Could not check school informa
  *
  * `changedAreas` is the operator-facing label list (`drift.domains.map(…)`).
  *   0        → the generic sentence; nothing specific is known.
- *   1        → "Teaching Load changed since this schedule was made."
- *   2        → "Teaching Load and Rooms changed since this schedule was made."
+ *   1        → "Teaching Load changed."
+ *   2        → "Teaching Load and Rooms changed."
  *   3 or more→ "Teaching Load and 2 other areas changed since this schedule was
  *               made." The count is spoken, so the reader learns there are more
  *               without the row growing another chip.
@@ -79,9 +79,9 @@ export const CHANGE_NOTICE_UNVERIFIED_SENTENCE = 'Could not check school informa
 export function changeNoticeSentence(changedAreas: readonly string[]): string {
 	const names = changedAreas.filter((label) => label.trim().length > 0);
 	if (names.length === 0) return CHANGE_NOTICE_GENERIC_SENTENCE;
-	if (names.length === 1) return `${names[0]} changed since this schedule was made.`;
-	if (names.length === 2) return `${names[0]} and ${names[1]} changed since this schedule was made.`;
-	return `${names[0]} and ${names.length - 1} other areas changed since this schedule was made.`;
+	if (names.length === 1) return `${names[0]} changed.`;
+	if (names.length === 2) return `${names[0]} and ${names[1]} changed.`;
+	return `${names[0]} and ${names.length - 1} other areas changed.`;
 }
 
 export type SimpleChangeNoticeProps = {
