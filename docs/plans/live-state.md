@@ -621,7 +621,10 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   rendered browser row (the operator scoped this train to build, migration check, dry run, `-Execute`, readiness,
   Tailnet chunk and the LIVE post). No migration, generation or publication ran, and readiness proves a working
   DB-backed read. Acceptance owner: **Lane C** (rendered live check at 1366x768 on
-  `https://njgrm.buru-degree.ts.net` — `/teaching-load`, `/faculty`, `/timetable`). **Self-correction recorded,
+  `https://njgrm.buru-degree.ts.net` — `/teaching-load`, `/faculty`, `/timetable`). **NOT LIVE:**
+  `origin/main` advanced to `4cc10f74` after the cutover (A2 move/swap one-action work, `d3f2b0a4`…`d5beb07d`,
+  client only); it is integrated in source only and is **not** served by this runtime — it is the next train's
+  content. **Self-correction recorded,
   one line:** the in-flight record first carried a 41-character typo of the target SHA; it was corrected at
   `dd215bad` **before** the cutover, and the runner's own `^[0-9a-f]{40}$` parameter pattern caught the same typo
   in my first dry-run invocation — no mutation had occurred. Supersedes the train-18 in-flight line below, which
