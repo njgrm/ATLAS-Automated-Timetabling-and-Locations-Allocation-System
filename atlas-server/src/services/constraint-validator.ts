@@ -1116,6 +1116,12 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 						return entryStart < lunch.end && lunch.start < entryEnd;
 					});
 					if (overlapping.length === 0) continue;
+					// Operator rule (30 Sep): lunch is the window OR the same-length slot right before it.
+					// A teacher free for that earlier slot has had lunch, so no warning.
+					const lunchLength = lunch.end - lunch.start;
+					const earlierStart = lunch.start - lunchLength;
+					const earlierSlotFree = lunchLength > 0 && !sorted.some((entry) => timeToMinutes(entry.startTime) < lunch.start && earlierStart < timeToMinutes(entry.endTime));
+					if (earlierSlotFree) continue;
 					violations.push({
 						...base, severity: lunchSeverity,
 						code: 'FACULTY_LUNCH_WINDOW_VIOLATION',
