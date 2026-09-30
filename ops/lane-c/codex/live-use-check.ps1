@@ -7,6 +7,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$modulePath = Join-Path $PSScriptRoot 'live-use-activity.psm1'
+Import-Module -Name $modulePath -Force
 $now = [DateTimeOffset]::UtcNow
 $reasons = [System.Collections.Generic.List[string]]::new()
 $hostActivity = $null
@@ -14,11 +16,8 @@ $apiActivity = $null
 
 try {
   $hostActivity = Invoke-RestMethod -Uri $HostEndpoint -TimeoutSec 10 -Method Get
-  $observedAt = [DateTimeOffset]::Parse([string]$hostActivity.observationStartedAt).ToUniversalTime()
-  $observedMinutes = ($now - $observedAt).TotalMinutes
-  if ($observedMinutes -lt $QuiescenceMinutes) {
-    $reasons.Add("OBSERVATION_WINDOW_TOO_SHORT:$([math]::Floor($observedMinutes))m")
-  }
+  $hostWindowReason = Get-ObservationWindowReason -NowUtc $now -ObservationStartedAt ([string]$hostActivity.observationStartedAt) -QuiescenceMinutes $QuiescenceMinutes -ReasonPrefix 'OBSERVATION_WINDOW_TOO_SHORT'
+  if ($null -ne $hostWindowReason) { $reasons.Add($hostWindowReason) }
   if ($null -ne $hostActivity.lastInteractiveAt) {
     $lastUse = [DateTimeOffset]::Parse([string]$hostActivity.lastInteractiveAt).ToUniversalTime()
     $idleMinutes = ($now - $lastUse).TotalMinutes
@@ -32,6 +31,8 @@ try {
 
 try {
   $apiActivity = Invoke-RestMethod -Uri $ApiEndpoint -TimeoutSec 10 -Method Get
+  $apiWindowReason = Get-ObservationWindowReason -NowUtc $now -ObservationStartedAt ([string]$apiActivity.observationStartedAt) -QuiescenceMinutes $QuiescenceMinutes -ReasonPrefix 'API_OBSERVATION_WINDOW_TOO_SHORT'
+  if ($null -ne $apiWindowReason) { $reasons.Add($apiWindowReason) }
   if ($apiActivity.generationOrPublicationInFlight -eq $true) {
     $reasons.Add('GENERATION_OR_PUBLICATION_RUNNING')
   }
@@ -51,7 +52,7 @@ $result = [ordered]@{
   quiescenceMinutes = $QuiescenceMinutes
   reasons = @($reasons)
   clientActivity = if ($null -eq $hostActivity) { $null } else { [ordered]@{ observationStartedAt = $hostActivity.observationStartedAt; lastInteractiveAt = $hostActivity.lastInteractiveAt }}
-  apiActivity = if ($null -eq $apiActivity) { $null } else { [ordered]@{ generationOrPublicationInFlight = $apiActivity.generationOrPublicationInFlight }}
+  apiActivity = if ($null -eq $apiActivity) { $null } else { [ordered]@{ observationStartedAt = $apiActivity.observationStartedAt; generationOrPublicationInFlight = $apiActivity.generationOrPublicationInFlight }}
 }
 $result | ConvertTo-Json -Depth 4
 if (-not $result.eligible) { exit 2 }
