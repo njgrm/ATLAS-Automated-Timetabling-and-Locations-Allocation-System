@@ -669,7 +669,37 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
-- **- LIVE: `c82b8636027b00cde1e93fec26e6d426967345de` (prefix `c82b863`) @ DEPLOYED TO PRODUCTION 2026-09-30
+- **- CUTOVER TARGET (pre-mutation record, written BEFORE the mutation per the deploy-runner gate): train 21 =
+  `fdae67ec64a4713d7c5c2446e03c25c29ddf704f` (prefix `fdae67ec`), rollback basis
+  `c82b8636027b00cde1e93fec26e6d426967345de` (prefix `c82b863`, train 20, currently LIVE) @ rollback basis dir
+  `E:\ATLAS-worktrees\lane-a4-release-20260930-20prod`, `KEEP_ACTIVE`, one-step supervised reset. Target dir
+  `E:\ATLAS-worktrees\lane-a4-release-20260930-21prod`, branch `release/2026-09-30-21`, HEAD == pin, clean.
+  Operator decision 12 (**direct to live**), demo in progress. Range `c82b8636..fdae67ec` enumerated by path:
+  **4 paths / 178 insertions / 10 deletions** - `atlas-server/src/services/constraint-validator.ts` (the ONLY
+  product change: decision 15, teacher lunch is satisfied by the same-length slot immediately before the lunch
+  window, +6 lines), plus 3 docs (`docs/handoffs/lane-c-to-a2.md`, `docs/plans/live-state.md`,
+  `docs/plans/operator-decisions.md`). **No client source change.**
+  **Migration list: NONE** - `git diff --name-only c82b8636..fdae67ec -- prisma/ migrations/` is empty, and
+  `migration.sql` count is **11 = 11** on both ends. Live `_prisma_migrations` = 11 applied / **0 unfinished**.
+  All three `package-lock.json` blobs byte-identical (server `0c157de6`, client `8bc8ed34`, root `5d87e856`),
+  so dependency trees were **mirrored** (`robocopy /MIR /MT:16`), not installed.
+  **RULE 19 satisfied:** `npm run build` (the emitting script, `tsc`) in `atlas-server` and `npm run build`
+  (`vite build`) in `atlas-client`, both exit 0; `atlas-server/dist/server.js` and `atlas-client/dist/index.html`
+  both exist; server dist **1170 files vs live 1170 (delta 0)**.
+  **⚠ THE CLIENT CHUNK DISCRIMINATOR IS VACUOUS FOR THIS TRAIN AND MUST NOT BE REPORTED AS PROOF:** client source
+  is unchanged, so the new build emits the **same** entry chunk name `index-CCgHCNPW.js` (identical to live's) and
+  a Tailnet fetch of it returns 200 before and after the cutover. Train 20's byte-hash method does not apply here.
+  The non-vacuous discriminator for train 21 is the **server** identity chain plus the on-disk marker
+  `earlierSlotFree` in `atlas-server/dist/services/constraint-validator.js`, which is present in the new dist and
+  **absent** from the live (train 20) dist.
+  Zero-write baseline captured BEFORE the quiesce: `audit_logs` **585 rows / max id 1224**;
+  `_prisma_migrations` **11 / 0 unfinished**; DB `atlas_recovery_clean_rebuild_20260905`.
+  **Capacity, dated 2026-09-30: E: 23.26 GiB free before this build - below the 25 GiB warn line, above the
+  15 GiB fail-closed line, so this train was allowed to run; the §3 release-directory reclaim recorded as owed by
+  train 20 is STILL OWED and is deliberately NOT done inside a demo window. Reclaim candidates (all reproducible
+  from git, none running): `…-13prod` `8f19430b`, `…-14prod` `f821fcd2`, `…-15prod` `48b4686d`, `…-16prod`
+  `a2b67f4c`, `…-17prod` `3b29bb44`. **Never touch `…-20prod` (live) or `…-19prod` (rollback basis).**
+- **- PREVIOUS LIVE: `c82b8636027b00cde1e93fec26e6d426967345de` (prefix `c82b863`) @ DEPLOYED TO PRODUCTION 2026-09-30
   10:48 +08 by Lane A4 under operator decision 12 (**direct to live**), session "A4 train 20 direct". Train 20.
   **Ready in 15.5 s of the 180 s budget** (~34 s from cutover start): `health` 200, `health/ready` 200
   `database: ok`, **DB-backed** `GET /api/v1/subjects?schoolId=1` 200 / 20 336 B. Listeners **5001 -> pid 20848**,
