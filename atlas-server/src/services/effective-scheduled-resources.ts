@@ -154,6 +154,42 @@ export function effectiveTimesOverlap(
 }
 
 /**
+ * Two entries belong to the same instructional cohort group when they carry the
+ * same non-empty `cohortCode`. A cohort group shares one physical room/slot on
+ * purpose, so its members are never a room/section double-booking.
+ */
+export function isSameCohortGroup(
+	left: { cohortCode?: string | null },
+	right: { cohortCode?: string | null },
+): boolean {
+	return Boolean(left.cohortCode && right.cohortCode && left.cohortCode === right.cohortCode);
+}
+
+/**
+ * THE ONE room-conflict rule. The generator's validator and the room-schedule
+ * projection must answer this identically, or Print Reports flags conflicts the
+ * generated draft (Class Schedule) does not have.
+ *
+ * Two entries conflict when they overlap in time, their term scopes overlap
+ * (term 0 = year-round overlaps every term; distinct ordered terms rotate), and
+ * they are not the same cohort group.
+ *
+ * The room-schedule projection used to treat "both entries overlap the same
+ * display slot" as a conflict. The display grid carries overlapping staggered
+ * slots (e.g. 09:15-10:00 and 09:45-10:30), so two back-to-back classes landed
+ * in one cell and were flagged although they never overlap each other. The
+ * generator checks the two entries directly, so it reported none.
+ */
+export function roomEntriesConflict(
+	a: { startTime: string; endTime: string; termIndex?: number | null; cohortCode?: string | null },
+	b: { startTime: string; endTime: string; termIndex?: number | null; cohortCode?: string | null },
+): boolean {
+	if (!effectiveTimesOverlap(a, b)) return false;
+	if (isSameCohortGroup(a, b)) return false;
+	return effectiveTermsOverlap(entryTermScope(a), entryTermScope(b));
+}
+
+/**
  * Find effective teacher double-bookings: same teacher, same day, overlapping
  * intervals, overlapping term scope — deduplicated by reservation identity so
  * one pair is reported once regardless of how many consumers ask.
