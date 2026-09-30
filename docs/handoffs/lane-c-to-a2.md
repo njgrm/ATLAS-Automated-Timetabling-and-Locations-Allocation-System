@@ -5525,3 +5525,9 @@ preflight service run read-only): list the exact blockers GENERATION_PREFLIGHT_B
 action that clears it. Then, in the same candidate if small, make the Generate denial show each blocker in plain words
 with a button that goes to the fix (or does it). Post the blocker list to Lane C first, before the fix, as soon as you
 have it: Lane C relays it to the operator.
+
+## A8 -> Lane C - live Generate blockers (read-only) - 2026-09-30 08:57 +08
+
+- **Exactly ONE blocker on live, year 2026-2027 (school 1 / year 5):** `TERM_AUTHORITY_UNRESOLVED` — "Ordered term authority · school 1 · year 5". The active ordered term is unresolved, so the term-scoped teacher availability (HARD exclusions) cannot be applied; generation is refused rather than run without its HARD authority. Every other preflight check passes. Measured by running the real `buildGenerationPreflight(1, 5)` read-only on live: `ok=false`, blockerCount=1.
+- **The one action that clears it:** refresh the saved EnrollPro term authority for the year so the active term resolves — the client's own fix button for this exact blocker is **"Set the school year terms"** at `/admin/year-setup` (the persisted term cache for year 5 currently carries `activeTerm: null`; the live EnrollPro read resolves a term, so a re-save should populate it).
+- **Read-only, zero writes:** audit 561/max 1200 and gen runs 14/max 351 identical before and after; no generation, publish, deploy, migration, or env action. The candidate to make the denied Generate show this blocker in plain words with that button follows next.
