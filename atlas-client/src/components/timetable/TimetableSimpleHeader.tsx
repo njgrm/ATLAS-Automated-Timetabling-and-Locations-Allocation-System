@@ -599,7 +599,11 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	// is the short `N setup items to fix`, and the long sentence it replaced is that
 	// chip control's `@/ui` Tooltip. Every other id keeps element, wording and testid.
 	const bandMessages = headerMessages.filter((message) => message.id !== 'timetable-curriculum-readiness-message');
-	const unassignedForTerm = countUnassignedForSelectedTerm(
+	/* A5 (2026-09-30) — the panel title and this More-menu item read ONE source.
+	 * The workspace hook derives the selected term's unplaced count once and
+	 * hands it to both contexts; this is that field. The local derivation is only
+	 * the fallback for a fixture that predates the field. */
+	const unassignedForTerm = context.unassignedCountForSelectedTerm ?? countUnassignedForSelectedTerm(
 		context.draft?.unassignedItems as Array<{ termIndex?: number | null }> | undefined,
 		context.termFilter,
 	);

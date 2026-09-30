@@ -108,9 +108,9 @@ const copyByTask: Record<TimetableSimpleTask, DrawerCopy> = {
 	},
 	'unassigned-sessions': {
 		title: 'Classes needing a time slot',
-		description: 'Sessions of the selected term that have no slot yet. Drag one onto the grid, or use Place session.',
-		stepOne: 'Choose a session',
-		stepTwo: 'Place it on the grid',
+		description: 'Classes of the selected term that have no time slot yet. Choose Place, then click a highlighted grid slot.',
+		stepOne: 'Choose a class',
+		stepTwo: 'Click a highlighted slot',
 		icon: ClipboardCheck,
 	},
 	publish: {
@@ -143,6 +143,23 @@ function TimetableTaskDrawerImpl({
 	onBackToBlockerSummary,
 }: TimetableTaskDrawerProps) {
 	const navigate = useNavigate();
+
+	/**
+	 * A5 (2026-09-30) — Esc closes the task drawer. Scoped so it never fires
+	 * while a dialog or overlay owns the key: a Radix dialog's own Escape
+	 * handling must not also close the drawer underneath it.
+	 */
+	useEffect(() => {
+		if (!task) return undefined;
+		const handleEscape = (event: KeyboardEvent) => {
+			if (event.key !== 'Escape') return;
+			if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+			onTaskChange(null);
+		};
+		document.addEventListener('keydown', handleEscape);
+		return () => document.removeEventListener('keydown', handleEscape);
+	}, [task, onTaskChange]);
+
 	if (!task) return null;
 	const copy = copyByTask[task];
 	const Icon = copy.icon;

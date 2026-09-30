@@ -254,8 +254,7 @@ export type AutoSaveEligibilityInput = {
 };
 
 export type AutoSaveDecision =
-	| { kind: 'preview-confirm'; softCount: number }
-	| { kind: 'review-soft'; softCount: number }
+	| { kind: 'auto-commit'; softCount: number }
 	| { kind: 'review-blocked'; hardTitle: string | null }
 	| { kind: 'review-no-room' }
 	| { kind: 'review-occupied' }
@@ -269,10 +268,13 @@ export function decideAutoSavePlacement(input: AutoSaveEligibilityInput): AutoSa
 	if (input.forceReview) return { kind: 'review-no-room' };
 	if (!input.preview) return { kind: 'review-no-preview' };
 	if (!input.preview.allowed) return { kind: 'review-blocked', hardTitle: null };
-	// B1 — a clean slot no longer commits immediately. It becomes an inline
-	// preview with one Confirm, so the consequence is stated before saving.
-	if (input.preview.softViolations.length > 0) return { kind: 'review-soft', softCount: input.preview.softViolations.length };
-	return { kind: 'preview-confirm', softCount: 0 };
+	/* 2026-09-30 (operator decision 11): a clean OR soft-warned slot commits on
+	 * the single slot click, with a plain receipt and Undo — no second Confirm.
+	 * The fail-closed preconditions above are unchanged: an occupied slot, a
+	 * hard-blocked slot, an unresolved room, a missing owner and a missing
+	 * preview all still take the review path, so nothing dangerous auto-commits.
+	 * The soft count is carried so the warned destination is acknowledged. */
+	return { kind: 'auto-commit', softCount: input.preview.softViolations.length };
 }
 
 /**

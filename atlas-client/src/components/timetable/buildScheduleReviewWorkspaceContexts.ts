@@ -121,6 +121,12 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 		hardViolationCount: number;
 		unassignedCount?: number;
 	} | null;
+	/**
+	 * A5 (2026-09-30) — the selected term's unplaced count, derived once in the
+	 * workspace hook and handed to BOTH this header context and the rail context.
+	 * `SimpleUnassignedSessionsItem` and the panel title read this one field.
+	 */
+	unassignedCountForSelectedTerm: number;
 	requestPendingCount: number;
 	statusColor: (value: string) => string;
 	formatDuration: (value: number | null) => string;

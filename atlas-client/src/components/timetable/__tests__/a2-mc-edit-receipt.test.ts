@@ -277,9 +277,11 @@ test('S5c EVERY committed move, swap and place derives its status from the ONE m
 		assert.match(source, /buildEditReceipt\(/, `${name} composes receipts through the shared derivation`);
 		assert.doesNotMatch(source, /Moved to \$\{proposal\.targetDay/, `${name} no longer prints the old nameless sentence`);
 	}
-	// The drag move, the keyboard move, the place and the swap: four call sites.
-	assert.equal((workspace.match(/buildEditReceipt\(/g) ?? []).length, 3,
-		'the two move entry points and the place path all use it');
+	// The drag move, the keyboard move, the single-click place and the no-room
+	// confirm place: four call sites in the workspace (the 2026-09-30 auto-commit
+	// added the single-click place receipt beside the existing confirm receipt).
+	assert.equal((workspace.match(/buildEditReceipt\(/g) ?? []).length, 4,
+		'the two move entry points and both place paths use it');
 	assert.equal((mutations.match(/buildEditReceipt\(/g) ?? []).length, 1, 'and so does the swap path');
 
 	// DERIVED FROM THE COMMITTED RECORD, never the optimistic proposal: every call

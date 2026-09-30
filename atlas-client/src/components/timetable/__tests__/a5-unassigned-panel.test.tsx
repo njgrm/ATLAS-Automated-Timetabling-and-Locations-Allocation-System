@@ -130,7 +130,7 @@ test('#2 SOURCE + RENDERED: the panel title and the More-menu item read the same
 	// One source: the panel reads `unassignedCountForSelectedTerm`, and the header
 	// hands the SAME context field to the More-menu item.
 	assert.match(source('src/components/timetable/GeneratedUnassignedPanel.tsx'), /unassignedCountForSelectedTerm/, 'the panel reads the shared field');
-	assert.match(source('src/components/timetable/TimetableSimpleHeader.tsx'), /count=\{context\.unassignedCountForSelectedTerm/, 'the More-menu item is handed the same field');
+	assert.match(source('src/components/timetable/TimetableSimpleHeader.tsx'), /context\.unassignedCountForSelectedTerm/, 'the More-menu item is handed the same field');
 	// And the selected-term derivation is computed once, in the workspace hook.
 	assert.match(source('src/hooks/useScheduleReviewWorkspaceState.ts'), /countUnassignedForSelectedTerm\(/, 'the one derivation lives in the hook');
 });
@@ -272,14 +272,16 @@ test('#4 RECEIPT: the auto-commit receipt names the class and its new slot', () 
 	});
 	assert.ok(receipt.sentence.includes('TLE'), 'the receipt names the class');
 	assert.ok(receipt.sentence.includes('G7AW'), 'and its section');
-	assert.ok(receipt.sentence.includes('MONDAY'), 'and the destination');
+	assert.ok(receipt.sentence.includes('Mon 11:30'), 'and the destination in plain words');
+	assert.equal(receipt.sentence.includes('MONDAY'), false, 'never the raw day enum');
+	assert.equal(receipt.sentence.includes('No new problems'), true, 'the clean receipt states the honest problem clause');
 });
 
 test('#4 SOURCE: the hook auto-commits the clean/warned decision with Undo', () => {
 	const hook = source('src/hooks/useScheduleReviewWorkspaceState.ts');
 	assert.match(hook, /decision\.kind === 'auto-commit'/, 'the clean/warned branch is the auto-commit');
 	assert.doesNotMatch(hook, /decision\.kind === 'preview-confirm' \|\| decision\.kind === 'review-soft'/, 'the retired inline-confirm routing is gone');
-	const block = hook.match(/decision\.kind === 'auto-commit'[\s\S]*?\n\t\t\}/)?.[0] ?? '';
+	const block = hook.match(/decision\.kind === 'auto-commit'[\s\S]*?\n\t\t\t\}/)?.[0] ?? '';
 	assert.ok(block.length > 0, 'the auto-commit branch is present');
 	assert.match(block, /commitEditWithMeta\(/, 'the auto-commit commits');
 	assert.match(block, /setLastAutoSaveUndo\(/, 'and registers the contextual Undo');
