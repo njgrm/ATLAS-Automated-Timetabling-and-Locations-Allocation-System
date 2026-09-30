@@ -13,6 +13,22 @@ $repo = (Resolve-Path -LiteralPath $Repo -ErrorAction Stop).Path
 git -C $repo rev-parse --is-inside-work-tree | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "TICK_REPO_NOT_GIT:$repo" }
 $H = if ($env:LANE_C_HOME) { $env:LANE_C_HOME } else { 'D:\ATLAS-lane-c' }
+$snapshot = Join-Path $H 'manager-repo'
+function Sync-ManagerSnapshot {
+  New-Item -ItemType Directory -Force $snapshot | Out-Null
+  New-Item -ItemType Directory -Force (Join-Path $snapshot 'ops') | Out-Null
+  foreach ($f in 'AGENTS.md', 'DESIGN.md', 'PRODUCT.md') {
+    Copy-Item -LiteralPath (Join-Path $repo $f) -Destination (Join-Path $snapshot $f) -Force
+  }
+  foreach ($d in 'ops\lane-c', 'ops\runtime\release') {
+    Copy-Item -LiteralPath (Join-Path $repo $d) -Destination (Join-Path $snapshot $d) -Recurse -Force
+  }
+  foreach ($f in 'docs\plans\live-state.md', 'docs\plans\operator-decisions.md', 'docs\handoffs\workflow-metrics.md') {
+    $destination = Join-Path $snapshot $f
+    New-Item -ItemType Directory -Force (Split-Path -Parent $destination) | Out-Null
+    Copy-Item -LiteralPath (Join-Path $repo $f) -Destination $destination -Force
+  }
+}
 function Assert-CleanTickRepo {
   if (@(git -C $repo status --short).Count) {
     & (Join-Path $repo 'ops/lane-c/codex/notify.ps1') -Text "Lane C manager stopped: manager worktree is dirty."
@@ -27,6 +43,24 @@ function Assert-TickRepoUnchanged {
     & (Join-Path $repo 'ops/lane-c/codex/notify.ps1') -Text "Lane C manager stopped: a tick changed its repository worktree."
     throw "TICK_REPO_CHANGED:$repo"
   }
+}
+function Process-DispatchRequest {
+  $requestPath = Join-Path $H 'dispatch-request.json'
+  if (-not (Test-Path -LiteralPath $requestPath)) { return }
+  try { $request = Get-Content -LiteralPath $requestPath -Raw | ConvertFrom-Json } catch { throw "INVALID_DISPATCH_REQUEST:$($_.Exception.Message)" }
+  foreach ($property in 'name', 'packet', 'agent', 'dir') {
+    if (-not $request.$property) { throw "INVALID_DISPATCH_REQUEST:missing_$property" }
+  }
+  if ($request.name -notmatch '^[a-z0-9][a-z0-9-]{0,63}$' -or $request.packet -notmatch '^docs/prompts/v2/[a-z0-9][a-z0-9-]{0,63}\\.md$') {
+    throw 'INVALID_DISPATCH_REQUEST:name_or_packet'
+  }
+  if ($request.agent -notin @('atlas-planner', 'atlas-executor', 'atlas-qa', 'atlas-wave-auditor')) { throw 'INVALID_DISPATCH_REQUEST:agent' }
+  $dir = (Resolve-Path -LiteralPath $request.dir -ErrorAction Stop).Path
+  if ($dir -notlike 'E:\ATLAS-worktrees\*' -or -not (Test-Path -LiteralPath (Join-Path $dir $request.packet))) {
+    throw 'INVALID_DISPATCH_REQUEST:unpinned_or_missing_packet'
+  }
+  & (Join-Path $repo 'ops/lane-c/launch.ps1') -Name $request.name -Agent $request.agent -Dir $dir -Prompt "Read $($request.packet) and execute it. End with the report block."
+  Move-Item -LiteralPath $requestPath -Destination (Join-Path $H "dispatch-processed-$($request.name)-$(Get-Date -Format yyyyMMdd-HHmmss).json")
 }
 Assert-CleanTickRepo
 $ticks = Join-Path $H 'manager-ticks'; New-Item -ItemType Directory -Force $ticks | Out-Null
@@ -43,6 +77,7 @@ while ($true) {
   Assert-CleanTickRepo
   git -C $repo merge -q --ff-only origin/main 2>$null
   if ($LASTEXITCODE -ne 0) { & (Join-Path $repo 'ops/lane-c/codex/notify.ps1') -Text 'Lane C manager: worktree cannot fast-forward to main.'; throw 'TICK_REPO_NOT_FF' }
+  Sync-ManagerSnapshot
   $status =& $bash (Join-Path $repo 'ops/lane-c/status.sh') 2>&1 | Out-String
   # Digest ignores idle-minute counters so a tick fires on real change only.
   $runs = ($status -split "`n" | Where-Object { $_ -match '^\S+\s+(RUNNING|EXITED|DIED-EMPTY)' } |
@@ -50,7 +85,8 @@ while ($true) {
   $health = ($status -split "`n" | Where-Object { $_ -match 'health|live data' }) -join ';'
   $branches = ($status -split "`n" | Where-Object { $_ -match '^\s+\d\d:\d\d origin/' }) -join ';'
   $posts = git -C $repo log -1 --format=%H origin/main -- docs/handoffs 2>$null
-  $inbox = (Get-FileHash (Join-Path $H 'operator-inbox.md')).Hash
+  $inboxItem = Get-Item -LiteralPath (Join-Path $H 'operator-inbox.md')
+  $inbox = "$($inboxItem.Length):$($inboxItem.LastWriteTimeUtc.Ticks)"
   $codexDone = (Get-ChildItem (Join-Path $H 'codex-qa') -Recurse -Filter final.md -EA SilentlyContinue |
                 ForEach-Object { $_.FullName + $_.LastWriteTime.Ticks }) -join ';'
   $digest = "$runs|$health|$branches|$posts|$inbox|$codexDone"
@@ -69,12 +105,13 @@ Events (status.sh output):
 $status
 "@
     $env:CODEX_HOME = $ManagerHome
-    $env:ATLAS_MANAGER_REPO = $repo
+    $env:ATLAS_MANAGER_REPO = $snapshot
     $prompt | codex exec --sandbox workspace-write --skip-git-repo-check -C $H -m $Model `
       -c "model_reasoning_effort=$Effort" -o (Join-Path $ticks "$stamp.md") - *> (Join-Path $ticks "$stamp.log")
     Remove-Item Env:CODEX_HOME
     Remove-Item Env:ATLAS_MANAGER_REPO
     Assert-TickRepoUnchanged -Head $tickHead
+    Process-DispatchRequest
     Write-Host "$(Get-Date -Format HH:mm) tick ($why): $(Get-Content (Join-Path $ticks "$stamp.md") -Tail 1 -EA SilentlyContinue)"
     $lastTick = Get-Date
     $lastDigest = $digest  # recompute next loop; changes made by the tick itself trigger at most one follow-up tick

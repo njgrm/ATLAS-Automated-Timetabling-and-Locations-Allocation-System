@@ -19,14 +19,16 @@ detached and let the next tick see the result.
 Check the clock with `date` before writing any time.
 
 ## Ticks never edit tracked files
-A tick writes only under `D:/ATLAS-lane-c/` (state, outbox, packet drafts) and launches pre-approved packets into
-their own worktrees. It never edits, commits or reverts tracked files in `D:\ATLAS` or any worktree; anything that
-needs a repo change becomes a packet or an integrator action outside the tick. Only the integrator pushes `main`, with
+`$env:ATLAS_MANAGER_REPO` is a disposable read-only mirror. A tick writes only under `D:/ATLAS-lane-c/` (state,
+outbox, packet drafts, and a dispatch request). It never edits, commits or reverts tracked files in `D:\ATLAS` or any
+worktree; anything that needs a repo change becomes a packet or an integrator action outside the tick. Only the integrator pushes `main`, with
 `ATLAS_INTEGRATOR=1` (pre-push hook, `ops/lane-c/git-hooks/pre-push`).
 
 ## What you may do without asking
-- Launch, queue and resume OpenCode planners: `powershell -File ops/lane-c/launch.ps1 ...` (one fix per cycle, fresh
-  session per packet, at most 3 feature planners on non-overlapping pages, plus A4 for releases).
+- Request a pre-approved OpenCode launch by writing `D:/ATLAS-lane-c/dispatch-request.json` with `name`, `packet`,
+  `agent`, and `dir`. The trusted tick wrapper validates that `packet` already exists in the clean, pinned worktree
+  and launches it; you never run `launch.ps1` directly. One fix per cycle, fresh session per packet, at most three
+  feature planners on non-overlapping pages, plus A4 for releases.
 - Relaunch a run that is DIED-EMPTY or ended on a statement of intent (same session id, `-r` suffix).
 - Start QA or a browser walk: `powershell -File ops/lane-c/codex/codex-run.ps1 -Job <name> -PromptFile <file>`
   (runs on the QA account; results land in `D:/ATLAS-lane-c/codex-qa/<name>/final.md`, read them next tick).
