@@ -53,6 +53,13 @@ export type LeftRailContentContext = {
 		assignedCount: number;
 		unassignedCount: number;
 	} | null;
+	/**
+	 * A5 (2026-09-30) — the selected term's unplaced count, derived ONCE in the
+	 * workspace hook through `countUnassignedForSelectedTerm` and handed to both
+	 * this rail context and the header context, so the panel title and the
+	 * More-menu item can never show two different numbers.
+	 */
+	unassignedCountForSelectedTerm: number;
 	filteredUnassignedItems: UnassignedItem[];
 	programKindFilteredUnassignedItems: UnassignedItem[];
 	unassignedPageSize: number;
@@ -113,6 +120,8 @@ export type LeftRailContentContext = {
 	formatTime: (value: string) => string;
 	DAY_SHORT: Record<string, string>;
 	formatFacultyInitials: (id: number) => string;
+	/** A5 (2026-09-30) — the teacher's NAME, threaded for the unassigned row. */
+	facultyLabel: (id: number) => string;
 	roomLabelShort: (roomId: number) => string;
 	roomMap: Map<number, { id: number; name: string; buildingName: string; buildingShortCode: string | null; isTeachingSpace: boolean; type?: string }>;
 	GRADE_BADGE: Record<number, string>;
