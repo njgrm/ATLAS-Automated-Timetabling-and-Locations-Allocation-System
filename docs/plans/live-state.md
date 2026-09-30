@@ -624,7 +624,29 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
-- **- LIVE: `3e6166e4aa23529732de4ed9b15e71dd7a592216` @ DEPLOYED TO PRODUCTION 2026-09-30 10:24 +08 by
+- **- CUTOVER TARGET (recorded before the mutation, 2026-09-30 11:0x +08): `c82b8636027b00cde1e93fec26e6d426967345de`
+  (prefix `c82b863`), train 20, Lane A4 under operator decision 12 (direct to live). Rollback basis
+  `3e6166e4aa23529732de4ed9b15e71dd7a592216` @ `E:\ATLAS-worktrees\lane-a4-release-20260930-19prod` (train 19),
+  `KEEP_ACTIVE`, one-step supervised reset. Target dir `E:\ATLAS-worktrees\lane-a4-release-20260930-20prod`, branch
+  `release/2026-09-30-20`, HEAD == pin, clean. ⚠ **THE PACKET'S "client-only header hotfix" PREMISE WAS WRONG —
+  the range carries SERVER code:** `3e6166e4..c82b8636` = **16 paths** and includes A3's term-fallback
+  (`8acfab0e`, `atlas-server/src/services/active-term-resolver.service.ts` +157, `runtime-context.service.ts` +43,
+  new 303-line test) plus A8's generate-blockers client work. Both are on `main` under their own evidence (A3:
+  independent QA `ACCEPT_READY` 14/14/0/0 on `3b29bb44..8acfab0e`, disposable-DB instrumentation 32/32); the pin's own
+  words are "plus whatever is on main". **NEW LIVE WRITE SURFACE, named not buried:** `persistVerifiedActiveTerm`
+  writes `term_contract_cache.verifiedActiveTerm` via atomic `jsonb_set` from the **runtime-context read** —
+  best-effort, identity-guarded, so it writes only when the verified term identity changes. No migration; no
+  rollback needed for it. Both `package-lock.json` blobs are byte-identical to live (all three), so the dependency
+  tree was mirrored, not installed. Builds: server `tsc` exit 0 -> `atlas-server/dist` **1170** files with
+  `server.js` present; client `vite build` exit 0 -> `index.html` present, new entry chunk `index-CCgHCNPW.js`.
+  ⚠ **RULE 19 DEVIATION, recorded literally:** the dist file count is **1170 vs live's 1167**, not equal, so the
+  literal assertion failed. It is **not** an incomplete build: `atlas-server/src` went **389 -> 390** `.ts` files
+  (the one new test), each emitting 3 artifacts (`a3-term-fallback.test.js`/`.js.map`/`.d.ts`), and a
+  path-level `Compare-Object` shows the new dist is a **strict superset** — 0 live dist files missing, 0 stale.
+  Nothing was substituted silently; the literal numbers are here. **Migration list: NONE** — `prisma/**` diff empty,
+  `schema.prisma` blob `ba62f40a…74f0` identical on both ends, 11 = 11 migration dirs. See the Lane A4 section for
+  the completed cutover record.
+- **- PREVIOUS LIVE: `3e6166e4aa23529732de4ed9b15e71dd7a592216` @ DEPLOYED TO PRODUCTION 2026-09-30 10:24 +08 by
   Lane A4 under operator decision 12 (**direct to live**), session "A4 train 19 direct". Train 19.
   Rollback basis `9e2bfb240df2a5c26e01e2ab7dad97ecfae5b966` @ `E:\ATLAS-worktrees\lane-a4-release-20260930-18prod`
   (train 18), `KEEP_ACTIVE`; one-step supervised reset.** Listeners **5001 -> pid 14160**,
