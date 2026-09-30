@@ -177,7 +177,7 @@
     "test:ux-a2-move-swap-c2": "node --experimental-test-module-mocks --max-old-space-size=6144 --import tsx --test --test-force-exit src/components/timetable/__tests__/a2-move-swap-c2-latency.test.tsx src/components/timetable/__tests__/a2-move-swap-one-action.test.tsx src/components/timetable/__tests__/a2-move-swap-c2-verb.test.tsx src/components/timetable/__tests__/a2-unassigned-row-term-session-c2.test.tsx",
     "test:a7-c12-calm-header": "tsx --max-old-space-size=6144 --test src/components/timetable/__tests__/a7-c12-calm-header-budget.test.tsx src/components/timetable/__tests__/a7-c12-calm-copy.test.tsx",
     "test:a7-c13-clip": "tsx --test src/components/timetable/__tests__/a7-c13-clip.test.tsx src/components/timetable/__tests__/a7-c13-dom.test.tsx",
-    "test:a5-unassigned-panel": "tsx --test src/components/timetable/__tests__/a5-unassigned-panel.test.tsx"
+    "test:a5-unassigned-panel": "tsx --test src/components/timetable/__tests__/a5-unassigned-panel.test.tsx && tsx --test --test-force-exit src/components/timetable/__tests__/a5-unassigned-panel-autocommit.test.tsx"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
