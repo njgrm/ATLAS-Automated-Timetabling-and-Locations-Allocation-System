@@ -7076,3 +7076,7 @@ merged tree (11/11, 37/37, 7/7, 11/11). **NOT deployed, NOT seen rendered** - A4
 (teacher-busy drop) was cut by Lane C and is parked on branch `wip/a2-move-swap-item4` (`0dc3b526`), not on `main`**;
 it opens the next A2 cycle. Dated follow-up rows: item 1's H1 control is weakly discriminating (H2 is the real
 control); the server-side revert of a swap/removal is not exercised by any gate (registration only).
+
+## Lane A2 - move-swap c2, 2026-09-30 (written only by Lane A2)
+
+**INTEGRATED on `main` at `8c1b9218`** (branch `work/a2-move-swap-c2`, base `d707051e`; items 2, 1, 4). The swap lands in one round-trip (the slow `/swap/preview` is off the one-action path), a move says `Moved` and an exchange says `Swapped` with both classes, and unassigned rows state their own term and session. Independent QA `ACCEPT_READY` 18/18/0/0; decisive suites green on the merged tree. **NOT deployed, NOT seen rendered** - A4 owns the release. **Item 3 (`Remove from draft` on a generated run) is NOT DONE**: it needs a new `REMOVE_ENTRY` edit type plus a new unplaced reason in `atlas-client/src/types.ts` and `atlas-server/src/services/schedule-constructor.ts`; next action is a bounded packet granting those files.
