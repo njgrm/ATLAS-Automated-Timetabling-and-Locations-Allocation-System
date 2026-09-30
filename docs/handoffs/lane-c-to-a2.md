@@ -1,5 +1,36 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+## 🟢 A5 → Lane C, 2026-09-30 — **Unassigned sessions panel rebuilt: one calm list, one click to place** — on `main` at `22b34170`
+
+**0 fixes live and seen / 1 integrated / 0 dropped.** Candidate `a9d01aee` (base `c0e83b93`, reconciled with A2 move-swap c2), independent QA `ACCEPT_READY` **15/15, blocked 0, unperformed 0**, integrated on `main` at merge **`22b34170`**. **A4 owns the deploy; A5 has not deployed and will not.** No live write, no deploy, no generation, no publication, no migration, no sign-in.
+
+### What the operator now sees (before → after)
+
+| | Before | After |
+|---|---|---|
+| Title | three badges (`N unresolved`, `X/Y placed`, `% home-room`) | **`N classes need a time slot`** — the SAME count the More-menu item shows |
+| List | one tall card per class (156 px), status pill + program badge + reason badge + **three** buttons (`Place session` / `Fix teaching load` / `Review room source`, `Details`, `Flag`) | **ONE list grouped by section**; each row one line: subject · section · teacher · term · session · plain reason · **one `Place`** |
+| Teacher | not shown | the teacher's name (`No teacher yet` when unowned) |
+| Term/session | not shown (five `GR8 - Makabansa, TLE, NAVARRO` rows were identical) | `Term N` (or `All year`) · `Session N` on every row |
+| Chrome | search box, two filter-chip rows, `Showing X of Y`, `Show diagnostics`, `Clear` | none |
+| Scroll | virtualised inner list inside the drawer | one scroll region; the drawer clips |
+| Close | X button only | **Esc** closes it (not while a dialog is open) |
+| Place | click slot → inline Confirm → click Confirm | **one click on a clean/soft slot places it**, with the plain receipt and Undo; occupied/hard/no-room/no-owner keep the review path |
+
+### Tally (independent QA, literal)
+
+`15 mandatory / 15 passed / 0 blocked / 0 unperformed`. Failing-first reproduced (A5 suite 2/14 on base → 14/14; hook-level control 3/4 on base → 4/4). Decisive mutant: widening the hook's commit branch to accept `review-blocked` turns the hard-blocked row RED (`1 !== 0`), restored byte-exact. Merged-tree combined gates: `test:a5-unassigned-panel` 14/14 + 4/4, `test:ux-a2-move-swap-c2` 13/13, `test:ux-a2-mc-manual-controls` 37/37, `test:a2-place-one-action` 7/7, `test:a7-c12-calm-header` 28/28, `test:a7-c13-clip` 7/7, `test:plain-language-j2j3-c01` 18/18, `test:ux-guardrails` 31/31, `test:encoding` 1/1, `git diff --check` clean; A5 product files byte-identical to the accepted candidate.
+
+### Screenshots — UNPERFORMED (honest)
+
+No browser harness was available in the executor or QA sessions (`@playwright/test` is not installed in the worktree; the packet's `ISOLATED_LOCAL_BROWSER` capture could not be produced). The rendered evidence is the jsdom mount in `a5-unassigned-panel.test.tsx` (title, grouping, one `Place` per row, term/session, no raw codes, no chrome, one scroll region) and `a5-unassigned-panel-autocommit.test.tsx` (the real hook: clean slot commits once with receipt + Undo; hard/no-owner/occupied commit zero). **Not faked.** A4/Lane C can capture the rendered before/after on the next train.
+
+### For A4
+
+Deploy `22b34170` (or the next release pin containing it). One labelled browser row after deploy: open Class Schedule, open the More menu item `N classes need a time slot`, and confirm the panel shows the grouped list with one `Place` per row, term + session on each row, and Esc closes it. Not a source row.
+
+**Worktrees** `E:/ATLAS-worktrees/lane-a5-unassigned-panel`, `…-r1`, `…-integ` = `RETIRE_AFTER_INTEGRATION` (junctions removed with `cmd /c rmdir` first).
+
 ## 🟢 A8 → Lane C, generation, 2026-09-30 11:2x — **Makabansa TLE cause found (Step 0), and the live blocker is ALREADY CLEARED: publish from run 359 (0 hard violations)**
 
 **0 fixes live and seen / 0 code changes / 1 cause posted.** Read-only: live psql `SELECT`s only (`SET default_transaction_read_only=on`), `git fetch`, source reads. **No live write, no deploy, no generation, no publication, no sign-in, no worktree written except this file.**
