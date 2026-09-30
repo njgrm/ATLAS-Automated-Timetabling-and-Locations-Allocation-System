@@ -55,8 +55,6 @@ import { toast } from 'sonner';
 import {
 	promoteActiveSchoolYearContext,
 	resolveActiveSchoolYearContext,
-	type ActiveSchoolYearContextSource,
-	isUpstreamBackedSchoolYearSource,
 } from '@/lib/enrollpro-public-settings';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import {
@@ -274,7 +272,6 @@ export default function Faculty() {
 		setError(null);
 
 		let schoolYearId: number | null = null;
-		let yearContextSource: ActiveSchoolYearContextSource = 'cache';
 		try {
 			const yearContext = await resolveActiveSchoolYearContext({
 				schoolId: scopedSchoolId,
@@ -283,9 +280,14 @@ export default function Faculty() {
 				preferCache: !forceRefresh,
 				backgroundRefresh: !forceRefresh,
 				allowEnrollProFallback: false,
+				// A6-TEACHING-LOAD SOURCE TRUTH (2026-09-30) — the accepted Teaching
+				// Load hotfix `176ff936` added this to the hook only. Without it the
+				// server answers `atlas-persisted` (no EnrollPro check), the page can
+				// never see a verified year, and Teachers permanently reads "the last
+				// safe teacher roster snapshot" on a school EnrollPro has confirmed.
+				verifyUpstream: true,
 			});
 			schoolYearId = yearContext.activeSchoolYearId;
-			yearContextSource = yearContext.source;
 
 			if (!forceRefresh) {
 				const cachedPreview = getCachedFacultyAssignmentsSummary(scopedSchoolId, schoolYearId, {
@@ -353,7 +355,7 @@ export default function Faculty() {
 					schoolYearId,
 				});
 			}
-			const isUpstreamBacked = isUpstreamBackedSchoolYearSource(yearContextSource);
+			const isUpstreamBacked = yearContext.verifiedUpstream;
 			if (isUpstreamBacked) {
 				setDataSource('live');
 				setCacheNotice(null);
@@ -363,9 +365,9 @@ export default function Faculty() {
 			} else {
 				setDataSource('refreshing');
 				setCacheNotice('Checking EnrollPro before finalizing teacher roster status.');
-				void promoteActiveSchoolYearContext({ schoolId: scopedSchoolId, allowEnrollProFallback: false, allowStaleOnError: true })
+				void promoteActiveSchoolYearContext({ schoolId: scopedSchoolId, allowEnrollProFallback: false, allowStaleOnError: true, verifyUpstream: true })
 					.then((promotedContext) => {
-						if (isUpstreamBackedSchoolYearSource(promotedContext.source)) {
+						if (promotedContext.verifiedUpstream) {
 							setDataSource('live');
 							setCacheNotice(null);
 							return;
