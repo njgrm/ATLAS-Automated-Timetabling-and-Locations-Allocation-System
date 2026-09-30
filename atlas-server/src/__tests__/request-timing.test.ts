@@ -156,6 +156,31 @@ test('T5 the monitor timer is unref-ed and stop() is idempotent', () => {
 	timing.stop();
 });
 
+test('T10 live-use activity ignores health probes, records API use, and exposes an active generation write without paths', async () => {
+	const timing = createRequestTiming({ log: () => {} });
+	const app = express();
+	app.use(timing.middleware);
+	app.get('/api/v1/health', (_req, res) => res.json({ ok: true }));
+	app.get('/api/v1/subjects', (_req, res) => res.json({ ok: true }));
+	app.post('/api/v1/generation/1/2/generate', async (_req, res) => {
+		assert.equal(timing.liveUseActivity().generationOrPublicationInFlight, true);
+		await new Promise((resolve) => setTimeout(resolve, 10));
+		res.json({ ok: true });
+	});
+
+	const before = timing.liveUseActivity();
+	assert.equal(before.lastInteractiveAt, null);
+	assert.match(before.observationStartedAt, /^\d{4}-\d\d-\d\dT/);
+	await withServer(app, async (base) => {
+		await fetch(`${base}/api/v1/health`);
+		assert.equal(timing.liveUseActivity().lastInteractiveAt, null, 'health probes must not look like a person using live');
+		await fetch(`${base}/api/v1/subjects`);
+		assert.match(timing.liveUseActivity().lastInteractiveAt ?? '', /^\d{4}-\d\d-\d\dT/);
+		await fetch(`${base}/api/v1/generation/1/2/generate`, { method: 'POST' });
+	});
+	assert.equal(timing.liveUseActivity().generationOrPublicationInFlight, false, 'finished generation writes must clear');
+});
+
 function openStream(res: express.Response) {
 	res.setHeader('Content-Type', 'text/event-stream');
 	res.flushHeaders();

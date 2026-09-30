@@ -105,6 +105,19 @@ app.get('/api/v1/health', (_req, res) => {
 	res.json({ status: 'ok', service: 'atlas' });
 });
 
+// Deliberately loopback-only: the release manager needs a proof that people
+// have not used the live API recently, but the public origin must not disclose
+// operational activity. It returns timestamps and a boolean only.
+app.get('/api/v1/health/activity', (req, res) => {
+	const address = req.socket.remoteAddress ?? '';
+	const loopback = address === '::1' || address === '::ffff:127.0.0.1' || address.startsWith('127.');
+	if (!loopback) {
+		res.sendStatus(404);
+		return;
+	}
+	res.json(requestTiming.liveUseActivity());
+});
+
 // Dependency readiness is intentionally distinct from liveness: the constant
 // `/api/v1/health` response alone cannot prove the database is reachable. The
 // supervised runtime uses this endpoint to require a real dependency check

@@ -26,8 +26,15 @@ Check the clock with `date` before writing any time.
 - Remove clean, merged, inactive worktrees with `ops/lane-c/remove-worktree.ps1` only.
 
 ## What needs the operator (write to the outbox and notify, then continue other work)
-- **Any deploy** (A4 GO) unless the operator wrote `ship` or an approved release window in the inbox for today AND did
-  not write `using live`. Never deploy while the operator is on live without asking.
+- **A non-migration deploy may proceed autonomously only under decision 16a.** Before A4 GO, run
+  `powershell -File ops/lane-c/codex/live-use-check.ps1`; a non-zero exit is a hard stop. The result must show a
+  15-minute observed quiet window, no recent interactive API use, no generation/publication write in flight, and no
+  `using live` or `no deploys` inbox veto. Also require the automated gate: full suites green; server and client entry
+  artifacts exist; target dist count matches live; and 1366x768 `/timetable` header and grid screenshots pass.
+  Enforce at most two releases per local day and none from 22:00 through 06:00 unless the inbox says `ship`. After
+  cutover, require Tailnet target chunk, health 200, and a five-flow Codex smoke including those screenshots. Any miss
+  rolls back automatically, pauses autonomous deploys, and notifies the operator. Missing activity telemetry is a stop,
+  not a reason to infer inactivity. Migrations still require staging and an independent HIGH reviewer pass.
 - HIGH actions: migrations, generation/publication on live, live-data writes, auth, deleting unmerged work.
 - Changing `operator-decisions.md`, the workflow rules, or anything about API keys/accounts (the operator runs every
   `login`).
