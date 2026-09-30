@@ -30,6 +30,7 @@ if ($Mode -eq 'release' -and -not $OperatorSaidShip) {
   if ($LASTEXITCODE -ne 0) { throw 'REFUSED: live is in use or not proven quiet (live-use-check.ps1). Ask the operator.' }
 }
 
+if (-not (Test-Path "$box\inbox")) { throw 'NOT_INSTALLED: the operator runs install-release-task.ps1 once in an elevated PowerShell' }
 if (Test-Path "$box\inbox\request.json") { throw 'REFUSED: a request is already pending' }
 $id = "$(Get-Date -Format yyyyMMdd-HHmmss)-$($sha.Substring(0,8))"
 $req = [pscustomobject]@{ id = $id; mode = $Mode; sha = $sha; dir = $full; incumbentSha = $incumbent; requestedAt = (Get-Date).ToString('o'); requestedBy = $env:USERNAME }
