@@ -46,10 +46,11 @@
  * so `savedOutcomeSentence` names the rows that were left unchanged rather than implying the
  * whole batch landed.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertCircle, CheckCircle2, Loader2, Undo2 } from 'lucide-react';
 import atlasApi from '@/lib/api';
 import { Button } from '@/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import {
 	Dialog,
 	DialogContent,
@@ -64,10 +65,12 @@ import {
 	MANUAL_CHOICE_NOTE,
 	applyActionLabel,
 	applyFailureSentence,
+	applyReceiptSentence,
 	assignmentReasonPhrase,
 	guidedStepActionLabel,
-	saveOutcomeSentence,
 	skippedReasonPhrase,
+	undoActionLabel,
+	undoReceiptSentence,
 } from '@/lib/home-room-review-copy';
 
 type AutoAssignAssignment = {
@@ -210,12 +213,36 @@ export function HomeRoomAutoAssignDialog({
 	const [applyError, setApplyError] = useState<string | null>(null);
 	const [outcome, setOutcome] = useState<string | null>(null);
 	/**
+	 * A9 c6 — the exact set the last successful apply wrote, so Undo can put exactly those sections
+	 * back to `homeRoomId: null` through the SAME endpoint. `null` until an apply lands, and cleared
+	 * by Undo or by a fresh preview, so a stale undo can never reach a run it did not produce.
+	 */
+	const [lastApplied, setLastApplied] = useState<Array<{ sectionId: number; homeRoomId: number }> | null>(null);
+	const [undoing, setUndoing] = useState(false);
+	const [undoOutcome, setUndoOutcome] = useState<string | null>(null);
+	const [undoError, setUndoError] = useState<string | null>(null);
+	/**
 	 * The scheduler's corrections, keyed by `sectionId`. A key that is PRESENT is a row she
 	 * changed herself, which is why the presence test — not the value — decides what the row
 	 * says about itself. It is reset on every preview, so a closed dialog never resurrects a
 	 * stale correction against a fresh suggestion.
 	 */
 	const [manualChoice, setManualChoice] = useState<Record<number, number | null>>({});
+
+	/**
+	 * A9 c2 R2 (2026-09-30) — a same-tick double dispatch must send ONE PUT.
+	 *
+	 * QA measured a programmatic double-click of Apply in one tick sending TWO
+	 * PUTs: the button's `disabled` is the visible affordance, but it is STATE,
+	 * and two clicks in the same tick both pass a state check that has not
+	 * re-rendered yet. A ref, set synchronously before the first `await`, is what
+	 * actually guards the tick — the same shape `HomeRoomConfirmDialogs.tsx`
+	 * uses for its `inFlightRef` ("two clicks in one tick must not both pass a
+	 * state check that has not re-rendered yet"). Undo carries its own ref, so
+	 * the two writers cannot share a guard and let one slip through.
+	 */
+	const applyInFlightRef = useRef(false);
+	const undoInFlightRef = useRef(false);
 
 	const fetchPreview = useCallback(async () => {
 		// ACTOR-SCOPE-C01: never dispatch while the actor school is unresolved.
@@ -229,6 +256,9 @@ export function HomeRoomAutoAssignDialog({
 		setLoadError(null);
 		setApplyError(null);
 		setOutcome(null);
+		setLastApplied(null);
+		setUndoOutcome(null);
+		setUndoError(null);
 		setManualChoice({});
 		try {
 			// `overwriteExisting: false` is not a preference here, it is the whole point: a
@@ -258,6 +288,9 @@ export function HomeRoomAutoAssignDialog({
 			setLoadError(null);
 			setApplyError(null);
 			setOutcome(null);
+			setLastApplied(null);
+			setUndoOutcome(null);
+			setUndoError(null);
 			setManualChoice({});
 		}
 	}, [open, fetchPreview]);
@@ -276,34 +309,86 @@ export function HomeRoomAutoAssignDialog({
 
 	const manualCount = useMemo(() => rows.filter((row) => row.isManual).length, [rows]);
 
+	/**
+	 * A9 c6 — APPLY SAVES AT ONCE (operator decision #11: no second confirmation after a review
+	 * dialog). One click writes the whole reviewed set in the ONE PUT it already used, then reports
+	 * a plain-words receipt through `onNotice` (the /sections channel) as well as in the dialog.
+	 */
 	const apply = useCallback(async () => {
+		if (applyInFlightRef.current) return;
 		if (!canWrite) return;
 		if (!Number.isInteger(schoolId) || schoolId <= 0 || !Number.isInteger(schoolYearId) || schoolYearId <= 0) return;
 		const assignments = rows
 			.filter((row) => row.roomId != null)
-			.map((row) => ({ sectionId: row.assignment.sectionId, homeRoomId: row.roomId }));
+			.map((row) => ({ sectionId: row.assignment.sectionId, homeRoomId: row.roomId as number }));
 		if (assignments.length === 0) return;
 
+		applyInFlightRef.current = true;
 		setApplying(true);
 		setApplyError(null);
 		setOutcome(null);
+		setUndoOutcome(null);
+		setUndoError(null);
 		try {
 			const { data } = await atlasApi.put<{ updated?: number }>(
 				`/sections/home-rooms/${schoolYearId}`,
 				{ schoolId, assignments },
 			);
-			const sentence = saveOutcomeSentence({ requested: assignments.length, updated: Number(data?.updated ?? 0) });
-			setOutcome(sentence);
-			onNotice?.(sentence);
+			const receipt = applyReceiptSentence({
+				requested: assignments.length,
+				updated: Number(data?.updated ?? 0),
+				skipped: result?.skipped ?? [],
+			});
+			setOutcome(receipt);
+			setLastApplied(assignments);
+			onNotice?.(receipt);
 			onApplied();
 		} catch (error) {
 			const sentence = applyFailureSentence(typedFailureReason(error));
 			setApplyError(sentence);
+			setLastApplied(null);
 			onNotice?.(sentence);
 		} finally {
+			applyInFlightRef.current = false;
 			setApplying(false);
 		}
-	}, [canWrite, onApplied, onNotice, rows, schoolId, schoolYearId]);
+	}, [canWrite, onApplied, onNotice, result, rows, schoolId, schoolYearId]);
+
+	/**
+	 * A9 c6 — UNDO, one click, through the SAME endpoint. It writes `homeRoomId: null` for exactly
+	 * the sections the last apply assigned (this dialog only ever assigns sections that had no room,
+	 * `overwriteExisting: false`), states what it will do before doing it, cannot double-submit
+	 * (`undoing` disables it in flight), and leaves its OWN receipt.
+	 */
+	const undo = useCallback(async () => {
+		if (undoInFlightRef.current) return;
+		if (!canWrite || undoing || !lastApplied || lastApplied.length === 0) return;
+		if (!Number.isInteger(schoolId) || schoolId <= 0 || !Number.isInteger(schoolYearId) || schoolYearId <= 0) return;
+		const assignments = lastApplied.map((entry) => ({ sectionId: entry.sectionId, homeRoomId: null }));
+		undoInFlightRef.current = true;
+		setUndoing(true);
+		setUndoError(null);
+		setUndoOutcome(null);
+		try {
+			const { data } = await atlasApi.put<{ updated?: number }>(
+				`/sections/home-rooms/${schoolYearId}`,
+				{ schoolId, assignments },
+			);
+			const receipt = undoReceiptSentence({ requested: assignments.length, updated: Number(data?.updated ?? 0) });
+			setUndoOutcome(receipt);
+			setOutcome(null);
+			setLastApplied(null);
+			onNotice?.(receipt);
+			onApplied();
+		} catch (error) {
+			const sentence = applyFailureSentence(typedFailureReason(error));
+			setUndoError(sentence);
+			onNotice?.(sentence);
+		} finally {
+			undoInFlightRef.current = false;
+			setUndoing(false);
+		}
+	}, [canWrite, lastApplied, onApplied, onNotice, schoolId, schoolYearId, undoing]);
 
 	const handleClose = useCallback(() => {
 		onOpenChange(false);
@@ -357,13 +442,61 @@ export function HomeRoomAutoAssignDialog({
 					) : null}
 
 					{outcome ? (
+						<div className="space-y-2">
+							<div
+								role="status"
+								data-testid="guided-step-outcome"
+								className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
+							>
+								<CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+								<span>{outcome}</span>
+							</div>
+							{/* A9 c6 — ONE-CLICK UNDO, offered while the receipt is on screen. It states
+							 * what it will do in its label and its Tooltip, is disabled in flight, and
+							 * writes through the SAME endpoint as the apply. */}
+							<TooltipProvider delayDuration={200}>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											onClick={undo}
+											disabled={undoing || applying || !canWrite}
+											className="h-8 gap-2 font-bold"
+											data-testid="guided-step-undo-action"
+										>
+											<Undo2 className="size-4" aria-hidden="true" />
+											{undoing ? 'Undoing\u2026' : undoActionLabel(lastApplied?.length ?? 0)}
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent>
+										{`Puts ${(lastApplied?.length ?? 0) === 1 ? 'that section' : 'those sections'} back to having no home room.`}
+									</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+						</div>
+					) : null}
+
+					{undoOutcome ? (
 						<div
 							role="status"
-							data-testid="guided-step-outcome"
+							data-testid="guided-step-undo-outcome"
 							className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
 						>
 							<CheckCircle2 className="mt-0.5 size-4 shrink-0" />
-							<span>{outcome}</span>
+							<span>{undoOutcome}</span>
+						</div>
+					) : null}
+
+					{undoError ? (
+						<div
+							role="alert"
+							data-testid="guided-step-undo-error"
+							className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+						>
+							<AlertCircle className="mt-0.5 size-4 shrink-0" />
+							<span>{undoError}</span>
 						</div>
 					) : null}
 
@@ -378,15 +511,26 @@ export function HomeRoomAutoAssignDialog({
 							{rows.map((row) => {
 								const { assignment } = row;
 								return (
+									/* A9 c2 — THE PICKER OWNS THE ROW'S SPARE WIDTH. The operator's
+									 * crop showed the trigger clipped mid-word
+									 * (`G7 Room 101  - Grade 7 Academic V`) because the whole room
+									 * label competed on ONE flex line with a second, separately
+									 * truncated label in the right-hand gutter ("same grade wing").
+									 * The gutter label moves to its OWN line under the row (it is a
+									 * qualifier, not an identifier), and the freed width goes to the
+									 * picker. The dialog is NOT widened and the type is NOT shrunk;
+									 * `flex-[2] basis-0` gives the picker two thirds of the slack so a
+									 * normal room + building reads in full at 1366x768 and 1280x720
+									 * (operator decision #10: normal width, never near full screen). */
 									<li key={assignment.sectionId} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-border/70 px-2.5 py-2" data-testid="guided-step-row" data-section-id={assignment.sectionId} data-manual={row.isManual ? 'true' : 'false'}>
 										<span
 											className={`shrink-0 rounded-md px-1.5 py-0.5 text-xs font-bold ${GRADE_COLORS[assignment.gradeLevel] ?? 'bg-muted text-muted-foreground'}`}
 										>
 											{gradeBadge(assignment.gradeLevel)}
 										</span>
-										<span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{assignment.sectionName}</span>
+										<span className="min-w-0 flex-1 basis-0 truncate text-sm font-semibold text-foreground">{assignment.sectionName}</span>
 										<span className="shrink-0 text-sm text-muted-foreground" aria-hidden="true">→</span>
-										<div className="w-64 shrink-0">
+										<div className="min-w-0 flex-[2] basis-0">
 											<SectionRoomPicker
 												sectionId={assignment.sectionId}
 												sectionName={assignment.sectionName}
@@ -398,7 +542,7 @@ export function HomeRoomAutoAssignDialog({
 												roomOccupancy={roomOccupancy}
 											/>
 										</div>
-										<span className="shrink-0 text-xs text-muted-foreground" data-testid="guided-step-row-reason">
+										<span className="w-full text-xs text-muted-foreground" data-testid="guided-step-row-reason">
 											{row.isManual ? MANUAL_CHOICE_NOTE : assignmentReasonPhrase(assignment.reason)}
 										</span>
 									</li>
@@ -449,7 +593,7 @@ export function HomeRoomAutoAssignDialog({
 						<Button
 							size="sm"
 							onClick={apply}
-							disabled={loading || applying || !canWrite || rows.length === 0}
+							disabled={loading || applying || undoing || !canWrite || rows.length === 0}
 							className="font-bold"
 							data-testid="guided-step-apply"
 						>

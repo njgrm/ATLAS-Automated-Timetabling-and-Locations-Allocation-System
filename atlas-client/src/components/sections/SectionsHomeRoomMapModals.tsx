@@ -1,15 +1,21 @@
 /**
- * A3 c11 — the two `SectionRoomMapModal` mounts the `/sections` page owns.
+ * A3 c11 — the per-section `SectionRoomMapModal` mount the `/sections` page owns.
  *
  * Extracted verbatim out of `pages/Sections.tsx` because that page crossed
  * AGENTS.md §8's mandatory 1000-physical-line ceiling, and the directive is
  * explicit: "Extract sub-components before continuing." Nothing here is new
  * behaviour — the props, the guards, the read-only reasons and the `onSelect`
- * bodies are the same code the page ran inline, and the comments travel with
- * them so the reasoning stays next to the code it explains.
+ * body are the same code the page ran inline, and the comments travel with them
+ * so the reasoning stays next to the code it explains.
  *
- * Both modals are mounted only under a resolved actor school, which is the
- * ACTOR-SCOPE-C01 fail-closed rule the modal itself enforces.
+ * ── A9 c3 (2026-09-30): THE SCHOOL-WIDE BROWSE MOUNT IS GONE ───────────────────────────
+ * The operator's `section.docx` item 5 asked to remove "browser room map" because every
+ * row already opens a map scoped to its own section. The global-browse instance (the
+ * `sectionId={0}` / `canWrite=false` mount and its blocked-reason sentence) had no opener
+ * left on `/sections` once the header control was removed, so it is SUBTRACTED here rather
+ * than parked: a source grep for the global-browse state and its prop returns nothing.
+ * Only the per-section mount remains, and it is mounted only under a resolved actor
+ * school (the ACTOR-SCOPE-C01 fail-closed rule the modal itself enforces).
  */
 import * as React from 'react';
 import { toast } from 'sonner';
@@ -18,14 +24,8 @@ import type { SectionDetail } from './SectionRow';
 import type { RoomSectionMetadata } from '@/components/BuildingView';
 import type { HomeRoomWriteAvailability } from './homeRoomWriteAvailability';
 
-/** The global (school-wide) browse modal carries no write path at all. */
-const GLOBAL_BROWSE_BLOCKED_REASON = 'This is the school-wide browse view. Open a section\'s room map to assign a home room.';
-
 export type SectionsHomeRoomMapModalsProps = {
 	scopedSchoolId: number | null;
-	/** The school-wide browse modal's open state. */
-	globalBrowseOpen: boolean;
-	onGlobalBrowseOpenChange: (open: boolean) => void;
 	/** The section whose row opened the map, or null. */
 	mapTarget: SectionDetail | null;
 	onMapTargetChange: (target: SectionDetail | null) => void;
@@ -42,8 +42,6 @@ export type SectionsHomeRoomMapModalsProps = {
 
 export function SectionsHomeRoomMapModals({
 	scopedSchoolId,
-	globalBrowseOpen,
-	onGlobalBrowseOpenChange,
 	mapTarget,
 	onMapTargetChange,
 	roomOccupancy,
@@ -57,21 +55,6 @@ export function SectionsHomeRoomMapModals({
 
 	return (
 		<>
-			<SectionRoomMapModal
-				open={globalBrowseOpen}
-				onOpenChange={onGlobalBrowseOpenChange}
-				sectionName='Global Browse'
-				sectionId={0}
-				currentRoomId={null}
-				onSelect={() => {}}
-				schoolId={scopedSchoolId}
-				roomOccupancy={roomOccupancy}
-				roomSectionData={roomSectionData}
-				buildingOccupancy={buildingOccupancy}
-				canWrite={false}
-				writeBlockedReason={GLOBAL_BROWSE_BLOCKED_REASON}
-			/>
-
 			{/* A3 C4 (top-10 #3): the row's "View room map" control lands here. It
 				reuses the existing modal component and feeds its `onSelect` into the
 				SAME `handleHomeRoomChange` the dropdown uses, so a room picked on the
