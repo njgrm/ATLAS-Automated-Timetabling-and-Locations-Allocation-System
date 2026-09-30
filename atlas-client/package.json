@@ -58,6 +58,7 @@
     "test:a3-c10-teacher-surface": "tsx --test src/components/faculty/__tests__/a3-c10-teacher-surface.test.tsx",
     "test:a6-teachers": "tsx --test src/components/faculty/__tests__/a6-teachers-header-profile.test.tsx",
     "test:a6-teaching-load": "tsx --test src/components/faculty-assignments/__tests__/a6-teaching-load-surface.test.tsx",
+    "test:a6-source-truth": "tsx --test src/lib/__tests__/a6-source-truth-verified-upstream.test.ts",
     "test:a6-tl-header-budget": "tsx --test src/components/faculty-assignments/__tests__/a6-tl-header-budget.test.ts",
     "test:a6-tl-deeplink": "node --experimental-test-module-mocks --import tsx --test src/components/faculty-assignments/__tests__/a6-tl-deeplink.test.tsx",
     "test:a6-c5-outage": "tsx --test src/components/faculty-assignments/__tests__/a6-c5-outage.test.tsx src/components/faculty-assignments/__tests__/a6-c5-outage-derivation.test.tsx src/components/faculty-assignments/__tests__/a6-tl-demand-source-client.test.ts",

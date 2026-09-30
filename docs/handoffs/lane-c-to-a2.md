@@ -5536,3 +5536,41 @@ have it: Lane C relays it to the operator.
 - **Exactly ONE blocker on live, year 2026-2027 (school 1 / year 5):** `TERM_AUTHORITY_UNRESOLVED` — "Ordered term authority · school 1 · year 5". The active ordered term is unresolved, so the term-scoped teacher availability (HARD exclusions) cannot be applied; generation is refused rather than run without its HARD authority. Every other preflight check passes. Measured by running the real `buildGenerationPreflight(1, 5)` read-only on live: `ok=false`, blockerCount=1.
 - **The one action that clears it:** refresh the saved EnrollPro term authority for the year so the active term resolves — the client's own fix button for this exact blocker is **"Set the school year terms"** at `/admin/year-setup` (the persisted term cache for year 5 currently carries `activeTerm: null`; the live EnrollPro read resolves a term, so a re-save should populate it).
 - **Read-only, zero writes:** audit 561/max 1200 and gen runs 14/max 351 identical before and after; no generation, publish, deploy, migration, or env action. The candidate to make the denied Generate show this blocker in plain words with that button follows next.
+
+## A6 -> Lane C, 2026-09-30 ~08:30 +08 - Teaching Load + Teachers source truth: cause + fix on main (`09e11521`)
+
+**Cause (one sentence).** Both pages decided "EnrollPro is verified" from a signal that is not the verified EnrollPro
+read: `Faculty.tsx` never passed `verifyUpstream`, so `/runtime/context` answered `atlas-persisted` and the Teachers
+roster could never leave saved-data, while Teaching Load read the SWR-cache answer `source:'cache'` - a record the client
+itself had just certified as a verified ordered term - as unverified AND ANDed a second, independently-timed
+`/sections/summary` label.
+
+**Read-only live Step 0 (2026-09-30 05:44 +08, zero writes).** EnrollPro reachable (`/integration/v1/school-year` 200,
+id 5 = 2026-2027, `/integration/v1/sections` 200); `/runtime/context?schoolId=1` -> `atlas-persisted`,
+`upstream.verified:false`; `/runtime/context?schoolId=1&verifyUpstream=true` -> `enrollpro-verified`, verified:true,
+aligned, `activeTerm` T1 verified+ordered; `/sections/summary/5?schoolId=1` -> `source:"enrollpro"`, `isStale:false`;
+deployed `Faculty-*.js` had ZERO `verifyUpstream` (the TeachingLoad chunk had one). So it was **not** a failing sections
+call and **not** a source-label mismatch - the client check is wrong while EnrollPro is connected.
+
+**Fix.** `ActiveSchoolYearContext` carries `verifiedUpstream:true` only for a verified-provenance answer (the
+upstream-backed network path, the EnrollPro public-settings fallback, or a cache answer handed to a caller that asked for
+verification and whose cached term passed `isVerifiedOrderedActiveTerm`). Both pages read it; `Faculty` now asks with
+`verifyUpstream:true` on both calls; Teaching Load also accepts the ATLAS mirror of the year it just verified, while
+`stub`, `cached-enrollpro` and an empty payload still downgrade. 5 client paths; no server change; both banner strings
+byte-identical.
+
+**Evidence.** Failing-first `test:a6-source-truth` red on base (4/7 - R1, R2, R3b fail) and 7/7 after; fresh QA
+`ses_f104a70aaffex22OtKhzomVRLW` **ACCEPT_READY 10/10, blocked 0, unperformed 0**; combined gates green on the merged
+tree (`a6-source-truth`, `a6-teaching-load`, `a6-teachers`, `a6-c5-outage`, `a3-c4-tl-truth`, `a3-c10-tl-density`,
+`client-quality`, `a2-c14` 9/9, `dup-read` 6/6, `a3p1` 9/9, the decision-4 guard `a5-c8-filter-bar-contract` 15/15,
+`tsc` 5 pre-existing with 0 in the changed files, `vite build` OK). Landed on main `09e11521` (candidate `2897f0bc`,
+base `607f2363`).
+
+**For A4 - needs a train to be seen.** Live is still train 16, so this is source-only and NOT yet rendered on the
+Tailnet. Please take it in the next train; the acceptance rows are that the two banners are ABSENT on Teaching Load and
+Teachers at `https://njgrm.buru-degree.ts.net` with EnrollPro connected. No live write, resync, deploy, generation,
+publication, migration or env action was performed by A6.
+
+**Residual (not this range).** `pages/Sections.tsx` still uses the superseded predicate and still omits `verifyUpstream`,
+so a cache-answered verified year can still render mirror/saved-data there - a follow-up candidate, explicitly out of
+scope here.
