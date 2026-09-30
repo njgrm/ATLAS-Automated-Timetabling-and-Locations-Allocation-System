@@ -27,6 +27,10 @@ import {
 	getTeachingLoadReconciliationReadiness,
 	previewTeachingLoadReconciliation,
 } from '../services/teaching-load-reconciliation.service.js';
+import {
+	checkTeachingLoadPlacement,
+	type PlacementCheckLineRequest,
+} from '../services/teaching-load-placement-check.service.js';
 
 const router = Router();
 
@@ -1012,6 +1016,50 @@ router.post('/suggestion-proposals/:proposalId/cancel', authenticate, requirePri
 	}
 });
 
+// POST /faculty-assignments/placement-check
+// A6 (operator decision 14) — zero-write placement feasibility check. Names a
+// class the timetable cannot place and a teacher who fits; writes nothing.
+// Body: { schoolId, schoolYearId, lines: [{ sectionId, subjectId, facultyId }] }
+const MAX_PLACEMENT_CHECK_LINES = 200;
+router.post('/placement-check', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		let schoolId: number;
+		let schoolYearId: number;
+		try {
+			schoolId = parseStrictPositiveInt(req.body?.schoolId);
+			schoolYearId = parseStrictPositiveInt(req.body?.schoolYearId);
+		} catch (error: any) {
+			res.status(error?.statusCode ?? 400).json({ code: error?.code ?? 'INVALID_PARAM', message: error?.message ?? 'schoolId and schoolYearId must be positive integers.' });
+			return;
+		}
+		if (rejectCapabilityOverrideScope(req, schoolId, res)) return;
+
+		const rawLines = Array.isArray(req.body?.lines) ? req.body.lines : null;
+		if (!rawLines || rawLines.length === 0 || rawLines.length > MAX_PLACEMENT_CHECK_LINES) {
+			res.status(400).json({
+				code: 'INVALID_PARAM',
+				message: `lines must be a non-empty array of at most ${MAX_PLACEMENT_CHECK_LINES} entries.`,
+			});
+			return;
+		}
+		const lines: PlacementCheckLineRequest[] = [];
+		for (const raw of rawLines) {
+			const sectionId = Number(raw?.sectionId);
+			const subjectId = Number(raw?.subjectId);
+			const facultyId = Number(raw?.facultyId);
+			if (![sectionId, subjectId, facultyId].every((value) => Number.isSafeInteger(value) && value > 0)) {
+				res.status(400).json({ code: 'INVALID_PARAM', message: 'Each line needs a positive sectionId, subjectId and facultyId.' });
+				return;
+			}
+			lines.push({ sectionId, subjectId, facultyId });
+		}
+
+		res.json(await checkTeachingLoadPlacement(schoolId, schoolYearId, lines));
+	} catch (err) {
+		next(err);
+	}
+});
+
 // Auth: GET /faculty-assignments/:facultyId?schoolYearId=Y
 router.get('/:facultyId', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
@@ -1065,7 +1113,7 @@ router.put('/:facultyId', authenticate, requirePrivilegedRole, async (req: Reque
 		if (!result.success) {
 			const status = result.code === 'FACULTY_NOT_FOUND'
 				? 404
-				: result.code === 'VERSION_CONFLICT' || result.code === 'DUPLICATE_SECTION_OWNERSHIP'
+				: result.code === 'VERSION_CONFLICT' || result.code === 'DUPLICATE_SECTION_OWNERSHIP' || result.code === 'TEACHING_LOAD_UNPLACEABLE'
 					? 409
 					: 400;
 			res.status(status).json({ code: result.code, message: result.error, details: result.details });

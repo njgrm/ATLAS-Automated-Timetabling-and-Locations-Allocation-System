@@ -14,6 +14,11 @@ import {
 	resolveEffectiveLoadBaselineHours,
 } from '@/lib/faculty-assignment-helpers';
 import { COVERAGE_MODE_CONFIG, formatTeachingLoadSaveError, buildSectionsBySubject, transferExactSectionPair, buildSaveCommitReceipt } from '@/lib/teaching-load-helpers';
+import {
+	runPlacementGuardedSave,
+	type PlacementApi,
+} from '@/lib/teaching-load-placement';
+import { useTeachingLoadPlacementGate } from '@/hooks/useTeachingLoadPlacementGate';
 import { appliedSuggestionMessage, teachingLoadShortageNote } from '@/lib/teaching-load-suggestion-presentation';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { createScopeEpoch, captureEpoch } from '@/lib/scope-request-epoch';
@@ -91,6 +96,12 @@ export default function TeachingLoad() {
 	// FIX 40: `Save changes` opens a confirmation rather than committing.
 	const [saveConfirmOpen, setSaveConfirmOpen] = useState(false);
 
+	// A6 (decision 14): the "cannot place this class" gate + ONE one-click
+	// alternative teacher. Extracted to a hook so this page keeps headroom under
+	// the AGENTS.md §8 1000-physical-line cap; the page still decides WHEN.
+	const placementGate = useTeachingLoadPlacementGate({ api: atlasApi as unknown as PlacementApi, data, setDraftStatusMessage });
+	const { placementBlockers, handleUsePlacementAlternative } = placementGate;
+
 	useEffect(() => {
 		if (data.schoolId && data.activeSchoolYearId) {
 			atlasApi.get(`/generation/${data.schoolId}/${data.activeSchoolYearId}/runs`, { params: { limit: 1 } })
@@ -162,6 +173,7 @@ export default function TeachingLoad() {
 	const handleSave = useCallback(async (force?: boolean) => {
 		if (!data.schoolId || !data.activeSchoolYearId) return;
 		const schoolId = data.schoolId;
+		const schoolYearId = data.activeSchoolYearId;
 		const draftEntries = Object.entries(data.effectiveDraftAssignmentsByFaculty);
 		if (draftEntries.length === 0) return;
 
@@ -172,64 +184,61 @@ export default function TeachingLoad() {
 		}
 
 		data.setSaving(true);
-		// Each PUT is one atomic, revision-checked, serializable transaction for a
-		// single teacher. Because a multi-teacher draft cannot be committed as one
-		// transaction through this contract, the save stops at the first failure
-		// and reports the exact teacher records that committed so the operator is
-		// never told a partial save succeeded.
-		const committed: number[] = [];
-		let failedFacultyId: number | null = null;
-		let readableError = '';
+		placementGate.setPlacementBlockers([]);
 		try {
-			for (const [facultyIdRaw, assignments] of draftEntries) {
+			// A6 (operator decision 14): the placement check runs FIRST and NO PUT is
+			// issued when the timetable cannot place a class. Each PUT is one atomic,
+			// revision-checked, serializable transaction for a single teacher; a
+			// multi-teacher draft cannot be one transaction, so the save stops at the
+			// first failure and reports the exact teacher records that committed.
+			const drafts = draftEntries.flatMap(([facultyIdRaw, assignments]) => {
 				const facultyId = Number(facultyIdRaw);
-				if (!Number.isFinite(facultyId)) continue;
 				const facultyRow = data.faculty.find((member) => member.id === facultyId);
-				if (!facultyRow) continue;
-				try {
-					await atlasApi.put(`/faculty-assignments/${facultyId}`, {
-						schoolId,
-						schoolYearId: data.activeSchoolYearId,
-						version: facultyRow.version,
-						facultyId,
-						assignments,
-					});
-					committed.push(facultyId);
-				} catch (error: any) {
-					failedFacultyId = facultyId;
-					readableError = formatTeachingLoadSaveError(error);
-					throw error;
-				}
+				return Number.isFinite(facultyId) && facultyRow ? [{ facultyId, version: facultyRow.version, assignments }] : [];
+			});
+			const outcome = await runPlacementGuardedSave({ api: atlasApi as unknown as PlacementApi, schoolId, schoolYearId, drafts });
+			if (outcome.status === 'blocked') {
+				placementGate.setPlacementBlockers(outcome.blockers);
+				setDraftStatusMessage('The timetable cannot place one or more of these classes. Choose a teacher who fits the free time.');
+				return;
 			}
-			const message = draftEntries.length === 1 && data.selected
-				? `Saved Teaching Load for ${data.selected.lastName}.`
-				: `Saved ${committed.length} Teaching Load draft ${committed.length === 1 ? 'change' : 'changes'}.`;
-			toast.success(message);
-			setDraftStatusMessage(message);
-			await data.fetchData({ forceRefresh: true });
-		} catch (error: any) {
-			const conflict = error?.response?.data?.code === 'VERSION_CONFLICT';
-			if (conflict || committed.length > 0) {
+			if (outcome.status === 'committed') {
+				const message = drafts.length === 1 && data.selected
+					? `Saved Teaching Load for ${data.selected.lastName}.`
+					: `Saved ${outcome.committedFacultyIds.length} Teaching Load draft ${outcome.committedFacultyIds.length === 1 ? 'change' : 'changes'}.`;
+				toast.success(message);
+				setDraftStatusMessage(message);
+				await data.fetchData({ forceRefresh: true });
+				return;
+			}
+			// A refused write whose 409 we did not see at the client gate (race /
+			// other tab) renders the SAME sentence + alternative, never a bare toast.
+			if (placementGate.noteBlockersFromError(outcome.error)) {
+				await data.fetchData({ forceRefresh: true });
+				return;
+			}
+			const conflict = (outcome.error as any)?.response?.data?.code === 'VERSION_CONFLICT';
+			if (conflict || outcome.committedFacultyIds.length > 0) {
 				await data.fetchData({ forceRefresh: true });
 			}
-			const committedNames = committed
+			const committedNames = outcome.committedFacultyIds
 				.map((id) => data.faculty.find((member) => member.id === id))
 				.filter((member): member is NonNullable<typeof member> => Boolean(member))
 				.map((member) => member.lastName);
-			const failedName = failedFacultyId != null
-				? data.faculty.find((member) => member.id === failedFacultyId)?.lastName ?? `faculty ${failedFacultyId}`
-				: null;
+			const failedName = data.faculty.find((member) => member.id === outcome.failedFacultyId)?.lastName ?? `faculty ${outcome.failedFacultyId}`;
 			const receipt = buildSaveCommitReceipt({
 				committedLastNames: committedNames,
 				failedLastName: failedName,
-				error: readableError,
+				error: formatTeachingLoadSaveError(outcome.error),
 			});
 			toast.error(receipt);
 			setDraftStatusMessage(receipt);
+		} catch (error: any) {
+			toast.error(error?.message ?? 'ATLAS could not save these Teaching Load changes.');
 		} finally {
 			data.setSaving(false);
 		}
-	}, [data, hasGeneratedRuns]);
+	}, [data, hasGeneratedRuns, placementGate]);
 
 	const handleSetSections = useCallback((subjectId: number, sectionIds: number[], facultyId?: number) => {
 		const targetId = facultyId ?? data.selectedId;
@@ -377,13 +386,17 @@ export default function TeachingLoad() {
 			if (stillCurrent()) ui.setSummaryModalOpen(false);
 		} catch (error: any) {
 			if (!stillCurrent()) return;
+			if (placementGate.noteBlockersFromError(error)) {
+				toast.error('The timetable cannot place one or more of these classes. Choose a teacher who fits the free time.', { id: toastId });
+				return;
+			}
 			const message = error?.response?.data?.actionHint ?? error?.response?.data?.message ?? 'ATLAS could not apply the suggested Teaching Load. It is safe to retry after refreshing the source.';
 			setDraftStatusMessage(message);
 			toast.error(message, { id: toastId });
 		} finally {
 			if (stillCurrent()) setSuggestionApplying(false);
 		}
-	}, [data, suggestionApplyDisabledReason, suggestionProposalId, ui]);
+	}, [data, placementGate, suggestionApplyDisabledReason, suggestionProposalId, ui]);
 
 	const handleCancelPendingSuggestionProposal = useCallback(async (options?: { silent?: boolean }) => {
 		const proposalId = suggestionProposalId;
@@ -958,6 +971,9 @@ export default function TeachingLoad() {
 				pendingChangeCount={data.activeDraftAssignmentChangeCount}
 				pendingChangeTeacherCount={data.activeDraftCount}
 				pendingChangeScope=""
+				placementBlockers={placementBlockers}
+				onUsePlacementAlternative={handleUsePlacementAlternative}
+				placementBusy={data.saving}
 			/>
 		</TooltipProvider>
 	);
