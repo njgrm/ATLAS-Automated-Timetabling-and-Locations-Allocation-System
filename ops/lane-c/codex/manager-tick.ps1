@@ -108,8 +108,20 @@ $status
     $env:ATLAS_MANAGER_REPO = $snapshot
     # The manager account's native Windows sandbox rejects all shell reads, including its external mirror.
     # Keep its session rooted away from the real checkout; the before/after Git tripwire below stops on any real-tree write.
-    $prompt | codex exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check -C $H -m $Model `
-      -c "model_reasoning_effort=$Effort" -o (Join-Path $ticks "$stamp.md") - *> (Join-Path $ticks "$stamp.log")
+    $promptPath = Join-Path $ticks "$stamp.prompt.md"
+    $resultPath = Join-Path $ticks "$stamp.md"
+    $logPath = Join-Path $ticks "$stamp.log"
+    $errorPath = Join-Path $ticks "$stamp.err.log"
+    Set-Content -LiteralPath $promptPath -Value $prompt
+    $cli = 'C:\Users\njgro\AppData\Roaming\npm\codex.cmd'
+    $args = @('exec', '--dangerously-bypass-approvals-and-sandbox', '--skip-git-repo-check', '-C', $H, '-m', $Model,
+      '-c', "model_reasoning_effort=$Effort", '-o', $resultPath, '-')
+    $tickProcess = Start-Process -FilePath $cli -ArgumentList $args -WorkingDirectory $H -WindowStyle Hidden -PassThru `
+      -RedirectStandardInput $promptPath -RedirectStandardOutput $logPath -RedirectStandardError $errorPath
+    if (-not $tickProcess.WaitForExit(120000)) {
+      & cmd.exe /c "taskkill /pid $($tickProcess.Id) /t /f >NUL 2>&1"
+      & (Join-Path $repo 'ops/lane-c/codex/notify.ps1') -Text 'Lane C manager tick timed out after two minutes and was stopped.'
+    }
     Remove-Item Env:CODEX_HOME
     Remove-Item Env:ATLAS_MANAGER_REPO
     Assert-TickRepoUnchanged -Head $tickHead
