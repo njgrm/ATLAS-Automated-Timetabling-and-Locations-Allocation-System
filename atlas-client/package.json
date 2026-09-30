@@ -144,6 +144,7 @@
     "test:a5-c2b-surface-truth": "tsx --test src/__tests__/a5-c2b-surface-truth.test.ts",
     "test:a8-policy-pane-workload": "tsx --test src/lib/__tests__/tl-shortage-policy-pane-roundtrip-c02.test.ts",
     "test:a8-c5-blocker-table": "tsx --test src/lib/__tests__/a8-c5-blocker-code-table.test.tsx",
+    "test:a8-preflight-blocked-copy": "tsx --test src/lib/__tests__/a8-preflight-blocked-copy.test.ts",
     "test:a8-c5-generate-gate": "tsx --test src/lib/__tests__/a8-c5-generate-never-disabled.test.ts",
     "test:a8-c5-generate-dialog": "tsx --test src/components/timetable/__tests__/a8-c5-generate-stoppers-dialog.test.tsx",
     "test:a8-c5-readiness-retry": "tsx --test src/lib/__tests__/a8-c5-readiness-retry.test.ts",

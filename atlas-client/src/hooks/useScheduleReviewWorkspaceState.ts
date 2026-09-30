@@ -49,6 +49,7 @@ import type {
 	ViolationReport,
 } from '@/types';
 import {
+	generationStoppersFromPreflightBlockers,
 	resolveGenerateTrigger,
 	type TimetableGenerationStopper,
 } from '@/lib/timetable-capabilities';
@@ -974,6 +975,18 @@ export function useScheduleReviewWorkspaceState() {
 		setFollowUps,
 		setGenerating,
 		setShowGenerateConfirm,
+		// A8 (2026-09-30) — a server preflight refusal reopens the Generate dialog
+		// with the server's own blockers, each named in plain words with the button
+		// that opens its fix. The generic toast named no input and no next step.
+		onGenerationPreflightBlocked: (blockers) => {
+			const stoppers = generationStoppersFromPreflightBlockers(blockers);
+			if (stoppers.length === 0) {
+				toast.error('Generation is blocked, but ATLAS could not read the reasons. Retry the schedule check.');
+				return;
+			}
+			setGenerationStoppers(stoppers);
+			setShowGenerateConfirm(true);
+		},
 		enforceShiftWindows,
 		setEnforceShiftWindows,
 		draftBoardSummary,

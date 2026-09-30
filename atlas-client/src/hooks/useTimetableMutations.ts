@@ -211,6 +211,13 @@ type UseTimetableMutationsInput = {
 
 	setGenerating: React.Dispatch<React.SetStateAction<boolean>>;
 	setShowGenerateConfirm: React.Dispatch<React.SetStateAction<boolean>>;
+	/**
+	 * A8 (2026-09-30) — the server's own preflight refusal carries the blockers
+	 * that stopped generation (`details.blockers`). The workspace hands them to the
+	 * Generate dialog, which names each one in plain words with its fix button,
+	 * instead of a bare generic toast. Optional so every existing caller compiles.
+	 */
+	onGenerationPreflightBlocked?: (blockers: unknown) => void;
 	enforceShiftWindows: boolean;
 	setEnforceShiftWindows: React.Dispatch<React.SetStateAction<boolean>>;
 	draftBoardSummary: DraftBoardState['counts'] | null;
@@ -452,6 +459,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		setFollowUps,
 		setGenerating,
 		setShowGenerateConfirm,
+		onGenerationPreflightBlocked,
 		enforceShiftWindows,
 		setEnforceShiftWindows,
 		draftBoardSummary,
@@ -872,7 +880,15 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			await loadAll({ preserveRun: false, force: true });
 			await fetchDraftBoardSummary(schoolYearId, { forceRefresh: true });
 		} catch (e: unknown) {
-			const axiosErr = e as { response?: { data?: { message?: string } } };
+			const axiosErr = e as { response?: { data?: { code?: string; message?: string; details?: { blockers?: unknown } } } };
+			// A8 (2026-09-30) — the server's preflight refusal names the blockers that
+			// stopped generation. Surface each in the Generate dialog (plain words +
+			// the button that opens its fix) rather than one generic toast that named
+			// no input and offered no next step.
+			if (axiosErr?.response?.data?.code === 'GENERATION_PREFLIGHT_BLOCKED' && onGenerationPreflightBlocked) {
+				onGenerationPreflightBlocked(axiosErr.response.data.details?.blockers);
+				return;
+			}
 			const msg = axiosErr?.response?.data?.message ?? (e instanceof Error ? e.message : 'Generation request failed.');
 			toast.error(msg);
 		} finally {
@@ -891,6 +907,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		setPreGenAllowSoftOverride,
 		loadAll,
 		fetchDraftBoardSummary,
+		onGenerationPreflightBlocked,
 	]);
 
 	const handleTriggerGenerate = useCallback(async () => {

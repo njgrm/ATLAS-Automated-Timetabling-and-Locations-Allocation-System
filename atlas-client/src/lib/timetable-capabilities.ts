@@ -1,5 +1,10 @@
 import { deriveSimpleLifecycleAction, type SimpleLifecycleAction } from './simple-timetable-state';
-import type { TimetableReadinessDiagnosticSummary, TimetableReadinessRepair } from './timetable-generation-readiness';
+import {
+	deriveTimetableReadinessRepair,
+	type TimetableGenerationBlocker,
+	type TimetableReadinessDiagnosticSummary,
+	type TimetableReadinessRepair,
+} from './timetable-generation-readiness';
 
 /**
  * The single Year Setup / status surface for repairing school-year and term
@@ -466,6 +471,53 @@ export function deriveTimetableGenerationStoppers(input: TimetableGenerationStop
 		});
 	}
 
+	return stoppers;
+}
+
+/**
+ * A8 (2026-09-30) — map the SERVER's own preflight refusal
+ * (`409 GENERATION_PREFLIGHT_BLOCKED`, `details.blockers`) into the ONE cause
+ * shape the Generate dialog already renders, so every blocker reaches the
+ * operator in plain words with the button that opens its fix.
+ *
+ * WHY THIS EXISTS. The client's readiness read and the server's preflight are
+ * different measurements, and the server's is the one that decides. On live
+ * 2026-09-30 the readiness read showed nothing to fix while the preflight
+ * refused with `TERM_AUTHORITY_UNRESOLVED`: the operator clicked Generate, the
+ * dialog explained nothing, and the refusal surfaced as one generic toast that
+ * named no input and offered no next step.
+ *
+ * The line is the server's own plain `reason`; the button label and route come
+ * from the shared repair resolver, so this adds no second vocabulary. `count` is
+ * `null` because this refusal carries no measured count, and an invented number
+ * is the "651 setup items" defect this lane exists to remove.
+ */
+export function generationStoppersFromPreflightBlockers(raw: unknown): TimetableGenerationStopper[] {
+	if (!Array.isArray(raw)) return [];
+	const stoppers: TimetableGenerationStopper[] = [];
+	raw.forEach((entry, index) => {
+		if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) return;
+		const record = entry as Record<string, unknown>;
+		const reason = typeof record.reason === 'string' ? record.reason.trim() : '';
+		if (!reason) return;
+		const repair = deriveTimetableReadinessRepair({
+			code: typeof record.code === 'string' ? record.code : '',
+			category: typeof record.category === 'string' ? record.category : 'DATA_GAP',
+		} as TimetableGenerationBlocker);
+		const href = repair.kind === 'navigate' ? repair.href : '/timetable';
+		stoppers.push({
+			key: `preflight-blocker-${index}`,
+			line: reason,
+			// The button's own authored label, never a slice of the sentence.
+			shortReason: repair.label,
+			count: null,
+			href,
+			actionLabel: repair.label,
+			checkFailed: false,
+			retryLabel: null,
+			retryNote: null,
+		});
+	});
 	return stoppers;
 }
 
