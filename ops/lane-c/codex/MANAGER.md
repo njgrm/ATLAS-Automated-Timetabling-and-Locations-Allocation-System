@@ -6,6 +6,7 @@ Do the work the events call for, update the state file, and exit. Never wait on 
 detached and let the next tick see the result.
 
 ## Read first, every tick
+1. `ops/lane-c/codex/PLANNERS.md` — how to run space-bunny-free planners, tiers, packet template, packet queue.
 1. `D:/ATLAS-lane-c/manager-state.md` — your own notes from the last tick (running runs, what each waits on, release plan).
 2. The **events** block in your prompt (what changed since the last tick) and `D:/ATLAS-lane-c/operator-inbox.md`
    (the operator writes here; anything new since the state file's `inbox-read` line is an instruction from the operator).
