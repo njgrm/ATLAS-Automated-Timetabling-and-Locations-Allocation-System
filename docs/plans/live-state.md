@@ -7,7 +7,46 @@ changes.
 Last reconciled: 2026-09-26 (Lane A — fresh session; capacity, live-release identity, cross-lane debt and the
 credential incident re-derived. See the dated correction blocks in the Lane A section).
 
-## Lane A4 — release lane, 2026-09-30 05:14 +08 (train 12b UP AT STAGING at `a46505ce`; train 11 `bc94b10b` remains the live release)
+## Lane A4 — release lane, 2026-09-30 10:26 +08 (train 19 **LIVE at `3e6166e4`**; train 18 `9e2bfb24` is the rollback basis)
+
+- **TRAIN 19 IS LIVE at `3e6166e4`** — full record in the `## Live release` block. A2's move, swap and
+  "Remove from draft" **in one action, with receipts and Undo** on the timetable selected-class strip.
+  Listeners 5001 -> **14160** / 5174 -> **8936**; task Running; `cli.mjs` `running`; **ready in 45 s**.
+- **⚠⚠ THE FIRST CUTOVER ATTEMPT FAILED AND LIVE WAS DOWN ~7 MINUTES — MY ERROR, RECORDED NOT BURIED.**
+  Readiness missed the 180 s budget (183.1 s, nothing on 5001/5174). Cause: the supervisor log's
+  `Cannot find module …\atlas-server\dist\server.js`. **I never built the server** — I ran `tsc --noEmit`,
+  a type-check, and recorded it as the build. The target tree came from git, `dist` is gitignored, and
+  `atlas-server/dist` had **0 files**. Only the API was missing; the 5174 host served the whole time.
+  Remedy over rollback: the emitting `tsc` (the same compilation that had just type-checked clean) exit 0 in
+  59.92 s -> `dist` **1167 files, exactly the live tree's count** -> `schtasks /run` -> ready in 45 s.
+  Outage window: failed start 10:20:33, `giveUp` 10:21:43, serving 10:25:41. **What proves it will not
+  recur: `atlas-server\dist\server.js` now exists and the state file reads `running` with both owned PIDs.**
+- **DURABLE PROCESS FIX OWED, and it is mine:** A4's build phase must run the **emitting** server build and
+  **assert `atlas-server\dist\server.js` exists** before the dry run. A green `tsc --noEmit` is not a build
+  and was not accepted as one. This is the same class as the §11 "a green helper test is not a runtime row"
+  rule and it should be written into `docs/prompts/templates/a4-release.md`.
+- **Two of my own build-tool errors this train, recorded so neither is re-diagnosed as a broken pin:**
+  (1) the first `robocopy` passed the directory as robocopy's **third positional file filter**, so it
+  reported **exit 0 = "nothing copied"** and left an empty 4 432-dir skeleton - parity counts caught it
+  before any build; the corrected invocation reported exit 1 with exact file **and** byte parity
+  (12 797 / 17 242 / 8 068). (2) `npx prisma generate` pulled **Prisma 8.0.0-rc.19** off the network, which
+  has no `generate` command; the repo pins `^6.19.2`, so generate must go through
+  `atlas-server/node_modules/.bin/prisma.cmd`.
+- **Pre-action review (fresh, read-only, all HIGH pre-gates in one pass): `CLEAR_TO_CUTOVER` 25/25/0/0** -
+  source tier MEDIUM. Post-action QA is a separate dispatch and is recorded in the `## Live release` entry.
+- **NOT IN TRAIN (correct, §14):** `origin/main` moved to `8350b2dd` then my own docs commit `17947ca7`;
+  **A8's 5 commits above the pin include `87720dc0`/`d0155dc5`, which rewrite the SAME two hooks this
+  train touches** (`useScheduleReviewWorkspaceState.ts`, `useTimetableMutations.ts`). A8 must re-verify on
+  top of `3e6166e4`; a pinned release is never reopened because `main` moved.
+- **Worktrees:** `…-19prod` = `KEEP_ACTIVE` (live runtime source dir) · `…-18prod` = `KEEP_ACTIVE` (rollback
+  basis) · `lane-a4-train-20260930-19docs` = `RETIRE_AFTER_INTEGRATION` · E: 26.24 GiB free before the
+  cutover, above the 25 GiB warning, so **no reclaim was due**. `D:\ATLAS` never written.
+- **Next action (single):** Lane C runs the rendered live check at 1366x768 on
+  `https://njgrm.buru-degree.ts.net` - the timetable strip, its **one-action move and swap with the
+  receipt sentence and Undo visible**, and Remove from draft - and posts GO/NO_GO in
+  `docs/handoffs/lane-c-to-a2.md`.
+
+### SUPERSEDED (the train-12b staging record, 2026-09-30 05:14 +08 — that was STAGING, never live; live is now train 19 `3e6166e4`; also in git history)
 
 - **STAGING IS UP at `a46505cee3ab9f4d8d24bd87dabdf7a1d280964d` (train 12b — a re-pin).** Loopback
   `http://127.0.0.1:5274`, API 5101. Release dir `E:\ATLAS-staging\a46505cee3ab9f4d8d24bd87dabdf7a1d280964d`,
@@ -585,13 +624,40 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
-- **- LIVE CUTOVER IN FLIGHT - target release `3e6166e4aa23529732de4ed9b15e71dd7a592216` (train 19,
-  pinned by the operator 2026-09-30, **DIRECT TO LIVE** under operator decision 12), rollback basis
-  `9e2bfb240df2a5c26e01e2ab7dad97ecfae5b966` (train 18) @
-  `E:\ATLAS-worktrees\lane-a4-release-20260930-18prod`, `KEEP_ACTIVE`. One-step supervised reset;
-  in-run failures self-rollback (`deploy-runner.ps1:300-306`).** Recorded ahead of the mutation because
-  `Assert-LiveReleaseRecorded` (`deploy-runner.ps1:198-217`) fails closed until the target prefix is in this
-  section at `-LiveStateRef`; no `schtasks`/env/port write has happened yet. Target dir
+- **- LIVE: `3e6166e4aa23529732de4ed9b15e71dd7a592216` @ DEPLOYED TO PRODUCTION 2026-09-30 10:24 +08 by
+  Lane A4 under operator decision 12 (**direct to live**), session "A4 train 19 direct". Train 19.
+  Rollback basis `9e2bfb240df2a5c26e01e2ab7dad97ecfae5b966` @ `E:\ATLAS-worktrees\lane-a4-release-20260930-18prod`
+  (train 18), `KEEP_ACTIVE`; one-step supervised reset.** Listeners **5001 -> pid 14160**,
+  **5174 -> pid 8936** (were 32100/19628); machine scope, task action and Start In repointed to `…-19prod`;
+  task **Running**; `cli.mjs` state `running`, `releaseSha 3e6166e4`. **Ready in 45 s of the 180 s budget**
+  (`schtasks /run` -> health/ready 200 `database: ok`, `GET /api/v1/subjects?schoolId=1` 200 / 20 336 B).
+  Audit `C:\ProgramData\ATLAS\release-audit\3e6166e4-20260930-102007\`. Dry run first: `mutates false`,
+  `secretsPrinted false`, incumbent pids 32100/19628, supervisor 30840.
+  **⚠⚠ THE FIRST CUTOVER ATTEMPT FAILED AND LIVE WAS DOWN ~7 MINUTES. It was my error, not the pin's, and
+  it is recorded here rather than buried.** The runner returned `CUTOVER_STARTED` and exited 0, but the
+  **readiness row MISSED its 180 s budget (183.1 s, no listener on 5001 or 5174 at any poll)**. Cause, from
+  the supervisor log: `Error: Cannot find module 'E:\ATLAS-worktrees\lane-a4-release-20260930-19prod\atlas-server\dist\server.js'`,
+  `failureReason: server exited during startup`, `giveUpReason: exceeded maxRestarts=5`. **Root cause: I
+  never built the server.** I ran `tsc --noEmit` (a type-check, which emits nothing) and recorded it as the
+  server build; `atlas-server/package.json`'s `build` script is `tsc`, and the target tree's
+  `atlas-server/dist` had **0 files** because `dist` is gitignored and the new tree was created from git.
+  The 5174 host came up correctly the whole time (it had a real `dist`), so **only the API was missing**.
+  **Remedy chosen over rollback, deliberately:** the emitting build is the same compilation that had just
+  type-checked clean, it is ~60 s, and machine scope + task XML already pointed at `…-19prod`, so building
+  and re-running the task *completes* the cutover rather than retrying a decision; a rollback would have
+  cost a second machine-scope change and a second restart to restore an older release. `tsc` exit 0 in
+  59.92 s, `dist` **1167 files - exactly the live tree's count** - then `schtasks /run` and **ready at 45 s**.
+  **Outage window measured:** first failed task start 10:20:33, `giveUp` 10:21:43, serving restored ~10:25:41
+  (`supervisor-state.json` `startedAt`/`updatedAt`). **What proves it is not recurring:** `server.js` now
+  exists in the target and the state file reads `running` with both owned PIDs. **The process defect is
+  real and owed an owner: A4's build phase must run the EMITTING server build and assert
+  `atlas-server\dist\server.js` exists before the dry run, not a `--noEmit` type-check. Recorded in the
+  Lane A4 section below.**
+  **Shipped-vs-claimed check (this train's single claim, §14):** PASS - the served chunk
+  `assets/ScheduleReviewWorkspace-C9UTtQ1R.js` is 200, 500 933 B, **sha256 `b80916a1…4ef9` byte-identical to
+  the built asset**, and carries the new A2 operator string `ATLAS could not check this swap in time`;
+  train 18's `ScheduleReviewWorkspace-BEI4Gmo9.js` now **404s** (negative control). Tailnet `/api/v1/health`
+  200 and `/__host/ready` 200 naming the `…-19prod` artifact. Target dir
   `E:\ATLAS-worktrees\lane-a4-release-20260930-19prod`, branch `release/2026-09-30-19`, HEAD == pin, clean.
   **Content: A2's move, swap and "Remove from draft" in one action, with receipts and Undo** (timetable
   selected-class strip). Range `9e2bfb24..3e6166e4` = **17 commits, 18 changed paths**; `atlas-server`, `ops`
@@ -603,10 +669,13 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   `prisma` 6.19.2 with its `.cmd` shims present. **Data portability:** the live tree's
   `atlas-server/uploads` (8 files / 3 309 860 B campus images) copied into the target so
   `schools.campus_image_url` keeps serving; the shared `.git/info/exclude:26` already covers the path, so
-  `status --short` stayed empty. **Builds: PASS** - `prisma generate` exit 0 (48.17 s, local pinned binary,
-  repo-root schema) · server `tsc --noEmit` exit 0 (49.12 s) · client `vite build` exit 0 (30.08 s) with
+  `status --short` stayed empty.   **Builds, re-stated truthfully after the failure above:** `prisma generate` exit 0 (48.17 s, local pinned
+  binary, repo-root schema) · client `vite build` exit 0 (30.08 s) with
   `VITE_ENROLLPRO_URL` set **by name** from `ENROLLPRO_PROXY_ORIGIN` (fail-closed vite guard satisfied; the
-  value was never printed). **Discriminator chosen and proven non-vacuous BEFORE the cutover:** chunk
+  value was never printed) · **server emitting build `tsc` exit 0 (59.92 s) -> `atlas-server/dist` 1167
+  files, `server.js` present - run AFTER the first failed attempt; a `tsc --noEmit` type-check had passed at
+  49.12 s before the cutover and was NOT a build.** **Discriminator chosen and proven non-vacuous BEFORE
+  the cutover:** chunk
   **`assets/ScheduleReviewWorkspace-C9UTtQ1R.js`** (500 933 B, sha256 `b80916a1…4ef9`) carries the new
   operator string `ATLAS could not check this swap in time` **1x** and **0x in every `.js` of the live
   dist**; the anchor `Now choose the class to swap times with` proves it is the real route chunk (live
