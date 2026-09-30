@@ -63,6 +63,9 @@ TIER: T1|T2|T3   OWNER: Timetable|Setup|Reports   BASE: <sha>   WORKTREE: E:\ATL
 ACCEPTANCE (operator's words, verbatim; do not restate): "..."
 CONTEXT: <files, decisions N from docs/plans/operator-decisions.md, known causes with evidence>
 OWNED FILES: <list>. Editing any other file = stop and report NEEDS_DECISION.
+TESTS PIN BEHAVIOUR, NOT WORDING: assert roles, data-testid, counts and state; import user-facing sentences from the
+  page's strings module (e.g. `SimpleChangeNotice` exports `changeNoticeSentence`) instead of repeating literals.
+  A wording change must be a one-file edit (30 Sep: 3 header tests pinned old copy and blocked train 22).
 FORBIDDEN: reading .env/runtime-config files, deploy, publish, generation or writes on live, other lanes' files,
   fixing the 5 known client tsc errors.
 DONE MEANS: failing test first -> fix -> focused tests + full client/server suite + tsc -> 1366x768 screenshot of the

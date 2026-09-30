@@ -15,6 +15,12 @@ detached and let the next tick see the result.
 
 Check the clock with `date` before writing any time.
 
+## Ticks never edit tracked files
+A tick writes only under `D:/ATLAS-lane-c/` (state, outbox, packet drafts) and launches pre-approved packets into
+their own worktrees. It never edits, commits or reverts tracked files in `D:\ATLAS` or any worktree; anything that
+needs a repo change becomes a packet or an integrator action outside the tick. Only the integrator pushes `main`, with
+`ATLAS_INTEGRATOR=1` (pre-push hook, `ops/lane-c/git-hooks/pre-push`).
+
 ## What you may do without asking
 - Launch, queue and resume OpenCode planners: `powershell -File ops/lane-c/launch.ps1 ...` (one fix per cycle, fresh
   session per packet, at most 3 feature planners on non-overlapping pages, plus A4 for releases).

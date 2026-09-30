@@ -60,6 +60,9 @@ Browser UX/UI evidence must assert `window.location.origin` and use production
 Tailnet staging URL in `docs/runbooks/staging.md`). Other localhost evidence is
 valid only when the packet says `ISOLATED_LOCAL_BROWSER`. For VISUAL work prove the
 visible result with a rendered test; source-text assertions are not evidence.
+Tests pin behaviour, not wording: assert roles, `data-testid`, counts and state, and import user-facing
+sentences from the component's strings instead of repeating them, so a copy change is a one-file edit.
+Push only your `work/*` branch; never push `main` (a pre-push hook refuses it; the manager merges).
 
 Commit one bounded additive candidate on the assigned branch. Do not amend,
 rebase, merge, push, edit the living register, self-approve, or plan successors.
