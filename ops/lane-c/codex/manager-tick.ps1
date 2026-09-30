@@ -1,24 +1,36 @@
 # Lane C manager loop: every -Minutes, compute an event digest; when it changed (or every -HeartbeatMinutes), run one
-# stateless Codex manager tick on the MANAGER account (its own CODEX_HOME). Run in a visible terminal; Ctrl+C stops it.
+# stateless Codex manager tick on the MANAGER account (its own CODEX_HOME). It must run from a clean registered worktree.
 param(
   [string]$ManagerHome = 'D:\codex-homes\manager',
+  [string]$Repo = 'D:\ATLAS',
   [int]$Minutes = 5,
   [int]$HeartbeatMinutes = 60,
   [string]$Model = 'gpt-5.6-terra',
   [string]$Effort = 'medium'
 )
 $ErrorActionPreference = 'Continue'
-$repo = 'D:\ATLAS'; $H = if ($env:LANE_C_HOME) { $env:LANE_C_HOME } else { 'D:\ATLAS-lane-c' }
+$repo = (Resolve-Path -LiteralPath $Repo -ErrorAction Stop).Path
+git -C $repo rev-parse --is-inside-work-tree | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "TICK_REPO_NOT_GIT:$repo" }
+$H = if ($env:LANE_C_HOME) { $env:LANE_C_HOME } else { 'D:\ATLAS-lane-c' }
+function Assert-CleanTickRepo {
+  if (@(git -C $repo status --short).Count) {
+    & (Join-Path $repo 'ops/lane-c/codex/notify.ps1') -Text "Lane C manager stopped: manager worktree is dirty."
+    throw "TICK_REPO_DIRTY:$repo"
+  }
+}
+Assert-CleanTickRepo
 $ticks = Join-Path $H 'manager-ticks'; New-Item -ItemType Directory -Force $ticks | Out-Null
 foreach ($f in 'manager-state.md', 'operator-inbox.md', 'manager-outbox.md') {
   $p = Join-Path $H $f; if (-not (Test-Path $p)) { New-Item -ItemType File $p | Out-Null }
 }
 $bash = 'C:\Program Files\Git\bin\bash.exe'
+$env:LANE_C_TICK_REPO = $repo
 $lastDigest = ''; $lastTick = [datetime]::MinValue
 
 while ($true) {
   git -C $repo fetch -q origin 2>$null
-  $status = & $bash -lc 'bash /d/ATLAS/ops/lane-c/status.sh' 2>&1 | Out-String
+  $status = & $bash -lc 'bash "$(cygpath -u "$LANE_C_TICK_REPO")/ops/lane-c/status.sh"' 2>&1 | Out-String
   # Digest ignores idle-minute counters so a tick fires on real change only.
   $runs = ($status -split "`n" | Where-Object { $_ -match '^\S+\s+(RUNNING|EXITED|DIED-EMPTY)' } |
            ForEach-Object { ($_ -split '\s+')[0..1] -join ' ' }) -join ';'
@@ -32,6 +44,7 @@ while ($true) {
 
   $due = ((Get-Date) - $lastTick).TotalMinutes -ge $HeartbeatMinutes
   if ($digest -ne $lastDigest -or $due) {
+    Assert-CleanTickRepo
     $stamp = Get-Date -Format 'yyyyMMdd-HHmm'
     $why = if ($digest -ne $lastDigest) { 'change' } else { 'heartbeat' }
     $prompt = @"

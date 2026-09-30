@@ -75,6 +75,7 @@ Two Codex accounts, each with its own `CODEX_HOME`, can run at the same time:
 | Executors (planners) | OpenCode space-bunny-free; A4 only under its release gate | the manager, via `launch.ps1` in a pinned worktree |
 
 One-time setup (operator): `$env:CODEX_HOME='D:\codex-homes\manager'; codex login` (second account), then open a
-terminal and run `powershell -File ops/lane-c/codex/manager-tick.ps1`. The role card is `ops/lane-c/codex/MANAGER.md`.
+terminal and run `powershell -File ops/lane-c/codex/manager-tick.ps1 -Repo E:\ATLAS-worktrees\<clean-integration-worktree>`.
+The tick refuses a dirty repository; this avoids making the manager read a stale or shared root. The role card is `ops/lane-c/codex/MANAGER.md`.
 Talk to the manager by writing in `D:/ATLAS-lane-c/operator-inbox.md` (e.g. `ship`, `using live until 15:00`, a new
 issue); it answers in `manager-outbox.md` and with a Windows toast. Tick logs: `D:/ATLAS-lane-c/manager-ticks/`.
