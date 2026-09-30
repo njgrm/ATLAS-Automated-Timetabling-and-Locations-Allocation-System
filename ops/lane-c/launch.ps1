@@ -30,6 +30,15 @@ if ($Session) { $attach += "--session $Session " }
 # The manager pins the worktree base before launch; never pull a shared root here.
 $resolvedDir = (Resolve-Path -LiteralPath $Dir -ErrorAction Stop).Path
 if ($resolvedDir -notlike 'E:\ATLAS-worktrees\*') { throw "REFUSING_UNPINNED_WORKTREE:$resolvedDir" }
+$normalizedDir = $resolvedDir.Replace('\\','/').TrimEnd('/').ToLowerInvariant()
+$registered = @(git -C D:\ATLAS worktree list --porcelain | Where-Object { $_ -like 'worktree *' } |
+  ForEach-Object { $_.Substring(9).Replace('\\','/').TrimEnd('/').ToLowerInvariant() })
+if ($registered -notcontains $normalizedDir) { throw "REFUSING_UNREGISTERED_WORKTREE:$resolvedDir" }
+if (-not $Session) {
+  $head = (git -C $resolvedDir rev-parse HEAD).Trim()
+  $main = (git -C D:\ATLAS rev-parse origin/main).Trim()
+  if ($head -ne $main) { throw "REFUSING_STALE_WORKTREE_BASE:$head expected=$main" }
+}
 $cmd = "cmd.exe /c set OPENCODE_SERVER_PASSWORD=&& cd /d `"$resolvedDir`" && echo dir $resolvedDir > `"$log`" & `"$oc`" run $attach--dir `"$resolvedDir`" --agent $Agent `"$Prompt`" < NUL >> `"$log`" 2>&1"
 $si = New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ ShowWindow = [uint16]0 }  # hidden: an operator closing a stray console window killed a2-c12r
 $r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $cmd; CurrentDirectory = 'D:\ATLAS'; ProcessStartupInformation = $si }

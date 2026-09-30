@@ -14,6 +14,8 @@ if (Test-Path $wt) { throw "$wt exists" }
 git -C D:\ATLAS fetch -q origin
 if (-not $Base) { $Base = (git -C D:\ATLAS rev-parse origin/main).Trim() }
 git -C D:\ATLAS cat-file -e "$Base^{commit}"
+git -C D:\ATLAS merge-base --is-ancestor $Base origin/main
+if ($LASTEXITCODE -ne 0) { throw "BASE_NOT_ON_ORIGIN_MAIN:$Base" }
 git -C D:\ATLAS worktree add -q -b "work/$Name" $wt $Base
 foreach ($d in 'node_modules', 'atlas-client\node_modules', 'atlas-server\node_modules') {
   $donor = "D:\ATLAS\$d"
