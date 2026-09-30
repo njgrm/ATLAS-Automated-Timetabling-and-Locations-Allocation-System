@@ -110,7 +110,10 @@ app.get('/api/v1/health', (_req, res) => {
 // operational activity. It returns timestamps and a boolean only.
 app.get('/api/v1/health/activity', (req, res) => {
 	const address = req.socket.remoteAddress ?? '';
-	const host = String(req.headers.host ?? '').replace(/^\[|\](:\d+)?$/g, '').split(':')[0];
+	const rawHost = String(req.headers.host ?? '');
+	const host = rawHost.startsWith('[')
+		? rawHost.slice(1, rawHost.indexOf(']'))
+		: rawHost.split(':')[0];
 	const loopback = (address === '::1' || address === '::ffff:127.0.0.1' || address.startsWith('127.'))
 		&& (host === '127.0.0.1' || host === 'localhost' || host === '::1');
 	if (!loopback) {

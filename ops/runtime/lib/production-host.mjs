@@ -32,7 +32,10 @@ const DEV_ARTIFACT_MARKERS = ['/@vite/client', '/@react-refresh', 'src/main.tsx'
 
 function isLoopbackRequest(req) {
 	const address = req.socket?.remoteAddress ?? '';
-	const host = String(req.headers.host ?? '').replace(/^\[|\](:\d+)?$/g, '').split(':')[0];
+	const rawHost = String(req.headers.host ?? '');
+	const host = rawHost.startsWith('[')
+		? rawHost.slice(1, rawHost.indexOf(']'))
+		: rawHost.split(':')[0];
 	return (address === '::1' || address === '::ffff:127.0.0.1' || address.startsWith('127.'))
 		&& (host === '127.0.0.1' || host === 'localhost' || host === '::1');
 }
