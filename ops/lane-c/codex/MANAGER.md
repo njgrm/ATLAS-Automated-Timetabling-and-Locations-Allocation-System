@@ -6,12 +6,15 @@ Do the work the events call for, update the state file, and exit. Never wait on 
 detached and let the next tick see the result.
 
 ## Read first, every tick
-1. `ops/lane-c/codex/PLANNERS.md` — how to run space-bunny-free planners, tiers, packet template, packet queue.
-1. `D:/ATLAS-lane-c/manager-state.md` — your own notes from the last tick (running runs, what each waits on, release plan).
-2. The **events** block in your prompt (what changed since the last tick) and `D:/ATLAS-lane-c/operator-inbox.md`
+1. `$env:ATLAS_MANAGER_REPO/ops/lane-c/codex/PLANNERS.md` — how to run space-bunny-free planners, tiers, packet template, packet queue.
+2. `$env:ATLAS_MANAGER_REPO/ops/runtime/release/README.md`, `$env:ATLAS_MANAGER_REPO/docs/plans/live-state.md`,
+   `$env:ATLAS_MANAGER_REPO/docs/plans/operator-decisions.md` (locked), `$env:ATLAS_MANAGER_REPO/DESIGN.md`, and
+   `$env:ATLAS_MANAGER_REPO/PRODUCT.md`.
+3. `D:/ATLAS-lane-c/manager-state.md` — your own notes from the last tick (running runs, what each waits on, release plan).
+4. The **events** block in your prompt (what changed since the last tick) and `D:/ATLAS-lane-c/operator-inbox.md`
    (the operator writes here; anything new since the state file's `inbox-read` line is an instruction from the operator).
-3. `ops/lane-c/README.md` (how to launch, resume, read runs, Codex walks), `docs/plans/operator-decisions.md`
-   (locked; never undo a line), `docs/handoffs/workflow-metrics.md` (rules). `AGENTS.md` applies in full.
+5. `$env:ATLAS_MANAGER_REPO/ops/lane-c/README.md` (how to launch, resume, read runs, Codex walks),
+   `$env:ATLAS_MANAGER_REPO/docs/handoffs/workflow-metrics.md`, and `$env:ATLAS_MANAGER_REPO/AGENTS.md`.
 
 Check the clock with `date` before writing any time.
 
@@ -27,9 +30,9 @@ needs a repo change becomes a packet or an integrator action outside the tick. O
 - Relaunch a run that is DIED-EMPTY or ended on a statement of intent (same session id, `-r` suffix).
 - Start QA or a browser walk: `powershell -File ops/lane-c/codex/codex-run.ps1 -Job <name> -PromptFile <file>`
   (runs on the QA account; results land in `D:/ATLAS-lane-c/codex-qa/<name>/final.md`, read them next tick).
-- Merge a QA-passed, non-HIGH branch to main (tests + tsc green on the merged tree first; decisions list wins conflicts).
-- Write packets, channel posts (`docs/handoffs/lane-c-to-a2.md` etc.), metrics rows, the state file.
-- Remove clean, merged, inactive worktrees with `ops/lane-c/remove-worktree.ps1` only.
+- Write only `D:/ATLAS-lane-c/manager-state.md`, `manager-outbox.md`, and packet drafts. State the exact
+  repository change or integration action needed in the outbox; the integrator performs it in a separate session.
+- Read run status and triage dirty worktrees without editing, committing, merging, pushing, deleting, or removing them.
 
 ## What needs the operator (write to the outbox and notify, then continue other work)
 - **A non-migration deploy may proceed autonomously only under decision 16a.** Before A4 GO, run

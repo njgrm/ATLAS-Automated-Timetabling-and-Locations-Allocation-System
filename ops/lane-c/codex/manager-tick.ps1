@@ -19,6 +19,15 @@ function Assert-CleanTickRepo {
     throw "TICK_REPO_DIRTY:$repo"
   }
 }
+function Assert-TickRepoUnchanged {
+  param([string]$Head)
+  $currentHead = (git -C $repo rev-parse HEAD).Trim()
+  $changed = @(git -C $repo status --short)
+  if ($currentHead -ne $Head -or $changed.Count) {
+    & (Join-Path $repo 'ops/lane-c/codex/notify.ps1') -Text "Lane C manager stopped: a tick changed its repository worktree."
+    throw "TICK_REPO_CHANGED:$repo"
+  }
+}
 Assert-CleanTickRepo
 $ticks = Join-Path $H 'manager-ticks'; New-Item -ItemType Directory -Force $ticks | Out-Null
 foreach ($f in 'manager-state.md', 'operator-inbox.md', 'manager-outbox.md') {
@@ -51,15 +60,21 @@ while ($true) {
     Assert-CleanTickRepo
     $stamp = Get-Date -Format 'yyyyMMdd-HHmm'
     $why = if ($digest -ne $lastDigest) { 'change' } else { 'heartbeat' }
+    $tickHead = (git -C $repo rev-parse HEAD).Trim()
     $prompt = @"
-Read ops/lane-c/codex/MANAGER.md and follow it. Tick reason: $why at $(Get-Date -Format 'yyyy-MM-dd HH:mm').
+The repository is read-only at $repo. Read $repo/ops/lane-c/codex/MANAGER.md and follow it. A tick may write ONLY
+under $H; it must not edit, commit, merge, push, revert, remove, or create files in the repository or any worktree.
+Tick reason: $why at $(Get-Date -Format 'yyyy-MM-dd HH:mm').
 Events (status.sh output):
 $status
 "@
     $env:CODEX_HOME = $ManagerHome
-    $prompt | codex exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check -C $repo -m $Model `
+    $env:ATLAS_MANAGER_REPO = $repo
+    $prompt | codex exec --sandbox workspace-write --skip-git-repo-check -C $H -m $Model `
       -c "model_reasoning_effort=$Effort" -o (Join-Path $ticks "$stamp.md") - *> (Join-Path $ticks "$stamp.log")
     Remove-Item Env:CODEX_HOME
+    Remove-Item Env:ATLAS_MANAGER_REPO
+    Assert-TickRepoUnchanged -Head $tickHead
     Write-Host "$(Get-Date -Format HH:mm) tick ($why): $(Get-Content (Join-Path $ticks "$stamp.md") -Tail 1 -EA SilentlyContinue)"
     $lastTick = Get-Date
     $lastDigest = $digest  # recompute next loop; changes made by the tick itself trigger at most one follow-up tick
