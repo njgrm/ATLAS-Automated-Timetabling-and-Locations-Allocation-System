@@ -212,16 +212,16 @@ export function ClassProgramMatrixView({
 																				entry.entryKind === 'COHORT' ? 'ring-1 ring-sky-200' : '',
 																			)}
 																			>
-																				<div className="min-w-0 flex-1">
+																				<div className="min-w-0 flex-1 whitespace-normal">
 																					<div className="flex items-center justify-between gap-2">
-																						<span className="truncate font-semibold text-foreground">{subjectLabel(entry.subjectId)}</span>
+																						<span className="min-w-0 break-words font-semibold text-foreground">{subjectLabel(entry.subjectId)}</span>
 																						<span className="shrink-0 text-xs text-muted-foreground">{formatTime(entry.startTime)}-{formatTime(entry.endTime)}</span>
 																					</div>
-																					<div className="mt-0.5 truncate text-xs text-muted-foreground">
+																					<div className="mt-0.5 break-words text-xs text-muted-foreground">
 																						{roomLabelShort(entry.roomId)}
 																						{entry.facultyId != null ? ` · ${formatFacultyInitials(entry.facultyId)}` : ''}
 																					</div>
-																					<div className="mt-0.5 truncate text-xs text-muted-foreground/80">{entryContextLabel(entry)}</div>
+																					<div className="mt-0.5 break-words text-xs text-muted-foreground/80">{entryContextLabel(entry)}</div>
 																				</div>
 																			</Button>
 																		);

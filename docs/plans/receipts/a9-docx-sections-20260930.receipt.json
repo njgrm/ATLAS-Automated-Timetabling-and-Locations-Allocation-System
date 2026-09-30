@@ -1,0 +1,50 @@
+{
+  "cycle": "a9-docx-sections",
+  "lane": "A9",
+  "date": "2026-09-30",
+  "operatorSource": "section.docx (repo root, untracked) + dispatch order X6, X3, X5, X1, X2, X4",
+  "base": "69b404fff7ec37173d34fab6305cfb44f3368a53",
+  "candidate": "ae148e420827a969e14ceeaf2551e2d09aa2b447",
+  "integration": {
+    "mergeShas": ["38eb2747", "8b894afe", "7b91074f"],
+    "pushedTo": "origin/main",
+    "pushRange": "bfc0dc99..7b91074f",
+    "conflicts": "none (auto-union; the only shared path was atlas-client/package.json, script-key union verified both directions)"
+  },
+  "items": [
+    { "id": "X6", "what": "program badges BEC/STE/SPA/SPS solid dark with white text, one shared definition on the row and the mobile card", "commits": ["9a3fd2ce", "1ee275d9"], "final": "1ee275d9" },
+    { "id": "X3", "what": "room text never cut off: dialog select full text; table home-room column wraps and the table fits its panel", "commits": ["e545a48d", "d202522e", "2e4ceb99"], "final": "2e4ceb99" },
+    { "id": "X5", "what": "school-wide Browse room map control, state and orphaned modal mount removed", "commits": ["f09a6142"], "final": "f09a6142" },
+    { "id": "X1", "what": "section details is a centred ~42rem dialog, resizable by dragging", "commits": ["e062aea1", "b8f53d89"], "final": "b8f53d89" },
+    { "id": "X2", "what": "unassigned classes: one row per rotating family with per-term members inline, no raw codes on screen", "commits": ["47d7b9f0", "df0775fe", "e003932f"], "final": "e003932f" },
+    { "id": "X4", "what": "Apply rooms saves at once, plain receipt on both pages, Undo restores the previous rooms, one click = one PUT", "commits": ["51c2f2c3", "1d852e7d"], "final": "1d852e7d" }
+  ],
+  "corrections": [
+    { "round": "R1", "why": "planner review: 4 of 6 items were narrower than the operator's words (X6 mobile card, X3 table column, X1 resizable, X2 structure + raw codes)" },
+    { "round": "R2", "why": "planner real-browser measurement at c886a410: the 330px column overflowed the scroll panel by 54px at 1366x768 and 140px at 1280x720, putting the row actions outside the visible panel (the A9 C7 defect), and the R1 handoff claim of a fitting table was false" }
+  ],
+  "qa": [
+    { "range": "69b404ff...c886a410", "verdict": "PLANNER_DECISION_REQUIRED", "tally": "mandatory 12 / passed 11 / blocked 0 / unperformed 1", "note": "the unperformed row was X3's rendered half, decided by the planner's browser row" },
+    { "range": "c886a410...ae148e42", "verdict": "ACCEPT_READY", "tally": "mandatory 10 / passed 10 / blocked 0 / unperformed 0" }
+  ],
+  "plannerBrowserRow": {
+    "origin": "loopback 127.0.0.1:5233 (staging API, ISOLATED_LOCAL_BROWSER) - not Tailnet acceptance",
+    "at": "ae148e42",
+    "1366x768": { "panel": "1070/1070", "overflow": 0, "detailsVisible": true, "homeHeaderW": 200, "homeCellW": 200, "statusLine": "G7 Room 405 \u00b7 Grade 7 Academic Wing (full)", "placeholder": "Choose home room (full)", "triggerClamped": true, "globalScrollbar": false },
+    "1280x720": { "panel": "984/984", "overflow": 0, "detailsVisible": true, "homeColumn": 190, "statusLineClamped": true, "triggerClamped": true, "globalScrollbar": false }
+  },
+  "gates": {
+    "tsc": "5 errors, all pre-existing base reds, none in touched files",
+    "build": "exit 0 (merged tree, VITE_ENROLLPRO_URL guard)",
+    "suites": "a9-c1 7/7, a9-c4 3/3, a9-c5 11/11 + render 1/1, a9-c6 6/6, a9-c3-sections-rooms 17/17, a3-sections-map 42/42, a3-c4-sections 27/27, ux-guardrails 31/31"
+  },
+  "residuals": [
+    "NON_BLOCKING: at 1280x720 the home-room column renders 190px and both the picker trigger and the row status line clamp; at 1366x768 the status line is full but the trigger still clamps its last word. Root cause: the room+building string needs more width than the 200px cap allows while the table must stay inside its panel; needs a column space-allocation decision (drop the building from the table trigger, allow a third line, or free width from another column).",
+    "NON_BLOCKING: SectionDetailsSheet's program chip is still a pale white chip showing the program name (not a BEC/STE/SPA/SPS code badge); recorded for Lane C's walk."
+  ],
+  "notDone": [
+    "No deployment, cutover, migration, generation, publication or live-data write was performed by this cycle; A4 owns the train (decision 12).",
+    "Tailnet-origin rendered acceptance was not run by this cycle; the post hands it to Lane C."
+  ],
+  "disposition": "candidate and integration worktrees retired junction-safe (cmd /c rmdir before git worktree remove); branches kept."
+}

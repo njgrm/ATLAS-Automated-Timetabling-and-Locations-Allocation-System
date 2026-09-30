@@ -40,6 +40,7 @@ export function SortableSectionHeader({
 	field,
 	label,
 	align = 'left',
+	className,
 	sortField,
 	sortDir,
 	onToggleSort,
@@ -47,6 +48,14 @@ export function SortableSectionHeader({
 	field: SortField;
 	label: string;
 	align?: 'left' | 'right';
+	/**
+	 * A9 c2 R2 (2026-09-30): an optional column width, so the Sections table can
+	 * pin the Section column's slack without a page-local `<th>`. The Home room
+	 * column is capped at the A9 C7 200px, so the committed widths must still sum
+	 * to no more than the 984px panel at 1280x720; pinning Section to 300 makes
+	 * that arithmetic 979 and cannot drift into an overflow.
+	 */
+	className?: string;
 	sortField: SortField;
 	sortDir: SortDir;
 	onToggleSort: (field: SortField) => void;
@@ -56,7 +65,7 @@ export function SortableSectionHeader({
 	const ariaLabel = `Sort by ${label}, currently ${direction}`;
 	return (
 		<th
-			className={cn('px-4 py-3 text-left', align === 'right' && 'text-right')}
+			className={cn('px-4 py-3 text-left', align === 'right' && 'text-right', className)}
 			aria-sort={direction as 'ascending' | 'descending' | 'none'}
 		>
 			<TooltipProvider delayDuration={200}>

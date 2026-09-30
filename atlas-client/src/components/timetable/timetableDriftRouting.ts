@@ -5,6 +5,9 @@ import {
 	runFreshnessUnverifiedSentence,
 	type RunFreshnessVerdict,
 } from '@/lib/schedule-lifecycle';
+// One vocabulary (operator decision 2): the publish-stale next step is the same
+// verb the header and the dialog use, so the sentence cannot invent a local one.
+import { BUILD_NEW_DRAFT_LABEL } from '@/lib/timetable-plain-language';
 
 /**
  * TT-DYNAMIC-WORKSPACE-C04 (R6, findings A-11/B-06/B-14) — one shared mapping
@@ -168,4 +171,39 @@ export function describeRunInputDrift(
 		driftClaim: runDriftClaimSentence(freshness),
 		freshnessNote: runFreshnessUnverifiedSentence(freshness),
 	};
+}
+
+/* ── A8 — a stale publish must NAME the changed inputs and offer ONE next step ──
+ *
+ * The server's `409 PUBLICATION_INPUTS_STALE` carries `details.changedDomains`,
+ * and the client used to discard it and print the server's generic sentence
+ * ("The selected run no longer matches current authoritative inputs."). The
+ * operator cannot act on that: it names no input and no next step.
+ */
+
+/**
+ * Plain-language names for a comparison's changed inputs, in the order the server
+ * reported them, using the SAME labels the drift banner shows (one vocabulary).
+ * A domain with no label contributes nothing — never an invented noun — and a
+ * set that names nothing returns `null` so the caller can fall back to setup data.
+ */
+export function formatChangedInputNames(domains: readonly string[] | null | undefined): string | null {
+	const labels = (domains ?? [])
+		.filter((domain): domain is GenerationInputDomain => domain in DOMAIN_META)
+		.map((domain) => DOMAIN_META[domain].label);
+	if (labels.length === 0) return null;
+	if (labels.length === 1) return labels[0];
+	return `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
+}
+
+/**
+ * The one operator-facing sentence for `PUBLICATION_INPUTS_STALE`. It names the
+ * inputs that changed since the draft was built and offers the single next step
+ * in the locked Generate → Draft vocabulary. A new generation rebuilds the draft
+ * from current inputs, so manual work on THIS draft does not carry over and the
+ * sentence says so instead of implying it survives.
+ */
+export function publicationStalePublishMessage(changedDomains: readonly string[] | null | undefined): string {
+	const subject = formatChangedInputNames(changedDomains) ?? 'Setup data';
+	return `Publish blocked: ${subject} changed after this draft was built. ${BUILD_NEW_DRAFT_LABEL} to continue — any manual changes on this draft will be rebuilt.`;
 }

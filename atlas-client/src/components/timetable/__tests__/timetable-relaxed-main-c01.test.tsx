@@ -485,7 +485,7 @@ test('A4 RENDERED: an unproven comparison promises no change in BOTH layouts; a 
 		assert.match(proven, /timetable-simple-input-drift/, `${layoutName}: a proven change is on screen`);
 		assert.match(proven, /data-drift-status="STALE"/, `${layoutName}: the row reports the reconciled status it was given`);
 		assert.match(proven, /data-drift-claimable="true"/, `${layoutName}: a comparison ATLAS can tie to this run MAY claim a change`);
-		assert.equal(driftSentenceOf(proven), 'Rooms changed since this schedule was made.',
+		assert.equal(driftSentenceOf(proven), 'Rooms changed.',
 			`${layoutName}: a proven change NAMES the changed area — the server's own changedDomains, not an invented noun`);
 		assert.match(proven, /timetable-simple-regenerate-to-apply/, `${layoutName}: a proven change offers the one primary "Update schedule"`);
 		assert.equal((proven.match(/timetable-simple-regenerate-to-apply/g) ?? []).length, 1,

@@ -32,13 +32,25 @@
  * the generic sentence is used, because a specific claim is not available.
  */
 
+/**
+ * A7 c13 — LAYOUT NOTE (who reads this, what the clipped string means).
+ *
+ * The reader is an older, mouse-first scheduler glancing at the top of the
+ * Class Schedule. "Teaching Load and Teacher availability changed" is the one
+ * sentence that tells them WHY the notice is here and what their next action
+ * will affect. A trailing `…` turns that instruction into `Teaching Load and
+ * Te…`, which is a defect: the two areas are the load-bearing words. So the
+ * sentence WRAPS (two calm lines inside its own row) rather than shortening or
+ * dropping a name; the row's other children keep their intrinsic width and the
+ * header still stacks at most two flex rows (AGENTS.md §8, §11 "seen").
+ */
 import { ListTree, RefreshCw } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
 
 /** Used when the comparison names no area. Never a specific claim. */
-export const CHANGE_NOTICE_GENERIC_SENTENCE = 'School information changed since this schedule was made.';
+export const CHANGE_NOTICE_GENERIC_SENTENCE = 'School information changed.';
 
 /**
  * The unverified branch. It is a DIFFERENT fact from the changed branch, so it
@@ -58,8 +70,8 @@ export const CHANGE_NOTICE_UNVERIFIED_SENTENCE = 'Could not check school informa
  *
  * `changedAreas` is the operator-facing label list (`drift.domains.map(…)`).
  *   0        → the generic sentence; nothing specific is known.
- *   1        → "Teaching Load changed since this schedule was made."
- *   2        → "Teaching Load and Rooms changed since this schedule was made."
+ *   1        → "Teaching Load changed."
+ *   2        → "Teaching Load and Rooms changed."
  *   3 or more→ "Teaching Load and 2 other areas changed since this schedule was
  *               made." The count is spoken, so the reader learns there are more
  *               without the row growing another chip.
@@ -67,9 +79,9 @@ export const CHANGE_NOTICE_UNVERIFIED_SENTENCE = 'Could not check school informa
 export function changeNoticeSentence(changedAreas: readonly string[]): string {
 	const names = changedAreas.filter((label) => label.trim().length > 0);
 	if (names.length === 0) return CHANGE_NOTICE_GENERIC_SENTENCE;
-	if (names.length === 1) return `${names[0]} changed since this schedule was made.`;
-	if (names.length === 2) return `${names[0]} and ${names[1]} changed since this schedule was made.`;
-	return `${names[0]} and ${names.length - 1} other areas changed since this schedule was made.`;
+	if (names.length === 1) return `${names[0]} changed.`;
+	if (names.length === 2) return `${names[0]} and ${names[1]} changed.`;
+	return `${names[0]} and ${names.length - 1} other areas changed.`;
 }
 
 export type SimpleChangeNoticeProps = {
@@ -131,10 +143,15 @@ export function SimpleChangeNotice({
 				layout === 'inline'
 					/* A2 C12 / ITEM 1 — the notice's OWN row stops wrapping at `lg`.
 					 * It is a flex item of the Simple header's control row, and with the
-					 * row now `lg:flex-nowrap` a wrapping notice would have taken the
-					 * space it needs from a sibling instead of giving up its own
-					 * ellipsis. Below `lg` it still wraps, which is what keeps the 390 px
-					 * behaviour the `ITEM 1 RESPONSIVE` row pins. */
+					 * row `lg:flex-nowrap` the notice's own children stay on one line, so
+					 * the sentence cannot push an action out of the row. Below `lg` it
+					 * still wraps, which is what keeps the 390 px behaviour the
+					 * `ITEM 1 RESPONSIVE` row pins.
+					 *
+					 * A7 c13 / ITEM 1 — `lg:flex-nowrap` stays, but the SENTENCE inside
+					 * it is now allowed to take a second line within its own (elastic)
+					 * box. The row's height budget is untouched: the notice's siblings are
+					 * `shrink-0`, so no sibling is displaced by the wrapped sentence. */
 					? 'flex min-w-0 flex-wrap items-center gap-1.5 text-xs lg:flex-nowrap'
 					: 'flex min-h-8 flex-wrap items-center gap-1.5 border-b px-3 py-1 text-xs',
 				/* Not red, and not amber: an unapplied change is neither an error
@@ -155,15 +172,16 @@ export function SimpleChangeNotice({
 					 * overflowing. No overflow container is added, so the no-scroll
 					 * architecture (§8) is untouched.
 					 *
-					 * A2 C12 / ITEM 1 — from `lg` the sentence is the notice's
-					 * ELASTIC part: `truncate` gives it an ellipsis instead of a second
-					 * line, so the widest child absorbs the row's width pressure rather
-					 * than pushing `Term`, the picker or the primary onto a new one.
-					 * `whitespace-nowrap` is named explicitly beside `truncate` so the
-					 * intent is legible and cannot depend on Tailwind's cascade order
-					 * against the `whitespace-normal` above. `break-words` is inert under
-					 * `nowrap` and is kept for the widths below `lg`. */
-					'min-w-0 w-full basis-full break-words whitespace-normal sm:w-auto sm:flex-1 lg:truncate lg:whitespace-nowrap',
+					 * A7 c13 / ITEM 1 — the sentence WRAPS instead of truncating. It
+					 * used to carry `lg:truncate lg:whitespace-nowrap` so the widest
+					 * child absorbed the row's width pressure with an ellipsis, which
+					 * is exactly the `Teaching Load and Te…` the operator saw. It is
+					 * still the notice's ELASTIC part (`min-w-0`, `sm:flex-1`) and
+					 * still shares the line from `sm` up; it simply takes a second
+					 * line inside its own row rather than cutting the words. The
+					 * header's ≤2-row budget is preserved by the fixed-width siblings
+					 * (`shrink-0`), not by an ellipsis. */
+					'min-w-0 w-full basis-full break-words whitespace-normal sm:w-auto sm:flex-1',
 					tone === 'calm-note' ? 'text-muted-foreground' : 'font-medium text-foreground',
 				)}
 			>

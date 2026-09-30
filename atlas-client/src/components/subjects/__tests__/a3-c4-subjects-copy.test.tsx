@@ -1033,7 +1033,7 @@ test('A3-C4-5a: the coverage sheet shows the marker as a plain department, not a
 });
 
 
-test('A3-C4-5b: the form modal chips the marker as a plain department', async () => {
+test('A3-C4-5b: the form modal chips the marker as a plain department, with a raw-free inline note', async () => {
 	const host = await render(
 		<SubjectFormModal
 			open
@@ -1048,11 +1048,23 @@ test('A3-C4-5b: the form modal chips the marker as a plain department', async ()
 	const read = visibleText(document.body);
 	assert.doesNotMatch(read, /OWNER_DEPT:/, 'the form modal still shows the raw marker chip to the reader');
 	assert.match(read, /Araling Panlipunan/, 'the form modal does not name the owning department');
-	assert.match(
+	// DOCX1 S1, UPDATE NOT DELETE (operator 30 Sep 2026). SUPERSEDED:
+	//   assert.match(document.body.textContent ?? '', /OWNER_DEPT:AP/,
+	//     'the raw marker is no longer reachable in the form modal diagnostic');
+	// The per-chip `AccessibleInfo` bubble that mirrored `stored as OWNER_DEPT:AP`
+	// into an sr-only span is GONE: the operator's words were "no raw
+	// `OWNER_DEPT`/`OWNED DEPT` on screen", and the bubble also clipped and
+	// overlapped the `Add` button. The control's real intent — an officer can see
+	// how ownership is recorded, in full, without hovering — is kept by asserting
+	// the INLINE raw-free note is rendered.
+	assert.doesNotMatch(
 		document.body.textContent ?? '',
-		/OWNER_DEPT:AP/,
-		'the raw marker is no longer reachable in the form modal diagnostic',
+		/OWNER_DEPT/,
+		'the form modal still prints the raw storage marker anywhere',
 	);
+	const note = document.body.querySelector('[data-testid="subjects-form-owner-note"]');
+	assert.ok(note, 'the ownership note is not rendered inline, so the explanation is unreachable without a hover');
+	assert.match(note.textContent ?? '', /ATLAS records the owning code as AP\./, 'the inline note does not name the owning code in plain words');
 	await unmount();
 });
 

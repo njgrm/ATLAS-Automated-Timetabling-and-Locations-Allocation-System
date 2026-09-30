@@ -31,6 +31,8 @@ import {
 	findEffectiveFacultyOverlaps,
 	entryTermScope,
 	effectiveTermsOverlap,
+	isSameCohortGroup,
+	roomEntriesConflict,
 } from './effective-scheduled-resources.js';
 import { evaluateWeeklyLoad } from './teaching-load-capacity.service.js';
 import { roomRequiredFeatures } from './subject-ownership.service.js';
@@ -409,10 +411,6 @@ function getEffectiveSectionIds(entry: ScheduledEntry): number[] {
 	return [entry.sectionId];
 }
 
-function isSameCohortGroup(left: ScheduledEntry, right: ScheduledEntry): boolean {
-	return Boolean(left.cohortCode && right.cohortCode && left.cohortCode === right.cohortCode);
-}
-
 const TERM_KEY_SEP = '\u0001';
 
 /**
@@ -726,9 +724,10 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 				const b = dayEntries[j];
 				// TT-OUTPUT-C03R3: term-aware conflict identity. Rotating/longitudinal
 				// entries in different ordered terms may share the same room and
-				// interval; only same-term (or unscoped) overlaps conflict.
-				if (!effectiveTermsOverlap(entryTermScope(a), entryTermScope(b))) continue;
-				if (timesOverlap(a, b) && !isSameCohortGroup(a, b)) {
+				// interval; only same-term (or unscoped) overlaps conflict. The rule
+				// itself is shared with the room-schedule projection so Print Reports
+				// and Class Schedule can never disagree.
+				if (roomEntriesConflict(a, b)) {
 					violations.push({
 						...base,
 						code: 'ROOM_TIME_CONFLICT',

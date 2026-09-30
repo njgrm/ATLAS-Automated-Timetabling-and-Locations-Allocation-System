@@ -623,7 +623,7 @@ test('T3c RENDERED: a comparison that PREDATES the run raises no drift CLAIM —
 		draft: { ...headerContext().draft, inputState: POST_RUN_COMPARISON },
 	}));
 	assert.equal(changed.el('timetable-simple-drift-message')?.textContent,
-		'Teaching Load and Rooms changed since this schedule was made.',
+		'Teaching Load and Rooms changed.',
 		'a comparison written AFTER the run finished is a real change and is claimed as one');
 	// And the same timing rule holds in the Expert layout, which had no gate at all:
 	// it shows the same honest note and makes the same claim the Simple layout does.

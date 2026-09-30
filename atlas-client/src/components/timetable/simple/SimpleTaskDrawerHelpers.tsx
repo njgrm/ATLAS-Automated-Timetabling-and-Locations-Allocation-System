@@ -172,6 +172,7 @@ export function PublishChecklistContent({
 	facultyLabel,
 	onPublish,
 	onReviewIssues,
+	onReviewWarnings,
 	onPlaceUnresolved,
 	onOpenTeachingLoad,
 	onOpenRoomSetup,
@@ -191,7 +192,14 @@ export function PublishChecklistContent({
 	subjectLabel: (id: number) => string;
 	facultyLabel: (id: number) => string;
 	onPublish: () => void;
+	/** Open the review rail on the must-fix filter (the blocker-repair path). */
 	onReviewIssues: () => void;
+	/**
+	 * A7 c13 — the "Review warnings" path. It opens the SAME rail on the WARNING
+	 * filter, so the list matches the chip that sent the operator there. Falls back
+	 * to `onReviewIssues` for callers that only ever open must-fix.
+	 */
+	onReviewWarnings?: () => void;
 	onPlaceUnresolved: () => void;
 	onOpenTeachingLoad?: (href: string) => void;
 	onOpenRoomSetup?: () => void;
@@ -305,7 +313,8 @@ export function PublishChecklistContent({
 					variant="outline"
 					size="sm"
 					className="mt-2 h-8 text-xs"
-					onClick={onReviewIssues}
+					onClick={onReviewWarnings ?? onReviewIssues}
+					data-testid="timetable-publish-review-warnings"
 				>
 					Review warnings
 				</Button>

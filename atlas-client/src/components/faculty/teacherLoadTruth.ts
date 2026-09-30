@@ -60,6 +60,8 @@ export type TeacherLoadTruthRow = {
 	isPlaceholder: boolean;
 	subjectCount: number;
 	policyCreditedHours?: number | null;
+	/** Decision 13: true teaching hours; advisory and ancillary credit never count toward the weekly max. */
+	sectionTeachingHours?: number | null;
 	maxHoursPerWeek?: number | null;
 };
 
@@ -174,7 +176,7 @@ function toBeHiredClause(toBeHiredActiveCount: number, toBeHiredWithLoadCount: n
  * THE THREE-STATE ARITHMETIC. One function, every consumer on this page.
  *
  * `overCapRealCount` uses the SAME predicate the `over-cap` attention filter uses
- * (`isActiveForScheduling && !isPlaceholder && policyCreditedHours >
+ * (`isActiveForScheduling && !isPlaceholder && sectionTeachingHours >
  * maxHoursPerWeek`), because a badge that counts a different set from the filter
  * it labels is the "two chips that say the same thing" defect in numeric form.
  */
@@ -199,7 +201,7 @@ export function teacherLoadTruth(input: {
 			}
 			if (hasLoad(row)) withLoadCount += 1;
 			else withoutLoadCount += 1;
-			if ((row.policyCreditedHours ?? 0) > (row.maxHoursPerWeek ?? 0)) overCapRealCount += 1;
+			if ((row.sectionTeachingHours ?? 0) > (row.maxHoursPerWeek ?? 0)) overCapRealCount += 1;
 		}
 		const activeRealCount = withLoadCount + withoutLoadCount;
 		return finish({

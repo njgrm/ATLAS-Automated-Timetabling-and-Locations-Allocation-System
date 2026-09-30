@@ -23,8 +23,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
 import { Separator } from '@/ui/separator';
 import { gradeLabel } from '@/lib/grade-labels';
 import { roomAuthoritySemantics } from '@/lib/room-authority-copy';
-import { AccessibleInfo } from '@/components/smart/AccessibleInfo';
-import { splitSubjectFeatures } from './subject-feature-presentation';
+import { splitSubjectFeatures, subjectFeatureHelp } from './subject-feature-presentation';
 import { Info, Clock, Settings2, ShieldCheck, Layout, X, ChevronRight, AlertTriangle, CheckCircle2, History } from 'lucide-react';
 
 export type SubjectFormValues = NewSubjectForm & {
@@ -133,6 +132,14 @@ export function SubjectFormModal({
 	// stored/transmitted value is untouched, so this is copy-only.
 	const { roomFeatures: formRoomFeatures, ownerDepartments: formOwnerDepartments } =
 		splitSubjectFeatures(form.requiredFeatures);
+
+	// Docx1 S1 (30 Sep 2026): the ownership explanation renders INLINE below the
+	// chip row instead of in a per-chip floating bubble (the bubble was clipped and
+	// overlapped the `Add` button). `subjectFeatureHelp` with an empty room-feature
+	// list returns the raw-free ownership sentence alone — "ATLAS records the owning
+	// code as AP." / "…owning codes as AP and MAPEH." — so the raw `OWNER_DEPT:` marker
+	// is never rendered (operator: no raw storage codes on screen).
+	const ownerNote = subjectFeatureHelp({ roomFeatures: [], ownerDepartments: formOwnerDepartments });
 
 	useEffect(() => {
 		if (!open) {
@@ -851,21 +858,20 @@ export function SubjectFormModal({
 								<div className="flex flex-wrap gap-1.5">
 									{/* A3-C4: the mixed `requiredFeatures` list is split before it is
 										shown. Ownership markers are chips the operator must not
-										edit as free text, and they read as a plain department; the raw
-										OWNER_DEPT code stays reachable in the @/ui tooltip. Only real
-										room features keep the add/remove editing this field owns. */}
+										edit as free text, and they read as a plain department. The
+										raw `OWNER_DEPT:<code>` marker is NOT shown: the ownership
+										explanation is rendered INLINE below this row (docx1 S1,
+										30 Sep 2026) so it can never clip or overlap the `Add`
+										button, and it names the owning CODES, never the storage
+										prefix. Only real room features keep the add/remove editing
+										this field owns. */}
 									{formOwnerDepartments.map((owner) => (
 										<Badge
 											key={owner.raw}
 											variant="secondary"
-											className="flex items-center gap-1 border border-border/50 bg-muted/40 py-0.5 pl-2 pr-1 text-xs font-semibold"
+											className="flex items-center gap-1 border border-border/50 bg-muted/40 px-2 py-0.5 text-xs font-semibold"
 										>
 											<span>Owned by {owner.label}</span>
-											<AccessibleInfo
-												label={`How this subject's owning department is recorded`}
-												shortHelp={`ATLAS records this subject as owned by the ${owner.label} department, stored as ${owner.raw}.`}
-												size="icon-xs"
-											/>
 										</Badge>
 									))}
 									{formRoomFeatures.map((f) => (
@@ -887,6 +893,9 @@ export function SubjectFormModal({
 										<span className="text-xs text-muted-foreground italic pl-1">No special room features needed.</span>
 									)}
 								</div>
+								{formOwnerDepartments.length > 0 && (
+									<p className="text-xs text-muted-foreground pl-1" data-testid="subjects-form-owner-note">{ownerNote}</p>
+								)}
 							</div>
 						</div>
 					</div>

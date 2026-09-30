@@ -149,3 +149,64 @@ export function applyFailureSentence(reason: string): string {
 
 /** A row the scheduler changed herself is not "same grade wing" any more, and must say so. */
 export const MANUAL_CHOICE_NOTE = 'your choice';
+
+/**
+ * A9 c6 (2026-09-30) — the receipts rule, `docs/plans/codex-walk-standard.md`.
+ *
+ * "Schedulers must always know what the system did … what was done, how many, what was not done
+ * and why, and the next step, shown on the page where the action happened AND on the page whose
+ * data it changed." Operator decision #5 makes that a standing rule; decision #11 makes this apply
+ * to "Apply rooms" as a plain receipt plus Undo rather than a second confirmation dialog.
+ */
+
+/** The one next step after a rooms action, in the scheduler's words. */
+export const APPLY_NEXT_STEP = 'Next: check the sections that still have no room and give them one.';
+
+/**
+ * THE FULL RECEIPT shown after `Apply rooms`: what saved, what was left out and why, and the next
+ * step. `saveOutcomeSentence` is the "what saved" half and is reused verbatim; the skipped rows are
+ * the server's own `skipped[]`, so the receipt can never claim a section was placed that the server
+ * declined to place.
+ */
+export function applyReceiptSentence(input: {
+	requested: number;
+	updated: number;
+	skipped: ReadonlyArray<{ sectionName: string; reason: string }>;
+}): string {
+	const done = saveOutcomeSentence({ requested: input.requested, updated: input.updated });
+	const skipped = input.skipped;
+	const leftOut =
+		skipped.length === 0
+			? 'Nothing was left out.'
+			: skipped.length === 1
+				? `1 section was left without a room (${skipped[0].sectionName}: ${skippedReasonPhrase(skipped[0].reason).reason}).`
+				: `${skipped.length} sections were left without a room.`;
+	return `${done} ${leftOut} ${APPLY_NEXT_STEP}`;
+}
+
+/**
+ * THE UNDO ACTION, in the words of what it will do. `Undo these 2 rooms` states the act and its size
+ * before the click — the operator decision #11 requirement — rather than a bare `Undo`.
+ */
+export function undoActionLabel(count: number): string {
+	if (count <= 0) return 'Undo';
+	return count === 1 ? 'Undo this room' : `Undo these ${count} rooms`;
+}
+
+/**
+ * UNDO'S OWN RECEIPT. `updateSectionHomeRooms` runs the batch in ONE transaction and returns only
+ * `{ updated }`, so a partial undo is named by count exactly as the apply receipt names a partial
+ * save. The endpoint accepts `homeRoomId: null`, and this dialog only ever assigned sections that
+ * had no room, so an undo restores the pre-apply state.
+ */
+export function undoReceiptSentence(input: { requested: number; updated: number }): string {
+	const { requested, updated } = input;
+	if (requested <= 0) return `Nothing was undone, because no rooms were applied. ${APPLY_NEXT_STEP}`;
+	if (updated >= requested) {
+		return `Undid ${requested} ${requested === 1 ? 'room' : 'rooms'} — those sections have no home room again. ${APPLY_NEXT_STEP}`;
+	}
+	if (updated <= 0) {
+		return `Nothing was undone. ATLAS could not remove the ${requested === 1 ? 'room' : `${requested} rooms`} you applied. ${APPLY_NEXT_STEP}`;
+	}
+	return `Undid ${updated} of ${requested} rooms. The other ${requested - updated} ${requested - updated === 1 ? 'was' : 'were'} left as they are. ${APPLY_NEXT_STEP}`;
+}

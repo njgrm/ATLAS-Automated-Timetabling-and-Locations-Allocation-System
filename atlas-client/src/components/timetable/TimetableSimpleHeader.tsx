@@ -854,9 +854,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				className="flex min-w-0 flex-wrap items-center gap-1.5 px-3 pb-1.5 lg:flex-nowrap"
 				data-testid="timetable-simple-header-row-2"
 			>
-				{/* The change notice: ONE sentence, ONE primary action, one secondary,
-				    and part of THIS row rather than a row of its own (C11 S2 item 2). */}
-				{changeNotice.node}
 				<SimpleTermSwitcher context={context} />
 
 				<div className="hidden min-w-0 flex-1 lg:flex lg:shrink-0 lg:min-w-[24rem]">
@@ -882,6 +879,8 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				    renderers, so the two cannot disagree. Extracted for §8's line cap. */}
 				<SimpleHeaderDraftActions actions={stripDraftActions} />
 			</div>
+			{/* Lane C 30 Sep: the change notice gets its own slim line so it never pushes the filters right. */}
+			{changeNotice.node ? <div className="px-3 pb-1.5" data-testid="timetable-simple-header-change-row">{changeNotice.node}</div> : null}
 			</div>
 			{/* ── end of the two-row band (A2 HEADER-BUDGET) ── */}
 

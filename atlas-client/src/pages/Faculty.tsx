@@ -55,8 +55,6 @@ import { toast } from 'sonner';
 import {
 	promoteActiveSchoolYearContext,
 	resolveActiveSchoolYearContext,
-	type ActiveSchoolYearContextSource,
-	isUpstreamBackedSchoolYearSource,
 } from '@/lib/enrollpro-public-settings';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import {
@@ -139,7 +137,7 @@ export function overCapWeeklyMaxHours(roster: FacultySummary[]): number {
 		(teacher) =>
 			teacher.isActiveForScheduling &&
 			!teacher.isPlaceholder &&
-			(teacher.policyCreditedHours ?? 0) > teacher.maxHoursPerWeek,
+			(teacher.sectionTeachingHours ?? 0) > teacher.maxHoursPerWeek,
 	);
 	const maximumOf = (list: FacultySummary[]) =>
 		list.reduce((max, teacher) => Math.max(max, teacher.maxHoursPerWeek ?? 0), 0);
@@ -274,7 +272,6 @@ export default function Faculty() {
 		setError(null);
 
 		let schoolYearId: number | null = null;
-		let yearContextSource: ActiveSchoolYearContextSource = 'cache';
 		try {
 			const yearContext = await resolveActiveSchoolYearContext({
 				schoolId: scopedSchoolId,
@@ -283,9 +280,14 @@ export default function Faculty() {
 				preferCache: !forceRefresh,
 				backgroundRefresh: !forceRefresh,
 				allowEnrollProFallback: false,
+				// A6-TEACHING-LOAD SOURCE TRUTH (2026-09-30) — the accepted Teaching
+				// Load hotfix `176ff936` added this to the hook only. Without it the
+				// server answers `atlas-persisted` (no EnrollPro check), the page can
+				// never see a verified year, and Teachers permanently reads "the last
+				// safe teacher roster snapshot" on a school EnrollPro has confirmed.
+				verifyUpstream: true,
 			});
 			schoolYearId = yearContext.activeSchoolYearId;
-			yearContextSource = yearContext.source;
 
 			if (!forceRefresh) {
 				const cachedPreview = getCachedFacultyAssignmentsSummary(scopedSchoolId, schoolYearId, {
@@ -353,7 +355,7 @@ export default function Faculty() {
 					schoolYearId,
 				});
 			}
-			const isUpstreamBacked = isUpstreamBackedSchoolYearSource(yearContextSource);
+			const isUpstreamBacked = yearContext.verifiedUpstream;
 			if (isUpstreamBacked) {
 				setDataSource('live');
 				setCacheNotice(null);
@@ -363,9 +365,9 @@ export default function Faculty() {
 			} else {
 				setDataSource('refreshing');
 				setCacheNotice('Checking EnrollPro before finalizing teacher roster status.');
-				void promoteActiveSchoolYearContext({ schoolId: scopedSchoolId, allowEnrollProFallback: false, allowStaleOnError: true })
+				void promoteActiveSchoolYearContext({ schoolId: scopedSchoolId, allowEnrollProFallback: false, allowStaleOnError: true, verifyUpstream: true })
 					.then((promotedContext) => {
-						if (isUpstreamBackedSchoolYearSource(promotedContext.source)) {
+						if (promotedContext.verifiedUpstream) {
 							setDataSource('live');
 							setCacheNotice(null);
 							return;
@@ -540,7 +542,7 @@ export default function Faculty() {
 		if (departmentFilter !== 'all') list = list.filter((f) => f.department === departmentFilter);
 		if (gradeLevelFilter !== 'all') list = list.filter((f) => (f.assignedGradeLevels ?? []).includes(gradeLevelFilter));
 		if (attentionFilter === 'needs-load') list = list.filter((f) => f.isActiveForScheduling && !f.isPlaceholder && (f.subjectCount ?? 0) === 0);
-		if (attentionFilter === 'over-cap') list = list.filter((f) => f.isActiveForScheduling && !f.isPlaceholder && (f.policyCreditedHours ?? 0) > f.maxHoursPerWeek);
+		if (attentionFilter === 'over-cap') list = list.filter((f) => f.isActiveForScheduling && !f.isPlaceholder && (f.sectionTeachingHours ?? 0) > f.maxHoursPerWeek);
 		if (attentionFilter === 'no-active-load') list = list.filter((f) => f.isActiveForScheduling && !f.isPlaceholder && (f.sectionCount ?? 0) === 0);
 		if (attentionFilter === 'placeholders') list = list.filter((f) => f.isPlaceholder);
 
@@ -694,7 +696,7 @@ export default function Faculty() {
 	const nextTeacherToFix = useMemo(() => {
 		const activeRoster = faculty.filter((teacher) => teacher.isActiveForScheduling);
 		return activeRoster.find((teacher) => !teacher.isPlaceholder && (teacher.subjectCount ?? 0) === 0)
-			?? activeRoster.find((teacher) => !teacher.isPlaceholder && (teacher.policyCreditedHours ?? 0) > teacher.maxHoursPerWeek)
+			?? activeRoster.find((teacher) => !teacher.isPlaceholder && (teacher.sectionTeachingHours ?? 0) > teacher.maxHoursPerWeek)
 			?? faculty.find((teacher) => teacher.isPlaceholder)
 			?? activeRoster[0]
 			?? faculty[0]

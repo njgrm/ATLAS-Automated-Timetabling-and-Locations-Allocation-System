@@ -20,7 +20,6 @@ import { ROOM_TYPE_LABELS } from '@/lib/subject-constants';
 import { GRADE_COLORS } from '@/lib/grade-labels';
 import { cn } from '@/lib/utils';
 import { AccessibleInfo } from '@/components/smart/AccessibleInfo';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { splitSubjectFeatures, subjectFeatureHelp, ownerDepartmentRead } from './subject-feature-presentation';
 import { ProgramScopeChips } from './ProgramScopeChips';
 import { SUBJECT_ACTION_CELL_Z, SUBJECT_ACTION_COLUMN_WIDTH_CLASS } from './subject-action-column';
@@ -134,7 +133,6 @@ export function SubjectRow({
 	// Generation schedules by isActive; the old "Excluded/Available" badges made
 	// a false claim about scheduling. Catalog active state is the status shown.
 	const coverageStatus = coverageRow?.status ?? null;
-	const hasMissingCoverage = (coverageRow?.uncoveredSectionCount ?? 0) > 0;
 	const isFullCoverage = coverageStatus === 'FULL';
 	const isPartialCoverage = coverageStatus === 'PARTIAL';
 	const isZeroCoverage = coverageStatus === 'ZERO';
@@ -154,21 +152,6 @@ export function SubjectRow({
 	 */
 	const coverageVerdict = coverageVerdictBySubjectId?.get(subject.id) ?? null;
 	const effectivelyFull = coverageVerdict ? coverageVerdict.fullyCoveredByRealTeachers : isFullCoverage;
-
-	/**
-	 * A6 c8 / operator fix 2.17.1: the sentence the deleted info icon used to carry.
-	 *
-	 * It is now the coverage control's accessible name and its Tooltip body, so it
-	 * has to survive the control change intact. For missing coverage it also ends in
-	 * "Click to see which." — the cell is no longer a sentence with a dead icon beside
-	 * it, it is a button that opens the window, and saying so is the difference
-	 * between a status and an affordance. These are the packet's two exact strings.
-	 */
-	const coverageHelp = coverageVerdict && !coverageVerdict.fullyCoveredByRealTeachers
-		? `${coverageVerdict.openClassCount} of this subject's classes have no real teacher. Click to see which.`
-		: hasMissingCoverage
-			? `${coverageRow?.uncoveredSectionCount} section${coverageRow?.uncoveredSectionCount === 1 ? '' : 's'} still need a teacher. Click to see which.`
-			: 'All required sections have a teacher assigned.';
 
 	return (
 		<tr className="border-b last:border-0 hover:bg-muted/30 transition-colors group">
@@ -290,98 +273,64 @@ export function SubjectRow({
 				</div>
 			</td>
 
-		{/* Col 5 — Teacher coverage. The COUNT IS THE CONTROL.
+		{/* Col 5 — Teacher coverage. THE BADGE IS PLAIN STATUS TEXT.
 
-			A6 c8 / operator fix 2.17.1 (2026-09-29) — this cell's only affordance
-			was a dead `AccessibleInfo` info icon. Reproduced on real staging data
-			for subject `ESP/GMRC`: the cell read "18/20 covered" beside the icon,
-			clicking the icon opened NOTHING, and only the row's `Review` action
-			opened the window. So the cell LOOKED like data and DID NOTHING, which
-			is the one failure mode worse than having no affordance at all.
+			OPERATOR (30 Sep 2026, docx1 S2) reversed A6 c8 / fix 2.17.1. The
+			coverage badge must be plain, NON-clickable text again; only the row's
+			`Review` action opens coverage.
 
-			The fix is a subtraction and an addition of the same affordance:
-			  - the dead info icon is GONE. It stated the same fact the dialog
-			    states, and it was the element that was clicked and did nothing.
-			  - the coverage `Badge` itself is now a real `<button>` that calls the
-			    `onShowCoverage(subject)` prop already on this component — the same
-			    prop the `Review` action calls, and the same `SubjectCoverageSheet`
-			    (read-only: it renders assigned teachers and uncovered grades and
-			    takes only `onRetry` (a re-read) and `onClose`; there is no write).
+			Why the reversal is the honest call, not a regression of 2.17.1: a
+			scheduler scanning the catalogue reads the badge as STATUS. Making the
+			status cell itself a button competed with `Review` — the row's one
+			labelled action — for the next click, and it taught people that tapping
+			a colour band navigates. The defect 2.17.1 fixed (a dead `AccessibleInfo`
+			icon that was focusable and opened nothing) is still fixed: there is no
+			dead affordance here, because there is no affordance here at all. A
+			status that is simply read is not a control that does nothing.
 
-			THE BADGE KEEPS ITS STATUS COLOUR. The amber / green / red band is the
-			meaning of this column and a DepEd-free semantic status colour that
-			already existed here, so the button is a `<button>` that LOOKS like the
-			badge — same classes, plus `hover:underline` and `focus-visible:ring` so
-			it is discoverably clickable. It is deliberately NOT restyled into a
-			`@/ui` button variant: the defect was "looks like data, does nothing",
-			not "looks like data". `AGENTS.md` §8 "One look per control" is about
-			pickers and actions, and a status cell keeps its status look.
+			So: no `<button>`, no Tooltip wrapper, no `onClick`, no `hover:underline`
+			or `focus-visible:ring`, and no `coverageHelp` sentence — the badge is
+			mounted directly in the cell. Every state keeps its EXACT words, colour
+			classes and its own `aria-label` (`… has partial section coverage`), so
+			the status still carries its meaning to assistive tech without pretending
+			to be clickable.
 
-			THE SENTENCE MOVED, it was not deleted. It was the info icon's
-			`shortHelp`; it is now the button's `aria-label` and its `@/ui` Tooltip
-			(never a raw `title` — `AGENTS.md` §8), and for missing coverage it ends
-			in "Click to see which." because the control is now clickable. The badge
-			keeps its own `aria-label` (`… has partial section coverage`) so the
-			STATUS is still stated on the status element.
-
-			`Review` in the action cell is UNCHANGED and deliberately not deleted: it
-			is the row's labelled action and a committed surface. Two affordances for
-			one window is not a duplicate *status*.
-
-			`SubjectMobileCard` was checked for the same dead affordance and does NOT
-			have one: its coverage line is a plain `<span>` (not clickable, so not
-			misleading) and its `Review coverage` button calls the same handler. It is
-			left alone on purpose — this packet is two items, not a sweep. */}
+			`Review` in the action cell is UNCHANGED and is now the ONLY control that
+			calls `onShowCoverage(subject)` on this row. */}
 		<td className="px-4 py-3" data-testid={`subject-coverage-cell-${subject.id}`}>
 			{isArchived ? (
 				<Badge variant="secondary" className="text-xs font-bold">Archived</Badge>
 			) : coverageRow ? (
-				<TooltipProvider delayDuration={200}>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<button
-								type="button"
-								className="inline-flex rounded-md text-left hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-								aria-label={coverageHelp}
-								onClick={() => onShowCoverage(subject)}
-							>
-							{coverageVerdict && !coverageVerdict.fullyCoveredByRealTeachers ? (
-								/*
-								 * A6 c10 — THE HONEST CELL. The server's `status` says
-								 * "FULL" because every class has an owner, and a to-be-hired
-								 * record is an owner; the Codex audit's finding 7 is this cell
-								 * reading "Full coverage" over 50 placeholder-held classes. The
-								 * row now prints what is actually true, in the shared
-								 * verdict's own words, in the SAME amber the partial cell uses
-								 * — one warning look on one page.
-								 */
-								<Badge
-									variant="outline"
-									className="text-xs font-bold bg-amber-50 text-amber-700 border-amber-200 shadow-none"
-									aria-label={`${subject.name}: ${coverageVerdict.openClassCount} of its classes have no real teacher`}
-								>
-									{coverageVerdict.openClassCount === 1 ? 'No real teacher' : `${coverageVerdict.openClassCount} need a real teacher`}
-								</Badge>
-							) : isFullCoverage ? (
-								<Badge variant="outline" className="text-xs font-bold bg-emerald-50 text-emerald-700 border-emerald-200 shadow-none" aria-label={`${subject.name} has full section coverage`}>
-									Full coverage
-								</Badge>
-							) : isPartialCoverage ? (
-									<Badge variant="outline" className="text-xs font-bold bg-amber-50 text-amber-700 border-amber-200 shadow-none" aria-label={`${subject.name} has partial section coverage`}>
-										{coverageRow.ownedSectionCount}/{coverageRow.relevantSectionCount} covered
-									</Badge>
-								) : (
-									<Badge variant="outline" className="text-xs font-bold bg-red-50 text-red-700 border-red-200 shadow-none" aria-label={`${subject.name} has no section coverage`}>
-										No coverage
-									</Badge>
-								)}
-							</button>
-						</TooltipTrigger>
-						<TooltipContent side="top" className="max-w-64 leading-relaxed">
-							{coverageHelp}
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
+				coverageVerdict && !coverageVerdict.fullyCoveredByRealTeachers ? (
+					/*
+					 * A6 c10 — THE HONEST CELL. The server's `status` says
+					 * "FULL" because every class has an owner, and a to-be-hired
+					 * record is an owner; the Codex audit's finding 7 is this cell
+					 * reading "Full coverage" over 50 placeholder-held classes. The
+					 * row now prints what is actually true, in the shared
+					 * verdict's own words, in the SAME amber the partial cell uses
+					 * — one warning look on one page.
+					 */
+					<Badge
+						variant="outline"
+						className="text-xs font-bold bg-amber-50 text-amber-700 border-amber-200 shadow-none"
+						aria-label={`${subject.name}: ${coverageVerdict.openClassCount} of its classes have no real teacher`}
+					>
+						{coverageVerdict.openClassCount === 1 ? 'No real teacher' : `${coverageVerdict.openClassCount} need a real teacher`}
+					</Badge>
+				) : isFullCoverage ? (
+					<Badge variant="outline" className="text-xs font-bold bg-emerald-50 text-emerald-700 border-emerald-200 shadow-none" aria-label={`${subject.name} has full section coverage`}>
+						Full coverage
+					</Badge>
+				) : isPartialCoverage ? (
+					<Badge variant="outline" className="text-xs font-bold bg-amber-50 text-amber-700 border-amber-200 shadow-none" aria-label={`${subject.name} has partial section coverage`}>
+						{coverageRow.ownedSectionCount}/{coverageRow.relevantSectionCount} covered
+					</Badge>
+				) : (
+					<Badge variant="outline" className="text-xs font-bold bg-red-50 text-red-700 border-red-200 shadow-none" aria-label={`${subject.name} has no section coverage`}>
+						No coverage
+					</Badge>
+				)
 			) : (
 				<span className="flex items-center gap-1">
 					<Badge variant="outline" className="text-xs font-bold bg-slate-50 text-muted-foreground border-slate-200 shadow-none">

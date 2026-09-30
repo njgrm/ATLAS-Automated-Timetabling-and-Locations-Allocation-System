@@ -46,6 +46,24 @@ export type ActiveSchoolYearContext = {
 	activeSchoolYearLabel: string | null;
 	schoolId: number;
 	source: ActiveSchoolYearContextSource;
+	/**
+	 * A6-TEACHING-LOAD SOURCE TRUTH (2026-09-30) — did THIS answer come from a
+	 * verified EnrollPro read?
+	 *
+	 * This is the ONE "EnrollPro is connected and the active year is verified"
+	 * predicate the source-truth surfaces read. `source` alone cannot answer it:
+	 * a cache answer whose record carries a just-verified ordered active term is
+	 * still `source: 'cache'`, so `isUpstreamBackedSchoolYearSource(source)` is
+	 * false while the provenance is verified — which is exactly how Teaching Load
+	 * came to say "the sections last copied from EnrollPro" and Teachers "saved
+	 * snapshot" on a verified school.
+	 *
+	 * TRUE only when: the runtime-context network answer is upstream-backed; the
+	 * EnrollPro public-settings fallback answered; or a cache answer was handed
+	 * to a caller that asked for verification and whose cached active term passed
+	 * `isVerifiedOrderedActiveTerm`. Every stale fallback is FALSE.
+	 */
+	verifiedUpstream: boolean;
 	stale: boolean;
 	cachedAt: string;
 	activeTerm: ActiveTermPayload | null;
@@ -321,6 +339,13 @@ export async function resolveActiveSchoolYearContext(options: ResolveActiveSchoo
 	// kick off a background re-verification so the next caller gets fresher data.
 	// A2-C14: never short-circuit a `verifyUpstream` caller with a cache entry
 	// whose term has not been verified — that is the poisoned-read path.
+	//
+	// A6-TEACHING-LOAD SOURCE TRUTH — THE CACHE-PROVENANCE INVARIANT. A
+	// `verifyUpstream: true` caller may only be answered from cache when the
+	// record carries a verified ordered active term, so that record's provenance
+	// IS verified and the answer is honestly `verifiedUpstream: true`. The two
+	// cache returns below are the only place that provenance is decided, and both
+	// use this one expression so they cannot disagree.
 	if (preferCache && cached && cachedActiveTermIsAdmissible(cached, verifyUpstream)) {
 		if (backgroundRefresh) {
 			// Fire-and-forget — deduplicate so rapid mounts don't stack requests.
@@ -336,6 +361,7 @@ export async function resolveActiveSchoolYearContext(options: ResolveActiveSchoo
 			activeSchoolYearLabel: cached.activeSchoolYearLabel,
 			schoolId,
 			source: 'cache',
+			verifiedUpstream: verifyUpstream && isVerifiedOrderedActiveTerm(cached.activeTerm),
 			stale: !hasFreshCache,
 			cachedAt: cached.cachedAt,
 			activeTerm: cached.activeTerm ?? null,
@@ -345,13 +371,15 @@ export async function resolveActiveSchoolYearContext(options: ResolveActiveSchoo
 
 	// A2-C14: the same admissibility rule as `preferCache` above. Without it a
 	// fresh-but-unverified entry satisfies a `verifyUpstream: true` caller and
-	// the requested verification is never dispatched at all.
+	// the requested verification is never dispatched at all. The provenance rule
+	// is the same one the `preferCache` return states.
 	if (!forceRefresh && cached && hasFreshCache && cachedActiveTermIsAdmissible(cached, verifyUpstream)) {
 		return {
 			activeSchoolYearId: cached.activeSchoolYearId,
 			activeSchoolYearLabel: cached.activeSchoolYearLabel,
 			schoolId,
 			source: 'cache',
+			verifiedUpstream: verifyUpstream && isVerifiedOrderedActiveTerm(cached.activeTerm),
 			stale: false,
 			cachedAt: cached.cachedAt,
 			activeTerm: cached.activeTerm ?? null,
@@ -412,6 +440,12 @@ async function _fetchRuntimeContext(
 				activeSchoolYearLabel: runtimeContext.activeSchoolYearLabel ?? null,
 				schoolId: runtimeContext.schoolId,
 				source: runtimeContext.source ?? 'atlas-persisted',
+				// A6-TEACHING-LOAD SOURCE TRUTH — the ONLY network answer whose
+				// provenance is verified is the upstream-backed one. `atlas-persisted`
+				// means ATLAS answered from its own mirror without EnrollPro's own
+				// active-year confirmation, so it is NOT verified-upstream even though
+				// it came from the server rather than the SWR cache.
+				verifiedUpstream: isUpstreamBackedSchoolYearSource(runtimeContext.source ?? 'atlas-persisted'),
 				stale: runtimeContext.stale,
 				cachedAt: updated?.cachedAt ?? new Date().toISOString(),
 				activeTerm: runtimeContext.activeTerm ?? null,
@@ -437,6 +471,9 @@ async function _fetchRuntimeContext(
 			activeSchoolYearLabel: cachedFallback.activeSchoolYearLabel,
 			schoolId,
 			source: 'cache',
+			// A6-TEACHING-LOAD SOURCE TRUTH — a stale fallback is never verified:
+			// the live read failed and no verification was obtained.
+			verifiedUpstream: false,
 			stale: true,
 			cachedAt: cachedFallback.cachedAt,
 			activeTerm: cachedFallback.activeTerm ?? null,
@@ -458,6 +495,10 @@ async function _fetchRuntimeContext(
 			activeSchoolYearLabel: settings.activeSchoolYearLabel ?? null,
 			schoolId,
 			source: 'enrollpro',
+			// A6-TEACHING-LOAD SOURCE TRUTH — the EnrollPro public-settings fallback
+			// resolved the year from EnrollPro itself, so its provenance is verified
+			// (the runtime context was unavailable, not EnrollPro).
+			verifiedUpstream: true,
 			stale: false,
 			cachedAt: updated?.cachedAt ?? new Date().toISOString(),
 			activeTerm: null,
@@ -475,6 +516,9 @@ async function _fetchRuntimeContext(
 			activeSchoolYearLabel: cachedFallback.activeSchoolYearLabel,
 			schoolId,
 			source: 'cache',
+			// A6-TEACHING-LOAD SOURCE TRUTH — a failed fallback that degrades to
+			// saved data is never verified-upstream.
+			verifiedUpstream: false,
 			stale: true,
 			cachedAt: cachedFallback.cachedAt,
 			activeTerm: cachedFallback.activeTerm ?? null,

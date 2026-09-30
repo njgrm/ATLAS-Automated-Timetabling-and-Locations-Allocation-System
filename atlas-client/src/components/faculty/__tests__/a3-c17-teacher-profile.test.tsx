@@ -903,8 +903,8 @@ function rosterMember(over: Record<string, unknown> = {}) {
 
 test('A3C17-5 a teacher on a 32h maximum makes the helper read 32, not 40h', () => {
 	const roster = [
-		rosterMember({ id: 1, firstName: 'Ana', lastName: 'Reyes', maxHoursPerWeek: 32, policyCreditedHours: 36 }),
-		rosterMember({ id: 2, firstName: 'Ben', lastName: 'Cruz', maxHoursPerWeek: 40, policyCreditedHours: 30 }),
+		rosterMember({ id: 1, firstName: 'Ana', lastName: 'Reyes', maxHoursPerWeek: 32, policyCreditedHours: 36, sectionTeachingHours: 36 }),
+		rosterMember({ id: 2, firstName: 'Ben', lastName: 'Cruz', maxHoursPerWeek: 40, policyCreditedHours: 30, sectionTeachingHours: 30 }),
 	];
 
 	assert.equal(overCapWeeklyMaxHours(roster), 32, 'the maximum among the counted teachers is 32');
@@ -923,13 +923,13 @@ test('A3C17-5 the fallbacks are ordered: counted, then roster-wide, then the pol
 	// Counted set wins over a higher roster-wide maximum: a 60h teacher who is
 	// NOT over cap must not raise the ceiling the over-cap chip talks about.
 	const mixed = [
-		rosterMember({ id: 1, maxHoursPerWeek: 32, policyCreditedHours: 36 }),
-		rosterMember({ id: 2, maxHoursPerWeek: 60, policyCreditedHours: 30 }),
+		rosterMember({ id: 1, maxHoursPerWeek: 32, policyCreditedHours: 36, sectionTeachingHours: 36 }),
+		rosterMember({ id: 2, maxHoursPerWeek: 60, policyCreditedHours: 30, sectionTeachingHours: 30 }),
 	];
 	assert.equal(overCapWeeklyMaxHours(mixed), 32, 'the counted set is the first authority');
 
 	// Nobody over cap: the roster-wide maximum still states a real saved number.
-	const noneOver = [rosterMember({ id: 1, maxHoursPerWeek: 30, policyCreditedHours: 20 })];
+	const noneOver = [rosterMember({ id: 1, maxHoursPerWeek: 30, policyCreditedHours: 20, sectionTeachingHours: 20 })];
 	assert.equal(overCapWeeklyMaxHours(noneOver), 30, 'the roster-wide maximum is the second authority');
 
 	// An empty roster reaches the policy constant, and says so honestly.
@@ -943,8 +943,8 @@ test('A3C17-5 the fallbacks are ordered: counted, then roster-wide, then the pol
 	// A placeholder is a slot, not a person over a cap: a to-be-hired record on
 	// a 60h maximum must not raise the number the chip explains.
 	const withPlaceholder = [
-		rosterMember({ id: 1, maxHoursPerWeek: 32, policyCreditedHours: 36 }),
-		rosterMember({ id: 2, isPlaceholder: true, maxHoursPerWeek: 60, policyCreditedHours: 90 }),
+		rosterMember({ id: 1, maxHoursPerWeek: 32, policyCreditedHours: 36, sectionTeachingHours: 36 }),
+		rosterMember({ id: 2, isPlaceholder: true, maxHoursPerWeek: 60, policyCreditedHours: 90, sectionTeachingHours: 90 }),
 	];
 	assert.equal(overCapWeeklyMaxHours(withPlaceholder), 32, 'a placeholder is not counted over a cap');
 });

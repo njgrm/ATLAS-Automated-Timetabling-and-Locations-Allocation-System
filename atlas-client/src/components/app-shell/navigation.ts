@@ -28,7 +28,7 @@ export type NavItemDef = {
  * A7 C6 (item 1) — the lookup/print step's ONE plain name, shared by the
  * sidebar label and the route chrome so the two can never drift.
  */
-export const LOOKUP_PRINT_LABEL = 'Look up & print schedules';
+export const LOOKUP_PRINT_LABEL = 'Print Reports';
 
 export const navigationNav: NavItemDef[] = [
 	{ label: 'Dashboard', to: '/', icon: LayoutDashboard },
