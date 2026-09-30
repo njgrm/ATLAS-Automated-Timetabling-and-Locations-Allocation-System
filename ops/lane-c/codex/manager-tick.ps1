@@ -78,6 +78,12 @@ function Assert-TickRepoUnchanged {
   $currentHead = (git -C $repo rev-parse HEAD).Trim()
   $changed = @(git -C $repo status --short)
   if ($currentHead -ne $Head -or $changed.Count) {
+    $summary = @(
+      "HEAD before: $Head", "HEAD after: $currentHead", 'status:', $changed,
+      'unstaged diff stat:', (git -C $repo diff --stat),
+      'staged diff stat:', (git -C $repo diff --cached --stat)
+    ) -join "`n"
+    Add-Content -LiteralPath (Join-Path $H 'manager-outbox.md') -Value ("`n## Tick stopped " + (Get-Date -Format 'yyyy-MM-dd HH:mm') + "`n$summary`n")
     & (Join-Path $snapshot 'ops/lane-c/codex/notify.ps1') -Text "Lane C manager stopped: a tick changed its repository worktree."
     throw "TICK_REPO_CHANGED:$repo"
   }
@@ -152,14 +158,14 @@ $status
 "@
     $env:CODEX_HOME = $ManagerHome
     $env:ATLAS_MANAGER_REPO = $snapshot
-    # The manager account trusts only the external Lane C workspace; repository files are supplied by its mirror.
+    # Timeboxed operator decision: full access with an after-tick detect-and-stop guard.
     $promptPath = Join-Path $ticks "$stamp.prompt.md"
     $resultPath = Join-Path $ticks "$stamp.md"
     $logPath = Join-Path $ticks "$stamp.log"
     $errorPath = Join-Path $ticks "$stamp.err.log"
     Set-Content -LiteralPath $promptPath -Value $prompt -Encoding utf8
     $cli = 'C:\Users\njgro\AppData\Roaming\npm\codex.cmd'
-    $args = @('exec', '--sandbox', 'workspace-write', '--skip-git-repo-check', '-C', $H, '-m', $Model,
+    $args = @('exec', '--dangerously-bypass-approvals-and-sandbox', '--skip-git-repo-check', '-C', $H, '-m', $Model,
       '-c', "model_reasoning_effort=$Effort", '-o', $resultPath, '-')
     $tickProcess = Start-Process -FilePath $cli -ArgumentList $args -WorkingDirectory $H -WindowStyle Hidden -PassThru `
       -RedirectStandardInput $promptPath -RedirectStandardOutput $logPath -RedirectStandardError $errorPath
