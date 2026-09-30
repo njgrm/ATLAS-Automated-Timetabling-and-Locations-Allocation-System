@@ -12,14 +12,17 @@ credential incident re-derived. See the dated correction blocks in the Lane A se
 - **TRAIN 19 IS LIVE at `3e6166e4`** — full record in the `## Live release` block. A2's move, swap and
   "Remove from draft" **in one action, with receipts and Undo** on the timetable selected-class strip.
   Listeners 5001 -> **14160** / 5174 -> **8936**; task Running; `cli.mjs` `running`; **ready in 45 s**.
-- **⚠⚠ THE FIRST CUTOVER ATTEMPT FAILED AND LIVE WAS DOWN ~7 MINUTES — MY ERROR, RECORDED NOT BURIED.**
-  Readiness missed the 180 s budget (183.1 s, nothing on 5001/5174). Cause: the supervisor log's
+- **⚠⚠ THE FIRST CUTOVER ATTEMPT FAILED AND THE API WAS DOWN 5 m 08 s (measured 02:20:33.558 -> 02:25:41.483; my first record over-stated it as "~7 minutes") — MY ERROR, RECORDED NOT BURIED.**
+  Readiness missed the 180 s budget (183.1 s, nothing on **5001**; the 5174 client host kept serving throughout). Cause: the supervisor log's
   `Cannot find module …\atlas-server\dist\server.js`. **I never built the server** — I ran `tsc --noEmit`,
   a type-check, and recorded it as the build. The target tree came from git, `dist` is gitignored, and
   `atlas-server/dist` had **0 files**. Only the API was missing; the 5174 host served the whole time.
   Remedy over rollback: the emitting `tsc` (the same compilation that had just type-checked clean) exit 0 in
   59.92 s -> `dist` **1167 files, exactly the live tree's count** -> `schtasks /run` -> ready in 45 s.
-  Outage window: failed start 10:20:33, `giveUp` 10:21:43, serving 10:25:41. **What proves it will not
+  Outage window (measured by post-action QA, 2026-09-30): API down 02:20:33.558 -> serving 02:25:41.483
+  = **5 m 08 s**, across six failed launches that all reported `MODULE_NOT_FOUND`; the **deploy runner** stopped
+  the tree at 02:21:44.060 once its budget expired — there is no supervisor give-up/`maxRestarts` line in the
+  log. **What proves it will not
   recur: `atlas-server\dist\server.js` now exists and the state file reads `running` with both owned PIDs.**
 - **DURABLE PROCESS FIX OWED, and it is mine:** A4's build phase must run the **emitting** server build and
   **assert `atlas-server\dist\server.js` exists** before the dry run. A green `tsc --noEmit` is not a build
@@ -633,11 +636,16 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   (`schtasks /run` -> health/ready 200 `database: ok`, `GET /api/v1/subjects?schoolId=1` 200 / 20 336 B).
   Audit `C:\ProgramData\ATLAS\release-audit\3e6166e4-20260930-102007\`. Dry run first: `mutates false`,
   `secretsPrinted false`, incumbent pids 32100/19628, supervisor 30840.
-  **⚠⚠ THE FIRST CUTOVER ATTEMPT FAILED AND LIVE WAS DOWN ~7 MINUTES. It was my error, not the pin's, and
+  **⚠⚠ THE FIRST CUTOVER ATTEMPT FAILED AND THE API WAS DOWN 5 m 08 s (my first record said "~7 minutes",
+  which post-action QA corrected against the log). It was my error, not the pin's, and
   it is recorded here rather than buried.** The runner returned `CUTOVER_STARTED` and exited 0, but the
-  **readiness row MISSED its 180 s budget (183.1 s, no listener on 5001 or 5174 at any poll)**. Cause, from
+  **readiness row MISSED its 180 s budget (183.1 s, no listener on 5001 at any poll; the 5174 client host
+  stayed up and serving the whole time — `Production host listening on port 5174` at 02:20:34.635)**. Cause, from
   the supervisor log: `Error: Cannot find module 'E:\ATLAS-worktrees\lane-a4-release-20260930-19prod\atlas-server\dist\server.js'`,
-  `failureReason: server exited during startup`, `giveUpReason: exceeded maxRestarts=5`. **Root cause: I
+  `failureReason: server exited during startup`. (The state file also read `giveUpReason: exceeded maxRestarts=5`
+  *while the failure was current*; the post-success file no longer carries it, and the log holds **no**
+  give-up/`maxRestarts` line — the **deploy runner** terminated the tree at 02:21:44.060 after its budget
+  expired, which is the correct fail-closed path.) **Root cause: I
   never built the server.** I ran `tsc --noEmit` (a type-check, which emits nothing) and recorded it as the
   server build; `atlas-server/package.json`'s `build` script is `tsc`, and the target tree's
   `atlas-server/dist` had **0 files** because `dist` is gitignored and the new tree was created from git.
@@ -647,12 +655,34 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   and re-running the task *completes* the cutover rather than retrying a decision; a rollback would have
   cost a second machine-scope change and a second restart to restore an older release. `tsc` exit 0 in
   59.92 s, `dist` **1167 files - exactly the live tree's count** - then `schtasks /run` and **ready at 45 s**.
-  **Outage window measured:** first failed task start 10:20:33, `giveUp` 10:21:43, serving restored ~10:25:41
-  (`supervisor-state.json` `startedAt`/`updatedAt`). **What proves it is not recurring:** `server.js` now
-  exists in the target and the state file reads `running` with both owned PIDs. **The process defect is
+  **Outage window measured:** API down 02:20:33.558 -> serving 02:25:41.483 = **5 m 08 s**, across six
+  failed launches that each reported `MODULE_NOT_FOUND`; the runner stopped the tree at 02:21:44.060
+  (`supervisor-state.json` `startedAt`/`updatedAt` bracket it). **What proves it is not recurring:** `server.js` now
+  exists in the target, and the dist is provably this train's emit (all 1167 files carry a single 10:24 emit
+  minute against the incumbent's 09:31-09:32 spread, per post-action QA). **The process defect is
   real and owed an owner: A4's build phase must run the EMITTING server build and assert
   `atlas-server\dist\server.js` exists before the dry run, not a `--noEmit` type-check. Recorded in the
   Lane A4 section below.**
+  **🔴 OPEN, DATED 2026-09-30 10:30 +08 — the deploy path still has no build gate, so this outage is
+  REPRODUCIBLE on train 20. Owner: A4 (ops), needs its own cycle, NOT this train.** Post-action QA returned
+  `CORRECTION_REQUIRED` **9/10, blocked 0, unperformed 0** — every runtime row passed (identity, readiness,
+  a genuinely non-vacuous discriminator, a real rebuilt dist, no migration, rollover disabled, clean tree,
+  campus images proven resolving by HTTP, and a record that does not hide the outage). The single failing
+  row: `ops/runtime/deploy-runner.ps1` is 285 lines with **zero** occurrences of `npm`, `tsc`, `build`,
+  `node_modules` or `dist`; it never asserts `atlas-server\dist\server.js` or `atlas-client\dist\index.html`,
+  and it **returns `CUTOVER_STARTED` with exit 0 even when the readiness poll fails** — so a caller trusting
+  the exit code would have called train 19 deployed while live was dark. That is the operational seed. The
+  rule exists at `docs/handoffs/workflow-metrics.md:157` ("19. Never cut over without a built server
+  (30 Sep 10:21, train 19)") but **is not in `AGENTS.md`, and a fresh session binds `AGENTS.md` — so it does
+  not bind the next executor.** Owed, in order: (1) assert `dist\server.js` + `dist\index.html` and a dist
+  file-count parity check before the dry run; (2) make a failed readiness poll a **non-zero exit**; (3) move
+  rule 19 into `AGENTS.md`; (4) make it a hard gate in the fast-deploy script. **Not rolling back a release
+  that is verified correct and serving to chase a tooling gap** — this train ships with the finding recorded.
+  **Also recorded (F4, disclosure): the operator exercised this release's own feature on LIVE during the
+  demo window** — `POST /api/v1/auth/login` 200, `POST …/manual-edits/swap/preview` 200,
+  `POST …/manual-edits/swap` 200 (02:27:51) and `POST …/manual-edits/revert` 200 (02:28:00), i.e. a real
+  one-action swap immediately undone by Undo on the live draft run. **Not A4's action** — A4 issued only GETs
+  in that window — and it is the strongest evidence yet that the shipped feature works end to end.
   **Shipped-vs-claimed check (this train's single claim, §14):** PASS - the served chunk
   `assets/ScheduleReviewWorkspace-C9UTtQ1R.js` is 200, 500 933 B, **sha256 `b80916a1…4ef9` byte-identical to
   the built asset**, and carries the new A2 operator string `ATLAS could not check this swap in time`;
