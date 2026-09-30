@@ -20,10 +20,12 @@ import {
 type TeachingLoadPlacementNoticeProps = {
 	blockers: PlacementBlocker[];
 	onUseAlternative?: (blocker: PlacementBlocker, alternative: PlacementAlternative) => void;
+	/** Clears the blockers (the way out when no replacement teacher fits). */
+	onDismiss?: () => void;
 	busy?: boolean;
 };
 
-export function TeachingLoadPlacementNotice({ blockers, onUseAlternative, busy }: TeachingLoadPlacementNoticeProps) {
+export function TeachingLoadPlacementNotice({ blockers, onUseAlternative, onDismiss, busy }: TeachingLoadPlacementNoticeProps) {
 	if (!blockers || blockers.length === 0) return null;
 	return (
 		<div data-testid="teaching-load-placement-notice" className="space-y-2">
@@ -39,7 +41,7 @@ export function TeachingLoadPlacementNotice({ blockers, onUseAlternative, busy }
 						<p data-testid="teaching-load-placement-sentence" className="text-sm font-semibold text-warning-foreground">
 							{blocker.sentence}
 						</p>
-						{alternative && (
+						{alternative ? (
 							<Button
 								type="button"
 								size="sm"
@@ -51,6 +53,23 @@ export function TeachingLoadPlacementNotice({ blockers, onUseAlternative, busy }
 							>
 								Use {alternative.facultyName} ({describeAlternativeSlot(alternative)})
 							</Button>
+						) : (
+							<>
+								<p data-testid="teaching-load-placement-guidance" className="mt-1 text-xs text-muted-foreground">
+									Free a teacher for this time, or change who teaches the class, then save again.
+								</p>
+								<Button
+									type="button"
+									size="sm"
+									variant="outline"
+									className="mt-2 h-8 rounded-lg font-semibold"
+									data-testid="teaching-load-placement-dismiss"
+									onClick={onDismiss}
+									disabled={busy || !onDismiss}
+								>
+									Close
+								</Button>
+							</>
 						)}
 					</div>
 				);

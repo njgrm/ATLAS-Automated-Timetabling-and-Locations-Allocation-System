@@ -13,7 +13,7 @@
  */
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
-import { act, createElement } from 'react';
+import { act, createElement, useState } from 'react';
 import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
@@ -23,11 +23,28 @@ Object.assign(globalThis, {
 	window: dom.window,
 	document: dom.window.document,
 	HTMLElement: dom.window.HTMLElement,
+	HTMLInputElement: dom.window.HTMLInputElement,
+	HTMLTextAreaElement: dom.window.HTMLTextAreaElement,
+	HTMLSelectElement: dom.window.HTMLSelectElement,
 	HTMLButtonElement: dom.window.HTMLButtonElement,
+	HTMLAnchorElement: dom.window.HTMLAnchorElement,
 	Element: dom.window.Element,
 	Node: dom.window.Node,
+	NodeFilter: dom.window.NodeFilter,
 	Event: dom.window.Event,
 	MouseEvent: dom.window.MouseEvent,
+	PointerEvent: dom.window.MouseEvent,
+	KeyboardEvent: dom.window.KeyboardEvent,
+	FocusEvent: dom.window.FocusEvent,
+	CustomEvent: dom.window.CustomEvent,
+	DOMRect: dom.window.DOMRect,
+	MutationObserver: dom.window.MutationObserver,
+	DocumentFragment: dom.window.DocumentFragment,
+	getComputedStyle: dom.window.getComputedStyle.bind(dom.window),
+	requestAnimationFrame: (cb: FrameRequestCallback) => setTimeout(() => cb(Date.now()), 0),
+	cancelAnimationFrame: (id: number) => clearTimeout(id),
+	ResizeObserver: class { observe() {} unobserve() {} disconnect() {} },
+	IntersectionObserver: class { observe() {} unobserve() {} disconnect() {} takeRecords() { return []; } },
 	IS_REACT_ACT_ENVIRONMENT: true,
 });
 (dom.window as any).matchMedia ??= (query: string) => ({
@@ -40,10 +57,14 @@ Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, co
 dom.window.HTMLElement.prototype.hasPointerCapture ??= () => false;
 dom.window.HTMLElement.prototype.setPointerCapture ??= () => {};
 dom.window.HTMLElement.prototype.releasePointerCapture ??= () => {};
+dom.window.HTMLElement.prototype.getBoundingClientRect = function () {
+	return { width: 320, height: 40, top: 0, left: 0, bottom: 40, right: 320, x: 0, y: 0, toJSON: () => ({}) };
+};
 
 const { createRoot } = await import('react-dom/client');
 const lib = await import('@/lib/teaching-load-placement');
 const { TeachingLoadPlacementNotice } = await import('@/components/faculty-assignments/TeachingLoadPlacementNotice');
+const { TeachingLoadModals } = await import('@/components/faculty-assignments/TeachingLoadModals');
 
 const SENTENCE = 'Grade 8 Makabansa cannot fit TLE Exploratory – ICT: Francis Miguel Navarro is already booked at the only free time.';
 
@@ -167,4 +188,87 @@ test('the notice renders ONE plain sentence and the one-click alternative applie
 	assert.ok(button, 'the one-click alternative is rendered');
 	await act(async () => { button!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); });
 	assert.deepEqual(calls, [['Francis Miguel Navarro', 'EDUARDO VILLAREAL']], 'clicking the alternative swaps in the teacher who fits');
+});
+
+// ─── B2 (QA REJECT_UX): the refusal is never a trap ─────────────────────────
+
+function modalsProps(blockers: any[], setBlockers: (next: any[]) => void) {
+	return {
+		summaryModalOpen: false,
+		onSummaryModalOpenChange: () => {},
+		autoFillResult: null,
+		onApplySuggestion: () => {},
+		suggestionApplying: false,
+		saveWarningOpen: false,
+		onSaveWarningOpenChange: () => {},
+		onSaveConfirm: () => {},
+		discardConfirmOpen: false,
+		onDiscardConfirmOpenChange: () => {},
+		onDiscardConfirm: () => {},
+		activeDraftCount: 0,
+		reviewModalOpen: false,
+		onReviewModalOpenChange: () => {},
+		reviewInspector: null,
+		reviewTitle: 'Review',
+		reviewDescription: 'Review',
+		saveChangesConfirmOpen: false,
+		onSaveChangesConfirmOpenChange: () => {},
+		onSaveChangesConfirm: () => {},
+		pendingChangeCount: 0,
+		pendingChangeTeacherCount: 0,
+		pendingChangeScope: '',
+		placementBlockers: blockers,
+		onUsePlacementAlternative: () => {},
+		onDismissPlacementBlockers: () => setBlockers([]),
+		placementBusy: false,
+	};
+}
+
+async function mountBlockedSaveDialog(): Promise<HTMLElement> {
+	const host = dom.window.document.createElement('div');
+	dom.window.document.body.appendChild(host);
+	const root = createRoot(host);
+	mounts.push({ root, host });
+	function Harness() {
+		const [blockers, setBlockers] = useState<any[]>([blockerFixture()]);
+		return createElement(TeachingLoadModals as any, modalsProps(blockers, (next) => setBlockers(next)));
+	}
+	await act(async () => { root.render(createElement(Harness)); });
+	return host;
+}
+
+test('the blocked-save dialog is dismissed by Escape and clears the blockers', async () => {
+	await mountBlockedSaveDialog();
+	assert.ok(dom.window.document.querySelector('[data-testid="teaching-load-placement-dialog"]'), 'the refusal dialog is open');
+	await act(async () => {
+		dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+	});
+	assert.equal(dom.window.document.querySelector('[data-testid="teaching-load-placement-dialog"]'), null, 'Escape dismisses the refusal');
+});
+
+test('the blocked-save dialog has a visible Close control that clears the blockers', async () => {
+	await mountBlockedSaveDialog();
+	const close = dom.window.document.querySelector('[data-testid="teaching-load-placement-close"]') as HTMLElement | null;
+	assert.ok(close, 'a visible way out is always rendered');
+	await act(async () => { close!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); });
+	assert.equal(dom.window.document.querySelector('[data-testid="teaching-load-placement-dialog"]'), null, 'Close dismisses the refusal');
+});
+
+test('when no replacement teacher fits the notice still renders a way out', async () => {
+	const host = dom.window.document.createElement('div');
+	dom.window.document.body.appendChild(host);
+	const root = createRoot(host);
+	mounts.push({ root, host });
+	let dismissed = 0;
+	const blocker = { ...blockerFixture(), alternatives: [] };
+	await act(async () => {
+		root.render(createElement(TeachingLoadPlacementNotice, { blockers: [blocker], onDismiss: () => { dismissed += 1; } }));
+	});
+	assert.equal(host.querySelector('[data-testid="teaching-load-placement-alternative"]'), null, 'no alternative button is offered');
+	assert.ok(host.querySelector('[data-testid="teaching-load-placement-guidance"]'), 'one short line says what to change');
+	const dismiss = host.querySelector('[data-testid="teaching-load-placement-dismiss"]') as HTMLElement | null;
+	assert.ok(dismiss, 'a way out is still rendered when nobody fits');
+	assert.equal(host.querySelector('[data-testid="teaching-load-placement-sentence"]')?.textContent, SENTENCE);
+	await act(async () => { dismiss!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); });
+	assert.equal(dismissed, 1, 'the way out clears the refusal');
 });

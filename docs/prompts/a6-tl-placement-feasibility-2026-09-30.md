@@ -125,10 +125,19 @@ Makabansa shape:
   `test:server-db` list; the client test → `atlas-client/package.json` `test:a6-tl-placement-client`.
 - A source-level guard test asserting the new module contains no local `intervalsOverlap` /
   `timeToMinutes` / term-scope re-implementation and does import the shared primitives (reuse proof).
-- Rendered proof of O5: a loopback render with the API mocked (`VITE_ATLAS_API=http://127.0.0.1:5101`
-  if a preview is used — never the live API), labelled `isolated`; before/after strings quoted.
-  Start any preview with `Start-Process -WindowStyle Hidden -PassThru`, poll the port, stop that PID in
-  the same command. Never a foreground server.
+- Rendered proof of O5 — **SUPERSEDED (2026-09-30) and DEFERRED for this cycle; the previous
+  wording is retained below only as history.** Under operator decision 12 (30 Sep 07:05) the rendered
+  browser row is a **deployment-acceptance row owned by Lane C**, executed after the release-train
+  cutover on the live Tailnet origin `https://njgrm.buru-degree.ts.net` (asserting
+  `window.location.origin`): it must show the plain sentence and the one-click alternative for a
+  blocked save and for a refused "Apply suggested". This cycle may not deploy, so the row is
+  **NOT EXECUTED here and is NOT a pass** — it is deferred to Lane C, post-cutover. The source-level
+  proof for this cycle is the jsdom DOM render in `a6-tl-placement-client.test.ts` (the ONE sentence
+  rendered verbatim; the one-click alternative clickable; the no-alternative case still offering a
+  Close). ~~Original wording, superseded: "Rendered proof of O5: a loopback render with the API mocked
+  (`VITE_ATLAS_API=http://127.0.0.1:5101` if a preview is used — never the live API), labelled
+  `isolated`; before/after strings quoted. Start any preview with `Start-Process -WindowStyle Hidden
+  -PassThru`, poll the port, stop that PID in the same command. Never a foreground server."~~
 - Client suite + both type-checks and builds green; `git diff --check` clean.
 
 ## 5. Boundaries (deny list)

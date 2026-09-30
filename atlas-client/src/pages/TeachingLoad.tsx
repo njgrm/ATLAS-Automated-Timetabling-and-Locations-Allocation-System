@@ -973,6 +973,7 @@ export default function TeachingLoad() {
 				pendingChangeScope=""
 				placementBlockers={placementBlockers}
 				onUsePlacementAlternative={handleUsePlacementAlternative}
+				onDismissPlacementBlockers={() => placementGate.setPlacementBlockers([])}
 				placementBusy={data.saving}
 			/>
 		</TooltipProvider>
