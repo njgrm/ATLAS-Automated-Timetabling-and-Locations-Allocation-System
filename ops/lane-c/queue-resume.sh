@@ -1,0 +1,4 @@
+# Usage: queue-resume.sh <name> <agent> <session>. Retries launch.ps1 -Session every 60 s until the cap allows.
+S="$(cd "$(dirname "$0")" && pwd)"; H="${LANE_C_HOME:-D:/ATLAS-lane-c}"
+P='Lane C: your run was killed twice (laptop shutdown 07:48, internet drop 07:56). Continue exactly where you stopped: first run date, git fetch and git status in your worktree (recreate the node_modules junction per rule 10 if it is missing), restart any dev server you need, then finish the cycle and land it on main per decision 12 and rule 12. Operator is travelling on battery: keep it lean.'
+until out=$(powershell.exe -NoProfile -File "$(cygpath -w $S/launch.ps1)" -Name "$1" -Agent "$2" -Session "$3" -Prompt "$P" 2>&1) && echo "$out" | grep -q PID; do sleep 60; done; echo "$out"
