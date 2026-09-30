@@ -27,6 +27,16 @@ Pre-existing failures are compared against the pinned base and recorded; they ar
 4. Next ticks: `bash ops/lane-c/status.sh`; read the log tail in `D:/ATLAS-lane-c/runs/<id>.log`.
 5. After the integration owner lands it: `powershell -File ops/lane-c/remove-worktree.ps1 -Path E:\ATLAS-worktrees\lane-<owner>-<id>`.
 
+## Design (UI packets)
+- `DESIGN.md` (repo root) is the design system: SMART-family chrome, teacher/registrar patterns, ATLAS tokens, layout
+  and voice rules. `PRODUCT.md` is the product brief. Both load automatically in the Impeccable skill.
+- Impeccable is installed for OpenCode (`.opencode/skills/impeccable`, command `/impeccable`). Allowed in packets:
+  `audit`, `critique`, `polish`, `clarify`, `distill`, `quieter`, `harden`, `adapt`, `layout`. Never `bolder`,
+  `delight`, `overdrive`, `animate`, `colorize` or `shape`/new-work: ATLAS is calm product UI.
+- DESIGN.md and operator decisions beat Impeccable's taste rules (e.g. its "avoid Inter" rule: ATLAS keeps Inter).
+- The engine binary downloads on first run into the skill's `scripts/bin` (git-ignored). Static `impeccable detect` on
+  .tsx source finds nothing useful; use the agent `audit` with screenshots.
+
 ## Known failure modes and the rule for each
 1. **It stops after stating intent** (exit 0, no report block). Mark it NEEDS_TRIAGE and resume the SAME session once:
    `launch.ps1 -Name <id>-r -Session <ses_id> -Dir <wt> -Prompt 'Continue. Finish and print the report block.'`
@@ -56,7 +66,9 @@ OWNED FILES: <list>. Editing any other file = stop and report NEEDS_DECISION.
 FORBIDDEN: reading .env/runtime-config files, deploy, publish, generation or writes on live, other lanes' files,
   fixing the 5 known client tsc errors.
 DONE MEANS: failing test first -> fix -> focused tests + full client/server suite + tsc -> 1366x768 screenshot of the
-  changed screen (servers in background with a timeout, stopped after) -> commit -> report candidate SHA.
+  changed screen (servers in background with a timeout, stopped after) -> UI packets: follow DESIGN.md, run
+  `/impeccable audit <changed files>` and fix what it finds, tick the DESIGN.md section 7 checklist in the report
+  -> commit -> report candidate SHA.
   The designated integration owner merges T1/T2; T3 receives independent review first. Before ANY exit, commit
   `wip: <id>` if anything is uncommitted and report the SHA for a manager-owned push.
 REPORT BLOCK (print exactly, last):

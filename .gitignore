@@ -137,3 +137,6 @@ qa-artifacts/playwright/specs/*
 /debug_extract.txt
 /test6_output.txt
 /audit_tl.html
+# Impeccable engine binary: downloaded on first run, never committed
+.opencode/skills/impeccable/scripts/bin/
+.impeccable/

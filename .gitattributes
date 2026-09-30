@@ -25,3 +25,5 @@ docs/verification/** text eol=lf
 *.gif binary
 *.webp binary
 *.pdf binary
+
+.opencode/skills/impeccable/scripts/impeccable text eol=lf
