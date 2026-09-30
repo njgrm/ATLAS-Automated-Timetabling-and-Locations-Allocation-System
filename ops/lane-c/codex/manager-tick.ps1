@@ -13,6 +13,12 @@ $repo = (Resolve-Path -LiteralPath $Repo -ErrorAction Stop).Path
 git -C $repo rev-parse --is-inside-work-tree | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "TICK_REPO_NOT_GIT:$repo" }
 $H = if ($env:LANE_C_HOME) { $env:LANE_C_HOME } else { 'D:\ATLAS-lane-c' }
+$stateCandidate = [IO.Path]::GetFullPath($H).Replace('\','/').TrimEnd('/').ToLowerInvariant()
+$registeredCandidates = @(git -C $repo worktree list --porcelain | Where-Object { $_ -like 'worktree *' } |
+  ForEach-Object { [IO.Path]::GetFullPath($_.Substring(9)).Replace('\','/').TrimEnd('/').ToLowerInvariant() })
+foreach ($treePath in $registeredCandidates) {
+  if ($stateCandidate -eq $treePath -or $stateCandidate.StartsWith("$treePath/")) { throw "INVALID_LANE_C_HOME_INSIDE_WORKTREE:$H" }
+}
 New-Item -ItemType Directory -Force $H | Out-Null
 $H = (Resolve-Path -LiteralPath $H -ErrorAction Stop).Path
 $snapshot = Join-Path $H 'manager-repo'
@@ -145,7 +151,7 @@ $status
     $env:CODEX_HOME = $ManagerHome
     $env:ATLAS_MANAGER_REPO = $snapshot
     # The manager account's native Windows sandbox rejects all shell reads, including its external mirror.
-    # Keep its session rooted away from the real checkout; the before/after Git tripwire below stops on any real-tree write.
+    # Keep its session rooted away from the real checkout; the before/after Git tripwire detects any persistent real-tree change.
     $promptPath = Join-Path $ticks "$stamp.prompt.md"
     $resultPath = Join-Path $ticks "$stamp.md"
     $logPath = Join-Path $ticks "$stamp.log"
