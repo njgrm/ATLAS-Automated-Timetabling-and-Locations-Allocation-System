@@ -74,7 +74,7 @@ export function TimetableSubNavRow() {
 			<nav
 				aria-label={`${CLASS_SCHEDULE_LABEL} sections`}
 				data-testid="timetable-sub-nav"
-				className="flex min-w-0 flex-wrap items-center gap-1"
+				className="flex shrink-0 flex-nowrap items-center gap-1 whitespace-nowrap"
 			>
 				{SUB_NAV_ITEMS.map((item) => (
 					<NavLink

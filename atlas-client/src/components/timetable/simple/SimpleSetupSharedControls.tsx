@@ -142,7 +142,7 @@ export function SimpleReadinessChip({
 					/* `sm:shrink` (NOT `shrink-0`) is what lets this chip give up width at
 					 * 1366 px instead of pushing `Publish schedule` or `More` onto a second
 					 * line — the same reasoning as the two branches below. */
-					'h-6 min-w-0 shrink gap-1.5 rounded-full px-2 text-xs font-semibold sm:h-6 sm:shrink sm:gap-1.5 sm:px-2',
+					'h-6 shrink-0 gap-1.5 whitespace-nowrap rounded-full px-2 text-xs font-semibold sm:h-6 sm:gap-1.5 sm:px-2',
 					'border-2 border-amber-600/70 bg-amber-50 text-amber-900',
 				)}
 				data-testid="timetable-simple-readiness-chip"
@@ -206,7 +206,7 @@ export function SimpleReadinessChip({
 				aria-label={`${readiness}. ${consequence}`}
 			>
 				<Info className="size-3.5 shrink-0" aria-hidden="true" />
-				<span data-testid="timetable-simple-readiness-consequence">{consequence}</span>
+				<span data-testid="timetable-simple-readiness-consequence" title={consequence}>{readiness} · Can't publish yet</span>
 			</Badge>
 		);
 	}
