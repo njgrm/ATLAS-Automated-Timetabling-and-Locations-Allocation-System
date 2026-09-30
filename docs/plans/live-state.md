@@ -585,6 +585,55 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **- LIVE CUTOVER IN FLIGHT - target release `3e6166e4aa23529732de4ed9b15e71dd7a592216` (train 19,
+  pinned by the operator 2026-09-30, **DIRECT TO LIVE** under operator decision 12), rollback basis
+  `9e2bfb240df2a5c26e01e2ab7dad97ecfae5b966` (train 18) @
+  `E:\ATLAS-worktrees\lane-a4-release-20260930-18prod`, `KEEP_ACTIVE`. One-step supervised reset;
+  in-run failures self-rollback (`deploy-runner.ps1:300-306`).** Recorded ahead of the mutation because
+  `Assert-LiveReleaseRecorded` (`deploy-runner.ps1:198-217`) fails closed until the target prefix is in this
+  section at `-LiveStateRef`; no `schtasks`/env/port write has happened yet. Target dir
+  `E:\ATLAS-worktrees\lane-a4-release-20260930-19prod`, branch `release/2026-09-30-19`, HEAD == pin, clean.
+  **Content: A2's move, swap and "Remove from draft" in one action, with receipts and Undo** (timetable
+  selected-class strip). Range `9e2bfb24..3e6166e4` = **17 commits, 18 changed paths**; `atlas-server`, `ops`
+  and `prisma` diffs all **EMPTY**, `prisma/schema.prisma` blob `ba62f40a…74f0` identical on both ends, so
+  **no migration** and `npm run migrate:guarded` was not run. `atlas-client/package.json` = **one added
+  `test:ux-a2-move-swap` script line, no dependency change**. **Dependency tree mirrored, not installed:**
+  all three `package-lock.json` blobs byte-identical to the live tree, so `robocopy /MIR /MT:16` from
+  `…-18prod`; final parity proven 12 797 / 17 242 / 8 068 files **and** bytes, 0 reparse points, pinned
+  `prisma` 6.19.2 with its `.cmd` shims present. **Data portability:** the live tree's
+  `atlas-server/uploads` (8 files / 3 309 860 B campus images) copied into the target so
+  `schools.campus_image_url` keeps serving; the shared `.git/info/exclude:26` already covers the path, so
+  `status --short` stayed empty. **Builds: PASS** - `prisma generate` exit 0 (48.17 s, local pinned binary,
+  repo-root schema) · server `tsc --noEmit` exit 0 (49.12 s) · client `vite build` exit 0 (30.08 s) with
+  `VITE_ENROLLPRO_URL` set **by name** from `ENROLLPRO_PROXY_ORIGIN` (fail-closed vite guard satisfied; the
+  value was never printed). **Discriminator chosen and proven non-vacuous BEFORE the cutover:** chunk
+  **`assets/ScheduleReviewWorkspace-C9UTtQ1R.js`** (500 933 B, sha256 `b80916a1…4ef9`) carries the new
+  operator string `ATLAS could not check this swap in time` **1x** and **0x in every `.js` of the live
+  dist**; the anchor `Now choose the class to swap times with` proves it is the real route chunk (live
+  instance `ScheduleReviewWorkspace-BEI4Gmo9.js`, 495 701 B, sha256 `d3f330f0…4b41`, **not** byte-identical).
+  **Pre-action review (fresh, read-only, all HIGH pre-gates in one pass): `CLEAR_TO_CUTOVER` 25/25/0/0** -
+  source tier **MEDIUM** (client-only, no new write authority, no route/auth/CAS change), the migration
+  stop is satisfiable with no boot-time migrate path, and the dry run is genuinely non-mutating
+  (`mutates false`; the pre-`-Execute` path runs reads only and exits at `deploy-runner.ps1:278`).
+  E: 26.24 GiB free before the cutover - above the 25 GiB warning, so **no reclaim was due**.
+  **NOT IN TRAIN (correct, §14 - a pinned release is never reopened because `main` moved):** `origin/main`
+  advanced to `8350b2dd`, **5 commits above the pin**, and **two of them (`87720dc0`, `d0155dc5`) rewrite
+  `useScheduleReviewWorkspaceState.ts` and `useTimetableMutations.ts` - the same two hooks train 19
+  touches** - plus `15188b2d`. A8's blocked-Generate plain-words work is integrated in source only and is
+  **not served by this runtime**; it is train 20's content, and the overlap needs A8 to re-verify on top of
+  this pin. **Two of my own errors are recorded so neither is re-diagnosed as a broken tree:** (1) the
+  first `robocopy` passed the directory as robocopy's **third positional file filter**, so it reported
+  **exit 0 = "nothing copied"** and left an empty 4 432-directory skeleton; parity counts caught it before
+  any build and the corrected invocation (source and destination are the `node_modules` directories
+  themselves) reported exit 1 with exact file and byte parity. (2) `npx prisma generate` resolved
+  **Prisma 8.0.0-rc.19 off the network**, which has no `generate` command; the repo pins `^6.19.2`, so
+  generate must be run through the local `atlas-server/node_modules/.bin/prisma.cmd`. **Scope note for the
+  LIVE post:** "one action" and "Remove from draft" are true **of the selected-class strip**; `RightPanel`
+  and the drag-drop path still open a confirm, and all three share `removeDraftPlacement` so receipt + Undo
+  are universal. The swap timeout copy says "Nothing changed" but the 8 s bound rejects the wait without
+  cancelling the request, so **the swap is bounded, not impossible-to-fail.** No migration, generation or
+  publication. Rendered 1366x768 proof of the strip, its receipt and Undo is owed and is labelled a
+  **Lane C deployment-acceptance clause**, not a source row.
 - **- LIVE: `9e2bfb240df2a5c26e01e2ab7dad97ecfae5b966` @ DEPLOYED TO PRODUCTION 2026-09-30 09:35 +08 by Lane A4
   under operator decision 12 (direct to live). Train 18.** Rollback basis
   **`3b29bb4426c3e4bc6cfc9d8de4e5a630eb218143`** @ `E:\ATLAS-worktrees\lane-a4-release-20260930-17prod`
