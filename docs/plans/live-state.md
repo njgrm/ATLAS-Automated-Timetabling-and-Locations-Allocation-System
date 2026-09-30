@@ -7,6 +7,48 @@ changes.
 Last reconciled: 2026-09-26 (Lane A — fresh session; capacity, live-release identity, cross-lane debt and the
 credential incident re-derived. See the dated correction blocks in the Lane A section).
 
+## Lane A4 — release lane, 2026-09-30 10:55 +08 (train 20 **LIVE at `c82b8636`**; train 19 `3e6166e4` is the rollback basis)
+
+- **TRAIN 20 IS LIVE at `c82b8636`** — the demo header hotfix (chip reads `<readiness> · Can't publish yet` on one
+  line, tabs never wrap, undo/redo reasons moved into tooltips) **plus A3's server term-fallback**. Listeners
+  5001 -> **20848** / 5174 -> **15832**; task Running; state `running`, `restartFailures 0`; **ready in 15.5 s of
+  180 s**. Full record in the `## Live release` block. Audit
+  `C:\ProgramData\ATLAS\release-audit\c82b8636-20260930-104734\`.
+- **⚠ THE PACKET'S PREMISE WAS WRONG AND I CAUGHT IT BY ENUMERATING, NOT BY TRUSTING.** The packet said "client-only
+  header hotfix plus whatever is on main". The range `3e6166e4..c82b8636` is 16 paths and **carries server code**:
+  A3's `persistVerifiedActiveTerm` +157/-? in `active-term-resolver.service.ts`, +43 in `runtime-context.service.ts`,
+  a new 303-line test, and a `test:a3-term-fallback` script line. It went to live because the pin's own words cover
+  "whatever is on main" and A3's independent QA stands at 14/14/0/0 — but it is **not** the client-only release the
+  packet described, and it added a live write path. **The description was not the authority; the enumeration was.**
+- **That write path fired exactly once, as designed:** mirror 633 gained `verifiedActiveTerm` = T1 at 02:48:43Z on
+  the first verified runtime-context read; `activeTerm` stays T1; `audit_logs` 578/1217 identical before and after.
+- **RULE 19 was followed and one of its assertions is now known to be wrong as written.** Both emitting builds ran
+  (`tsc` exit 0 -> 1170 files with `server.js`; `vite build` exit 0 -> `index.html` + `index-CCgHCNPW.js`). But the
+  literal "dist file count matches the live tree" **failed at 1170 vs 1167**, and it was **not** an incomplete build:
+  source went 389 -> 390 `.ts` (one new test) x 3 emitted artifacts, and a path-level `Compare-Object` proved the new
+  dist is a **strict superset** (0 live files missing, 0 stale). **RULE 19's parity row should read "superset of the
+  live dist, with every added source's emitted artifacts accounted" — an exact count is wrong the moment a release
+  adds one source file. Route to the rule owner with this train as the counterexample.**
+- **Two of my own tool errors this train, recorded so neither is misread as a pin defect:** (1) a `node -e` inline
+  Prisma probe lost its double quotes through PowerShell and died on a syntax error; (2) the same probe's
+  `audit_logs WHERE created_at > …` failed `42703` — **`audit_logs` has no `created_at` column**, so any future
+  time-window row on that table must use a different column. Both re-run cleanly.
+- **The §6 stale-inherited-environment trap fired again, harmlessly:** `cli.mjs status` in a fresh shell reported
+  **train 15** (`48b4686d`, `…-15prod`, dead child pids) because the shell inherited stale `ATLAS_RUNTIME_*`. Re-run
+  with the machine values injected, it reads `c82b8636` / `…-20prod` and matches the listeners. Identity was taken
+  from machine scope + task action + listener pids + the state file, never from the inherited env.
+- **Capacity, dated 2026-09-30 10:55 +08: E: 25.59 GiB free before this build — the §3 reclaim is now OWED before
+  train 21's build.** Above the 25 GiB warn line (so not fail-closed, and this train was correctly allowed to run),
+  but a release tree costs ~1.5 GiB, so E: is now ~24 GiB. Reclaimable, all reproducible from git and none running:
+  `…-13prod` `8f19430b`, `…-14prod` `f821fcd2`, `…-15prod` `48b4686d`, `…-16prod` `a2b67f4c`, `…-17prod`
+  `3b29bb44`. **Never touch `…-20prod` (live) or `…-19prod` (rollback basis).** Reclaim needs its own pass and its
+  own read of `docs/reference/agent-worktree-lifecycle.md`.
+- **Worktrees:** `…-20prod` = `KEEP_ACTIVE` (live runtime source dir) · `…-19prod` = `KEEP_ACTIVE` (rollback basis)
+  · `lane-a4-train-20260930-20docs` = `RETIRE_AFTER_INTEGRATION` after this push. `D:\ATLAS` never written.
+- **Next action (single):** Lane C runs the rendered live check at 1366x768 on
+  `https://njgrm.buru-degree.ts.net` — the timetable header (chip on one line, tabs not wrapped, no truncation) and
+  the calendar/term surface reading **T1** — and posts GO/NO_GO in `docs/handoffs/lane-c-to-a2.md`.
+
 ## Lane A4 — release lane, 2026-09-30 10:26 +08 (train 19 **LIVE at `3e6166e4`**; train 18 `9e2bfb24` is the rollback basis)
 
 - **TRAIN 19 IS LIVE at `3e6166e4`** — full record in the `## Live release` block. A2's move, swap and
@@ -627,12 +669,30 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
-- **- CUTOVER TARGET (recorded before the mutation, 2026-09-30 11:0x +08): `c82b8636027b00cde1e93fec26e6d426967345de`
-  (prefix `c82b863`), train 20, Lane A4 under operator decision 12 (direct to live). Rollback basis
+- **- LIVE: `c82b8636027b00cde1e93fec26e6d426967345de` (prefix `c82b863`) @ DEPLOYED TO PRODUCTION 2026-09-30
+  10:48 +08 by Lane A4 under operator decision 12 (**direct to live**), session "A4 train 20 direct". Train 20.
+  **Ready in 15.5 s of the 180 s budget** (~34 s from cutover start): `health` 200, `health/ready` 200
+  `database: ok`, **DB-backed** `GET /api/v1/subjects?schoolId=1` 200 / 20 336 B. Listeners **5001 -> pid 20848**,
+  **5174 -> pid 15832**; task **Running** with its action and Start In on `…-20prod`; state file `running`,
+  `releaseSha c82b8636`, `restartFailures 0`, supervisor log **"All targets healthy (liveness and dependency
+  readiness)"**, no restart loop, PIDs stable across three reads. Audit
+  `C:\ProgramData\ATLAS\release-audit\c82b8636-20260930-104734\`. **Dry run first: `mutates false`,
+  `secretsPrinted false`, incumbent pids 14160/8936, supervisor 31032.** `ROLLOVER_AUTO_SYNC_ENABLED=false`
+  (contract invariant, log confirms "Disabled").
+  **ZERO-WRITE, baseline captured BEFORE the quiesce** (train 1's D7 lesson): `audit_logs` **578 rows / max id
+  1217 before AND after — identical**; `_prisma_migrations` **11 / 0 unfinished** before and after.
+  **The ONE write that did occur is the new server feature working exactly as designed:**
+  `enrollpro_school_year_mirrors` id 633 gained `term_contract_cache.verifiedActiveTerm` =
+  `{"order":1,"identity":"T1","verifiedAt":"2026-09-30T02:48:43.875Z"}` — one `jsonb_set`, fired once, on the
+  first EnrollPro-verified `GET /api/v1/runtime/context` after the cutover. The cached `activeTerm` was already T1
+  and is **unchanged**, so the app stays on T1 (A3's defect direction). Baseline had `verifiedActiveTerm` absent,
+  which is exactly the root cause A3 documented.
+  **⚠⚠ THE PACKET'S "client-only header hotfix" PREMISE WAS WRONG — the range carries SERVER code, and I
+  enumerated before cutting over rather than trusting the description.** Rollback basis
   `3e6166e4aa23529732de4ed9b15e71dd7a592216` @ `E:\ATLAS-worktrees\lane-a4-release-20260930-19prod` (train 19),
   `KEEP_ACTIVE`, one-step supervised reset. Target dir `E:\ATLAS-worktrees\lane-a4-release-20260930-20prod`, branch
-  `release/2026-09-30-20`, HEAD == pin, clean. ⚠ **THE PACKET'S "client-only header hotfix" PREMISE WAS WRONG —
-  the range carries SERVER code:** `3e6166e4..c82b8636` = **16 paths** and includes A3's term-fallback
+  `release/2026-09-30-20`, HEAD == pin, clean. The range
+  `3e6166e4..c82b8636` = **16 paths** and includes A3's term-fallback
   (`8acfab0e`, `atlas-server/src/services/active-term-resolver.service.ts` +157, `runtime-context.service.ts` +43,
   new 303-line test) plus A8's generate-blockers client work. Both are on `main` under their own evidence (A3:
   independent QA `ACCEPT_READY` 14/14/0/0 on `3b29bb44..8acfab0e`, disposable-DB instrumentation 32/32); the pin's own
@@ -647,8 +707,21 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   (the one new test), each emitting 3 artifacts (`a3-term-fallback.test.js`/`.js.map`/`.d.ts`), and a
   path-level `Compare-Object` shows the new dist is a **strict superset** — 0 live dist files missing, 0 stale.
   Nothing was substituted silently; the literal numbers are here. **Migration list: NONE** — `prisma/**` diff empty,
-  `schema.prisma` blob `ba62f40a…74f0` identical on both ends, 11 = 11 migration dirs. See the Lane A4 section for
-  the completed cutover record.
+  `schema.prisma` blob `ba62f40a…74f0` identical on both ends, 11 = 11 migration dirs.
+  **Tailnet discriminator, proven non-vacuous BEFORE the cutover:** the two entry chunks are the **same byte
+  length (304 899 B) but different SHA-256** — live `index-BZR56XwE.js` `b76bc8c2…1074a` vs new
+  `index-CCgHCNPW.js` `da067109…8e49` — so a byte-count check would have been vacuous here; the hash is what
+  discriminates. On the Tailnet **after** the cutover: `/assets/index-CCgHCNPW.js` **200 / 304 899 B** and the
+  old `/assets/index-BZR56XwE.js` **404** (negative control), `/api/v1/health` 200, `/api/v1/health/ready` 200.
+  **Shipped-vs-claimed (§14), PASS:** the hotfix's own markers are in the new bundle and **0x in live** —
+  `Can't publish yet` **1x** and `flex shrink-0 flex-nowrap items-center gap-1 whitespace-nowrap` **1x** (new
+  dist) vs **0x / 0x** (live dist); the replaced class `sm:shrink gap-1.5` is **0x in both**.
+  **⚠ OWED, not fixed by A4 (A4 edits no product code):** the hotfix puts the blocked-reason sentence back into a
+  raw `title={consequence}` attribute on `SimpleSetupSharedControls.tsx` and drops the undo/redo reasons into
+  `TimetableUndoRedoControl.tsx` tooltips — **§8 forbids raw `title` attributes for extra information** (use
+  `@/ui` HoverCard/Tooltip). Owner: the Timetable lane. It also knowingly breaks 6 header-copy test rows
+  (`a2-c12-header-rows2` +2, `draft-ux-c01` +3, `a2-c11-s2-header-banners` +1) that pin the old visible text.
+  See the Lane A4 section for the rest of the record.
 - **- PREVIOUS LIVE: `3e6166e4aa23529732de4ed9b15e71dd7a592216` @ DEPLOYED TO PRODUCTION 2026-09-30 10:24 +08 by
   Lane A4 under operator decision 12 (**direct to live**), session "A4 train 19 direct". Train 19.
   Rollback basis `9e2bfb240df2a5c26e01e2ab7dad97ecfae5b966` @ `E:\ATLAS-worktrees\lane-a4-release-20260930-18prod`
