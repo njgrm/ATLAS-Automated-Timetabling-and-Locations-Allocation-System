@@ -178,28 +178,7 @@ export function TimetableUndoRedoControl({
 				<TooltipContent data-testid="timetable-redo-blocked-tooltip">{redoState ? 'Redo the last reverted change' : REDO_NOTHING_TO_REDO}</TooltipContent>
 				</Tooltip>
 			</TooltipProvider>
-			{undoBlockedReason ? (
-				/* A2-TIMETABLE-CUSTODY-R2: the reason is RENDERED, not only placed in a
-				 * tooltip. A disabled control whose explanation needs a hover is silence
-				 * for a keyboard or touch operator, and the accepted history-row precedent
-				 * (`TimetableAssignmentDialogs.tsx:160-162`) states its absence visibly. */
-				<span
-					role="status"
-					data-testid="timetable-undo-blocked-reason"
-					className="max-w-[24rem] rounded-md border border-border bg-muted px-2 py-1 text-xs text-muted-foreground"
-				>
-					{undoBlockedReason}
-				</span>
-			) : null}
-			{undoNotice ? (
-				<span
-					role="status"
-					data-testid="timetable-cannot-redo"
-					className="max-w-[24rem] rounded-md border border-border bg-muted px-2 py-1 text-xs text-muted-foreground"
-				>
-					{undoNotice}
-				</span>
-			) : null}
+			{/* Lane C 30 Sep (demo): the undo/redo reasons live in the button tooltips only; as visible blocks they stretched the header. */}
 			{redoVersionStale ? (
 				/* The full shared sentence is the visible text, not a two-word label: the
 				 * operator's only durable record of a refused undo has to say what

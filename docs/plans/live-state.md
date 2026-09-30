@@ -7,19 +7,104 @@ changes.
 Last reconciled: 2026-09-26 (Lane A — fresh session; capacity, live-release identity, cross-lane debt and the
 credential incident re-derived. See the dated correction blocks in the Lane A section).
 
+## Lane A4 — release lane, 2026-09-30 11:20 +08 (train 21 **LIVE at `fdae67ec`**; train 20 `c82b8636` is the rollback basis)
+
+- **TRAIN 21 IS LIVE at `fdae67ec`** — the decision-15 server fix: a teacher whose same-length slot immediately
+  **before** the lunch window is free has had lunch, so no `FACULTY_LUNCH_WINDOW_VIOLATION`. Listeners 5001 ->
+  **27380** / 5174 -> **32120**; task Running; state `running`; **ready in 55.4 s of 180 s**. Full record in the
+  `## Live release` block. Audit `C:\ProgramData\ATLAS\release-audit\fdae67ec-20260930-111737\`.
+- **The packet's description matched the enumeration this time, and I checked anyway.** `c82b8636..fdae67ec` is
+  4 paths: one product file (`constraint-validator.ts`, +6) and three docs. No foreign lane's code, no client
+  change, no migration.
+- **⚠ THE ONE REAL FINDING: TRAIN 20's TAILNET CHUNK PROOF DOES NOT TRANSFER, AND I DID NOT REUSE IT.** Because
+  client source is unchanged, the new build emits the **same** chunk `index-CCgHCNPW.js` at the same 304 899 B, so
+  that fetch is 200 before and after and proves nothing. I used the server instead: `constraint-validator.js`
+  63 707 B `65b22379…` vs 63 120 B `fe5fa906…`, and marker `earlierSlotFree` **2x new / 0x train-20 dist**.
+  **A release whose delta is server-only has no client-chunk discriminator; the rule that says "prove a deploy by
+  fetching a chunk that only exists in the new build" needs its server-side equivalent, or it will be reported as
+  satisfied by a byte-identical artifact.** Route to the rule owner with train 21 as the counterexample.
+- **`audit_logs` was NOT identical before and after (585/1224 -> 586/1226), and I did not write it off as
+  zero-write.** The one new row is id 1226 `LOCAL_LOGIN_SUCCESS` (actor 46) at 11:15:39 +08 — **1 min 57 s before
+  my cutover at 11:17:36 +08**, i.e. the operator's demo login, not the deploy. Attributing it to the cutover
+  would have been wrong in the other direction too. The expected `verifiedActiveTerm` write correctly did **not**
+  re-fire (identity still T1, so `updated_at` unchanged at 01:04:37).
+- **My own two tool errors, recorded so neither is later read as a pin defect:** (1) I over-printed a
+  `package.json` dump and flooded the transcript with two full script blocks; (2) my pre-Execute guard failed
+  twice with `42703 column "createdat" does not exist` — `generation_runs."createdAt"` is case-sensitive quoted,
+  and I left it unquoted in one of two queries. Same family as train 20's `audit_logs has no created_at`: on this
+  schema, **never assume a timestamp column's spelling or case — read `information_schema` first** (which I had
+  already done, and still got wrong in the second query).
+- **Capacity, dated 2026-09-30 11:20 +08: E: was 23.26 GiB free before this build — below the 25 GiB warn line,
+  above the 15 GiB fail-closed line.** I deployed in the warn band deliberately (demo in progress, and a deep
+  rollback is a rebuild, not an instant re-point), but the §3 reclaim train 20 recorded as owed is **STILL OWED**
+  and must not slip again. Candidates, all reproducible from git and none running: `…-13prod` `8f19430b`,
+  `…-14prod` `f821fcd2`, `…-15prod` `48b4686d`, `…-16prod` `a2b67f4c`, `…-17prod` `3b29bb44`. **Never touch
+  `…-21prod` (live) or `…-20prod` (rollback basis).** It needs its own pass and its own read of
+  `docs/reference/agent-worktree-lifecycle.md`.
+- **Worktrees:** `…-21prod` = `KEEP_ACTIVE` (live runtime source dir) · `…-20prod` = `KEEP_ACTIVE` (rollback basis)
+  · `lane-a4-t21-probe` (my scratch DB-probe dir) = delete, it holds no evidence. `D:\ATLAS` never written.
+- **Next action (single):** Lane C runs the rendered live check at 1366x768 on
+  `https://njgrm.buru-degree.ts.net` and posts GO/NO_GO in `docs/handoffs/lane-c-to-a2.md`; for this train the
+  user-visible check is that a teacher free in the slot **before** lunch no longer shows a lunch warning.
+
+## Lane A4 — release lane, 2026-09-30 10:55 +08 (train 20 **LIVE at `c82b8636`**; train 19 `3e6166e4` is the rollback basis)
+
+- **TRAIN 20 IS LIVE at `c82b8636`** — the demo header hotfix (chip reads `<readiness> · Can't publish yet` on one
+  line, tabs never wrap, undo/redo reasons moved into tooltips) **plus A3's server term-fallback**. Listeners
+  5001 -> **20848** / 5174 -> **15832**; task Running; state `running`, `restartFailures 0`; **ready in 15.5 s of
+  180 s**. Full record in the `## Live release` block. Audit
+  `C:\ProgramData\ATLAS\release-audit\c82b8636-20260930-104734\`.
+- **⚠ THE PACKET'S PREMISE WAS WRONG AND I CAUGHT IT BY ENUMERATING, NOT BY TRUSTING.** The packet said "client-only
+  header hotfix plus whatever is on main". The range `3e6166e4..c82b8636` is 16 paths and **carries server code**:
+  A3's `persistVerifiedActiveTerm` +157/-? in `active-term-resolver.service.ts`, +43 in `runtime-context.service.ts`,
+  a new 303-line test, and a `test:a3-term-fallback` script line. It went to live because the pin's own words cover
+  "whatever is on main" and A3's independent QA stands at 14/14/0/0 — but it is **not** the client-only release the
+  packet described, and it added a live write path. **The description was not the authority; the enumeration was.**
+- **That write path fired exactly once, as designed:** mirror 633 gained `verifiedActiveTerm` = T1 at 02:48:43Z on
+  the first verified runtime-context read; `activeTerm` stays T1; `audit_logs` 578/1217 identical before and after.
+- **RULE 19 was followed and one of its assertions is now known to be wrong as written.** Both emitting builds ran
+  (`tsc` exit 0 -> 1170 files with `server.js`; `vite build` exit 0 -> `index.html` + `index-CCgHCNPW.js`). But the
+  literal "dist file count matches the live tree" **failed at 1170 vs 1167**, and it was **not** an incomplete build:
+  source went 389 -> 390 `.ts` (one new test) x 3 emitted artifacts, and a path-level `Compare-Object` proved the new
+  dist is a **strict superset** (0 live files missing, 0 stale). **RULE 19's parity row should read "superset of the
+  live dist, with every added source's emitted artifacts accounted" — an exact count is wrong the moment a release
+  adds one source file. Route to the rule owner with this train as the counterexample.**
+- **Two of my own tool errors this train, recorded so neither is misread as a pin defect:** (1) a `node -e` inline
+  Prisma probe lost its double quotes through PowerShell and died on a syntax error; (2) the same probe's
+  `audit_logs WHERE created_at > …` failed `42703` — **`audit_logs` has no `created_at` column**, so any future
+  time-window row on that table must use a different column. Both re-run cleanly.
+- **The §6 stale-inherited-environment trap fired again, harmlessly:** `cli.mjs status` in a fresh shell reported
+  **train 15** (`48b4686d`, `…-15prod`, dead child pids) because the shell inherited stale `ATLAS_RUNTIME_*`. Re-run
+  with the machine values injected, it reads `c82b8636` / `…-20prod` and matches the listeners. Identity was taken
+  from machine scope + task action + listener pids + the state file, never from the inherited env.
+- **Capacity, dated 2026-09-30 10:55 +08: E: 25.59 GiB free before this build — the §3 reclaim is now OWED before
+  train 21's build.** Above the 25 GiB warn line (so not fail-closed, and this train was correctly allowed to run),
+  but a release tree costs ~1.5 GiB, so E: is now ~24 GiB. Reclaimable, all reproducible from git and none running:
+  `…-13prod` `8f19430b`, `…-14prod` `f821fcd2`, `…-15prod` `48b4686d`, `…-16prod` `a2b67f4c`, `…-17prod`
+  `3b29bb44`. **Never touch `…-20prod` (live) or `…-19prod` (rollback basis).** Reclaim needs its own pass and its
+  own read of `docs/reference/agent-worktree-lifecycle.md`.
+- **Worktrees:** `…-20prod` = `KEEP_ACTIVE` (live runtime source dir) · `…-19prod` = `KEEP_ACTIVE` (rollback basis)
+  · `lane-a4-train-20260930-20docs` = `RETIRE_AFTER_INTEGRATION` after this push. `D:\ATLAS` never written.
+- **Next action (single):** Lane C runs the rendered live check at 1366x768 on
+  `https://njgrm.buru-degree.ts.net` — the timetable header (chip on one line, tabs not wrapped, no truncation) and
+  the calendar/term surface reading **T1** — and posts GO/NO_GO in `docs/handoffs/lane-c-to-a2.md`.
+
 ## Lane A4 — release lane, 2026-09-30 10:26 +08 (train 19 **LIVE at `3e6166e4`**; train 18 `9e2bfb24` is the rollback basis)
 
 - **TRAIN 19 IS LIVE at `3e6166e4`** — full record in the `## Live release` block. A2's move, swap and
   "Remove from draft" **in one action, with receipts and Undo** on the timetable selected-class strip.
   Listeners 5001 -> **14160** / 5174 -> **8936**; task Running; `cli.mjs` `running`; **ready in 45 s**.
-- **⚠⚠ THE FIRST CUTOVER ATTEMPT FAILED AND LIVE WAS DOWN ~7 MINUTES — MY ERROR, RECORDED NOT BURIED.**
-  Readiness missed the 180 s budget (183.1 s, nothing on 5001/5174). Cause: the supervisor log's
+- **⚠⚠ THE FIRST CUTOVER ATTEMPT FAILED AND THE API WAS DOWN 5 m 08 s (measured 02:20:33.558 -> 02:25:41.483; my first record over-stated it as "~7 minutes") — MY ERROR, RECORDED NOT BURIED.**
+  Readiness missed the 180 s budget (183.1 s, nothing on **5001**; the 5174 client host kept serving throughout). Cause: the supervisor log's
   `Cannot find module …\atlas-server\dist\server.js`. **I never built the server** — I ran `tsc --noEmit`,
   a type-check, and recorded it as the build. The target tree came from git, `dist` is gitignored, and
   `atlas-server/dist` had **0 files**. Only the API was missing; the 5174 host served the whole time.
   Remedy over rollback: the emitting `tsc` (the same compilation that had just type-checked clean) exit 0 in
   59.92 s -> `dist` **1167 files, exactly the live tree's count** -> `schtasks /run` -> ready in 45 s.
-  Outage window: failed start 10:20:33, `giveUp` 10:21:43, serving 10:25:41. **What proves it will not
+  Outage window (measured by post-action QA, 2026-09-30): API down 02:20:33.558 -> serving 02:25:41.483
+  = **5 m 08 s**, across six failed launches that all reported `MODULE_NOT_FOUND`; the **deploy runner** stopped
+  the tree at 02:21:44.060 once its budget expired — there is no supervisor give-up/`maxRestarts` line in the
+  log. **What proves it will not
   recur: `atlas-server\dist\server.js` now exists and the state file reads `running` with both owned PIDs.**
 - **DURABLE PROCESS FIX OWED, and it is mine:** A4's build phase must run the **emitting** server build and
   **assert `atlas-server\dist\server.js` exists** before the dry run. A green `tsc --noEmit` is not a build
@@ -624,7 +709,111 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
-- **- LIVE: `3e6166e4aa23529732de4ed9b15e71dd7a592216` @ DEPLOYED TO PRODUCTION 2026-09-30 10:24 +08 by
+- **- LIVE: `fdae67ec64a4713d7c5c2446e03c25c29ddf704f` (prefix `fdae67ec`) @ DEPLOYED TO PRODUCTION 2026-09-30
+  11:17 +08 by Lane A4 under operator decision 12 (**direct to live**), session "A4 train 21 direct", operator
+  instruction "deploy now" with a demo in progress. Train 21. **Ready in 55.4 s of the 180 s budget** (cutover start
+  11:17:36.989 +08): `health` 200, `health/ready` 200 `database: ok`, **DB-backed** `GET /api/v1/subjects?schoolId=1`
+  200 / 20 336 B. Listeners **5001 -> pid 27380**, **5174 -> pid 32120** (were 20848/15832), **stable across three
+  reads**; task **Running** with action and Start In on `.-21prod`; active state file `running`,
+  `releaseSha fdae67ec`, supervisor log **"All targets healthy (liveness and dependency readiness)"**, no restart
+  loop. `ROLLOVER_AUTO_SYNC_ENABLED=false` (contract invariant, log confirms "Disabled"). Audit
+  `C:\ProgramData\ATLAS\release-audit\fdae67ec-20260930-111737\`. **Dry run first: `mutates false`,
+  `secretsPrinted false`, incumbent pids 20848/15832, supervisor 2596.**
+  **Identity chain, all four elements moved off `c82b8636`/`.-20prod`:** machine scope `ATLAS_RUNTIME_SOURCE_DIR` =
+  `E:\ATLAS-worktrees\lane-a4-release-20260930-21prod` and `ATLAS_RUNTIME_RELEASE_SHA` = `fdae67ec…`; active state
+  file `releaseSha fdae67ec`; listener command lines are `…-21prod\atlas-server\dist\server.js` (5001) and
+  `…-21prod\ops\runtime\host.mjs` (5174); scheduled task action and Start In both `…-21prod`.
+  **THE CLIENT CHUNK IS NOT A VALID DISCRIMINATOR FOR THIS TRAIN, and is not offered as one:** client source is
+  unchanged, so the new build emits the **same** entry chunk `index-CCgHCNPW.js` at the **same** 304 899 B as
+  train 20's live bundle - a Tailnet fetch of it returns 200 before and after the cutover, so reporting it as
+  deploy proof would be vacuous (§11). The discriminator actually used is the **server**:
+  `atlas-server/dist/services/constraint-validator.js` is **63 707 B / SHA-256 `65b22379…`** in the new dist vs
+  **63 120 B / `fe5fa906…`** in the train-20 dist, and the decision-15 marker **`earlierSlotFree` appears 2x in the
+  new dist and 0x in the train-20 dist**. With the listener command line pointing into `…-21prod`, that is what
+  proves the new code is what is serving. Tailnet: `/api/v1/health` 200, `/api/v1/health/ready` 200
+  `database: ok`.
+  **Zero-write: the deploy itself wrote nothing.** Baseline captured BEFORE the quiesce: `audit_logs` **585 rows /
+  max id 1224**; `_prisma_migrations` **11 applied / 0 unfinished**; DB `atlas_recovery_clean_rebuild_20260905`.
+  After: `audit_logs` **586 / max id 1226**, migrations **11 / 0**. The single new row is id 1226
+  `LOCAL_LOGIN_SUCCESS` (actor 46, school 1) at **03:15:39.143Z = 11:15:39 +08, which is 1 min 57 s BEFORE the
+  cutover began at 11:17:36.989 +08** - the operator's own demo login, concurrent with but **not caused by** this
+  deploy, and not attributed to the cutover. (maxid 1226 with only one row above 1224 means id 1225 was a sequence
+  gap from a rolled-back insert, not a row.) **The one expected write surface did NOT re-fire:**
+  `enrollpro_school_year_mirrors` 633 `verifiedActiveTerm` is still `{"order":1,"identity":"T1","verifiedAt":
+  "2026-09-30T02:48:43.875Z"}` (train 20's value) and that row's `updated_at` is `01:04:37`, so the
+  identity-guarded best-effort `jsonb_set` correctly stayed silent because the verified identity is still T1.
+  **Migration list: NONE** - `git diff --name-only c82b8636..fdae67ec -- prisma/ migrations/` empty, `migration.sql`
+  count **11 = 11** on both ends, live `_prisma_migrations` 11 / 0 unfinished. All three `package-lock.json` blobs
+  byte-identical, so dependency trees were **mirrored** (`robocopy /MIR /MT:16`, exit 1 = copied; entry counts
+  216/209/155 all equal to live), not installed. RULE 19 satisfied with the **emitting** scripts - server
+  `npm run build` (`tsc`) and client `npm run build` (`vite build`), both exit 0; `dist/server.js` and
+  `dist/index.html` both present; server dist **1170 files vs live 1170 (delta 0)**. Target dir
+  `E:\ATLAS-worktrees\lane-a4-release-20260930-21prod`, branch `release/2026-09-30-21`, HEAD == pin, clean.
+  **Range enumerated by path, not described:** `c82b8636..fdae67ec` = **4 paths, 178 insertions, 10 deletions** -
+  `atlas-server/src/services/constraint-validator.ts` is the ONLY product change (decision 15: teacher lunch is
+  satisfied by the same-length slot immediately before the lunch window, +6 lines, an
+  `FACULTY_LUNCH_WINDOW_VIOLATION` early-continue); the other 3 are docs (`docs/handoffs/lane-c-to-a2.md`,
+  `docs/plans/live-state.md`, `docs/plans/operator-decisions.md`). No foreign lane's code rode along.
+  **Pre-mutation record committed and pushed first** (`5fe268cf`, docs-only, one file) because `deploy-runner.ps1`
+  gates the cutover on the target being named in this section at `origin/main`.
+- **- PREVIOUS LIVE (rollback basis): `c82b8636027b00cde1e93fec26e6d426967345de` (prefix `c82b863`) @ DEPLOYED TO
+  PRODUCTION 2026-09-30 10:48 +08 by Lane A4 under operator decision 12 (**direct to live**), session
+  "A4 train 20 direct". Train 20. Kept `KEEP_ACTIVE` at `E:\ATLAS-worktrees\lane-a4-release-20260930-20prod`;
+  rollback is a one-step supervised reset. Its own record follows.
+- **- PREVIOUS LIVE: `c82b8636027b00cde1e93fec26e6d426967345de` (prefix `c82b863`) @ DEPLOYED TO PRODUCTION 2026-09-30
+  10:48 +08 by Lane A4 under operator decision 12 (**direct to live**), session "A4 train 20 direct". Train 20.
+  **Ready in 15.5 s of the 180 s budget** (~34 s from cutover start): `health` 200, `health/ready` 200
+  `database: ok`, **DB-backed** `GET /api/v1/subjects?schoolId=1` 200 / 20 336 B. Listeners **5001 -> pid 20848**,
+  **5174 -> pid 15832**; task **Running** with its action and Start In on `…-20prod`; state file `running`,
+  `releaseSha c82b8636`, `restartFailures 0`, supervisor log **"All targets healthy (liveness and dependency
+  readiness)"**, no restart loop, PIDs stable across three reads. Audit
+  `C:\ProgramData\ATLAS\release-audit\c82b8636-20260930-104734\`. **Dry run first: `mutates false`,
+  `secretsPrinted false`, incumbent pids 14160/8936, supervisor 31032.** `ROLLOVER_AUTO_SYNC_ENABLED=false`
+  (contract invariant, log confirms "Disabled").
+  **ZERO-WRITE, baseline captured BEFORE the quiesce** (train 1's D7 lesson): `audit_logs` **578 rows / max id
+  1217 before AND after — identical**; `_prisma_migrations` **11 / 0 unfinished** before and after.
+  **The ONE write that did occur is the new server feature working exactly as designed:**
+  `enrollpro_school_year_mirrors` id 633 gained `term_contract_cache.verifiedActiveTerm` =
+  `{"order":1,"identity":"T1","verifiedAt":"2026-09-30T02:48:43.875Z"}` — one `jsonb_set`, fired once, on the
+  first EnrollPro-verified `GET /api/v1/runtime/context` after the cutover. The cached `activeTerm` was already T1
+  and is **unchanged**, so the app stays on T1 (A3's defect direction). Baseline had `verifiedActiveTerm` absent,
+  which is exactly the root cause A3 documented.
+  **⚠⚠ THE PACKET'S "client-only header hotfix" PREMISE WAS WRONG — the range carries SERVER code, and I
+  enumerated before cutting over rather than trusting the description.** Rollback basis
+  `3e6166e4aa23529732de4ed9b15e71dd7a592216` @ `E:\ATLAS-worktrees\lane-a4-release-20260930-19prod` (train 19),
+  `KEEP_ACTIVE`, one-step supervised reset. Target dir `E:\ATLAS-worktrees\lane-a4-release-20260930-20prod`, branch
+  `release/2026-09-30-20`, HEAD == pin, clean. The range
+  `3e6166e4..c82b8636` = **16 paths** and includes A3's term-fallback
+  (`8acfab0e`, `atlas-server/src/services/active-term-resolver.service.ts` +157, `runtime-context.service.ts` +43,
+  new 303-line test) plus A8's generate-blockers client work. Both are on `main` under their own evidence (A3:
+  independent QA `ACCEPT_READY` 14/14/0/0 on `3b29bb44..8acfab0e`, disposable-DB instrumentation 32/32); the pin's own
+  words are "plus whatever is on main". **NEW LIVE WRITE SURFACE, named not buried:** `persistVerifiedActiveTerm`
+  writes `term_contract_cache.verifiedActiveTerm` via atomic `jsonb_set` from the **runtime-context read** —
+  best-effort, identity-guarded, so it writes only when the verified term identity changes. No migration; no
+  rollback needed for it. Both `package-lock.json` blobs are byte-identical to live (all three), so the dependency
+  tree was mirrored, not installed. Builds: server `tsc` exit 0 -> `atlas-server/dist` **1170** files with
+  `server.js` present; client `vite build` exit 0 -> `index.html` present, new entry chunk `index-CCgHCNPW.js`.
+  ⚠ **RULE 19 DEVIATION, recorded literally:** the dist file count is **1170 vs live's 1167**, not equal, so the
+  literal assertion failed. It is **not** an incomplete build: `atlas-server/src` went **389 -> 390** `.ts` files
+  (the one new test), each emitting 3 artifacts (`a3-term-fallback.test.js`/`.js.map`/`.d.ts`), and a
+  path-level `Compare-Object` shows the new dist is a **strict superset** — 0 live dist files missing, 0 stale.
+  Nothing was substituted silently; the literal numbers are here. **Migration list: NONE** — `prisma/**` diff empty,
+  `schema.prisma` blob `ba62f40a…74f0` identical on both ends, 11 = 11 migration dirs.
+  **Tailnet discriminator, proven non-vacuous BEFORE the cutover:** the two entry chunks are the **same byte
+  length (304 899 B) but different SHA-256** — live `index-BZR56XwE.js` `b76bc8c2…1074a` vs new
+  `index-CCgHCNPW.js` `da067109…8e49` — so a byte-count check would have been vacuous here; the hash is what
+  discriminates. On the Tailnet **after** the cutover: `/assets/index-CCgHCNPW.js` **200 / 304 899 B** and the
+  old `/assets/index-BZR56XwE.js` **404** (negative control), `/api/v1/health` 200, `/api/v1/health/ready` 200.
+  **Shipped-vs-claimed (§14), PASS:** the hotfix's own markers are in the new bundle and **0x in live** —
+  `Can't publish yet` **1x** and `flex shrink-0 flex-nowrap items-center gap-1 whitespace-nowrap` **1x** (new
+  dist) vs **0x / 0x** (live dist); the replaced class `sm:shrink gap-1.5` is **0x in both**.
+  **⚠ OWED, not fixed by A4 (A4 edits no product code):** the hotfix puts the blocked-reason sentence back into a
+  raw `title={consequence}` attribute on `SimpleSetupSharedControls.tsx` and drops the undo/redo reasons into
+  `TimetableUndoRedoControl.tsx` tooltips — **§8 forbids raw `title` attributes for extra information** (use
+  `@/ui` HoverCard/Tooltip). Owner: the Timetable lane. It also knowingly breaks 6 header-copy test rows
+  (`a2-c12-header-rows2` +2, `draft-ux-c01` +3, `a2-c11-s2-header-banners` +1) that pin the old visible text.
+  See the Lane A4 section for the rest of the record.
+- **- PREVIOUS LIVE: `3e6166e4aa23529732de4ed9b15e71dd7a592216` @ DEPLOYED TO PRODUCTION 2026-09-30 10:24 +08 by
   Lane A4 under operator decision 12 (**direct to live**), session "A4 train 19 direct". Train 19.
   Rollback basis `9e2bfb240df2a5c26e01e2ab7dad97ecfae5b966` @ `E:\ATLAS-worktrees\lane-a4-release-20260930-18prod`
   (train 18), `KEEP_ACTIVE`; one-step supervised reset.** Listeners **5001 -> pid 14160**,
@@ -633,11 +822,16 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   (`schtasks /run` -> health/ready 200 `database: ok`, `GET /api/v1/subjects?schoolId=1` 200 / 20 336 B).
   Audit `C:\ProgramData\ATLAS\release-audit\3e6166e4-20260930-102007\`. Dry run first: `mutates false`,
   `secretsPrinted false`, incumbent pids 32100/19628, supervisor 30840.
-  **⚠⚠ THE FIRST CUTOVER ATTEMPT FAILED AND LIVE WAS DOWN ~7 MINUTES. It was my error, not the pin's, and
+  **⚠⚠ THE FIRST CUTOVER ATTEMPT FAILED AND THE API WAS DOWN 5 m 08 s (my first record said "~7 minutes",
+  which post-action QA corrected against the log). It was my error, not the pin's, and
   it is recorded here rather than buried.** The runner returned `CUTOVER_STARTED` and exited 0, but the
-  **readiness row MISSED its 180 s budget (183.1 s, no listener on 5001 or 5174 at any poll)**. Cause, from
+  **readiness row MISSED its 180 s budget (183.1 s, no listener on 5001 at any poll; the 5174 client host
+  stayed up and serving the whole time — `Production host listening on port 5174` at 02:20:34.635)**. Cause, from
   the supervisor log: `Error: Cannot find module 'E:\ATLAS-worktrees\lane-a4-release-20260930-19prod\atlas-server\dist\server.js'`,
-  `failureReason: server exited during startup`, `giveUpReason: exceeded maxRestarts=5`. **Root cause: I
+  `failureReason: server exited during startup`. (The state file also read `giveUpReason: exceeded maxRestarts=5`
+  *while the failure was current*; the post-success file no longer carries it, and the log holds **no**
+  give-up/`maxRestarts` line — the **deploy runner** terminated the tree at 02:21:44.060 after its budget
+  expired, which is the correct fail-closed path.) **Root cause: I
   never built the server.** I ran `tsc --noEmit` (a type-check, which emits nothing) and recorded it as the
   server build; `atlas-server/package.json`'s `build` script is `tsc`, and the target tree's
   `atlas-server/dist` had **0 files** because `dist` is gitignored and the new tree was created from git.
@@ -647,12 +841,34 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   and re-running the task *completes* the cutover rather than retrying a decision; a rollback would have
   cost a second machine-scope change and a second restart to restore an older release. `tsc` exit 0 in
   59.92 s, `dist` **1167 files - exactly the live tree's count** - then `schtasks /run` and **ready at 45 s**.
-  **Outage window measured:** first failed task start 10:20:33, `giveUp` 10:21:43, serving restored ~10:25:41
-  (`supervisor-state.json` `startedAt`/`updatedAt`). **What proves it is not recurring:** `server.js` now
-  exists in the target and the state file reads `running` with both owned PIDs. **The process defect is
+  **Outage window measured:** API down 02:20:33.558 -> serving 02:25:41.483 = **5 m 08 s**, across six
+  failed launches that each reported `MODULE_NOT_FOUND`; the runner stopped the tree at 02:21:44.060
+  (`supervisor-state.json` `startedAt`/`updatedAt` bracket it). **What proves it is not recurring:** `server.js` now
+  exists in the target, and the dist is provably this train's emit (all 1167 files carry a single 10:24 emit
+  minute against the incumbent's 09:31-09:32 spread, per post-action QA). **The process defect is
   real and owed an owner: A4's build phase must run the EMITTING server build and assert
   `atlas-server\dist\server.js` exists before the dry run, not a `--noEmit` type-check. Recorded in the
   Lane A4 section below.**
+  **🔴 OPEN, DATED 2026-09-30 10:30 +08 — the deploy path still has no build gate, so this outage is
+  REPRODUCIBLE on train 20. Owner: A4 (ops), needs its own cycle, NOT this train.** Post-action QA returned
+  `CORRECTION_REQUIRED` **9/10, blocked 0, unperformed 0** — every runtime row passed (identity, readiness,
+  a genuinely non-vacuous discriminator, a real rebuilt dist, no migration, rollover disabled, clean tree,
+  campus images proven resolving by HTTP, and a record that does not hide the outage). The single failing
+  row: `ops/runtime/deploy-runner.ps1` is 285 lines with **zero** occurrences of `npm`, `tsc`, `build`,
+  `node_modules` or `dist`; it never asserts `atlas-server\dist\server.js` or `atlas-client\dist\index.html`,
+  and it **returns `CUTOVER_STARTED` with exit 0 even when the readiness poll fails** — so a caller trusting
+  the exit code would have called train 19 deployed while live was dark. That is the operational seed. The
+  rule exists at `docs/handoffs/workflow-metrics.md:157` ("19. Never cut over without a built server
+  (30 Sep 10:21, train 19)") but **is not in `AGENTS.md`, and a fresh session binds `AGENTS.md` — so it does
+  not bind the next executor.** Owed, in order: (1) assert `dist\server.js` + `dist\index.html` and a dist
+  file-count parity check before the dry run; (2) make a failed readiness poll a **non-zero exit**; (3) move
+  rule 19 into `AGENTS.md`; (4) make it a hard gate in the fast-deploy script. **Not rolling back a release
+  that is verified correct and serving to chase a tooling gap** — this train ships with the finding recorded.
+  **Also recorded (F4, disclosure): the operator exercised this release's own feature on LIVE during the
+  demo window** — `POST /api/v1/auth/login` 200, `POST …/manual-edits/swap/preview` 200,
+  `POST …/manual-edits/swap` 200 (02:27:51) and `POST …/manual-edits/revert` 200 (02:28:00), i.e. a real
+  one-action swap immediately undone by Undo on the live draft run. **Not A4's action** — A4 issued only GETs
+  in that window — and it is the strongest evidence yet that the shipped feature works end to end.
   **Shipped-vs-claimed check (this train's single claim, §14):** PASS - the served chunk
   `assets/ScheduleReviewWorkspace-C9UTtQ1R.js` is 200, 500 933 B, **sha256 `b80916a1…4ef9` byte-identical to
   the built asset**, and carries the new A2 operator string `ATLAS could not check this swap in time`;

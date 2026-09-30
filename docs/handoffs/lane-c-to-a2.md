@@ -1,5 +1,40 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+## 🟢 A8 → Lane C, generation, 2026-09-30 11:2x — **Makabansa TLE cause found (Step 0), and the live blocker is ALREADY CLEARED: publish from run 359 (0 hard violations)**
+
+**0 fixes live and seen / 0 code changes / 1 cause posted.** Read-only: live psql `SELECT`s only (`SET default_transaction_read_only=on`), `git fetch`, source reads. **No live write, no deploy, no generation, no publication, no sign-in, no worktree written except this file.**
+
+### Can the operator publish now? YES — run 359 is clean
+
+| run | local start | hard | unassigned | input fingerprint |
+|---|---|---|---|---|
+| 358 | 10:54 | **5** | 5 | `0d6de82c…` |
+| 359 | **11:00** | **0** | **0** | `738738ec…` |
+
+Run 359 placed section 87's whole TLE rotation (T1 ICT ×5, T2 AFA ×5, T3 FCS ×5) with **faculty 42**. The input fingerprint changed between the two runs because **section 87's TLE rotation became single-owner**: `faculty_subjects` now has faculty 42 owning subjects 11/12/13 for sections `{85,87,90,95,100}`, where at run 358 it was split. **Publish from run 359, not from 358.**
+
+### The exact constraint that rejected every slot (runs 355/357/358)
+
+All 5 HARD items are `UNASSIGNED_SECTION`, section 87 / subject 11, `reason NO_AVAILABLE_SLOT`, `roomAssignmentReason FACULTY_SLOT_UNAVAILABLE`. For a **modular (rotation-family) demand item that pair comes from exactly one place**: `schedule-constructor.ts:2757-2766`, the `everyTermCovered` gate — a rotation lane may take a slot only when **every term's candidate pool has a teacher free at that slot**.
+
+That gate is harmless for four of the five Grade 8 sections (86→9, 88→27, 89→30, 90→42 own all three TLE modules, so it needs **one** teacher free). **Makabansa (87) was the only section whose TLE modules had two owners** — 11 (ICT) → faculty 27, 12/13 (AFA/FCS) → faculty 25 — so its lane needed **two different teachers free in the same slot**. Concretely, on the 358 run state:
+
+- Section 87 is REGULAR (8 CLASS periods/day = 40 slots) and carries 35 non-TLE sessions/term, so its only free periods are the **last period, 11:30, on each of the five days**.
+- Both 27 and 25 were booked in **all five** of those 11:30 periods by sibling lanes ⇒ **0 placeable slots** ⇒ the lane refused every slot ⇒ 5 `UNASSIGNED_SECTION`.
+- Section 88 (the other Grade 8 REGULAR) carries the **same** 35 non-TLE sessions/term, is single-owner (27), and its lane placed in a leftover 11:30. That ownership split is the only structural difference.
+
+Ruled out by the evidence: **not the teacher** (25 in 355, 27 in 358 — same failure), **not rooms** (`preferred_room_type = CLASSROOM`; no `NO_COMPATIBLE_ROOM`/`ROOM_PATH_EXHAUSTED`), **not homeroom** (section 87 `home_room_id = null`), **not the policy window** (that path emits `POLICY_SLOT_BLOCKED`, not `FACULTY_SLOT_UNAVAILABLE`), **not 12/13 demand missing** (both owners and both subjects were present; only the split hurt).
+
+### Smallest operator action
+
+**Publish from run 359** (already generated, 0 hard, 0 unassigned). No data change, no deploy and no code change is needed to unblock the demo.
+
+### What is still A8 source work (operator decision 14, not yet implemented)
+
+`summary.repairImpact` is `attemptsTotal: 0` in **both** runs: the generator's repair path (`hybrid-scheduler.ts` `repairHardConflicts`) acts on hard conflicts **between placed entries**; it does not try to **move one blocking class to free a slot for an unplaced class**. Decision 14 (30 Sep 11:10) requires exactly that, and names this case. The repair + failing-first test is A8's next cycle; it is **not** needed for today's publish.
+
+**Not done, dated 2026-09-30:** no code changed, nothing merged, nothing deployed, nothing generated or published by A8. Read-only live.
+
 ## 🟢 A3 → Lane C, term-fallback, 2026-09-30 — **the offline fallback now keeps the last VERIFIED active term, not a date-derived guess** — on `main` at merge `315e3bca`
 
 **0 fixes live and seen / 1 fix integrated / 0 dropped.** Candidate `8acfab0e` (base `3b29bb44`, packet `4a7fa636`), integrated on `main` at merge **`315e3bca`**. **A4 owns the deploy; A3 has not deployed and will not.** No generation, publication, migration, live-data write, sign-in, runtime/env/task change or companion edit.
