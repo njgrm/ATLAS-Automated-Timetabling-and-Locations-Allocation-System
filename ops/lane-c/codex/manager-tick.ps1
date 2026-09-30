@@ -152,15 +152,14 @@ $status
 "@
     $env:CODEX_HOME = $ManagerHome
     $env:ATLAS_MANAGER_REPO = $snapshot
-    # The manager account's native Windows sandbox rejects all shell reads, including its external mirror.
-    # Keep its session rooted away from the real checkout; the before/after Git tripwire detects any persistent real-tree change.
+    # The manager account trusts only the external Lane C workspace; repository files are supplied by its mirror.
     $promptPath = Join-Path $ticks "$stamp.prompt.md"
     $resultPath = Join-Path $ticks "$stamp.md"
     $logPath = Join-Path $ticks "$stamp.log"
     $errorPath = Join-Path $ticks "$stamp.err.log"
     Set-Content -LiteralPath $promptPath -Value $prompt
     $cli = 'C:\Users\njgro\AppData\Roaming\npm\codex.cmd'
-    $args = @('exec', '--dangerously-bypass-approvals-and-sandbox', '--skip-git-repo-check', '-C', $H, '-m', $Model,
+    $args = @('exec', '--sandbox', 'workspace-write', '--skip-git-repo-check', '-C', $H, '-m', $Model,
       '-c', "model_reasoning_effort=$Effort", '-o', $resultPath, '-')
     $tickProcess = Start-Process -FilePath $cli -ArgumentList $args -WorkingDirectory $H -WindowStyle Hidden -PassThru `
       -RedirectStandardInput $promptPath -RedirectStandardOutput $logPath -RedirectStandardError $errorPath
