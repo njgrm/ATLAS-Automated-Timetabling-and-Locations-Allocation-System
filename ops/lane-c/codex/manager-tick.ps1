@@ -29,11 +29,16 @@ $lastDigest = ''; $lastTick = [datetime]::MinValue
 
 while ($true) {
   git -C $repo fetch -q origin 2>$null
-  $status = & $bash (Join-Path $repo 'ops/lane-c/status.sh') 2>&1 | Out-String
+  # Keep the tick's own rules current: fast-forward the (clean) manager worktree to origin/main every loop.
+  # Without this each tick read a stale MANAGER.md/PLANNERS.md/status.sh (Lane C, 2026-09-30 21:20).
+  Assert-CleanTickRepo
+  git -C $repo merge -q --ff-only origin/main 2>$null
+  if ($LASTEXITCODE -ne 0) { & (Join-Path $repo 'ops/lane-c/codex/notify.ps1') -Text 'Lane C manager: worktree cannot fast-forward to main.'; throw 'TICK_REPO_NOT_FF' }
+  $status =& $bash (Join-Path $repo 'ops/lane-c/status.sh') 2>&1 | Out-String
   # Digest ignores idle-minute counters so a tick fires on real change only.
   $runs = ($status -split "`n" | Where-Object { $_ -match '^\S+\s+(RUNNING|EXITED|DIED-EMPTY)' } |
            ForEach-Object { ($_ -split '\s+')[0..1] -join ' ' }) -join ';'
-  $health = ($status -split "`n" | Where-Object { $_ -match 'health|:4097 busy|live data' }) -join ';'
+  $health = ($status -split "`n" | Where-Object { $_ -match 'health|live data' }) -join ';'
   $branches = ($status -split "`n" | Where-Object { $_ -match '^\s+\d\d:\d\d origin/' }) -join ';'
   $posts = git -C $repo log -1 --format=%H origin/main -- docs/handoffs 2>$null
   $inbox = (Get-FileHash (Join-Path $H 'operator-inbox.md')).Hash
