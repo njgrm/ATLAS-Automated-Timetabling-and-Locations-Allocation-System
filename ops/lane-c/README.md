@@ -57,7 +57,9 @@ codex exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check -c m
 - Release SHA: machine env `ATLAS_RUNTIME_RELEASE_SHA`. Only A4 deploys; never while the operator is using live
   without asking. Never cut over without a built `atlas-server/dist` (rule 19).
 - After a staging deploy: `node scripts/dev/ensure-staging-qa-account.cjs`.
-- Worktree removal: `cmd /c rmdir <node_modules junction>` first, then `git worktree remove --force`, then check
-  `D:/ATLAS/atlas-client/node_modules/vite/client.d.ts` still exists.
+- Worktree removal: ONLY `powershell -File ops/lane-c/remove-worktree.ps1 -Path E:\ATLAS-worktrees\<name>` (unlinks
+  every node_modules junction first; a plain `git worktree remove --force` emptied D:\ATLAS node_modules on 2026-09-30).
+- Disk: OpenCode fills C: (`%TEMP%\opencode` planner scratch reached 15 GB; `~/.local/share/opencode/opencode.db` 7.6 GB).
+  Delete `%TEMP%\opencode` and `tool-output` files older than a day when no planner is running.
 
 Rules and decisions: `CLAUDE.md`, `AGENTS.md`, `docs/plans/operator-decisions.md`, `docs/handoffs/workflow-metrics.md`.
