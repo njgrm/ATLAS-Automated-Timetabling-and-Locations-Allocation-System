@@ -2163,27 +2163,23 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			? (labelA === labelB ? `the two classes in ${labelA}` : `${labelA} and ${labelB}`)
 			: (labelA || labelB);
 
-		const receipt = isExchange
-			? buildEditReceipt({
-				editType: 'SWAP_ENTRIES',
-				classLabel: exchangeLabel,
-				from: { day: String(entryA.day), startTime: String(entryA.startTime) },
-				to: { day: String(entryB.day), startTime: String(entryB.startTime) },
-				problems: {
-					now: data.violationDelta.hardAfter + data.violationDelta.softAfter,
-					before: data.violationDelta.hardBefore + data.violationDelta.softBefore,
-				},
-			})
-			: buildEditReceipt({
-				editType: 'MOVE_ENTRY',
-				classLabel: receiptClassLabel({ sectionLabel: sectionLabelFor(movedEntry) }),
-				from: { day: String(movedEntry.day), startTime: String(movedEntry.startTime) },
-				to: { day: String(movedAfter?.day ?? entryB.day), startTime: String(movedAfter?.startTime ?? entryB.startTime) },
-				problems: {
-					now: data.violationDelta.hardAfter + data.violationDelta.softAfter,
-					before: data.violationDelta.hardBefore + data.violationDelta.softBefore,
-				},
-			});
+		// ONE `buildEditReceipt` call: the verb, the class(es) and the two slots are
+		// decided from the committed record above, then composed once — the same
+		// single-derivation shape move and place use.
+		const receipt = buildEditReceipt({
+			editType: isExchange ? 'SWAP_ENTRIES' : 'MOVE_ENTRY',
+			classLabel: isExchange ? exchangeLabel : receiptClassLabel({ sectionLabel: sectionLabelFor(movedEntry) }),
+			from: isExchange
+				? { day: String(entryA.day), startTime: String(entryA.startTime) }
+				: { day: String(movedEntry.day), startTime: String(movedEntry.startTime) },
+			to: isExchange
+				? { day: String(entryB.day), startTime: String(entryB.startTime) }
+				: { day: String(movedAfter?.day ?? entryB.day), startTime: String(movedAfter?.startTime ?? entryB.startTime) },
+			problems: {
+				now: data.violationDelta.hardAfter + data.violationDelta.softAfter,
+				before: data.violationDelta.hardBefore + data.violationDelta.softBefore,
+			},
+		});
 		const strategyClause = strategy === 'AUTO_FIX_MOVE_SOURCE'
 			? 'ATLAS also moved the source session to the nearest valid slot.'
 			: strategy === 'AUTO_FIX_MOVE_BLOCKING'
