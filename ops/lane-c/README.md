@@ -63,3 +63,18 @@ codex exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check -c m
   Delete `%TEMP%\opencode` and `tool-output` files older than a day when no planner is running.
 
 Rules and decisions: `CLAUDE.md`, `AGENTS.md`, `docs/plans/operator-decisions.md`, `docs/handoffs/workflow-metrics.md`.
+
+## 5. Running Lane C on Codex (no Claude session needed)
+
+Two Codex accounts, each with its own `CODEX_HOME`, can run at the same time:
+
+| Role | Account / home | Started by |
+|---|---|---|
+| Manager (Lane C) | second account, `D:\codex-homes\manager` | `ops/lane-c/codex/manager-tick.ps1` loop |
+| QA + browser walks | main account, `~/.codex` (paired with Brave) | the manager, via `ops/lane-c/codex/codex-run.ps1` |
+| Executors (planners) | OpenCode (DeepSeek / :4097 for A4) | the manager, via `launch.ps1` |
+
+One-time setup (operator): `$env:CODEX_HOME='D:\codex-homes\manager'; codex login` (second account), then open a
+terminal and run `powershell -File ops/lane-c/codex/manager-tick.ps1`. The role card is `ops/lane-c/codex/MANAGER.md`.
+Talk to the manager by writing in `D:/ATLAS-lane-c/operator-inbox.md` (e.g. `ship`, `using live until 15:00`, a new
+issue); it answers in `manager-outbox.md` and with a Windows toast. Tick logs: `D:/ATLAS-lane-c/manager-ticks/`.
