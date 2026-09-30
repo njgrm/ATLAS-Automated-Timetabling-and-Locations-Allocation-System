@@ -62,7 +62,9 @@ function Sync-ManagerSnapshot {
   foreach ($f in $files) {
     $destination = Join-Path $snapshot $f
     New-Item -ItemType Directory -Force (Split-Path -Parent $destination) | Out-Null
-    git -C $repo show "origin/main:$f" | Set-Content -LiteralPath $destination -Encoding utf8
+    $content = git -C $repo show "origin/main:$f"
+    if ($LASTEXITCODE -ne 0) { throw "MIRROR_SOURCE_MISSING:$f" }
+    Set-Content -LiteralPath $destination -Value $content -Encoding utf8
   }
 }
 function Assert-CleanTickRepo {
