@@ -617,7 +617,11 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   migration check, dry run, `-Execute`, readiness, Tailnet chunk and the LIVE post ("nothing else"), so no
   data-signature row was captured. The runner executed no migration, generation or publication, and the delta is
   client/server logic only; readiness nonetheless proves a working DB-backed read. Acceptance owner: **Lane C**
-  (rendered live check). Supersedes the train-16 LIVE line below, which is retained, not deleted.
+  (rendered live check). **NOT LIVE:** `origin/main` advanced during this cycle to `4fc04ef6` (A6 teaching-load
+  verified-upstream source truth: `2897f0bc`, `enrollpro-public-settings.ts`, `useTeachingLoadData.ts`,
+  `Faculty.tsx`) **after** the cutover; that work is integrated in source only and is **not** served by the live
+  runtime - it is the next train's content. Supersedes the train-16 LIVE line below, which is retained, not
+  deleted.
 - **LIVE CUTOVER IN FLIGHT - target release `3b29bb4426c3e4bc6cfc9d8de4e5a630eb218143` (train 17, pinned to
   `origin/main`, direct to live under operator decision 12), rollback basis
   `a2b67f4c1641031ab653602bce3e6c04d5773bb0` @ `E:\ATLAS-worktrees\lane-a4-release-20260930-16prod`
