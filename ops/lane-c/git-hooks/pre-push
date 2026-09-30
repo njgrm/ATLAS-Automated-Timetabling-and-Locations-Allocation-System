@@ -1,0 +1,12 @@
+#!/bin/sh
+# Only the integrator pushes main (Lane C, 2026-09-30). Executors push work/* branches; the manager merges.
+# Installed by ops/lane-c/install-git-hooks.sh into D:\ATLAS\.git\hooks (shared by every worktree).
+# The integrator sets ATLAS_INTEGRATOR=1 for its own pushes. Branch deletes and other refs are unaffected.
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$remote_ref" = "refs/heads/main" ] && [ "$ATLAS_INTEGRATOR" != "1" ]; then
+    echo "REFUSED: only the integrator pushes main. Push your branch (work/...) and report the SHA; the manager merges." >&2
+    echo "(Integrator: set ATLAS_INTEGRATOR=1 for this push.)" >&2
+    exit 1
+  fi
+done
+exit 0
