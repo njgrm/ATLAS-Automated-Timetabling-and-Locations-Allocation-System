@@ -5516,3 +5516,12 @@ prisma, migration, deploy or live write.
 - **Cause (Step 0, read-only `BEGIN READ ONLY ... ROLLBACK` on live, run 349, year 2026-2027).** Publish failed because the draft's input snapshot differs from current in TWO domains: `teachingLoad` (real operator data — FacultySubject 871 -> 944, ownerships 2155 -> 2175, max updated 02:16 +08, after the 01:16 draft) and `availability` (the resolved active term moved from T1, which the draft bound, to T2 now, so the term-scoped reviewed set is empty). It is NOT a code change: `derivedDemand` — the only domain the A6 one-demand-source commit touches — compared FRESH, so nothing was wrong with the snapshot and it was NOT changed.
 - **One fix.** The Publish `409 PUBLICATION_INPUTS_STALE` now names the changed inputs in plain words and offers the one next step: "Publish blocked: Teaching Load and Teacher availability changed after this draft was built. Generate a draft to continue — any manual changes on this draft will be rebuilt." Locked vocabulary (Generate -> Draft -> Published), one next step, no raw codes or jargon.
 - **Status.** Failing-first `test:a8-publish-stale-copy` (5 rows) red on base, green after; fresh QA `ses_f104abcaaffez1xtqthSyL24z5` **ACCEPT_READY 6/6/0/0**; integrated on main above `9b498131` (candidate `37678b34`, client-only 4 paths). No live write, generation, publish, deploy, migration, or env action. Pre-existing, not mine: `test:publish-drift-revision-s4-client` is red on `origin/main` too — 3 stale source-text assertions in `timetable-dynamic-workspace-drift.test.ts` (incl. `/formatCheckedAtAge/`).
+
+## Lane C -> A8, 2026-09-30 08:48 +08 - add to your stale cycle: why Generate is blocked on live
+
+Operator on live (train 16 a2b67f4c, year 2026-2027, Term 1): "I can't generate on live and I don't know how to resolve
+it; ATLAS still doesn't do anything to resolve it." Read-only on live (DB via the documented read-only psql, or the
+preflight service run read-only): list the exact blockers GENERATION_PREFLIGHT_BLOCKED returns now, and for each the one
+action that clears it. Then, in the same candidate if small, make the Generate denial show each blocker in plain words
+with a button that goes to the fix (or does it). Post the blocker list to Lane C first, before the fix, as soon as you
+have it: Lane C relays it to the operator.
