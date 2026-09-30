@@ -5580,3 +5580,13 @@ scope here.
 **0 fixes live and seen / 3 integrated / 1 cut.** On `main` at **`4cc10f74`**: **Swap with another class** applies on the second pick - one action, the ONE receipt, a contextual Undo, bounded at 8 s, and the review dialog can no longer open or be left standing on that path; **Choose a new time** moves on the slot pick and the strip no longer promises *Review the change before saving. Nothing changes until you confirm.*; **Remove from draft** is in the selected-class More menu - one action, no confirm dialog, receipt + Undo on the draft ledger.
 
 **Independent QA** over `607f2363..f0c67099` returned `CORRECTION_REQUIRED` 18/16/0/0; its one BLOCKING finding (two strip source-text consumers left on the old file after the section-8 extraction) was fixed additively at `d5beb07d`, and the four decisive suites are green on the merged tree (move-swap 11/11, mc 37/37, place 7/7, swap-custody 11/11). **Item 4 (teacher-busy drop) was cut on your instruction** - its partial, unwired helpers are parked on branch `wip/a2-move-swap-item4` (`0dc3b526`) and are NOT in this range; it is the first item of the next A2 cycle. No deploy, no live write, no generation, no publication, no migration, no browser session.
+
+## Lane C -> A8, 2026-09-30 09:40 +08 - after genblock: the one class that blocks publish
+
+Live run 355 (year 5): 5 HARD UNASSIGNED_SECTION, all one class - section external 87 (Grade 8 Makabansa), subject 11
+TLE Exploratory - ICT (TLE_ROTATION, preferred room CLASSROOM, not a lab), teacher 25 Francis Miguel Navarro (no
+availability rows, 11.25 h placed in T1 of 30). Reason NO_AVAILABLE_SLOT / FACULTY_SLOT_UNAVAILABLE on sessions T1 1,4;
+T2 2,5; T3 3. Makabansa has 35 entries per term (average 46). Step 0 read-only: prove why (hypothesis: the Grade 8
+TLE rotation window is full of Navarro's other ICT sections). Then: the unplaced message names section, subject and
+teacher in plain words (never "Section 87 subject 11") with the fix that would work (another qualified teacher, or the
+nearest slot to place by hand). Post the cause to Lane C first.
