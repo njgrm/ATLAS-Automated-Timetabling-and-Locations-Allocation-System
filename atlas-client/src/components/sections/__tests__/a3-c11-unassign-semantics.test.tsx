@@ -444,10 +444,20 @@ test('FIX-08 wiring ratchet: the page still routes an unassign request to the ex
 		/canWrite=\{homeRoomWrite\.canWrite\}[\s\S]{0,200}writeBlockedReason=\{homeRoomWrite\.notSavedNotice\}/,
 		'the map modal must be told the write gate (FIX-12)',
 	);
-	assert.match(
+	// A9 c3 (2026-09-30) — SUPERSEDED, retained as history, never deleted (AGENTS.md §16):
+	//   assert.match(
+	//     mapModals,
+	//     /canWrite=\{false\}[\s\S]{0,200}writeBlockedReason=\{GLOBAL_BROWSE_BLOCKED_REASON\}/,
+	//     'the school-wide browse surface stays a read with its own stated reason',
+	//   );
+	// The operator removed the school-wide `Browse room map` header control
+	// (`section.docx` item 5), so the global-browse mount had NO opener left and is
+	// SUBTRACTED rather than parked. The per-section mount's write gate asserted above is
+	// now the only gate on this surface.
+	assert.doesNotMatch(
 		mapModals,
-		/canWrite=\{false\}[\s\S]{0,200}writeBlockedReason=\{GLOBAL_BROWSE_BLOCKED_REASON\}/,
-		'the school-wide browse surface stays a read with its own stated reason',
+		/GLOBAL_BROWSE|globalBrowse/,
+		'the dead school-wide browse mount and its reason must stay subtracted, not parked',
 	);
 	const modal = codeOf('../SectionRoomMapModal.tsx');
 	assert.match(modal, /onSelect\(null\);/, 'the Unassign control must route through onSelect(null)');

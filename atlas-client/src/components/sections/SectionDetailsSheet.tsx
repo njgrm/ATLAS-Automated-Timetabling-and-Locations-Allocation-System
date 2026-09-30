@@ -12,18 +12,22 @@ import {
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import {
-	Sheet,
-	SheetContent,
-	SheetDescription,
-	SheetHeader,
-	SheetTitle,
-} from '@/ui/sheet';
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+} from '@/ui/dialog';
 import { Skeleton } from '@/ui/skeleton';
 import atlasApi from '@/lib/api';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { getDepartmentColor } from '@/lib/department-colors';
 import { departmentLabel } from '@/lib/deped-glossary';
+import {
+	groupUnassignedByRotationFamily,
+	resolveRotationTermLabel,
+} from '@/lib/section-unassigned-grouping';
 import type { SectionDetail } from './SectionRow';
 import type { RoomOption } from './SectionRoomPicker';
 import { cn } from '@/lib/utils';
@@ -96,24 +100,6 @@ const GRADE_BADGE_COLORS: Record<string, string> = {
 	'10': 'bg-blue-100/80 text-blue-700 border-blue-200',
 };
 
-function resolveRotationTermLabel(input: { rotationTermLabel?: string | null; rotationTermRank?: number | null }): string | null {
-	const explicitLabel = (input.rotationTermLabel ?? '').trim();
-	if (explicitLabel.length > 0) {
-		const rankMatch = explicitLabel.match(/(\d+)/);
-		if (rankMatch) {
-			const parsed = Number(rankMatch[1]);
-			if (Number.isInteger(parsed) && parsed > 0) {
-				return `Term ${parsed}`;
-			}
-		}
-		return explicitLabel;
-	}
-	if (typeof input.rotationTermRank === 'number' && Number.isInteger(input.rotationTermRank) && input.rotationTermRank > 0) {
-		return `Term ${input.rotationTermRank}`;
-	}
-	return null;
-}
-
 export function SectionDetailsSheet({
 	sectionId,
 	sectionName,
@@ -152,18 +138,35 @@ export function SectionDetailsSheet({
 		}
 	}, [open, fetchDetails]);
 
+	/* A9 c4 (2026-09-30) — the section details surface is a CENTRED DIALOG, not a
+	 * right-side drawer. Operator (section.docx item 1): *"currently it is a drawer. Make
+	 * this as a modal at the center of the page."* Operator decision #10 fixes the width:
+	 * a NORMAL centred width of about 42rem, never near full screen, with both side
+	 * gutters visible at 1366x768 and an internal scroller for long content
+	 * (`max-h-[85vh]` + the primitive's own `overflow-y-auto`).
+	 *
+	 * A9 c4 R1 (2026-09-30): the operator also asked for it to be *"resizable by dragging
+	 * if the user wants more"*, so `resizable` now takes the shared primitive default and
+	 * the two drag handles render. The OPEN width is unchanged at ~42rem: it is carried by
+	 * `w-[min(42rem,95vw)]`, NOT by a page-local `max-w`. A page-local `max-width` would
+	 * defeat the primitive's inline drag width (CSS resolves `max-width` over
+	 * `style.width`), which is the exact defect the A3 C10 teacher card records — the
+	 * handle moves and the box does not. The width is viewport-guarded so a narrow laptop
+	 * gets `95vw`, never a horizontal scrollbar, and `max-w-[95vw]` is the primitive's own
+	 * shared ceiling, so the box can still be dragged wider. The props/API and every fact
+	 * on screen are unchanged. */
 	return (
-		<Sheet open={open} onOpenChange={onOpenChange}>
-			<SheetContent className="w-full overflow-y-auto sm:max-w-xl">
-				<SheetHeader className="pb-6 border-b">
-					<SheetTitle className="flex items-center gap-2 text-xl font-bold">
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent resizable className="w-[min(42rem,95vw)] max-w-[95vw]">
+				<DialogHeader className="pb-6 border-b">
+					<DialogTitle className="flex items-center gap-2 text-xl font-bold">
 						<Users className="size-5 text-primary" />
 						{sectionName ?? 'Section details'}
-					</SheetTitle>
-					<SheetDescription>
+					</DialogTitle>
+					<DialogDescription>
 						Class coverage, teacher assignments, and home-room context for this section.
-					</SheetDescription>
-				</SheetHeader>
+					</DialogDescription>
+				</DialogHeader>
 
 				<div className="py-6 space-y-8">
 					{loading ? (
@@ -281,39 +284,39 @@ export function SectionDetailsSheet({
 								)}
 							</div>
 
-							{/* Unassigned Expected Classes */}
+							{/* Unassigned Expected Classes — A9 c5 R1 (2026-09-30): ONE row per
+							 * rotating family, its per-term subjects inline
+							 * (`Science (rotates): Chemistry T2, Earth Science T3`); a class that
+							 * does not rotate keeps its own plain row with no invented term. No
+							 * raw code token (`SCI_CHEM`, `TLE_AFA_EXP`, `TLE_ROTATION`) is
+							 * rendered. The grouping and the inline labels are pure functions in
+							 * `@/lib/section-unassigned-grouping`, so the wording/structure is
+							 * testable rather than greppable. */}
 							{data.unassignedExpectedClasses && data.unassignedExpectedClasses.length > 0 && (
-								<div className="space-y-4 pt-4 border-t border-dashed">
+								<div className="space-y-3 pt-4 border-t border-dashed">
 									<h4 className="text-[0.7rem] font-bold text-amber-700 uppercase tracking-widest flex items-center gap-2">
 										<AlertTriangle className="size-3 text-amber-600" />
 										Unassigned Classes
 									</h4>
 									<div className="space-y-2">
-										{data.unassignedExpectedClasses.map((cls, idx) => (
-											<div key={idx} className="flex items-center justify-between p-3 rounded-lg border border-amber-100 bg-amber-50/30">
-												<div className="flex items-center gap-3">
-													<div className="flex size-7 items-center justify-center rounded bg-amber-100/50">
+										{groupUnassignedByRotationFamily(data.unassignedExpectedClasses).map((group) => (
+											<div key={group.key} className="flex items-start justify-between gap-3 p-3 rounded-lg border border-amber-100 bg-amber-50/30">
+												<div className="flex min-w-0 items-start gap-3">
+													<div className="flex size-7 shrink-0 items-center justify-center rounded bg-amber-100/50">
 														<BookOpen className="size-3.5 text-amber-700" />
 													</div>
-													<div>
-														<p className="text-xs font-bold text-amber-900">{cls.subjectName}</p>
-														<div className="flex flex-wrap items-center gap-1 mt-0.5">
-															<p className="text-[0.6875rem] text-amber-700/70 font-mono">{cls.subjectCode}</p>
-															{cls.rotationFamily && (
-																<Badge variant="outline" className="text-[0.6875rem] leading-tight font-bold uppercase bg-violet-50 text-violet-700 border-violet-200">
-																	{cls.rotationFamily}
-																</Badge>
-															)}
-															{resolveRotationTermLabel(cls) && (
-																<Badge variant="outline" className="text-[0.6875rem] leading-tight font-bold uppercase bg-violet-100 text-violet-900 border-violet-300">
-																	{resolveRotationTermLabel(cls)}
-																</Badge>
-															)}
-														</div>
-													</div>
+													<p className="min-w-0 text-xs leading-5 text-amber-900">
+														<span className="font-bold">{group.heading}</span>
+														{group.rotates ? (
+															<>
+																<span className="font-bold">: </span>
+																<span className="font-medium">{group.members.join(', ')}</span>
+															</>
+														) : null}
+													</p>
 												</div>
-												<div className="text-right">
-													<p className="text-xs font-bold tabular-nums">{cls.minMinutesPerWeek} min</p>
+												<div className="shrink-0 text-right">
+													<p className="text-xs font-bold tabular-nums">{group.minutesLabel}</p>
 												</div>
 											</div>
 										))}
@@ -346,7 +349,7 @@ export function SectionDetailsSheet({
 						</div>
 					)}
 				</div>
-			</SheetContent>
-		</Sheet>
+			</DialogContent>
+		</Dialog>
 	);
 }

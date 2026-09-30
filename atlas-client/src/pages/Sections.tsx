@@ -5,7 +5,6 @@ import {
 	Users,
 	ChevronsLeft,
 	ChevronsRight,
-	Map as MapIcon,
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
@@ -109,6 +108,10 @@ export default function Sections() {
 	const [syncError, setSyncError]   = useState(false);
 	const [dataSource, setDataSource] = useState<'live' | 'atlas-mirror' | 'cached' | 'refreshing' | 'none'>('none');
 	const [cacheNotice, setCacheNotice] = useState<string | null>(null);
+	/* A9 c6 (2026-09-30): the plain-words receipt of the last rooms action, on THIS page — the
+	 * page whose data changed (operator decision #5). Distinct from `cacheNotice`, which is the
+	 * source/sync banner; a receipt must be visible while the source is healthy. */
+	const [homeRoomReceipt, setHomeRoomReceipt] = useState<string | null>(null);
 	const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 	const [queuedHomeRoomEdits, setQueuedHomeRoomEdits] = useState<HomeRoomQueueEntry[]>([]);
 	const [syncingQueuedEdits, setSyncingQueuedEdits] = useState(false);
@@ -126,14 +129,12 @@ export default function Sections() {
 	   for the disclosure the shared toolbar rendered, and this page's three filters now
 	   sit in the one always-visible `FilterBar` row — so no value would read them. */
 	const [pendingAssignment, setPendingAssignment] = useState<PendingAssignment | null>(null);
-	const [globalBrowseModalOpen, setGlobalBrowseModalOpen] = useState(false);
-	// A3 C4 (top-10 #3): the room map was only reachable by opening a row's
-	// home-room dropdown and choosing "Browse Interactive Map" — two clicks
-	// deep, so the map read as absent. Each row now carries a visible,
-	// labelled control that opens the SAME `SectionRoomMapModal` for that row's
+	// A9 c3 (2026-09-30): the school-wide map control and its open/close state are GONE —
+	// the operator asked for it (section.docx item 5: "should we just remove browser room
+	// map because each section has button directing to the map but dedicated to specific
+	// section") and the per-section map below covers every real read. Each row carries a
+	// visible, labelled control that opens the SAME `SectionRoomMapModal` for that row's
 	// section. `null` means closed; a section means "open for this section".
-	// Distinct from `globalBrowseModalOpen`, which stays the school-wide
-	// browse surface and keeps its own sectionId={0} / currentRoomId={null}.
 	const [mapTarget, setMapTarget] = useState<SectionDetail | null>(null);
 	const [autoAssignOpen, setAutoAssignOpen] = useState(false);
 	const [buildings, setBuildings] = useState<Building[]>([]);
@@ -151,9 +152,9 @@ export default function Sections() {
 		// child survives across the change with the previous scope's school.
 		setActiveSchoolYearId(null);
 		setDetailTarget(null);
-		setGlobalBrowseModalOpen(false);
 		setMapTarget(null);
 		setAutoAssignOpen(false);
+		setHomeRoomReceipt(null);
 	}, [actorSchoolId]);
 
 	const fetchSections = useCallback(async (options?: { forceRefresh?: boolean }) => {
@@ -775,18 +776,11 @@ export default function Sections() {
 					: 'Reconnect and sync sections before this page can be used.',
 			}}
 			stats={sectionStats}
-			secondaryActions={(
-				<Button
-					variant="outline"
-					size="sm"
-					className="gap-2 border-primary/20 bg-primary/5 font-bold text-primary hover:bg-primary/10"
-					onClick={() => setGlobalBrowseModalOpen(true)}
-				>
-					<MapIcon className="size-4" />
-					<span className="hidden sm:inline">Browse room map</span>
-					<span className="sm:hidden">Rooms</span>
-				</Button>
-			)}
+			/* A9 c3 (2026-09-30): the school-wide `Browse room map` control is REMOVED.
+			   The operator's section.docx item 5 asked for it, and every row already opens
+			   a map scoped to its own section, so the header slot is not left with a
+			   second, lesser map entry point. The header keeps its tabs, one status chip
+			   and `More` (AGENTS.md §8). */
 			toolbar={(
 				/* A5 c8 (2026-09-29): `AdminSearchFilterToolbar` is deleted from
 				   `AdminWorkspace.tsx` — it was the last consumer, so there is no second
@@ -821,6 +815,7 @@ export default function Sections() {
 				onAutoAssign={() => setAutoAssignOpen(true)}
 				onSync={handleSync}
 				editStatus={homeRoomEditStatus}
+				receipt={homeRoomReceipt}
 			/>
 
 			<div className="shrink-0 px-4 pt-1 lg:px-5">
@@ -882,12 +877,26 @@ export default function Sections() {
 									components/sections/SectionsSortableHeader.tsx (A3 C4 B1);
 									it no longer closes over the page's state and takes
 									sortField/sortDir/onToggleSort as props. */}
-									<SortableSectionHeader field="name" label="Section" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} />
+									{/* A9 c2 R2 (2026-09-30): the Section column is pinned to 300px so the
+									 * seven committed column widths sum to 979 <= the 984px panel at
+									 * 1280x720 (see the Home room cell below). Its title is a two-line
+									 * clamp (`line-clamp-2` + `min-w-0 break-words`), so it wraps inside
+									 * this track rather than forcing the table wider. */}
+									<SortableSectionHeader field="name" label="Section" className="w-[300px]" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} />
 									<SortableSectionHeader field="gradeLevelId" label="Grade" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} />
 									<SortableSectionHeader field="enrolledCount" label="Enrolled" align="right" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} />
 									<SortableSectionHeader field="maxCapacity" label="Capacity" align="right" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} />
 									<SortableSectionHeader field="fill" label="% Full" align="right" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} />
 
+									{/* A9 c2 R2 (2026-09-30): back to the A9 C7 200px cap, and the room
+									 * text WRAPS. R1's widening to 330 made the room text whole on one
+									 * line but pushed the table past its scroll panel — measured at the
+									 * R1 tip: `scrollWidth 1124` against `clientWidth 1070` at 1366x768
+									 * (984 at 1280x720), with the row's Details actions outside the
+									 * visible panel on EVERY row. The cap and the wrap together keep the
+									 * table inside the panel and the room text whole. The width here is
+									 * the SAME number the cell in `SectionRow.tsx` declares, so the two
+									 * cannot drift. */}
 									<th className="w-[200px] min-w-0 px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-xs">Home room</th>
 									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-xs">Details</th>
 								</tr>
@@ -936,8 +945,6 @@ export default function Sections() {
 			`handleHomeRoomChange` path all travel with them. */}
 		<SectionsHomeRoomMapModals
 			scopedSchoolId={scopedSchoolId}
-			globalBrowseOpen={globalBrowseModalOpen}
-			onGlobalBrowseOpenChange={setGlobalBrowseModalOpen}
 			mapTarget={mapTarget}
 			onMapTargetChange={setMapTarget}
 			roomOccupancy={roomOccupancyMap}
@@ -977,7 +984,7 @@ export default function Sections() {
 				roomOccupancy={roomOccupancyMap}
 				canWrite={homeRoomWrite.canWrite}
 				notSavedNotice={homeRoomWrite.notSavedNotice}
-				onNotice={setCacheNotice}
+				onNotice={setHomeRoomReceipt}
 				onApplied={() => void fetchSections({ forceRefresh: true })}
 			/>
 			</>

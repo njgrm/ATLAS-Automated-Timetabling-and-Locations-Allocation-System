@@ -5,6 +5,11 @@ import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { SectionRoomPicker, type RoomOption as HomeRoomOption } from '@/components/sections/SectionRoomPicker';
 import { resolveHomeRoom } from '@/components/sections/home-room-readiness';
+// A9 c1 R1 (2026-09-30): the program badge on this card is the SAME badge the
+// desktop row renders — same map, same class decision, same label — imported
+// from `./program-badge` rather than a second, paler copy. `Regular Program` is
+// gone; the badge now says `BEC` exactly as it does on the row.
+import { programBadgeClass, programBadgeLabel, resolveProgramCode } from '@/components/sections/program-badge';
 import { cn } from '@/lib/utils';
 import { gradeCompact } from '@/lib/deped-glossary';
 import type { Room } from '@/types';
@@ -42,6 +47,9 @@ export function SectionMobileCard({ section, homeRoomOptions, isReadOnly, isSavi
 	// tile use, so the mobile card cannot say "Needs room" for a section the
 	// counter is calling assigned.
 	const selectedRoom = resolveHomeRoom(section, homeRoomOptions);
+	// A9 c1 R1: the SAME decision the desktop row makes, imported from the shared
+	// module — a regular section resolves to `REGULAR` (rendered `BEC`).
+	const programCode = resolveProgramCode(section);
 	const fillTone = fill >= 95
 		? 'border-slate-800 bg-slate-800 text-white'
 		: fill >= 85
@@ -58,16 +66,19 @@ export function SectionMobileCard({ section, homeRoomOptions, isReadOnly, isSavi
 						<Badge className={cn('h-6 rounded-full border-0 text-xs font-bold', GRADE_COLORS[gKey] ?? 'bg-muted text-muted-foreground')}>
 							{gradeCompact(Number(gKey))}
 						</Badge>
-						{section.isSpecialProgram && section.programCode && (
-							<Badge variant="outline" className="h-6 rounded-full bg-white text-xs font-bold">
-								{section.programCode}
-							</Badge>
-						)}
+						{/* A9 c1 R1: the shared dark program badge — a regular section
+						    reads `BEC`, a special section reads its own code. The pale
+						    `bg-white` chip and the grey `Regular Program` caption that
+						    duplicated it are both gone. The special program's full NAME
+						    is kept below, where it adds meaning. */}
+						<Badge variant="outline" className={cn('h-6 rounded-full text-xs font-bold', programBadgeClass(programCode))}>
+							{programBadgeLabel(programCode)}
+						</Badge>
 					</div>
 					<h3 className="mt-2 truncate text-base font-bold text-foreground">{section.name}</h3>
-					<p className="mt-0.5 text-xs font-medium text-muted-foreground">
-						{section.isSpecialProgram ? section.programName : 'Regular Program'}
-					</p>
+					{section.isSpecialProgram && section.programName ? (
+						<p className="mt-0.5 text-xs font-medium text-muted-foreground">{section.programName}</p>
+					) : null}
 				</div>
 				<Badge variant="outline" className={cn('h-7 shrink-0 rounded-full px-2 text-xs font-bold', fillTone)}>
 					{fill}% full
