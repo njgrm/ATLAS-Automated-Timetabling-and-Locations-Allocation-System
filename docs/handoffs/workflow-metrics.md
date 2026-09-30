@@ -154,3 +154,8 @@ overhead per train, and 45-90 min planner cycles for one-line fixes. Rules from 
     1366x768 to their post; Lane C rejects clipped text, raw codes or extra confirms from that screenshot before the
     train, so a train walk only finds regressions, not first looks.
 18. **Launcher prompts are single-line** (`launch.ps1` now collapses newlines and strips `< > | & ^ %`).
+19. **Never cut over without a built server (30 Sep 10:21, train 19: 4 min of 502 during the demo).** A4 ran
+    `tsc --noEmit` and recorded it as the server build, so `atlas-server/dist` was empty and the API never started.
+    Every A4 prompt now says: run `npm run build` in atlas-server and atlas-client, then assert
+    `atlas-server/dist/server.js` and `atlas-client/dist/index.html` exist and the dist file count matches the live
+    tree before the dry run; if not, stop. `release-live.ps1` (A4 fast-deploy) must make this a hard gate.
