@@ -585,7 +585,7 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
-- **- LIVE CUTOVER IN FLIGHT — target release `9e2bfb240df2a5c26e01e2ab7dad97ecfae5a630eb218143` (train 18,
+- **- LIVE CUTOVER IN FLIGHT — target release `9e2bfb240df2a5c26e01e2ab7dad97ecfae5b966` (train 18,
   pinned to `origin/main` tip, direct to live under operator decision 12), rollback basis
   `3b29bb4426c3e4bc6cfc9d8de4e5a630eb218143` @ `E:\ATLAS-worktrees\lane-a4-release-20260930-17prod`
   (train 17, the incumbent), `KEEP_ACTIVE`; one-step supervised reset, task XML captured pre-cutover by
