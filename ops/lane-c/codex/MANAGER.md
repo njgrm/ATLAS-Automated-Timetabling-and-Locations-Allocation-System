@@ -28,7 +28,7 @@ Check the clock with `date` before writing any time.
 ## What needs the operator (write to the outbox and notify, then continue other work)
 - **A non-migration deploy may proceed autonomously only under decision 16a.** Before A4 GO, run
   `powershell -File ops/lane-c/codex/live-use-check.ps1`; a non-zero exit is a hard stop. The result must show a
-  15-minute observed quiet window, no recent interactive API use, no generation/publication write in flight, and no
+  15-minute observed quiet window across client and API traffic, no generation/publication write in flight, and no
   `using live` or `no deploys` inbox veto. Also require the automated gate: full suites green; server and client entry
   artifacts exist; target dist count matches live; and 1366x768 `/timetable` header and grid screenshots pass.
   Enforce at most two releases per local day and none from 22:00 through 06:00 unless the inbox says `ship`. After
