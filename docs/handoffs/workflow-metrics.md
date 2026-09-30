@@ -159,3 +159,8 @@ overhead per train, and 45-90 min planner cycles for one-line fixes. Rules from 
     Every A4 prompt now says: run `npm run build` in atlas-server and atlas-client, then assert
     `atlas-server/dist/server.js` and `atlas-client/dist/index.html` exist and the dist file count matches the live
     tree before the dry run; if not, stop. `release-live.ps1` (A4 fast-deploy) must make this a hard gate.
+
+| 2026-09-30 · A2 · move-swap c2 | decision 12 | — | 0 | 3 | 1 | 1 | awaits Train 22 | `8c1b9218` is on main; menu removal is explicitly out of scope and needs a bounded follow-up. |
+| 2026-09-30 · A5 · unassigned panel | decision 12 | — | 0 | 1 | 0 | 1 | awaits Train 22 | `22b34170` is on main; independent QA 15/15, rendered browser row remains unperformed. |
+| 2026-09-30 · A6 · placement feasibility | decision 14 | — | 0 | 1 | 0 | 3 | awaits Train 22 | `8766c084`/`fffa830c` are on main; QA caught two refusal-surface corrections; rendered row remains unperformed. |
+| 2026-09-30 · A8 · Makabansa cause | decision 14 | — | 0 | 0 | 0 | n/a | none | Read-only finding: run 359 has zero hard/unassigned; generator repair remains a separate T3 packet. |
