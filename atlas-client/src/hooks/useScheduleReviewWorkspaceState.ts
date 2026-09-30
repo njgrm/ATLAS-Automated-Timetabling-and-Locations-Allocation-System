@@ -933,6 +933,7 @@ export function useScheduleReviewWorkspaceState() {
 		commitConfirmPlacement,
 		executeSwapAction,
 		executeRegularSwap,
+		commitRegularSwapNow,
 		openRegularSwapPrompt,
 		regularSwapPreview,
 		regularSwapStrategy,
@@ -1178,6 +1179,72 @@ export function useScheduleReviewWorkspaceState() {
 		});
 	}, [commitConfirmPlacement, preGenConfirmCtx, confirmRoomId, subjectLabel, roomMap, setLastAutoSaveUndo]);
 
+	/**
+	 * A2 move-swap — ONE ACTION. The operator's second pick, or an accepted swap
+	 * offer, commits here with no dialog commit button in between. The bounded
+	 * preview+commit lives in `useTimetableMutations`; this registers the SAME
+	 * contextual Undo the move path registers (ledger 'run', the commit's own edit
+	 * id), so a mis-picked swap is one Undo away.
+	 *
+	 * On a refusal or an elapsed bound the mutations hook has already written
+	 * plain words to the status, and this registers nothing — because nothing
+	 * committed.
+	 */
+	const commitRegularSwapOneAction = useCallback(async (entryA: ScheduledEntry, entryB: ScheduledEntry) => {
+		const outcome = await commitRegularSwapNow(entryA, entryB);
+		if (!outcome.ok) return null;
+		const { result } = outcome;
+		const section = entryA.sectionId != null ? sectionMap.get(entryA.sectionId) : undefined;
+		setLastAutoSaveUndo({
+			ledger: 'run',
+			editId: result.editId,
+			newVersion: result.newVersion,
+			subjectLabel: section?.name ?? (subjectLabel ? subjectLabel(entryA.subjectId) : 'Session'),
+			day: String(entryB.day),
+			startTime: String(entryB.startTime),
+			endTime: String(entryB.endTime),
+			roomLabel: entryB.roomId != null && roomMap.has(entryB.roomId)
+				? `${roomMap.get(entryB.roomId)!.name} - ${roomMap.get(entryB.roomId)!.buildingShortCode || roomMap.get(entryB.roomId)!.buildingName}`
+				: '',
+		});
+		return result;
+	}, [commitRegularSwapNow, sectionMap, subjectLabel, roomMap, setLastAutoSaveUndo]);
+
+	/**
+	 * A2 move-swap item 3 — "Remove from draft" in ONE action. The DELETE authors
+	 * the DRAFT ledger (`PRE_GENERATION_DRAFT_REMOVE`, actionType `REMOVE`), so
+	 * Undo reverts the draft ledger with the response's operation id — the same
+	 * shape `runPreGenDrop` registers. The receipt is the ONE
+	 * `buildEditReceipt` sentence; the class is named from the placement's own
+	 * subject/section before the board drops it.
+	 */
+	const removeDraftPlacement = useCallback(async (placementId: number) => {
+		const placement = (draftBoard?.placements ?? []).find((candidate) => candidate.id === placementId) ?? null;
+		const result = await unassignDraftPlacement(placementId);
+		if (!result || result.operationId == null) return;
+		const receipt = buildEditReceipt({
+			editType: 'REMOVE_DRAFT_PLACEMENT',
+			classLabel: receiptClassLabel({
+				subjectLabel: placement != null && subjectLabel ? subjectLabel(placement.subjectId) : null,
+				sectionLabel: placement != null && sectionLabel ? sectionLabel(placement.sectionId) : null,
+			}),
+			from: placement ? { day: String(placement.day), startTime: String(placement.startTime) } : null,
+			problems: { now: 0 },
+			trailing: 'It is back on the unplaced list.',
+		});
+		setLastAutoSaveUndo({
+			ledger: 'draft',
+			editId: result.operationId,
+			newVersion: result.resultingVersion ?? 0,
+			subjectLabel: placement != null && subjectLabel ? subjectLabel(placement.subjectId) : 'Draft placement',
+			day: placement?.day ?? '',
+			startTime: placement?.startTime ?? '',
+			endTime: placement?.endTime ?? '',
+			roomLabel: placement?.roomId != null && roomMap.has(placement.roomId) ? roomMap.get(placement.roomId)!.name : '',
+		});
+		setInlineActionStatus({ tone: receipt.tone, message: receipt.sentence });
+	}, [draftBoard?.placements, unassignDraftPlacement, subjectLabel, sectionLabel, roomMap, setLastAutoSaveUndo]);
+
 	const handleEntryClick = useCallback((entry: ScheduledEntry) => {
 		if (swapClassTimesMode != null && centerView === 'schedule') {
 			// Explicit Swap class times mode: arm Class A first, then Class B.
@@ -1219,7 +1286,14 @@ export function useScheduleReviewWorkspaceState() {
 				}
 				setSwapClassBEntryId(entry.entryId);
 				captureReviewFocusReturn(timetableEntryFocusSelector(entry.entryId));
-				openRegularSwapPrompt(classA, entry);
+				// A2 move-swap — the pick IS the decision. A draft swap commits on this
+				// one action (bounded, with receipt + Undo); only a PUBLISHED run keeps
+				// the dated-revision dialog, because that flow is a different contract.
+				if (draftPublishedRef.current) {
+					openRegularSwapPrompt(classA, entry);
+				} else {
+					void commitRegularSwapOneAction(classA, entry);
+				}
 				setSwapClassTimesMode(null);
 				setSwapClassAEntryId(null);
 				setSwapClassBEntryId(null);
@@ -1228,7 +1302,7 @@ export function useScheduleReviewWorkspaceState() {
 		}
 		// Ordinary browsing: a second occupied class opens details, never an implicit swap.
 		handleEntrySelect(entry);
-	}, [captureReviewFocusReturn, centerView, handleEntrySelect, openRegularSwapPrompt, selectedEntry, setSelectedEntry, setSelectedViolation, swapClassTimesMode, swapClassAEntryId, swapClassBEntryId, gridEntries, setSwapClassTimesMode, setSwapClassAEntryId, setSwapClassBEntryId, setInlineActionStatus, applyArmedVerdict, actorUserId, resolveEntryLabel]);
+	}, [captureReviewFocusReturn, centerView, handleEntrySelect, openRegularSwapPrompt, commitRegularSwapOneAction, selectedEntry, setSelectedEntry, setSelectedViolation, swapClassTimesMode, swapClassAEntryId, swapClassBEntryId, gridEntries, setSwapClassTimesMode, setSwapClassAEntryId, setSwapClassBEntryId, setInlineActionStatus, applyArmedVerdict, actorUserId, resolveEntryLabel]);
 
 	const handleCollaborativeTimetableEvent = useCallback(() => {
 		toast.info('Timetable updated by another scheduler. Refreshing data...', { id: 'collab-edit-alert' });
@@ -1974,8 +2048,15 @@ export function useScheduleReviewWorkspaceState() {
 			const swapCandidate = findRegularSwapCandidate(entry, slotEntries);
 			if (swapCandidate) {
 				captureReviewFocusReturn(timetableEntryFocusSelector(swapCandidate.entryId));
-				setInlineActionStatus({ tone: 'warning', message: 'Review swap before saving. This occupied slot will exchange the two sessions.' });
-				openRegularSwapPrompt(entry, swapCandidate);
+				// A2 move-swap — the drop IS the decision on a draft run: the swap
+				// commits on this one action. A published run keeps the dated-revision
+				// dialog.
+				if (draftPublishedRef.current) {
+					setInlineActionStatus({ tone: 'warning', message: 'Review swap before saving. This occupied slot will exchange the two sessions.' });
+					openRegularSwapPrompt(entry, swapCandidate);
+				} else {
+					void commitRegularSwapOneAction(entry, swapCandidate);
+				}
 				setDragItem(null);
 				return;
 			}
@@ -2060,7 +2141,7 @@ export function useScheduleReviewWorkspaceState() {
 			message: `${moveReceipt.sentence} Undo below.`,
 		});
 	},
-		[captureReviewFocusReturn, dragItem, previewEdit, commitEditWithMeta, runPreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, placeGeneratedUnassigned, subjectLabel, sectionLabel, roomMap, setLastAutoSaveUndo],
+		[captureReviewFocusReturn, dragItem, previewEdit, commitEditWithMeta, runPreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, commitRegularSwapOneAction, placeGeneratedUnassigned, subjectLabel, sectionLabel, roomMap, setLastAutoSaveUndo],
 	);
 
 	/** Keyboard-accessible placement confirm */
@@ -2112,7 +2193,7 @@ export function useScheduleReviewWorkspaceState() {
 					return;
 				}
 				flushSync(() => {
-					setInlineActionStatus({ tone: 'loading', message: 'Reviewing selected slot before saving this move.' });
+					setInlineActionStatus({ tone: 'loading', message: 'Moving this class…' });
 				});
 				const slotEntries = (draft?.entries ?? []).filter((candidate: ScheduledEntry) => (
 					candidate.day === day
@@ -2122,8 +2203,14 @@ export function useScheduleReviewWorkspaceState() {
 				const swapCandidate = findRegularSwapCandidate(fakeItem.entry, slotEntries);
 				if (swapCandidate) {
 					captureReviewFocusReturn(timetableEntryFocusSelector(swapCandidate.entryId));
-					setInlineActionStatus({ tone: 'warning', message: 'Review swap before saving. This occupied slot will exchange the two sessions.' });
-					openRegularSwapPrompt(fakeItem.entry, swapCandidate);
+					// A2 move-swap — the pick IS the decision on a draft run. Published
+					// runs keep the dated-revision dialog.
+					if (draftPublishedRef.current) {
+						setInlineActionStatus({ tone: 'warning', message: 'Review swap before saving. This occupied slot will exchange the two sessions.' });
+						openRegularSwapPrompt(fakeItem.entry, swapCandidate);
+					} else {
+						void commitRegularSwapOneAction(fakeItem.entry, swapCandidate);
+					}
 					return;
 				}
 				// LANE-C C03 (B3) — a published run refuses direct edits; the move
@@ -2207,7 +2294,7 @@ export function useScheduleReviewWorkspaceState() {
 		});
 		setKbSelectedSource(null);
 	},
-		[captureReviewFocusReturn, kbSelectedSource, preGenKbSource, previewEdit, commitEditWithMeta, runPreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, placeGeneratedUnassigned, subjectLabel, sectionLabel, roomMap, setLastAutoSaveUndo],
+		[captureReviewFocusReturn, kbSelectedSource, preGenKbSource, previewEdit, commitEditWithMeta, runPreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, commitRegularSwapOneAction, placeGeneratedUnassigned, subjectLabel, sectionLabel, roomMap, setLastAutoSaveUndo],
 	);
 
 	/** Load edit history on mount / run change */
@@ -2305,7 +2392,7 @@ export function useScheduleReviewWorkspaceState() {
 	const gridKbSelectedSource = kbSelectedSource ?? (centerView === 'pre-generation' ? preGenKbSource : null);
 	const handleKbPlaceStart = useCallback(() => {
 		flushSync(() => {
-			setInlineActionStatus({ tone: 'loading', message: 'Reviewing selected slot before saving this move.' });
+			setInlineActionStatus({ tone: 'loading', message: 'Moving this class…' });
 		});
 	}, []);
 
@@ -2363,7 +2450,7 @@ export function useScheduleReviewWorkspaceState() {
 		headerContext.termFilter = effectiveTermFilter;
 		headerContext.hasPublishedReturnState = publishedReturnState.snapshot != null;
 		headerContext.curriculumReadiness = curriculumReadiness;
-		const dialogContext = buildDialogContext({ showUnassignConfirm, setShowUnassignConfirm, setPendingUnassignId, pendingUnassignId, unassignDraftPlacement, showGenerateConfirm, setShowGenerateConfirm, generationStoppers, generationReadinessDiagnostic: curriculumReadiness.state === 'blocked' || curriculumReadiness.state === 'ready' ? curriculumReadiness.diagnostic : null, onCheckScheduleAgain: () => { void handleRefresh(); }, enforceShiftWindows, setEnforceShiftWindows, draftBoardSummary, followUps, confirmGenerate, activeSchoolYearLabel: schoolYearContext?.activeSchoolYearLabel ?? null, schoolYearSource: schoolYearContext?.source ?? null, showResetDraftDialog, setShowResetDraftDialog, openPreGenerationWorkspace, showLeavePreGenDialog, setShowLeavePreGenDialog, pendingCenterSwitch, setPendingCenterSwitch, requestPreview, requestPreviewLoading, setRequestPreview, setSelectedRequestId, setRequestAppeals, setAppealReason, requestPreviewHardConflicts, requestPreviewSoftWarnings, requestAppeals, appealsLoading, isPrivilegedUser, updateAppealStatus, appealReason, appealSubmitting, submitAppeal, requestReviewerNotes, setRequestReviewerNotes, requestReviewSaving, reviewRoomRequest, generating, generationElapsed, showPublishDialog, setShowPublishDialog, publishAcknowledged, setPublishAcknowledged, softCount, publishUnassignedCount: summary?.unassignedCount ?? 0, publishPlaceholderOwnedCount: draft?.summary?.placeholderOwnedClasses ?? null, policy, handlePublishConfirm, captureReviewFocusReturn, restoreReviewFocus, showPreGenConfirm, setShowPreGenConfirm, setPreGenConfirmCtx, setConfirmPreview, setConfirmRawPreview, setConfirmPreviewError, setConfirmAllowSoftOverride, setConfirmAllowDailyOverride, preGenConfirmCtx, confirmFacultyId, setConfirmFacultyId, confirmPreview, confirmRoomId, setConfirmRoomId, facultyMap, roomMap, confirmPreviewLoading, confirmPreviewError, confirmDisplacedPlacement, toast, openSwapPrompt, confirmAllowDailyOverride, confirmSaving, commitConfirmPlacement: wrappedCommitConfirmPlacement, showSwapConfirm, setShowSwapConfirm, setSwapAction, swapAction, formatFacultyInitials, roomLabelShort, subjectLabel, sectionLabel, swapSaving, executeSwapAction, swapPreview, regularSwapPreview, regularSwapPending, setRegularSwapPending, resetSwapClassTimesState, regularSwapSaving, regularSwapStrategy, setRegularSwapStrategy, executeRegularSwap, showSoftConfirm, setShowSoftConfirm, softConfirmWarnings, commitLoading, formatConstraintMessage, setPendingCommitProposal, setPreviewResult, setSoftConfirmWarnings, setDragItem, pendingCommitProposal, commitEdit, showAssignmentPicker, setShowAssignmentPicker, setAssignPickerTarget, assignPickerTarget, assignPickerFacultyId, setAssignPickerFacultyId, assignPickerRoomId, setAssignPickerRoomId, assignPickerPreview, assignPickerPreviewLoading, assignPickerPreviewError, assignPickerSaving, confirmAssignmentPicker, showEditHistory, setShowEditHistory, editHistory, editHistoryReadState,
+		const dialogContext = buildDialogContext({ showUnassignConfirm, setShowUnassignConfirm, setPendingUnassignId, pendingUnassignId, unassignDraftPlacement: removeDraftPlacement, showGenerateConfirm, setShowGenerateConfirm, generationStoppers, generationReadinessDiagnostic: curriculumReadiness.state === 'blocked' || curriculumReadiness.state === 'ready' ? curriculumReadiness.diagnostic : null, onCheckScheduleAgain: () => { void handleRefresh(); }, enforceShiftWindows, setEnforceShiftWindows, draftBoardSummary, followUps, confirmGenerate, activeSchoolYearLabel: schoolYearContext?.activeSchoolYearLabel ?? null, schoolYearSource: hasVerifiedTermAuthority ? 'enrollpro-verified' : (schoolYearContext?.source ?? null), showResetDraftDialog, setShowResetDraftDialog, openPreGenerationWorkspace, showLeavePreGenDialog, setShowLeavePreGenDialog, pendingCenterSwitch, setPendingCenterSwitch, requestPreview, requestPreviewLoading, setRequestPreview, setSelectedRequestId, setRequestAppeals, setAppealReason, requestPreviewHardConflicts, requestPreviewSoftWarnings, requestAppeals, appealsLoading, isPrivilegedUser, updateAppealStatus, appealReason, appealSubmitting, submitAppeal, requestReviewerNotes, setRequestReviewerNotes, requestReviewSaving, reviewRoomRequest, generating, generationElapsed, showPublishDialog, setShowPublishDialog, publishAcknowledged, setPublishAcknowledged, softCount, publishUnassignedCount: summary?.unassignedCount ?? 0, publishPlaceholderOwnedCount: draft?.summary?.placeholderOwnedClasses ?? null, policy, handlePublishConfirm, captureReviewFocusReturn, restoreReviewFocus, showPreGenConfirm, setShowPreGenConfirm, setPreGenConfirmCtx, setConfirmPreview, setConfirmRawPreview, setConfirmPreviewError, setConfirmAllowSoftOverride, setConfirmAllowDailyOverride, preGenConfirmCtx, confirmFacultyId, setConfirmFacultyId, confirmPreview, confirmRoomId, setConfirmRoomId, facultyMap, roomMap, confirmPreviewLoading, confirmPreviewError, confirmDisplacedPlacement, toast, openSwapPrompt, confirmAllowDailyOverride, confirmSaving, commitConfirmPlacement: wrappedCommitConfirmPlacement, showSwapConfirm, setShowSwapConfirm, setSwapAction, swapAction, formatFacultyInitials, roomLabelShort, subjectLabel, sectionLabel, swapSaving, executeSwapAction, swapPreview, regularSwapPreview, regularSwapPending, setRegularSwapPending, resetSwapClassTimesState, regularSwapSaving, regularSwapStrategy, setRegularSwapStrategy, executeRegularSwap, showSoftConfirm, setShowSoftConfirm, softConfirmWarnings, commitLoading, formatConstraintMessage, setPendingCommitProposal, setPreviewResult, setSoftConfirmWarnings, setDragItem, pendingCommitProposal, commitEdit, showAssignmentPicker, setShowAssignmentPicker, setAssignPickerTarget, assignPickerTarget, assignPickerFacultyId, setAssignPickerFacultyId, assignPickerRoomId, setAssignPickerRoomId, assignPickerPreview, assignPickerPreviewLoading, assignPickerPreviewError, assignPickerSaving, confirmAssignmentPicker, showEditHistory, setShowEditHistory, editHistory, editHistoryReadState,
 		/* C11 S2 (T2) — the class name behind a recorded entry id, so a corrective
 		 * auto-fix row can name the class that moved instead of the dialog handle
 		 * "Class A". Derived from the run on screen and the same `sectionLabel` the
@@ -2522,6 +2609,8 @@ export function useScheduleReviewWorkspaceState() {
 		policyAlignmentWarning,
 		publishedEntryChange,
 		setPublishedEntryChange,
+		/** A2 move-swap item 3 — one-action draft removal with receipt + Undo. */
+		removeDraftPlacement,
 		publishedChangeScope: draft && isDraftPublishedStrict(draft) && schoolId && schoolYearId && runIdNumeric ? { schoolId, schoolYearId, runId: runIdNumeric } : null,
 		...workspaceContexts,
 	};

@@ -185,12 +185,29 @@ test('setup guidance names what ATLAS found and the next safe step without claim
 });
 
 test('selected class actions show one concise context and safe preview guidance', () => {
+	// A2 move-swap item 1 (SUPERSEDED IN PLACE, additive per AGENTS.md §16,
+	// 2026-09-30). The selected-class strip was extracted to
+	// `ScheduleReviewWorkspaceSelectionStrip.tsx` (§8: the workspace was at 998
+	// physical lines against the 1000 cap). Each superseded assertion is KEPT as
+	// its own negation beside its replacement — the pair proves the old behaviour
+	// is gone AND names the new home.
 	const workspace = source('src/components/timetable/ScheduleReviewWorkspace.tsx');
-	assert.match(workspace, /Selected: \{state\.subjectLabel\(state\.selectedEntry\.subjectId\)\} · \{state\.sectionLabel\(state\.selectedEntry\.sectionId\)\}/);
+	const strip = source('src/components/timetable/ScheduleReviewWorkspaceSelectionStrip.tsx');
+	// SUPERSEDED: assert.match(workspace, /Selected: \{state\.subjectLabel\(state\.selectedEntry\.subjectId\)\} · \{state\.sectionLabel\(state\.selectedEntry\.sectionId\)\}/);
+	assert.doesNotMatch(workspace, /Selected: \{state\.subjectLabel/,
+		'SUPERSEDED: the workspace no longer owns the strip’s Selected line');
+	assert.match(strip, /Selected: \{subjectLabel\(selectedEntry\.subjectId\)\} · \{sectionLabel\(selectedEntry\.sectionId\)\}/,
+		'replacement: the extracted strip owns it');
 	assert.match(workspace, /Dismiss selection/);
 	assert.match(workspace, /Choose a new time/);
 	assert.match(workspace, /Swap with another class/);
-	assert.match(workspace, /Review the change before saving/);
+	// SUPERSEDED: assert.match(workspace, /Review the change before saving/);
+	assert.doesNotMatch(workspace, /Review the change before saving/,
+		'SUPERSEDED: the confirmation promise is gone from the workspace source');
+	assert.doesNotMatch(strip, /Review the change before saving/,
+		'replacement: and it was not reintroduced in the extracted strip');
+	assert.match(strip, /Changes apply as soon as you pick a slot\./,
+		'replacement: the truthful sentence lives in the strip');
 	assert.doesNotMatch(workspace, /Choose another occupied slot to review a swap/);
 });
 

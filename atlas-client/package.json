@@ -16,6 +16,7 @@
     "test:schedule-clarity": "tsx --test src/lib/__tests__/schedule-clarity-c03.test.ts src/components/timetable/__tests__/schedule-clarity-c03-dom.test.tsx",
     "test:plain-tokens-c04": "tsx --test src/components/timetable/__tests__/plain-tokens-c04.test.tsx src/lib/__tests__/plain-tokens-c04-mapping.test.ts",
     "test:room-schedules-term-c01": "tsx --test src/lib/__tests__/room-schedules-term-c01.test.ts",
+    "test:room-schedule-conflict-parity-c01": "tsx --test src/lib/__tests__/room-schedule-conflict-parity-c01.test.ts",
     "test:schedule-lifecycle-c01": "tsx --test src/lib/__tests__/schedule-lifecycle-c01.test.ts",
     "test:plain-language-j2j3-c01": "tsx --test src/lib/__tests__/plain-language-j2j3-c01.test.ts",
     "test:publish-drift-revision-s4-client": "tsx --test src/lib/__tests__/published-revision-client.test.ts src/lib/__tests__/timetable-dynamic-workspace-drift.test.ts src/lib/__tests__/publish-drift-revision-s4-client.test.ts",
@@ -57,6 +58,7 @@
     "test:a3-c10-teacher-surface": "tsx --test src/components/faculty/__tests__/a3-c10-teacher-surface.test.tsx",
     "test:a6-teachers": "tsx --test src/components/faculty/__tests__/a6-teachers-header-profile.test.tsx",
     "test:a6-teaching-load": "tsx --test src/components/faculty-assignments/__tests__/a6-teaching-load-surface.test.tsx",
+    "test:a6-source-truth": "tsx --test src/lib/__tests__/a6-source-truth-verified-upstream.test.ts",
     "test:a6-tl-header-budget": "tsx --test src/components/faculty-assignments/__tests__/a6-tl-header-budget.test.ts",
     "test:a6-tl-deeplink": "node --experimental-test-module-mocks --import tsx --test src/components/faculty-assignments/__tests__/a6-tl-deeplink.test.tsx",
     "test:a6-c5-outage": "tsx --test src/components/faculty-assignments/__tests__/a6-c5-outage.test.tsx src/components/faculty-assignments/__tests__/a6-c5-outage-derivation.test.tsx src/components/faculty-assignments/__tests__/a6-tl-demand-source-client.test.ts",
@@ -171,6 +173,7 @@
     "test:a3p1-prefs-save": "tsx --test src/lib/__tests__/a3p1-teacher-prefs-stale-read-polarity.test.ts src/components/faculty-shared/__tests__/a3p1-concern-save-reason.test.tsx",
     "test:a2-c18-lockpanel-truth": "tsx --test src/components/__tests__/a2-c18-lockpanel-truth.test.tsx",
     "test:ux-a2-mc-manual-controls": "node --experimental-test-module-mocks --max-old-space-size=6144 --import tsx --test src/components/timetable/__tests__/a2-mc-one-count-one-list.test.tsx src/components/timetable/__tests__/a2-mc-warning-row-identity.test.ts src/components/timetable/__tests__/a2-mc-move-swap-offers.test.tsx src/components/timetable/__tests__/a2-mc-plain-words-preview.test.tsx src/components/timetable/__tests__/a2-mc-edit-receipt.test.ts src/components/timetable/__tests__/a2-mc-move-swap-grid-wiring.test.tsx",
+    "test:ux-a2-move-swap": "node --experimental-test-module-mocks --max-old-space-size=6144 --import tsx --test --test-force-exit src/components/timetable/__tests__/a2-move-swap-one-action.test.tsx src/components/timetable/__tests__/a2-move-one-action.test.tsx src/components/timetable/__tests__/a2-move-remove-from-draft.test.tsx",
     "test:a7-c12-calm-header": "tsx --max-old-space-size=6144 --test src/components/timetable/__tests__/a7-c12-calm-header-budget.test.tsx src/components/timetable/__tests__/a7-c12-calm-copy.test.tsx",
     "test:a7-c13-clip": "tsx --test src/components/timetable/__tests__/a7-c13-clip.test.tsx src/components/timetable/__tests__/a7-c13-dom.test.tsx"
   },

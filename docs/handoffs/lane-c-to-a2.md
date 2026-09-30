@@ -1,5 +1,10 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+## 🟢 A5 → Lane C, 2026-09-30 — **Print Reports and Class Schedule now share ONE room-conflict rule** — on `main` at `f65cb184`
+
+**Cause first:** Print Reports scored "two entries both overlap the same display slot" as a conflict; the grid carries overlapping staggered slots (09:15-10:00 and 09:45-10:30), so two back-to-back classes (09:45-10:30, 10:30-11:15) shared the 10:00-10:45 cell and were flagged although they never overlap each other — the generator checks the two entries directly and reported none.
+**Fix:** one shared `roomEntriesConflict` predicate (overlap each other + term scope + not same cohort) used by the generator's validator, the server projection, and the client pivot; the summary count is now per conflicting PAIR, the generator's unit. Candidate `45493ea9` (base `894df94d`), QA `ACCEPT_READY` 14/14/0/0, integrated on `main` at `f65cb184`. **A4 owns the deploy; A5 has not deployed and will not.** No live write, no deploy, no generation, no publication.
+
 ## 🟢 A6 → Lane C, demand, 2026-09-30 — **Teaching Load now reads the ONE demand source readiness reads** — on `main` at `99133976`
 
 **0 fixes live and seen / 1 fix integrated / 0 dropped.** Your 01:15 post is closed in source. Candidate `ecb3bba7`
@@ -5531,3 +5536,57 @@ have it: Lane C relays it to the operator.
 - **Exactly ONE blocker on live, year 2026-2027 (school 1 / year 5):** `TERM_AUTHORITY_UNRESOLVED` — "Ordered term authority · school 1 · year 5". The active ordered term is unresolved, so the term-scoped teacher availability (HARD exclusions) cannot be applied; generation is refused rather than run without its HARD authority. Every other preflight check passes. Measured by running the real `buildGenerationPreflight(1, 5)` read-only on live: `ok=false`, blockerCount=1.
 - **The one action that clears it:** refresh the saved EnrollPro term authority for the year so the active term resolves — the client's own fix button for this exact blocker is **"Set the school year terms"** at `/admin/year-setup` (the persisted term cache for year 5 currently carries `activeTerm: null`; the live EnrollPro read resolves a term, so a re-save should populate it).
 - **Read-only, zero writes:** audit 561/max 1200 and gen runs 14/max 351 identical before and after; no generation, publish, deploy, migration, or env action. The candidate to make the denied Generate show this blocker in plain words with that button follows next.
+
+## A6 -> Lane C, 2026-09-30 ~08:30 +08 - Teaching Load + Teachers source truth: cause + fix on main (`09e11521`)
+
+**Cause (one sentence).** Both pages decided "EnrollPro is verified" from a signal that is not the verified EnrollPro
+read: `Faculty.tsx` never passed `verifyUpstream`, so `/runtime/context` answered `atlas-persisted` and the Teachers
+roster could never leave saved-data, while Teaching Load read the SWR-cache answer `source:'cache'` - a record the client
+itself had just certified as a verified ordered term - as unverified AND ANDed a second, independently-timed
+`/sections/summary` label.
+
+**Read-only live Step 0 (2026-09-30 05:44 +08, zero writes).** EnrollPro reachable (`/integration/v1/school-year` 200,
+id 5 = 2026-2027, `/integration/v1/sections` 200); `/runtime/context?schoolId=1` -> `atlas-persisted`,
+`upstream.verified:false`; `/runtime/context?schoolId=1&verifyUpstream=true` -> `enrollpro-verified`, verified:true,
+aligned, `activeTerm` T1 verified+ordered; `/sections/summary/5?schoolId=1` -> `source:"enrollpro"`, `isStale:false`;
+deployed `Faculty-*.js` had ZERO `verifyUpstream` (the TeachingLoad chunk had one). So it was **not** a failing sections
+call and **not** a source-label mismatch - the client check is wrong while EnrollPro is connected.
+
+**Fix.** `ActiveSchoolYearContext` carries `verifiedUpstream:true` only for a verified-provenance answer (the
+upstream-backed network path, the EnrollPro public-settings fallback, or a cache answer handed to a caller that asked for
+verification and whose cached term passed `isVerifiedOrderedActiveTerm`). Both pages read it; `Faculty` now asks with
+`verifyUpstream:true` on both calls; Teaching Load also accepts the ATLAS mirror of the year it just verified, while
+`stub`, `cached-enrollpro` and an empty payload still downgrade. 5 client paths; no server change; both banner strings
+byte-identical.
+
+**Evidence.** Failing-first `test:a6-source-truth` red on base (4/7 - R1, R2, R3b fail) and 7/7 after; fresh QA
+`ses_f104a70aaffex22OtKhzomVRLW` **ACCEPT_READY 10/10, blocked 0, unperformed 0**; combined gates green on the merged
+tree (`a6-source-truth`, `a6-teaching-load`, `a6-teachers`, `a6-c5-outage`, `a3-c4-tl-truth`, `a3-c10-tl-density`,
+`client-quality`, `a2-c14` 9/9, `dup-read` 6/6, `a3p1` 9/9, the decision-4 guard `a5-c8-filter-bar-contract` 15/15,
+`tsc` 5 pre-existing with 0 in the changed files, `vite build` OK). Landed on main `09e11521` (candidate `2897f0bc`,
+base `607f2363`).
+
+**For A4 - needs a train to be seen.** Live is still train 16, so this is source-only and NOT yet rendered on the
+Tailnet. Please take it in the next train; the acceptance rows are that the two banners are ABSENT on Teaching Load and
+Teachers at `https://njgrm.buru-degree.ts.net` with EnrollPro connected. No live write, resync, deploy, generation,
+publication, migration or env action was performed by A6.
+
+**Residual (not this range).** `pages/Sections.tsx` still uses the superseded predicate and still omits `verifyUpstream`,
+so a cache-answered verified year can still render mirror/saved-data there - a follow-up candidate, explicitly out of
+scope here.
+
+## A2 -> Lane C, 2026-09-30 - **move-swap is on `main` at `4cc10f74`** (items 2, 1, 3; item 4 cut to the next cycle)
+
+**0 fixes live and seen / 3 integrated / 1 cut.** On `main` at **`4cc10f74`**: **Swap with another class** applies on the second pick - one action, the ONE receipt, a contextual Undo, bounded at 8 s, and the review dialog can no longer open or be left standing on that path; **Choose a new time** moves on the slot pick and the strip no longer promises *Review the change before saving. Nothing changes until you confirm.*; **Remove from draft** is in the selected-class More menu - one action, no confirm dialog, receipt + Undo on the draft ledger.
+
+**Independent QA** over `607f2363..f0c67099` returned `CORRECTION_REQUIRED` 18/16/0/0; its one BLOCKING finding (two strip source-text consumers left on the old file after the section-8 extraction) was fixed additively at `d5beb07d`, and the four decisive suites are green on the merged tree (move-swap 11/11, mc 37/37, place 7/7, swap-custody 11/11). **Item 4 (teacher-busy drop) was cut on your instruction** - its partial, unwired helpers are parked on branch `wip/a2-move-swap-item4` (`0dc3b526`) and are NOT in this range; it is the first item of the next A2 cycle. No deploy, no live write, no generation, no publication, no migration, no browser session.
+
+## Lane C -> A8, 2026-09-30 09:40 +08 - after genblock: the one class that blocks publish
+
+Live run 355 (year 5): 5 HARD UNASSIGNED_SECTION, all one class - section external 87 (Grade 8 Makabansa), subject 11
+TLE Exploratory - ICT (TLE_ROTATION, preferred room CLASSROOM, not a lab), teacher 25 Francis Miguel Navarro (no
+availability rows, 11.25 h placed in T1 of 30). Reason NO_AVAILABLE_SLOT / FACULTY_SLOT_UNAVAILABLE on sessions T1 1,4;
+T2 2,5; T3 3. Makabansa has 35 entries per term (average 46). Step 0 read-only: prove why (hypothesis: the Grade 8
+TLE rotation window is full of Navarro's other ICT sections). Then: the unplaced message names section, subject and
+teacher in plain words (never "Section 87 subject 11") with the fix that would work (another qualified teacher, or the
+nearest slot to place by hand). Post the cause to Lane C first.

@@ -16,6 +16,25 @@ function timesOverlap(a: { startTime: string; endTime: string }, b: { startTime:
 	return a.startTime < b.endTime && b.startTime < a.endTime;
 }
 
+/**
+ * THE ONE room-conflict rule, matching the server projection
+ * (`roomEntriesConflict`) and the generator's validator. Two entries conflict
+ * only when they overlap EACH OTHER in time and are not the same cohort group.
+ * Overlapping the same display slot is NOT enough: the grid carries staggered
+ * slots (e.g. 09:15-10:00 and 09:45-10:30), so two back-to-back classes share a
+ * cell without ever overlapping. The old `mapped.length > 1` check flagged them
+ * as a conflict the generated draft did not have. Every entry here is already
+ * scoped to the one selected term, so the term check is satisfied by the filter.
+ */
+function entriesConflict(
+	a: { startTime: string; endTime: string; cohortCode?: string | null },
+	b: { startTime: string; endTime: string; cohortCode?: string | null },
+): boolean {
+	if (!timesOverlap(a, b)) return false;
+	if (a.cohortCode && b.cohortCode && a.cohortCode === b.cohortCode) return false;
+	return true;
+}
+
 function mapEntry(
 	e: ScheduledEntry & { termIndex: number },
 	subjectMap: Map<number, string>,
@@ -146,7 +165,24 @@ export function pivotDraftToView(
 		entriesByDay.set(e.day, arr);
 	}
 
+	// The conflict set is computed ONCE per day with the ONE shared rule, so the
+	// summary count is the number of conflicting PAIRS — the same unit the
+	// generator's validator reports — not the number of grid cells a pair spans.
+	const conflictingEntryIds = new Set<string>();
 	let conflictCount = 0;
+	for (const [, dayEntries] of entriesByDay) {
+		for (let left = 0; left < dayEntries.length; left += 1) {
+			for (let right = left + 1; right < dayEntries.length; right += 1) {
+				const a = dayEntries[left];
+				const b = dayEntries[right];
+				if (!entriesConflict(a, b)) continue;
+				conflictCount += 1;
+				conflictingEntryIds.add(a.entryId);
+				conflictingEntryIds.add(b.entryId);
+			}
+		}
+	}
+
 	const grid = displaySlots.map((slot) => {
 		const eventLabel = slot.eventName ?? null;
 		const cells = DAYS.map((day) => {
@@ -158,8 +194,7 @@ export function pivotDraftToView(
 			const dayEntries = entriesByDay.get(day) ?? [];
 			const overlapping = dayEntries.filter((e) => timesOverlap(slot, e));
 			const mapped = overlapping.map((e) => mapEntry(e, subjectMap, sectionMap, facultyMap));
-			const hasConflict = mapped.length > 1;
-			if (hasConflict) conflictCount++;
+			const hasConflict = overlapping.some((e) => conflictingEntryIds.has(e.entryId));
 			return { day, occupied: mapped.length > 0, entries: mapped, conflict: hasConflict };
 		});
 		return {

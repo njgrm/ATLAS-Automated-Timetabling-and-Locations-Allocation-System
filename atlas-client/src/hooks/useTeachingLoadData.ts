@@ -18,8 +18,6 @@ import {
 } from '@/lib/faculty-assignment-helpers';
 import {
 	resolveActiveSchoolYearContext,
-	type ActiveSchoolYearContextSource,
-	isUpstreamBackedSchoolYearSource,
 } from '@/lib/enrollpro-public-settings';
 import { resolveActorSchoolId } from '@/lib/settings';
 import {
@@ -445,7 +443,6 @@ export function useTeachingLoadData() {
 
 		let schoolYearId: number | null = null;
 		let resolvedSchoolId: number | null = null;
-		let yearContextSource: ActiveSchoolYearContextSource = 'cache';
 		// C-6R: a write is allowed only when this is still the newest dispatch AND —
 		// once a scope is bound — that scope is still the one in force. The
 		// previously supersession-blind unbound branch is gone: an older invocation
@@ -466,7 +463,9 @@ export function useTeachingLoadData() {
 				forceRefresh,
 				allowEnrollProFallback: false,
 				// Hotfix 29 Sep: without this the server answers `atlas-persisted` (no EnrollPro check), which
-				// `isUpstreamBackedSchoolYearSource` rejects, so the page said "Teaching Load not verified" forever.
+				// the verified-upstream predicate rejects, so the page said "Teaching Load not verified" forever.
+				// A6-TEACHING-LOAD SOURCE TRUTH: the predicate is now the resolved context's own
+				// `verifiedUpstream`, which also sees a verified answer served from the SWR cache.
 				verifyUpstream: true,
 			});
 			const scope = teachingLoadScopeParams(actorSchoolId, schoolYearContext.activeSchoolYearId);
@@ -474,7 +473,6 @@ export function useTeachingLoadData() {
 			// Local const: non-null inside this try block (also safe inside closures below).
 			const school = scope.schoolId;
 			schoolYearId = scope.schoolYearId;
-			yearContextSource = schoolYearContext.source;
 
 			// C-6R: only the newest dispatch may publish actor-school/year identity.
 			// These setters drive `scopeKey` and the draft/selection invalidation, so a
@@ -591,8 +589,23 @@ export function useTeachingLoadData() {
 				setCachedFacultyAssignmentsSummary(school, schoolYearId, normalizedSummary);
 				setCachedSubjects(school, normalizedSubjects);
 				setCachedSectionSummary(school, schoolYearId, normalizedSectionSummary as SectionSummaryResponse);
-				const isUpstreamContext = isUpstreamBackedSchoolYearSource(yearContextSource);
-				const isUpstreamBacked = isUpstreamContext && normalizedSectionSummary.source === 'enrollpro';
+				// A6-TEACHING-LOAD SOURCE TRUTH (2026-09-30). The verified-year
+				// predicate is the resolved context's own `verifiedUpstream`, not
+				// `isUpstreamBackedSchoolYearSource(source)`: a verified answer served
+				// from the SWR cache is `source:'cache'`, so that predicate called a
+				// verified school "saved data".
+				//
+				// WHY `'atlas-mirror'` IS ADMISSIBLE. The page verified this exact
+				// active year against EnrollPro moments earlier, in this same fetch.
+				// `'atlas-mirror'` means only that the summary route's OWN
+				// re-verification did not confirm this particular request — not that
+				// EnrollPro is down and not that the mirror is stale. `'stub'` (no
+				// upstream at all) and `'cached-enrollpro'` (a saved snapshot) still
+				// downgrade, and an empty/missing payload declares no accepted source
+				// at all, so `isStale` / empty-payload behaviour is not weakened.
+				const isUpstreamContext = schoolYearContext.verifiedUpstream;
+				const isUpstreamBacked = isUpstreamContext
+					&& (normalizedSectionSummary.source === 'enrollpro' || normalizedSectionSummary.source === 'atlas-mirror');
 				setDataSource(isUpstreamBacked ? 'live' : 'cached');
 				setDegradedNotice(
 					isUpstreamBacked

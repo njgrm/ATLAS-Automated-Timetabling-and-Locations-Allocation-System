@@ -585,6 +585,126 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **- LIVE: `9e2bfb240df2a5c26e01e2ab7dad97ecfae5b966` @ DEPLOYED TO PRODUCTION 2026-09-30 09:35 +08 by Lane A4
+  under operator decision 12 (direct to live). Train 18.** Rollback basis
+  **`3b29bb4426c3e4bc6cfc9d8de4e5a630eb218143`** @ `E:\ATLAS-worktrees\lane-a4-release-20260930-17prod`
+  (train 17, the incumbent), `KEEP_ACTIVE`; one-step supervised reset, task XML captured pre-cutover in
+  `C:\ProgramData\ATLAS\release-audit\9e2bfb24-20260930-093552\`. Live dir
+  `E:\ATLAS-worktrees\lane-a4-release-20260930-18prod`, HEAD == pin, `status --short` empty, 0 reparse points,
+  own dependency trees (robocopy `/MIR /MT:16` from the live tree — root / client / server `package-lock.json`
+  blobs **byte-identical** to the pin, so **no `npm ci`**; root 14 054 / client 18 583 / server 9 164 entries
+  each side, real directories, no junction), own dist, own runtime contract. **Data portability before the
+  cutover:** the live tree's runtime `atlas-server/uploads` (8 files / 3 309 860 B, campus images) was copied into
+  the target so `schools.campus_image_url` keeps serving — without it a plain cutover 404s the live campus image
+  (the train-9 lesson). The shared `.git/info/exclude` already covers the path, so `status --short` stayed empty.
+  Listeners **5001 -> pid 32100**, **5174 -> pid 19628** (were 17752/30660); machine scope, task action **and**
+  Start In repointed, task **Running**, `cli.mjs status` `releaseSha 9e2bfb24`, `restartFailures 0`, rollover
+  auto-sync disabled. **Ready in 77 s** (cutover started 09:35:51, `/api/v1/health/ready` 200 `database: ok` at
+  09:37:08, `GET /api/v1/subjects?schoolId=1` 200 / 20 336 B) — inside the 180 s budget. Dry run first:
+  `mutates false`, `secretsPrinted false`, incumbent pids 17752/30660, supervisor 26412. **Tailnet proof,
+  non-vacuous, chosen and verified pre-cutover:** served chunk **`/assets/TeachingLoad-Bew2Yveu.js` (200,
+  242 462 B, sha256 `ec7575cb2a05e7dcfc76b5b0c51ac4940f179b401bf0acf8884ec8baead0108d` — identical to the
+  built asset)**, which carries **`verifiedUpstream` 1x**; pre-cutover the whole-dist sweep was **NEW 9 /
+  LIVE 0** occurrences, and train 17's `TeachingLoad-IkovB3fO.js` now **404s** (negative control). Tailnet
+  `/api/v1/health` 200 and `/__host/ready` 200 naming the `-18prod` artifact. Also present only in the new build:
+  `ScheduleReviewWorkspace-BEI4Gmo9.js` carries `enrollpro-verified` 1x (train 17's chunk 0). **No migration** —
+  `prisma` and `migrations` diffs over `3b29bb44..9e2bfb24` both empty, so `npm run migrate:guarded` was not run.
+  **No generation, no publication.** Delta from `3b29bb44`: **6 product/test paths + 2 docs, 0 server, 0 prisma,
+  0 ops** — A2 `9e2bfb24` Term setup reads **Verified** when the active term is EnrollPro-verified
+  (`useScheduleReviewWorkspaceState.ts`) and A6 `2897f0bc` teaching-load source truth from provenance rather than
+  a cache-shaped source label (`useTeachingLoadData.ts`, `enrollpro-public-settings.ts`, `Faculty.tsx`, plus the
+  committed `test:a6-source-truth` script entry — the only `package.json` change, **scripts-only**). Builds:
+  `prisma generate` exit 0 (3.61 s) from `atlas-server` with the repo-root schema, server `tsc` exit 0, client
+  `vite build` exit 0 in 45.5 s with `VITE_ENROLLPRO_URL` on the command environment (fail-closed vite guard
+  satisfied; value never printed). E: 29.10 GiB before, **27.30 GiB** after — above the 25 GiB warning, so **no
+  reclaim was due**. **Out of this train's scope, deliberately:** the DB zero-write signature row and every
+  rendered browser row (the operator scoped this train to build, migration check, dry run, `-Execute`, readiness,
+  Tailnet chunk and the LIVE post). No migration, generation or publication ran, and readiness proves a working
+  DB-backed read. Acceptance owner: **Lane C** (rendered live check at 1366x768 on
+  `https://njgrm.buru-degree.ts.net` — `/teaching-load`, `/faculty`, `/timetable`). **NOT LIVE:**
+  `origin/main` advanced to `4cc10f74` after the cutover (A2 move/swap one-action work, `d3f2b0a4`…`d5beb07d`,
+  client only); it is integrated in source only and is **not** served by this runtime — it is the next train's
+  content. **Self-correction recorded,
+  one line:** the in-flight record first carried a 41-character typo of the target SHA; it was corrected at
+  `dd215bad` **before** the cutover, and the runner's own `^[0-9a-f]{40}$` parameter pattern caught the same typo
+  in my first dry-run invocation — no mutation had occurred. Supersedes the train-18 in-flight line below, which
+  is retained, and the train-17 LIVE line below that, which is retained too.
+- **- LIVE CUTOVER IN FLIGHT — target release `9e2bfb240df2a5c26e01e2ab7dad97ecfae5b966` (train 18,
+  pinned to `origin/main` tip, direct to live under operator decision 12), rollback basis
+  `3b29bb4426c3e4bc6cfc9d8de4e5a630eb218143` @ `E:\ATLAS-worktrees\lane-a4-release-20260930-17prod`
+  (train 17, the incumbent), `KEEP_ACTIVE`; one-step supervised reset, task XML captured pre-cutover by
+  `deploy-runner.ps1`.** Recorded 2026-09-30 by Lane A4 **before any mutation**, so `Assert-LiveReleaseRecorded`
+  leads the cutover. Target dir `E:\ATLAS-worktrees\lane-a4-release-20260930-18prod`, HEAD == pin,
+  `status --short` empty, 0 reparse points, own dependency trees (robocopy `/MIR /MT:16` from the live tree —
+  root / client / server `package-lock.json` blobs **byte-identical** to the pin, so **no `npm ci`**; root
+  14 054 / client 18 583 / server 9 164 entries each side, real directories, no junction). **No migration**:
+  `prisma` and `migrations` diffs over `3b29bb44..9e2bfb24` both empty, so `npm run migrate:guarded` will not
+  be run. Delta from `3b29bb44`: **6 product/test paths, 2 docs, 0 server, 0 prisma, 0 ops** — A2
+  `useScheduleReviewWorkspaceState.ts` (Term setup reads **Verified** when the active term is
+  EnrollPro-verified, `9e2bfb24`) and A6 `2897f0bc` teaching-load source truth from provenance not a
+  cache-shaped label (`useTeachingLoadData.ts`, `enrollpro-public-settings.ts`, `Faculty.tsx` + its committed
+  `test:a6-source-truth` script entry, which is the only `package.json` change and is **scripts-only**).
+  Builds green: `prisma generate` from `atlas-server` with the repo-root schema, server `tsc`, client
+  `vite build` with `VITE_ENROLLPRO_URL` on the command environment. Acceptance owner: **Lane C** (rendered live
+  check). No generation, no publication. Supersedes the train-17 in-flight line below, which is retained.
+- **- LIVE: `3b29bb4426c3e4bc6cfc9d8de4e5a630eb218143` @ DEPLOYED TO PRODUCTION 2026-09-30 09:19 +08 by Lane A4
+  under operator decision 12 (direct to live). Train 17.** Rollback basis
+  **`a2b67f4c1641031ab653602bce3e6c04d5773bb0`** @ `E:\ATLAS-worktrees\lane-a4-release-20260930-16prod` (train
+  16, the incumbent), `KEEP_ACTIVE`; one-step supervised reset, task XML captured pre-cutover in
+  `C:\ProgramData\ATLAS\release-audit\3b29bb44-20260930-091615\`. Live dir
+  `E:\ATLAS-worktrees\lane-a4-release-20260930-17prod`, HEAD == pin, `status --short` empty, own dependency
+  trees (robocopy `/MIR /MT:16` from the live tree - client/server `package-lock.json` blobs byte-identical to
+  the pin, so no `npm ci`; client 18 583 / server 9 164 entries each side, real directories, no junction), own
+  dist, own runtime contract. Listeners **5001 -> pid 17752**, **5174 -> pid 30660** (were 13804/32732); machine
+  scope, task action **and** Start In repointed, task **Running**, `cli.mjs status` `releaseSha 3b29bb44`,
+  `restartFailures 0`, rollover auto-sync disabled. **Ready in 111 s** (cutover started 09:16:14,
+  `/api/v1/health/ready` 200 `database: ok` at 09:18:05, `GET /api/v1/subjects?schoolId=1` 200 / 20 336 B) -
+  inside the 180 s budget. Dry run first: `mutates false`, `secretsPrinted false`, incumbent pids 13804/32732.
+  **Proof is discriminating, chosen pre-cutover:** served chunk **`timetableDriftRouting-IGo9GULp.js` (200,
+  3 673 B, sha256 `7325f386e2c613a49e1693ad9bc52a6a80d52adc2e4860af144dcd73a74e479d` byte-identical to the
+  built asset)**, which carries **`Publish blocked: `** and no longer carries the generic server sentence
+  `no longer matches current authoritative inputs`; train 16's `timetableDriftRouting-YEOEybFV.js` now **404s**
+  (negative control), and `index-DubCG6ev.js` serves at 304 889 B. Both probes on the Tailnet origin
+  `https://njgrm.buru-degree.ts.net`. **No migration** - `prisma/**` and `migrations/**` diffs over
+  `a2b67f4c..3b29bb44` both empty, so `npm run migrate:guarded` was not run. **No generation, no publication.**
+  41 client chunks and 3 server modules (`constraint-validator`, `effective-scheduled-resources`,
+  `room-schedule.service`) differ from train 16. Delta from `a2b67f4c`: **36 commits, four lanes** - A3/A6
+  Teachers "Above weekly max" on true teaching hours (decision 13, `27995f56`, which train 16 explicitly did
+  **not** serve), A8 publish-stale message naming the changed inputs (`37678b34`), A5 Print Reports / Class
+  Schedule room-conflict parity (`45493ea9`), A9 sections items X1-X6 (receipt
+  `docs/plans/receipts/a9-docx-sections-20260930.receipt.json`). Builds: `prisma generate` from `atlas-server`
+  with the repo-root schema, server `tsc`, client `vite build` (with `VITE_ENROLLPRO_URL` on the command
+  environment) all exit 0. E: 27.84 GiB before, 27.82 GiB after - **above** the 25 GiB warning, so no reclaim
+  was due. **UNPERFORMED: the DB zero-write signature row** - the operator scoped this train's gates to build,
+  migration check, dry run, `-Execute`, readiness, Tailnet chunk and the LIVE post ("nothing else"), so no
+  data-signature row was captured. The runner executed no migration, generation or publication, and the delta is
+  client/server logic only; readiness nonetheless proves a working DB-backed read. Acceptance owner: **Lane C**
+  (rendered live check). **NOT LIVE:** `origin/main` advanced during this cycle to `4fc04ef6` (A6 teaching-load
+  verified-upstream source truth: `2897f0bc`, `enrollpro-public-settings.ts`, `useTeachingLoadData.ts`,
+  `Faculty.tsx`) **after** the cutover; that work is integrated in source only and is **not** served by the live
+  runtime - it is the next train's content. Supersedes the train-16 LIVE line below, which is retained, not
+  deleted.
+- **LIVE CUTOVER IN FLIGHT - target release `3b29bb4426c3e4bc6cfc9d8de4e5a630eb218143` (train 17, pinned to
+  `origin/main`, direct to live under operator decision 12), rollback basis
+  `a2b67f4c1641031ab653602bce3e6c04d5773bb0` @ `E:\ATLAS-worktrees\lane-a4-release-20260930-16prod`
+  (train 16, the incumbent), `KEEP_ACTIVE`; one-step supervised reset, task XML captured pre-cutover by
+  `deploy-runner.ps1`.** Recorded 2026-09-30 09:14 +08 by Lane A4 **before** any mutation, so
+  `Assert-LiveReleaseRecorded` leads the cutover. Target dir
+  `E:\ATLAS-worktrees\lane-a4-release-20260930-17prod`, HEAD == pin, `status --short` empty, own dependency
+  trees (robocopy `/MIR /MT:16` from the live tree - client/server `package-lock.json` blobs byte-identical to
+  the pin, so no `npm ci`; client 18 583 / server 9 164 entries each side, real directories, no junction),
+  own dist, own runtime contract. **No migration** - `prisma/**` diff over `a2b67f4c..3b29bb44` is empty and no
+  `migrations/` path differs. Builds green: `prisma generate` from `atlas-server` with the repo-root schema,
+  server `tsc`, client `vite build` (with `VITE_ENROLLPRO_URL` on the command environment per
+  `docs/reference/agent-runtime-deploy-facts.md`), 41 client chunks and 3 server modules
+  (`constraint-validator`, `effective-scheduled-resources`, `room-schedule.service`) differ from train 16.
+  Discriminating proof chosen pre-cutover: the literal **`Publish blocked: `** is present in the new
+  `timetableDriftRouting` chunk and **absent** from train 16's, which showed the generic server sentence.
+  Delta carries four lanes: A3/A6 Teachers "Above weekly max" on true teaching hours (decision 13, `27995f56`,
+  integrated on main but **not served** by train 16), A8 publish-stale message naming the changed inputs
+  (`37678b34`), A5 Print Reports / Class Schedule room-conflict parity (`45493ea9`), A9 sections items X1-X6
+  (receipt `docs/plans/receipts/a9-docx-sections-20260930.receipt.json`). Acceptance owner: **Lane C**.
+  Supersedes the train-16 in-flight line below, which is retained, not deleted.
 - **- LIVE: `a2b67f4c1641031ab653602bce3e6c04d5773bb0` @ DEPLOYED TO PRODUCTION 2026-09-30 08:41 +08 by Lane A4
   under operator decision 12 (direct to live). Train 16.** Rollback basis
   **`48b4686d68987d18fa709e47b8b12dc0c1e8d64f`** @ `E:\ATLAS-worktrees\lane-a4-release-20260930-15prod` (train
@@ -6610,3 +6730,15 @@ full reparse-point scan of the tree found **0**. So `E:/ATLAS-worktrees/lane-a8-
 worktree reclamation are A4's, and clearing it here would need either the raw recursive deletion this
 directive prohibits or the `--force` that is also prohibited). E: stands at 35.8 GiB free, above the 25 GiB
 warn line, so it is not urgent.
+
+## Lane A2 - move-swap, 2026-09-30 (written only by Lane A2)
+
+**INTEGRATED on `main` at `4cc10f74`** (branch `work/a2-move-swap`, base `607f2363`; items 2, 1, 3). The Draft now
+acts on one click: swap applies on the second pick (receipt + Undo, bounded 8 s, dialog closed on that path), the move
+saves on the slot pick, and `Remove from draft` is in the selected-class More menu. Independent QA over
+`607f2363..f0c67099` returned `CORRECTION_REQUIRED` 18/16/0/0; the single BLOCKING finding (two strip consumers left
+on the old file after the section-8 extraction) was fixed additively at `d5beb07d`; four decisive suites green on the
+merged tree (11/11, 37/37, 7/7, 11/11). **NOT deployed, NOT seen rendered** - A4 owns the release. **Item 4
+(teacher-busy drop) was cut by Lane C and is parked on branch `wip/a2-move-swap-item4` (`0dc3b526`), not on `main`**;
+it opens the next A2 cycle. Dated follow-up rows: item 1's H1 control is weakly discriminating (H2 is the real
+control); the server-side revert of a swap/removal is not exercised by any gate (registration only).
