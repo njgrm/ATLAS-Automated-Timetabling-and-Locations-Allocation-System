@@ -11,7 +11,7 @@ for L in $(ls -t "$RUNS"/*.log | head -8); do
   printf '%-10s %-7s log-idle %4smin | %s\n' "$N" "$([ "$A" = 1 ] && echo RUNNING || { [ -s "$L" ] && echo EXITED || echo DIED-EMPTY; })" "$AGE" "$(tail -c 300 "$L" | tr '\n\r' '  ' | sed 's/\x1b\[[0-9;]*m//g' | tail -c 140)"
 done
 echo "== stuck dev servers (>10 min, not live/staging):"; powershell -NoProfile -ExecutionPolicy Bypass -File "$S/stuck.ps1" 2>/dev/null || true
-echo "== :4097 busy: $(curl -s -m 10 http://127.0.0.1:4097/session/status || echo DOWN)"
+echo "== :4097 (retired 2026-09-30; releases use ops/runtime/release): $(curl -s -m 5 http://127.0.0.1:4097/session/status >/dev/null && echo "STILL RUNNING - close it" || echo off)"
 echo "== root checkout: $(bash $S/rootchk.sh)"
 echo "== live data: $(node $S/datainv.cjs 2>&1)"
 echo "== live /api/v1/health: $(curl -s -m 10 -o /dev/null -w '%{http_code}' https://njgrm.buru-degree.ts.net/api/v1/health) · staging: $(curl -s -m 10 -o /dev/null -w '%{http_code}' http://127.0.0.1:5101/api/v1/health)"

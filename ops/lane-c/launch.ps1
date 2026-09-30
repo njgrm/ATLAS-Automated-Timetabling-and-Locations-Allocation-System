@@ -3,7 +3,6 @@
 param(
   [Parameter(Mandatory)][string]$Name,
   [Parameter(Mandatory)][string]$Prompt,
-  [switch]$Elevated,
   [string]$Session,
   [ValidateSet('atlas-planner','atlas-executor','atlas-qa','atlas-wave-auditor')][string]$Agent = 'atlas-planner',
   [switch]$Force,
@@ -25,7 +24,7 @@ if (-not $Force) {
   if ($commitFreeGB -lt 6) { throw "LOW_MEMORY: only $commitFreeGB GB commit free (need 6). Queue this launch." }
 }
 $oc = 'C:\Users\njgro\AppData\Roaming\npm\node_modules\opencode-ai\bin\opencode.exe'
-$attach = if ($Elevated) { '--attach http://127.0.0.1:4097 ' } else { '' }
+$attach = ''  # the elevated :4097 server is retired (2026-09-30); no planner runs elevated
 if ($Session) { $attach += "--session $Session " }
 # The manager pins the worktree base before launch; never pull a shared root here.
 $resolvedDir = (Resolve-Path -LiteralPath $Dir -ErrorAction Stop).Path

@@ -13,7 +13,6 @@ while true; do
   fi
   echo "$OUT" | grep -q "ROOT-DIRTY" && A="$A root-checkout-dirty;"
   echo "$OUT" | grep -q "DATA-BAD" && A="$A live-data-invariant;"
-  echo "$OUT" | grep -q ":4097 busy: DOWN" && A="$A 4097-down;"
   HG=$(node $S/hungtool.cjs 2>&1 | grep HUNG); [ -n "$HG" ] && A="$A $HG;"
   while read -r N ST _ IDLE _; do
     [ "$ST" = RUNNING ] && [ "${IDLE%min}" -gt 60 ] 2>/dev/null && A="$A $N idle ${IDLE};"
