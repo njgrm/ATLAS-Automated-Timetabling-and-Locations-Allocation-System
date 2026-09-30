@@ -30,9 +30,9 @@ if ($Session) { $attach += "--session $Session " }
 # The manager pins the worktree base before launch; never pull a shared root here.
 $resolvedDir = (Resolve-Path -LiteralPath $Dir -ErrorAction Stop).Path
 if ($resolvedDir -notlike 'E:\ATLAS-worktrees\*') { throw "REFUSING_UNPINNED_WORKTREE:$resolvedDir" }
-$normalizedDir = $resolvedDir.Replace('\\','/').TrimEnd('/').ToLowerInvariant()
+$normalizedDir = $resolvedDir.Replace('\','/').TrimEnd('/').ToLowerInvariant()
 $registered = @(git -C D:\ATLAS worktree list --porcelain | Where-Object { $_ -like 'worktree *' } |
-  ForEach-Object { $_.Substring(9).Replace('\\','/').TrimEnd('/').ToLowerInvariant() })
+  ForEach-Object { $_.Substring(9).Replace('\','/').TrimEnd('/').ToLowerInvariant() })
 if ($registered -notcontains $normalizedDir) { throw "REFUSING_UNREGISTERED_WORKTREE:$resolvedDir" }
 if (-not $Session) {
   $head = (git -C $resolvedDir rev-parse HEAD).Trim()
