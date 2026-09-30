@@ -344,3 +344,23 @@ work from main, A4 staging on :4097, Codex per-page walk on a :52xx preview, GO 
 and live check after, rollback basis train 13 (8f19430b). Candidates: A2 move/swap/remove (a2-ds-moveswap), A7 clipping
 and warnings list (a7-ds-clip), A6 saved-data banner (a6-ds-banner), A3 merged teacher dialog (a3-ds-integrate), A5/A9
 docx items. E: free space is 17 GiB: reclaim old staging trees before the build. Leave a short summary for the operator.
+
+## Session checkpoint — 2026-09-30 16:20 +08 (demo done; handing to a fresh session)
+
+**Live:** train 21 `fdae67ec` (Tailnet + Funnel on), year 2026-2027 EnrollPro id 5, Term 1 enrollpro-verified. Run 359
+publishable (0 must-fix); its 156 lunch warnings predate decision 15 (regenerate to clear).
+**On main, NOT live (next train):** A2 move-swap c2 `8c1b9218` (swap commits in <=2 s, receipt verb, unassigned rows
+name term/session); A5 unassigned panel `22b34170` (grouped list, one-click Place, Esc); A6 placement feasibility
+`8766c084`/`fffa830c` (decision 14). Three header tests pin the pre-hotfix wording (a2-c12-header-rows2 +2,
+draft-ux-c01 +3, a2-c11-s2-header-banners +1) — update them.
+**Not landed:** A7 c14 relax (one row above the grid; executor unfinished), A8 makabansa generator repair (cause
+found: greedy placement, only 11:30 free), A4 fast-deploy (`release-live.ps1`, package reuse, -ClientOnly; errored).
+A3 term fallback (last verified term) is live via train 20/21. Old unmerged: a8-g1-spread-sessions, a5-c8b-row-menu-fit,
+a9-m1-campus-background. **No planners running.** E: 24 GiB free (reclaim before the next build).
+**Decisions added today:** 12 (QA stays, trains skip staging, straight to live with rollback), 13 (weekly max = true
+teaching hours), 14 (Teaching Load never saves an unplaceable load; generator repairs), 15 (lunch = window or slot before).
+**Incidents to learn from:** planners dead for 3 h unnoticed (launcher newline bug); QA-passed work waiting on Lane C;
+train 19 cut over with no server build (4 min 502 in the demo); a deploy restarted the server under an operator's
+Generate click (run 356 stuck RUNNING); Codex Brave extension lost after reboot/network drop; wrong diagnoses relayed
+before data (Makabansa teacher vs section period); header regressions shipped from uncoordinated A2/A7 edits.
+**Next:** operator wants a workflow evaluation (speed vs quality) before new development.
