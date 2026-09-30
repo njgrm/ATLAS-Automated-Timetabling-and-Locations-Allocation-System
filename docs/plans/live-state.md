@@ -585,6 +585,27 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **LIVE CUTOVER IN FLIGHT - target release `3b29bb4426c3e4bc6cfc9d8de4e5a630eb218143` (train 17, pinned to
+  `origin/main`, direct to live under operator decision 12), rollback basis
+  `a2b67f4c1641031ab653602bce3e6c04d5773bb0` @ `E:\ATLAS-worktrees\lane-a4-release-20260930-16prod`
+  (train 16, the incumbent), `KEEP_ACTIVE`; one-step supervised reset, task XML captured pre-cutover by
+  `deploy-runner.ps1`.** Recorded 2026-09-30 09:14 +08 by Lane A4 **before** any mutation, so
+  `Assert-LiveReleaseRecorded` leads the cutover. Target dir
+  `E:\ATLAS-worktrees\lane-a4-release-20260930-17prod`, HEAD == pin, `status --short` empty, own dependency
+  trees (robocopy `/MIR /MT:16` from the live tree - client/server `package-lock.json` blobs byte-identical to
+  the pin, so no `npm ci`; client 18 583 / server 9 164 entries each side, real directories, no junction),
+  own dist, own runtime contract. **No migration** - `prisma/**` diff over `a2b67f4c..3b29bb44` is empty and no
+  `migrations/` path differs. Builds green: `prisma generate` from `atlas-server` with the repo-root schema,
+  server `tsc`, client `vite build` (with `VITE_ENROLLPRO_URL` on the command environment per
+  `docs/reference/agent-runtime-deploy-facts.md`), 41 client chunks and 3 server modules
+  (`constraint-validator`, `effective-scheduled-resources`, `room-schedule.service`) differ from train 16.
+  Discriminating proof chosen pre-cutover: the literal **`Publish blocked: `** is present in the new
+  `timetableDriftRouting` chunk and **absent** from train 16's, which showed the generic server sentence.
+  Delta carries four lanes: A3/A6 Teachers "Above weekly max" on true teaching hours (decision 13, `27995f56`,
+  integrated on main but **not served** by train 16), A8 publish-stale message naming the changed inputs
+  (`37678b34`), A5 Print Reports / Class Schedule room-conflict parity (`45493ea9`), A9 sections items X1-X6
+  (receipt `docs/plans/receipts/a9-docx-sections-20260930.receipt.json`). Acceptance owner: **Lane C**.
+  Supersedes the train-16 in-flight line below, which is retained, not deleted.
 - **- LIVE: `a2b67f4c1641031ab653602bce3e6c04d5773bb0` @ DEPLOYED TO PRODUCTION 2026-09-30 08:41 +08 by Lane A4
   under operator decision 12 (direct to live). Train 16.** Rollback basis
   **`48b4686d68987d18fa709e47b8b12dc0c1e8d64f`** @ `E:\ATLAS-worktrees\lane-a4-release-20260930-15prod` (train
