@@ -115,6 +115,12 @@ Every new/changed test file must be reachable from a committed `package.json` sc
 - **Before/after screenshots at 1366x768** with a draft that has unplaced classes: use the test harness or a loopback preview with a mocked `/api/v1` (`ISOLATED_LOCAL_BROWSER`). If no browser tool is available in your harness, report the screenshot rows `UNPERFORMED` with the reason — do not fake them.
 - One commit, conventional message, `REVIEW_REQUIRED` handoff with immutable Git identity, changed paths, decisive commands and results, and clean-worktree proof.
 
+## Addendum (operator, 2026-09-30, live train 20)
+
+> the live unassigned rows show 5 identical lines (GR8 - Makabansa, TLE, NAVARRO); each row must say its term and session.
+
+The row must therefore also name its **term** and **session**, so five sessions of the same subject/section/teacher are distinguishable. Render `Term {item.termIndex}` (omit when `termIndex` is null) and `Session {item.session}` in the row, in plain words, before the reason. Add a failing-first test: two items with the same subject/section/teacher but different `session`/`termIndex` render as two distinct rows, each naming its own term and session.
+
 ## Boundaries
 
 No live write, no deploy, no generation, no publication, no migration, no sign-in to live, no companion edit. Do not merge, rebase, push, or touch `D:/ATLAS`. Commit a `wip(...)` checkpoint by step 120 and again by step 240.

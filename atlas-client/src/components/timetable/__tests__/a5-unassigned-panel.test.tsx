@@ -299,3 +299,56 @@ test('#5 STRUCTURAL: the panel has exactly one scroll region and no VirtualizedR
 	// The drawer wrapper clips; it must not add a second scroll region.
 	assert.match(source('src/components/timetable/TimetableTaskDrawer.tsx'), /unassigned-sessions' \? \(\s*<div className="flex min-h-0 flex-1 flex-col overflow-hidden">/, 'the drawer clips instead of scrolling');
 });
+
+/* ── #6 Addendum (operator, 2026-09-30): one row names its own term and session ─
+ *
+ * Live train 20: the unassigned rows showed 5 identical lines
+ * (GR8 - Makabansa, TLE, NAVARRO). The fix is that each row says its term and
+ * session, so five sessions of the same subject/section/teacher are
+ * distinguishable. Failing-first: on the base the row renders no `Term `/`Session `
+ * text, so the assertions below are red; after the fix they are green.
+ */
+
+function sameClass(overrides: Partial<UnassignedItem>): UnassignedItem {
+	// Same subject, section and teacher — the live collision the operator saw.
+	return unplaced({ sectionId: 901, subjectId: 77, facultyId: 5, reason: 'NO_AVAILABLE_SLOT', ...overrides });
+}
+
+test('#6 RENDERED (Addendum): two items of one class differing only by session/term render as two rows, each naming its own term and session', () => {
+	const items = [
+		sameClass({ session: 1, termIndex: 1 }),
+		sameClass({ session: 2, termIndex: 2 }),
+	];
+	const markup = renderPanel(panelContext({
+		filteredUnassignedItems: items,
+		programKindFilteredUnassignedItems: items,
+		unassignedCountForSelectedTerm: items.length,
+	}));
+
+	// Two distinct rows, not one — the same key set the panel builds is distinct
+	// here because the session differs.
+	assert.equal((markup.match(/data-testid="generated-unassigned-row"/g) ?? []).length, 2, 'two distinct rows render');
+
+	// Each row names its OWN term and session, in plain words.
+	assert.ok(markup.includes('Term 1'), 'the first row names Term 1');
+	assert.ok(markup.includes('Term 2'), 'the second row names Term 2');
+	assert.ok(markup.includes('Session 1'), 'the first row names Session 1');
+	assert.ok(markup.includes('Session 2'), 'the second row names Session 2');
+
+	// The two rows are actually distinguishable: the same class line is not
+	// repeated identically five times.
+	const rowA = markup.slice(markup.indexOf('Term 1'), markup.indexOf('Term 2'));
+	const rowB = markup.slice(markup.indexOf('Term 2'));
+	assert.notEqual(rowA.replace(/\s+/g, ' ').trim(), rowB.replace(/\s+/g, ' ').trim(), 'the two rows are not byte-identical');
+});
+
+test('#6 RENDERED (Addendum): term is omitted when the run carries no termIndex, but the session still shows', () => {
+	const items = [sameClass({ session: 4, termIndex: undefined })];
+	const markup = renderPanel(panelContext({
+		filteredUnassignedItems: items,
+		programKindFilteredUnassignedItems: items,
+		unassignedCountForSelectedTerm: items.length,
+	}));
+	assert.equal(/Term \d/.test(markup), false, 'no `Term N` renders when termIndex is absent');
+	assert.ok(markup.includes('Session 4'), 'the session still renders');
+});
