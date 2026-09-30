@@ -34,6 +34,49 @@ export const SWAP_ARMED_MESSAGE = 'Swap armed. Choose the first class on the gri
 /** LANE-C C03 — arming from a class the user already selected. */
 export const SWAP_ARMED_FROM_SELECTION_MESSAGE = 'Now choose the class to swap times with.';
 
+/* ─── A2 move-swap — a swap must never hang ────────────────────────────────────
+ *
+ * The recorded defect: "Swap with another class … sticks on Checking swap
+ * options. with the Swap sessions button disabled." The server-side cost that
+ * made the preview slow was already cut down (mc R2 item 6), but the CLIENT had
+ * no bound at all: `openRegularSwapPrompt` set `loading = true` and cleared it
+ * only when the request settled, so a request that never settles — a dropped
+ * socket, a stalled proxy — left a spinner and a disabled control standing
+ * forever.
+ *
+ * These two are the whole fix: a named bound (a few seconds, not minutes) and a
+ * wrapper that rejects with a plain-words error when it elapses. The bound is
+ * the time the operator waits before ATLAS says what happened; it is NOT a
+ * server-side cancellation, so the one action stays honest.
+ */
+export const SWAP_COMMIT_BOUND_MS = 8000;
+
+/** Thrown by {@link withBoundedWait}. Its `message` is operator-facing. */
+export class BoundedRequestTimeout extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'BoundedRequestTimeout';
+	}
+}
+
+/**
+ * Resolve with `promise`, or reject with a {@link BoundedRequestTimeout} once
+ * `ms` have passed. The timer is always cleared, so a fast request never leaves
+ * a pending timer behind.
+ */
+export function withBoundedWait<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
+		const timer = setTimeout(() => reject(new BoundedRequestTimeout(message)), ms);
+		promise.then(
+			(value) => { clearTimeout(timer); resolve(value); },
+			(error) => { clearTimeout(timer); reject(error); },
+		);
+	});
+}
+
+export const SWAP_PREVIEW_TIMEOUT_MESSAGE = 'ATLAS could not check this swap in time. Nothing changed. Try again, or choose a different class.';
+export const SWAP_SAVE_TIMEOUT_MESSAGE = 'ATLAS could not save this swap in time. Nothing changed. Try again.';
+
 /* ─── C11 M4 — ONE reset, and every exit path runs it ──────────────────────────
  *
  * The recorded defect (`report.md` defect 5): the swap review reported

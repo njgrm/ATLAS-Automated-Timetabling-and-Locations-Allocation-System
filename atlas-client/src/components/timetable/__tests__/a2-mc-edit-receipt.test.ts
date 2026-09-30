@@ -277,10 +277,20 @@ test('S5c EVERY committed move, swap and place derives its status from the ONE m
 		assert.match(source, /buildEditReceipt\(/, `${name} composes receipts through the shared derivation`);
 		assert.doesNotMatch(source, /Moved to \$\{proposal\.targetDay/, `${name} no longer prints the old nameless sentence`);
 	}
-	// The drag move, the keyboard move, the place and the swap: four call sites.
-	assert.equal((workspace.match(/buildEditReceipt\(/g) ?? []).length, 3,
-		'the two move entry points and the place path all use it');
+	// The workspace call sites are now FOUR, by name:
+	//   (1) the drag move (`handleCellDrop`), (2) the keyboard move
+	//   (`handleKbPlace`), (3) the place path (`placeGeneratedUnassigned`), and
+	//   (4) `removeDraftPlacement` — A2 move-swap item 3's "Remove from draft"
+	//   receipt, which the FIRST cut of item 3 added but left uncounted here
+	//   (QA F1, 2026-09-30). The control is retargeted, not weakened: it still
+	//   fails if a call site is deleted or a fifth vocabulary appears.
+	assert.equal((workspace.match(/buildEditReceipt\(/g) ?? []).length, 4,
+		'the two move entry points, the place path and the draft removal all use the ONE derivation');
 	assert.equal((mutations.match(/buildEditReceipt\(/g) ?? []).length, 1, 'and so does the swap path');
+	// The item-3 removal receipt is a real call site, not a count bump: it names
+	// the draft ledger's edit type through the shared vocabulary.
+	assert.match(workspace, /editType: 'REMOVE_DRAFT_PLACEMENT'/,
+		'the fourth workspace call site is the "Remove from draft" receipt');
 
 	// DERIVED FROM THE COMMITTED RECORD, never the optimistic proposal: every call
 	// site reads `commitResult.violationDelta`, which the server measured after

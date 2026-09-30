@@ -172,6 +172,7 @@
     "test:a3p1-prefs-save": "tsx --test src/lib/__tests__/a3p1-teacher-prefs-stale-read-polarity.test.ts src/components/faculty-shared/__tests__/a3p1-concern-save-reason.test.tsx",
     "test:a2-c18-lockpanel-truth": "tsx --test src/components/__tests__/a2-c18-lockpanel-truth.test.tsx",
     "test:ux-a2-mc-manual-controls": "node --experimental-test-module-mocks --max-old-space-size=6144 --import tsx --test src/components/timetable/__tests__/a2-mc-one-count-one-list.test.tsx src/components/timetable/__tests__/a2-mc-warning-row-identity.test.ts src/components/timetable/__tests__/a2-mc-move-swap-offers.test.tsx src/components/timetable/__tests__/a2-mc-plain-words-preview.test.tsx src/components/timetable/__tests__/a2-mc-edit-receipt.test.ts src/components/timetable/__tests__/a2-mc-move-swap-grid-wiring.test.tsx",
+    "test:ux-a2-move-swap": "node --experimental-test-module-mocks --max-old-space-size=6144 --import tsx --test --test-force-exit src/components/timetable/__tests__/a2-move-swap-one-action.test.tsx src/components/timetable/__tests__/a2-move-one-action.test.tsx src/components/timetable/__tests__/a2-move-remove-from-draft.test.tsx",
     "test:a7-c12-calm-header": "tsx --max-old-space-size=6144 --test src/components/timetable/__tests__/a7-c12-calm-header-budget.test.tsx src/components/timetable/__tests__/a7-c12-calm-copy.test.tsx",
     "test:a7-c13-clip": "tsx --test src/components/timetable/__tests__/a7-c13-clip.test.tsx src/components/timetable/__tests__/a7-c13-dom.test.tsx"
   },
