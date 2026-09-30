@@ -220,6 +220,18 @@ function UnassignedRow({
 			<span className="min-w-0 break-words text-muted-foreground">{sectionLabel(item.sectionId)}</span>
 			<span aria-hidden="true" className="text-muted-foreground/50">·</span>
 			<span className="min-w-0 break-words text-muted-foreground">{teacherText}</span>
+			{/* Addendum (operator, 2026-09-30): five sessions of the same
+			 * subject/section/teacher must be distinguishable, so the row names
+			 * its own term (omitted when the run carries none) and session in
+			 * plain words, before the reason. */}
+			{typeof item.termIndex === 'number' && (
+				<>
+					<span aria-hidden="true" className="text-muted-foreground/50">·</span>
+					<span className="min-w-0 break-words text-muted-foreground">{`Term ${item.termIndex}`}</span>
+				</>
+			)}
+			<span aria-hidden="true" className="text-muted-foreground/50">·</span>
+			<span className="min-w-0 break-words text-muted-foreground">{`Session ${item.session}`}</span>
 			<span aria-hidden="true" className="text-muted-foreground/50">·</span>
 			<span className="min-w-0 break-words text-muted-foreground">{reasonText}</span>
 			<Button type="button" variant="outline" size="sm" className="ml-auto h-7 shrink-0 px-3 text-xs" onClick={onPlace}>
