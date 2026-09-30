@@ -500,24 +500,28 @@ export function generationStoppersFromPreflightBlockers(raw: unknown): Timetable
 		const record = entry as Record<string, unknown>;
 		const reason = typeof record.reason === 'string' ? record.reason.trim() : '';
 		if (!reason) return;
-		const repair = deriveTimetableReadinessRepair({
+		const derived = deriveTimetableReadinessRepair({
 			code: typeof record.code === 'string' ? record.code : '',
 			category: typeof record.category === 'string' ? record.category : 'DATA_GAP',
 		} as TimetableGenerationBlocker);
-		const href = repair.kind === 'navigate' ? repair.href : '/timetable';
+		// Normalized through the shared helpers, exactly as the two existing call
+		// sites do: `TimetableReadinessRepair`'s retry arm carries no href, and the
+		// stopper's `repair` is a `TimetableRepair` whose href is explicitly nullable.
+		const repair: TimetableRepair = derived.kind === 'retry'
+			? retry(derived.label)
+			: navigate(derived.label, derived.href);
+		const actionLabel = repair.label ?? 'Open Year Setup';
 		stoppers.push({
 			key: `preflight-blocker-${index}`,
 			line: reason,
 			// The button's own authored label, never a slice of the sentence.
-			shortReason: repair.label,
+			shortReason: actionLabel,
 			count: null,
-			href,
-			actionLabel: repair.label,
+			href: repair.href ?? YEAR_SETUP_HREF,
+			actionLabel,
 			checkFailed: false,
 			retryLabel: null,
 			retryNote: null,
-			// The repair is carried through to the header unchanged, exactly as
-			// `deriveTimetableGenerationStoppers` does for its own causes.
 			repair,
 		});
 	});
