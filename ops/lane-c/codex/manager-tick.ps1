@@ -157,7 +157,7 @@ $status
     $resultPath = Join-Path $ticks "$stamp.md"
     $logPath = Join-Path $ticks "$stamp.log"
     $errorPath = Join-Path $ticks "$stamp.err.log"
-    Set-Content -LiteralPath $promptPath -Value $prompt
+    Set-Content -LiteralPath $promptPath -Value $prompt -Encoding utf8
     $cli = 'C:\Users\njgro\AppData\Roaming\npm\codex.cmd'
     $args = @('exec', '--sandbox', 'workspace-write', '--skip-git-repo-check', '-C', $H, '-m', $Model,
       '-c', "model_reasoning_effort=$Effort", '-o', $resultPath, '-')
