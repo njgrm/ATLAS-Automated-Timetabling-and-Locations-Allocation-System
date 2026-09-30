@@ -585,6 +585,50 @@ Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Supersed
 resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
 
 ## Live release
+- **- LIVE: `9e2bfb240df2a5c26e01e2ab7dad97ecfae5b966` @ DEPLOYED TO PRODUCTION 2026-09-30 09:35 +08 by Lane A4
+  under operator decision 12 (direct to live). Train 18.** Rollback basis
+  **`3b29bb4426c3e4bc6cfc9d8de4e5a630eb218143`** @ `E:\ATLAS-worktrees\lane-a4-release-20260930-17prod`
+  (train 17, the incumbent), `KEEP_ACTIVE`; one-step supervised reset, task XML captured pre-cutover in
+  `C:\ProgramData\ATLAS\release-audit\9e2bfb24-20260930-093552\`. Live dir
+  `E:\ATLAS-worktrees\lane-a4-release-20260930-18prod`, HEAD == pin, `status --short` empty, 0 reparse points,
+  own dependency trees (robocopy `/MIR /MT:16` from the live tree — root / client / server `package-lock.json`
+  blobs **byte-identical** to the pin, so **no `npm ci`**; root 14 054 / client 18 583 / server 9 164 entries
+  each side, real directories, no junction), own dist, own runtime contract. **Data portability before the
+  cutover:** the live tree's runtime `atlas-server/uploads` (8 files / 3 309 860 B, campus images) was copied into
+  the target so `schools.campus_image_url` keeps serving — without it a plain cutover 404s the live campus image
+  (the train-9 lesson). The shared `.git/info/exclude` already covers the path, so `status --short` stayed empty.
+  Listeners **5001 -> pid 32100**, **5174 -> pid 19628** (were 17752/30660); machine scope, task action **and**
+  Start In repointed, task **Running**, `cli.mjs status` `releaseSha 9e2bfb24`, `restartFailures 0`, rollover
+  auto-sync disabled. **Ready in 77 s** (cutover started 09:35:51, `/api/v1/health/ready` 200 `database: ok` at
+  09:37:08, `GET /api/v1/subjects?schoolId=1` 200 / 20 336 B) — inside the 180 s budget. Dry run first:
+  `mutates false`, `secretsPrinted false`, incumbent pids 17752/30660, supervisor 26412. **Tailnet proof,
+  non-vacuous, chosen and verified pre-cutover:** served chunk **`/assets/TeachingLoad-Bew2Yveu.js` (200,
+  242 462 B, sha256 `ec7575cb2a05e7dcfc76b5b0c51ac4940f179b401bf0acf8884ec8baead0108d` — identical to the
+  built asset)**, which carries **`verifiedUpstream` 1x**; pre-cutover the whole-dist sweep was **NEW 9 /
+  LIVE 0** occurrences, and train 17's `TeachingLoad-IkovB3fO.js` now **404s** (negative control). Tailnet
+  `/api/v1/health` 200 and `/__host/ready` 200 naming the `-18prod` artifact. Also present only in the new build:
+  `ScheduleReviewWorkspace-BEI4Gmo9.js` carries `enrollpro-verified` 1x (train 17's chunk 0). **No migration** —
+  `prisma` and `migrations` diffs over `3b29bb44..9e2bfb24` both empty, so `npm run migrate:guarded` was not run.
+  **No generation, no publication.** Delta from `3b29bb44`: **6 product/test paths + 2 docs, 0 server, 0 prisma,
+  0 ops** — A2 `9e2bfb24` Term setup reads **Verified** when the active term is EnrollPro-verified
+  (`useScheduleReviewWorkspaceState.ts`) and A6 `2897f0bc` teaching-load source truth from provenance rather than
+  a cache-shaped source label (`useTeachingLoadData.ts`, `enrollpro-public-settings.ts`, `Faculty.tsx`, plus the
+  committed `test:a6-source-truth` script entry — the only `package.json` change, **scripts-only**). Builds:
+  `prisma generate` exit 0 (3.61 s) from `atlas-server` with the repo-root schema, server `tsc` exit 0, client
+  `vite build` exit 0 in 45.5 s with `VITE_ENROLLPRO_URL` on the command environment (fail-closed vite guard
+  satisfied; value never printed). E: 29.10 GiB before, **27.30 GiB** after — above the 25 GiB warning, so **no
+  reclaim was due**. **Out of this train's scope, deliberately:** the DB zero-write signature row and every
+  rendered browser row (the operator scoped this train to build, migration check, dry run, `-Execute`, readiness,
+  Tailnet chunk and the LIVE post). No migration, generation or publication ran, and readiness proves a working
+  DB-backed read. Acceptance owner: **Lane C** (rendered live check at 1366x768 on
+  `https://njgrm.buru-degree.ts.net` — `/teaching-load`, `/faculty`, `/timetable`). **NOT LIVE:**
+  `origin/main` advanced to `4cc10f74` after the cutover (A2 move/swap one-action work, `d3f2b0a4`…`d5beb07d`,
+  client only); it is integrated in source only and is **not** served by this runtime — it is the next train's
+  content. **Self-correction recorded,
+  one line:** the in-flight record first carried a 41-character typo of the target SHA; it was corrected at
+  `dd215bad` **before** the cutover, and the runner's own `^[0-9a-f]{40}$` parameter pattern caught the same typo
+  in my first dry-run invocation — no mutation had occurred. Supersedes the train-18 in-flight line below, which
+  is retained, and the train-17 LIVE line below that, which is retained too.
 - **- LIVE CUTOVER IN FLIGHT — target release `9e2bfb240df2a5c26e01e2ab7dad97ecfae5b966` (train 18,
   pinned to `origin/main` tip, direct to live under operator decision 12), rollback basis
   `3b29bb4426c3e4bc6cfc9d8de4e5a630eb218143` @ `E:\ATLAS-worktrees\lane-a4-release-20260930-17prod`
