@@ -14,7 +14,7 @@ import { normalizePersistedTermStructure } from './derived-demand.service.js';
 // `ACTIVE_TERM_UNRESOLVED` degrades to LABELLED saved data re-verified against
 // the live semantic revision instead of hard-failing while the app shell shows
 // the saved term for the same school year.
-import { resolveCanonicalActiveTerm, type CanonicalActiveTermResolution } from './active-term-resolver.service.js';
+import { persistVerifiedActiveTerm, resolveCanonicalActiveTerm, type CanonicalActiveTermResolution } from './active-term-resolver.service.js';
 import { fetchEnrollProTermContract } from './enrollpro-term-contract.service.js';
 // ACTIVE-TERM-LIVE-RESOLUTION-C01: the date-derived persisted active term lives
 // in the shared academic-term authority. Re-exported here so existing importers
@@ -32,10 +32,16 @@ const db = () => getDataContext();
  * resolve a term against; every other outcome (including a fail-closed `null`
  * term) is a typed {@link CanonicalActiveTermResolution}.
  */
-async function resolveRuntimeActiveTerm(
+export async function resolveRuntimeActiveTerm(
 	schoolId: number,
 	schoolYearId: number | null,
 	authToken: string | undefined,
+	/**
+	 * A3 TERM-FALLBACK: the contract cache already loaded by the caller, so an
+	 * unchanged verified term is not rewritten. Optional; `null`/absent still
+	 * persists (the SQL guard keeps it idempotent).
+	 */
+	currentContractCache?: unknown,
 ): Promise<CanonicalActiveTermResolution | null> {
 	if (!Number.isInteger(schoolYearId) || (schoolYearId as number) <= 0) return null;
 	const resolvedYearId = schoolYearId as number;
@@ -49,6 +55,32 @@ async function resolveRuntimeActiveTerm(
 				fetchEnrollProTermContract({ schoolId: id, schoolYearId: yearId, authToken }),
 		},
 	);
+
+	// A3 TERM-FALLBACK — persist the last EnrollPro-VERIFIED active term into the
+	// existing `termContractCache` JSONB (`verifiedActiveTerm`, atomic
+	// `jsonb_set`) so a later offline read prefers the real verified term over a
+	// date-derived guess. This is the ONLY write path for that key: the
+	// availability/generation read (`resolveActiveOrderedTermIndexLive` /
+	// `getFacultyAvailability`) and the `scheduling-authority` route stay
+	// zero-write. Best-effort: errors are swallowed, and it writes only when the
+	// verified term identity changes.
+	if (
+		resolution.liveStructureVerified
+		&& resolution.source === 'enrollpro-verified'
+		&& resolution.termIndex != null
+		&& resolution.termIdentity != null
+	) {
+		await persistVerifiedActiveTerm({
+			schoolId,
+			schoolYearId: resolvedYearId,
+			term: {
+				order: resolution.termIndex,
+				identity: resolution.termIdentity,
+				verifiedAt: new Date().toISOString(),
+			},
+			currentCache: currentContractCache,
+		});
+	}
 
 	// A structural failure is not a verdict about which term is active — but it
 	// IS the verdict for the term FIELD here, because the availability/generation
@@ -622,7 +654,12 @@ export async function resolveRuntimeContext(
 		// Fetch school year and active term in parallel — each is independent
 		const [upstreamYear, canonicalActiveTerm] = await Promise.all([
 			fetchEnrollProActiveSchoolYear(authToken).catch(() => null),
-			resolveRuntimeActiveTerm(schoolId, schoolYearMirror?.enrollProSchoolYearId ?? null, authToken),
+			resolveRuntimeActiveTerm(
+				schoolId,
+				schoolYearMirror?.enrollProSchoolYearId ?? null,
+				authToken,
+				schoolYearMirror?.termContractCache ?? null,
+			),
 		]);
 
 		// A5-C2A — the active term now comes from the ONE canonical resolver, so

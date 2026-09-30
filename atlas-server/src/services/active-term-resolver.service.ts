@@ -125,10 +125,39 @@ export type CanonicalActiveTermResolution = {
  */
 export const CACHED_TERM_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
+/**
+ * A3 TERM-FALLBACK — the last EnrollPro-VERIFIED active term, persisted into the
+ * existing `termContractCache` JSONB under the `verifiedActiveTerm` key.
+ *
+ * The ordered snapshot is frozen by `semanticRevision` (which deliberately
+ * excludes active-term resolution), and the only whole-cache writer is
+ * idempotent on that revision — so a verified active term that differs from the
+ * stored `activeTerm` used to be discarded. When EnrollPro is later unreachable,
+ * the fallback derived the term from the snapshot's DATE RANGES, which can name
+ * a term that contradicts the last EnrollPro-verified active term (live defect:
+ * flipped the whole app to T2 while the last verified active term was T1).
+ *
+ * `verifiedAt` is the time the term was FIRST observed as the verified live
+ * active term; it is refreshed only when the term identity changes, so a repeat
+ * verification of the same term is a no-op (no write, no churn).
+ */
+export type VerifiedActiveTerm = {
+	order: number;
+	identity: string;
+	verifiedAt: string;
+};
+
 export type PersistedActiveTermSnapshot = {
 	terms: PersistedTermBoundary[];
 	snapshotOrder: number | null;
 	cachedAt: string;
+	/**
+	 * The last EnrollPro-verified active term persisted beside the snapshot, or
+	 * `null`. Optional so existing snapshot construction stays valid; absent is
+	 * read as `null` and the pre-existing date-derived fallback applies. A value
+	 * that does not name an entry of `terms` is discarded (never served).
+	 */
+	verifiedActiveTerm?: VerifiedActiveTerm | null;
 	/**
 	 * The opaque revision token EnrollPro issued when this snapshot was verified,
 	 * or `null` when the stored snapshot carries none. It is REQUIRED for the
@@ -185,6 +214,14 @@ export async function loadPersistedActiveTermSnapshot(
 	const snapshotOrder = rawActive && Number.isInteger(rawActive.order) ? Number(rawActive.order) : null;
 	const cachedAt = new Date(mirror.termContractCachedAt);
 	if (!Number.isFinite(cachedAt.getTime())) return null;
+	// A3 TERM-FALLBACK: only trust a persisted verified active term that still
+	// names an entry of THIS snapshot's verified structure. A term outside the
+	// structure is discarded (never returned), preserving the invariant that a
+	// missing/foreign term identity never becomes a served term.
+	const verifiedActiveTerm = verifiedTermWithinStructure(
+		readVerifiedActiveTermFromCache(mirror.termContractCache),
+		normalized.structure.terms,
+	);
 	return {
 		terms: normalized.structure.terms.map((term) => ({
 			identity: term.identity,
@@ -194,11 +231,105 @@ export async function loadPersistedActiveTermSnapshot(
 		})),
 		snapshotOrder,
 		cachedAt: cachedAt.toISOString(),
+		verifiedActiveTerm,
 		semanticRevision: typeof stored.semanticRevision === 'string' && stored.semanticRevision.length > 0
 			? stored.semanticRevision
 			: null,
 	};
 }
+
+/**
+ * A3 TERM-FALLBACK — validate a candidate `verifiedActiveTerm` value (from a
+ * JSONB round-trip or a caller). Returns a sanitized value or `null`; a
+ * malformed value is never trusted.
+ */
+export function sanitizeVerifiedActiveTerm(raw: unknown): VerifiedActiveTerm | null {
+	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+	const record = raw as Record<string, unknown>;
+	const order = typeof record.order === 'number' && Number.isInteger(record.order) && record.order > 0 ? record.order : null;
+	const identity = typeof record.identity === 'string' && record.identity.trim().length > 0 ? record.identity : null;
+	const verifiedAt = typeof record.verifiedAt === 'string' && record.verifiedAt.trim().length > 0 ? record.verifiedAt : null;
+	if (order == null || identity == null || verifiedAt == null) return null;
+	return { order, identity, verifiedAt };
+}
+
+function readVerifiedActiveTermFromCache(cache: unknown): VerifiedActiveTerm | null {
+	if (!cache || typeof cache !== 'object' || Array.isArray(cache)) return null;
+	return sanitizeVerifiedActiveTerm((cache as Record<string, unknown>).verifiedActiveTerm);
+}
+
+/**
+ * A persisted verified active term is trusted ONLY when it still names an entry
+ * of the verified ordered structure it was persisted beside. Any other value is
+ * discarded — a foreign/out-of-structure term identity must never be served.
+ */
+function verifiedTermWithinStructure(
+	verified: VerifiedActiveTerm | null,
+	terms: readonly { identity: string; order: number }[],
+): VerifiedActiveTerm | null {
+	if (!verified) return null;
+	return terms.some((term) => term.order === verified.order && term.identity === verified.identity) ? verified : null;
+}
+
+/**
+ * The atomic writer for the persisted verified active term. It sets ONLY the
+ * `verifiedActiveTerm` key of the existing `termContractCache` JSONB via
+ * `jsonb_set`, so it can never clobber the ordered structure and can never race
+ * the whole-cache writer (`syncActiveTermContractAuthority`) into losing a term.
+ *
+ * It is deliberately narrow and best-effort:
+ *  - it is dispatched ONLY from the runtime-context read (never from the
+ *    availability/generation read or the `scheduling-authority` route, which
+ *    must stay zero-write);
+ *  - it writes ONLY when the verified term identity changes (the SQL guard is a
+ *    second, atomic line of defence against a redundant row update);
+ *  - a failure is swallowed and reported as `false`; it never fails the read.
+ */
+export async function persistVerifiedActiveTerm(input: {
+	schoolId: number;
+	schoolYearId: number;
+	term: VerifiedActiveTerm;
+	/** The already-loaded contract cache, so an unchanged term is not rewritten. */
+	currentCache?: unknown;
+	client?: PersistActiveTermClient;
+}): Promise<boolean> {
+	const term = sanitizeVerifiedActiveTerm(input.term);
+	if (!term) return false;
+	const current = readVerifiedActiveTermFromCache(input.currentCache);
+	if (current && current.order === term.order && current.identity === term.identity) return false;
+	const client = input.client ?? (getDataContext() as unknown as PersistActiveTermClient);
+	if (!client || typeof client.$executeRawUnsafe !== 'function') return false;
+	try {
+		const affected = await client.$executeRawUnsafe(
+			PERSIST_VERIFIED_ACTIVE_TERM_SQL,
+			JSON.stringify(term),
+			input.schoolId,
+			input.schoolYearId,
+			term.identity,
+		);
+		return typeof affected === 'number' && affected > 0;
+	} catch {
+		return false;
+	}
+}
+
+type PersistActiveTermClient = {
+	$executeRawUnsafe: (query: string, ...values: unknown[]) => Promise<number>;
+};
+
+/**
+ * `jsonb_set` is atomic and key-scoped. The `IS DISTINCT FROM` guard on the
+ * stored identity makes a repeat write of an unchanged term a zero-row update,
+ * independent of the in-process short-circuit in {@link persistVerifiedActiveTerm}.
+ */
+const PERSIST_VERIFIED_ACTIVE_TERM_SQL = `
+	UPDATE "enrollpro_school_year_mirrors"
+	SET "term_contract_cache" = jsonb_set("term_contract_cache", '{verifiedActiveTerm}', $1::jsonb, true)
+	WHERE "school_id" = $2
+	  AND "enrollpro_school_year_id" = $3
+	  AND "term_contract_cache" IS NOT NULL
+	  AND (("term_contract_cache" -> 'verifiedActiveTerm') ->> 'identity') IS DISTINCT FROM $4
+`;
 
 function beyondTtl(cachedAtIso: string, now: Date): boolean {
 	const capturedMs = Date.parse(cachedAtIso);
@@ -278,8 +409,10 @@ function isUnreachableCode(code: string): boolean {
  *    (`ACTIVE_TERM_UNRESOLVED`) → degrade to the saved snapshot ONLY when its
  *    `semanticRevision` equals the LIVE structure's revision, and label it with
  *    the real capture time. Otherwise fail closed.
- * 3. Live EnrollPro is unreachable → the pre-existing date-derived saved
- *    snapshot, labelled.
+ * 3. Live EnrollPro is unreachable → the last EnrollPro-verified active term
+ *    persisted beside the saved snapshot (`verifiedActiveTerm`), labelled; only
+ *    when none is persisted does the pre-existing DATE-DERIVED saved term apply,
+ *    labelled.
  * 4. Any other reachable live failure (contradictory identity, contract
  *    invalid, non-409 HTTP error) → fail closed with its typed code. It is
  *    never papered over with saved data, because it means the live answer
@@ -408,6 +541,26 @@ async function unreachableResolution(
 ): Promise<CanonicalActiveTermResolution> {
 	const snapshot = await loadSnapshot(input.schoolId, input.schoolYearId);
 	if (snapshot) {
+		// A3 TERM-FALLBACK: prefer the last EnrollPro-VERIFIED active term over a
+		// date-derived guess. The date ranges can name a term that contradicts the
+		// last term EnrollPro actually named active (the recorded defect: flipped
+		// the app to T2 while the last verified active term was T1). The verified
+		// term is labelled degraded with its own verification time, so the client
+		// shows the existing calm "Using saved term data from <time>" note — never a
+		// verified term change.
+		const verified = verifiedTermWithinStructure(snapshot.verifiedActiveTerm ?? null, snapshot.terms);
+		if (verified) {
+			return cached(
+				'atlas-cache-offline',
+				verified.order,
+				verified.identity,
+				verified.verifiedAt,
+				now,
+				null,
+				code,
+				`EnrollPro is unreachable; using the last verified active term ${verified.identity}, verified ${verified.verifiedAt}.`,
+			);
+		}
 		const derived = derivePersistedActiveTerm(snapshot.terms, snapshot.snapshotOrder, now);
 		if (derived) {
 			return cached(
