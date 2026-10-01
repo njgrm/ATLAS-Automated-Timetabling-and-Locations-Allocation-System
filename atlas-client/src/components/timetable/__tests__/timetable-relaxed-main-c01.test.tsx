@@ -893,7 +893,8 @@ test('A8 control: only entries in the active review set carry a warning marker',
 	const outside = renderSeverityGrid(new Set(['e-other']));
 	assert.doesNotMatch(outside, /data-testid="timetable-entry-term-label"[\s\S]*?AlertCircle/, 'a cell outside the review set carries no marker');
 	const inside = renderSeverityGrid(new Set(['e-flagged']));
-	assert.match(inside, /text-red-500/, 'a HARD entry inside the review set keeps its differentiated marker');
+	assert.match(inside, /aria-label="1 Must fix"[^>]*data-testid="timetable-entry-severity-indicator"[^>]*data-severity="hard"/,
+		'a HARD entry inside the review set exposes its accessible severity badge');
 });
 
 test('A8: the /map leaf meets the 12px typography floor', () => {

@@ -5,8 +5,9 @@ import {
 	Users,
 } from 'lucide-react';
 
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
 import { CreatePlaceholderDialog } from '@/components/faculty/CreatePlaceholderDialog';
+export { overCapChipHelper, overCapWeeklyMaxHours } from '@/components/faculty/facultyOverCapHelpers';
+import { DeletePlaceholderDialog } from '@/components/faculty/DeletePlaceholderDialog';
 
 import atlasApi from '@/lib/api';
 import type { FacultySummary } from '@/types';
@@ -59,7 +60,6 @@ import {
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import {
 	getFacultyLoadSortRank,
-	MAX_WEEKLY_TEACHING_HOURS,
 	type SubjectSectionOwnershipIndexEntry,
 } from '@/lib/faculty-assignment-helpers';
 import { ActorScopedRolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
@@ -132,23 +132,6 @@ type TeacherAttentionFilter = 'all' | 'needs-load' | 'over-cap' | 'no-active-loa
  * assertion would pass unchanged if the template silently reverted to `40h`,
  * which is the exact defect this row exists to remove.
  */
-export function overCapWeeklyMaxHours(roster: FacultySummary[]): number {
-	const counted = roster.filter(
-		(teacher) =>
-			teacher.isActiveForScheduling &&
-			!teacher.isPlaceholder &&
-			(teacher.sectionTeachingHours ?? 0) > teacher.maxHoursPerWeek,
-	);
-	const maximumOf = (list: FacultySummary[]) =>
-		list.reduce((max, teacher) => Math.max(max, teacher.maxHoursPerWeek ?? 0), 0);
-	return maximumOf(counted) || maximumOf(roster) || MAX_WEEKLY_TEACHING_HOURS;
-}
-
-/** The one sentence the `Above weekly max` chip shows, for the given roster. */
-export function overCapChipHelper(roster: FacultySummary[]): string {
-	return `Active teachers above the ${overCapWeeklyMaxHours(roster)}h weekly maximum. Move classes before generating.`;
-}
-
 export default function Faculty() {
 	const [faculty, setFaculty] = useState<FacultySummary[]>([]);
 	const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
@@ -1000,26 +983,8 @@ return (
 				departments={departments}
 			/>
 
-			{/* Delete Confirmation Dialog */}
-			<Dialog open={confirmDeleteTarget !== null} onOpenChange={(open) => !open && setConfirmDeleteTarget(null)}>
-				{/* A5 item 23.2: a destructive CONFIRMATION — forced compact. */}
-				<DialogContent resizable={false} className="sm:max-w-md">
-					<DialogHeader>
-						<DialogTitle className="text-lg font-bold text-red-600">Delete Temporary Teacher</DialogTitle>
-						<DialogDescription>
-							Are you sure you want to delete <span className="font-semibold text-foreground">{confirmDeleteTarget?.firstName} {confirmDeleteTarget?.lastName}</span>? This action is permanent and will remove all their assigned teaching load sections.
-						</DialogDescription>
-					</DialogHeader>
-					<DialogFooter className="gap-2 sm:gap-0">
-						<Button variant="outline" onClick={() => setConfirmDeleteTarget(null)} disabled={deleting} className="h-9">
-							Cancel
-						</Button>
-						<Button variant="destructive" onClick={handleDeletePlaceholder} disabled={deleting} className="h-9 font-semibold">
-							{deleting ? 'Deleting...' : 'Delete Permanently'}
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			<DeletePlaceholderDialog teacher={confirmDeleteTarget} deleting={deleting}
+				onClose={() => setConfirmDeleteTarget(null)} onConfirm={handleDeletePlaceholder} />
 		</AdminWorkspaceFrame>
 	);
 }

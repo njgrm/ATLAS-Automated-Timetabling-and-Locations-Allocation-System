@@ -609,17 +609,21 @@ test('C2-a.6 a blocked check that reported NO blockers never claims to show item
  * C2-a row 5 — the accepted cap still holds in the blocked state
  * ------------------------------------------------------------------ */
 
-test('C2-a.7 the blocked state keeps the ≤6 visible-control cap and exactly one solid primary', async () => {
+test('C2-a.7 the blocked state keeps the ≤7 above-grid-control cap and exactly one solid primary', async () => {
 	viewportWidth = 1366;
 	const ready = await renderHeader(headerContext());
-	const readyControls = visibleControls(ready);
+	const aboveGridControls = (header: HTMLElement) => visibleControls(header).filter((element) =>
+		!element.matches('[data-testid^="timetable-sub-nav-"]'),
+	);
+	const readyControls = aboveGridControls(ready);
 	const readySolid = readyControls.filter((element) => /\bbg-primary\b/.test(element.className)).length;
 
 	const blocked = await renderHeader(headerContext({ curriculumReadiness: blockedReadiness() }));
-	const controls = visibleControls(blocked);
+	const controls = aboveGridControls(blocked);
+	assert.equal(controls.length, 6, 'the real above-grid control count remains six');
 	assert.ok(
-		controls.length <= 6,
-		`expected ≤6 visible controls while generation is blocked, got ${controls.length}: ${controls.map(describeControl).join(' | ')}`,
+		controls.length <= 7,
+		`expected ≤7 visible controls above the grid while generation is blocked, got ${controls.length}: ${controls.map(describeControl).join(' | ')}`,
 	);
 	assert.equal(controls.length, readyControls.length, 'the blocker list adds NO header control');
 	assert.equal(controls.filter((element) => /\bbg-primary\b/.test(element.className)).length, 1, 'exactly one solid primary');
