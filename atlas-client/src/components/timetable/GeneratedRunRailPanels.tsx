@@ -36,6 +36,8 @@ import { DraggableUnassignedPin } from '@/components/timetable/DraggablePinWrapp
 import type { LeftRailContentContext } from '@/components/timetable/timetableContexts.types';
 import { VirtualizedRailList } from '@/components/timetable/VirtualizedRailList';
 import { TimetableIssueRepairGuide } from '@/components/timetable/TimetableIssueRepairGuide';
+import { filteredEmptyExplanation } from '@/components/timetable/filteredEmptyExplanation';
+import { formatRailConstraintMessage } from '@/components/timetable/formatRailConstraintMessage';
 
 type GeneratedSummary = NonNullable<LeftRailContentContext['summary']> & {
 	homeRoomSuccessRate?: number;
@@ -63,35 +65,7 @@ type GeneratedViolationsPanelProps = {
  * could not tell the list was filtered rather than empty. This names the ACTIVE
  * filter and how many entries it hides, so an empty list is explained.
  */
-export function filteredEmptyExplanation(input: {
-	severityFilter: string;
-	hiddenCount: number;
-	hasSearch: boolean;
-}): { sentence: string; action: string } {
-	const n = input.hiddenCount;
-	const isAre = n === 1 ? 'is' : 'are';
-	const warnings = `${n} warning${n === 1 ? '' : 's'}`;
-	const mustFix = `${n} ${MUST_FIX_LABEL} problem${n === 1 ? '' : 's'}`;
-	if (input.severityFilter === 'hard') {
-		return {
-			sentence: `No ${MUST_FIX_LABEL} problems. ${warnings} ${isAre} hidden by this filter.`,
-			action: `Show ${warnings}`,
-		};
-	}
-	if (input.severityFilter === 'soft') {
-		return {
-			sentence: `No warnings. ${mustFix} ${isAre} hidden by this filter.`,
-			action: `Show ${mustFix}`,
-		};
-	}
-	const entries = `${n} entr${n === 1 ? 'y' : 'ies'}`;
-	return {
-		sentence: input.hasSearch
-			? `No violations match your search. ${entries} ${isAre} hidden.`
-			: `No violations shown by this filter. ${entries} ${isAre} hidden.`,
-		action: 'Show all violations',
-	};
-}
+export { filteredEmptyExplanation } from '@/components/timetable/filteredEmptyExplanation';
 
 export function GeneratedViolationsPanel({
 	context,
@@ -136,34 +110,6 @@ export function GeneratedViolationsPanel({
 		hiddenCount: violations.length - filteredViolations.length,
 		hasSearch: violationSearch.trim().length > 0,
 	});
-	const formatRailConstraintMessage = (message: string, violation?: Violation): string => {
-		let formatted = formatConstraintMessage(message)
-			.replace(/^Entry\s+entry-[^:]+:\s*/i, '')
-			.replace(/\bentry-[a-z0-9_-]+\b/gi, 'this class');
-
-		const subjectId = violation?.entities?.subjectId;
-		if (typeof subjectId === 'number') {
-			formatted = formatted.replace(new RegExp(`\\bsubject\\s+#?${subjectId}\\b`, 'gi'), subjectLabel(subjectId));
-		}
-		const sectionId = violation?.entities?.sectionId;
-		if (typeof sectionId === 'number') {
-			formatted = formatted.replace(new RegExp(`\\bsection\\s+#?${sectionId}\\b`, 'gi'), sectionLabel(sectionId));
-		}
-		const roomId = violation?.entities?.roomId;
-		if (typeof roomId === 'number') {
-			formatted = formatted.replace(new RegExp(`\\broom\\s+#?${roomId}\\b`, 'gi'), roomLabelShort(roomId));
-		}
-		const facultyId = violation?.entities?.facultyId;
-		if (typeof facultyId === 'number') {
-			formatted = formatted.replace(new RegExp(`\\bfaculty\\s+#?${facultyId}\\b`, 'gi'), formatFacultyInitials(facultyId));
-		}
-
-		return formatted
-			.replace(/\bsubject\s+#?\d+\b/gi, 'this subject')
-			.replace(/\bsection\s+#?\d+\b/gi, 'this section')
-			.replace(/\broom\s+#?\d+\b/gi, 'this room')
-			.replace(/\bfaculty\s+#?\d+\b/gi, 'this teacher');
-	};
 	const resolveUnassignedForViolation = (violation: Violation): UnassignedItem | null => {
 		if (violation.code !== 'UNASSIGNED_SECTION') return null;
 		const entities = violation.entities as Record<string, unknown> | undefined;
@@ -355,7 +301,9 @@ export function GeneratedViolationsPanel({
 								selectedViolation={selectedViolation}
 								onSelect={handleViolationSelect}
 								onExplain={setDrawerViolation}
-								formatConstraintMessage={formatRailConstraintMessage}
+								formatConstraintMessage={(message, violation) => formatRailConstraintMessage(message, violation, {
+									formatConstraintMessage, subjectLabel, sectionLabel, roomLabelShort, formatFacultyInitials,
+								})}
 								renderAction={renderUnassignedRepairAction}
 								labels={VIOLATION_LABELS}
 							/>
