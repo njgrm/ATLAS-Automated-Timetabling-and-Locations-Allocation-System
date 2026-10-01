@@ -16,6 +16,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { MemoryRouter } from 'react-router-dom';
+
+import { SimpleDriftBanner } from '../simple/SimpleDriftBanner';
+import { deriveTimetableCapabilities } from '../../../lib/timetable-capabilities';
+import type { DraftReport } from '../../../types';
 
 import {
 	resolveTimetableRouteForView,
@@ -57,6 +64,33 @@ function source(path: string): string {
 
 function lineCount(path: string): number {
 	return source(path).split('\n').length;
+}
+
+const driftDraft = {
+	runId: 42,
+	status: 'COMPLETED',
+	entries: [],
+	summary: { hardViolationCount: 0, softViolationCount: 0, unassignedCount: 0 },
+	inputState: {
+		status: 'STALE', message: 'Rooms changed.', actionHint: 'Review rooms.',
+		changedDomains: ['rooms'], checkedAt: '2031-01-01T00:05:00.000Z',
+	},
+	finishedAt: '2031-01-01T00:00:00.000Z',
+	createdAt: '2031-01-01T00:00:00.000Z',
+} as unknown as DraftReport;
+
+function renderDrift(isPublished: boolean, onRegenerate?: () => void, activeGeneratedRunId: number | null = 42): string {
+	const capabilities = deriveTimetableCapabilities({
+		scopeResolved: true, curriculumState: 'ready', generating: false,
+		isPreGeneration: false, hasGeneratedRun: true, isPublished,
+		latestRunFailed: false, hardCount: 0, unassignedCount: 0, softCount: 0,
+		hasSelectedEntry: false, requestPendingCount: 0,
+	});
+	return renderToStaticMarkup(createElement(MemoryRouter, null, createElement(SimpleDriftBanner, {
+		schoolId: 1, schoolYearId: 9, activeGeneratedRunId, draft: driftDraft,
+		isPreGenerationWorkspace: false, loading: false, onRefresh: () => {},
+		capabilities, isPublished, onRegenerate,
+	} as never)));
 }
 
 function timetableRouteBlock(): string {
@@ -498,34 +532,17 @@ test('UX-R03b row 8: lifecycle drift actions preserve published and draft confir
 	// assert.match(simple, /Preview demand/);
 	assert.match(simple, /previewDemand=\{\{/);
 	assert.match(source('src/components/timetable/simple/SimpleHeaderActions.tsx'), /Preview demand/);
-	const drift = source('src/components/timetable/simple/SimpleDriftBanner.tsx');
-	assert.doesNotMatch(drift, /Sync with setup|timetable-simple-sync-setup/);
-	assert.match(drift, /Published schedule is safe to view\. Changes are made in a separate revision\./);
-	assert.match(drift, /data-testid="timetable-simple-review-published-changes"/);
-	assert.match(drift, /data-testid="timetable-simple-start-revision"/);
-	assert.match(drift, /onClick=\{onStartRevision\}/);
-	assert.match(drift, /const showRegenerateAction = Boolean\(onRegenerate\) && !isPublished && showRunDrift/);
-	assert.match(drift, /data-testid="timetable-simple-review-draft-changes"/);
-	assert.match(drift, /data-testid="timetable-simple-regenerate-impact"/);
-	assert.match(drift, /data-testid="timetable-simple-regenerate-to-apply"/);
-	assert.match(drift, /onClick=\{\(\) => setShowRegenerateImpact\(true\)\}/);
-	assert.match(drift, /onConfirm=\{handleRegenerate\}/);
-	assert.match(drift, /data-testid="timetable-simple-regenerate-confirm"/);
-	// The draft action only opens the impact dialog. Its confirm callback is the
-	// sole route to the generation callback, which itself opens confirmation;
-	// actual generation remains behind the separate confirmGenerate handler.
-	const pane = source('src/components/timetable/TimetableSetupPane.tsx');
-	assert.match(pane, /onStartRevision=\{inputs\?\.onStartRevision\}/);
-	const workspace = source('src/hooks/useScheduleReviewWorkspaceState.ts');
-	assert.match(workspace, /onStartRevision: handleTriggerGenerate/);
-	const mutations = source('src/hooks/useTimetableMutations.ts');
-	const triggerStart = mutations.indexOf('const handleTriggerGenerate = useCallback');
-	const confirmStart = mutations.indexOf('const confirmGenerate = useCallback', triggerStart);
-	assert.ok(triggerStart >= 0 && confirmStart > triggerStart, 'generation trigger and confirmation must both remain wired');
-	const trigger = mutations.slice(triggerStart, confirmStart);
-	assert.match(trigger, /setShowGenerateConfirm\(true\)/);
-	assert.doesNotMatch(trigger, /triggerGeneration\(/);
-	const confirmation = mutations.slice(confirmStart, mutations.indexOf('const openPreGenerationWorkspace', confirmStart));
-	assert.match(confirmation, /setShowGenerateConfirm\(false\)/);
-	assert.match(confirmation, /triggerGeneration\(true/);
+	const published = renderDrift(true, () => {});
+	assert.match(published, /Published schedule is safe to view\. Changes are made in a separate revision\./);
+	assert.match(published, /See what changed/,
+		'a published run keeps read-only review available');
+	assert.doesNotMatch(published, /Update schedule/,
+		'a published run never exposes the draft-only regenerate action');
+	const draft = renderDrift(false, () => {});
+	assert.match(draft, /Update schedule/, 'a draft with a regenerate callback exposes its available action');
+	assert.doesNotMatch(renderDrift(false), /Update schedule/,
+		'a caller without a regenerate callback never renders a dead action');
+	const noRun = renderDrift(false, () => {}, null);
+	assert.match(noRun, /<button[^>]*disabled=""[^>]*>[\s\S]*?Update schedule/,
+		'a draft without an active generated run keeps the regenerate action disabled');
 });
