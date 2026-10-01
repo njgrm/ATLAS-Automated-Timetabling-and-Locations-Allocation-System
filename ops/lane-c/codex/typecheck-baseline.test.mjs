@@ -1,11 +1,63 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compareDiagnosticsToBaseline, findBaselineAdditions, loadOriginMainBaseline, normalizeDiagnostics } from './typecheck-baseline.mjs';
+
+const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const integrateRequestScript = path.join(repositoryRoot, 'ops/lane-c/codex/integrate-request.ps1');
+
+function validateIntegrateTests(tests) {
+  const laneHome = mkdtempSync(path.join(os.tmpdir(), 'atlas-integrate-request-'));
+  try {
+    writeFileSync(path.join(laneHome, 'integrate-request.json'), JSON.stringify({
+      name: 'typecheck-baseline-enforcement',
+      tier: 'T1',
+      branch: 'fix/typecheck-baseline-enforcement-20261001',
+      sha: '096f3938d4853bc7ea57810177bd90146c523db8',
+      tests,
+    }));
+    const result = spawnSync('pwsh', [
+      '-NoProfile', '-File', integrateRequestScript,
+      '-Repo', repositoryRoot,
+      '-IntegrationRepo', repositoryRoot,
+      '-LaneHome', laneHome,
+    ], { encoding: 'utf8' });
+    assert.ok(readFileSync(path.join(laneHome, 'integrate-result.json'), 'utf8'));
+    return JSON.parse(readFileSync(path.join(laneHome, 'integrate-result.json'), 'utf8'));
+  } finally {
+    rmSync(laneHome, { recursive: true, force: true });
+  }
+}
+
+test('integrate request accepts the reviewed Lane-C test path through request validation', () => {
+  const result = validateIntegrateTests(['ops/lane-c/codex/typecheck-baseline.test.mjs']);
+  assert.equal(result.status, 'REJECTED');
+  assert.equal(result.message, 'INTEGRATION_WORKTREE_DIRTY');
+});
+
+test('integrate request rejects unsafe and non-matching Lane-C test paths', () => {
+  for (const testPath of [
+    'ops/lane-c/codex/../typecheck-baseline.test.mjs',
+    'ops/lane-c/codex//typecheck-baseline.test.mjs',
+    'ops/lane-c/codex/nested/typecheck-baseline.test.mjs',
+    'ops/lane-c/codex/typecheck-baseline.test.ts',
+    'ops/lane-c/codex/typecheck-baseline.mjs',
+  ]) {
+    const result = validateIntegrateTests([testPath]);
+    assert.equal(result.status, 'REJECTED', testPath);
+    assert.equal(result.message, `INVALID_INTEGRATE_REQUEST:test:${testPath}`, testPath);
+  }
+});
+
+test('integrate wrapper runs Lane-C tests from the integration repo and collects runner failures', () => {
+  const source = readFileSync(integrateRequestScript, 'utf8');
+  assert.match(source, /Push-Location \$IntegrationRepo[\s\S]*& node --test @laneCodexTests/);
+  assert.match(source, /if \(\$testFailures\.Count\) \{ throw "INTEGRATE_TESTS_FAILED:/);
+});
 
 test('normalizes Windows paths and sorts diagnostics into stable records', () => {
   const result = normalizeDiagnostics([

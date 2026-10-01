@@ -41,7 +41,9 @@ try {
     Stop-Request 'INVALID_INTEGRATE_REQUEST:shape_or_tier'
   }
   foreach ($test in @($request.tests)) {
-    if ($test -notmatch '^(atlas-client|atlas-server)/src/.+\.test\.(ts|tsx|mts)$' -or $test -match '[\\/]{2}|\.\.') {
+    $productTest = $test -match '^(atlas-client|atlas-server)/src/.+\.test\.(ts|tsx|mts)$'
+    $laneCodexTest = $test -match '^ops/lane-c/codex/[A-Za-z0-9_-][A-Za-z0-9._-]*\.test\.mjs$'
+    if ((-not $productTest -and -not $laneCodexTest) -or $test -match '[\\/]{2}|\.\.') {
       Stop-Request "INVALID_INTEGRATE_REQUEST:test:$test"
     }
   }
@@ -76,18 +78,29 @@ try {
 
   $clientTests = @($request.tests | Where-Object { $_ -like 'atlas-client/*' } | ForEach-Object { $_.Substring('atlas-client/'.Length) })
   $serverTests = @($request.tests | Where-Object { $_ -like 'atlas-server/*' } | ForEach-Object { $_.Substring('atlas-server/'.Length) })
+  $laneCodexTests = @($request.tests | Where-Object { $_ -like 'ops/lane-c/codex/*' })
+  $testFailures = [System.Collections.Generic.List[string]]::new()
   if ($clientTests.Count) {
     $tsx = Join-Path $IntegrationRepo 'atlas-client\node_modules\.bin\tsx.cmd'
-    if (-not (Test-Path -LiteralPath $tsx)) { throw 'CLIENT_TEST_RUNNER_MISSING' }
-    Push-Location (Join-Path $IntegrationRepo 'atlas-client')
-    try { & $tsx --test @clientTests; if ($LASTEXITCODE -ne 0) { throw "CLIENT_TESTS_FAILED:$LASTEXITCODE" } } finally { Pop-Location }
+    if (-not (Test-Path -LiteralPath $tsx)) { $testFailures.Add('CLIENT_TEST_RUNNER_MISSING') }
+    else {
+      Push-Location (Join-Path $IntegrationRepo 'atlas-client')
+      try { & $tsx --test @clientTests; if ($LASTEXITCODE -ne 0) { $testFailures.Add("CLIENT_TESTS_FAILED:$LASTEXITCODE") } } finally { Pop-Location }
+    }
   }
   if ($serverTests.Count) {
     $tsx = Join-Path $IntegrationRepo 'atlas-server\node_modules\.bin\tsx.cmd'
-    if (-not (Test-Path -LiteralPath $tsx)) { throw 'SERVER_TEST_RUNNER_MISSING' }
-    Push-Location (Join-Path $IntegrationRepo 'atlas-server')
-    try { & $tsx --test @serverTests; if ($LASTEXITCODE -ne 0) { throw "SERVER_TESTS_FAILED:$LASTEXITCODE" } } finally { Pop-Location }
+    if (-not (Test-Path -LiteralPath $tsx)) { $testFailures.Add('SERVER_TEST_RUNNER_MISSING') }
+    else {
+      Push-Location (Join-Path $IntegrationRepo 'atlas-server')
+      try { & $tsx --test @serverTests; if ($LASTEXITCODE -ne 0) { $testFailures.Add("SERVER_TESTS_FAILED:$LASTEXITCODE") } } finally { Pop-Location }
+    }
   }
+  if ($laneCodexTests.Count) {
+    Push-Location $IntegrationRepo
+    try { & node --test @laneCodexTests; if ($LASTEXITCODE -ne 0) { $testFailures.Add("LANE_CODEX_TESTS_FAILED:$LASTEXITCODE") } } finally { Pop-Location }
+  }
+  if ($testFailures.Count) { throw "INTEGRATE_TESTS_FAILED:$($testFailures -join ',')" }
   $typecheckOutput = & node (Join-Path $IntegrationRepo 'ops\lane-c\codex\typecheck-baseline.mjs') $IntegrationRepo --origin-main
   $typecheckExit = $LASTEXITCODE
   try { $typecheckResult = $typecheckOutput | ConvertFrom-Json } catch { throw "TYPECHECK_BASELINE_INVALID_RESULT:$typecheckOutput" }
