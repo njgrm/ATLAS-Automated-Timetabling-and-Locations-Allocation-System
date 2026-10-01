@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { compareDiagnosticsToBaseline, findBaselineAdditions, loadOriginMainBaseline, normalizeDiagnostics } from './typecheck-baseline.mjs';
 
 test('normalizes Windows paths and sorts diagnostics into stable records', () => {
@@ -34,6 +35,20 @@ test('rejects added baseline entries while permitting removals', () => {
   const candidate = [...reference, { file: 'atlas-server/src/new.ts', line: 9, code: 'TS9999', message: 'New issue' }];
   assert.deepEqual(findBaselineAdditions(candidate, reference), [candidate[1]]);
   assert.deepEqual(findBaselineAdditions([], reference), []);
+});
+
+test('rejects an otherwise-valid baseline with a different SHA before running typechecks', () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'atlas-tsc-baseline-'));
+  try {
+    const baselinePath = path.join(root, 'ops/lane-c/tsc-baseline.json');
+    mkdirSync(path.dirname(baselinePath), { recursive: true });
+    writeFileSync(baselinePath, JSON.stringify({ sha: '0'.repeat(40), commands: [], errors: [] }));
+    const result = spawnSync(process.execPath, [fileURLToPath(new URL('./typecheck-baseline.mjs', import.meta.url)), root], { encoding: 'utf8' });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /sha must be the pinned initial baseline/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('reads the reference baseline from origin/main even if the worktree file differs', () => {

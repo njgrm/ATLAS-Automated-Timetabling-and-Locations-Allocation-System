@@ -96,6 +96,9 @@ export function runTypechecks(root = repoRoot) {
 export function checkBaseline(root = repoRoot, useOriginMain = false) {
   const candidateBaselinePath = path.join(root, 'ops/lane-c/tsc-baseline.json');
   const baseline = JSON.parse(readFileSync(candidateBaselinePath, 'utf8'));
+  if (typeof baseline.sha !== 'string' || !/^[0-9a-f]{40}$/.test(baseline.sha) || baseline.sha !== INITIAL_BASELINE_SHA) {
+    throw new Error(`Typecheck baseline sha must be the pinned initial baseline ${INITIAL_BASELINE_SHA}.`);
+  }
   const referenceBaseline = useOriginMain
     ? loadOriginMainBaseline(root, baseline)
     : baseline;
