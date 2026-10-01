@@ -46,8 +46,10 @@ try {
   $Repo = (Resolve-Path -LiteralPath $Repo).Path
   $IntegrationRepo = (Resolve-Path -LiteralPath $IntegrationRepo).Path
   if ($IntegrationRepo -notlike 'E:\ATLAS-worktrees\*') { Stop-Request 'INVALID_INTEGRATION_WORKTREE:outside_E_root' }
-  $registered = @(git -C $Repo worktree list --porcelain | Where-Object { $_ -like 'worktree *' } | ForEach-Object { $_.Substring(9) })
-  if ($IntegrationRepo -notin $registered) { Stop-Request 'INVALID_INTEGRATION_WORKTREE:unregistered' }
+  $integrationIdentity = $IntegrationRepo.Replace('\\', '/').TrimEnd('/').ToLowerInvariant()
+  $registered = @(git -C $Repo worktree list --porcelain | Where-Object { $_ -like 'worktree *' } |
+    ForEach-Object { (Resolve-Path -LiteralPath $_.Substring(9)).Path.Replace('\\', '/').TrimEnd('/').ToLowerInvariant() })
+  if ($integrationIdentity -notin $registered) { Stop-Request 'INVALID_INTEGRATION_WORKTREE:unregistered' }
   if (@(git -C $IntegrationRepo status --short).Count) { Stop-Request 'INTEGRATION_WORKTREE_DIRTY' }
 
   git -C $Repo fetch -q origin $request.branch
