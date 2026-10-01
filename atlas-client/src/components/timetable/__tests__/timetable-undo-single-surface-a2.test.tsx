@@ -273,14 +273,11 @@ test('U3 the surviving Undo is still discoverable, still named, and still states
 	assert.match(markup, /aria-label="Undo last manual schedule change"/);
 	assert.equal(occurrences('aria-label="Undo last manual schedule change"').length, 1, 'the name is unique on the screen');
 
-	// Honest: the same live blocked reason the duplicate used to repeat is still
-	// VISIBLE (role=status), so removing the guidance-bar tooltip lost no information.
-	assert.match(markup, /data-testid="timetable-undo-blocked-reason"/, 'the reason is rendered, not only hovered');
-	assert.match(markup, /role="status"/);
-	assert.ok(
-		markup.includes(LIVE_BLOCKED_REASON),
-		'the exact live reason the duplicate repeated is still stated verbatim',
-	);
+	// Honest: the disabled control keeps one action surface and no longer duplicates
+	// its reason in a second on-screen status banner. The production Tooltip owns
+	// that explanation for the disabled control.
+	assert.doesNotMatch(markup, /data-testid="timetable-undo-blocked-reason"/,
+		'the retired second reason surface is not rendered beside the surviving Undo');
 	// And the Undo is actually disabled, so a disabled control is what the operator sees.
 	// Attribute order is not relied upon: the button's own opening tag is isolated.
 	const undoTag = markup.match(/<button[^>]*data-testid="timetable-visible-undo"[^>]*>/)?.[0] ?? '';
