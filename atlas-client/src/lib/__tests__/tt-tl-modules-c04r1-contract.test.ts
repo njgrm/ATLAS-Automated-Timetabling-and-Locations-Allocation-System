@@ -162,10 +162,10 @@ test('F4 [source shape, restated 2026-09-29] the strict published predicate reac
 test('F4 the banner gates sync on the published prop', () => {
 	const banner = source(BANNER);
 	assert.match(banner, /isPublished: boolean/);
+	assert.match(banner, /const showRegenerateAction = Boolean\(onRegenerate\) && !isPublished/);
+	assert.match(banner, /open=\{showImpactPreview && !isPublished\}/);
+	assert.match(banner, /open=\{showRegenerateImpact && !isPublished\}/);
 	assert.match(banner, /timetable-simple-published-drift-guidance/);
-	assert.match(banner, /if \(isPublished\) return;/);
-	assert.match(banner, /showSyncConfirm && !isPublished/);
-	assert.match(banner, /showImpactPreview && !isPublished/);
 });
 
 /* ------------------------------------------------------------------ *
