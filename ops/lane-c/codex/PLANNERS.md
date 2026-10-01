@@ -92,3 +92,12 @@ TESTS: <names and pass counts>   SCREENSHOT: <path>   EVIDENCE: <for any diagnos
 | 9 | Old branches: `work/a8-g1-spread-sessions`, `fix/a5-c8b-row-menu-fit`, `work/a9-m1-campus-background`. Decide keep or drop against decisions 2-15 | Manager | Triage | Deleting unmerged work needs the operator |
 | 10 | After-demo backlog, one T1 packet each: Year Setup wrong-year link; "See what would be copied" dead; (i) help icons click-to-open; Teacher Preferences "Load the roster first" on entry; Room Schedules 11x6/13x6 | Setup | T1 | |
 | 11 | Click sweeps re-run: Teachers (0 clicks) and Teaching Load (3 clicks) | QA | Codex walk | |
+
+## p06b executor report (2026-10-02)
+
+- **Base:** `b25fc99b5365330e8b957cd118743e61fd47aee2`; **candidate:** `79ab5b01`.
+- **Changed paths:** only the five packet-owned tests under `atlas-client/src/lib/__tests__/`.
+- **Result:** stale swap-reset, Expert publish-control, change-notice, and direct-header export pins now follow the current implementations. Selected-term-only beneficiary downloads remain asserted against the print-dialog request path.
+- **Focused tests:** four files pass individually; `timetable-dynamic-workspace-scope-links.test.ts` is 5/6 because the new R5 selection-clear assertion fails. The scope-change clearers reset task/sheets/swap state but omit `state.headerContext?.setSelectedEntry(null)`. **Product defect; not superseded:** scope changes can retain a selection from the prior run/term. Fix in a separate production packet.
+- **Batch:** `npm run test:client-suite` cannot start on Windows because its 145-file script exceeds the command-line limit. Its files were run in nine sequential 18-file-or-smaller batches: 1,419 tests, 1,381 pass, 38 fail across 7 batches. The failures include the R5 selection defect and unrelated existing assertions in files outside this packet; no claim that the aggregate is green.
+- **Disposition:** `RETIRE_AFTER_INTEGRATION`.
