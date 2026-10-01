@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 
 import { CreatePlaceholderDialog } from '@/components/faculty/CreatePlaceholderDialog';
+import { overCapChipHelper } from '@/components/faculty/facultyOverCapHelpers';
 export { overCapChipHelper, overCapWeeklyMaxHours } from '@/components/faculty/facultyOverCapHelpers';
 import { DeletePlaceholderDialog } from '@/components/faculty/DeletePlaceholderDialog';
 
