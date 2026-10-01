@@ -8,9 +8,9 @@ param(
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path -LiteralPath $Repo).Path
 $integrator = (Resolve-Path -LiteralPath $IntegrationRepo).Path
-$home = (Resolve-Path -LiteralPath $LaneHome).Path
-$requestPath = Join-Path $home 'release-request.json'
-$resultPath = Join-Path $home 'release-result.json'
+$laneRoot = (Resolve-Path -LiteralPath $LaneHome).Path
+$requestPath = Join-Path $laneRoot 'release-request.json'
+$resultPath = Join-Path $laneRoot 'release-result.json'
 $request = Get-Content -LiteralPath $requestPath -Raw | ConvertFrom-Json
 foreach ($field in 'sha', 'train', 'mode') { if (-not $request.$field) { throw "INVALID_RELEASE_REQUEST:missing_$field" } }
 if ($request.sha -notmatch '^[0-9a-f]{40}$' -or "$($request.train)" -notmatch '^[0-9]+$' -or $request.mode -notin @('dry-run', 'release')) { throw 'INVALID_RELEASE_REQUEST:shape' }
@@ -60,7 +60,7 @@ try {
   $releaseDir = (Resolve-Path -LiteralPath $prepared.dir).Path
   Invoke-Npm (Join-Path $releaseDir 'atlas-client') @('run', 'test:client-suite')
   Invoke-Npm (Join-Path $releaseDir 'atlas-server') @('run', 'test:server-suite')
-  $job = "release-$($request.train)-$($request.sha.Substring(0,8))-1366"; $promptFile = Join-Path $home "$job.prompt.md"
+  $job = "release-$($request.train)-$($request.sha.Substring(0,8))-1366"; $promptFile = Join-Path $laneRoot "$job.prompt.md"
   $qaPrompt = @"
 Run isolated, read-only rendered QA for Train $($request.train) in $releaseDir. Do not use Tailnet, credentials, or live APIs.
 At 1366x768 prove /timetable renders both its header and weekly grid from loading to resolved data, with no console error or global scroll.
@@ -70,7 +70,7 @@ End final.md with exactly one line: RELEASE_SCREENSHOT: PASS <absolute screensho
   [IO.File]::WriteAllText($promptFile, $qaPrompt, [Text.UTF8Encoding]::new($false))
   & (Join-Path $repo 'ops\lane-c\codex\codex-run.ps1') -Job $job -PromptFile $promptFile | Out-Host
   if ($LASTEXITCODE -ne 0) { throw 'RELEASE_SCREENSHOT_LAUNCH_FAILED' }
-  $qaFinal = Join-Path $home "codex-qa\$job\final.md"; $deadline = (Get-Date).AddMinutes($ScreenshotTimeoutMinutes)
+  $qaFinal = Join-Path $laneRoot "codex-qa\$job\final.md"; $deadline = (Get-Date).AddMinutes($ScreenshotTimeoutMinutes)
   while (-not (Test-Path -LiteralPath $qaFinal)) { if ((Get-Date) -gt $deadline) { throw 'RELEASE_SCREENSHOT_TIMEOUT' }; Start-Sleep -Seconds 10 }
   $qaResult = Get-Content -LiteralPath $qaFinal -Raw
   if ($qaResult -notmatch '(?m)^RELEASE_SCREENSHOT: PASS .+') { throw 'RELEASE_SCREENSHOT_REFUSED' }
@@ -82,7 +82,7 @@ End final.md with exactly one line: RELEASE_SCREENSHOT: PASS <absolute screensho
   if ($LASTEXITCODE -ne 0) { throw 'RELEASE_TASK_REFUSED' }
   $task = $taskLines | Where-Object { $_ -match '^\{' } | Select-Object -Last 1 | ConvertFrom-Json
   Write-Receipt -Status $task.status -Extra @{ releaseDir = $releaseDir; task = $task; screenshot = ($qaResult | Select-String 'RELEASE_SCREENSHOT:' | Select-Object -Last 1).Line }
-  Move-Item -LiteralPath $requestPath -Destination (Join-Path $home "release-processed-$($request.train)-$(Get-Date -Format yyyyMMdd-HHmmss).json")
+  Move-Item -LiteralPath $requestPath -Destination (Join-Path $laneRoot "release-processed-$($request.train)-$(Get-Date -Format yyyyMMdd-HHmmss).json")
 } catch {
   Write-Receipt -Status 'REFUSED' -Extra @{ reason = $_.Exception.Message }
   throw
