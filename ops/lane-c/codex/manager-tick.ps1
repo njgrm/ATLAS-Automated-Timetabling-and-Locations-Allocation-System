@@ -62,9 +62,10 @@ function Sync-ManagerSnapshot {
   foreach ($f in $files) {
     $destination = Join-Path $snapshot $f
     New-Item -ItemType Directory -Force (Split-Path -Parent $destination) | Out-Null
-    $content = git -C $repo show "origin/main:$f"
+    # Byte-exact copy: PowerShell 5.1 Set-Content -Encoding utf8 added a BOM and CRLF, which broke status.sh in the
+    # mirror all night (2026-09-30/10-01); the manager then reported the repo file as the blocker.
+    & cmd.exe /c "git -C `"$repo`" show `"origin/main:$f`" > `"$destination`""
     if ($LASTEXITCODE -ne 0) { throw "MIRROR_SOURCE_MISSING:$f" }
-    Set-Content -LiteralPath $destination -Value $content -Encoding utf8
   }
 }
 function Assert-CleanTickRepo {
