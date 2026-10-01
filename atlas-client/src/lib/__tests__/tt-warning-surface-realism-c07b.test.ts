@@ -1047,12 +1047,8 @@ function renderedCount(markup: string, testId: string): number {
 
 /** The count of classes-without-a-time a sentence states, or 0 when it states none. */
 function unresolvedCountIn(sentence: string): number {
-	// A2-UX-WIRE-C2: the rendered noun changed from "N unresolved sessions" to
-	// "N classes needing a time slot" — the one noun for the unit a scheduler places.
-	// The reader is re-pointed, not weakened: it still extracts the count the
-	// SENTENCE states, and the exact-string rows above are what decide the
-	// rendered wording.
-	const match = sentence.match(/(\d+) (?:classes? needing a time slot|unresolved sessions?)/);
+	// The visible publish wording names classes that need a time slot.
+	const match = sentence.match(/(\d+) (?:classes? need a time slot|unresolved sessions?)/);
 	return match ? Number(match[1]) : 0;
 }
 
@@ -1119,7 +1115,7 @@ test('R2 (c) mixed: one hard blocker plus two unresolved sessions are counted on
 	const markup = renderSheet({ draft, violations: [], runWide });
 	assert.equal(
 		blockerSentenceFromMarkup(markup),
-		'1 Must fix problem and 2 classes needing a time slot still need fixing before this schedule can be published.',
+		'1 Must fix problem and 2 classes need a time slot before this schedule can be published.',
 	);
 	assert.equal(renderedCount(markup, 'timetable-simple-run-wide-blocking'), 1);
 });
