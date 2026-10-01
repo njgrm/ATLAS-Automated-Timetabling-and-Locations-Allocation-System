@@ -609,14 +609,13 @@ test('C2-a.6 a blocked check that reported NO blockers never claims to show item
  * C2-a row 5 — the accepted cap still holds in the blocked state
  * ------------------------------------------------------------------ */
 
-test('C2-a.7 the blocked state keeps the ≤7 above-grid-control cap and exactly one solid primary', async () => {
+test('C2-a.7 the blocked state keeps the ≤7 above-grid-control cap; only an in-progress run disables Generate', async () => {
 	viewportWidth = 1366;
 	const ready = await renderHeader(headerContext());
 	const aboveGridControls = (header: HTMLElement) => visibleControls(header).filter((element) =>
 		!element.matches('[data-testid^="timetable-sub-nav-"]'),
 	);
 	const readyControls = aboveGridControls(ready);
-	const readySolid = readyControls.filter((element) => /\bbg-primary\b/.test(element.className)).length;
 
 	const blocked = await renderHeader(headerContext({ curriculumReadiness: blockedReadiness() }));
 	const controls = aboveGridControls(blocked);
@@ -626,31 +625,14 @@ test('C2-a.7 the blocked state keeps the ≤7 above-grid-control cap and exactly
 		`expected ≤7 visible controls above the grid while generation is blocked, got ${controls.length}: ${controls.map(describeControl).join(' | ')}`,
 	);
 	assert.equal(controls.length, readyControls.length, 'the blocker list adds NO header control');
-	assert.equal(controls.filter((element) => /\bbg-primary\b/.test(element.className)).length, 1, 'exactly one solid primary');
-	assert.equal(readySolid, 1, 'the ready state is the one-solid-primary baseline');
-	// Generate is still the one visible primary, and still cannot dispatch.
 	const generate = blocked.querySelector<HTMLElement>('[data-testid="timetable-simple-generate-action"]');
-	assert.ok(generate && controls.includes(generate), 'Generate is the visible primary while blocked');
-	// SUPERSEDED (A2 C13, 2026-09-29) — the ORIGINAL row read:
-	//     assert.match(generate.className, /\bbg-primary\b/);
-	// It is retained here as the record of what the control used to look like.
-	//
-	// WHY IT IS SUPERSEDED, and this is the defect the row used to ENFORCE:
-	// `default` is a solid `bg-primary` and the shared base adds
-	// `disabled:opacity-50`, so a disabled Generate was a PALE GREEN button. The
-	// operator's words on `/timetable`: *"the disabled Generate reads as a
-	// pale-green near-miss."* For this user the worst possible reading is a control
-	// that looks like the next step and is not.
-	//
-	// The replacement asserts the OPPOSITE and is the load-bearing one: a disabled
-	// Generate carries no `bg-primary` at all and wears the shared `unavailable`
-	// variant. The `disabled` and "Generate is the visible primary while blocked"
-	// rows above are UNCHANGED and still decided here.
-	// `L4` in `a2-c13-unavailable-generate.test.tsx` is the replacement row.
-	assert.doesNotMatch(generate.className, /\bbg-primary\b/,
-		'a DISABLED Generate must not wear the primary background — a pale-green near-miss reads as "almost ready"');
-	assert.match(generate.className, /\bbg-muted\b/, 'and wears the plainly-unavailable muted treatment');
-	assert.equal(generate.getAttribute('disabled'), '', 'Generate is disabled while generation is blocked');
+	assert.ok(generate && controls.includes(generate), 'Generate remains visible while blocked');
+	assert.equal(generate.getAttribute('disabled'), null, 'a blocked idle action is not confused with a run in progress');
+
+	const inProgress = await renderHeader(headerContext({ generating: true }));
+	const inProgressGenerate = inProgress.querySelector<HTMLElement>('[data-testid="timetable-simple-generate-action"]');
+	assert.ok(inProgressGenerate);
+	assert.equal(inProgressGenerate.getAttribute('disabled'), '', 'an in-progress run disables Generate');
 });
 
 test('C2-a.8 the entry point is the EXISTING merged warnings control, now enabled and honest', async () => {
