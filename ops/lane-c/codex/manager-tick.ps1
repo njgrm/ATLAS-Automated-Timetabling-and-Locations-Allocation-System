@@ -123,6 +123,12 @@ function Process-IntegrationRequest {
   & (Join-Path $repo 'ops/lane-c/codex/integrate-request.ps1') -Repo $repo -IntegrationRepo $IntegrationRepo -LaneHome $H
   if ($LASTEXITCODE -ne 0) { throw 'INTEGRATE_REQUEST_FAILED' }
 }
+function Process-ReleaseRequest {
+  $requestPath = Join-Path $H 'release-request.json'
+  if (-not (Test-Path -LiteralPath $requestPath)) { return }
+  & (Join-Path $repo 'ops/lane-c/codex/process-release-request.ps1') -Repo $repo -IntegrationRepo $IntegrationRepo -LaneHome $H
+  if ($LASTEXITCODE -ne 0) { throw 'RELEASE_REQUEST_FAILED' }
+}
 Assert-CleanTickRepo
 Assert-ExternalStateRoot
 $ticks = Join-Path $H 'manager-ticks'; New-Item -ItemType Directory -Force $ticks | Out-Null
@@ -148,7 +154,8 @@ while ($true) {
   $inbox = "$($inboxItem.Length):$($inboxItem.LastWriteTimeUtc.Ticks)"
   $dispatchRequest = Get-Item -LiteralPath (Join-Path $H 'dispatch-request.json') -ErrorAction SilentlyContinue
   $integrationRequest = Get-Item -LiteralPath (Join-Path $H 'integrate-request.json') -ErrorAction SilentlyContinue
-  $requests = @($dispatchRequest, $integrationRequest | Where-Object { $_ }) |
+  $releaseRequest = Get-Item -LiteralPath (Join-Path $H 'release-request.json') -ErrorAction SilentlyContinue
+  $requests = @($dispatchRequest, $integrationRequest, $releaseRequest | Where-Object { $_ }) |
     ForEach-Object { "$($_.Name):$($_.Length):$($_.LastWriteTimeUtc.Ticks)" } -join ';'
   $codexDone = (Get-ChildItem (Join-Path $H 'codex-qa') -Recurse -Filter final.md -EA SilentlyContinue |
                 ForEach-Object { $_.FullName + $_.LastWriteTime.Ticks }) -join ';'
@@ -191,6 +198,7 @@ $status
     Assert-WorktreesUnchanged -Before $worktreeBaseline
     Process-DispatchRequest
     Process-IntegrationRequest
+    Process-ReleaseRequest
     Write-Host "$(Get-Date -Format HH:mm) tick ($why): $(Get-Content (Join-Path $ticks "$stamp.md") -Tail 1 -EA SilentlyContinue)"
     $lastTick = Get-Date
     $lastDigest = $digest  # recompute next loop; changes made by the tick itself trigger at most one follow-up tick

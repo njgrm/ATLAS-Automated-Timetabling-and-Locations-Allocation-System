@@ -37,6 +37,11 @@ worktree; anything that needs a repo change becomes a packet or an integrator ac
   with `name`, `tier`, `branch`, `sha`, and the exact focused `tests` paths. The trusted wrapper validates the
   branch/SHA/current-main ancestry, merges in its dedicated integration worktree, runs only those tests, pushes with
   `ATLAS_INTEGRATOR=1`, and writes `integrate-result.json`. T3 always waits for the operator.
+- For an approved non-migration release, write `D:/ATLAS-lane-c/release-request.json` with the current `origin/main`
+  `sha`, numeric `train`, and `mode` (`dry-run` first, then `release`). The trusted wrapper alone prepares the release
+  tree, runs the full suites and isolated 1366x768 timetable evidence, records `live-state.md` through the integrator,
+  invokes the installed ATLAS Release task, and writes `release-result.json`. A tick only writes the request and reads
+  its result; it never prepares a tree, edits `live-state.md`, or calls the release task.
 - Read run status and triage dirty worktrees without editing, committing, merging, pushing, deleting, or removing them.
 
 ## What needs the operator (write to the outbox and notify, then continue other work)
@@ -59,6 +64,8 @@ Notify only on change: landed, blocked, died, released, or a question. Silence m
 
 ## Rules carried from the Claude era
 - No diagnosis reaches the operator unverified: back it with a DB query, log line or repro, and say which.
+- Re-verify every carried blocker against the current `origin/main` mirror on every tick. A prior manager-state note is
+  context, never evidence; delete it when current source disproves it, including the historical `status.sh` BOM note.
 - "Live" = A4 LIVE post AND the Tailnet URL serves the new chunk. Never cut over without a built `atlas-server/dist`.
 - Acceptance = the operator's original words. A UX regression blocks a release.
 - Before a launch, re-check year/term/live SHA (`ctx.cjs`) and write them into the prompt.
