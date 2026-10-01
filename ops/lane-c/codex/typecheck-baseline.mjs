@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '../../..');
+const INITIAL_BASELINE_SHA = 'fdae67ec64a4713d7c5c2446e03c25c29ddf704f';
 export const TYPECHECK_COMMANDS = [
   { package: 'atlas-client', command: 'npm run typecheck' },
   { package: 'atlas-server', command: 'npm run build -- --pretty false' },
@@ -20,6 +21,10 @@ export function normalizeDiagnostics(output, packageName) {
       code: match[4],
       message: match[5].trim(),
     });
+  }
+  const globalPattern = /^error (TS\d+): (.+)$/gm;
+  for (const match of output.matchAll(globalPattern)) {
+    diagnostics.push({ file: `${packageName}/<compiler>`, line: 0, code: match[1], message: match[2].trim() });
   }
   return diagnostics.sort(compareDiagnostics);
 }
@@ -46,6 +51,15 @@ export function compareDiagnosticsToBaseline(errors, baselineErrors) {
 
 export function findBaselineAdditions(candidateErrors, referenceErrors) {
   return compareDiagnosticsToBaseline(candidateErrors, referenceErrors);
+}
+
+export function loadReferenceBaseline(referencePath, candidateBaseline) {
+  try {
+    return JSON.parse(readFileSync(referencePath, 'utf8'));
+  } catch (error) {
+    if (error.code === 'ENOENT' && candidateBaseline.sha === INITIAL_BASELINE_SHA) return candidateBaseline;
+    throw error;
+  }
 }
 
 export function runTypechecks(root = repoRoot) {
@@ -78,7 +92,7 @@ export function checkBaseline(root = repoRoot, referenceBaselinePath = null) {
   const candidateBaselinePath = path.join(root, 'ops/lane-c/tsc-baseline.json');
   const baseline = JSON.parse(readFileSync(candidateBaselinePath, 'utf8'));
   const referenceBaseline = referenceBaselinePath
-    ? JSON.parse(readFileSync(referenceBaselinePath, 'utf8'))
+    ? loadReferenceBaseline(referenceBaselinePath, baseline)
     : baseline;
   const actual = runTypechecks(root);
   return {
