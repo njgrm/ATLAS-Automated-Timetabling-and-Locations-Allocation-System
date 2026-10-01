@@ -95,7 +95,7 @@ TESTS: <names and pass counts>   SCREENSHOT: <path>   EVIDENCE: <for any diagnos
 
 ## p06d r2 — readable manual-edit and Faculty status controls
 
-**Base:** `2e0d46f7038a2762a73cea4224b46df6e52b8919` · **Candidate:** pending commit ·
+**Base:** `2e0d46f7038a2762a73cea4224b46df6e52b8919` · **Source candidate:** `bb0f8a22610e3410b451f56ba89aa4f87defff2c` ·
 **Worktree:** `E:\ATLAS-worktrees\lane-timetable-p06d` · **Disposition:** `RETIRE_AFTER_INTEGRATION`
 
 **Changed paths:**
