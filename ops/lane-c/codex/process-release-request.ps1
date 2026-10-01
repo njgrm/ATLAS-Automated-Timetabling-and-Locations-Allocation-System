@@ -12,6 +12,7 @@ $laneRoot = (Resolve-Path -LiteralPath $LaneHome).Path
 $requestPath = Join-Path $laneRoot 'release-request.json'
 $resultPath = Join-Path $laneRoot 'release-result.json'
 $request = Get-Content -LiteralPath $requestPath -Raw | ConvertFrom-Json
+$typecheckResult = $null
 foreach ($field in 'sha', 'train', 'mode') { if (-not $request.$field) { throw "INVALID_RELEASE_REQUEST:missing_$field" } }
 if ($request.sha -notmatch '^[0-9a-f]{40}$' -or "$($request.train)" -notmatch '^[0-9]+$' -or $request.mode -notin @('dry-run', 'release')) { throw 'INVALID_RELEASE_REQUEST:shape' }
 git -C $repo fetch -q origin
@@ -22,6 +23,7 @@ if (@(git -C $integrator status --porcelain).Count) { throw "REFUSED_RELEASE_REQ
 function Write-Receipt([string]$Status, [hashtable]$Extra = @{}) {
   $payload = [ordered]@{ status = $Status; train = "$($request.train)"; sha = $request.sha; mode = $request.mode; completedAt = (Get-Date).ToString('o') }
   foreach ($key in $Extra.Keys) { $payload[$key] = $Extra[$key] }
+  if ($null -ne $typecheckResult) { $payload.typecheck = $typecheckResult }
   [IO.File]::WriteAllText($resultPath, ($payload | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
 }
 function Get-DeclaredSuiteFiles([string]$Where, [string]$ScriptName) {
@@ -136,6 +138,12 @@ try {
   $prepared = ($preparedLines | Where-Object { $_ -match '^\{"sha":' } | Select-Object -Last 1 | ConvertFrom-Json)
   if (-not $prepared.dir) { throw 'RELEASE_PREPARE_RESULT_INVALID' }
   $releaseDir = (Resolve-Path -LiteralPath $prepared.dir).Path
+  $typecheckOutput = & node (Join-Path $releaseDir 'ops\lane-c\codex\typecheck-baseline.mjs') $releaseDir --origin-main
+  $typecheckExit = $LASTEXITCODE
+  try { $typecheckResult = $typecheckOutput | ConvertFrom-Json } catch { throw "TYPECHECK_BASELINE_INVALID_RESULT:$typecheckOutput" }
+  if ($typecheckExit -ne 0 -or @($typecheckResult.unexpected).Count -gt 0 -or @($typecheckResult.baselineAdditions).Count -gt 0) {
+    throw "TYPECHECK_BASELINE_VIOLATION:$(@{ unexpected = @($typecheckResult.unexpected); baselineAdditions = @($typecheckResult.baselineAdditions) } | ConvertTo-Json -Compress -Depth 5)"
+  }
   $suiteFindings = [System.Collections.Generic.List[object]]::new()
   Invoke-DeclaredSuite (Join-Path $releaseDir 'atlas-client') 'test:client-suite' $suiteFindings
   Invoke-DeclaredSuite (Join-Path $releaseDir 'atlas-server') 'test:server-suite' $suiteFindings

@@ -54,8 +54,7 @@ Pre-existing failures are compared against the pinned base and recorded; they ar
    failing test) or is labelled HYPOTHESIS.
 8. **It hits transport or free-tier errors** ("Cannot connect to API", uv_spawn EUNKNOWN). Retry once after 2 min,
    then queue it and tell the operator.
-9. **It chases known noise.** The client has 5 pre-existing tsc errors (playwright imports, truth-labels-a2); packets
-   say not to fix them.
+9. **Typecheck must show no error outside `ops/lane-c/tsc-baseline.json`; the wrappers enforce it.**
 
 ## Packet template (`docs/prompts/v2/<id>.md`)
 ```
@@ -67,7 +66,7 @@ TESTS PIN BEHAVIOUR, NOT WORDING: assert roles, data-testid, counts and state; i
   page's strings module (e.g. `SimpleChangeNotice` exports `changeNoticeSentence`) instead of repeating literals.
   A wording change must be a one-file edit (30 Sep: 3 header tests pinned old copy and blocked train 22).
 FORBIDDEN: reading .env/runtime-config files, deploy, publish, generation or writes on live, other lanes' files,
-  fixing the 5 known client tsc errors.
+  adding baseline errors automatically.
 DONE MEANS: failing test first -> fix -> focused tests + full client/server suite + tsc -> 1366x768 screenshot of the
   changed screen (servers in background with a timeout, stopped after) -> UI packets: follow DESIGN.md, run
   `/impeccable audit <changed files>` and fix what it finds, tick the DESIGN.md section 7 checklist in the report
