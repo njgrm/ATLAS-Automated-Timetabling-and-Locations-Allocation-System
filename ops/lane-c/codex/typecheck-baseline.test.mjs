@@ -34,9 +34,15 @@ function validateIntegrateTests(tests) {
 }
 
 test('integrate request accepts the reviewed Lane-C test path through request validation', () => {
-  const result = validateIntegrateTests(['ops/lane-c/codex/typecheck-baseline.test.mjs']);
-  assert.equal(result.status, 'REJECTED');
-  assert.equal(result.message, 'INTEGRATION_WORKTREE_DIRTY');
+  const dirtyMarker = path.join(repositoryRoot, `.integrate-request-dirty-${process.pid}-${Date.now()}`);
+  writeFileSync(dirtyMarker, 'intentional dirty-worktree fixture\n');
+  try {
+    const result = validateIntegrateTests(['ops/lane-c/codex/typecheck-baseline.test.mjs']);
+    assert.equal(result.status, 'REJECTED');
+    assert.equal(result.message, 'INTEGRATION_WORKTREE_DIRTY');
+  } finally {
+    rmSync(dirtyMarker, { force: true });
+  }
 });
 
 test('integrate request rejects unsafe and non-matching Lane-C test paths', () => {
