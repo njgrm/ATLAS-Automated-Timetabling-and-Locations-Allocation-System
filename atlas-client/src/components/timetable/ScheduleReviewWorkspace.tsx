@@ -160,6 +160,7 @@ export default function ScheduleReviewWorkspace() {
 			() => setTeacherDepartureFacultyId(null),
 			() => setTeacherDepartureFocusedEntryIds(undefined),
 			() => setSimpleDetailsOpen(false),
+			() => state.headerContext?.setSelectedEntry(null),
 			() => state.resetSwapClassTimesState?.(),
 			() => state.setLastAutoSaveUndo?.(null),
 			// B1 — a preview bound to the previous scope must never stay actionable.
