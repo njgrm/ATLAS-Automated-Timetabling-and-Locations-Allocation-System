@@ -24,21 +24,82 @@ function Write-Receipt([string]$Status, [hashtable]$Extra = @{}) {
   foreach ($key in $Extra.Keys) { $payload[$key] = $Extra[$key] }
   [IO.File]::WriteAllText($resultPath, ($payload | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
 }
-function Invoke-DeclaredSuite([string]$Where, [string]$ScriptName) {
+function Get-DeclaredSuiteFiles([string]$Where, [string]$ScriptName) {
   $package = Get-Content -LiteralPath (Join-Path $Where 'package.json') -Raw | ConvertFrom-Json
   $command = [string]$package.scripts.$ScriptName
-  if ($command -notmatch '^tsx --test (.+)$') { throw "RELEASE_SUITE_UNSUPPORTED:$ScriptName" }
-  $tests = @($Matches[1] -split ' ' | Where-Object { $_ -match '\.test\.(ts|tsx|mts)$' })
+  $declared = $null
+  foreach ($mode in @('node --experimental-test-module-mocks --import tsx', 'node --import tsx', 'tsx')) {
+    if ($command -match ('^' + [regex]::Escape($mode) + ' --test (.+)$')) { $declared = $Matches[1]; break }
+  }
+  if (-not $declared) { throw "RELEASE_SUITE_UNSUPPORTED:$ScriptName" }
+  $tests = @($declared -split ' ' | Where-Object { $_ -match '\.test\.(ts|tsx|mts)$' })
   if (-not $tests.Count) { throw "RELEASE_SUITE_EMPTY:$ScriptName" }
+  return , $tests
+}
+function Get-DeclaredMode([string]$Where, [string]$TestFile) {
+  # A file's own package script may require node's module-mock loader. That declared mode is load-bearing for that
+  # file and must survive batching; forcing the suite's runner on it fails with 'mock.module is not a function'.
+  $package = Get-Content -LiteralPath (Join-Path $Where 'package.json') -Raw | ConvertFrom-Json
+  foreach ($property in $package.scripts.PSObject.Properties) {
+    $value = [string]$property.Value
+    if ($value -notmatch '^node --experimental-test-module-mocks --import tsx --test (.+)$') { continue }
+    $files = @($Matches[1] -split ' ' | Where-Object { $_ -match '\.test\.(ts|tsx|mts)$' })
+    if ($files -contains $TestFile) { return 'module-mocks' }
+  }
+  return 'tsx'
+}
+function Invoke-SuiteFile([string]$Where, [string]$TestFile, [string]$Mode) {
+  Push-Location $Where
+  try {
+    if ($Mode -eq 'module-mocks') { & node --experimental-test-module-mocks --import tsx --test $TestFile | Out-Host }
+    else { & (Join-Path $Where 'node_modules\.bin\tsx.cmd') --test $TestFile | Out-Host }
+    return $LASTEXITCODE
+  }
+  finally { Pop-Location }
+}
+function Compare-FailingFileWithLive([string]$Where, [string]$TestFile) {
+  # Classify a suite failure by running that exact file against the live release in its own declared runner mode.
+  # Machine scope is authoritative for runtime identity; the caller's inherited environment is never trusted.
+  $liveSha = [Environment]::GetEnvironmentVariable('ATLAS_RUNTIME_RELEASE_SHA', 'Machine')
+  $liveDir = [Environment]::GetEnvironmentVariable('ATLAS_RUNTIME_SOURCE_DIR', 'Machine')
+  if ($liveSha -notmatch '^[0-9a-f]{40}$' -or -not $liveDir -or -not (Test-Path -LiteralPath $liveDir)) { return "LIVE_BASELINE_UNAVAILABLE:${liveSha}:${liveDir}" }
+  $head = (git -C $liveDir rev-parse HEAD 2>$null)
+  if ($LASTEXITCODE -ne 0 -or "$head".Trim() -ne $liveSha) { return "LIVE_BASELINE_MISMATCH:${liveSha}:$("$head".Trim())" }
+  $livePackage = Join-Path $liveDir (Split-Path -Leaf $Where)
+  if (-not (Test-Path -LiteralPath $livePackage)) { return "LIVE_BASELINE_UNAVAILABLE:${livePackage}" }
+  $liveFile = Join-Path $livePackage ($TestFile -replace '/', '\')
+  if (-not (Test-Path -LiteralPath $liveFile)) { return "NEW(absent-at-live:${liveSha})" }
+  if (-not (Test-Path -LiteralPath (Join-Path $livePackage 'node_modules\.bin\tsx.cmd'))) { return "LIVE_RUNNER_MISSING:${livePackage}" }
+  $liveMode = Get-DeclaredMode $livePackage $TestFile
+  if ((Invoke-SuiteFile $livePackage $TestFile $liveMode) -eq 0) { return "NEW(passes-at-live:${liveMode}:${liveSha})" }
+  return "PRE-EXISTING(fails-at-live:${liveMode}:${liveSha})"
+}
+function Invoke-DeclaredSuite([string]$Where, [string]$ScriptName, [System.Collections.Generic.List[object]]$Ledger) {
+  $tests = Get-DeclaredSuiteFiles $Where $ScriptName
   $tsx = Join-Path $Where 'node_modules\.bin\tsx.cmd'
   if (-not (Test-Path -LiteralPath $tsx)) { throw "RELEASE_SUITE_RUNNER_MISSING:$ScriptName" }
+  $plan = foreach ($test in $tests) { [pscustomobject]@{ file = $test; mode = (Get-DeclaredMode $Where $test) } }
   # The declared suite has outgrown Windows' cmd.exe command-line maximum. Execute every exact listed test in
-  # deterministic small batches, rather than silently shrinking the suite.
-  for ($offset = 0; $offset -lt $tests.Count; $offset += 16) {
-    $last = [Math]::Min($offset + 15, $tests.Count - 1); $batch = @($tests[$offset..$last])
-    Push-Location $Where
-    try { & $tsx --test @batch; if ($LASTEXITCODE -ne 0) { throw "RELEASE_SUITE_FAILED:${ScriptName}:${offset}:$LASTEXITCODE" } }
-    finally { Pop-Location }
+  # deterministic small batches, grouped by the runner mode each file declares, rather than silently shrinking it.
+  foreach ($group in ($plan | Group-Object mode)) {
+    $files = @($group.Group | ForEach-Object { $_.file })
+    for ($offset = 0; $offset -lt $files.Count; $offset += 16) {
+      $last = [Math]::Min($offset + 15, $files.Count - 1); $batch = @($files[$offset..$last])
+      Push-Location $Where
+      try {
+        if ($group.Name -eq 'module-mocks') { & node --experimental-test-module-mocks --import tsx --test @batch }
+        else { & $tsx --test @batch }
+        $exitCode = $LASTEXITCODE
+      }
+      finally { Pop-Location }
+      if ($exitCode -eq 0) { continue }
+      foreach ($test in $batch) {
+        $mode = ($plan | Where-Object { $_.file -eq $test }).mode
+        if ((Invoke-SuiteFile $Where $test $mode) -eq 0) { continue }
+        $Ledger.Add([pscustomobject]@{ suite = $ScriptName; file = $test; declaredMode = $mode; classification = (Compare-FailingFileWithLive $Where $test) })
+      }
+      throw "RELEASE_SUITE_FAILED:${ScriptName}:${offset}:${batch[0]}..${batch[-1]}:$exitCode"
+    }
   }
 }
 function Commit-LiveState([string]$PreparedDir, [string]$Incumbent) {
@@ -75,8 +136,9 @@ try {
   $prepared = ($preparedLines | Where-Object { $_ -match '^\{"sha":' } | Select-Object -Last 1 | ConvertFrom-Json)
   if (-not $prepared.dir) { throw 'RELEASE_PREPARE_RESULT_INVALID' }
   $releaseDir = (Resolve-Path -LiteralPath $prepared.dir).Path
-  Invoke-DeclaredSuite (Join-Path $releaseDir 'atlas-client') 'test:client-suite'
-  Invoke-DeclaredSuite (Join-Path $releaseDir 'atlas-server') 'test:server-suite'
+  $suiteFindings = [System.Collections.Generic.List[object]]::new()
+  Invoke-DeclaredSuite (Join-Path $releaseDir 'atlas-client') 'test:client-suite' $suiteFindings
+  Invoke-DeclaredSuite (Join-Path $releaseDir 'atlas-server') 'test:server-suite' $suiteFindings
   $job = "release-$($request.train)-$($request.sha.Substring(0,8))-1366"; $promptFile = Join-Path $laneRoot "$job.prompt.md"
   $qaPrompt = @"
 Run isolated, read-only rendered QA for Train $($request.train) in $releaseDir. Do not use Tailnet, credentials, or live APIs.
@@ -101,6 +163,8 @@ End final.md with exactly one line: RELEASE_SCREENSHOT: PASS <absolute screensho
   Write-Receipt -Status $task.status -Extra @{ releaseDir = $releaseDir; task = $task; screenshot = ($qaResult | Select-String 'RELEASE_SCREENSHOT:' | Select-Object -Last 1).Line }
   Move-Item -LiteralPath $requestPath -Destination (Join-Path $laneRoot "release-processed-$($request.train)-$(Get-Date -Format yyyyMMdd-HHmmss).json")
 } catch {
-  Write-Receipt -Status 'REFUSED' -Extra @{ reason = $_.Exception.Message }
+  $extra = @{ reason = $_.Exception.Message }
+  if ($suiteFindings -and $suiteFindings.Count) { $extra.suiteFindings = @($suiteFindings) }
+  Write-Receipt -Status 'REFUSED' -Extra $extra
   throw
 }
