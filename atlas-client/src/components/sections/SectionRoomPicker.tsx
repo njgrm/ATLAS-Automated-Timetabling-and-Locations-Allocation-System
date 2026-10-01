@@ -685,8 +685,8 @@ export function SectionRoomPicker({
 					 *    off the window edge. If there is genuinely no room below, Radix
 					 *    still flips — that is the correct last resort, and it is now
 					 *    rare instead of the common case for the first rows.
-					 *  - the fixed height became `max-h-[min(25rem,
-					 *    var(--radix-popover-content-available-height))]`, the pattern
+					 *  - the fixed height became a cap based on the smaller of 25rem
+					 *    and the popover's available height, the pattern
 					 *    `ui/searchable-select.tsx` already uses in this repo, so the
 					 *    body SHRINKS to the space below instead of overflowing and
 					 *    flipping. `overflow-hidden` on the body keeps the

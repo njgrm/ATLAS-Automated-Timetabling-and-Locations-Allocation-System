@@ -634,7 +634,7 @@ test('R3 control: the measured cap is applied as a DEFINITE height, not only a m
 	// the other 76 except through the search box.
 	//
 	// The cause is R1's own change, and the mechanism is worth stating exactly: the
-	// body went from `h-100` (a definite height) to `max-h-[min(25rem,var(…))]`
+	// body went from a definite 25rem height to a maximum height that can shrink
 	// (a maximum). With a definite height the flex column resolves `flex-1` on the
 	// ScrollArea root against a known size, so the viewport collapses to the space
 	// that is actually there and scrolls. With only a maximum the container's
