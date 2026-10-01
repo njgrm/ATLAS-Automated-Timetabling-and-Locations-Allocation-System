@@ -1,0 +1,15 @@
+{
+  "sha": "fdae67ec64a4713d7c5c2446e03c25c29ddf704f",
+  "commands": [
+    "(atlas-client) npm run typecheck",
+    "(atlas-server) npm run build -- --pretty false"
+  ],
+  "errors": [
+    {
+      "file": "atlas-client/src/lib/__tests__/timetable-truth-labels-a2.test.ts",
+      "line": 524,
+      "code": "TS2367",
+      "message": "This comparison appears to be unintentional because the types '3' and '1' have no overlap."
+    }
+  ]
+}

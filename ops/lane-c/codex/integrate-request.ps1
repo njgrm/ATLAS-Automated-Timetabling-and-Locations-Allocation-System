@@ -8,6 +8,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $requestPath = Join-Path $LaneHome 'integrate-request.json'
 $resultPath = Join-Path $LaneHome 'integrate-result.json'
+$typecheckResult = $null
 
 function Write-Result([string]$status, [string]$message, [string]$head = '') {
   $result = [ordered]@{
@@ -15,8 +16,10 @@ function Write-Result([string]$status, [string]$message, [string]$head = '') {
     status = $status
     message = $message
     head = $head
-  } | ConvertTo-Json -Depth 4
-  [IO.File]::WriteAllText($resultPath, $result + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
+  }
+  if ($null -ne $typecheckResult) { $result.typecheck = $typecheckResult }
+  $json = $result | ConvertTo-Json -Depth 8
+  [IO.File]::WriteAllText($resultPath, $json + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
 }
 
 function Stop-Request([string]$message) {
@@ -84,6 +87,12 @@ try {
     if (-not (Test-Path -LiteralPath $tsx)) { throw 'SERVER_TEST_RUNNER_MISSING' }
     Push-Location (Join-Path $IntegrationRepo 'atlas-server')
     try { & $tsx --test @serverTests; if ($LASTEXITCODE -ne 0) { throw "SERVER_TESTS_FAILED:$LASTEXITCODE" } } finally { Pop-Location }
+  }
+  $typecheckOutput = & node (Join-Path $IntegrationRepo 'ops\lane-c\codex\typecheck-baseline.mjs') $IntegrationRepo (Join-Path $Repo 'ops\lane-c\tsc-baseline.json')
+  $typecheckExit = $LASTEXITCODE
+  try { $typecheckResult = $typecheckOutput | ConvertFrom-Json } catch { throw "TYPECHECK_BASELINE_INVALID_RESULT:$typecheckOutput" }
+  if ($typecheckExit -ne 0 -or @($typecheckResult.unexpected).Count -gt 0 -or @($typecheckResult.baselineAdditions).Count -gt 0) {
+    throw "TYPECHECK_BASELINE_VIOLATION:$(@{ unexpected = @($typecheckResult.unexpected); baselineAdditions = @($typecheckResult.baselineAdditions) } | ConvertTo-Json -Compress -Depth 5)"
   }
   git -C $IntegrationRepo diff --check
   if ($LASTEXITCODE -ne 0) { throw 'MERGE_DIFF_CHECK_FAILED' }

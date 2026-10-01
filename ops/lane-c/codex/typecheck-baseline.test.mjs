@@ -1,0 +1,27 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { compareDiagnosticsToBaseline, findBaselineAdditions, normalizeDiagnostics } from './typecheck-baseline.mjs';
+
+test('normalizes Windows paths and sorts diagnostics into stable records', () => {
+  const result = normalizeDiagnostics([
+    'src\\z.test.ts(8,2): error TS2345: Later issue',
+    'src\\a.test.ts(3,4): error TS2367: First issue',
+  ].join('\n'), 'atlas-client');
+  assert.deepEqual(result, [
+    { file: 'atlas-client/src/a.test.ts', line: 3, code: 'TS2367', message: 'First issue' },
+    { file: 'atlas-client/src/z.test.ts', line: 8, code: 'TS2345', message: 'Later issue' },
+  ]);
+});
+
+test('allows exact baseline errors and rejects any new normalized error', () => {
+  const baseline = [{ file: 'atlas-client/src/a.test.ts', line: 3, code: 'TS2367', message: 'First issue' }];
+  const actual = [...baseline, { file: 'atlas-server/src/new.ts', line: 9, code: 'TS9999', message: 'New issue' }];
+  assert.deepEqual(compareDiagnosticsToBaseline(actual, baseline), [actual[1]]);
+});
+
+test('rejects added baseline entries while permitting removals', () => {
+  const reference = [{ file: 'atlas-client/src/a.test.ts', line: 3, code: 'TS2367', message: 'First issue' }];
+  const candidate = [...reference, { file: 'atlas-server/src/new.ts', line: 9, code: 'TS9999', message: 'New issue' }];
+  assert.deepEqual(findBaselineAdditions(candidate, reference), [candidate[1]]);
+  assert.deepEqual(findBaselineAdditions([], reference), []);
+});
