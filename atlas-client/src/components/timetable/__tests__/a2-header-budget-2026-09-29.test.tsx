@@ -626,6 +626,7 @@ function blockedContext(base: Record<string, unknown>): Record<string, unknown> 
 			diagnostic: {
 				generateAllowed: false,
 				zeroWrite: true,
+				blockerCount: BLOCKER_TOTAL,
 				blockers: Array.from({ length: BLOCKER_TOTAL }, (_, index) => engineBlocker(index)),
 			},
 			repair: { kind: 'navigate', href: '/teaching-load', label: 'Fix teaching load' },
