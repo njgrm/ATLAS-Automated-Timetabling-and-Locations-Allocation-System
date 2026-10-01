@@ -1,5 +1,17 @@
 # Running space-bunny-free planners (read with MANAGER.md)
 
+## p06c r2 layout note — before code
+
+For the older, mouse-first scheduler, keep the current warning and publish summary footprints. Replace the placeholder warning's raw code/identity details with one short title and actionable plain meaning in the existing violation presentation map. In the blocked summary, replace the unresolved-count clause with `N classes need a time slot before this schedule can be published`; retain the existing Must-fix clause when hard problems also block publication. Add no visible lines, chips, or controls. Leave run/term authority and the zero-HARD publication gate untouched.
+
+### p06c r2 handoff
+
+Base `05ba2078e302414bed004c442b6bd4635d709fb2`; branch `work/lane-timetable-p06c`; disposition `RETIRE_AFTER_INTEGRATION`. The placeholder warning now has a plain title, meaning, and action in the existing presentation map; warning rows without a supplied formatter use the existing identity and weekday cleanup. Publish readiness now reuses `classesNeedingTime` for unresolved counts in unresolved-only and mixed hard/unresolved states. No term, run, or publication authority changed.
+
+Checks: `npx tsx --test src/lib/__tests__/warning-readability-c01.test.ts src/lib/__tests__/tt-warning-surface-realism-c07b.test.ts` — 64/64; `npm run test:a2-timetable-truth-labels` — 35/35; `npm run build` — passed with `ISOLATED_LOCAL_BROWSER=1`, `VITE_ATLAS_API=http://127.0.0.1:5101`, and the required `VITE_ENROLLPRO_URL`. `git diff --check` — passed. Typecheck was attempted and reported the map key error (fixed afterward) plus missing `playwright` modules in three pre-existing test files and one implicit-any diagnostic caused by that missing module; it was not rerun.
+
+Rendered component tests assert the changed warning and unresolved-only/mixed publish sentences. **BLOCKING:** the required 1366×768 loopback screenshot was not captured: the local headless-browser launch was rejected by command execution policy. No screenshot is claimed. Independent visual judgement remains outstanding. Candidate is committed additively; do not integrate until that visual evidence is available.
+
 Planners, executors and QA in `.opencode/agents` pin `opencode-go/space-bunny-free` (variant high; steps 400/300/150).
 The `opencode.json` default is `deepseek-v4.1-flash`: ALWAYS pass `-Agent atlas-planner` or `-Agent atlas-executor`.
 No agent, or a `-ds` agent, silently runs DeepSeek; the default `build` agent is refused by the provider.

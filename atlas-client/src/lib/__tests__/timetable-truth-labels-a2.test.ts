@@ -514,18 +514,13 @@ test('item 4 the publish-checklist resolver says "class" everywhere, never "sess
 		assert.doesNotMatch(literal, /\bsessions?\b/i, `"${literal}" must use the one noun`);
 	}
 	// And the two sentences the finding named, by their new text.
-	assert.match(readiness, /blockerClauses\.push\(\s*`\$\{totalUnresolved\} \$\{totalUnresolved === 1 \? CLASS_NOUN/, 'the unresolved clause is a countable noun phrase built from the one shared noun');
+	assert.match(readiness, /classesNeedingTime\(totalUnresolved\)/, 'the blocked summary uses the canonical class/time-slot wording');
 	assert.match(readiness, /problems or classes without a time remain\./, 'and the clean branch names classes, not sessions');
-	assert.match(readiness, /import \{ CLASS_NOUN, mustFixProblemCountLabel/, 'the resolver imports the shared noun');
-	// And the sentence it composes is grammatical: one clause, one verb. The
-	// pre-fix shape of this row's own template plus a second verb produced
-	// "3 classes still need a time still need fixing", which is the same defect
-	// the finding named in the publish dialog.
-	const oneNounClause = `${3} ${3 === 1 ? CLASS_NOUN : `${CLASS_NOUN}es`} needing a time slot`;
+	assert.match(readiness, /import \{ CLASS_NOUN, classesNeedingTime, mustFixProblemCountLabel/, 'the resolver imports the shared count wording');
 	assert.equal(
-		`${oneNounClause} still need fixing before this schedule can be published.`,
-		'3 classes needing a time slot still need fixing before this schedule can be published.',
-		'the clause is a noun phrase the sentence template can finish, with no doubled verb',
+		`${classesNeedingTime(3)} before this schedule can be published.`,
+		'3 classes need a time slot before this schedule can be published.',
+		'the blocked sentence says what needs placement and why publishing is blocked',
 	);
 });
 

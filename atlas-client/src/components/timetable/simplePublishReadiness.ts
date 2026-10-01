@@ -1,5 +1,5 @@
 import type { DraftReport, ScheduledEntry, UnassignedItem, UnassignedReason, Violation } from '@/types';
-import { CLASS_NOUN, mustFixProblemCountLabel, MUST_FIX_LABEL, UNLABELLED_RULE_SENTENCE } from '@/lib/timetable-plain-language';
+import { CLASS_NOUN, classesNeedingTime, mustFixProblemCountLabel, MUST_FIX_LABEL, UNLABELLED_RULE_SENTENCE } from '@/lib/timetable-plain-language';
 import { NO_SECTION_ON_RECORD, NO_SUBJECT_ON_RECORD, resolveViolationEntityIdentity } from '@/lib/timetable-violation-identity';
 
 export type BlockerReason =
@@ -759,27 +759,14 @@ export function deriveSimplePublishReadiness(
 		// spoken once.
 		blockerClauses.push(mustFixProblemCountLabel(totalHardBlockers));
 	}
-	if (totalUnresolved > 0) {
-		/* A2-UX-WIRE-C2 (item 4) — the ONE noun, as a clause this sentence can carry.
-		 *
-		 * This clause used to build its own count phrase, `${n} unresolved session(s)`,
-		 * so the publish checklist named the population in a second vocabulary AND
-		 * with a banned "(s)" form. The noun now comes from the copy module's
-		 * `CLASS_NOUN`, so the checklist, the publish dialog and the generation
-		 * outcome cannot drift into three ways of saying one number.
-		 *
-		 * It is a COUNTABLE NOUN PHRASE, not `classesNeedingTime(n)`: the sentence
-		 * template below already supplies the verb ("… still need(s) fixing"), so
-		 * composing a second clause here produced "3 classes still need a time still
-		 * need fixing" — the same two-verbs-on-one-clause defect the finding named.
-		 * "3 classes needing a time" is a noun phrase the template can finish. */
-		blockerClauses.push(
-			`${totalUnresolved} ${totalUnresolved === 1 ? CLASS_NOUN : `${CLASS_NOUN}es`} needing a time slot`,
-		);
-	}
-	const blockerSentence = blockerClauses.length === 0
-		? ''
-		: `${blockerClauses.join(' and ')} ${totalHardBlockers + totalUnresolved === 1 ? 'still needs fixing' : 'still need fixing'} before this schedule can be published.`;
+	const unresolvedClause = totalUnresolved > 0 ? classesNeedingTime(totalUnresolved) : '';
+	const blockerSentence = totalHardBlockers > 0 && unresolvedClause
+		? `${blockerClauses[0]} and ${unresolvedClause} before this schedule can be published.`
+		: totalHardBlockers > 0
+			? `${blockerClauses[0]} ${totalHardBlockers === 1 ? 'still needs' : 'still need'} fixing before this schedule can be published.`
+			: unresolvedClause
+				? `${unresolvedClause} before this schedule can be published.`
+				: '';
 
 	let summaryText: string;
 	if (!draft) {

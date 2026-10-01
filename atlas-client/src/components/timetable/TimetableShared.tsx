@@ -3,6 +3,7 @@ import type { ElementType, ReactNode } from 'react';
 
 import type { Violation, ViolationCode } from '@/types';
 import { MUST_FIX_LABEL } from '@/lib/timetable-plain-language';
+import { formatIdentityFallbackText, formatWarningMessageText } from '@/lib/violation-presentation';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/ui/accordion';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -163,7 +164,9 @@ export function ViolationGroup({
 						</p>
 						{visibleViolations.map((v, i) => {
 							const isSelected = selectedViolation === v;
-							const formattedMessage = formatConstraintMessage ? formatConstraintMessage(v.message, v) : v.message;
+							const formattedMessage = formatConstraintMessage
+								? formatConstraintMessage(v.message, v)
+								: formatWarningMessageText(formatIdentityFallbackText(v.message));
 							const relatedMessages = Array.isArray(v.meta?.relatedMessages)
 								? v.meta.relatedMessages.filter((message): message is string => typeof message === 'string')
 								: [];
