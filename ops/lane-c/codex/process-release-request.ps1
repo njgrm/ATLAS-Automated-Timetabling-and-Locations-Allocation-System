@@ -52,7 +52,12 @@ function Commit-LiveState([string]$PreparedDir, [string]$Incumbent) {
 }
 
 try {
-  $preparedLines = & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repo 'ops\runtime\release\release-prepare.ps1') -Sha $request.sha 2>&1
+  # npm may write advisory warnings to stderr while succeeding. Preserve them in the receipt log, but decide this
+  # native step only from its exit code rather than turning a warning record into a terminating PowerShell error.
+  $previousPreference = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try { $preparedLines = & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repo 'ops\runtime\release\release-prepare.ps1') -Sha $request.sha 2>&1 }
+  finally { $ErrorActionPreference = $previousPreference }
   $preparedLines | Out-Host
   if ($LASTEXITCODE -ne 0) { throw 'RELEASE_PREPARE_FAILED' }
   $prepared = ($preparedLines | Where-Object { $_ -match '^\{"sha":' } | Select-Object -Last 1 | ConvertFrom-Json)
