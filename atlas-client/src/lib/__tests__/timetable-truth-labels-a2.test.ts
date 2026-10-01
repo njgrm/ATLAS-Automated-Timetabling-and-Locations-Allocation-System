@@ -353,7 +353,7 @@ test('#43 MEASURED: the dialog has one close control, and a visible cue beside t
 	// The duplicate control: `DialogContent` renders its own unlabelled `X`, so a
 	// dialog that also has a real `Cancel` had two controls for one action. Exactly
 	// one of the two survives.
-	const generateContent = dialogs.match(/<DialogContent className="sm:max-w-md" hideClose data-testid="timetable-generate-confirm-dialog">/);
+	const generateContent = dialogs.match(/<DialogContent\b(?=[^>]*\bclassName="sm:max-w-md")(?=[^>]*\bhideClose)(?=[^>]*\bdata-testid="timetable-generate-confirm-dialog")[^>]*>/);
 	assert.ok(generateContent, 'the generate dialog keeps exactly one real, labelled close');
 	// A `Cancel` in the same dialog is the affordance that is kept.
 	assert.match(dialogs, /<Button variant="outline" onClick=\{\(\) => onOpenChange\(false\)\}>Cancel<\/Button>/, 'Cancel is the one close');
@@ -1173,5 +1173,6 @@ test('ADOPTED (was DEPENDENCY): the SERVER generation notification carries the p
 	assert.doesNotMatch(builder, /run #/, 'no run id in the user-facing message');
 	assert.doesNotMatch(generation, /Generation run #\$\{run\.id\} started\./, '#58: the second "started" message for the same action is gone');
 	// The zero claim must be truthful, not a hard-coded success.
-	assert.match(builder, /!Number\.isFinite\(unplacedCount\)/, 'an unmeasured count never claims everything is placed');
+	const implementation = generation.slice(builderStart);
+	assert.match(implementation, /if \(!Number\.isFinite\(unplacedCount\) \|\| unplacedCount < 0\)\s*\{\s*return 'New schedule ready\.';/, 'an unmeasured count never claims everything is placed');
 });
