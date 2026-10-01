@@ -31,6 +31,7 @@ import {
 	availabilityRecordToPickerSlots,
 	concernApiErrorMessage,
 	fetchConcernFaculty,
+	fetchSchedulerWellbeing,
 	fetchConcernRoomOptions,
 	fetchConcernRoomState,
 	fetchFacultyAvailability,
@@ -38,15 +39,18 @@ import {
 	pickerSlotsToAvailability,
 	previewConcernRoomRequest,
 	saveAndBindAvailability,
+	saveSchedulerWellbeing,
 	saveConcernRoomDraft,
 	submitConcernRoom,
 	type AvailabilityPickerSlot,
+	type SchedulerWellbeingFlags,
 } from '@/components/faculty-shared/teacher-concern-client';
 import { composeConcernNotes, concernSaveStateLabel, concernSaveStateTone, bindConcernTermResolution, describeSavedConcern, parseConcernNotes, resolveConcernSaveAvailability, type ConcernYearResolution } from '@/components/faculty-shared/teacher-concern-helpers';
 import type { ConcernRoomDraft } from '@/components/faculty-shared/TeacherConcernWorkspace';
 import type { RoomOption } from '@/components/sections/SectionRoomPicker';
 import RunAvailabilityDriftCard from '@/components/faculty-shared/RunAvailabilityDriftCard';
 import TeacherConcernWorkspace from '@/components/faculty-shared/TeacherConcernWorkspace';
+import WellbeingNeed from '@/components/faculty-preferences/WellbeingNeed';
 
 function facultyLabel(faculty: FacultyMirror): string {
 	const name = [faculty.lastName, faculty.firstName].filter(Boolean).join(', ');
@@ -56,6 +60,12 @@ function facultyLabel(faculty: FacultyMirror): string {
 function isCurrentEpoch(token: string | null, epoch: number): boolean {
 	return getPreferredAccessToken() === token && getAtlasTokenEpochVersion() === epoch;
 }
+
+const EMPTY_WELLBEING: SchedulerWellbeingFlags = {
+	avoidUpperFloors: false,
+	pregnancySupport: false,
+	physicalAilmentSupport: false,
+};
 
 /**
  * A3 c15 — Teacher Preferences is the ONE page a scheduler fills while talking
@@ -86,6 +96,8 @@ export default function TeacherConcerns() {
 	const [faculty, setFaculty] = useState<FacultyMirror[]>([]);
 	const [facultyError, setFacultyError] = useState<string | null>(null);
 	const [selectedFacultyId, setSelectedFacultyId] = useState<number | null>(null);
+	const [wellbeingByFaculty, setWellbeingByFaculty] = useState<Record<number, SchedulerWellbeingFlags>>({});
+	const [wellbeingSaving, setWellbeingSaving] = useState(false);
 
 	const [availability, setAvailability] = useState<Awaited<ReturnType<typeof fetchFacultyAvailability>>>(null);
 	const [pickerSlots, setPickerSlots] = useState<AvailabilityPickerSlot[]>([]);
@@ -226,6 +238,19 @@ export default function TeacherConcerns() {
 			cancelled = true;
 		};
 	}, [actorSchoolId]);
+
+	useEffect(() => {
+		if (actorSchoolId == null || schoolYearId == null || faculty.length === 0) { setWellbeingByFaculty({}); return; }
+		let cancelled = false;
+		const token = getPreferredAccessToken();
+		const epoch = getAtlasTokenEpochVersion();
+		Promise.all(faculty.map(async (teacher) => [teacher.id, await fetchSchedulerWellbeing({ schoolId: actorSchoolId, schoolYearId, facultyId: teacher.id }).catch(() => null)] as const))
+			.then((rows) => {
+				if (cancelled || !isCurrentEpoch(token, epoch)) return;
+				setWellbeingByFaculty(Object.fromEntries(rows.filter((row): row is readonly [number, SchedulerWellbeingFlags] => row[1] != null)));
+			});
+		return () => { cancelled = true; };
+	}, [actorSchoolId, schoolYearId, faculty]);
 
 	/* ── Room options: the SAME read the Sections room picker uses, so the
 	 *   control is identical on both pages rather than a local variant. ── */
@@ -397,9 +422,17 @@ export default function TeacherConcerns() {
 	});
 	const writesDisabled = saveAvailability.writesDisabled;
 	const facultyOptions = useMemo(
-		() => faculty.map((entry) => ({ value: String(entry.id), label: facultyLabel(entry) })),
-		[faculty],
+		() => faculty.map((entry) => ({ value: String(entry.id), label: `${facultyLabel(entry)}${wellbeingByFaculty[entry.id]?.avoidUpperFloors ? ' · Ground floor' : ''}` })),
+		[faculty, wellbeingByFaculty],
 	);
+	const saveWellbeing = async (flags: SchedulerWellbeingFlags) => {
+		if (actorSchoolId == null || schoolYearId == null || selectedFacultyId == null) throw new Error('Teacher scope unavailable');
+		setWellbeingSaving(true);
+		try {
+			await saveSchedulerWellbeing({ schoolId: actorSchoolId, schoolYearId, facultyId: selectedFacultyId }, flags);
+			setWellbeingByFaculty((current) => ({ ...current, [selectedFacultyId]: flags }));
+		} finally { setWellbeingSaving(false); }
+	};
 
 	/**
 	 * A5-C2A — one action that re-runs BOTH the term resolution and the concern
@@ -758,6 +791,12 @@ export default function TeacherConcerns() {
 									saveDisabledReason={saveAvailability.reason}
 								/>
 							)}
+							<WellbeingNeed
+								flags={wellbeingByFaculty[selectedFacultyId] ?? EMPTY_WELLBEING}
+								saving={wellbeingSaving}
+								onSave={saveWellbeing}
+								onUndo={saveWellbeing}
+							/>
 							<RunAvailabilityDriftCard inputState={inputState} facultyName={selectedFaculty ? facultyLabel(selectedFaculty) : null} />
 						</>
 					) : (

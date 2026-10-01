@@ -9,7 +9,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import { extractSseToken } from '../middleware/authenticate.js';
-import { requirePrivilegedRole } from '../middleware/authorize.js';
+import { assertRequestSchoolScope, requirePrivilegedRole } from '../middleware/authorize.js';
 import jwt from 'jsonwebtoken';
 import * as prefService from '../services/preference.service.js';
 import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-identity.service.js';
@@ -301,6 +301,39 @@ router.get(
 // ─── Officer: seed preferences (idempotent) ───
 
 const PRIVILEGED_ROLES = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
+
+router.patch(
+	'/:schoolId/:schoolYearId/faculty/:facultyId/wellbeing',
+	authenticate,
+	requirePrivilegedRole,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			const facultyId = positiveInt(req.params.facultyId, 'facultyId');
+			if (typeof schoolId === 'string' || typeof schoolYearId === 'string' || typeof facultyId === 'string') {
+				const message = [schoolId, schoolYearId, facultyId].find((value) => typeof value === 'string');
+				res.status(400).json({ code: 'INVALID_PARAM', message });
+				return;
+			}
+			if (!assertRequestSchoolScope(req, res, schoolId)) return;
+			const expected = ['avoidUpperFloors', 'pregnancySupport', 'physicalAilmentSupport'];
+			const body = req.body;
+			if (!body || typeof body !== 'object' || Array.isArray(body) ||
+				Object.keys(body).length !== expected.length ||
+				expected.some((key) => typeof body[key] !== 'boolean')) {
+				res.status(400).json({ code: 'INVALID_BODY', message: 'Provide exactly avoidUpperFloors, pregnancySupport, and physicalAilmentSupport as booleans.' });
+				return;
+			}
+			const preference = await prefService.updateSchedulerWellbeing(schoolId, schoolYearId, facultyId, {
+				avoidUpperFloors: body.avoidUpperFloors,
+				pregnancySupport: body.pregnancySupport,
+				physicalAilmentSupport: body.physicalAilmentSupport,
+			});
+			res.json({ preference });
+		} catch (error) { next(error); }
+	},
+);
 
 router.post(
 	'/:schoolId/:schoolYearId/seed',

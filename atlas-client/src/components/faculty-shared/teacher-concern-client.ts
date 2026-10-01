@@ -298,6 +298,47 @@ export type ConcernRoomDraftInput = ConcernRoomScope & {
 	requestVersion: number | null;
 };
 
+export type SchedulerWellbeingFlags = {
+	avoidUpperFloors: boolean;
+	pregnancySupport: boolean;
+	physicalAilmentSupport: boolean;
+};
+
+export type WellbeingReason = 'pregnancy' | 'injury' | 'other' | null;
+
+export function wellbeingReasonFlags(reason: WellbeingReason): SchedulerWellbeingFlags {
+	return {
+		avoidUpperFloors: reason != null,
+		pregnancySupport: reason === 'pregnancy',
+		physicalAilmentSupport: reason === 'injury',
+	};
+}
+
+export async function saveSchedulerWellbeing(
+	scope: ConcernRoomScope & { facultyId: number },
+	flags: SchedulerWellbeingFlags,
+	transport?: ConcernTransport,
+): Promise<{ preference: SchedulerWellbeingFlags }> {
+	const api = resolveTransport(transport);
+	const path = `/preferences/${assertConcernScopeId(scope.schoolId, 'schoolId')}/${assertConcernScopeId(scope.schoolYearId, 'schoolYearId')}/faculty/${assertConcernScopeId(scope.facultyId, 'facultyId')}/wellbeing`;
+	const { data } = await api.patch<{ preference: SchedulerWellbeingFlags }>(path, flags);
+	return data;
+}
+
+export async function fetchSchedulerWellbeing(
+	scope: ConcernRoomScope & { facultyId: number },
+	transport?: ConcernTransport,
+): Promise<SchedulerWellbeingFlags> {
+	const api = resolveTransport(transport);
+	const path = `/preferences/${assertConcernScopeId(scope.schoolId, 'schoolId')}/${assertConcernScopeId(scope.schoolYearId, 'schoolYearId')}/faculty/${assertConcernScopeId(scope.facultyId, 'facultyId')}`;
+	const { data } = await api.get<{ preference?: SchedulerWellbeingFlags | null }>(path);
+	return {
+		avoidUpperFloors: data.preference?.avoidUpperFloors === true,
+		pregnancySupport: data.preference?.pregnancySupport === true,
+		physicalAilmentSupport: data.preference?.physicalAilmentSupport === true,
+	};
+}
+
 function concernRoomDraftBody(input: ConcernRoomDraftInput) {
 	return {
 		requestedRoomId: assertConcernScopeId(input.requestedRoomId, 'requestedRoomId'),

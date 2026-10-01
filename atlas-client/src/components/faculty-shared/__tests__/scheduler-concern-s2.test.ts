@@ -30,6 +30,8 @@ import {
 	reviewFacultyAvailability,
 	saveFacultyAvailabilityDraft,
 	submitFacultyAvailability,
+	saveSchedulerWellbeing,
+	wellbeingReasonFlags,
 	type ConcernTransport,
 } from '../teacher-concern-client';
 import {
@@ -161,6 +163,15 @@ function recordingTransport(response: unknown, calls: RecordedCall[]): ConcernTr
 	};
 	return transport as unknown as ConcernTransport;
 }
+
+test('wellbeing reasons map to one existing flag pair and save only through scheduler PATCH', async () => {
+	assert.deepEqual(wellbeingReasonFlags('pregnancy'), { avoidUpperFloors: true, pregnancySupport: true, physicalAilmentSupport: false });
+	assert.deepEqual(wellbeingReasonFlags('injury'), { avoidUpperFloors: true, pregnancySupport: false, physicalAilmentSupport: true });
+	assert.deepEqual(wellbeingReasonFlags('other'), { avoidUpperFloors: true, pregnancySupport: false, physicalAilmentSupport: false });
+	const calls: RecordedCall[] = [];
+	await saveSchedulerWellbeing({ schoolId: 3, schoolYearId: 9, facultyId: 11 }, wellbeingReasonFlags('other'), recordingTransport({}, calls));
+	assert.deepEqual(calls, [{ method: 'patch', url: '/preferences/3/9/faculty/11/wellbeing', data: wellbeingReasonFlags('other') }]);
+});
 
 const RECORD: FacultyAvailabilityRecord = {
 	id: 7,

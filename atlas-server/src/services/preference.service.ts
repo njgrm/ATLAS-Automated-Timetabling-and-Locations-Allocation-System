@@ -15,6 +15,7 @@ import { prisma } from '../lib/prisma.js';
 import type { DayOfWeek, TimeSlotPreference, PreferenceStatus, ReviewStatus } from '@prisma/client';
 import { publishPreferenceEvent } from './preference-events.service.js';
 import { resolveCanonicalFacultyMirror } from './faculty-identity.service.js';
+import { getDataContext } from '../lib/data-context.js';
 
 // ─── Types ───
 
@@ -46,6 +47,12 @@ export interface SubmitInput extends SaveDraftInput {
 	version: number;
 }
 
+export type SchedulerWellbeingFlags = {
+	avoidUpperFloors: boolean;
+	pregnancySupport: boolean;
+	physicalAilmentSupport: boolean;
+};
+
 interface ServiceError {
 	statusCode: number;
 	code: string;
@@ -54,6 +61,31 @@ interface ServiceError {
 
 function err(statusCode: number, code: string, message: string): ServiceError {
 	return Object.assign(new Error(message), { statusCode, code });
+}
+
+/** Update only the three scheduler-managed wellbeing flags. */
+export async function updateSchedulerWellbeing(
+	schoolId: number,
+	schoolYearId: number,
+	facultyId: number,
+	flags: SchedulerWellbeingFlags,
+) {
+	const db = getDataContext<typeof prisma>();
+	return db.facultyPreference.upsert({
+		where: { schoolId_schoolYearId_facultyId: { schoolId, schoolYearId, facultyId } },
+		update: flags,
+		create: {
+			schoolId,
+			schoolYearId,
+			facultyId,
+			status: 'DRAFT',
+			notes: null,
+			submittedAt: null,
+			version: 1,
+			...flags,
+		},
+		include: { timeSlots: { orderBy: [{ day: 'asc' }, { startTime: 'asc' }] } },
+	});
 }
 
 // ─── Lifecycle guard ───
