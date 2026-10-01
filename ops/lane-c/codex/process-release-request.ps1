@@ -138,7 +138,7 @@ try {
   $prepared = ($preparedLines | Where-Object { $_ -match '^\{"sha":' } | Select-Object -Last 1 | ConvertFrom-Json)
   if (-not $prepared.dir) { throw 'RELEASE_PREPARE_RESULT_INVALID' }
   $releaseDir = (Resolve-Path -LiteralPath $prepared.dir).Path
-  $typecheckOutput = & node (Join-Path $releaseDir 'ops\lane-c\codex\typecheck-baseline.mjs') $releaseDir (Join-Path $repo 'ops\lane-c\tsc-baseline.json')
+  $typecheckOutput = & node (Join-Path $releaseDir 'ops\lane-c\codex\typecheck-baseline.mjs') $releaseDir --origin-main
   $typecheckExit = $LASTEXITCODE
   try { $typecheckResult = $typecheckOutput | ConvertFrom-Json } catch { throw "TYPECHECK_BASELINE_INVALID_RESULT:$typecheckOutput" }
   if ($typecheckExit -ne 0 -or @($typecheckResult.unexpected).Count -gt 0 -or @($typecheckResult.baselineAdditions).Count -gt 0) {

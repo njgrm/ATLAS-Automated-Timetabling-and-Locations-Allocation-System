@@ -53,13 +53,18 @@ export function findBaselineAdditions(candidateErrors, referenceErrors) {
   return compareDiagnosticsToBaseline(candidateErrors, referenceErrors);
 }
 
-export function loadReferenceBaseline(referencePath, candidateBaseline) {
-  try {
-    return JSON.parse(readFileSync(referencePath, 'utf8'));
-  } catch (error) {
-    if (error.code === 'ENOENT' && candidateBaseline.sha === INITIAL_BASELINE_SHA) return candidateBaseline;
-    throw error;
+export function loadOriginMainBaseline(root, candidateBaseline) {
+  const revision = spawnSync('git', ['-C', root, 'rev-parse', '--verify', 'origin/main^{commit}'], { encoding: 'utf8' });
+  if (revision.status !== 0) throw new Error(`Cannot resolve origin/main: ${revision.stderr.trim()}`);
+  const baselineSpec = 'origin/main:ops/lane-c/tsc-baseline.json';
+  const exists = spawnSync('git', ['-C', root, 'cat-file', '-e', baselineSpec], { encoding: 'utf8' });
+  if (exists.status !== 0) {
+    if (candidateBaseline.sha === INITIAL_BASELINE_SHA) return candidateBaseline;
+    throw new Error(`Typecheck baseline is missing at ${baselineSpec}`);
   }
+  const baseline = spawnSync('git', ['-C', root, 'show', baselineSpec], { encoding: 'utf8' });
+  if (baseline.status !== 0) throw new Error(`Cannot read ${baselineSpec}: ${baseline.stderr.trim()}`);
+  return JSON.parse(baseline.stdout);
 }
 
 export function runTypechecks(root = repoRoot) {
@@ -88,11 +93,11 @@ export function runTypechecks(root = repoRoot) {
   return { commandResults, errors: errors.sort(compareDiagnostics) };
 }
 
-export function checkBaseline(root = repoRoot, referenceBaselinePath = null) {
+export function checkBaseline(root = repoRoot, useOriginMain = false) {
   const candidateBaselinePath = path.join(root, 'ops/lane-c/tsc-baseline.json');
   const baseline = JSON.parse(readFileSync(candidateBaselinePath, 'utf8'));
-  const referenceBaseline = referenceBaselinePath
-    ? loadReferenceBaseline(referenceBaselinePath, baseline)
+  const referenceBaseline = useOriginMain
+    ? loadOriginMainBaseline(root, baseline)
     : baseline;
   const actual = runTypechecks(root);
   return {
@@ -108,7 +113,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   try {
     const result = checkBaseline(
       process.argv[2] ? path.resolve(process.argv[2]) : repoRoot,
-      process.argv[3] ? path.resolve(process.argv[3]) : null,
+      process.argv[3] === '--origin-main',
     );
     process.stdout.write(`${JSON.stringify(result)}\n`);
     process.exitCode = result.unexpected.length || result.baselineAdditions.length ? 2 : 0;

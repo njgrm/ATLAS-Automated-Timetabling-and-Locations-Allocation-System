@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { compareDiagnosticsToBaseline, findBaselineAdditions, loadReferenceBaseline, normalizeDiagnostics } from './typecheck-baseline.mjs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { compareDiagnosticsToBaseline, findBaselineAdditions, loadOriginMainBaseline, normalizeDiagnostics } from './typecheck-baseline.mjs';
 
 test('normalizes Windows paths and sorts diagnostics into stable records', () => {
   const result = normalizeDiagnostics([
@@ -32,7 +36,43 @@ test('rejects added baseline entries while permitting removals', () => {
   assert.deepEqual(findBaselineAdditions([], reference), []);
 });
 
-test('uses the candidate baseline only when the reference baseline is absent during initial bootstrap', () => {
-  const candidate = { sha: 'fdae67ec64a4713d7c5c2446e03c25c29ddf704f', errors: [] };
-  assert.equal(loadReferenceBaseline('ops/lane-c/no-baseline-yet.json', candidate), candidate);
+test('reads the reference baseline from origin/main even if the worktree file differs', () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'atlas-tsc-baseline-'));
+  try {
+    execFileSync('git', ['init'], { cwd: root, stdio: 'ignore' });
+    execFileSync('git', ['config', 'user.email', 'baseline-test@example.invalid'], { cwd: root });
+    execFileSync('git', ['config', 'user.name', 'Baseline Test'], { cwd: root });
+    const baselinePath = path.join(root, 'ops/lane-c/tsc-baseline.json');
+    mkdirSync(path.dirname(baselinePath), { recursive: true });
+    const committed = { sha: 'fdae67ec64a4713d7c5c2446e03c25c29ddf704f', errors: [] };
+    writeFileSync(baselinePath, JSON.stringify(committed));
+    execFileSync('git', ['add', 'ops/lane-c/tsc-baseline.json'], { cwd: root });
+    execFileSync('git', ['commit', '-m', 'pin baseline'], { cwd: root, stdio: 'ignore' });
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+    execFileSync('git', ['update-ref', 'refs/remotes/origin/main', head], { cwd: root });
+    const staleWorkingCopy = { ...committed, errors: [{ file: 'new.ts', line: 1, code: 'TS9999', message: 'new' }] };
+    writeFileSync(baselinePath, JSON.stringify(staleWorkingCopy));
+    assert.deepEqual(loadOriginMainBaseline(root, staleWorkingCopy), committed);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('allows a missing origin/main baseline only for the pinned initial baseline SHA', () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'atlas-tsc-baseline-'));
+  try {
+    execFileSync('git', ['init'], { cwd: root, stdio: 'ignore' });
+    execFileSync('git', ['config', 'user.email', 'baseline-test@example.invalid'], { cwd: root });
+    execFileSync('git', ['config', 'user.name', 'Baseline Test'], { cwd: root });
+    writeFileSync(path.join(root, 'README.md'), 'baseline bootstrap\n');
+    execFileSync('git', ['add', 'README.md'], { cwd: root });
+    execFileSync('git', ['commit', '-m', 'initialize repository'], { cwd: root, stdio: 'ignore' });
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+    execFileSync('git', ['update-ref', 'refs/remotes/origin/main', head], { cwd: root });
+    const initial = { sha: 'fdae67ec64a4713d7c5c2446e03c25c29ddf704f', errors: [] };
+    assert.equal(loadOriginMainBaseline(root, initial), initial);
+    assert.throws(() => loadOriginMainBaseline(root, { sha: '0'.repeat(40), errors: [] }), /baseline is missing/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

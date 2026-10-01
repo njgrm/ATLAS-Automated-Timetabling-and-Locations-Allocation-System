@@ -55,7 +55,7 @@ try {
   if ($integrationIdentity -notin $registered) { Stop-Request 'INVALID_INTEGRATION_WORKTREE:unregistered' }
   if (@(git -C $IntegrationRepo status --short).Count) { Stop-Request 'INTEGRATION_WORKTREE_DIRTY' }
 
-  git -C $Repo fetch -q origin $request.branch
+  git -C $Repo fetch -q origin main $request.branch
   git -C $Repo cat-file -e "$($request.sha)^{commit}"
   if ($LASTEXITCODE -ne 0) { Stop-Request 'CANDIDATE_NOT_IN_SHARED_REPOSITORY' }
   $remoteCandidate = (git -C $Repo rev-parse "origin/$($request.branch)").Trim()
@@ -88,7 +88,7 @@ try {
     Push-Location (Join-Path $IntegrationRepo 'atlas-server')
     try { & $tsx --test @serverTests; if ($LASTEXITCODE -ne 0) { throw "SERVER_TESTS_FAILED:$LASTEXITCODE" } } finally { Pop-Location }
   }
-  $typecheckOutput = & node (Join-Path $IntegrationRepo 'ops\lane-c\codex\typecheck-baseline.mjs') $IntegrationRepo (Join-Path $Repo 'ops\lane-c\tsc-baseline.json')
+  $typecheckOutput = & node (Join-Path $IntegrationRepo 'ops\lane-c\codex\typecheck-baseline.mjs') $IntegrationRepo --origin-main
   $typecheckExit = $LASTEXITCODE
   try { $typecheckResult = $typecheckOutput | ConvertFrom-Json } catch { throw "TYPECHECK_BASELINE_INVALID_RESULT:$typecheckOutput" }
   if ($typecheckExit -ne 0 -or @($typecheckResult.unexpected).Count -gt 0 -or @($typecheckResult.baselineAdditions).Count -gt 0) {
