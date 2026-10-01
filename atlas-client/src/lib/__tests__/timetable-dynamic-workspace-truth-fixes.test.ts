@@ -57,9 +57,13 @@ test('R9/A-15 the server replayed flag yields an informational message, not succ
 
 test('R9/A-15 Advanced blocks publish for an already-published run', () => {
 	const header = source('src/components/timetable/ScheduleReviewWorkspaceHeader.tsx');
-	assert.match(header, /isDraftPublishedStrict\(draft\)/);
-	assert.match(header, /disabled=\{[^}]*isRunPublished[^}]*\}/);
-	assert.match(header, /already published\. Create an effective-dated revision/);
+	const control = source('src/components/timetable/TimetableExpertPublishControl.tsx');
+	assert.match(header, /resolveExpertPublishGate\(/);
+	assert.match(header, /<TimetableExpertPublishControl/);
+	assert.match(control, /data-testid="timetable-advanced-publish"/);
+	assert.match(control, /disabled=\{!gate\.allowed\}/);
+	assert.match(control, /isRunPublished\)/);
+	assert.match(control, /already published\. Create an effective-dated revision/);
 });
 
 // --- R9 A-16 policy-read failure is fail-closed ---

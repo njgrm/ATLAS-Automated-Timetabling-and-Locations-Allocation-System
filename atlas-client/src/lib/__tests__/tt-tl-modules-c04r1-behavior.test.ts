@@ -44,10 +44,10 @@ const STALE_INPUT: GenerationInputComparison = {
 	message: 'Rooms changed.',
 	actionHint: 'Review the rooms that changed.',
 	changedDomains: ['rooms'],
-	checkedAt: null,
+	checkedAt: '2031-01-01T00:05:00.000Z',
 } as unknown as GenerationInputComparison;
 
-function renderBanner(inputState: GenerationInputComparison, isPublished: boolean, summaryPatch: Record<string, unknown> = {}) {
+function renderBanner(inputState: GenerationInputComparison, isPublished: boolean, summaryPatch: Record<string, unknown> = {}, onRegenerate?: () => void) {
 	return renderToStaticMarkup(
 		createElement(MemoryRouter, null,
 			createElement(SimpleDriftBanner, {
@@ -60,6 +60,7 @@ function renderBanner(inputState: GenerationInputComparison, isPublished: boolea
 				onRefresh: () => {},
 				capabilities: READY_CAPABILITIES,
 				isPublished,
+				onRegenerate,
 			}),
 		),
 	);
@@ -69,24 +70,29 @@ function renderBanner(inputState: GenerationInputComparison, isPublished: boolea
  * F4 — published drift must never expose or dispatch the direct sync
  * ------------------------------------------------------------------ */
 
-test('F4 unpublished drift keeps the canonical sync route', () => {
-	const markup = renderBanner(STALE_INPUT, false);
-	assert.match(markup, /timetable-simple-sync-setup/);
+test('F4 unpublished drift offers one guarded Update schedule path and detail', () => {
+	const markup = renderBanner(STALE_INPUT, false, {}, () => {});
+	assert.match(markup, /timetable-simple-impact-preview/);
+	assert.match(markup, /timetable-simple-regenerate-to-apply/);
+	assert.equal((markup.match(/timetable-simple-regenerate-to-apply/g) ?? []).length, 1);
+	assert.match(markup, /Update schedule/);
+	assert.doesNotMatch(markup, /timetable-simple-sync-setup/);
 	assert.doesNotMatch(markup, /timetable-simple-published-drift-guidance/);
 });
 
 test('F4 published drift routes to revision guidance and exposes no sync action', () => {
-	const markup = renderBanner(STALE_INPUT, true);
+	const markup = renderBanner(STALE_INPUT, true, {}, () => {});
 	assert.match(markup, /timetable-simple-published-drift-guidance/);
-	assert.match(markup, /effective-dated revision/i);
-	// The direct sync action and its impact preview must be gone entirely.
+	assert.match(markup, /Changes are made in a separate revision/i);
+	// Published runs keep revision guidance but never expose draft-only update UI.
 	assert.doesNotMatch(markup, /timetable-simple-sync-setup/);
-	assert.doesNotMatch(markup, /timetable-simple-impact-preview/);
+	assert.doesNotMatch(markup, /timetable-simple-regenerate-to-apply/);
+	assert.doesNotMatch(markup, /Update schedule/);
 	assert.doesNotMatch(markup, /timetable-simple-repair-/);
 	assert.doesNotMatch(markup, /Sync with setup/);
 });
 
-test('F4 loose-predicate mutant: retained markers alone never hide the sync route', () => {
+test('F4 loose-predicate mutant: retained markers alone do not claim a published run', () => {
 	// A superseded run keeps `publishedAt`/`publishedBy` markers while the strict
 	// predicate is false. If the banner used loose markers, it would wrongly hide
 	// the sync action; the strict prop is the only authority.
@@ -94,8 +100,8 @@ test('F4 loose-predicate mutant: retained markers alone never hide the sync rout
 		publishedAt: '2031-01-01T00:00:00.000Z',
 		publishedBy: 7,
 		publicationSupersededAt: '2031-02-01T00:00:00.000Z',
-	});
-	assert.match(markup, /timetable-simple-sync-setup/);
+	}, () => {});
+	assert.match(markup, /timetable-simple-impact-preview/);
 	assert.doesNotMatch(markup, /timetable-simple-published-drift-guidance/);
 });
 
