@@ -24,10 +24,22 @@ function Write-Receipt([string]$Status, [hashtable]$Extra = @{}) {
   foreach ($key in $Extra.Keys) { $payload[$key] = $Extra[$key] }
   [IO.File]::WriteAllText($resultPath, ($payload | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
 }
-function Invoke-Npm([string]$Where, [string[]]$Arguments) {
-  Push-Location $Where
-  try { & npm.cmd @Arguments 2>&1 | Out-Host; if ($LASTEXITCODE -ne 0) { throw "npm $($Arguments -join ' ') failed in $Where ($LASTEXITCODE)" } }
-  finally { Pop-Location }
+function Invoke-DeclaredSuite([string]$Where, [string]$ScriptName) {
+  $package = Get-Content -LiteralPath (Join-Path $Where 'package.json') -Raw | ConvertFrom-Json
+  $command = [string]$package.scripts.$ScriptName
+  if ($command -notmatch '^tsx --test (.+)$') { throw "RELEASE_SUITE_UNSUPPORTED:$ScriptName" }
+  $tests = @($Matches[1] -split ' ' | Where-Object { $_ -match '\.test\.(ts|tsx|mts)$' })
+  if (-not $tests.Count) { throw "RELEASE_SUITE_EMPTY:$ScriptName" }
+  $tsx = Join-Path $Where 'node_modules\.bin\tsx.cmd'
+  if (-not (Test-Path -LiteralPath $tsx)) { throw "RELEASE_SUITE_RUNNER_MISSING:$ScriptName" }
+  # The declared suite has outgrown Windows' cmd.exe command-line maximum. Execute every exact listed test in
+  # deterministic small batches, rather than silently shrinking the suite.
+  for ($offset = 0; $offset -lt $tests.Count; $offset += 16) {
+    $last = [Math]::Min($offset + 15, $tests.Count - 1); $batch = @($tests[$offset..$last])
+    Push-Location $Where
+    try { & $tsx --test @batch; if ($LASTEXITCODE -ne 0) { throw "RELEASE_SUITE_FAILED:${ScriptName}:${offset}:$LASTEXITCODE" } }
+    finally { Pop-Location }
+  }
 }
 function Commit-LiveState([string]$PreparedDir, [string]$Incumbent) {
   git -C $integrator fetch -q origin
@@ -63,8 +75,8 @@ try {
   $prepared = ($preparedLines | Where-Object { $_ -match '^\{"sha":' } | Select-Object -Last 1 | ConvertFrom-Json)
   if (-not $prepared.dir) { throw 'RELEASE_PREPARE_RESULT_INVALID' }
   $releaseDir = (Resolve-Path -LiteralPath $prepared.dir).Path
-  Invoke-Npm (Join-Path $releaseDir 'atlas-client') @('run', 'test:client-suite')
-  Invoke-Npm (Join-Path $releaseDir 'atlas-server') @('run', 'test:server-suite')
+  Invoke-DeclaredSuite (Join-Path $releaseDir 'atlas-client') 'test:client-suite'
+  Invoke-DeclaredSuite (Join-Path $releaseDir 'atlas-server') 'test:server-suite'
   $job = "release-$($request.train)-$($request.sha.Substring(0,8))-1366"; $promptFile = Join-Path $laneRoot "$job.prompt.md"
   $qaPrompt = @"
 Run isolated, read-only rendered QA for Train $($request.train) in $releaseDir. Do not use Tailnet, credentials, or live APIs.
