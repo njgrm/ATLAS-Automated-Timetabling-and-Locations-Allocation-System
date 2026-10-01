@@ -155,8 +155,8 @@ while ($true) {
   $dispatchRequest = Get-Item -LiteralPath (Join-Path $H 'dispatch-request.json') -ErrorAction SilentlyContinue
   $integrationRequest = Get-Item -LiteralPath (Join-Path $H 'integrate-request.json') -ErrorAction SilentlyContinue
   $releaseRequest = Get-Item -LiteralPath (Join-Path $H 'release-request.json') -ErrorAction SilentlyContinue
-  $requests = @($dispatchRequest, $integrationRequest, $releaseRequest | Where-Object { $_ }) |
-    ForEach-Object { "$($_.Name):$($_.Length):$($_.LastWriteTimeUtc.Ticks)" } -join ';'
+  $requestItems = @($dispatchRequest, $integrationRequest, $releaseRequest) | Where-Object { $_ }
+  $requests = ($requestItems | ForEach-Object { "$($_.Name):$($_.Length):$($_.LastWriteTimeUtc.Ticks)" }) -join ';'
   $codexDone = (Get-ChildItem (Join-Path $H 'codex-qa') -Recurse -Filter final.md -EA SilentlyContinue |
                 ForEach-Object { $_.FullName + $_.LastWriteTime.Ticks }) -join ';'
   $digest = "$runs|$health|$branches|$posts|$inbox|$requests|$codexDone"
