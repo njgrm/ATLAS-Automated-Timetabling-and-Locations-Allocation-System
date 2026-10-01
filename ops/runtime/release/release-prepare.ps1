@@ -20,7 +20,13 @@ $clientDist = Join-Path $dir 'atlas-client\dist\index.html'
 
 function Invoke-Step([string]$Where, [string]$Exe, [string[]]$ArgList) {
   Push-Location $Where
-  try { & $Exe @ArgList 2>&1 | Out-Host; if ($LASTEXITCODE -ne 0) { throw "$Exe $($ArgList -join ' ') failed in $Where ($LASTEXITCODE)" } }
+  try {
+    # npm uses stderr for advisory warnings. Do not turn a successful native exit into a PowerShell terminating error.
+    $previousPreference = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    try { & $Exe @ArgList 2>&1 | Out-Host; $exitCode = $LASTEXITCODE }
+    finally { $ErrorActionPreference = $previousPreference }
+    if ($exitCode -ne 0) { throw "$Exe $($ArgList -join ' ') failed in $Where ($exitCode)" }
+  }
   finally { Pop-Location }
 }
 
