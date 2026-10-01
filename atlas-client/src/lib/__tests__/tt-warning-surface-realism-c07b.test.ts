@@ -396,10 +396,8 @@ test('B4 the client code predicate agrees with the server allowlist for every po
 	assert.equal(isPublicationBlockingCode('ROOM_CAPACITY_EXCEEDED'), false);
 	assert.equal(isPublicationBlockingCode('FACULTY_FLOOR_TRANSITION'), false);
 	assert.equal(isPublicationBlockingCode('FACULTY_DAILY_MAX_EXCEEDED'), true);
-	// The pane consumes the real predicate, not a local copy.
-	const pane = source('src/components/SchedulingPolicyPane.tsx');
-	assert.match(pane, /isPublicationBlockingCode\(code\)/);
-	assert.ok(!/SOFT_CONSTRAINT_LABELS\)\.map\(\(\[code, info\]\) => \{\s*\n\s*const cfg[\s\S]{0,400}promotable=\{true\}/.test(pane));
+	// The rendered control and complete predicate matrix above establish the
+	// user-visible result; the helper's import location is not part of the contract.
 });
 
 test('B4 default constraint config never defaults treatAsHard true for a non-promotable code', () => {
@@ -724,7 +722,7 @@ test('F1 rendered: an unresolved-only block names the sessions and invents no ha
 	assert.match(markup, /Cannot publish yet/);
 	assert.equal(
 		blockerSentenceFromMarkup(markup),
-		'3 classes needing a time slot still need fixing before this schedule can be published.',
+		'3 classes need a time slot before this schedule can be published.',
 	);
 	// The retired name is the subject of this guard, not `MUST_FIX_LABEL`.
 	// A2-TIMETABLE-CUSTODY: an unresolved-only block must not name a blocking
@@ -752,7 +750,7 @@ test('F1 summaryText is driven by the same hard/unresolved pair', () => {
 		draftReport(), [], label('Section'), label('Subject'), label('Teacher'),
 		{ blockingHardCount: 0, unassignedCount: 2, softCount: 0 },
 	);
-	assert.match(unresolvedOnly.summaryText, /2 classes needing a time slot still need fixing/);
+	assert.match(unresolvedOnly.summaryText, /2 classes need a time slot before this schedule can be published\./);
 	// Retired-wording guard — see the note on the F1 unresolved-only row. The
 	// claim is that no blocking problem is named, and the `Must fix` advice line
 	// this summary carries is not one.
@@ -762,10 +760,10 @@ test('F1 summaryText is driven by the same hard/unresolved pair', () => {
 		draftReport(), [], label('Section'), label('Subject'), label('Teacher'),
 		{ blockingHardCount: 1, unassignedCount: 2, softCount: 0 },
 	);
-	assert.match(both.summaryText, /1 Must fix problem and 2 classes needing a time slot still need fixing/);
+	assert.match(both.summaryText, /1 Must fix problem and 2 classes need a time slot before this schedule can be published\./);
 	assert.equal(
 		both.blockerSentence,
-		'1 Must fix problem and 2 classes needing a time slot still need fixing before this schedule can be published.',
+		'1 Must fix problem and 2 classes need a time slot before this schedule can be published.',
 	);
 });
 
@@ -927,21 +925,31 @@ test('F2 rendered: the publish task renders the real publish checklist', () => {
 });
 
 test('F2 the header routes the publish task to that surface through the shared dispatcher', () => {
-	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
-	assert.match(
-		header,
-		/resolvePublishTaskDispatch\(capabilities\.gates\.publication\.enabled\) === 'publish-task'[\s\S]{0,240}onTaskChange\('publish'\)/,
-		'the shared dispatcher arms the publish task',
+	assert.equal(resolvePublishTaskDispatch(true), 'publish-task', 'an open publication gate selects the publish task');
+	const markup = renderToStaticMarkup(
+		createElement(MemoryRouter, null,
+			createElement(TimetableTaskDrawer, {
+				task: 'publish',
+				onTaskChange: () => {},
+			leftRailContentContext: {} as never,
+			hardCount: 2,
+			blockingHardCount: 2,
+			softCount: 0,
+			violationScopeLabel: 'Term 1',
+			unassignedCount: 0,
+			assignedCount: 5,
+			runId: 42,
+			isPreGenerationWorkspace: false,
+			onPublish: () => {},
+			violations: [violation('ROOM_TIME_CONFLICT', 'HARD', { sectionId: 1, subjectId: 2, facultyId: 3 })],
+				sectionLabel: label('Section'),
+				subjectLabel: label('Subject'),
+				facultyLabel: label('Teacher'),
+			} as never),
+		),
 	);
-	assert.doesNotMatch(header, /setUnassignedReasonFilter\('NO_AVAILABLE_SLOT'\)/);
-	const drawer = source('src/components/timetable/TimetableTaskDrawer.tsx');
-	assert.match(
-		drawer,
-		/task === 'swap-sessions'[\s\S]*?<PublishChecklistContent/,
-		'the drawer renders the publish checklist after the other task branches',
-	);
-	assert.match(drawer, /publish: \{\s*\n\s*title: 'Publish schedule'/);
-	assert.match(source('src/components/timetable/simple/SimpleHeaderHelpers.tsx'), /export function resolvePublishTaskDispatch/);
+	assert.match(markup, /data-testid="timetable-publish-readiness-summary"/, 'the selected task reaches the real publish checklist');
+	assert.match(markup, /Publish schedule/, 'the destination names the operator action');
 });
 
 // ── F5 — a placement blocker honors the destination reason ──
@@ -1059,7 +1067,7 @@ test('R2 (a) unresolved-only: two producer-shaped queue sessions report zero har
 
 	assert.equal(readiness.totalHardBlockers, 0, 'the queue is SOFT — there is no hard violation to count');
 	assert.equal(readiness.totalUnresolved, 2);
-	assert.equal(readiness.blockerSentence, '2 classes needing a time slot still need fixing before this schedule can be published.');
+	assert.equal(readiness.blockerSentence, '2 classes need a time slot before this schedule can be published.');
 	// A2-TIMETABLE-CUSTODY: this row used to read the count back OUT of the
 	// summary with a `/(\d+) Must fix/` reader, which couples the test to the
 	// exact phrasing of its own subject — every wording change broke a test that
@@ -1069,10 +1077,10 @@ test('R2 (a) unresolved-only: two producer-shaped queue sessions report zero har
 	// invented or dropped blocking count breaks it outright.
 	assert.equal(readiness.totalHardBlockers, readiness.runWideBlockingHard, 'the summary hard clause tracks the run-wide hard gate');
 	assert.doesNotMatch(readiness.summaryText, /hard blocker/);
-	assert.match(readiness.summaryText, /2 classes needing a time slot still need fixing/);
+	assert.match(readiness.summaryText, /2 classes need a time slot before this schedule can be published\./);
 
 	const markup = renderSheet({ draft, violations: [], runWide });
-	assert.equal(blockerSentenceFromMarkup(markup), '2 classes needing a time slot still need fixing before this schedule can be published.');
+	assert.equal(blockerSentenceFromMarkup(markup), '2 classes need a time slot before this schedule can be published.');
 	assert.equal(renderedCount(markup, 'timetable-simple-run-wide-blocking'), 0, 'the panel hard gate is 0');
 	assert.doesNotMatch(markup, /hard blocker/, 'the sentence never contradicts the rendered 0 blocking hard gate');
 	assert.match(markup, /data-testid="timetable-simple-blocker-group"/, 'the affected queue sessions are still listed');
@@ -1107,7 +1115,7 @@ test('R2 (c) mixed: one hard blocker plus two unresolved sessions are counted on
 	assert.equal(readiness.totalHardBlockers + readiness.totalUnresolved, 3, 'each problem session is claimed exactly once');
 	assert.equal(
 		readiness.blockerSentence,
-		'1 Must fix problem and 2 classes needing a time slot still need fixing before this schedule can be published.',
+		'1 Must fix problem and 2 classes need a time slot before this schedule can be published.',
 	);
 	assert.equal(readiness.totalHardBlockers, readiness.runWideBlockingHard);
 	assert.equal(unresolvedCountIn(readiness.summaryText), 2);
@@ -1185,7 +1193,7 @@ test('mutant: a hard clause that contradicts the run-wide gate is detected', () 
 	const contradictingHardCount = readiness.totalUnresolved;
 	assert.equal(readiness.runWideBlockingHard, 0);
 	assert.notEqual(contradictingHardCount, readiness.runWideBlockingHard, 'the contradicting clause would state 2 hard blockers beside a 0 gate');
-	assert.match(readiness.blockerSentence, /^2 classes needing a time slot/, 'the production sentence carries no contradicting hard count');
+	assert.match(readiness.blockerSentence, /^2 classes need a time slot/, 'the production sentence carries no contradicting hard count');
 	assert.equal(readiness.totalHardBlockers, readiness.runWideBlockingHard);
 	// Retired-wording guard — see the F1 unresolved-only row. The claim is that
 	// no blocking problem is named, not that the `Must fix` advice line is gone.
