@@ -12,6 +12,16 @@ Checks: `npx tsx --test src/lib/__tests__/warning-readability-c01.test.ts src/li
 
 Rendered component tests assert the changed warning and unresolved-only/mixed publish sentences. **BLOCKING:** the required 1366×768 loopback screenshot was not captured: the local headless-browser launch was rejected by command execution policy. No screenshot is claimed. Independent visual judgement remains outstanding. Candidate is committed additively; do not integrate until that visual evidence is available.
 
+### p06c r3 rendered evidence correction — 2026-10-02
+
+Candidate `154a19f8b11016940146011bcd6a752e67a6bdb6`; base `fdae67ec64a4713d7c5c2446e03c25c29ddf704f`; worktree disposition `KEEP_ACTIVE`.
+
+No product behavior or source changed. E: free space was 30.04 GiB before dependency preparation and 30.03 GiB before/after the client build. Restored the locked client dependency tree with `npm ci --prefer-offline`; the final baseline-aware run was `node ops/lane-c/codex/typecheck-baseline.mjs`, pinned to `fdae67ec64a4713d7c5c2446e03c25c29ddf704f`. Client `npm run typecheck` exited 2 with four diagnostics outside the one-error baseline allowance: three `TS2307` missing `playwright` declarations at `timetable-post-deploy-c04.test.ts:7`, `timetable-post-deploy-c05.test.ts:7`, and `timetable-scheduling-quality-c03.test.tsx:9`, plus the consequent `TS7006` implicit `route` type at `timetable-scheduling-quality-c03.test.tsx:101`. These test files exist unchanged at the base; the client manifest changes in this range only add scripts and do not alter dependencies. Classify these four as the existing test-dependency gap, unexpected by the pinned diagnostic matcher, not as p06c source regressions. The wrapper's server build also exited 2 with `TS2688` (missing Node type definitions); the server dependency tree was not prepared, so this is an environment result, not a client or p06c diagnostic. Baseline additions: 0.
+
+`npm run build` passed (2,895 modules; 40.25 s) with `ISOLATED_LOCAL_BROWSER=1`, `VITE_ATLAS_API=http://127.0.0.1:5101`, and `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net`. The requested 1366×768 isolated browser capture was attempted with a full-viewport headless-Chrome launcher and API interception, but command execution policy rejected the launch command before it ran. No preview/browser process started, no API request or write occurred, and no screenshot dimensions or browser-console result are available. No PNG is claimed. `git diff --check` passed.
+
+**Verdict: BLOCKING —** rendered evidence and independent visual judgement remain outstanding; this report does not clear the review finding.
+
 Planners, executors and QA in `.opencode/agents` pin `opencode-go/space-bunny-free` (variant high; steps 400/300/150).
 The `opencode.json` default is `deepseek-v4.1-flash`: ALWAYS pass `-Agent atlas-planner` or `-Agent atlas-executor`.
 No agent, or a `-ds` agent, silently runs DeepSeek; the default `build` agent is refused by the provider.
