@@ -81,6 +81,9 @@ const { ScheduleReviewWorkspaceHeader } = await import('@/components/timetable/S
 const { changeNoticeSentence, CHANGE_NOTICE_GENERIC_SENTENCE } =
 	await import('@/components/timetable/simple/SimpleChangeNotice');
 const { advisoryCountLabel, readinessLabel } = await import('@/components/timetable/simple/SimpleHeaderHelpers');
+// P01 (2026-09-30): the ONE consequence sentence, imported rather than restated, so a
+// copy change cannot break this file.
+const { publishBlockedSentence } = await import('@/lib/timetable-plain-language');
 const { runIdentityBadgeLabel } = await import('@/components/timetable/RunStateBadge');
 
 /**
@@ -368,8 +371,26 @@ test('ITEM 1 RENDERED: the REAL Simple header prints ONE sentence, no second tit
 		'the whole row is exactly one sentence plus the two actions — no second heading, no sub-clause');
 	assert.equal(band!.querySelectorAll('[data-testid="timetable-simple-drift-message"]').length, 1,
 		'there is exactly ONE message span');
-	assert.equal(view.all('strong, h1, h2, h3, h4, [role="heading"]').length, 0,
-		'and the row presents no heading element at all, so it cannot read as an error title');
+	// P01 (2026-09-30) — the heading check is SCOPED TO THE NOTICE, and it must be.
+	// The original assertion asked the WHOLE rendered header for `strong, h1..h4,
+	// [role="heading"]` and expected none; since A2 HEADER-BUDGET the header's own
+	// `<h1>` (the one visible page-name heading, `TimetableSubNavRow` → "Class
+	// Schedule") legitimately lives inside ROW 1, so the old form failed on the page
+	// title while saying nothing about the notice.
+	//
+	// ORIGINAL, RETAINED VERBATIM (AGENTS.md §16):
+	//   assert.equal(view.all('strong, h1, h2, h3, h4, [role="heading"]').length, 0,
+	//     'and the row presents no heading element at all, so it cannot read as an error title');
+	//
+	// The property it protected is the notice's: a change notice that reads as an
+	// ERROR TITLE is the defect. So the claim is now made where the defect was, and
+	// the header's one real heading is asserted as the page name instead of counted.
+	assert.equal(band!.querySelectorAll('strong, h1, h2, h3, h4, [role="heading"]').length, 0,
+		'the notice itself presents no heading element at all, so it cannot read as an error title');
+	assert.equal(view.all('h1').length, 1,
+		'and the header has exactly ONE heading — the page name, which is a heading on purpose, not a notice title');
+	assert.equal(view.all('h1')[0]!.closest('[data-testid="timetable-simple-header-row-1"]') !== null, true,
+		'and it is the title half of ROW 1, not part of any notice');
 	// NO relative timestamp. DISCRIMINATION: pre-fix the span carried
 	// " · checked 10s ago", which changed every ten seconds and was not a fact
 	// about the schedule.
@@ -454,37 +475,71 @@ test('ITEM 1 RESPONSIVE: at 390 px the row keeps its own line for the sentence a
 
 // ═══ ITEM 2 — two rows, and the control row carries the notice ═══════════════
 
-test('ITEM 2 STRUCTURAL (JSDOM has no layout engine): the header renders TWO row bands — the state strip and ONE control row', () => {
+test('ITEM 2 STRUCTURAL (JSDOM has no layout engine): the band stacks ROW 1, ROW 2 and the notice\'s own line — the notice is on NEITHER header row', () => {
 	// ROW SHAPE, NOT PIXELS. This row was named "TWO row bands at 1366 px", which
 	// overclaimed: JSDOM does not lay out, so nothing here can measure a 1366 px
 	// viewport or count rows a scheduler would SEE. It asserts the DOM SHAPE that
-	// decides the row count (two band children, notice inside the second), and the
-	// MEASURED 1366 px row count on the live surface is the planner's BROWSER row
-	// (AGENTS.md §11), not this one. DISCRIMINATION: pre-fix the notice was a child
-	// of the status region, and the status region wrapped it with the draft
-	// sentence, the run badge, the term line and the capped notices — four rendered
-	// rows on the live surface.
+	// decides the row count (the band's children, and which line the notice is on),
+	// and the MEASURED 1366 px row count on the live surface is the planner's BROWSER
+	// row (AGENTS.md §11), not this one.
+	//
+	// DISCRIMINATION: pre-fix the notice was a child of the status region, and the
+	// status region wrapped it with the draft sentence, the run badge, the term line
+	// and the capped notices — four rendered rows on the live surface. A2
+	// HEADER-BUDGET (`6e272900`, `bd2bab32`) then replaced that band with ROW 1 +
+	// ROW 2, and `a2b67f4c` gave the notice its own slim line because it was pushing
+	// the pickers right.
+	//
+	// ORIGINAL ASSERTIONS, RETAINED VERBATIM (AGENTS.md §16 — a calibration marks a
+	// row superseded and adds the replacement beside it):
+	//
+	//   const rows = [...band!.children] as HTMLElement[];
+	//   assert.equal(rows.length, 2, 'exactly two rows: the state strip and the control row');
+	//   assert.equal(rows[0].getAttribute('data-testid'), 'timetable-simple-status-region',
+	//     'row 1 is the persistent state strip');
+	//   assert.equal(rows[1].contains(notice), true,
+	//     'the change notice is part of the single control row, not a row of its own');
+	//   assert.equal(rows[0].contains(notice), false, 'and it is not on the state-strip row any more');
+	//   assert.equal(view.el('timetable-run-state-badge') !== null, true, 'and the run identity');
+	//   assert.equal(view.el('timetable-term-scope-line') !== null, true, 'and the term line');
+	//
+	// WHY EACH IS SUPERSEDED: the status region, the run badge and the term line are
+	// no longer rendered INSIDE the header at all — A2 HEADER-BUDGET moved the run
+	// facts into `SimpleHeaderTrailingSurfaces` so the header could be two calm rows,
+	// so those assertions had become assertions about an absent element. Their
+	// behaviour is not dropped: `a2-header-budget-2026-09-29`'s H1/H2/H12 rows assert
+	// the same facts where they now live, and this file's own ITEM 1 rows assert the
+	// notice itself, which is what C11 S2 item 2 was about. What is asserted here now
+	// is the C11 S2 property in the form that is true: the notice shares a line with
+	// NOTHING else.
 	const view = simpleHeader(draftHeaderContext());
 	const band = view.el('timetable-simple-header-row');
 	assert.equal(band !== null, true, 'the header renders its single stacked band');
-	// KEPT VERBATIM: the band-child count below only means "rows" because the band
-	// stacks them. This is the load-bearing link between the child count and a row.
+	// KEPT VERBATIM: the band-child count below only means "lines" because the band
+	// stacks them. This is the load-bearing link between the child count and a line.
 	assert.equal((band!.getAttribute('class') ?? '').includes('flex-col'), true,
-		'one band stacks its rows, so the row count is the band child count');
-	const rows = [...band!.children] as HTMLElement[];
-	assert.equal(rows.length, 2, 'exactly two rows: the state strip and the control row');
-	assert.equal(rows[0].getAttribute('data-testid'), 'timetable-simple-status-region',
-		'row 1 is the persistent state strip');
-	// The notice is on row 2 — the CONTROL row.
+		'one band stacks its rows, so the line count is the band child count');
+	assert.deepEqual([...band!.children].map((child) => child.getAttribute('data-testid')),
+		['timetable-simple-header-row-1', 'timetable-simple-header-row-2', 'timetable-simple-header-change-row'],
+		'the band stacks ROW 1, ROW 2, and the notice\'s own line — nothing else');
+	// The notice is on the THIRD line, and on neither header row. That is the whole
+	// claim: it must not share a line with the tabs, the chip, the primary or `More`
+	// (ROW 1), nor with the pickers it used to push sideways (ROW 2).
 	const notice = view.el('timetable-simple-input-drift')!;
-	assert.equal(rows[1].contains(notice), true,
-		'the change notice is part of the single control row, not a row of its own');
-	assert.equal(rows[0].contains(notice), false, 'and it is not on the state-strip row any more');
-	// The state strip still carries its three facts, so moving the notice cost the
-	// strip nothing.
-	assert.equal(view.el('timetable-draft-state-strip') !== null, true, 'the persistent draft/published sentence is still there');
-	assert.equal(view.el('timetable-run-state-badge') !== null, true, 'and the run identity');
-	assert.equal(view.el('timetable-term-scope-line') !== null, true, 'and the term line');
+	assert.ok(notice, 'the change notice is on screen in this fixture');
+	const row1 = view.el('timetable-simple-header-row-1')!;
+	const row2 = view.el('timetable-simple-header-row-2')!;
+	const changeLine = view.el('timetable-simple-header-change-row')!;
+	assert.equal(changeLine.contains(notice), true, 'the notice sits on its own line');
+	assert.equal(row1.contains(notice), false, 'and NOT on ROW 1, so it cannot push the chip, `Publish` or `More` down');
+	assert.equal(row2.contains(notice), false, 'and NOT on ROW 2, so it cannot push the pickers right');
+	// The draft strip is still rendered — on ROW 2 — but it prints NO run-state
+	// sentence: the run's state is stated once, out of the header (`a2-header-budget`'s
+	// H12 F1 row owns that). Asserting it here is what keeps "row 2 shows the actions"
+	// from quietly becoming "row 2 shows the actions AND the run state again".
+	assert.equal(view.el('timetable-draft-state-strip') !== null, true, 'the draft/published strip element is still on ROW 2');
+	assert.equal(view.el('timetable-draft-state-strip')!.textContent, '',
+		'and it prints no sentence — the run state is stated once, out of the header');
 });
 
 test('ITEM 2 the warnings chip shows SEVERITY: both classes of finding, never a bare count', () => {
@@ -505,11 +560,39 @@ test('ITEM 2 the warnings chip shows SEVERITY: both classes of finding, never a 
 });
 
 test('ITEM 2 the two-severity chip renders the split on the REAL header, and keeps at most ONE solid primary', () => {
-	const view = simpleHeader(draftHeaderContext({ blockingHardCount: 3, softCount: 145, summary: summaryOf({ isPublished: false, unassignedCount: 0 }) }));
+	const context = draftHeaderContext({ blockingHardCount: 3, softCount: 145, summary: summaryOf({ isPublished: false, unassignedCount: 0 }) });
+	const view = simpleHeader(context);
 	const chip = view.el('timetable-simple-readiness-chip')!;
 	assert.ok(chip, 'the warnings control is on screen');
-	assert.equal(view.visible('timetable-simple-readiness-chip'), '3 Must fix, 145 advisories — this schedule cannot be published yet.',
-		'the operator reads BOTH severities from the one control, and still the consequence');
+	// ORIGINAL ASSERTION, RETAINED VERBATIM (AGENTS.md §16):
+	//   assert.equal(view.visible('timetable-simple-readiness-chip'), '3 Must fix, 145 advisories — this schedule cannot be published yet.',
+	//     'the operator reads BOTH severities from the one control, and still the consequence');
+	//
+	// SUPERSEDED on the FACE by `c82b8636` (operator screenshot at the 30 Sep demo:
+	// the chip was squeezed and clipped on both sides). The face now carries the
+	// severity split plus a SHORT consequence marker, and the WHOLE sentence rides
+	// the span's `title`. The property the row protected — the operator reads BOTH
+	// severities from this one control, and the consequence is still stated on it —
+	// is asserted below with every string IMPORTED or DERIVED.
+	const readiness = readinessLabel(context as never);
+	assert.equal(view.visible('timetable-simple-readiness-chip')!.startsWith(readiness), true,
+		`the operator reads BOTH severities from the one control, in the production label's own words (read: "${view.visible('timetable-simple-readiness-chip')}")`);
+	const face = view.visible('timetable-simple-readiness-chip')!.split('·').map((part) => part.trim());
+	assert.equal(face.length, 2, 'and the face adds exactly ONE short consequence clause to that label');
+	assert.ok((face[1] ?? '').split(/\s+/).filter(Boolean).length <= 4,
+		`which is short enough to keep the chip on one line (read: "${face[1]}")`);
+	const consequence = view.el('timetable-simple-readiness-consequence');
+	assert.ok(consequence, 'the chip renders its addressable consequence span');
+	const full = consequence!.getAttribute('title') ?? '';
+	const sharedClause = publishBlockedSentence({ blockingHardCount: 3, unassignedCount: 0 }).split(' — ')[1]!;
+	assert.ok(sharedClause.length > 0, 'DISCRIMINATION: the shared consequence clause is a real clause, not an empty split');
+	assert.equal(full.startsWith(readiness), true, 'the WHOLE sentence opens with the same severity split the face does');
+	assert.equal(full.endsWith(sharedClause), true,
+		'and ends in the ONE shared consequence clause — the consequence is still stated, in the wording every other surface uses');
+	assert.ok((chip.getAttribute('aria-label') ?? '').includes(full),
+		'and the accessible name carries it too, so nothing depends on a hover');
+	assert.equal(/\btruncate\b/.test(chip.getAttribute('class') ?? ''), false,
+		'and the chip cannot ellipsize its face (§8)');
 	// A2 C13 (operator, 2026-09-29, item 3) — **THE SOLID-PRIMARY HALF OF THIS ROW IS
 	// SUPERSEDED, and the original assertion is kept verbatim below (AGENTS.md §16).**
 	//
