@@ -92,3 +92,46 @@ TESTS: <names and pass counts>   SCREENSHOT: <path>   EVIDENCE: <for any diagnos
 | 9 | Old branches: `work/a8-g1-spread-sessions`, `fix/a5-c8b-row-menu-fit`, `work/a9-m1-campus-background`. Decide keep or drop against decisions 2-15 | Manager | Triage | Deleting unmerged work needs the operator |
 | 10 | After-demo backlog, one T1 packet each: Year Setup wrong-year link; "See what would be copied" dead; (i) help icons click-to-open; Teacher Preferences "Load the roster first" on entry; Room Schedules 11x6/13x6 | Setup | T1 | |
 | 11 | Click sweeps re-run: Teachers (0 clicks) and Teaching Load (3 clicks) | QA | Codex walk | |
+
+## p06d r2 — readable manual-edit and Faculty status controls
+
+**Base:** `2e0d46f7038a2762a73cea4224b46df6e52b8919` · **Candidate:** pending commit ·
+**Worktree:** `E:\ATLAS-worktrees\lane-timetable-p06d` · **Disposition:** `RETIRE_AFTER_INTEGRATION`
+
+**Changed paths:**
+
+- `atlas-client/src/components/manual-edit/ManualEditConflictInspector.tsx`
+- `atlas-client/src/components/faculty/FacultyProfileSheet.tsx`
+- `atlas-client/src/lib/__tests__/a7-c8-type-scale.test.ts`
+- `docs/reviews/a7-c8-type-scale/sub-14px-rem-inventory.md`
+- `docs/reviews/p06d-r2-readable-status-controls-layout.md`
+- `docs/reviews/p06d-r2-rendered/manual-edit-conflict-inspector-1366x768.png`
+- `docs/reviews/p06d-r2-rendered/faculty-profile-1366x768.png`
+- `ops/lane-c/codex/PLANNERS.md`
+
+**Change:** Conflict Inspector's arbitrary 9–11px text now uses the named 14px
+`text-xs` size, retaining its sections, spacing, colors, badge row and controls.
+The Faculty Adviser badge drops its local vertical-padding override and uses a
+24px box for its existing 15px face. No behavior, state, data or routes changed.
+The layout note was written before the JSX edits.
+
+**Verification:**
+
+- `npm run test:ux-type-scale-a7c8` — 6/6 pass. The initial run exposed a stale
+  pinned total (251 vs measured 235); the test and inventory were remeasured and
+  updated, then the gate passed.
+- `npm run test:ux-badge-refit-a7c9` — 4/4 pass.
+- `npm run test:ux-a2-header-budget` — 29/29 pass.
+- `npm run build` with `VITE_ATLAS_API=http://127.0.0.1:5101` and the required
+  `VITE_ENROLLPRO_URL` — pass.
+- `git diff --check` — pass.
+- Isolated loopback render at `http://127.0.0.1:5207`, viewport 1366×768;
+  `/api/v1/**` and `/enrollpro-api/**` mocked. Both production components were
+  rendered from candidate source in Chromium with zero browser errors. Inspector
+  detail computed to 14px. Adviser badge measured 15px face / 15px line box / 24px
+  outer box / 22px content height and scroll height; `text-overflow: clip` with no
+  ellipsis. Screenshots are linked above. Preview was stopped after capture.
+
+**Risks:** `NON_BLOCKING` — rendered evidence is isolated loopback component
+evidence, not deployed Tailnet acceptance. No production data or API calls were
+used. **Verdict:** `READY_FOR_REVIEW`.
