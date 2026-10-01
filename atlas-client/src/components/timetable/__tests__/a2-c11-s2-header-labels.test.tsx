@@ -96,7 +96,7 @@ const { describeEditAutoMove, describeEditAutoMoveNamed } = await import('@/lib/
 const { advisoryCountLabel, readinessLabel } = await import('@/components/timetable/simple/SimpleHeaderHelpers');
 const { TimetableSimpleHeader } = await import('@/components/timetable/TimetableSimpleHeader');
 const { ScheduleReviewWorkspaceHeader } = await import('@/components/timetable/ScheduleReviewWorkspaceHeader');
-const { runIdentityBadgeLabel } = await import('@/components/timetable/RunStateBadge');
+const { describeRunState, runIdentityBadgeLabel } = await import('@/components/timetable/RunStateBadge');
 const { deriveGenerationReadinessState } = await import('@/lib/timetable-generation-readiness');
 
 const roots: any[] = [];
@@ -473,21 +473,13 @@ test('T3a the header names the RUN: "Run 321 · Draft", not a bare "Draft schedu
 	assert.equal(runIdentityBadgeLabel({ isPreGeneration: false, runId: null, isPublished: false }), null);
 });
 
-test('T3a RENDERED: the REAL Simple header badge reads the run number and the state word together', () => {
+test('T3a RENDERED: the REAL Simple header names the run once in the calm status band', () => {
 	const view = simpleHeader(draftHeaderContext());
-	const badge = view.el('timetable-run-state-badge')!;
-	assert.ok(badge, 'the run badge is on screen');
-	assert.equal(visibleText(badge).trim(), 'Run 321 · Draft',
-		'the operator can say WHICH schedule is on screen, and whether it is a draft');
-	// DISCRIMINATION: pre-fix this same badge read "Draft schedule", which says
-	// what kind of run it is and nothing about which one.
-	assert.equal(visibleText(badge).includes('Draft schedule'), false,
-		'the bare state word is no longer the whole badge');
-	// The visual cue beside the status is kept — three channels, so colour is never
-	// load-bearing alone (U2/#51).
-	assert.ok(badge.querySelector('[data-testid="timetable-run-state-sign"]'),
-		'the state still carries its sign, so the state is readable without colour');
-	assert.equal(badge.getAttribute('data-run-state'), 'draft', 'and its state attribute still decides the tone');
+	const identity = view.el('timetable-run-identity');
+	const state = describeRunState({ isPreGeneration: false, runId: 321, isPublished: false });
+	assert.ok(identity, 'the status band names the run on screen');
+	assert.equal(visibleText(identity!).trim(), `State: ${state.sentence}`,
+		'the scheduler sees the production-derived run identity exactly once, in the calm band');
 });
 
 test('T3b RENDERED: the REAL More menu names the action the way the dialog names it — one verb, one wording', async () => {
@@ -602,8 +594,9 @@ test('T3c RENDERED: a comparison that PREDATES the run raises no drift CLAIM —
 		'the row is still shown — a pre-run comparison is "not proven", not "nothing is wrong"');
 	// The run IS published and the comparison IS STALE, so the row is silent on
 	// timing alone — the precondition that makes the row non-vacuous.
-	assert.equal(view.el('timetable-draft-state-strip')?.textContent, 'Published',
-		'precondition: a published run, so the row is not passing because there is nothing to report');
+	const state = describeRunState({ isPreGeneration: false, runId: 321, isPublished: true });
+	assert.equal(visibleText(view.el('timetable-run-identity')!).trim(), `State: ${state.sentence}`,
+		'precondition: the production-derived published run identity is visible in its one calm location');
 	assert.equal(view.el('timetable-simple-drift-message')?.textContent,
 		UNVERIFIED_NOTE,
 		'and what it reads is the honest unverified sentence, not a claim about this schedule');
