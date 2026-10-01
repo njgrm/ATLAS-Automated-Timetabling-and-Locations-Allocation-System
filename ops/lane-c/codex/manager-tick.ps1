@@ -6,7 +6,8 @@ param(
   [int]$Minutes = 5,
   [int]$HeartbeatMinutes = 60,
   [string]$Model = 'gpt-5.6-terra',
-  [string]$Effort = 'medium'
+  [string]$Effort = 'medium',
+  [string]$IntegrationRepo = 'E:\ATLAS-worktrees\lane-c-integrator-20261001'
 )
 $ErrorActionPreference = 'Continue'
 $repo = (Resolve-Path -LiteralPath $Repo -ErrorAction Stop).Path
@@ -116,6 +117,12 @@ function Process-DispatchRequest {
   }
   Move-Item -LiteralPath $requestPath -Destination (Join-Path $H "dispatch-processed-$($request.name)-$(Get-Date -Format yyyyMMdd-HHmmss).json")
 }
+function Process-IntegrationRequest {
+  $requestPath = Join-Path $H 'integrate-request.json'
+  if (-not (Test-Path -LiteralPath $requestPath)) { return }
+  & (Join-Path $repo 'ops/lane-c/codex/integrate-request.ps1') -Repo $repo -IntegrationRepo $IntegrationRepo -LaneHome $H
+  if ($LASTEXITCODE -ne 0) { throw 'INTEGRATE_REQUEST_FAILED' }
+}
 Assert-CleanTickRepo
 Assert-ExternalStateRoot
 $ticks = Join-Path $H 'manager-ticks'; New-Item -ItemType Directory -Force $ticks | Out-Null
@@ -179,6 +186,7 @@ $status
     Assert-TickRepoUnchanged -Head $tickHead
     Assert-WorktreesUnchanged -Before $worktreeBaseline
     Process-DispatchRequest
+    Process-IntegrationRequest
     Write-Host "$(Get-Date -Format HH:mm) tick ($why): $(Get-Content (Join-Path $ticks "$stamp.md") -Tail 1 -EA SilentlyContinue)"
     $lastTick = Get-Date
     $lastDigest = $digest  # recompute next loop; changes made by the tick itself trigger at most one follow-up tick

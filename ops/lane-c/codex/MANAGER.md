@@ -33,7 +33,10 @@ worktree; anything that needs a repo change becomes a packet or an integrator ac
 - Start QA or a browser walk: `powershell -File ops/lane-c/codex/codex-run.ps1 -Job <name> -PromptFile <file>`
   (runs on the QA account; results land in `D:/ATLAS-lane-c/codex-qa/<name>/final.md`, read them next tick).
 - Write only `D:/ATLAS-lane-c/manager-state.md`, `manager-outbox.md`, and packet drafts. State the exact
-  repository change or integration action needed in the outbox; the integrator performs it in a separate session.
+  repository change needed in the outbox. For a completed T1/T2 candidate, write `D:/ATLAS-lane-c/integrate-request.json`
+  with `name`, `tier`, `branch`, `sha`, and the exact focused `tests` paths. The trusted wrapper validates the
+  branch/SHA/current-main ancestry, merges in its dedicated integration worktree, runs only those tests, pushes with
+  `ATLAS_INTEGRATOR=1`, and writes `integrate-result.json`. T3 always waits for the operator.
 - Read run status and triage dirty worktrees without editing, committing, merging, pushing, deleting, or removing them.
 
 ## What needs the operator (write to the outbox and notify, then continue other work)
