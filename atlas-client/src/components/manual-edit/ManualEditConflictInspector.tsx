@@ -76,7 +76,7 @@ export function ManualEditConflictInspector({
 	return (
 		<div className="flex flex-col min-h-0 h-full rounded-lg border border-border bg-card overflow-hidden">
 			<div className="shrink-0 px-4 pt-3 pb-2 border-b border-border/60 bg-card flex items-center justify-between">
-				<h3 className="text-[0.6875rem] font-semibold text-foreground uppercase tracking-wider">
+				<h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">
 					Conflict Inspector
 				</h3>
 				{previewResult ? (
@@ -84,7 +84,7 @@ export function ManualEditConflictInspector({
 						{previewResult.hardViolations.length > 0 && (
 							<Badge
 								variant="outline"
-								className="h-5 px-1.5 text-[0.625rem] border-red-300 bg-red-50 text-red-700"
+								className="h-5 px-1.5 text-xs border-red-300 bg-red-50 text-red-700"
 							>
 								{previewResult.hardViolations.length} hard
 							</Badge>
@@ -92,7 +92,7 @@ export function ManualEditConflictInspector({
 						{previewResult.softViolations.length > 0 && (
 							<Badge
 								variant="outline"
-								className="h-5 px-1.5 text-[0.625rem] border-amber-300 bg-amber-50 text-amber-700"
+								className="h-5 px-1.5 text-xs border-amber-300 bg-amber-50 text-amber-700"
 							>
 								{previewResult.softViolations.length} soft
 							</Badge>
@@ -100,7 +100,7 @@ export function ManualEditConflictInspector({
 						{previewResult.humanConflicts.length === 0 && (
 							<Badge
 								variant="outline"
-								className="h-5 px-1.5 text-[0.625rem] border-green-300 bg-green-50 text-green-700"
+								className="h-5 px-1.5 text-xs border-green-300 bg-green-50 text-green-700"
 							>
 								clean
 							</Badge>
@@ -108,11 +108,11 @@ export function ManualEditConflictInspector({
 					</div>
 				) : entryViolations.length > 0 ? (
 					<div className="flex items-center gap-1">
-						<span className="text-[0.5625rem] text-muted-foreground mr-1">baseline</span>
+						<span className="text-xs text-muted-foreground mr-1">baseline</span>
 						{hardEntryCount > 0 && (
 							<Badge
 								variant="outline"
-								className="h-5 px-1.5 text-[0.625rem] border-red-300/60 bg-red-50/60 text-red-600"
+								className="h-5 px-1.5 text-xs border-red-300/60 bg-red-50/60 text-red-600"
 							>
 								{hardEntryCount} hard
 							</Badge>
@@ -120,7 +120,7 @@ export function ManualEditConflictInspector({
 						{softEntryCount > 0 && (
 							<Badge
 								variant="outline"
-								className="h-5 px-1.5 text-[0.625rem] border-amber-300/60 bg-amber-50/60 text-amber-600"
+								className="h-5 px-1.5 text-xs border-amber-300/60 bg-amber-50/60 text-amber-600"
 							>
 								{softEntryCount} soft
 							</Badge>
@@ -201,7 +201,7 @@ export function ManualEditConflictInspector({
 								<Check className="size-3 mr-1.5" />
 							)}
 							Commit Changes
-							<kbd className="ml-auto text-[0.5625rem] bg-background/50 border border-border/40 rounded px-1 py-px font-mono opacity-70">↵</kbd>
+							<kbd className="ml-auto text-xs bg-background/50 border border-border/40 rounded px-1 py-px font-mono opacity-70">↵</kbd>
 						</Button>
 					)}
 				</div>
@@ -259,7 +259,7 @@ function PreviewResults({ previewResult }: { previewResult: PreviewResult }) {
 							</div>
 							<div className="mt-0.5 text-xs text-red-700">{conflict.humanDetail}</div>
 							{conflict.delta && (
-								<div className="mt-1 pt-1 border-t border-red-200/60 text-[0.6875rem] text-red-600 font-mono">
+								<div className="mt-1 pt-1 border-t border-red-200/60 text-xs text-red-600 font-mono">
 									{conflict.delta}
 								</div>
 							)}
@@ -339,7 +339,7 @@ function PreviewResults({ previewResult }: { previewResult: PreviewResult }) {
 							}`}
 						>
 							<div className="font-medium">{p.label}</div>
-							<div className="mt-0.5 font-mono text-[0.6875rem]">
+							<div className="mt-0.5 font-mono text-xs">
 								{p.summary}
 							</div>
 						</div>
@@ -368,7 +368,7 @@ function BaselineList({
 				<span className="text-xs text-muted-foreground">
 					No existing violations for this entry.
 				</span>
-				<span className="text-[0.625rem] text-muted-foreground/70 mt-1">
+				<span className="text-xs text-muted-foreground/70 mt-1">
 					Preview your changes to check for new conflicts.
 				</span>
 			</div>
