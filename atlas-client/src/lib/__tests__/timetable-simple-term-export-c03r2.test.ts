@@ -10,6 +10,8 @@
  */
 
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -17,7 +19,13 @@ import { MemoryRouter } from 'react-router-dom';
 
 import { TimetableSimpleHeader } from '../../components/timetable/TimetableSimpleHeader';
 import type { ScheduleReviewWorkspaceHeaderContext } from '../../components/timetable/buildScheduleReviewWorkspaceContexts';
+import { resolveSchedulerPrintOptionsUrl, resolveSchedulerPrintRequest } from '../../components/timetable/simple/schedulerPrintRequests';
 import type { DraftReport } from '@/types';
+
+const clientRoot = resolve(import.meta.dirname, '../../..');
+function source(path: string): string {
+	return readFileSync(resolve(clientRoot, path), 'utf8');
+}
 
 const TERM_OPTIONS = [
 	{ value: 'all', label: 'All terms' },
@@ -166,33 +174,36 @@ test('Simple Timetable renders the configured ordered-term options', () => {
 	}
 });
 
-test('every beneficiary export binds the selected term into its real request URL and filename', () => {
-	for (const term of [1, 2, 3]) {
-		const markup = renderHeader(makeContext({ termFilter: term, viewMode: 'faculty', entityFilter: '502' }));
-		const trigger = tagFor(markup, 'timetable-simple-export-trigger');
+test('beneficiary downloads use the selected term through the separate print dialog', () => {
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	const dialog = source('src/components/timetable/simple/SchedulerPrintDialog.tsx');
+	assert.match(header, /<SimpleTermSwitcher context=\{context\}/);
+	assert.match(header, /<SchedulerPrintDialog[\s\S]*?termIndex=\{context\.termFilter\}/,
+		'the separate download dialog receives the currently selected term');
+	assert.doesNotMatch(header, /timetable-simple-export-trigger/,
+		'beneficiary downloads no longer render as direct header controls');
+	assert.match(dialog, /termIndex:\s*props\.termIndex/);
+	assert.match(dialog, /resolveSchedulerPrintRequest\(/);
+	assert.match(dialog, /props\.termIndex === 'all'/,
+		'the dialog blocks beneficiary downloads until one term is selected');
+	assert.match(dialog, /Boolean\(unresolvedReason\)/,
+		'the no-term state disables the download action');
 
-		const summaryUrl = attr(trigger, 'data-export-summary-url');
-		const summaryFile = attr(trigger, 'data-export-summary-filename');
-		assert.ok(summaryUrl?.includes('summary-teacher-schedule.xlsx?termIndex=' + term), `summary workbook sends termIndex=${term}: ${summaryUrl}`);
-		assert.ok(summaryFile?.includes(`-term${term}`), `summary workbook filename names the term: ${summaryFile}`);
-
-		const classUrl = attr(trigger, 'data-export-class-program-url');
-		const classFile = attr(trigger, 'data-export-class-program-filename');
-		assert.ok(classUrl?.includes('class-program.xlsx?termIndex=' + term), `class program sends termIndex=${term}: ${classUrl}`);
-		assert.ok(classFile?.includes(`-term${term}`), `class program filename names the term: ${classFile}`);
-
-		const teacherUrl = attr(trigger, 'data-export-teacher-program-url');
-		const teacherFile = attr(trigger, 'data-export-teacher-program-filename');
-		assert.ok(teacherUrl?.includes('teacher-program.docx?facultyId=502&termIndex=' + term), `teacher program sends termIndex=${term}: ${teacherUrl}`);
-		assert.ok(teacherFile?.includes(`-term${term}`), `teacher program filename names the term: ${teacherFile}`);
+	for (const termIndex of [1, 2, 3]) {
+		const scope = { schoolId: 7, schoolYearId: 9, runId: 42, termIndex, yearLabel: '2030-2031' };
+		assert.equal(resolveSchedulerPrintOptionsUrl(scope),
+			`/api/v1/generation/7/9/runs/42/print-options?termIndex=${termIndex}`);
+		const request = resolveSchedulerPrintRequest({ ...scope, program: 'teacher', ids: [502] });
+		assert.ok(request?.url.includes(`termIndex=${termIndex}`), `teacher download request is scoped to Term ${termIndex}`);
+		assert.ok(request?.filename.includes(`-term${termIndex}.`), `teacher download filename names Term ${termIndex}`);
 	}
 });
 
 test('"All terms" disables official beneficiary downloads and explains why', () => {
-	const markup = renderHeader(makeContext({ termFilter: 'all' }));
-	const trigger = tagFor(markup, 'timetable-simple-export-trigger');
-	assert.equal(attr(trigger, 'data-export-needs-term'), 'true');
-	assert.equal(attr(trigger, 'data-export-summary-url'), '', 'no all-term summary request is exposed');
-	assert.equal(attr(trigger, 'data-export-class-program-url'), '', 'no all-term class-program request is exposed');
-	assert.ok(markup.includes('Choose a term to export.'), 'the operator is told why the download is disabled');
+	const requests = source('src/components/timetable/simple/schedulerPrintRequests.ts');
+	assert.match(requests, /typeof termIndex !== 'number'/);
+	assert.match(requests, /return null;/);
+	const dialog = source('src/components/timetable/simple/SchedulerPrintDialog.tsx');
+	assert.match(dialog, /Choose one ordered term before downloading\./);
+	assert.match(dialog, /disabled=\{!options \|\| loading \|\| busy \|\| Boolean\(unresolvedReason\)/);
 });

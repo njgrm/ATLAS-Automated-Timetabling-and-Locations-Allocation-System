@@ -28,8 +28,12 @@ test('R5 a scope change clears sheets, task, selection, and swap state', () => {
 	assert.match(workspace, /setReadinessSheetOpen\(false\)/);
 	assert.match(workspace, /setTeacherDepartureOpen\(false\)/);
 	assert.match(workspace, /setSimpleDetailsOpen\(false\)/);
-	assert.match(workspace, /setSwapClassTimesMode\?\.\(null\)/);
+	assert.match(workspace, /state\.resetSwapClassTimesState\?\.\(\)/);
 	assert.match(workspace, /setLastAutoSaveUndo\?\.\(null\)/);
+	const scopeClearers = workspace.match(/clearScopeState\(\[([\s\S]*?)\]\);/);
+	assert.ok(scopeClearers, 'scope change must have an explicit state-clear boundary');
+	assert.match(scopeClearers![1], /state\.headerContext\?\.setSelectedEntry\(null\)/,
+		'scope change must clear the selected entry from the previous run/term');
 });
 
 // --- R8 no dead repair navigation ---

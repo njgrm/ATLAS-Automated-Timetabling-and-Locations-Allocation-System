@@ -135,3 +135,23 @@ The layout note was written before the JSX edits.
 **Risks:** `NON_BLOCKING` — rendered evidence is isolated loopback component
 evidence, not deployed Tailnet acceptance. No production data or API calls were
 used. **Verdict:** `READY_FOR_REVIEW`.
+## p06b executor report (2026-10-02)
+
+### p06b r2 layout note
+
+- **User/task:** an older, mouse-first scheduler changes school, year, run, or term and should land in a calm workspace with no detail from the prior scope still selected.
+- **Before JSX:** keep the existing scope-change clear boundary and all current clearers; add the selected-entry reset inside that boundary. Nothing visible moves or changes, and no new control or copy is needed. This follows the existing workspace pattern and preserves term authority and server data ownership.
+- **Base:** `cecb7125fde9f518986f898d6ef0bd516b17ec4b`.
+- **Changed paths:** `atlas-client/src/components/timetable/ScheduleReviewWorkspace.tsx`; `ops/lane-c/codex/PLANNERS.md`.
+- **Result:** scope changes now clear the selected entry through the existing component-local clear boundary. No API, persistence, term default, generation, or publication behavior changed.
+- **Commands:** `npm exec -- tsx --test src/lib/__tests__/timetable-dynamic-workspace-scope-links.test.ts` — 6/6 pass (confirmed failing first: 5/6); `npm run test:a2-timetable-custody` — 54/60 pass, six failures all in `timetable-drift-banner-390-a2.test.tsx`; `git diff --check` — pass.
+- **Rendered evidence:** unavailable in the existing surface. `timetable-dynamic-workspace-r2-consumers.test.ts` documents that mounting this workspace is infeasible in its harness because it invokes the network hook and mounts browser-dependent, heavy DOM/dnd sub-surfaces. No visible output changed.
+- **Known risk:** NON_BLOCKING — the custody suite remains red on six drift-banner assertions in an untouched file; the other five custody files pass.
+- **Verdict:** correction implemented and focused behavior passes; commit candidate ready for independent review.
+
+- **Base:** `b25fc99b5365330e8b957cd118743e61fd47aee2`; **candidate:** `79ab5b01`.
+- **Changed paths:** only the five packet-owned tests under `atlas-client/src/lib/__tests__/`.
+- **Result:** stale swap-reset, Expert publish-control, change-notice, and direct-header export pins now follow the current implementations. Selected-term-only beneficiary downloads remain asserted against the print-dialog request path.
+- **Focused tests:** four files pass individually; `timetable-dynamic-workspace-scope-links.test.ts` is 5/6 because the new R5 selection-clear assertion fails. The scope-change clearers reset task/sheets/swap state but omit `state.headerContext?.setSelectedEntry(null)`. **Product defect; not superseded:** scope changes can retain a selection from the prior run/term. Fix in a separate production packet.
+- **Batch:** `npm run test:client-suite` cannot start on Windows because its 145-file script exceeds the command-line limit. Its files were run in nine sequential 18-file-or-smaller batches: 1,419 tests, 1,381 pass, 38 fail across 7 batches. The failures include the R5 selection defect and assertions in files outside this packet; those were not baseline-checked, so no claim that they are pre-existing or that the aggregate is green.
+- **Disposition:** `RETIRE_AFTER_INTEGRATION`.
