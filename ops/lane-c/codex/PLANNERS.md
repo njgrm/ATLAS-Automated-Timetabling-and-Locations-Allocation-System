@@ -103,6 +103,7 @@ TESTS: <names and pass counts>   SCREENSHOT: <path>   EVIDENCE: <for any diagnos
 - `atlas-client/src/components/manual-edit/ManualEditConflictInspector.tsx`
 - `atlas-client/src/components/faculty/FacultyProfileSheet.tsx`
 - `atlas-client/src/lib/__tests__/a7-c8-type-scale.test.ts`
+- `atlas-client/src/components/timetable/__tests__/a2-header-budget-2026-09-29.test.tsx`
 - `docs/reviews/a7-c8-type-scale/sub-14px-rem-inventory.md`
 - `docs/reviews/p06d-r2-readable-status-controls-layout.md`
 - `docs/reviews/p06d-r2-rendered/manual-edit-conflict-inspector-1366x768.png`
@@ -126,11 +127,13 @@ The layout note was written before the JSX edits.
   `VITE_ENROLLPRO_URL` — pass.
 - `git diff --check` — pass.
 - Isolated loopback render at `http://127.0.0.1:5207`, viewport 1366×768;
-  `/api/v1/**` and `/enrollpro-api/**` mocked. Both production components were
-  rendered from candidate source in Chromium with zero browser errors. Inspector
-  detail computed to 14px. Adviser badge measured 15px face / 15px line box / 24px
-  outer box / 22px content height and scroll height; `text-overflow: clip` with no
-  ellipsis. Screenshots are linked above. Preview was stopped after capture.
+  `/api/**` and `/enrollpro-api/**` were intercepted (GETs return fixture JSON;
+  writes are rejected). No API requests or writes occurred. Both PNG IHDRs verify
+  1366×768; the document viewport and client area also measured 1366×768. Browser
+  console errors: 0. Inspector detail computed to 14px. Adviser badge measured
+  15px face / 15px line box / 24px outer box / 22px content height and scroll
+  height; `text-overflow: clip`. Full-viewport screenshots are linked above.
+  Preview was stopped after capture.
 
 **Risks:** `NON_BLOCKING` — rendered evidence is isolated loopback component
 evidence, not deployed Tailnet acceptance. No production data or API calls were
