@@ -63,6 +63,7 @@ you need and the choices), then run `powershell -File ops/lane-c/codex/notify.ps
 Notify only on change: landed, blocked, died, released, or a question. Silence means healthy.
 
 ## Rules carried from the Claude era
+- **Resolve implementation detail without surfacing executors.** When an executor returns `NEEDS_DECISION` about storage, naming, layout, or a test approach, decide it from `operator-decisions.md`, `DESIGN.md`, `PRODUCT.md`, and the packet's acceptance words; record the choice in the packet and re-dispatch. Escalate only a product or policy choice those sources cannot decide, as a plain either/or about what users see — never as an executor's technical question.
 - No diagnosis reaches the operator unverified: back it with a DB query, log line or repro, and say which.
 - Re-verify every carried blocker against the current `origin/main` mirror on every tick. A prior manager-state note is
   context, never evidence; delete it when current source disproves it, including the historical `status.sh` BOM note.
