@@ -147,34 +147,21 @@ test('UX-R03a row 3 F2: the sync restores via replace navigation on guard-dialog
 
 // --- Row 4: the More menu policy item is a real link ---
 
-test('UX-R03a row 4: the More menu policy item links to the nested policy route', () => {
-	const menu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
-	assert.match(menu, /data-testid="timetable-more-policy"/);
-	assert.match(menu, /to="\/timetable\/policies"/);
-	assert.match(menu, /asChild/);
-	assert.doesNotMatch(menu, /requestAnimationFrame/);
-	assert.doesNotMatch(menu, /switchCenterViewWithGuard/);
-	assert.match(menu, /onLayoutModeChange\('advanced'\)/);
+test('UX-R03a row 4: the policy destination resolves inside the timetable shell', () => {
+	assert.equal(resolveTimetableRouteForView('policy'), '/timetable/policies');
+	assert.equal(resolveTimetableRouteView('/timetable/policies'), 'policy');
+	assert.equal(resolveTimetableRouteView('/timetable/policies/'), 'policy');
+	const chrome = resolveRouteChrome('/timetable/policies');
+	assert.equal(chrome.title, 'Scheduling Policy');
+	assert.deepEqual(chrome.breadcrumbs, ['Class Schedule', 'Scheduling Policy']);
 });
 
-test('UX-R03a row 4: the policy item block is a link, not a state dispatch', () => {
-	// Radix menu content is client-only (it SSRs to '' even with forceMount),
-	// so the item contract is pinned at the source block instead of by markup.
-	const menu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
-	const anchor = menu.indexOf('data-testid="timetable-more-policy"');
-	assert.ok(anchor >= 0, 'the policy menu item must exist');
-	const itemStart = menu.lastIndexOf('<DropdownMenuItem', anchor);
-	const itemEnd = menu.indexOf('</DropdownMenuItem>', anchor);
-	assert.ok(itemStart >= 0 && itemEnd > itemStart, 'the policy item block must be bounded');
-	const block = menu.slice(itemStart, itemEnd);
-	assert.match(block, /asChild/);
-	assert.match(block, /<Link/);
-	assert.match(block, /to="\/timetable\/policies"/);
-	assert.match(block, /Advanced rules/);
-	assert.doesNotMatch(block, /onSelect/);
-	assert.doesNotMatch(block, /preventDefault/);
-	assert.doesNotMatch(block, /requestAnimationFrame/);
-	assert.doesNotMatch(block, /switchCenterViewWithGuard|enterPolicyView/);
+test('UX-R03a row 4: entering the policy route keeps the schedule shell and route chrome', () => {
+	assert.equal(resolveTimetableRouteView('/timetable/policies'), 'policy');
+	assert.equal(resolveUrlRestoreTarget('/timetable/policies', 'policy'), null);
+	const chrome = resolveRouteChrome('/timetable/policies');
+	assert.equal(chrome.title, 'Scheduling Policy');
+	assert.deepEqual(chrome.breadcrumbs, ['Class Schedule', 'Scheduling Policy']);
 });
 
 // --- Row 5: unknown child routes fall back to the index surface ---
