@@ -146,9 +146,13 @@ while ($true) {
   $posts = git -C $repo log -1 --format=%H origin/main -- docs/handoffs 2>$null
   $inboxItem = Get-Item -LiteralPath (Join-Path $H 'operator-inbox.md')
   $inbox = "$($inboxItem.Length):$($inboxItem.LastWriteTimeUtc.Ticks)"
+  $dispatchRequest = Get-Item -LiteralPath (Join-Path $H 'dispatch-request.json') -ErrorAction SilentlyContinue
+  $integrationRequest = Get-Item -LiteralPath (Join-Path $H 'integrate-request.json') -ErrorAction SilentlyContinue
+  $requests = @($dispatchRequest, $integrationRequest | Where-Object { $_ }) |
+    ForEach-Object { "$($_.Name):$($_.Length):$($_.LastWriteTimeUtc.Ticks)" } -join ';'
   $codexDone = (Get-ChildItem (Join-Path $H 'codex-qa') -Recurse -Filter final.md -EA SilentlyContinue |
                 ForEach-Object { $_.FullName + $_.LastWriteTime.Ticks }) -join ';'
-  $digest = "$runs|$health|$branches|$posts|$inbox|$codexDone"
+  $digest = "$runs|$health|$branches|$posts|$inbox|$requests|$codexDone"
 
   $due = ((Get-Date) - $lastTick).TotalMinutes -ge $HeartbeatMinutes
   if ($digest -ne $lastDigest -or $due) {
