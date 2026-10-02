@@ -101,6 +101,10 @@ test('#1 RENDERED: each row names subject, section, teacher, a plain reason, and
 	assert.ok(markup.includes('No Qualified Teacher'), 'the second reason is a plain label');
 	assert.ok(markup.includes('Term 1 · Session 1'), 'the first row states its own ordered term and session');
 	assert.ok(markup.includes('Term 2 · Session 2'), 'the second row states its own ordered term and session');
+	const visibleText = markup.replace(/<[^>]+>/g, '');
+	assert.equal((visibleText.match(/Term 1/g) ?? []).length, 1, 'Term 1 appears once in the row');
+	assert.equal((visibleText.match(/Session 1/g) ?? []).length, 1, 'Session 1 appears once in the row');
+	assert.match(markup, /aria-label="Unassigned session [^"]+: Term 1, Session 1"/, 'the accessible row name preserves both scope facts');
 	// Exactly one Place button per row — two rows, two buttons, no other control.
 	assert.equal((markup.match(/>Place</g) ?? []).length, 2, 'exactly one Place button per row');
 	assert.equal((markup.match(/<button/g) ?? []).length, 2, 'the Place button is the ONLY control on a row');

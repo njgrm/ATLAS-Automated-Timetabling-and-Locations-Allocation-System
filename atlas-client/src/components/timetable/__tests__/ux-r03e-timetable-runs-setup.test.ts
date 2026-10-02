@@ -300,9 +300,11 @@ test('UX-R03e setup row 2: header menu and pane share one refresh implementation
 
 test('UX-R03e setup row 2: header sheet and pane sheet share one repair dispatch', () => {
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	const repairDispatch = source('src/components/timetable/simple/SimpleReadinessRepairDispatch.ts');
 	assert.match(header, /<SimplePublishReadinessSheet/);
 	assert.match(header, /export function dispatchSimpleReadinessRepair/);
-	assert.match(header, /resolveBlockerDestination\(reason, href\)/);
+	assert.match(repairDispatch, /resolveBlockerDestination\(reason, href\)/);
+	assert.match(repairDispatch, /resolvePlacementReasonFilter\(destination\)/);
 	assert.match(header, /dispatchSimpleReadinessRepair\(\{/);
 	const pane = source('src/components/timetable/TimetableSetupPane.tsx');
 	assert.match(pane, /<SimplePublishReadinessSheet/);

@@ -180,24 +180,13 @@ function UnassignedRow({
 		: getDefaultUnassignedReasonDetail(item);
 
 	return (
-		<div role="group" aria-label={`Unassigned session ${itemKey}`} data-testid="generated-unassigned-row" className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border/40 px-1 py-1.5 text-xs last:border-b-0">
+		<div role="group" aria-label={`Unassigned session ${itemKey}: ${unassignedTermLabel(item.termIndex)}, Session ${item.session}`} data-testid="generated-unassigned-row" className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border/40 px-1 py-1.5 text-xs last:border-b-0">
 			<span className="min-w-0 break-words font-medium text-foreground">{subjectLabel(item.subjectId)}</span>
 			<span aria-hidden="true" className="text-muted-foreground/50">·</span>
 			<span className="min-w-0 break-words text-muted-foreground">{sectionLabel(item.sectionId)}</span>
 			<span aria-hidden="true" className="text-muted-foreground/50">·</span>
 			<span className="min-w-0 break-words text-muted-foreground">{teacherText}</span>
-			{/* Addendum (operator, 2026-09-30): five sessions of the same
-			 * subject/section/teacher must be distinguishable, so the row names
-			 * its own term (omitted when the run carries none) and session in
-			 * plain words, before the reason. */}
-			{typeof item.termIndex === 'number' && (
-				<>
-					<span aria-hidden="true" className="text-muted-foreground/50">·</span>
-					<span className="min-w-0 break-words text-muted-foreground">{`Term ${item.termIndex}`}</span>
-				</>
-			)}
-			<span aria-hidden="true" className="text-muted-foreground/50">·</span>
-			<span className="min-w-0 break-words text-muted-foreground">{`Session ${item.session}`}</span>
+			{/* One calm label carries both scope facts, without repeating either. */}
 			<span aria-hidden="true" className="text-muted-foreground/50">·</span>
 			<span className="min-w-0 break-words text-muted-foreground">{unassignedTermLabel(item.termIndex)} · Session {item.session}</span>
 			<span aria-hidden="true" className="text-muted-foreground/50">·</span>

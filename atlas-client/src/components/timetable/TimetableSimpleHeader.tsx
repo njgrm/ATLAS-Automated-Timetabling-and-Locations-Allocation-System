@@ -3,7 +3,6 @@ import { MoreHorizontal, type LucideIcon } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { cn } from '@/lib/utils';
-import { UNLABELLED_RULE_SENTENCE } from '@/lib/timetable-plain-language';
 import { deriveSimpleLifecycleAction } from '@/lib/simple-timetable-state';
 import { deriveTimetableCapabilities, describeSetupState, YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
 import { summarizeGenerationReadiness, generationBlockedOperatorSentence, readReadinessAttempts } from '@/lib/timetable-generation-readiness';
@@ -19,7 +18,6 @@ import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/time
 import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
 import { isRunPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { SimplePublishReadinessSheet } from '@/components/timetable/SimplePublishReadinessSheet';
-import { resolveBlockerDestination, resolvePlacementReasonFilter } from '@/components/timetable/simplePublishReadiness';
 import type { SeverityFilter } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 import type { UnassignedReason, Violation } from '@/types';
 import { UnassignedInsertionWorkflow } from '@/components/timetable/UnassignedInsertionWorkflow';
@@ -79,6 +77,7 @@ import { ExportPresentationSettingsDialog } from '@/components/timetable/simple/
 import { SchedulerPrintDialog } from '@/components/timetable/simple/SchedulerPrintDialog';
 import { fetchRolloverStatus, type RolloverStatus } from '@/lib/settings';
 import { readRolloverAwarenessNotice } from '@/lib/rollover-awareness';
+import { dispatchSimpleReadinessRepair as dispatchReadinessRepair } from '@/components/timetable/simple/SimpleReadinessRepairDispatch';
 
 /* A2 C13 — the prop shape moved to `simple/SimpleHeaderReadinessTypes.ts` for the
    same reason the two types below moved there under A2 HEADER-BUDGET: this file sat
@@ -92,95 +91,9 @@ import {
 } from '@/components/timetable/simple/SimpleHeaderReadinessTypes';
 export type { SimpleReadinessRepairDeps, SimpleReadinessRepairIdentity, TimetableSimpleHeaderProps };
 
-/* A2 HEADER-BUDGET — the repair DISPATCHER stays here: `ux-r03e-timetable-runs-setup`
-   pins `export function dispatchSimpleReadinessRepair`, `resolveBlockerDestination(reason, href)`
-   and `dispatchSimpleReadinessRepair({` in THIS file, and TimetableSetupPane imports it
-   from this exact path. */
-
-/**
- * The `SimplePublishReadinessSheet` repair dispatch. Canonical home is this
- * module (the pre-existing header-source contracts pin it here); the
- * `/timetable/setup` pane imports and shares this exact implementation, so
- * there is still only one. Sheet-close stays with the caller. Every
- * destination is real: Teaching Load deep links keep identity, room blockers
- * go to `/map`, placement blockers honor the exact unresolved reason, and
- * review blockers select the violation in the review rail.
- */
+/** Stable shared entry point for readiness repairs; implementation lives with the helper. */
 export function dispatchSimpleReadinessRepair(context: SimpleReadinessRepairDeps): void {
-	const {
-		href,
-		reason,
-		identity,
-		groupCount,
-		navigate,
-		violations,
-		setBlockerReasonFilter,
-		startPlaceUnresolvedTask,
-		startReviewIssuesTask,
-		setSelectedViolation,
-		setSeverityFilter,
-		issueReviewEnabled,
-		onSetRepairOrigin,
-	} = context;
-	/* J2 (P5): the fallback used to de-snake-case the reason into "no available
-	 * slot" — the reason's own token, lower-cased, which reads as a typo rather
-	 * than a sentence. It now degrades to the ONE shared plain sentence, the same
-	 * one the readiness warning groups use, so the C1 blocker banner and the
-	 * generation blocker sheet cannot disagree. The branch structure, the repair
-	 * resolution and every destination are untouched. */
-	const plainReason = reason === 'NO_AVAILABLE_SLOT' ? 'No available slot'
-		: reason === 'FACULTY_OVERLOADED' ? 'Teachers are overloaded'
-		: reason === 'NO_QUALIFIED_FACULTY' ? 'No qualified teacher'
-		: reason === 'NO_COMPATIBLE_ROOM' ? 'No compatible room'
-		: reason === 'ROOM_CAPACITY_EXCEEDED' ? 'Room capacity exceeded'
-		: reason ? UNLABELLED_RULE_SENTENCE : 'Unknown issue';
-	// C1-a — the real count from the followed blocker group. It was hard-coded to
-	// `0` here, so every blocker repair banner claimed "0 sessions affected" while
-	// the same sheet had just printed the true count one click away. An absent
-	// count (the setup pane has no group) is carried through as `null` and the
-	// banner omits the clause; it is never coerced to a number.
-	onSetRepairOrigin?.({ reason: reason ?? 'UNKNOWN', plainReason, groupCount: groupCount ?? null });
-	// B3 — one shared destination resolver; every blocker action is real.
-	const destination = resolveBlockerDestination(reason, href);
-	if (destination.kind === 'teaching-load') {
-		// R9/A-18: preserve teacher/section/subject identity on the
-		// Teaching Load repair deep link.
-		const params = new URLSearchParams();
-		if (identity?.facultyId != null) params.set('facultyId', String(identity.facultyId));
-		if (identity?.sectionId != null) params.set('sectionId', String(identity.sectionId));
-		if (identity?.subjectId != null) params.set('subjectId', String(identity.subjectId));
-		params.set('task', 'missing-load');
-		navigate(`/teaching-load?${params.toString()}`);
-		return;
-	}
-	if (destination.kind === 'rooms') {
-		// R8/A-03: room configuration lives at /map; the legacy room path is
-		// unmounted. The resolver maps every room blocker reason to /map.
-		navigate('/map');
-		return;
-	}
-	if (destination.kind === 'placement') {
-		// C07B/F5 — honor the exact unresolved reason the resolver carried
-		// (`UNASSIGNED_SECTION` vs `NO_AVAILABLE_SLOT`) so the queue is never
-		// filtered down to a reason that hides the affected sessions.
-		const reasonFilter = resolvePlacementReasonFilter(destination);
-		context.setUnassignedReasonFilter(reasonFilter);
-		setBlockerReasonFilter(reasonFilter);
-		startPlaceUnresolvedTask();
-		return;
-	}
-	// review: select the exact violation in the review rail.
-	const match = destination.code
-		? violations.find((v) => v.code === destination.code && v.severity === 'HARD')
-			?? violations.find((v) => v.code === destination.code)
-		: undefined;
-	if (match) setSelectedViolation(match);
-	setSeverityFilter('hard');
-	if (issueReviewEnabled) {
-		startReviewIssuesTask();
-	} else if (destination.href) {
-		navigate(destination.href);
-	}
+	dispatchReadinessRepair(context);
 }
 
 function TimetableSimpleHeaderImpl({
