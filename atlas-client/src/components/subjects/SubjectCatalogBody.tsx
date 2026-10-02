@@ -50,7 +50,7 @@ import { SubjectMobileList } from '@/components/subjects/SubjectMobileList';
 import { SubjectTablePagination } from '@/components/subjects/SubjectTablePagination';
 import { SubjectTermContractPopover } from '@/components/subjects/SubjectTermContractPopover';
 import { SortableHeader, type SortField, type SortDir } from '@/components/subjects/SortableHeader';
-import { SUBJECT_ACTION_COLUMN_WIDTH_CLASS, SUBJECT_ACTION_COLUMN_Z } from '@/components/subjects/subject-action-column';
+import { SUBJECT_ACTION_COLUMN_WIDTH_CLASS, SUBJECT_ACTION_COLUMN_Z, SUBJECT_NAME_COLUMN_WIDTH_CLASS } from '@/components/subjects/subject-action-column';
 import type { Subject, TermAuthority, SubjectCoverageRow } from '@/types';
 
 /**
@@ -191,8 +191,15 @@ export function SubjectCatalogBody({
 						{/* Phase 2.4: SortableHeader helper mirrors Phase 1.5. aria-sort
 							exposes the sort state, the button carries an accessible
 							name + visible Tooltip. The helper closes over the
-							component's sortField/sortDir/toggleSort. */}
-						<SortableHeader field="name" label="Subject" sortField={sortField} sortDir={sortDir} onToggleSort={onToggleSort} align="left" />
+						MR-71 (subject.docx item 3, "notice the header beside the
+						'teacher coverage', there is a missing header, which is the
+						'action'"): this header also carries
+						`SUBJECT_NAME_COLUMN_WIDTH_CLASS`, so the Subject column's
+						header and its cells declare ONE width. The `sticky top-0`
+						on the `<thead>` above keeps every header — including
+						`Action` — in view when the list scrolls.
+					*/}
+						<SortableHeader field="name" label="Subject" sortField={sortField} sortDir={sortDir} onToggleSort={onToggleSort} align="left" headerClassName={SUBJECT_NAME_COLUMN_WIDTH_CLASS} />
 						<SortableHeader field="gradeLevels" label="Grade level / program" sortField={sortField} sortDir={sortDir} onToggleSort={onToggleSort} align="left" />
 						<SortableHeader field="minMinutesPerWeek" label="Weekly need" sortField={sortField} sortDir={sortDir} onToggleSort={onToggleSort} align="left" />
 						<SortableHeader field="preferredRoomType" label="Room need" sortField={sortField} sortDir={sortDir} onToggleSort={onToggleSort} align="left" />
