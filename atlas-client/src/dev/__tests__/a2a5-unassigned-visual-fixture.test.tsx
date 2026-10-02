@@ -49,6 +49,10 @@ test('A2+A5 dev fixture renders the real grouped queue with local-only actions a
 	assert.ok(fixture);
 	assert.match(fixture.textContent ?? '', /Local visual fixture · synthetic data only/);
 	assert.match(fixture.textContent ?? '', /6 classes need a time slot/);
+	assert.match(fixture.textContent ?? '', /Place a class from this term in a highlighted slot\./);
+	const helper = [...fixture.querySelectorAll('p')].find((node) => node.textContent === 'Place a class from this term in a highlighted slot.');
+	assert.ok(helper);
+	assert.equal(helper.className.includes('line-clamp-1'), false, 'the A5 helper wraps instead of ending in an ellipsis');
 	assert.equal(document.querySelectorAll('[data-testid="generated-unassigned-section"]').length, 3);
 	const rows = [...document.querySelectorAll('[data-testid="generated-unassigned-row"]')];
 	assert.equal(rows.length, 6);
@@ -62,6 +66,7 @@ test('A2+A5 dev fixture renders the real grouped queue with local-only actions a
 	assert.ok(list?.className.includes('overflow-auto'), 'the production queue owns the single scroll region');
 	const drawer = document.querySelector('[data-testid="timetable-task-drawer"]');
 	assert.ok(drawer?.className.includes('overflow-hidden'), 'the actual task drawer contains queue scrolling');
+	assert.ok(drawer?.className.includes('h-[82svh]'), 'the mobile sheet fills most of the viewport so the sample queue does not leave a large empty workspace');
 	assert.ok(drawer?.className.includes('absolute') && drawer.className.includes('md:static'), 'the real drawer adapts from a mobile sheet to the desktop rail');
 	assert.equal(document.querySelectorAll('[data-testid="timetable-task-drawer"]').length, 1);
 	assert.equal(typeof TimetableTaskDrawer, 'object');
