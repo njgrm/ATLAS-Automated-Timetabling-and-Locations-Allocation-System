@@ -4,7 +4,7 @@
  */
 
 import { prisma } from '../lib/prisma.js';
-import { VALID_EVENT_TYPES, VALID_GRADE_GROUPS, getEffectiveEvents, type GradeGroup, type SpecialEventType, type SpecialEventRowLike, type EffectiveSpecialEvent } from '../lib/policy-special-events.js';
+import { VALID_EVENT_TYPES, VALID_GRADE_GROUPS, getEffectiveEvents, isFlagCeremonyEvent, type GradeGroup, type SpecialEventType, type SpecialEventRowLike, type EffectiveSpecialEvent } from '../lib/policy-special-events.js';
 
 // Re-export types from the pure module
 export { VALID_EVENT_TYPES, VALID_GRADE_GROUPS, getEffectiveEvents };
@@ -110,13 +110,14 @@ export async function upsertSpecialEvent(
 	schoolId: number,
 	schoolYearId: number,
 	input: SpecialEventInput,
+	client: typeof prisma = prisma,
 ): Promise<SpecialEventRow> {
 	validateInput(input);
 
 	const programType = normalizeProgramType(input.programType);
 	const gradeGroup = input.gradeGroup ?? null;
 
-	const existing = await prisma.policySpecialEvent.findFirst({
+	const existing = await client.policySpecialEvent.findFirst({
 		where: {
 			schoolId,
 			schoolYearId,
@@ -127,7 +128,7 @@ export async function upsertSpecialEvent(
 	});
 
 	if (existing) {
-		return prisma.policySpecialEvent.update({
+		return client.policySpecialEvent.update({
 			where: { id: existing.id },
 			data: {
 				label: input.label.trim(),
@@ -139,7 +140,7 @@ export async function upsertSpecialEvent(
 		});
 	}
 
-	return prisma.policySpecialEvent.create({
+	return client.policySpecialEvent.create({
 		data: {
 			schoolId,
 			schoolYearId,
@@ -159,10 +160,37 @@ export async function upsertSpecialEvents(
 	schoolId: number,
 	schoolYearId: number,
 	events: SpecialEventInput[],
+	client: typeof prisma = prisma,
 ): Promise<SpecialEventRow[]> {
+	// Once either grade-scoped Flag/HGP row is saved, the legacy global policy
+	// fields and global special-event rows must stop acting as authority. Retire
+	// both persisted fallback sources here so disabled scopes stay disabled in
+	// every read path (generation, warnings, frozen identity, and exports).
+	events.forEach(validateInput);
+	const savesScopedFlag = events.some((event) => isFlagCeremonyEvent(event.eventType, event.label) && event.gradeGroup != null);
+	if (savesScopedFlag) {
+		const globalFlagRows = await client.policySpecialEvent.findMany({
+			where: { schoolId, schoolYearId, gradeGroup: null },
+			select: { id: true, eventType: true, label: true },
+		});
+		const legacyFlagIds = globalFlagRows
+			.filter((row) => isFlagCeremonyEvent(row.eventType, row.label))
+			.map((row) => row.id);
+		if (legacyFlagIds.length > 0) {
+			await client.policySpecialEvent.updateMany({
+				where: { id: { in: legacyFlagIds } },
+				data: { enabled: false },
+			});
+		}
+		await client.schedulingPolicy.updateMany({
+			where: { schoolId, schoolYearId },
+			data: { enableFlagCeremony: false },
+		});
+	}
+
 	const results: SpecialEventRow[] = [];
 	for (const event of events) {
-		results.push(await upsertSpecialEvent(schoolId, schoolYearId, event));
+		results.push(await upsertSpecialEvent(schoolId, schoolYearId, event, client));
 	}
 	return results;
 }
