@@ -224,9 +224,6 @@ Rules for every user-facing change:
 Evidence: ~10 planner cycles from 2026-09-27 night to 2026-09-28 14:00 put 6 fixes live; three releases stalled on
 non-risks; A3 marked 4 items QA_PASSED against its own narrowed rewrites.
 
-- **Two review rounds, then decide.** After a second `CORRECTION_REQUIRED` on the same candidate, the planner either
-  ships the corrected candidate with the open finding recorded as a follow-up row, or drops it from the cycle. No
-  third round. BLOCKING safety findings (data loss, auth, live writes) are the only exception.
 - **Grade against the requester's own words.** A ledger row quotes the original requirement; a narrower rewrite
   cannot be marked met. Lane C's live walk against the original text is the verdict.
 - **The cycle metric is fixes seen live.** A handoff opens with "N fixes live and seen / M integrated / K dropped".
