@@ -11,13 +11,14 @@ A correct, calm ATLAS for school 1 on EnrollPro's active year: dependable Teachi
 schedulers can hand-fix and publish, official printouts, and SMART-family visual cohesion (`DESIGN.md`).
 
 ## Live release
-- Pending approved cutover: `4b046877803fad0f57341114db1155a0c72fc362` (prefix `4b046877`), narrow P06c timetable-control clarity release at `E:\ATLAS-runtime-supervised-f973e0e7-20261002`; rollback remains the current `5b084c7591d45a85e609aa05aec7ef76c68e4d98` runtime source.
-- LIVE: `5b084c7591d45a85e609aa05aec7ef76c68e4d98` (prefix `5b084c75`), p07 Flag/HGP timetable controls,
-  deployed 2026-10-02. Tree `E:\ATLAS-runtime-supervised-5b084c75-20261002`; supervised API 5001 and client
-  5174 are target-owned. Post-cutover health and database-backed subjects read are 200; the Tailnet client serves
-  `SchedulingPolicyPane-C01uMS9A.js` with the recorded target hash and `HGP` marker.
-- Rollback basis: incumbent `fdae67ec64a4713d7c5c2446e03c25c29ddf704f`, with predecessor `c82b8636`; runner
-  audit captures the pre-cutover task XML and machine runtime variables.
+- LIVE: `4b046877803fad0f57341114db1155a0c72fc362` (prefix `4b046877`), narrow P06c timetable-control clarity
+  release, deployed 2026-10-02 20:43 Asia/Manila. Tree
+  `E:\ATLAS-worktrees\lane-a4-release-20261002-4b046877`; the SYSTEM release task confirmed `/api/v1/health/ready`,
+  client 200, and that the 5001 listener runs from this tree. Independent database, Tailnet-chunk, and browser
+  acceptance follow in the same release closure.
+- Rollback basis: prior accepted P07 release `5b084c7591d45a85e609aa05aec7ef76c68e4d98` at
+  `E:\ATLAS-runtime-supervised-5b084c75-20261002`; the runner audit captures the pre-cutover task XML and machine
+  runtime variables.
 - Next: train 22 (move-swap c2 `8c1b9218`, unassigned panel `22b34170`, placement feasibility `8766c084`/`fffa830c`),
   after the 3 header tests are updated. The deploy gate (`ops/runtime/deploy-runner.ps1`) requires the target
   prefix to be written in THIS section before cutover.
