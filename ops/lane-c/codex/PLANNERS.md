@@ -1,5 +1,27 @@
 # Running space-bunny-free planners (read with MANAGER.md)
 
+## p06c r2 layout note — before code
+
+For the older, mouse-first scheduler, keep the current warning and publish summary footprints. Replace the placeholder warning's raw code/identity details with one short title and actionable plain meaning in the existing violation presentation map. In the blocked summary, replace the unresolved-count clause with `N classes need a time slot before this schedule can be published`; retain the existing Must-fix clause when hard problems also block publication. Add no visible lines, chips, or controls. Leave run/term authority and the zero-HARD publication gate untouched.
+
+### p06c r2 handoff
+
+Base `05ba2078e302414bed004c442b6bd4635d709fb2`; branch `work/lane-timetable-p06c`; disposition `RETIRE_AFTER_INTEGRATION`. The placeholder warning now has a plain title, meaning, and action in the existing presentation map; warning rows without a supplied formatter use the existing identity and weekday cleanup. Publish readiness now reuses `classesNeedingTime` for unresolved counts in unresolved-only and mixed hard/unresolved states. No term, run, or publication authority changed.
+
+Checks: `npx tsx --test src/lib/__tests__/warning-readability-c01.test.ts src/lib/__tests__/tt-warning-surface-realism-c07b.test.ts` — 64/64; `npm run test:a2-timetable-truth-labels` — 35/35; `npm run build` — passed with `ISOLATED_LOCAL_BROWSER=1`, `VITE_ATLAS_API=http://127.0.0.1:5101`, and the required `VITE_ENROLLPRO_URL`. `git diff --check` — passed. Typecheck was attempted and reported the map key error (fixed afterward) plus missing `playwright` modules in three pre-existing test files and one implicit-any diagnostic caused by that missing module; it was not rerun.
+
+Rendered component tests assert the changed warning and unresolved-only/mixed publish sentences. **BLOCKING:** the required 1366×768 loopback screenshot was not captured: the local headless-browser launch was rejected by command execution policy. No screenshot is claimed. Independent visual judgement remains outstanding. Candidate is committed additively; do not integrate until that visual evidence is available.
+
+### p06c r3 rendered evidence correction — 2026-10-02
+
+Candidate `154a19f8b11016940146011bcd6a752e67a6bdb6`; base `fdae67ec64a4713d7c5c2446e03c25c29ddf704f`; worktree disposition `KEEP_ACTIVE`.
+
+No product behavior or source changed. E: free space was 30.04 GiB before dependency preparation and 30.03 GiB before/after the client build. Restored the locked client dependency tree with `npm ci --prefer-offline`; the final baseline-aware run was `node ops/lane-c/codex/typecheck-baseline.mjs`, pinned to `fdae67ec64a4713d7c5c2446e03c25c29ddf704f`. Client `npm run typecheck` exited 2 with four diagnostics outside the one-error baseline allowance: three `TS2307` missing `playwright` declarations at `timetable-post-deploy-c04.test.ts:7`, `timetable-post-deploy-c05.test.ts:7`, and `timetable-scheduling-quality-c03.test.tsx:9`, plus the consequent `TS7006` implicit `route` type at `timetable-scheduling-quality-c03.test.tsx:101`. These test files exist unchanged at the base; the client manifest changes in this range only add scripts and do not alter dependencies. Classify these four as the existing test-dependency gap, unexpected by the pinned diagnostic matcher, not as p06c source regressions. The wrapper's server build also exited 2 with `TS2688` (missing Node type definitions); the server dependency tree was not prepared, so this is an environment result, not a client or p06c diagnostic. Baseline additions: 0.
+
+`npm run build` passed (2,895 modules; 40.25 s) with `ISOLATED_LOCAL_BROWSER=1`, `VITE_ATLAS_API=http://127.0.0.1:5101`, and `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net`. The requested 1366×768 isolated browser capture was attempted with a full-viewport headless-Chrome launcher and API interception, but command execution policy rejected the launch command before it ran. No preview/browser process started, no API request or write occurred, and no screenshot dimensions or browser-console result are available. No PNG is claimed. `git diff --check` passed.
+
+**Verdict: BLOCKING —** rendered evidence and independent visual judgement remain outstanding; this report does not clear the review finding.
+
 Planners, executors and QA in `.opencode/agents` pin `opencode-go/space-bunny-free` (variant high; steps 400/300/150).
 The `opencode.json` default is `deepseek-v4.1-flash`: ALWAYS pass `-Agent atlas-planner` or `-Agent atlas-executor`.
 No agent, or a `-ds` agent, silently runs DeepSeek; the default `build` agent is refused by the provider.
@@ -92,6 +114,19 @@ TESTS: <names and pass counts>   SCREENSHOT: <path>   EVIDENCE: <for any diagnos
 | 9 | Old branches: `work/a8-g1-spread-sessions`, `fix/a5-c8b-row-menu-fit`, `work/a9-m1-campus-background`. Decide keep or drop against decisions 2-15 | Manager | Triage | Deleting unmerged work needs the operator |
 | 10 | After-demo backlog, one T1 packet each: Year Setup wrong-year link; "See what would be copied" dead; (i) help icons click-to-open; Teacher Preferences "Load the roster first" on entry; Room Schedules 11x6/13x6 | Setup | T1 | |
 | 11 | Click sweeps re-run: Teachers (0 clicks) and Teaching Load (3 clicks) | QA | Codex walk | |
+
+### p06c r4 visual fixture executor report — 2026-10-02
+
+- **Layout note:** an older, mouse-first scheduler sees one plain placeholder warning beside two short readiness examples. No navigation, controls, API calls, or authentication are involved.
+- **Base:** `3bd20ae9a2ea6b6cdf75dc07307ee8a30f407b65`; branch `work/lane-timetable-p06c`; disposition `KEEP_ACTIVE`.
+- **Changed paths:** `atlas-client/vite.config.ts`; `atlas-client/package.json`; `atlas-client/src/dev/P06cR4VisualFixture.tsx`; `atlas-client/src/dev/P06cR4VisualFixtureEntry.tsx`; `atlas-client/src/dev/__tests__/p06c-r4-visual-fixture.test.tsx`; `ops/lane-c/codex/PLANNERS.md`.
+- **Result:** a GET-only `/__dev/p06c-r4-visual-fixture` entry exists only in Vite's development server. It mounts production `ViolationGroup`, the placeholder presentation map, production message formatters, and `deriveSimplePublishReadiness` with synthetic in-memory data. No auth or production routing changed.
+- **Focused test:** `npm run test:p06c-r4-visual-fixture` — 1/1 passed; confirms the warning title/meaning/action, unresolved-only sentence, mixed Must-fix sentence, and absence of `SYNTHETIC_PLACEHOLDER_OWNED`, `Faculty 16`, and `MONDAY` from rendered text.
+- **Build:** `$env:ISOLATED_LOCAL_BROWSER='1'; $env:VITE_ATLAS_API='http://127.0.0.1:5101'; $env:VITE_ENROLLPRO_URL='https://dev-jegs.buru-degree.ts.net'; npm run build` — passed (2,895 modules; 31.58 s). `rg -l --fixed-strings '__dev/p06c-r4-visual-fixture' dist` — no match, confirming the development route was not emitted in production assets.
+- **Diff check:** `git diff --check` — passed.
+- **Rendered evidence:** not captured by executor; packet assigns the post-commit 1366×768 browser capture to the manager. No browser, preview, API, or staging process was launched. Independent visual judgement remains pending.
+- **Candidate:** `644dc286d44850e1178df3cd42f2be42e0c7dc18` (`feat(timetable): add isolated p06c visual fixture`).
+- **Verdict:** fixture and required automated/build checks are ready for manager capture and independent review. Browser evidence remains pending under the packet's named manager owner.
 
 ## p06d r2 — readable manual-edit and Faculty status controls
 

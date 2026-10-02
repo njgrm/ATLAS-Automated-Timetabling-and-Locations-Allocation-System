@@ -81,7 +81,11 @@ if (violationCodesBlock === undefined) {
 		+ 'A coverage guard that cannot enumerate the canonical set must fail loudly, not pass on an empty set.',
 	);
 }
-const canonicalCodes = Array.from(violationCodesBlock.matchAll(/'([^']+)'/g)).map((match) => match[1]);
+// The code list has explanatory comments that mention retired or related rule
+// names. Only string literals in the array are canonical entries.
+const canonicalCodes = Array.from(
+	violationCodesBlock.replace(/\/\*[\s\S]*?\*\/|\/\/[^\r\n]*/g, '').matchAll(/'([^']+)'/g),
+).map((match) => match[1]);
 
 function violation(code: ViolationCode, message = 'Faculty 16 has an issue on MONDAY.'): Violation {
 	return {
@@ -242,6 +246,14 @@ function renderOperatorSurface(code: ViolationCode, labels: Record<ViolationCode
 	const drawer = renderToStaticMarkup(createElement(ExplainabilityDrawer, { open: true, onClose: () => {}, violation: item }));
 	return `${group}${drawer}`;
 }
+
+test('FOLLOW-UP product bug: SYNTHETIC_PLACEHOLDER_OWNED needs plain copy without a teacher id', () => {
+	const labels = Object.fromEntries(Object.entries(VIOLATION_PRESENTATION).map(([code, value]) => [code, value.title])) as Record<ViolationCode, string>;
+	const visibleText = renderOperatorSurface('SYNTHETIC_PLACEHOLDER_OWNED' as ViolationCode, labels)
+		.replace(/<[^>]*>/g, ' ')
+		.replace(/\s+/g, ' ');
+	assert.doesNotMatch(visibleText, /SYNTHETIC_PLACEHOLDER_OWNED|Faculty 16|MONDAY/, 'the warning uses readable words without a raw code, id, or shout-case day');
+});
 
 test('R2/all-codes: every canonical warning renders with plain copy and no raw code', () => {
 	assert.ok(canonicalCodes.length >= MINIMUM_CANONICAL_CODES, 'the test must enumerate the production canonical set');

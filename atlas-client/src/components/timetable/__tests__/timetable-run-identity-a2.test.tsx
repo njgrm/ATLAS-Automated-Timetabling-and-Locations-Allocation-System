@@ -506,12 +506,11 @@ test('#51 a published run on the Expert surface renders no "Draft" anywhere in i
 		/variant=\{isPreGenerationWorkspace \? 'secondary' : 'default'\}/,
 		'the pre-candidate layout-keyed badge variant is gone from the source',
 	);
-	// And the two state regions of a PUBLISHED run speak only of publication.
-	for (const testid of ['timetable-run-identity', 'timetable-run-state-badge']) {
-		const region = markup.match(new RegExp(`data-testid="${testid}"[\\s\\S]{0,400}`))?.[0] ?? '';
-		assert.doesNotMatch(region, /Draft/i, `${testid} must not read Draft over a published run`);
-		assert.match(region, /Published/i, `${testid} does read Published`);
-	}
+	// Test the words operators see. A broad markup slice also includes internal
+	// test IDs such as `timetable-draft-state-strip`, which are not visible copy.
+	assert.match(runIdentityText(markup), /^Published\b/, 'the state line leads with publication');
+	assert.doesNotMatch(runIdentityText(markup), /Draft/i, 'the visible state line never calls a published run a draft');
+	assert.equal(runBadgeText(markup), 'Published schedule', 'the visible badge agrees');
 	// The heading is a SECTION name, never a run state — which is why it cannot
 	// disagree with the badge.
 	assert.equal(runIdentityLabel(markup), 'State:', 'the strip cell is labelled by state');

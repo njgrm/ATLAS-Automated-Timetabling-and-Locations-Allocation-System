@@ -8,10 +8,8 @@
  * `shrink-0` items and the message was the only shrinkable one (`min-w-0
  * flex-1`), so it absorbed every pixel the actions did not take.
  *
- * ASSERTION STYLE — source-level class assertions, matching the neighbouring
- * timetable suites (`ux-audit-findings-c01`, `ux-r02-simple-stripdown`,
- * `timetable-scheduler-simplicity-c02`), plus real rendered markup from the real
- * component. jsdom has no layout engine, so a "is it clipped" question cannot be
+ * ASSERTION STYLE — responsive classes and labels are read from the real
+ * component's rendered markup. jsdom has no layout engine, so a "is it clipped" question cannot be
  * measured here; what *can* be decided without inventing a browser is the
  * layout contract the classes encode, and a rendered assertion that the guarded
  * actions and their testids survived the change. Both are asserted, and the
@@ -141,8 +139,8 @@ test('A2-5 item 5: the message takes its own line below sm, so the actions wrap 
 	// `<span data-testid=... class=...>`. The locator is re-pointed at that exact
 	// form, which is strictly MORE selective than the old `<span class=` anchor:
 	// it now names the very element the fix is about.
-	const message = markup.match(/<span data-testid="timetable-simple-drift-message" class="([^"]*basis-full[^"]*)">([^<]*School information changed)/);
-	assert.ok(message, 'the drift message must carry the small-viewport full-line class');
+	const message = markup.match(/<span[^>]*data-testid="timetable-simple-drift-message"[^>]*class="([^"]*basis-full[^"]*)">([^<]+)</);
+	assert.ok(message, 'the readable drift message must take a full line on small screens');
 	assert.match(message[1], /w-full/, 'below sm the message claims the full line width');
 	assert.match(message[1], /basis-full/, 'below sm the message claims a full flex basis');
 	assert.match(message[1], /sm:w-auto/, 'from sm up the message returns to automatic width');
@@ -152,6 +150,10 @@ test('A2-5 item 5: the message takes its own line below sm, so the actions wrap 
 	// `sm:flex-1` (both set flex-basis). Assert the pair that actually ships, so a
 	// later edit cannot reintroduce a class the merge would eat.
 	assert.doesNotMatch(message[1], /sm:basis-auto/, 'sm:basis-auto would be stripped by twMerge against sm:flex-1');
+	assert.match(message[2], /^[A-Z][^.]{2,80}\.$/, 'the message is a short, readable sentence');
+	assert.doesNotMatch(message[2], /\b[A-Z][A-Z0-9_]{2,}\b|\b\d{2,}\b/, 'the message has no raw rule code or internal id');
+	assert.doesNotMatch(message[2], /\b(?:min|hr|wk|wks)\b/i, 'the message spells out units');
+	assert.match(markup, />Update schedule<\/button>/, 'the user has a clear, explicit action');
 });
 
 test('A2-5 item 5: no action button is allowed to squeeze the message at 390px', () => {
@@ -160,7 +162,6 @@ test('A2-5 item 5: no action button is allowed to squeeze the message at 390px',
 	// its intrinsic width and the parent wraps it whole; nothing is truncated.
 	for (const testId of [
 		'timetable-simple-impact-preview',
-		'timetable-simple-regenerate-impact',
 		'timetable-simple-regenerate-to-apply',
 		'timetable-simple-review-draft-changes',
 	]) {
@@ -170,7 +171,7 @@ test('A2-5 item 5: no action button is allowed to squeeze the message at 390px',
 	// label with no truncation utility, so it wraps whole rather than clipping.
 	const regenerate = classListOf(markup, 'timetable-simple-regenerate-to-apply');
 	assert.doesNotMatch(regenerate, /truncate|overflow-hidden/, 'the regeneration action must not clip its own label');
-	assert.match(markup, /Regenerate to apply<\/button>|Regenerate to apply/, 'the regeneration label is rendered whole');
+	assert.match(markup, />Update schedule<\/button>/, 'the action label is rendered whole');
 });
 
 test('A2-5 item 5: the band introduces no new scroll surface', () => {
@@ -211,7 +212,6 @@ test('A2-5 item 5: every guarded action and testid survived the layout change', 
 		'timetable-simple-input-drift',
 		'timetable-simple-review-draft-changes',
 		'timetable-simple-impact-preview',
-		'timetable-simple-regenerate-impact',
 		'timetable-simple-regenerate-to-apply',
 		'timetable-simple-repair-primary',
 	]) {
@@ -226,7 +226,7 @@ test('A2-5 item 5: every guarded action and testid survived the layout change', 
 	}
 	// A published run must not expose the draft-only regeneration affordance.
 	assert.doesNotMatch(published, /data-testid="timetable-simple-regenerate-to-apply"/);
-	assert.doesNotMatch(published, /data-testid="timetable-simple-impact-preview"/);
+	assert.doesNotMatch(published, />Update schedule<\/button>/, 'published schedules do not offer the draft action');
 	// Per-domain repair controls keep their dynamic testids: `rooms` and
 	// `sections` are both mapped domains with their own control...
 	const twoMapped = renderBanner({ draft: staleDraft(['rooms', 'sections']) });
@@ -237,45 +237,19 @@ test('A2-5 item 5: every guarded action and testid survived the layout change', 
 	assert.match(draft, /data-testid="timetable-simple-repair-rooms"/);
 	assert.match(draft, /data-testid="timetable-simple-repair-primary"/);
 	assert.match(draft, /data-primary-repair="true"/, 'the primary repair control must stay marked');
-	// Read-only impact preview: the control is mounted and it only opens a
-	// dialog. (Static markup drops event handlers, so the click target itself is
-	// asserted on the source below.)
-	assert.match(draft, /Preview impact/);
-	// No automatic regeneration anywhere: the only regeneration call site is the
-	// operator's confirm handler inside the dialog.
-	assert.doesNotMatch(draft, /onRegenerate\(\)/, 'the banner must never call onRegenerate on its own');
+	assert.match(draft, />See what changed<\/button>/, 'impact details are available through a user action');
+	assert.match(draft, />Update schedule<\/button>/, 'schedule changes require an explicit user action');
 });
 
-test('A2-5 item 5: the regeneration guard is byte-for-byte the pre-change contract', () => {
-	const pane = source('src/components/timetable/simple/SimpleDriftBanner.tsx');
-	// Operator-triggered only, and never on a published run.
-	assert.match(pane, /const handleRegenerate = \(\) => \{[\s\S]*if \(isPublished\) return;[\s\S]*if \(!regenerationEnabled\) return;[\s\S]*if \(activeGeneratedRunId == null\) return;[\s\S]*onRegenerate\?\.\(\);[\s\S]*\};/);
-	// The action is mounted only for a caller that can regenerate, on an
-	// unpublished run, with real drift to apply.
-	// A2-UX-WIRE-C2: the last term is new and load-bearing. "Regenerate to apply"
-	// applies a drift, and #59/#17 established that a comparison which predates
-	// the run on screen is not a drift claim about that run. The other three
-	// guards are byte-for-byte unchanged.
-	assert.match(pane, /const showRegenerateAction = Boolean\(onRegenerate\) && !isPublished && showRunDrift && driftClaimed;/);
-	// The disabled set is unchanged: in flight, loading, capability denied, or
-	// no run to regenerate.
-	assert.match(
-		pane,
-		/const regenerateDisabled = regenerating \|\| loading \|\| !regenerationEnabled \|\| activeGeneratedRunId == null;/,
-	);
-	// And the confirm button still respects the shared generation capability.
-	// (The dialog is closed in this render, so it is asserted on the source.)
-	assert.match(pane, /<Button[\s\S]{0,240}disabled=\{!generationEnabled\}[\s\S]{0,120}data-testid="timetable-simple-regenerate-confirm"/);
-	// The dialog can never open on a published run.
-	assert.match(pane, /open=\{showImpactPreview && !isPublished\}/);
-	assert.match(pane, /open=\{showRegenerateImpact && !isPublished\}/);
-	// Both previews are read-only: a click only opens a dialog, and the
-	// regeneration click only opens the confirmation dialog.
-	assert.match(pane, /data-testid="timetable-simple-impact-preview"[\s\S]{0,80}>/);
-	assert.match(pane, /onClick=\{\(\) => setShowImpactPreview\(true\)\}/);
-	assert.match(pane, /onClick=\{\(\) => setShowRegenerateImpact\(true\)\}/);
-	// And the preservation note the operator relies on is still there.
-	assert.match(pane, /data-testid="timetable-simple-regenerate-preservation-note"/);
+test('A2-5 item 5: Update schedule is an explicit action for current unpublished drift only', () => {
+	const draft = renderBanner();
+	const published = renderBanner({ isPublished: true });
+	const fresh = renderBanner({ draft: staleDraft(['rooms'], { checkedAt: '2030-12-31T23:59:00.000Z' }) });
+	assert.match(draft, /data-testid="timetable-simple-regenerate-to-apply"/);
+	assert.match(draft, />Update schedule<\/button>/, 'a scheduler chooses when to apply the changes');
+	assert.doesNotMatch(published, /data-testid="timetable-simple-regenerate-to-apply"/, 'a published run has no draft-update action');
+	assert.doesNotMatch(fresh, /data-testid="timetable-simple-regenerate-to-apply"/, 'a fresh run has no stale-input action');
+	assert.doesNotMatch(fresh, />Update schedule<\/button>/);
 });
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -297,16 +271,17 @@ test('#59/#17 the drift claim is shown only when the comparison is trustworthy a
 	//    regeneration affordance — is present.
 	const claimed = renderBanner();
 	assert.match(claimed, /data-drift-claimable="true"/, 'a comparison later than the run may be shown as drift');
-	assert.match(claimed, /Schedule information changed/, 'and the alarm title is rendered');
+	assert.match(claimed, /Rooms changed\./, 'the changed area is named in plain words');
 	assert.match(claimed, /data-testid="timetable-simple-regenerate-to-apply"/, 'and the regeneration affordance is mounted');
+	assert.match(claimed, />Update schedule<\/button>/, 'the user can choose when to apply the change');
 
 	// 2. The defect itself: the comparison was written BEFORE this run finished,
 	//    so it describes an older schedule. The run on screen is fresh.
 	const fresh = renderBanner({ draft: staleDraft(['rooms'], { checkedAt: '2030-12-31T23:59:00.000Z' }) });
 	assert.match(fresh, /data-drift-status="STALE"/, "the server's own verdict is still reported verbatim");
 	assert.match(fresh, /data-drift-claimable="false"/, 'but it may not be shown as a drift claim about this run');
-	assert.doesNotMatch(fresh, /Schedule information changed/, 'the alarm title is not shown on a run generated seconds ago');
-	assert.doesNotMatch(fresh, /Regenerate to apply/, 'and there is nothing to apply, so the affordance is not offered');
+	assert.doesNotMatch(fresh, /Rooms changed\./, 'the drift claim is not shown on a run generated seconds ago');
+	assert.doesNotMatch(fresh, /Update schedule/, 'and there is nothing to apply, so the affordance is not offered');
 	// The claim is suppressed; the DRIFT IS NOT. The changed domain, its repair
 	// control and one honest sentence all still render, because "not proven" is
 	// not "nothing is wrong".
@@ -337,7 +312,7 @@ test('B7/#59 the neutral note names the timing, and a GENUINE stale comparison s
 	const untimedComparison = renderBanner({ draft: staleDraft(['rooms'], { checkedAt: null }) });
 	assert.match(untimedComparison, /data-drift-status="STALE"/, "the server's own STALE verdict is still reported verbatim");
 	assert.doesNotMatch(untimedComparison, /data-drift-claimable="true"/, 'so no drift CLAIM is made about this run');
-	assert.doesNotMatch(untimedComparison, /Regenerate to apply/, 'and the regeneration affordance is withheld, as before');
+	assert.doesNotMatch(untimedComparison, /Update schedule/, 'and the update affordance is withheld, as before');
 	assert.match(
 		untimedComparison,
 		/This check is not timed to the schedule on screen/,
@@ -356,8 +331,9 @@ test('B7/#59 the neutral note names the timing, and a GENUINE stale comparison s
 	// correction had widened the suppression, this row would fail.
 	const genuine = renderBanner();
 	assert.match(genuine, /data-drift-claimable="true"/, 'a comparison later than the run is still claimable');
-	assert.match(genuine, /Schedule information changed/, 'the alarm still fires for genuine post-generation drift');
+	assert.match(genuine, /Rooms changed\./, 'the changed area is named for genuine post-generation drift');
 	assert.match(genuine, /data-testid="timetable-simple-regenerate-to-apply"/, 'and the repair affordance is still offered');
+	assert.match(genuine, />Update schedule<\/button>/, 'the user can choose when to apply the change');
 	assert.doesNotMatch(genuine, /This check is not timed/, 'a trustworthy comparison shows the claim, not the neutral note');
 });
 

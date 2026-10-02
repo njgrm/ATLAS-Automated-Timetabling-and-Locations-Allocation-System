@@ -7,7 +7,9 @@ export type ViolationPresentation = {
 	action: string;
 };
 
-export const VIOLATION_PRESENTATION: Record<ViolationCode, ViolationPresentation> = {
+type ViolationPresentationCode = ViolationCode | 'SYNTHETIC_PLACEHOLDER_OWNED';
+
+export const VIOLATION_PRESENTATION: Record<ViolationPresentationCode, ViolationPresentation> = {
 	FACULTY_TIME_CONFLICT: { title: 'Teacher double-booked', meaning: 'One teacher is assigned to overlapping classes.', action: 'Move one class or assign another qualified teacher.' },
 	ROOM_TIME_CONFLICT: { title: 'Room double-booked', meaning: 'Two classes use the same room at the same time.', action: 'Move one class to a free room or time.' },
 	SECTION_TIME_CONFLICT: { title: 'Section double-booked', meaning: 'Students in one section have overlapping classes.', action: 'Move one of the section’s classes to another time.' },
@@ -53,6 +55,7 @@ export const VIOLATION_PRESENTATION: Record<ViolationCode, ViolationPresentation
 	SECTION_OVERCOMPRESSED: { title: 'Section day is too compressed', meaning: 'The section has too many consecutive class periods without a sufficient break.', action: 'Spread the section’s classes or add a break.' },
 	LACKING_FACULTY: { title: 'No teacher available', meaning: 'A required session has no qualified teacher available.', action: 'Assign a qualified teacher in Teaching Load or free an authorized teacher’s schedule.' },
 	INCOMPLETE_MODULAR_GROUP: { title: 'Rotating subject group incomplete', meaning: 'A rotating subject family is missing a required term-specific member or assignment.', action: 'Complete the rotating subject, teacher, and room assignments for every ordered term.' },
+	SYNTHETIC_PLACEHOLDER_OWNED: { title: 'Class assigned to a future teacher', meaning: 'This class is assigned to a teacher who has not joined the school yet.', action: 'Assign a teacher who is already available.' },
 };
 
 export function getViolationPresentation(code: ViolationCode): ViolationPresentation {
