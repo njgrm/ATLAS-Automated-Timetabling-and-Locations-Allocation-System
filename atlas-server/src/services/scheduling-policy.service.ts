@@ -5,6 +5,7 @@
 
 import { getDataContext } from '../lib/data-context.js';
 import { Prisma } from '@prisma/client';
+import { isFlagCeremonyEvent } from '../lib/policy-special-events.js';
 
 const db = () => getDataContext();
 
@@ -1339,6 +1340,17 @@ export async function upsertPolicy(schoolId: number, schoolYearId: number, input
 	}
 	if (errors.length > 0) {
 		throw err(400, 'INVALID_POLICY', errors.join(' '));
+	}
+
+	// Scoped Flag/HGP rows, including disabled rows, permanently retire the
+	// school-wide compatibility switch for this school/year. A later policy PUT
+	// cannot silently make an intentionally disabled scoped overlay reappear.
+	const persistedScopedFlagRows = await db().policySpecialEvent?.findMany({
+		where: { schoolId, schoolYearId, gradeGroup: { not: null } },
+		select: { eventType: true, label: true },
+	}) ?? [];
+	if (persistedScopedFlagRows.some((event) => isFlagCeremonyEvent(event.eventType, event.label))) {
+		data.enableFlagCeremony = false;
 	}
 
 	const existingWindows = await db().gradeShiftWindow.findMany({
