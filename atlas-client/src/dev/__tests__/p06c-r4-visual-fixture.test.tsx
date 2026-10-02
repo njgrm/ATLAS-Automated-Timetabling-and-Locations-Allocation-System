@@ -46,7 +46,7 @@ test('p06c development fixture mounts the production warning and readiness path'
 		assert.ok(!text.includes(forbidden), `${forbidden} must not appear in the rendered fixture`);
 	}
 	assert.equal(placeholderViolation.code, 'SYNTHETIC_PLACEHOLDER_OWNED');
-	assert.equal(VIOLATION_PRESENTATION[placeholderViolation.code].title, 'Class assigned to a future teacher');
+	assert.equal(VIOLATION_PRESENTATION.SYNTHETIC_PLACEHOLDER_OWNED.title, 'Class assigned to a future teacher');
 	assert.equal(typeof deriveSimplePublishReadiness, 'function');
 	assert.equal(typeof ViolationGroup, 'function');
 	assert.equal(readiness(0).totalUnresolved, 2);
