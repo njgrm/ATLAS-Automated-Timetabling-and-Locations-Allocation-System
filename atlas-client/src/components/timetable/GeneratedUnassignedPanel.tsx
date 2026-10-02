@@ -112,11 +112,11 @@ export function GeneratedUnassignedPanel({ context }: GeneratedUnassignedPanelPr
 				</h3>
 			</div>
 			{groups.length > 0 ? (
-				<ul className="flex-1 min-h-0 overflow-auto scrollbar-thin px-3 pb-3 pt-2" data-testid="generated-unassigned-list" aria-label="Classes needing a time slot">
+				<ul className="flex-1 min-h-0 overflow-auto scrollbar-thin px-3 pb-2 pt-1" data-testid="generated-unassigned-list" aria-label="Classes needing a time slot">
 					{groups.map((group) => (
-						<li key={group.sectionId} className="mb-3" data-testid="generated-unassigned-section">
-							<div className="mb-1 break-words text-xs font-semibold text-muted-foreground">{group.label}</div>
-							<div className="grid gap-0.5">
+						<li key={group.sectionId} className="mb-2 last:mb-0" data-testid="generated-unassigned-section">
+							<div className="mb-0.5 break-words text-xs font-semibold leading-4 text-muted-foreground">{group.label}</div>
+							<div className="grid gap-0">
 								{group.items.map((item) => (
 									<UnassignedRow
 										key={buildUnassignedKey(item)}
@@ -180,18 +180,20 @@ function UnassignedRow({
 		: getDefaultUnassignedReasonDetail(item);
 
 	return (
-		<div role="group" aria-label={`Unassigned session ${itemKey}: ${unassignedTermLabel(item.termIndex)}, Session ${item.session}`} data-testid="generated-unassigned-row" className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border/40 px-1 py-1.5 text-xs last:border-b-0">
-			<span className="min-w-0 break-words font-medium text-foreground">{subjectLabel(item.subjectId)}</span>
-			<span aria-hidden="true" className="text-muted-foreground/50">·</span>
-			<span className="min-w-0 break-words text-muted-foreground">{sectionLabel(item.sectionId)}</span>
-			<span aria-hidden="true" className="text-muted-foreground/50">·</span>
-			<span className="min-w-0 break-words text-muted-foreground">{teacherText}</span>
-			{/* One calm label carries both scope facts, without repeating either. */}
-			<span aria-hidden="true" className="text-muted-foreground/50">·</span>
-			<span className="min-w-0 break-words text-muted-foreground">{unassignedTermLabel(item.termIndex)} · Session {item.session}</span>
-			<span aria-hidden="true" className="text-muted-foreground/50">·</span>
-			<span className="min-w-0 break-words text-muted-foreground">{reasonText}</span>
-			<Button type="button" variant="outline" size="sm" className="ml-auto h-7 shrink-0 px-3 text-xs" onClick={onPlace}>
+		<div role="group" aria-label={`Unassigned session ${itemKey}: ${unassignedTermLabel(item.termIndex)}, Session ${item.session}`} data-testid="generated-unassigned-row" className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-border/40 px-1 py-1 text-xs last:border-b-0">
+			<div className="min-w-0 space-y-0.5">
+				<div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 leading-4">
+					<span className="min-w-0 break-words font-medium text-foreground">{subjectLabel(item.subjectId)}</span>
+					<span className="min-w-0 break-words text-muted-foreground">{sectionLabel(item.sectionId)}</span>
+					<span className="min-w-0 break-words text-muted-foreground">{teacherText}</span>
+				</div>
+				{/* Scope facts and the reason stay readable in a compact second line. */}
+				<div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-[11px] leading-4 text-muted-foreground">
+					<span>{unassignedTermLabel(item.termIndex)} · Session {item.session}</span>
+					<span className="break-words">{reasonText}</span>
+				</div>
+			</div>
+			<Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2 text-xs" onClick={onPlace}>
 				Place
 			</Button>
 		</div>

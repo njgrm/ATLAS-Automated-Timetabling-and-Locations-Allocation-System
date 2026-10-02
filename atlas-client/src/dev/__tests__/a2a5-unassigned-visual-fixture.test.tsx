@@ -66,7 +66,8 @@ test('A2+A5 dev fixture renders the real grouped queue with local-only actions a
 	assert.ok(list?.className.includes('overflow-auto'), 'the production queue owns the single scroll region');
 	const drawer = document.querySelector('[data-testid="timetable-task-drawer"]');
 	assert.ok(drawer?.className.includes('overflow-hidden'), 'the actual task drawer contains queue scrolling');
-	assert.ok(drawer?.className.includes('h-[82svh]'), 'the mobile sheet fills most of the viewport so the sample queue does not leave a large empty workspace');
+	assert.ok(drawer?.className.includes('inset-0'), 'the mobile drawer uses the full available workspace height');
+	assert.equal(drawer?.className.includes('82svh'), false, 'the drawer does not reserve an artificial viewport gap');
 	assert.ok(drawer?.className.includes('absolute') && drawer.className.includes('md:static'), 'the real drawer adapts from a mobile sheet to the desktop rail');
 	assert.equal(document.querySelectorAll('[data-testid="timetable-task-drawer"]').length, 1);
 	assert.equal(typeof TimetableTaskDrawer, 'object');

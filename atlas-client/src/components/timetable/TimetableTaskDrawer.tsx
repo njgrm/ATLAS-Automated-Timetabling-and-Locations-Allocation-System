@@ -166,7 +166,7 @@ function TimetableTaskDrawerImpl({
 
 	return (
 		<aside
-			className="absolute inset-x-2 bottom-2 z-20 flex h-[82svh] max-h-[82%] min-h-72 flex-col overflow-hidden rounded-2xl border border-border bg-background/98 shadow-2xl backdrop-blur md:static md:inset-auto md:z-auto md:h-full md:max-h-none md:w-[24rem] md:rounded-none md:border-y-0 md:border-r-0 md:shadow-none"
+			className="absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-background/98 shadow-2xl backdrop-blur md:static md:inset-auto md:z-auto md:h-full md:max-h-none md:w-[24rem] md:rounded-none md:border-y-0 md:border-r-0 md:shadow-none"
 			data-testid="timetable-task-drawer"
 			aria-label={copy.title}
 		>
