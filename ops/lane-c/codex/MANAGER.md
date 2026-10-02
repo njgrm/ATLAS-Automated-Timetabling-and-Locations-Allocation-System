@@ -50,7 +50,8 @@ worktree; anything that needs a repo change becomes a packet or an integrator ac
   15-minute observed quiet window across client and API traffic, no generation/publication write in flight, and no
   `using live` or `no deploys` inbox veto. Also require the automated gate: full suites green; server and client entry
   artifacts exist; target dist count matches live; and 1366x768 `/timetable` header and grid screenshots pass.
-  Enforce at most two releases per local day and none from 22:00 through 06:00 unless the inbox says `ship`. After
+  Release on evidence, not on a tally: the per-day count cap and the 22:00-06:00 blackout were removed by
+  the operator on 3 Oct (decision 16a as amended); every substantive gate above still applies. After
   cutover, require Tailnet target chunk, health 200, and a five-flow Codex smoke including those screenshots. Any miss
   rolls back automatically, pauses autonomous deploys, and notifies the operator. Missing activity telemetry is a stop,
   not a reason to infer inactivity. Migrations still require staging and an independent HIGH reviewer pass.

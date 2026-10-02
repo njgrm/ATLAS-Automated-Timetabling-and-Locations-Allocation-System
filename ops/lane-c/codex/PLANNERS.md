@@ -37,8 +37,10 @@ No agent, or a `-ds` agent, silently runs DeepSeek; the default `build` agent is
 Owners: **Timetable** (/timetable, header, grid, draft/swap/unassigned, generator UI), **Setup** (Teachers, Teaching Load,
 Subjects, Sections, Policies, Year Setup), **Reports** (Print Reports, exports, docx, Dashboard). Shared files (app shell,
 navigation, shared header helpers) belong to the manager. At most 3 feature planners plus A4.
-Releases follow decision 16a: at most 2 per day, none 22:00-06:00 unless the operator writes `ship`; the live-use
-gate, artifact checks, screenshots, post-cutover smoke, automatic rollback, and migration reviewer rules are mandatory.
+Releases follow decision 16a as amended 3 Oct: the deploy-count cap and the 22:00-06:00 blackout are
+REMOVED — release on evidence, not on a tally. The substantive gates stand: full suites, artifact/dist
+parity, 1366x768 timetable evidence, a fresh 15-minute quiet window via live-use-check.ps1, and
+post-cutover checks. Migrations keep the staging + independent HIGH reviewer path.
 Pre-existing failures are compared against the pinned base and recorded; they are never silently accepted as green.
 
 ## Launch recipe (one packet)
