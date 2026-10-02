@@ -17,6 +17,7 @@ import { useTimetableGridPointerPreview } from '@/components/timetable/useTimeta
 import { SandboxEntryBadge, TeacherDepartureEntryBadge } from '@/components/timetable/TimetableGridEntryBadges';
 import type { GridCellProps } from '@/components/timetable/TimetableGridCell.types';
 import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
+import { BREAK_BAND_COLOUR_CLASS, BREAK_BAND_TONE } from '@/components/timetable/TimetableGridBreakBand';
 import {
 	GridDropContainer,
 	inactiveDragCellState,
@@ -156,6 +157,27 @@ const GridCell = memo(function GridCell({
 	const eventLabelWithClass = ceremonyOverlayWithClass || blockedWindowWithClass;
 
 	if (eventAppliesToDay && !eventLabelWithClass) {
+		// MR-61. A HEALTH BREAK / LUNCH row is a BAND on the day, not a teaching
+		// period, and at base it was painted `bg-amber-50/40 text-amber-700` —
+		// the app's WARNING semantic, inside the one grid where amber already
+		// means a flag overlay, a class colliding with a block, a SOFT violation
+		// and every unplaced chip. It now wears the neutral, grade-free
+		// `bg-muted` surface a non-grade period already wears, with the ink the
+		// room-schedule grid already gives an event label, so it reads as "no
+		// class here" without claiming attention or a grade. See
+		// `TimetableGridBreakBand.ts` for why no status colour can carry this.
+		// No row, chip or control is added; only these two cells' colour and the
+		// attributes that make the band machine-readable.
+		// The marker's value is a ROLE, never the event's display name. Putting
+		// `FLAG CEREMONY` in an attribute would duplicate the user-facing string
+		// in the markup, and the grid-shape suite counts its occurrences to prove
+		// the flag is not rendered twice. The role marker separates the two
+		// surfaces; which break it is, `data-start-time` already says.
+		const breakAttributes = {
+			'data-break-slot': 'true',
+			'data-break-tone': BREAK_BAND_TONE,
+			'data-testid': 'timetable-break-slot',
+		};
 		if (hasKbSource) {
 			return (
 				<td
@@ -163,10 +185,14 @@ const GridCell = memo(function GridCell({
 					data-start-time={startTime}
 					data-end-time={endTime}
 					data-cell-entry-ids={cellEntries.map((entry) => entry.entryId).join(' ')}
+					{...breakAttributes}
 					role="button"
 					tabIndex={0}
 					aria-label={`Blocked slot: ${eventName ?? 'Special Event'} on ${TIMETABLE_DAY_SHORT[day] ?? day} ${formatTime(startTime)}`}
-					className="px-1 py-1 align-top border-l border-border/30 bg-amber-50/40 text-center text-xs font-medium text-amber-700 outline-none ring-2 ring-primary/40 ring-offset-1"
+					className={cn(
+						'px-1 py-1 align-top text-center text-xs font-medium outline-none ring-2 ring-primary/40 ring-offset-1',
+						BREAK_BAND_COLOUR_CLASS
+					)}
 					onKeyDown={(event) => {
 						if (event.key === 'Enter' || event.key === ' ') {
 							event.preventDefault();
@@ -184,7 +210,8 @@ const GridCell = memo(function GridCell({
 				data-start-time={startTime}
 				data-end-time={endTime}
 				data-cell-entry-ids={cellEntries.map((entry) => entry.entryId).join(' ')}
-				className="px-1 py-1 align-top border-l border-border/30 bg-amber-50/40 text-center text-xs font-medium text-amber-700"
+				{...breakAttributes}
+				className={cn('px-1 py-1 align-top text-center text-xs font-medium', BREAK_BAND_COLOUR_CLASS)}
 			>
 				{eventName ?? 'Special Event'}
 			</td>
