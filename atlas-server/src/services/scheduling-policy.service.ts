@@ -6,6 +6,7 @@
 import { getDataContext } from '../lib/data-context.js';
 import { Prisma } from '@prisma/client';
 import { isFlagCeremonyEvent } from '../lib/policy-special-events.js';
+import { withFlagHgpAuthorityLock } from './policy-flag-hgp-authority-lock.js';
 
 const db = () => getDataContext();
 
@@ -1342,35 +1343,6 @@ export async function upsertPolicy(schoolId: number, schoolYearId: number, input
 		throw err(400, 'INVALID_POLICY', errors.join(' '));
 	}
 
-	// Scoped Flag/HGP rows, including disabled rows, permanently retire the
-	// school-wide compatibility switch for this school/year. A later policy PUT
-	// cannot silently make an intentionally disabled scoped overlay reappear.
-	const persistedScopedFlagRows = await db().policySpecialEvent?.findMany({
-		where: { schoolId, schoolYearId, gradeGroup: { not: null } },
-		select: { eventType: true, label: true },
-	}) ?? [];
-	if (persistedScopedFlagRows.some((event) => isFlagCeremonyEvent(event.eventType, event.label))) {
-		data.enableFlagCeremony = false;
-	}
-
-	const existingWindows = await db().gradeShiftWindow.findMany({
-		where: { schoolId, schoolYearId },
-		select: { gradeLevel: true, programType: true, startTime: true, endTime: true },
-	});
-	const policyStart = timeToMinutes(data.earliestStartTime);
-	const policyEnd = timeToMinutes(data.latestEndTime);
-	for (const window of existingWindows) {
-		const windowStart = timeToMinutes(window.startTime);
-		const windowEnd = timeToMinutes(window.endTime);
-		if (windowStart < policyStart || windowEnd > policyEnd) {
-			throw err(
-				400,
-				'POLICY_CONFLICTS_WITH_SHIFT_WINDOWS',
-				`Scheduling policy bounds must include configured grade shift windows${window.programType ? ` for ${window.programType}` : ''}.`,
-			);
-		}
-	}
-
 	// Prisma Json? fields need Prisma.JsonNull instead of plain null
 	const constraintConfigValue = data.constraintConfig === null
 		? Prisma.JsonNull
@@ -1421,15 +1393,44 @@ export async function upsertPolicy(schoolId: number, schoolYearId: number, input
 
 	try {
 		await ensureSchedulingPolicyColumns();
-		// C07A-R1: the PUT response is an operator display boundary. Return the
-		// EFFECTIVE threshold so the editor can never show a value the validator /
-		// constructor do not enforce. Persistence is untouched: the upsert above
-		// still stores exactly the validated input value.
-		return withResolvedConsecutiveTeachingThreshold(await db().schedulingPolicy.upsert({
-			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
-			create: { schoolId, schoolYearId, ...prismaData },
-			update: prismaData,
-		}));
+		return await withFlagHgpAuthorityLock(db(), schoolId, schoolYearId, async (tx) => {
+			// Scoped Flag/HGP rows, including disabled rows, permanently retire the
+			// school-wide compatibility switch. Read after taking the same lock as
+			// overlay writes so a concurrent scoped save cannot race this decision.
+			const persistedScopedFlagRows = await tx.policySpecialEvent?.findMany({
+				where: { schoolId, schoolYearId, gradeGroup: { not: null } },
+				select: { eventType: true, label: true },
+			}) ?? [];
+			const effectivePolicyData = persistedScopedFlagRows.some((event) => isFlagCeremonyEvent(event.eventType, event.label))
+				? { ...prismaData, enableFlagCeremony: false }
+				: prismaData;
+
+			const existingWindows = await tx.gradeShiftWindow.findMany({
+				where: { schoolId, schoolYearId },
+				select: { gradeLevel: true, programType: true, startTime: true, endTime: true },
+			});
+			const policyStart = timeToMinutes(data.earliestStartTime);
+			const policyEnd = timeToMinutes(data.latestEndTime);
+			for (const window of existingWindows) {
+				const windowStart = timeToMinutes(window.startTime);
+				const windowEnd = timeToMinutes(window.endTime);
+				if (windowStart < policyStart || windowEnd > policyEnd) {
+					throw err(
+						400,
+						'POLICY_CONFLICTS_WITH_SHIFT_WINDOWS',
+						`Scheduling policy bounds must include configured grade shift windows${window.programType ? ` for ${window.programType}` : ''}.`,
+					);
+				}
+			}
+
+			// C07A-R1: return the effective threshold while persisting the validated
+			// values, with the scoped-authority decision and upsert in one lock.
+			return withResolvedConsecutiveTeachingThreshold(await tx.schedulingPolicy.upsert({
+				where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
+				create: { schoolId, schoolYearId, ...effectivePolicyData },
+				update: effectivePolicyData,
+			}));
+		});
 	} catch (e: unknown) {
 		if (isSchemaDriftError(e)) {
 			throw err(
