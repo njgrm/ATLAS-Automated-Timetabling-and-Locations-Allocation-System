@@ -19,11 +19,21 @@ function p06cVisualFixtureDevEntry() {
 	return {
 		name: 'p06c-r4-visual-fixture-dev-entry',
 		configureServer(server: import('vite').ViteDevServer) {
-			server.middlewares.use(p06cVisualFixturePath, (request, response, next) => {
+			server.middlewares.use(p06cVisualFixturePath, async (request, response, next) => {
 				if (request.method !== 'GET' || request.url !== '/') return next();
-				response.statusCode = 200;
-				response.setHeader('Content-Type', 'text/html; charset=utf-8');
-				response.end(`<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Local development fixture · p06c</title></head><body><div id="root"></div><script type="module" src="/src/dev/P06cR4VisualFixtureEntry.tsx"></script></body></html>`);
+
+				try {
+					const html = await server.transformIndexHtml(
+						p06cVisualFixturePath,
+						`<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Local development fixture · p06c</title></head><body><div id="root"></div><script type="module" src="/src/dev/P06cR4VisualFixtureEntry.tsx"></script></body></html>`,
+					);
+
+					response.statusCode = 200;
+					response.setHeader('Content-Type', 'text/html; charset=utf-8');
+					response.end(html);
+				} catch (error) {
+					next(error);
+				}
 			});
 		},
 	};
