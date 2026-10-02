@@ -11,6 +11,7 @@ A correct, calm ATLAS for school 1 on EnrollPro's active year: dependable Teachi
 schedulers can hand-fix and publish, official printouts, and SMART-family visual cohesion (`DESIGN.md`).
 
 ## Live release
+- Release candidate: `5b084c75` (p07 Flag/HGP timetable controls); incumbent `fdae67ec`; rollback basis `c82b8636`. Approved for supervised cutover after the recorded build, discriminator, and post-release checks.
 - LIVE: `fdae67ec64a4713d7c5c2446e03c25c29ddf704f` (prefix `fdae67ec`), train 21, deployed 2026-09-30 11:17 +08.
   Tree `E:\ATLAS-worktrees\lane-a4-release-20260930-21prod`. Includes decision 15 (teacher lunch) and the header
   hotfix `c82b8636`.
