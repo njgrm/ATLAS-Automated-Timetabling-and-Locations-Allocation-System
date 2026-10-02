@@ -24,6 +24,10 @@ schedulers can hand-fix and publish, official printouts, and SMART-family visual
 - Rollback basis: prior accepted P07 release `5b084c7591d45a85e609aa05aec7ef76c68e4d98` at
   `E:\ATLAS-runtime-supervised-5b084c75-20261002`; the runner audit captures the pre-cutover task XML and machine
   runtime variables.
+- Pending narrow A2/A5 release target: `a46710d6aa9c0312c18d0f9881a4cd622f51b959` (prefix `a46710d6`),
+  prepared at `E:\ATLAS-worktrees\lane-a4-release-20261003-a46710d6`. The current LIVE release
+  `4b046877803fad0f57341114db1155a0c72fc362` (prefix `4b046877`) is the cutover rollback basis.
+  This line authorizes no claim that the target is live; record a cutover only after the SYSTEM task and post-action QA.
 - Next: train 22 (move-swap c2 `8c1b9218`, unassigned panel `22b34170`, placement feasibility `8766c084`/`fffa830c`),
   after the 3 header tests are updated. The deploy gate (`ops/runtime/deploy-runner.ps1`) requires the target
   prefix to be written in THIS section before cutover.
