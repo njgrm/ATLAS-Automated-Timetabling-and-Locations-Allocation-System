@@ -1,6 +1,6 @@
 # P07 Flag/HGP timetable-controls release — pre-action packet
 
-Date: 2026-10-02 (Asia/Manila)  
+Date: 2026-10-02 (Asia/Manila)
 Risk: HIGH — supervised live runtime cutover; no migration and no intended data write.
 
 ## Identity and authority
