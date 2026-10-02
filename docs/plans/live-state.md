@@ -11,6 +11,7 @@ A correct, calm ATLAS for school 1 on EnrollPro's active year: dependable Teachi
 schedulers can hand-fix and publish, official printouts, and SMART-family visual cohesion (`DESIGN.md`).
 
 ## Live release
+- Pending approved cutover: `4b046877803fad0f57341114db1155a0c72fc362` (prefix `4b046877`), narrow P06c timetable-control clarity release at `E:\ATLAS-runtime-supervised-f973e0e7-20261002`; rollback remains the current `5b084c7591d45a85e609aa05aec7ef76c68e4d98` runtime source.
 - LIVE: `5b084c7591d45a85e609aa05aec7ef76c68e4d98` (prefix `5b084c75`), p07 Flag/HGP timetable controls,
   deployed 2026-10-02. Tree `E:\ATLAS-runtime-supervised-5b084c75-20261002`; supervised API 5001 and client
   5174 are target-owned. Post-cutover health and database-backed subjects read are 200; the Tailnet client serves
