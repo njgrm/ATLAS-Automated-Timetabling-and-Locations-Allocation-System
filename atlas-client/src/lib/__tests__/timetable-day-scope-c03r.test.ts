@@ -33,18 +33,20 @@ const TUESDAY_CLASS: ScheduledEntry = {
 	termIndex: 1,
 };
 
-test('live conflict map blocks a Monday-only event only on Monday and leaves the interval clean elsewhere', () => {
+test('live conflict map keeps Monday Flag/HGP as a non-blocking class overlay', () => {
 	const flagSlot = { startTime: '06:00', endTime: '06:45', isSpecialEvent: true, eventName: 'FLAG CEREMONY', dayOfWeek: 'MONDAY' };
 	const context = { sectionId: 702 };
 	const lookup = createLiveConflictLookup([TUESDAY_CLASS], [flagSlot], context, MAPS);
 	assert.ok(lookup);
-	assert.equal(lookup('MONDAY-06:00-06:45')?.kind, 'hard', 'Monday flag interval is blocked');
+	assert.equal(lookup('MONDAY-06:00-06:45')?.kind, 'clean', 'Flag/HGP does not block the underlying class period');
 	assert.equal(lookup('TUESDAY-06:00-06:45')?.kind, 'clean', 'Tuesday first period stays available');
 	assert.equal(lookup('FRIDAY-06:00-06:45')?.kind, 'clean', 'Friday first period stays available');
 
 	// An all-week event (no dayOfWeek) still blocks every weekday.
 	const allWeekLookup = createLiveConflictLookup([], [{ ...flagSlot, dayOfWeek: undefined }], context, MAPS);
-	assert.equal(allWeekLookup?.('TUESDAY-06:00-06:45')?.kind, 'hard');
+	assert.equal(allWeekLookup?.('TUESDAY-06:00-06:45')?.kind, 'clean', 'the legacy Flag/HGP label never becomes a capacity block');
+	const breakLookup = createLiveConflictLookup([], [{ ...flagSlot, eventName: 'LUNCH BREAK', dayOfWeek: undefined }], context, MAPS);
+	assert.equal(breakLookup?.('TUESDAY-06:00-06:45')?.kind, 'hard', 'a real break remains non-schedulable');
 });
 
 test('live conflict index normalizes day-scoped events without leaking them to other weekdays', () => {
@@ -54,13 +56,16 @@ test('live conflict index normalizes day-scoped events without leaking them to o
 	assert.equal(index.slotByKey.get('TUESDAY-06:00-06:45')?.isSpecialEvent, false);
 });
 
-test('section pivot renders a Monday-only event only on Monday and keeps Tuesday classes', () => {
+test('section pivot keeps the Flag/HGP overlay on Monday and preserves the class identity all week', () => {
 	const report = {
 		runId: 42,
 		status: 'COMPLETED',
 		createdAt: '2031-01-01T00:00:00.000Z',
 		finishedAt: '2031-01-01T00:01:00.000Z',
-		entries: [TUESDAY_CLASS],
+		entries: [
+			{ ...TUESDAY_CLASS, entryId: 'mon-math', day: 'MONDAY' },
+			TUESDAY_CLASS,
+		],
 		summary: {
 			timetableDisplaySlots: [
 				{ startTime: '06:00', endTime: '06:45', isSpecialEvent: true, eventName: 'FLAG CEREMONY', dayOfWeek: 'MONDAY' },
@@ -76,8 +81,10 @@ test('section pivot renders a Monday-only event only on Monday and keeps Tuesday
 	assert.ok(flagRow);
 	const monday = flagRow.cells.find((cell) => cell.day === 'MONDAY');
 	const tuesday = flagRow.cells.find((cell) => cell.day === 'TUESDAY');
-	assert.equal(monday?.entries.length, 0);
-	assert.deepEqual(tuesday?.entries.map((entry) => entry.entryId), ['tue-math']);
+	assert.deepEqual(monday?.entries.map((entry) => entry.entryId), ['mon-math'], 'the Monday overlay cell retains its class assignment');
+	assert.deepEqual(tuesday?.entries, [], 'the overlay row is empty outside Monday');
+	const classRow = view.grid.find((row) => !row.timeSlot.eventLabel);
+	assert.deepEqual(classRow?.cells.find((cell) => cell.day === 'TUESDAY')?.entries.map((entry) => entry.entryId), ['tue-math']);
 });
 
 test('main TimetableGrid renders the Monday-only event once and keeps the Tuesday class cell', () => {

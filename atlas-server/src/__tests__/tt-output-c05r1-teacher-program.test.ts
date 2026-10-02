@@ -122,6 +122,7 @@ function makeClient(options: {
 	advisoryCreditMinutes?: number | null;
 	presentationRevisions?: Array<Record<string, unknown>>;
 	writes?: string[];
+	specialEvents?: Array<Record<string, unknown>>;
 } = {}) {
 	const entries = options.entries ?? ENTRIES;
 	const summary = options.summary ?? { isPublished: false, timetableDisplaySlots: [] };
@@ -147,7 +148,7 @@ function makeClient(options: {
 			advisoryCreditMinutes: options.advisoryCreditMinutes === undefined ? 60 : options.advisoryCreditMinutes,
 		}) },
 		classProgramSlot: { findMany: async () => slots },
-		policySpecialEvent: { findMany: async () => [] },
+		policySpecialEvent: { findMany: async () => options.specialEvents ?? [] },
 		teacherProgramPresentationRevision: {
 			findFirst: async (args: any) => {
 				const where = args?.where ?? {};
@@ -227,6 +228,20 @@ test('control 1: the projection yields class rows, configured break rows, and An
 
 	const lunch = shape.rows.find((r) => r.kind === 'BREAK' && r.label === 'Lunch Break');
 	assert.ok(lunch, 'the configured Lunch Break policy row renders');
+});
+
+test('P07 teacher program annotates Monday Flag/HGP over teaching without adding workload minutes', async () => {
+	const baseline = await buildShape(makeClient());
+	const shape = await buildShape(makeClient({ specialEvents: [
+		{ eventType: 'FLAG_OR_HGP', label: 'Legacy Flag', gradeGroup: null, programType: null, startTime: '07:00', endTime: '07:20', enabled: true },
+		{ eventType: 'FLAG_OR_HGP', label: 'Flag / HGP', gradeGroup: '7-8', programType: null, startTime: '06:50', endTime: '07:20', enabled: true },
+	] }));
+	const monday = shape.rows.find((row) => row.kind === 'TEACHING' && row.label === 'Biology · Flag / HGP');
+	assert.ok(monday, 'the Monday class row retains its Flag/HGP overlay');
+	assert.deepEqual(monday.days, ['MONDAY']);
+	assert.equal(monday.minutes, 45);
+	assert.equal(shape.rows.some((row) => row.kind === 'BREAK' && /Flag/.test(row.label)), false, 'Flag/HGP is not exported as a break or extra period');
+	assert.equal(shape.summary.actualTeachingMinutes, baseline.summary.actualTeachingMinutes, 'teaching load remains unchanged from the same source run');
 });
 
 // ─── Control 2 — no false health breaks ───

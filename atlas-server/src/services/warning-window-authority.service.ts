@@ -208,8 +208,10 @@ export function resolveBreakWindowsForScope(args: {
 	gradeLevel: number;
 	programType: string | null;
 }): BreakWindowRef[] {
+	const hasScopedFlagAuthority = (args.specialEvents ?? []).some((event) => event.enabled
+		&& isFlagCeremonyEvent(event.eventType, event.label) && event.gradeGroup != null);
 	const candidates = [
-		...resolvePolicyRowBreakWindows(args.policyRow),
+		...resolvePolicyRowBreakWindows(args.policyRow).filter((window) => !(hasScopedFlagAuthority && isFlagCeremonyEvent(window.eventType, window.label))),
 		...resolveSpecialEventBreakWindows(args.specialEvents, args.gradeLevel, args.programType),
 	];
 

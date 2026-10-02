@@ -185,12 +185,14 @@ export function pivotDraftToView(
 
 	const grid = displaySlots.map((slot) => {
 		const eventLabel = slot.eventName ?? null;
+		const flagOverlay = slot.isSpecialEvent && /FLAG|HGP/i.test(eventLabel ?? '');
 		const cells = DAYS.map((day) => {
-			// Day-scoped events (Monday Flag/HGP) empty only their own weekday; the
-			// same interval remains an ordinary class cell on other weekdays.
-			if (slot.isSpecialEvent && (!slot.dayOfWeek || slot.dayOfWeek === day)) {
+			// Breaks empty their applicable weekday. Monday Flag/HGP is an overlay,
+			// so its cell retains the underlying class identity and assignment.
+			if (slot.isSpecialEvent && !flagOverlay && (!slot.dayOfWeek || slot.dayOfWeek === day)) {
 				return { day, occupied: false, entries: [], conflict: false };
 			}
+			if (flagOverlay && slot.dayOfWeek && slot.dayOfWeek !== day) return { day, occupied: false, entries: [], conflict: false };
 			const dayEntries = entriesByDay.get(day) ?? [];
 			const overlapping = dayEntries.filter((e) => timesOverlap(slot, e));
 			const mapped = overlapping.map((e) => mapEntry(e, subjectMap, sectionMap, facultyMap));

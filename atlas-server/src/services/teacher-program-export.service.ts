@@ -27,6 +27,7 @@ import { prisma } from '../lib/prisma.js';
 import { getDataContext } from '../lib/data-context.js';
 import { applyTemplateSignatoryFallback, resolveExportSignatoryProfile, type TeacherProgramSignatoryProfile } from './export-presentation.service.js';
 import { gradeNumberOf } from './grade-level-resolver.js';
+import { isFlagCeremonyEvent, isRejectedFlagCeremonyRow } from '../lib/policy-special-events.js';
 
 // ─── Types ───
 
@@ -229,6 +230,7 @@ type CanonicalInterval = {
 	kind: 'CLASS' | 'EVENT';
 	label: string | null;
 	dayOfWeek: string | null;
+	flagOverlayLabels?: string[];
 };
 
 /**
@@ -246,10 +248,11 @@ async function resolveCanonicalIntervals(params: {
 	/** C08 — frozen class-program rows for a published run; skips the live read. */
 	frozenSlotRows?: Array<{ startTime: string; endTime: string; rowKind: string; subjectLabel?: string | null; dayOfWeek?: string | null; gradeLevel: number }>;
 	/** C08 — frozen effective special events for a published run. */
-	frozenEventRows?: Array<{ label?: string | null; startTime: string; endTime: string; dayOfWeek?: string | null }>;
+	frozenEventRows?: Array<{ eventType?: string; label?: string | null; startTime: string; endTime: string; dayOfWeek?: string | null; gradeGroup?: string | null }>;
 }): Promise<CanonicalInterval[]> {
 	const { db, schoolId, schoolYearId, grades, displaySlots, frozenSlotRows, frozenEventRows } = params;
 	const intervals = new Map<string, CanonicalInterval>();
+	const pendingFlagOverlays: Array<{ label: string; startTime: string; endTime: string; dayOfWeek: string | null; gradeGroup?: string | null }> = [];
 	const add = (interval: CanonicalInterval) => {
 		const key = `${interval.startTime}-${interval.endTime}`;
 		const existing = intervals.get(key);
@@ -306,6 +309,10 @@ async function resolveCanonicalIntervals(params: {
 	// 2. Effective policy special events — or the frozen effective rows.
 	if (frozenEventRows) {
 		for (const event of frozenEventRows) {
+			if (isFlagCeremonyEvent(event.eventType, event.label)) {
+				if (!isRejectedFlagCeremonyRow(event.eventType, event.dayOfWeek ?? null, event.label)) pendingFlagOverlays.push({ label: event.label ?? 'Flag / HGP', startTime: event.startTime, endTime: event.endTime, dayOfWeek: event.dayOfWeek ?? 'MONDAY', gradeGroup: event.gradeGroup });
+				continue;
+			}
 			add({
 				startTime: event.startTime,
 				endTime: event.endTime,
@@ -318,9 +325,13 @@ async function resolveCanonicalIntervals(params: {
 		try {
 			const events = await db.policySpecialEvent.findMany({
 				where: { schoolId, schoolYearId, enabled: true },
-				select: { label: true, startTime: true, endTime: true, dayOfWeek: true },
+				select: { eventType: true, label: true, startTime: true, endTime: true, dayOfWeek: true, gradeGroup: true },
 			});
 			for (const event of events ?? []) {
+				if (isFlagCeremonyEvent(event.eventType, event.label)) {
+					if (!isRejectedFlagCeremonyRow(event.eventType, event.dayOfWeek ?? null, event.label)) pendingFlagOverlays.push({ label: event.label ?? 'Flag / HGP', startTime: event.startTime, endTime: event.endTime, dayOfWeek: event.dayOfWeek ?? 'MONDAY', gradeGroup: event.gradeGroup });
+					continue;
+				}
 				add({
 					startTime: event.startTime,
 					endTime: event.endTime,
@@ -359,6 +370,18 @@ async function resolveCanonicalIntervals(params: {
 		} else {
 			add({ startTime: slot.startTime, endTime: slot.endTime, kind: 'CLASS', label: null, dayOfWeek: null });
 		}
+	}
+
+	const hasScopedFlagAuthority = pendingFlagOverlays.some((overlay) => overlay.gradeGroup != null);
+	for (const overlay of pendingFlagOverlays) {
+		if (hasScopedFlagAuthority && overlay.gradeGroup == null) continue;
+		const containing = [...intervals.values()].filter((interval) => interval.kind === 'CLASS'
+			&& toMinutes(interval.startTime) <= toMinutes(overlay.startTime)
+			&& toMinutes(interval.endTime) >= toMinutes(overlay.endTime));
+		if (containing.length !== 1) continue;
+		const interval = containing[0];
+		interval.flagOverlayLabels ??= [];
+		if (!interval.flagOverlayLabels.includes(overlay.label)) interval.flagOverlayLabels.push(overlay.label);
 	}
 
 	return [...intervals.values()].sort(
@@ -684,7 +707,7 @@ export async function buildTeacherProgramExportShape(params: {
 			? (frozenSnapshot.classProgramSlots as Array<{ startTime: string; endTime: string; rowKind: string; subjectLabel?: string | null; dayOfWeek?: string | null; gradeLevel: number }>)
 			: undefined,
 		frozenEventRows: frozenSnapshot?.specialEvents
-			? (frozenSnapshot.specialEvents as Array<{ label?: string | null; startTime: string; endTime: string; dayOfWeek?: string | null }>)
+			? (frozenSnapshot.specialEvents as Array<{ eventType?: string; label?: string | null; startTime: string; endTime: string; dayOfWeek?: string | null; gradeGroup?: string | null }>)
 			: undefined,
 	});
 	const intervalsByKey = new Map<string, CanonicalInterval>(
@@ -780,19 +803,25 @@ export async function buildTeacherProgramExportShape(params: {
 			const subject = entry.subjectId ? subjectMap.get(entry.subjectId) : null;
 			const section = resolveSection(entry.sectionId);
 			const room = entry.roomId ? roomMap.get(entry.roomId) : null;
-			pushProjected({
-				kind: 'TEACHING',
-				label: subject?.name ?? 'Unknown Subject',
+			const subjectLabel = subject?.name ?? 'Unknown Subject';
+			const overlayLabel = interval.flagOverlayLabels?.join(' / ');
+			const mondayOverlay = overlayLabel && days.includes('MONDAY');
+			const pushTeaching = (label: string, projectedDays: string[]) => pushProjected({
+				kind: 'TEACHING', label,
 				gradeAndSection: section ? `${section.gradeLevelName} - ${section.name}` : null,
 				minutes: entry.durationMinutes,
 				room: room ? `${room.buildingName} / ${room.name}` : null,
 				source: `GENERATION_RUN_${runId}`,
-				startTime: entry.startTime,
-				endTime: entry.endTime,
-				days,
-				presentationOnly: false,
-				isEvent: false,
+				startTime: entry.startTime, endTime: entry.endTime, days: projectedDays,
+				presentationOnly: false, isEvent: false,
 			});
+			if (mondayOverlay) {
+				pushTeaching(`${subjectLabel} · ${overlayLabel}`, ['MONDAY']);
+				const ordinaryDays = days.filter((day) => day !== 'MONDAY');
+				if (ordinaryDays.length > 0) pushTeaching(subjectLabel, ordinaryDays);
+			} else {
+				pushTeaching(subjectLabel, days);
+			}
 		}
 
 		if (interval.kind === 'EVENT') {
