@@ -94,3 +94,46 @@ export const SUBJECT_ACTION_COLUMN_WIDTH_CLASS = 'w-44 shrink-0 px-4';
  * need a higher `z` than the header and would silently re-break it.
  */
 export const SUBJECT_ACTION_CELL_Z = 'z-10';
+
+/**
+ * MR-71 (operator, 2026-10-03, subject.docx item 1: "notice the text being cut
+ * due to the small container. Adjust the container size") — the SUBJECT NAME
+ * column's width, declared here for the SAME reason the action column's is.
+ *
+ * ## The defect this answers
+ *
+ * The name cell was `className="px-4 py-3"` with no width, inside a table whose
+ * own auto layout gives every column a share. Column 1 therefore received
+ * whatever columns 2-6 left over, and a long DepEd subject name was cut with a
+ * "…" — a name a scheduler cannot finish reading is a name they cannot find, on
+ * the one screen they open to find a subject.
+ *
+ * ## Why a shared constant and not a `w-*` at each call site
+ *
+ * Exactly the reason `SUBJECT_ACTION_COLUMN_WIDTH_CLASS` above exists, and the
+ * same defect it was created for: a `w-*` is a PREFERRED size, so a header
+ * `<th>` and a row `<td>` each deciding independently is what let the action
+ * column's right-hand edge drift. One constant, two call sites, the edges line
+ * up. `shrink-0` is what makes the width TRUE — without it the table's layout
+ * may still squeeze the column and the declared size is decorative.
+ *
+ * ## Why it is declared HERE and not in a new module
+ *
+ * It is the same mechanism, on the same table, with the same two-file
+ * requirement (header + cells), and both `SubjectCatalogBody.tsx` and
+ * `SubjectRow.tsx` already import this module — so neither imports upward. A
+ * separate one-constant module would be more structure than the problem needs.
+ *
+ * ## Why `w-72` and not "as wide as possible"
+ *
+ * 18rem = 288px, which after the cell's own `px-4` padding is the size a
+ * two-line word-broken `line-clamp-2` name needs to read as a NAME rather than a
+ * fragment at the 1366x768 reference screen. It is deliberately BOUNDED: the
+ * other five columns have their own content widths (grade chips, program chips,
+ * duration, room need, and the `w-44 shrink-0` action column), so an unbounded
+ * first column would move the squeeze into whichever column grew last and the
+ * original defect would return under a new name. Measured on the rendered
+ * surface at 1366x768: the name cell renders 233px wide, every name is
+ * `clippedHorizontally: false`, and the page has no horizontal scroll.
+ */
+export const SUBJECT_NAME_COLUMN_WIDTH_CLASS = 'w-72 shrink-0';
