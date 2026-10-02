@@ -167,14 +167,19 @@ export async function upsertSpecialEvents(
 	// both persisted fallback sources here so disabled scopes stay disabled in
 	// every read path (generation, warnings, frozen identity, and exports).
 	events.forEach(validateInput);
-	const savesScopedFlag = events.some((event) => isFlagCeremonyEvent(event.eventType, event.label) && event.gradeGroup != null);
-	if (savesScopedFlag) {
-		const globalFlagRows = await client.policySpecialEvent.findMany({
-			where: { schoolId, schoolYearId, gradeGroup: null },
-			select: { id: true, eventType: true, label: true },
-		});
-		const legacyFlagIds = globalFlagRows
-			.filter((row) => isFlagCeremonyEvent(row.eventType, row.label))
+	const incomingFlagRows = events.filter((event) => isFlagCeremonyEvent(event.eventType, event.label));
+	const savesScopedFlag = incomingFlagRows.some((event) => event.gradeGroup != null);
+	const existingFlagRows = incomingFlagRows.length > 0
+		? await client.policySpecialEvent.findMany({
+			where: { schoolId, schoolYearId },
+			select: { id: true, eventType: true, label: true, gradeGroup: true },
+		})
+		: [];
+	const hasPersistedScopedFlag = existingFlagRows.some((row) => row.gradeGroup != null && isFlagCeremonyEvent(row.eventType, row.label));
+	const hasScopedAuthority = savesScopedFlag || hasPersistedScopedFlag;
+	if (hasScopedAuthority) {
+		const legacyFlagIds = existingFlagRows
+			.filter((row) => row.gradeGroup == null && isFlagCeremonyEvent(row.eventType, row.label))
 			.map((row) => row.id);
 		if (legacyFlagIds.length > 0) {
 			await client.policySpecialEvent.updateMany({
@@ -188,8 +193,13 @@ export async function upsertSpecialEvents(
 		});
 	}
 
+	const effectiveEvents = hasScopedAuthority
+		? events.map((event) => isFlagCeremonyEvent(event.eventType, event.label) && event.gradeGroup == null
+			? { ...event, enabled: false }
+			: event)
+		: events;
 	const results: SpecialEventRow[] = [];
-	for (const event of events) {
+	for (const event of effectiveEvents) {
 		results.push(await upsertSpecialEvent(schoolId, schoolYearId, event, client));
 	}
 	return results;
