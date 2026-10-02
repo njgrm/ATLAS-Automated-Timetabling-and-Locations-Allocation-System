@@ -125,7 +125,8 @@ TESTS: <names and pass counts>   SCREENSHOT: <path>   EVIDENCE: <for any diagnos
 - **Build:** `$env:ISOLATED_LOCAL_BROWSER='1'; $env:VITE_ATLAS_API='http://127.0.0.1:5101'; $env:VITE_ENROLLPRO_URL='https://dev-jegs.buru-degree.ts.net'; npm run build` — passed (2,895 modules; 31.58 s). `rg -l --fixed-strings '__dev/p06c-r4-visual-fixture' dist` — no match, confirming the development route was not emitted in production assets.
 - **Diff check:** `git diff --check` — passed.
 - **Rendered evidence:** not captured by executor; packet assigns the post-commit 1366×768 browser capture to the manager. No browser, preview, API, or staging process was launched. Independent visual judgement remains pending.
-- **Verdict:** fixture and required automated/build checks are ready for manager capture and independent review. Candidate SHA is recorded in the required run report after commit.
+- **Candidate:** `644dc286d44850e1178df3cd42f2be42e0c7dc18` (`feat(timetable): add isolated p06c visual fixture`).
+- **Verdict:** fixture and required automated/build checks are ready for manager capture and independent review. Browser evidence remains pending under the packet's named manager owner.
 
 ## p06b executor report (2026-10-02)
 
