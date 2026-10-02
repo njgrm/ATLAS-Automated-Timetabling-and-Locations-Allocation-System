@@ -7,6 +7,7 @@
     "dev": "vite --host --port 5174",
     "build": "vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:p06c-r4-visual-fixture": "tsx --test --test-force-exit src/dev/__tests__/p06c-r4-visual-fixture.test.tsx",
     "preview": "vite preview --port 5174",
     "test:published-revision": "tsx --test src/lib/__tests__/published-revision-client.test.ts",
     "test:a8-post-generation-refresh": "tsx --test --test-force-exit src/components/timetable/__tests__/a8-post-generation-refresh.test.tsx",

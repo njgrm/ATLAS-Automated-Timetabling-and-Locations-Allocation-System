@@ -13,6 +13,22 @@ import { devStagingLogin } from './vite.dev-staging-login';
  */
 const REQUIRED_PRODUCTION_CLIENT_ENV = ['VITE_ENROLLPRO_URL'] as const;
 
+const p06cVisualFixturePath = '/__dev/p06c-r4-visual-fixture';
+
+function p06cVisualFixtureDevEntry() {
+	return {
+		name: 'p06c-r4-visual-fixture-dev-entry',
+		configureServer(server: import('vite').ViteDevServer) {
+			server.middlewares.use(p06cVisualFixturePath, (request, response, next) => {
+				if (request.method !== 'GET' || request.url !== '/') return next();
+				response.statusCode = 200;
+				response.setHeader('Content-Type', 'text/html; charset=utf-8');
+				response.end(`<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Local development fixture · p06c</title></head><body><div id="root"></div><script type="module" src="/src/dev/P06cR4VisualFixtureEntry.tsx"></script></body></html>`);
+			});
+		},
+	};
+}
+
 function assertProductionClientEnv(
 	command: 'build' | 'serve',
 	mode: string,
@@ -58,7 +74,7 @@ export default defineConfig(({ command, mode }) => {
 	const enrollProProxyTarget = toProxyOrigin(env.VITE_ENROLLPRO_API_BASE, 'http://127.0.0.1:5000');
 
 	return {
-		plugins: [react(), tailwindcss(), devStagingLogin(env.VITE_ATLAS_API)],
+		plugins: [react(), tailwindcss(), devStagingLogin(env.VITE_ATLAS_API), ...(command === 'serve' ? [p06cVisualFixtureDevEntry()] : [])],
 		resolve: {
 			// The workspace and client both install React. Force every optimized
 			// dependency and source module onto the client's single runtime so HMR

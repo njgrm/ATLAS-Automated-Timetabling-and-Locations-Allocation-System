@@ -115,6 +115,18 @@ TESTS: <names and pass counts>   SCREENSHOT: <path>   EVIDENCE: <for any diagnos
 | 10 | After-demo backlog, one T1 packet each: Year Setup wrong-year link; "See what would be copied" dead; (i) help icons click-to-open; Teacher Preferences "Load the roster first" on entry; Room Schedules 11x6/13x6 | Setup | T1 | |
 | 11 | Click sweeps re-run: Teachers (0 clicks) and Teaching Load (3 clicks) | QA | Codex walk | |
 
+### p06c r4 visual fixture executor report — 2026-10-02
+
+- **Layout note:** an older, mouse-first scheduler sees one plain placeholder warning beside two short readiness examples. No navigation, controls, API calls, or authentication are involved.
+- **Base:** `3bd20ae9a2ea6b6cdf75dc07307ee8a30f407b65`; branch `work/lane-timetable-p06c`; disposition `KEEP_ACTIVE`.
+- **Changed paths:** `atlas-client/vite.config.ts`; `atlas-client/package.json`; `atlas-client/src/dev/P06cR4VisualFixture.tsx`; `atlas-client/src/dev/P06cR4VisualFixtureEntry.tsx`; `atlas-client/src/dev/__tests__/p06c-r4-visual-fixture.test.tsx`; `ops/lane-c/codex/PLANNERS.md`.
+- **Result:** a GET-only `/__dev/p06c-r4-visual-fixture` entry exists only in Vite's development server. It mounts production `ViolationGroup`, the placeholder presentation map, production message formatters, and `deriveSimplePublishReadiness` with synthetic in-memory data. No auth or production routing changed.
+- **Focused test:** `npm run test:p06c-r4-visual-fixture` — 1/1 passed; confirms the warning title/meaning/action, unresolved-only sentence, mixed Must-fix sentence, and absence of `SYNTHETIC_PLACEHOLDER_OWNED`, `Faculty 16`, and `MONDAY` from rendered text.
+- **Build:** `$env:ISOLATED_LOCAL_BROWSER='1'; $env:VITE_ATLAS_API='http://127.0.0.1:5101'; $env:VITE_ENROLLPRO_URL='https://dev-jegs.buru-degree.ts.net'; npm run build` — passed (2,895 modules; 31.58 s). `rg -l --fixed-strings '__dev/p06c-r4-visual-fixture' dist` — no match, confirming the development route was not emitted in production assets.
+- **Diff check:** `git diff --check` — passed.
+- **Rendered evidence:** not captured by executor; packet assigns the post-commit 1366×768 browser capture to the manager. No browser, preview, API, or staging process was launched. Independent visual judgement remains pending.
+- **Verdict:** fixture and required automated/build checks are ready for manager capture and independent review. Candidate SHA is recorded in the required run report after commit.
+
 ## p06b executor report (2026-10-02)
 
 ### p06b r2 layout note
