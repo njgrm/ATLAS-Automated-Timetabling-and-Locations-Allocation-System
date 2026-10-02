@@ -1208,6 +1208,7 @@ async function buildGenerationPreflightWithContext(
 			});
 		}
 		const configuredFlagEvent = persistedFlagEvents.find((event) => !isRejectedFlagCeremonyRow(event.eventType, event.dayOfWeek ?? null, event.label));
+		const hasEnabledScopedFlagEvent = persistedFlagEvents.some((event) => event.gradeGroup != null);
 		const configuredFlagDay = configuredFlagEvent
 			? resolveFlagCeremonyDayAuthority(configuredFlagEvent.eventType, configuredFlagEvent.dayOfWeek ?? null, configuredFlagEvent.label).day
 			: (policyRow?.enableFlagCeremony ? 'MONDAY' : null);
@@ -1273,7 +1274,7 @@ async function buildGenerationPreflightWithContext(
 			rooms,
 			subjects: subjects.map((subject: any) => ({ id: subject.id, code: subject.code, schedulingDisposition: subject.schedulingDisposition })),
 			demandLines: derived.timetableLines.map((line) => ({ sectionExternalId: line.sectionExternalId, subjectId: line.subjectId, subjectCode: line.subjectCode, termIdentity: line.termIdentity, termIndex: line.termIndex, rotationFamily: line.rotationFamily })),
-			flagCeremony: flagScopeRejected
+			flagCeremony: flagScopeRejected || hasEnabledScopedFlagEvent
 				? null
 				: (policyRow?.enableFlagCeremony
 					? { enabled: true, dayOfWeek: configuredFlagDay ?? 'MONDAY', startTime: configuredFlagEvent?.startTime ?? policyRow.flagCeremonyStartTime, endTime: configuredFlagEvent?.endTime ?? policyRow.flagCeremonyEndTime }

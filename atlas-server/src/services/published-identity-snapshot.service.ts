@@ -30,6 +30,7 @@ import { buildCanonicalDisplayGrid, buildSpecialEventSlots, type PolicyInput } f
 import { resolveCanonicalSlotsFromRows, type ClassProgramSlotRow, type ResolvedSlotRow } from './class-program-slot.service.js';
 import { gradeNumberOf } from './grade-level-resolver.js';
 import {
+	isFlagCeremonyEvent,
 	isRejectedFlagCeremonyRow,
 	resolveSpecialEventDayOfWeek,
 } from '../lib/policy-special-events.js';
@@ -497,7 +498,8 @@ export function assertSnapshotConsistency(snapshot: PublishedIdentitySnapshot): 
 	// reverse), or by the frozen policy's own global break configuration when no
 	// explicit event row exists (`buildSpecialEventSlots` falls back to those
 	// policy fields).
-	const globalEventIntervals = policyGlobalEventIntervals(snapshot.policy, snapshot.classProgramSlots);
+	const hasScopedFlagAuthority = snapshot.specialEvents.some((event) => isFlagCeremonyEvent(event.eventType, event.label) && event.gradeGroup != null);
+	const globalEventIntervals = policyGlobalEventIntervals(snapshot.policy, snapshot.classProgramSlots, hasScopedFlagAuthority);
 	for (const slot of snapshot.displaySlots) {
 		if (slot.kind !== 'SPECIAL_EVENT') continue;
 		const intervalKey = `${slot.startTime}-${slot.endTime}`;
@@ -530,10 +532,11 @@ export function assertSnapshotConsistency(snapshot: PublishedIdentitySnapshot): 
 function policyGlobalEventIntervals(
 	policy: Record<string, unknown>,
 	classProgramSlots?: readonly FrozenClassProgramSlot[],
+	hasScopedFlagAuthority = false,
 ): Set<string> {
 	const intervals = new Set<string>();
 	const asString = (value: unknown, fallback: string): string => (typeof value === 'string' && value.length > 0 ? value : fallback);
-	if (policy.enableFlagCeremony ?? true) {
+	if (!hasScopedFlagAuthority && (policy.enableFlagCeremony ?? true)) {
 		intervals.add(`${asString(policy.flagCeremonyStartTime, '07:00')}-${asString(policy.flagCeremonyEndTime, '07:30')}`);
 	}
 	if (policy.enableRecess ?? true) {
@@ -808,7 +811,9 @@ export async function buildPublishedIdentitySnapshot(args: BuildSnapshotArgs): P
 			: Promise.resolve([]),
 	]);
 
+	const hasScopedFlagRows = specialEventRows.some((row) => isFlagCeremonyEvent(row.eventType, row.label) && row.gradeGroup != null);
 	const frozenSpecialEvents: FrozenSpecialEvent[] = specialEventRows
+		.filter((row) => !(hasScopedFlagRows && isFlagCeremonyEvent(row.eventType, row.label) && row.gradeGroup == null))
 		.filter((row) => !isRejectedFlagCeremonyRow(row.eventType, null, row.label))
 		.map((row, index) => ({
 			eventType: row.eventType,

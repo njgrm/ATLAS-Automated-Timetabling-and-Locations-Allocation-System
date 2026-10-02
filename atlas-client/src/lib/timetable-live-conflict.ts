@@ -178,6 +178,11 @@ function toCompact(
 	};
 }
 
+function isBlockingSpecialEvent(slot: TimetableConflictSlot): boolean {
+	if (!slot.isSpecialEvent && !isDayScopedOverlay(slot)) return false;
+	return !/FLAG|HGP/i.test(slot.eventName ?? '');
+}
+
 /**
  * This work happens while the board is idle (when run data changes), never on
  * pointer activation. A drag only closes over these immutable indexes.
@@ -303,7 +308,7 @@ export function createLiveConflictInspector(
 	const calculateCompact = (cellId: string): LiveConflictCompactState | null => {
 		const slot = slotByKey.get(cellId);
 		if (!slot) return null;
-		if (slot.isSpecialEvent || isDayScopedOverlay(slot)) {
+		if (isBlockingSpecialEvent(slot)) {
 			return { kind: 'blocked', codes: ['SPECIAL_EVENT'], displacedEntryIds: [] };
 		}
 
@@ -409,7 +414,7 @@ export function createLiveConflictInspector(
 	const calculate = (cellId: string, detailed: boolean): LiveConflictDetail | null => {
 		const slot = slotByKey.get(cellId);
 		if (!slot) return null;
-		if (slot.isSpecialEvent || isDayScopedOverlay(slot)) {
+		if (isBlockingSpecialEvent(slot)) {
 			const info: CellConflictInfo = {
 				kind: 'hard',
 				reasons: detailed ? [`${slot.eventName ?? 'Special event'} slot is non-schedulable`] : [],

@@ -323,7 +323,7 @@ test('live conflict index blocks a merged day-scoped overlay on Monday only', ()
 	const mergedRows = buildGridRows(sectionSlots);
 	const lookup = createLiveConflictLookup([], mergedRows, { sectionId: LUNA.id }, MAPS);
 	assert.ok(lookup);
-	assert.equal(lookup('MONDAY-06:45-07:30')?.kind, 'hard', 'Monday flag interval is blocked');
+	assert.equal(lookup('MONDAY-06:45-07:30')?.kind, 'clean', 'Monday Flag/HGP overlays the class without blocking it');
 	assert.equal(lookup('TUESDAY-06:45-07:30')?.kind, 'clean', 'Tuesday first period stays available');
 	assert.equal(lookup('FRIDAY-06:45-07:30')?.kind, 'clean', 'Friday first period stays available');
 });

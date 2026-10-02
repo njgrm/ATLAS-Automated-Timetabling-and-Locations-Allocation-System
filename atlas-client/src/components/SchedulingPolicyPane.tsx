@@ -37,6 +37,7 @@ import {
 	type ReconciliationDialogState,
 } from '@/components/scheduling-policy/SchedulingPolicyDialogs';
 import { ShiftSettingsEditor } from '@/components/scheduling-policy/ShiftSettingsEditor';
+import { DEFAULT_FLAG_HGP_OVERLAYS, FlagHgpOverlaySettings, projectFlagHgpOverlays, type FlagHgpOverlayDraft } from '@/components/scheduling-policy/FlagHgpOverlaySettings';
 import {
 	createInitialOverride,
 	DEFAULT_GRADE_WINDOWS,
@@ -181,8 +182,9 @@ export default function SchedulingPolicyPane({
 	const [showAddOverrideDialog, setShowAddOverrideDialog] = useState(false);
 	const [newOverride, setNewOverride] = useState<LocalGradeWindow>(createInitialOverride());
 	const [reconciliationDialog, setReconciliationDialog] = useState<ReconciliationDialogState | null>(null);
-	const [specialEvents, setSpecialEvents] = useState<PolicySpecialEvent[]>([]);
-	const [persistedSpecialEvents, setPersistedSpecialEvents] = useState<PolicySpecialEvent[]>([]);
+	const [flagHgpOverlays, setFlagHgpOverlays] = useState<FlagHgpOverlayDraft[]>(DEFAULT_FLAG_HGP_OVERLAYS);
+	const [persistedFlagHgpOverlays, setPersistedFlagHgpOverlays] = useState<FlagHgpOverlayDraft[]>(DEFAULT_FLAG_HGP_OVERLAYS);
+	const [otherSpecialEvents, setOtherSpecialEvents] = useState<PolicySpecialEvent[]>([]);
 
 	const markIntent = useCallback((intent: Exclude<EditIntent, null>) => {
 		setEditIntent((previous) => previous ?? intent);
@@ -190,8 +192,9 @@ export default function SchedulingPolicyPane({
 
 	const isDirty = useMemo(() => {
 		if (!persisted || !local) return false;
-		return !deepEqual(persisted, local) || !deepEqual(persistedShiftWindows, shiftWindows);
-	}, [persisted, local, persistedShiftWindows, shiftWindows]);
+		return !deepEqual(persisted, local) || !deepEqual(persistedShiftWindows, shiftWindows)
+			|| !deepEqual(persistedFlagHgpOverlays, flagHgpOverlays);
+	}, [persisted, local, persistedShiftWindows, shiftWindows, persistedFlagHgpOverlays, flagHgpOverlays]);
 
 	// UX-R03c — the workspace owns the policy GET; the pane keeps its grade-windows / section-summary / special-events reads only.
 	// C2 (TIMETABLE-RELAXED-MAIN-C01) — those three reads resolve through the shared scoped cache, so an
@@ -209,8 +212,10 @@ export default function SchedulingPolicyPane({
 			const localWindows = toLocalGradeWindows(auxiliary.gradeWindows);
 			setPersistedShiftWindows(localWindows);
 			setShiftWindows(localWindows);
-			setSpecialEvents(auxiliary.specialEvents);
-			setPersistedSpecialEvents(auxiliary.specialEvents);
+			const projectedFlagHgp = projectFlagHgpOverlays(auxiliary.specialEvents);
+			setFlagHgpOverlays(projectedFlagHgp);
+			setPersistedFlagHgpOverlays(projectedFlagHgp);
+			setOtherSpecialEvents(auxiliary.specialEvents.filter((event) => event.eventType !== 'FLAG_OR_HGP' && !/FLAG|HGP/i.test(event.label)));
 			setProgramOptions(toProgramOptionsFromSections(auxiliary.sectionsSummary));
 			setProgramContextNote(buildProgramContextNote(auxiliary.sectionsSummary));
 		} finally {
@@ -234,14 +239,25 @@ export default function SchedulingPolicyPane({
 		setPolicyStatus('loaded');
 	}, [policyRecord, policyRefreshToken, schoolYearId, editIntent, persisted, local]);
 
-	const persistPolicyAndShiftWindows = useCallback(async (policyDraft: LocalPolicy, windowsDraft: LocalGradeWindow[]) => {
+	const persistPolicyAndShiftWindows = useCallback(async (policyDraft: LocalPolicy, windowsDraft: LocalGradeWindow[], overlaysDraft: FlagHgpOverlayDraft[]) => {
 		if (!schoolYearId) return;
-		const payload = buildPolicySavePayload(policyDraft);
+		const payload = { ...buildPolicySavePayload(policyDraft), enableFlagCeremony: false };
+		const scopedFlagEvents = overlaysDraft.map((row, index) => ({
+			eventType: 'FLAG_OR_HGP' as const,
+			label: 'Flag / HGP',
+			gradeGroup: row.gradeGroup,
+			programType: null,
+			startTime: row.startTime,
+			endTime: row.endTime,
+			enabled: row.enabled,
+			sortOrder: index + 1,
+		}));
 		const [policyRes] = await Promise.all([
 			atlasApi.put<{ policy: SchedulingPolicy }>(`/policies/scheduling/${schoolId}/${schoolYearId}`, payload),
 			atlasApi.put<{ windows: GradeShiftWindow[] }>(`/generation/${schoolId}/${schoolYearId}/grade-windows`, {
 				windows: windowsDraft,
 			}),
+			atlasApi.put(`/policies/special-events/${schoolId}/${schoolYearId}`, { events: scopedFlagEvents }),
 		]);
 
 		const lp = policyToLocal(policyRes.data.policy);
@@ -250,6 +266,8 @@ export default function SchedulingPolicyPane({
 		setLocal(lp);
 		setPersistedShiftWindows(sortedWindows);
 		setShiftWindows(sortedWindows);
+		setPersistedFlagHgpOverlays(overlaysDraft.map((row) => ({ ...row })));
+		setFlagHgpOverlays(overlaysDraft.map((row) => ({ ...row })));
 		setEditIntent(null);
 		setReconciliationDialog(null);
 		setShowAddOverrideDialog(false);
@@ -325,7 +343,7 @@ export default function SchedulingPolicyPane({
 						onPrimary: () => {
 							setReconciliationDialog(null);
 							setSaving(true);
-							void persistPolicyAndShiftWindows(expandedPolicy, sortShiftWindows(shiftWindows))
+							void persistPolicyAndShiftWindows(expandedPolicy, sortShiftWindows(shiftWindows), flagHgpOverlays)
 								.catch((error: unknown) => {
 									const apiMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
 									toast.error(apiMessage || 'Failed to save policy or shift settings. Your changes are preserved.');
@@ -336,7 +354,7 @@ export default function SchedulingPolicyPane({
 						onSecondary: () => {
 							setReconciliationDialog(null);
 							setSaving(true);
-							void persistPolicyAndShiftWindows(local, clipped.windows)
+							void persistPolicyAndShiftWindows(local, clipped.windows, flagHgpOverlays)
 								.catch((error: unknown) => {
 									const apiMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
 									toast.error(apiMessage || 'Failed to save policy or shift settings. Your changes are preserved.');
@@ -364,7 +382,7 @@ export default function SchedulingPolicyPane({
 					onPrimary: () => {
 						setReconciliationDialog(null);
 						setSaving(true);
-						void persistPolicyAndShiftWindows(local, clipped.windows)
+						void persistPolicyAndShiftWindows(local, clipped.windows, flagHgpOverlays)
 							.catch((error: unknown) => {
 								const apiMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
 								toast.error(apiMessage || 'Failed to save policy or shift settings. Your changes are preserved.');
@@ -376,7 +394,7 @@ export default function SchedulingPolicyPane({
 				return;
 			}
 
-			await persistPolicyAndShiftWindows(local, sortShiftWindows(shiftWindows));
+			await persistPolicyAndShiftWindows(local, sortShiftWindows(shiftWindows), flagHgpOverlays);
 		} catch (error: unknown) {
 			const apiMessage =
 				(error as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -384,7 +402,7 @@ export default function SchedulingPolicyPane({
 		} finally {
 			setSaving(false);
 		}
-	}, [schoolYearId, local, shiftWindows, editIntent, persistPolicyAndShiftWindows]);
+	}, [schoolYearId, local, shiftWindows, flagHgpOverlays, editIntent, persistPolicyAndShiftWindows]);
 
 	const update = useCallback(<K extends keyof LocalPolicy>(key: K, value: LocalPolicy[K]) => {
 		markIntent('policy');
@@ -670,24 +688,13 @@ export default function SchedulingPolicyPane({
 								checked={local.showSpecialEventsInGrid}
 								onCheckedChange={(v) => update('showSpecialEventsInGrid', v)}
 							/>
-							<PolicySwitch
-								label="Enable Flag Ceremony"
-								explanation="Adds a global non-schedulable flag ceremony interval to the timetable policy."
-								checked={local.enableFlagCeremony}
-								onCheckedChange={(v) => update('enableFlagCeremony', v)}
+							<FlagHgpOverlaySettings
+								value={flagHgpOverlays}
+								onChange={(next) => {
+									setFlagHgpOverlays(next);
+									markIntent('policy');
+								}}
 							/>
-							{local.enableFlagCeremony && (
-								<div className="grid grid-cols-2 gap-3 pl-2 border-l-2 border-primary/20">
-									<div className="space-y-1.5">
-										<MetricExplain label="Flag Start" explanation="Start time for flag ceremony row." />
-										<Input type="time" className="h-8 text-xs" value={local.flagCeremonyStartTime} onChange={(e) => update('flagCeremonyStartTime', e.target.value)} />
-									</div>
-									<div className="space-y-1.5">
-										<MetricExplain label="Flag End" explanation="End time for flag ceremony row." />
-										<Input type="time" className="h-8 text-xs" value={local.flagCeremonyEndTime} onChange={(e) => update('flagCeremonyEndTime', e.target.value)} />
-									</div>
-								</div>
-							)}
 							<PolicySwitch
 								label="Enable Recess"
 								explanation="Adds a global non-schedulable recess interval to the timetable policy."
@@ -810,13 +817,13 @@ export default function SchedulingPolicyPane({
 									When shift-specific events exist below, they replace the global flag ceremony, recess, and lunch settings above for those grades.
 								</div>
 							</div>
-							{specialEvents.length === 0 ? (
+							{otherSpecialEvents.length === 0 ? (
 								<div className="flex items-start gap-1.5 rounded-md border border-dashed border-border/60 px-2.5 py-2 text-[0.6875rem] text-muted-foreground">
 									No shift-specific events configured. Global break settings above apply to all grades.
 								</div>
 							) : (
 								<div className="space-y-1.5">
-									{specialEvents.map((evt) => (
+									{otherSpecialEvents.map((evt) => (
 										<div key={`${evt.eventType}-${evt.gradeGroup}-${evt.programType}`} className="flex items-center gap-2 rounded-md border border-border/40 bg-muted/30 px-2 py-1.5 text-xs">
 											<Badge variant="outline" className="shrink-0 text-[0.625rem] px-1.5 py-0">
 												{evt.gradeGroup ? `GR ${evt.gradeGroup}` : 'All grades'}
