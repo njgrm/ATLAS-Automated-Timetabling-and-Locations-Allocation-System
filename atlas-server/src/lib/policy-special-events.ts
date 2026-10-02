@@ -147,7 +147,8 @@ export function getEffectiveEvents(
 	// Group enabled rows by eventType
 	const byType = new Map<string, SpecialEventRowLike[]>();
 	for (const row of specialEvents) {
-		if (!row.enabled) continue;
+		if (!row.enabled || (isFlagCeremonyEvent(row.eventType, row.label) && row.gradeGroup != null
+			&& row.gradeGroup !== '7-8' && row.gradeGroup !== '9-10')) continue;
 		const list = byType.get(row.eventType) ?? [];
 		list.push(row);
 		byType.set(row.eventType, list);

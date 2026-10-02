@@ -237,7 +237,7 @@ function buildPeriodSlots(policy?: PolicyInput, canonical?: ResolvedCanonicalDis
 		const latest = timeToMinutes(policy.latestEndTime);
 		const blockedWindows: Array<{ start: number; end: number }> = [];
 
-		const hasShiftEvents = policy.specialEvents && policy.specialEvents.length > 0;
+		const hasShiftEvents = policy.specialEvents?.some((event) => event.enabled !== false);
 
 		if (hasShiftEvents) {
 			// Use shift-specific events for blocked windows
@@ -333,11 +333,13 @@ function buildSpecialEventSlots(policy?: PolicyInput, canonical?: ResolvedCanoni
 
 	const events: PeriodSlot[] = [];
 
-	const hasShiftEvents = policy.specialEvents && policy.specialEvents.length > 0;
+	const hasShiftEvents = policy.specialEvents?.some((event) => event.enabled !== false);
 
 	if (hasShiftEvents) {
 		// Use shift-specific events directly
 		for (const evt of policy.specialEvents!) {
+			if (evt.enabled === false) continue;
+			if (isFlagCeremonyEvent(evt.eventType, evt.label)) continue;
 			// R3: a Flag/HGP row persisted with an explicit non-Monday day is
 			// rejected authority — it is never rendered as a Wednesday/Thursday
 			// ceremony overlay.
@@ -350,6 +352,7 @@ function buildSpecialEventSlots(policy?: PolicyInput, canonical?: ResolvedCanoni
 				dayOfWeek: resolveSpecialEventDayOfWeek(evt.eventType, evt.dayOfWeek, evt.label) ?? undefined,
 			});
 		}
+		events.push(...resolvePolicyFlagOverlaySlots(policy, buildPeriodSlots(policy)));
 	} else {
 		// Fall back to global policy fields
 		if (policy.enableFlagCeremony ?? true) {
@@ -556,14 +559,20 @@ export function resolveCanonicalDisplayScope(args: {
 function resolvePolicyFlagOverlaySlots(policy: PolicyInput | undefined, canonicalClassRows: PeriodSlot[]): PeriodSlot[] {
 	if (!policy) return [];
 	const events = Array.isArray(policy.specialEvents) ? policy.specialEvents : [];
-	const flagRows = events.filter((event) => isFlagCeremonyEvent(event.eventType, event.label));
+	const enabledFlagRows = events.filter((event) => event.enabled !== false && isFlagCeremonyEvent(event.eventType, event.label));
+	const hasScopedFlagRows = enabledFlagRows.some((event) => event.gradeGroup != null);
+	const flagRows = enabledFlagRows.filter((event) => !(hasScopedFlagRows && event.gradeGroup == null));
 
 	const overlay: PeriodSlot[] = [];
+	const seenScopedWindows = new Set<string>();
 	if (flagRows.length > 0) {
 		for (const event of flagRows) {
 			if (isRejectedFlagCeremonyRow(event.eventType, event.dayOfWeek, event.label)) continue;
 			const snapped = resolveContainingClassRow(canonicalClassRows, event.startTime, event.endTime);
 			if (!snapped) continue;
+			const scopeKey = `${event.gradeGroup ?? '*'}:${event.programType ?? '*'}:${snapped.startTime}-${snapped.endTime}`;
+			if (seenScopedWindows.has(scopeKey)) continue;
+			seenScopedWindows.add(scopeKey);
 			const day = resolveSpecialEventDayOfWeek(event.eventType, event.dayOfWeek, event.label) ?? 'MONDAY';
 			overlay.push({ startTime: snapped.startTime, endTime: snapped.endTime, isSpecialEvent: true, eventName: event.label, dayOfWeek: day });
 		}
@@ -573,7 +582,7 @@ function resolvePolicyFlagOverlaySlots(policy: PolicyInput | undefined, canonica
 			overlay.push({ startTime: snapped.startTime, endTime: snapped.endTime, isSpecialEvent: true, eventName: 'FLAG CEREMONY', dayOfWeek: 'MONDAY' });
 		}
 	}
-	return overlay.slice(0, 1);
+	return overlay;
 }
 
 /**
@@ -687,13 +696,32 @@ export function buildCanonicalDisplayGrid(args: {
 	const dedupedPeriodSlots = dedupeIntervalSlots(periodSlots);
 	const dedupedBreakSlots = dedupeIntervalSlots(canonicalBreakSlots);
 	const flagOverlaySlots = resolvePolicyFlagOverlaySlots(args.policy, dedupedPeriodSlots);
-	// The Monday Flag/HGP overlay is policy-row owned: it is school-wide, not a
-	// canonical BREAK row, so it never claims a grade/program scope.
 	const flagWindowKeys = new Set(flagOverlaySlots.map((slot) => `${slot.startTime}-${slot.endTime}`));
+	const flagScopesByWindow = new Map<string, { gradeLevels: Set<number>; programTypes: Set<string>; appliesToAll: boolean }>();
+	const hasScopedFlagRows = (args.policy?.specialEvents ?? []).some((event) => event.enabled !== false
+		&& isFlagCeremonyEvent(event.eventType, event.label) && event.gradeGroup != null);
+	for (const event of args.policy?.specialEvents ?? []) {
+		if (event.enabled === false || !isFlagCeremonyEvent(event.eventType, event.label)) continue;
+		if (hasScopedFlagRows && event.gradeGroup == null) continue;
+		const snapped = resolveContainingClassRow(dedupedPeriodSlots, event.startTime, event.endTime);
+		if (!snapped) continue;
+		const key = `${snapped.startTime}-${snapped.endTime}`;
+		if (!flagWindowKeys.has(key)) continue;
+		const scope = flagScopesByWindow.get(key) ?? { gradeLevels: new Set<number>(), programTypes: new Set<string>(), appliesToAll: false };
+		const eventScope = policyEventWindowScope(event);
+		if (eventScope.appliesToAll) scope.appliesToAll = true;
+		for (const gradeLevel of eventScope.gradeLevels) scope.gradeLevels.add(gradeLevel);
+		for (const programType of eventScope.programTypes) scope.programTypes.add(programType);
+		flagScopesByWindow.set(key, scope);
+	}
 	const specialEventSlots = mergeDisplaySlots(dedupedBreakSlots, flagOverlaySlots);
 	const specialEventWindowScopes = specialEventSlots.map((slot) => {
 		const key = `${slot.startTime}-${slot.endTime}`;
-		if (flagWindowKeys.has(key)) return schoolWideWindowScope();
+		if (flagWindowKeys.has(key)) {
+			const scope = flagScopesByWindow.get(key);
+			if (!scope || scope.appliesToAll) return schoolWideWindowScope();
+			return { appliesToAll: false, gradeLevels: [...scope.gradeLevels].sort((a, b) => a - b), programTypes: [...scope.programTypes].sort() };
+		}
 		const entry = breakScopeByWindow.get(key);
 		if (!entry || entry.gradeLevels.size === 0) {
 			// A canonical-derived interval whose owner set is empty is not derivable;

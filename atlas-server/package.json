@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
+    "test:p07-flag-hgp": "tsx --test src/__tests__/p07-flag-hgp.test.ts src/__tests__/generation-authority-realism-c07.test.ts src/__tests__/generation-stakeholder-shape-genc02r.test.ts src/__tests__/published-revision-identity-s4.test.ts src/__tests__/tt-output-c05r1-teacher-program.test.ts",
     "start": "node dist/server.js",
     "seed:enrollpro-source": "tsx src/scripts/seed-realistic.ts",
     "seed:atlas-fixture": "tsx src/scripts/seed-realistic.ts --mode=atlas-fixture --confirmFixtureBypass=true",
