@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { DraggableUnassignedPin } from '@/components/timetable/DraggablePinWrappers';
-import { getUnassignedStatus } from '@/components/timetable/GeneratedUnassignedPanel';
+import { getUnassignedStatus, unassignedTermLabel } from '@/components/timetable/GeneratedUnassignedPanel';
 import { deriveRowReasonStack } from '@/components/timetable/simple/SimpleQueueHelpers';
 import type { LeftRailContentContext } from '@/components/timetable/timetableContexts.types';
 import type { UnassignedItem } from '@/types';
@@ -86,8 +86,8 @@ export function SimpleUnassignedQueueRow({
 								{gradeBadge ? <Badge variant="outline" className={`h-5 shrink-0 px-1.5 text-xs ${gradeBadge}`}>GR{item.gradeLevel}</Badge> : null}
 								<span className="truncate font-semibold text-foreground">{sectionLabel(item.sectionId)}</span>
 							</div>
-							<p className="mt-0.5 truncate text-xs text-muted-foreground">
-								{subjectLabel(item.subjectId)} · Session {item.session}
+							<p className="mt-0.5 break-words text-xs text-muted-foreground">
+								{subjectLabel(item.subjectId)} · {unassignedTermLabel(item.termIndex)} · Session {item.session}
 							</p>
 							<p className={cn('mt-1 inline-flex max-w-full rounded-full border px-2 py-0.5 text-xs font-semibold', status.className)}>
 								<span className="truncate">{status.label}</span>

@@ -107,7 +107,7 @@ const copyByTask: Record<TimetableSimpleTask, DrawerCopy> = {
 	},
 	'unassigned-sessions': {
 		title: 'Classes needing a time slot',
-		description: 'Classes of the selected term that have no time slot yet. Choose Place, then click a highlighted grid slot.',
+		description: 'Place a class from this term in a highlighted slot.',
 		stepOne: 'Choose a class',
 		stepTwo: 'Click a highlighted slot',
 		icon: ClipboardCheck,
@@ -166,7 +166,7 @@ function TimetableTaskDrawerImpl({
 
 	return (
 		<aside
-			className="absolute inset-x-2 bottom-2 z-20 flex max-h-[72%] min-h-72 flex-col overflow-hidden rounded-2xl border border-border bg-background/98 shadow-2xl backdrop-blur md:static md:inset-auto md:z-auto md:h-full md:max-h-none md:w-[24rem] md:rounded-none md:border-y-0 md:border-r-0 md:shadow-none"
+			className="absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-background/98 shadow-2xl backdrop-blur md:static md:inset-auto md:z-auto md:h-full md:max-h-none md:w-[24rem] md:rounded-none md:border-y-0 md:border-r-0 md:shadow-none"
 			data-testid="timetable-task-drawer"
 			aria-label={copy.title}
 		>
@@ -178,7 +178,7 @@ function TimetableTaskDrawerImpl({
 						</div>
 						<div className="min-w-0">
 							<h2 className="truncate text-sm font-semibold text-foreground">{copy.title}</h2>
-							<p className="line-clamp-1 text-xs leading-relaxed text-muted-foreground [@media(max-height:500px)]:hidden">{copy.description}</p>
+							<p className={cn('text-xs leading-relaxed text-muted-foreground [@media(max-height:500px)]:hidden', task !== 'unassigned-sessions' && 'line-clamp-1')}>{copy.description}</p>
 						</div>
 					</div>
 					<Button

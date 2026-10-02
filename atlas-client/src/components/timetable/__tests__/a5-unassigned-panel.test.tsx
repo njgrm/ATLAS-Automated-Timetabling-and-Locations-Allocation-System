@@ -22,6 +22,7 @@ import { act, createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { JSDOM } from 'jsdom';
 
+import { TimetableTaskDrawer } from '../TimetableTaskDrawer';
 import { SimpleUnassignedSessionsPanel } from '../GeneratedUnassignedPanel';
 import { decideAutoSavePlacement } from '@/lib/simple-timetable-state';
 import { buildEditReceipt, receiptClassLabel } from '@/lib/timetable-edit-receipt';
@@ -45,8 +46,8 @@ function unplaced(overrides: Partial<UnassignedItem>): UnassignedItem {
 	return { sectionId: 701, subjectId: 31, gradeLevel: 7, session: 1, reason: 'NO_AVAILABLE_SLOT', facultyId: 9, ...overrides } as UnassignedItem;
 }
 
-const ITEM_A = unplaced({ sectionId: 701, subjectId: 31, session: 1, reason: 'NO_AVAILABLE_SLOT', facultyId: 9 });
-const ITEM_B = unplaced({ sectionId: 702, subjectId: 32, session: 2, reason: 'NO_QUALIFIED_FACULTY', facultyId: null });
+const ITEM_A = unplaced({ sectionId: 701, subjectId: 31, termIndex: 1, session: 1, reason: 'NO_AVAILABLE_SLOT', facultyId: 9 });
+const ITEM_B = unplaced({ sectionId: 702, subjectId: 32, termIndex: 2, session: 2, reason: 'NO_QUALIFIED_FACULTY', facultyId: null });
 
 function panelContext(overrides: Record<string, unknown> = {}): LeftRailContentContext {
 	const items = (overrides.filteredUnassignedItems as UnassignedItem[] | undefined) ?? [ITEM_A, ITEM_B];
@@ -99,6 +100,12 @@ test('#1 RENDERED: each row names subject, section, teacher, a plain reason, and
 	assert.ok(markup.includes('No teacher yet'), 'a class with no owner says so in plain words');
 	assert.ok(markup.includes('No Available Slot'), 'the first reason is a plain label');
 	assert.ok(markup.includes('No Qualified Teacher'), 'the second reason is a plain label');
+	assert.ok(markup.includes('Term 1 · Session 1'), 'the first row states its own ordered term and session');
+	assert.ok(markup.includes('Term 2 · Session 2'), 'the second row states its own ordered term and session');
+	const visibleText = markup.replace(/<[^>]+>/g, '');
+	assert.equal((visibleText.match(/Term 1/g) ?? []).length, 1, 'Term 1 appears once in the row');
+	assert.equal((visibleText.match(/Session 1/g) ?? []).length, 1, 'Session 1 appears once in the row');
+	assert.match(markup, /aria-label="Unassigned session [^"]+: Term 1, Session 1"/, 'the accessible row name preserves both scope facts');
 	// Exactly one Place button per row — two rows, two buttons, no other control.
 	assert.equal((markup.match(/>Place</g) ?? []).length, 2, 'exactly one Place button per row');
 	assert.equal((markup.match(/<button/g) ?? []).length, 2, 'the Place button is the ONLY control on a row');
@@ -182,7 +189,6 @@ Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, co
 
 const { createRoot } = await import('react-dom/client');
 const { MemoryRouter } = await import('react-router-dom');
-const { TimetableTaskDrawer } = await import('../TimetableTaskDrawer');
 
 let mountedRoot: { unmount: () => void } | null = null;
 let mountedHost: HTMLElement | null = null;

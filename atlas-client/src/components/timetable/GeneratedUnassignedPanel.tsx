@@ -8,7 +8,6 @@ import type { UnassignedItem } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import type { LeftRailContentContext } from '@/components/timetable/timetableContexts.types';
-
 /**
  * A2 move-swap c2 item 4 — the item's OWN ordered term, in the one vocabulary the
  * rest of the timetable uses (`Term N`), or `All year` when the item carries no
@@ -27,8 +26,8 @@ type GeneratedUnassignedPanelProps = {
 
 type StatusKey = 'needs-owner' | 'needs-room' | 'ready' | 'blocked';
 
-/** The row's status, shared with the Simple plotting trays (`SimpleQueueHelpers`). */
-function getUnassignedStatus(
+/** Shared with the Simple plotting trays so the same class has one status. */
+export function getUnassignedStatus(
 	item: UnassignedItem,
 	cachedFix: LeftRailContentContext['unassignedFixSuggestions'][string] | undefined,
 ): { key: StatusKey; label: string; actionLabel: string; className: string } {
@@ -41,16 +40,6 @@ function getUnassignedStatus(
 
 /** The rail's unresolved-reason badge (kept for `LeftRailContent`). */
 export function renderUnassignedReasonBadgeFor(labels: LeftRailContentContext['UNASSIGNED_REASON_LABELS'], reason: string) {
-	/* PLAIN-LANGUAGE-J2J3-C01 R1 (B1): the fallback used to be `label: reason`, so
-	 * a reason the server adds before the client learns it rendered as a raw
-	 * `NO_AVAILABLE_SLOT`-shaped token on the badge; the previous round changed it
-	 * to a de-snake-cased phrase, which is a FALSE label — `UnassignedReason` is a
-	 * canonical code space, not free-form text, so the same reason code was
-	 * getting a different sentence here than in the publish-readiness warning
-	 * group. The label now comes from the ONE shared rule over the same canonical
-	 * map, so an unmapped reason gets the same honest sentence on every surface
-	 * and never an enum in any casing. The className default is the neutral badge
-	 * style, unchanged: an unmapped reason has no severity the client knows. */
 	const known = labels[reason];
 	return (
 		<Badge
@@ -103,7 +92,6 @@ export function GeneratedUnassignedPanel({ context }: GeneratedUnassignedPanelPr
 	} = context;
 
 	const count = typeof unassignedCountForSelectedTerm === 'number' ? unassignedCountForSelectedTerm : 0;
-
 	const groups = useMemo(() => {
 		const bySection = new Map<number, UnassignedItem[]>();
 		for (const item of filteredUnassignedItems) {
@@ -140,15 +128,11 @@ export function GeneratedUnassignedPanel({ context }: GeneratedUnassignedPanelPr
 				</h3>
 			</div>
 			{groups.length > 0 ? (
-				<ul
-					className="flex-1 min-h-0 overflow-auto scrollbar-thin px-3 pb-3 pt-2"
-					data-testid="generated-unassigned-list"
-					aria-label="Classes needing a time slot"
-				>
+				<ul className="flex-1 min-h-0 overflow-auto scrollbar-thin px-3 pb-2 pt-1" data-testid="generated-unassigned-list" aria-label="Classes needing a time slot">
 					{groups.map((group) => (
-						<li key={group.sectionId} className="mb-3" data-testid="generated-unassigned-section">
-							<div className="mb-1 break-words text-xs font-semibold text-muted-foreground">{group.label}</div>
-							<div className="grid gap-0.5">
+						<li key={group.sectionId} className="mb-2 last:mb-0" data-testid="generated-unassigned-section">
+							<div className="mb-0.5 break-words text-xs font-semibold leading-4 text-muted-foreground">{group.label}</div>
+							<div className="grid gap-0">
 								{group.items.map((item) => (
 									<UnassignedRow
 										key={buildUnassignedKey(item)}
@@ -211,42 +195,28 @@ function UnassignedRow({
 	onPlace: () => void;
 }) {
 	const teacherText = item.facultyId != null ? facultyLabel(item.facultyId) : 'No teacher yet';
-	// The reason is a plain sentence, never the raw code: the shared label when
-	// the canonical map knows it, else the honest default detail.
-	const reason = item.reason;
-	const reasonText = UNASSIGNED_REASON_LABELS[reason]
-		? plainRuleValue(UNASSIGNED_REASON_LABELS, reason, (entry) => entry.label)
+	// The reason is plain language from the canonical map or its honest fallback.
+	const reasonText = UNASSIGNED_REASON_LABELS[item.reason]
+		? plainRuleValue(UNASSIGNED_REASON_LABELS, item.reason, (entry) => entry.label)
 		: getDefaultUnassignedReasonDetail(item);
 
 	return (
-		<div
-			role="group"
-			aria-label={`Unassigned session ${itemKey}`}
-			data-testid="generated-unassigned-row"
-			className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border/40 px-1 py-1.5 text-xs last:border-b-0"
-		>
-			<span className="min-w-0 break-words font-medium text-foreground">{subjectLabel(item.subjectId)}</span>
-			<span aria-hidden="true" className="text-muted-foreground/50">·</span>
-			<span className="min-w-0 break-words text-muted-foreground">{sectionLabel(item.sectionId)}</span>
-			<span aria-hidden="true" className="text-muted-foreground/50">·</span>
-			<span className="min-w-0 break-words text-muted-foreground">{teacherText}</span>
-			{/* Addendum (operator, 2026-09-30): five sessions of the same
-			 * subject/section/teacher must be distinguishable, so the row names
-			 * its own term and session in plain words, before the reason. A2
-			 * move-swap c2 item 4 folded in: the term comes from the shared
-			 * `unassignedTermLabel`, so a missing term reads `All year` — never
-			 * a silent omission, and never a guessed `Term 1`. */}
-			<span aria-hidden="true" className="text-muted-foreground/50">·</span>
-			<span className="min-w-0 break-words text-muted-foreground">{unassignedTermLabel(item.termIndex)}</span>
-			<span aria-hidden="true" className="text-muted-foreground/50">·</span>
-			<span className="min-w-0 break-words text-muted-foreground">{`Session ${item.session}`}</span>
-			<span aria-hidden="true" className="text-muted-foreground/50">·</span>
-			<span className="min-w-0 break-words text-muted-foreground">{reasonText}</span>
-			<Button type="button" variant="outline" size="sm" className="ml-auto h-7 shrink-0 px-3 text-xs" onClick={onPlace}>
+		<div role="group" aria-label={`Unassigned session ${itemKey}: ${unassignedTermLabel(item.termIndex)}, Session ${item.session}`} data-testid="generated-unassigned-row" className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-border/40 px-1 py-1 text-xs last:border-b-0">
+			<div className="min-w-0 space-y-0.5">
+				<div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 leading-4">
+					<span className="min-w-0 break-words font-medium text-foreground">{subjectLabel(item.subjectId)}</span>
+					<span className="min-w-0 break-words text-muted-foreground">{sectionLabel(item.sectionId)}</span>
+					<span className="min-w-0 break-words text-muted-foreground">{teacherText}</span>
+				</div>
+				{/* Scope facts and the reason stay readable in a compact second line. */}
+				<div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-[11px] leading-4 text-muted-foreground">
+					<span>{unassignedTermLabel(item.termIndex)} · Session {item.session}</span>
+					<span className="break-words">{reasonText}</span>
+				</div>
+			</div>
+			<Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2 text-xs" onClick={onPlace}>
 				Place
 			</Button>
 		</div>
 	);
 }
-
-export { getUnassignedStatus };
