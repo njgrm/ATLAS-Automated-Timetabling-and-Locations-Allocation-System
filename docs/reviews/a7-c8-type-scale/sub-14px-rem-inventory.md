@@ -15,19 +15,19 @@ this table and the code drift apart in either direction.
 
 | | |
 |---|---|
-| Sub-14px occurrences, all units | **264** |
-| — of which `rem` | **255** |
+| Sub-14px occurrences, all units | **235** |
+| — of which `rem` | **226** |
 | — of which `px` (`text-[13px]`, pre-existing) | **9** |
-| Distinct `file \| value` keys | **89** |
-| Distinct files | **57** |
+| Distinct `file \| value` keys | **87** |
+| Distinct files | **56** |
 
-**Base → candidate production total: `401 → 264`.** The 137 removed by this slice
-were all px literals (`text-[9|10|11|12]px` → `text-xs`). Every one of the 264
-listed below is **pre-existing on base `7c278d0d`**; this slice added none of them.
+**Base → candidate production total: `401 → 235`.** The 137 removed by this slice
+were all px literals (`text-[9|10|11|12]px` → `text-xs`). The remaining population
+was re-counted on 2026-10-02 with the same comment-stripped scan used by A7C8-6.
 
 ## Why this is a ratchet and not a red `main`
 
-264 occurrences of real, user-visible sub-14px type are shipped today. Fixing them is
+235 occurrences of real, user-visible sub-14px type are shipped today. Fixing them is
 a separate, larger slice, and it is not a search-and-replace: several sit inside
 **fixed-height boxes**, so a blind bump to `text-xs` clips them rather than fixing
 them. That is why the gate records them as a dated, owner-tagged allowlist that fails
@@ -43,20 +43,20 @@ allowlist and is unchanged by this correction.
 |---|---|---|---|
 | `text-[0.5rem]` | 8 | 2 | `components/LockPanel.tsx` (2) |
 | `text-[0.55rem]` | 8.8 | 5 | `components/ManualEditPanel.tsx` (5) |
-| `text-[0.5625rem]` | 9 | 13 | `components/LockPanel.tsx` (4), `components/ManualEditPanel.tsx` (5), `components/dashboard/RoomSchedulePreview.tsx` (2), `components/PolicyImpactSummary.tsx` (1), `components/scheduling-policy/PolicyPanePrimitives.tsx` (1) |
-| `text-[0.6rem]` | 9.6 | 7 | `components/faculty/FacultyRow.tsx` (3), `components/subjects/SubjectRow.tsx` (1), `components/subjects/ProgramScopeChips.tsx` (1), `components/subjects/SyncPreviewSheet.tsx` (1), `components/timetable/TeacherDepartureRecoverySheet.tsx` (1) |
-| `text-[0.625rem]` | 10 | 53 | `components/LockPanel.tsx` (20), `components/ManualEditPanel.tsx` (9), `components/ExplainabilityDrawer.tsx` (6), `components/dashboard/RoomSchedulePreview.tsx` (4), `components/PolicyImpactSummary.tsx` (3), `components/ConflictInspectorSheet.tsx` (2), `components/SchedulingPolicyPane.tsx` (2), `components/scheduling-policy/PolicyPanePrimitives.tsx` (2), `components/dashboard/SetupChecklist.tsx` (1), `components/room-schedules/OccupancyTemplatePreview.tsx` (1), `components/TutorialOverlay.tsx` (1), `components/timetable/SimplePublishReadinessSheet.tsx` (1), `components/timetable/simple/SimpleTaskDrawerHelpers.tsx` (1) |
+| `text-[0.5625rem]` | 9 | 11 | `components/LockPanel.tsx` (4), `components/ManualEditPanel.tsx` (3), `components/dashboard/RoomSchedulePreview.tsx` (2), `components/PolicyImpactSummary.tsx` (1), `components/scheduling-policy/PolicyPanePrimitives.tsx` (1) |
+| `text-[0.6rem]` | 9.6 | 6 | `components/faculty/FacultyRow.tsx` (2), `components/subjects/SubjectRow.tsx` (1), `components/subjects/ProgramScopeChips.tsx` (1), `components/subjects/SyncPreviewSheet.tsx` (1), `components/timetable/TeacherDepartureRecoverySheet.tsx` (1) |
+| `text-[0.625rem]` | 10 | 47 | `components/LockPanel.tsx` (20), `components/ManualEditPanel.tsx` (3), `components/ExplainabilityDrawer.tsx` (6), `components/dashboard/RoomSchedulePreview.tsx` (4), `components/PolicyImpactSummary.tsx` (3), `components/ConflictInspectorSheet.tsx` (2), `components/SchedulingPolicyPane.tsx` (2), `components/scheduling-policy/PolicyPanePrimitives.tsx` (2), `components/dashboard/SetupChecklist.tsx` (1), `components/room-schedules/OccupancyTemplatePreview.tsx` (1), `components/TutorialOverlay.tsx` (1), `components/timetable/SimplePublishReadinessSheet.tsx` (1), `components/timetable/simple/SimpleTaskDrawerHelpers.tsx` (1) |
 | `text-[0.64rem]` | 10.24 | 1 | `components/timetable/TeacherDepartureRecoverySheet.tsx` (1) |
-| `text-[0.65rem]` | 10.4 | 34 | `components/faculty/FacultyRow.tsx` (6), `components/faculty/FacultyProfileSheet.tsx` (5), `components/ManualEditPanel.tsx` (4), `components/admin-workspace/AdminWorkspace.tsx` (3), `components/CampusMapEditor.tsx` (2), `components/subjects/SubjectMobileCard.tsx` (2), `components/subjects/SubjectRow.tsx` (2), `components/timetable/SimplePublishReadinessSheet.tsx` (2), `components/dashboard/NextActionPanel.tsx` (1), `components/smart/AccessibleInfo.tsx` (1), `components/subjects/SubjectMutationDetailPopover.tsx` (1), `components/subjects/SyncPreviewSheet.tsx` (1), `components/timetable/ScheduleReviewWorkspaceTaskModes.tsx` (1), `components/timetable/TacticalSandboxDock.parts.tsx` (1), `components/timetable/TimetableTaskDrawer.tsx` (1), `pages/SpecializationMapping.tsx` (1) |
-| `text-[0.68rem]` | 10.88 | 10 | `components/timetable/TimetableTaskDrawer.tsx` (4), `components/audit/AuditFindingsPanel.tsx` (2), `components/timetable/ScheduleReviewWorkspaceHeader.tsx` (1), `components/timetable/TimetableStatusLegend.tsx` (1), `components/timetable/modals/ReviewActionSheet.tsx` (1), `components/timetable/modals/TimetablePlacementDialogs.tsx` (1) |
-| `text-[0.6875rem]` | 11 | 94 | `components/BuildingPanel.tsx` (23), `components/LockPanel.tsx` (11), `components/sections/SectionDetailsSheet.tsx` (11), `components/SchedulingPolicyPane.tsx` (8), `components/ManualEditPanel.tsx` (6), `components/sections/SectionRow.tsx` (5), `components/campus-map/BuildingPlacementFields.tsx` (4), `components/scheduling-policy/SchedulingPolicyDialogs.tsx` (4), `components/scheduling-policy/ShiftSettingsEditor.tsx` (4), `components/campus-map/BuildingGradeScopeControl.tsx` (2), `components/ConflictInspectorSheet.tsx` (2), `components/dashboard/RoomSchedulePreview.tsx` (2), `components/scheduling-policy/PolicyPanePrimitives.tsx` (2), `components/scheduling-policy/PolicyPaneSchedulingMode.tsx` (2), `components/timetable/GeneratedRunRailPanels.tsx` (2), `components/timetable/simple/SimpleTaskDrawerHelpers.tsx` (2), `components/dashboard/LifecycleSummary.tsx` (1), `components/PolicyImpactSummary.tsx` (1), `components/scheduling-policy/PolicyPaneConstraintWeights.tsx` (1), `pages/HowItWorks.tsx` (1) |
-| `text-[0.7rem]` | 11.2 | 25 | `components/faculty/FacultyProfileSheet.tsx` (7), `components/admin-workspace/AdminDataTable.tsx` (5), `components/faculty-assignments/AutoFillSummaryModal.tsx` (3), `components/subjects/SubjectRow.tsx` (3), `components/CampusMapEditor.tsx` (2), `components/sections/SectionDetailsSheet.tsx` (2), `components/subjects/SubjectFormModal.tsx` (1), `components/timetable/TimetableTaskDrawer.tsx` (1), `components/timetable/UnassignedInsertionWorkflow.tsx` (1) |
+| `text-[0.65rem]` | 10.4 | 29 | `components/faculty/FacultyRow.tsx` (6), `components/ManualEditPanel.tsx` (4), `components/admin-workspace/AdminWorkspace.tsx` (3), `components/CampusMapEditor.tsx` (2), `components/subjects/SubjectMobileCard.tsx` (2), `components/subjects/SubjectRow.tsx` (2), `components/timetable/SimplePublishReadinessSheet.tsx` (2), `components/dashboard/NextActionPanel.tsx` (1), `components/smart/AccessibleInfo.tsx` (1), `components/subjects/SubjectMutationDetailPopover.tsx` (1), `components/subjects/SyncPreviewSheet.tsx` (1), `components/timetable/ScheduleReviewWorkspaceTaskModes.tsx` (1), `components/timetable/TacticalSandboxDock.parts.tsx` (1), `components/timetable/TimetableTaskDrawer.tsx` (1), `pages/SpecializationMapping.tsx` (1) |
+| `text-[0.68rem]` | 10.88 | 10 | `components/audit/AuditFindingsPanel.tsx` (2), `components/timetable/modals/ReviewActionSheet.tsx` (1), `components/timetable/modals/TimetablePlacementDialogs.tsx` (1), `components/timetable/ScheduleReviewWorkspaceHeader.tsx` (1), `components/timetable/TimetableStatusLegend.tsx` (1), `components/timetable/TimetableTaskDrawer.tsx` (4) |
+| `text-[0.6875rem]` | 11 | 86 | `components/BuildingPanel.tsx` (23), `components/LockPanel.tsx` (11), `components/sections/SectionDetailsSheet.tsx` (8), `components/SchedulingPolicyPane.tsx` (8), `components/ManualEditPanel.tsx` (1), `components/sections/SectionRow.tsx` (5), `components/campus-map/BuildingPlacementFields.tsx` (4), `components/scheduling-policy/SchedulingPolicyDialogs.tsx` (4), `components/scheduling-policy/ShiftSettingsEditor.tsx` (4), `components/campus-map/BuildingGradeScopeControl.tsx` (2), `components/ConflictInspectorSheet.tsx` (2), `components/dashboard/RoomSchedulePreview.tsx` (2), `components/scheduling-policy/PolicyPanePrimitives.tsx` (2), `components/scheduling-policy/PolicyPaneSchedulingMode.tsx` (2), `components/timetable/GeneratedRunRailPanels.tsx` (2), `components/timetable/simple/SimpleTaskDrawerHelpers.tsx` (2), `components/dashboard/LifecycleSummary.tsx` (1), `components/PolicyImpactSummary.tsx` (1), `components/scheduling-policy/PolicyPaneConstraintWeights.tsx` (1), `pages/HowItWorks.tsx` (1) |
+| `text-[0.7rem]` | 11.2 | 18 | `components/admin-workspace/AdminDataTable.tsx` (5), `components/faculty-assignments/AutoFillSummaryModal.tsx` (3), `components/subjects/SubjectRow.tsx` (3), `components/CampusMapEditor.tsx` (2), `components/sections/SectionDetailsSheet.tsx` (2), `components/subjects/SubjectFormModal.tsx` (1), `components/timetable/TimetableTaskDrawer.tsx` (1), `components/timetable/UnassignedInsertionWorkflow.tsx` (1) |
 | `text-[0.72rem]` | 11.52 | 7 | `components/BuildingPanel.tsx` (5), `components/campus-map/BuildingGradeScopeControl.tsx` (1), `components/campus-map/BuildingPlacementFields.tsx` (1) |
 | `text-[0.75rem]` | 12 | 2 | `components/CampusMapEditor.tsx` (1), `components/faculty-assignments/SubjectRow.tsx` (1) |
 | `text-[0.8rem]` | 12.8 | 1 | `ui/button-variants.ts` (1) |
 | `text-[0.8125rem]` | 13 | 1 | `components/BuildingPanel.tsx` (1) |
 | `text-[13px]` | 13 | 9 | `components/faculty-dashboard/MobileDashboardLayout.tsx` (3), `components/faculty-dashboard/TeachingIdentityPanel.tsx` (3), `components/faculty-dashboard/ActionQueue.tsx` (1), `components/faculty-dashboard/FacultyObjectiveStateCard.tsx` (1), `components/faculty-shared/FacultyGlobalHeader.tsx` (1) |
-| | | **264** | |
+| | | **235** | |
 
 ## Re-fit pass — what this scopes
 

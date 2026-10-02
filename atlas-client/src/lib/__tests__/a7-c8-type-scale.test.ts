@@ -472,9 +472,9 @@ test('A7C8-6: no arbitrary sub-14px font size outside the dated, owner-tagged ra
 	);
 	assert.equal(
 		found.reduce((a, [, c]) => a + c, 0),
-		251,
-		'A7C8-6: production must hold exactly 251 sub-14px arbitrary font-size ' +
-			'occurrences (242 rem + 9 text-[13px]). Update this number and the ' +
+		235,
+		'A7C8-6: production must hold exactly 235 sub-14px arbitrary font-size ' +
+			'occurrences (226 rem + 9 text-[13px]). Update this number and the ' +
 			'inventory doc in the same commit that changes it.',
 	);
 });

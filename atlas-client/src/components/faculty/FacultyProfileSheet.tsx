@@ -386,7 +386,7 @@ export function FacultyProfileSheet({
 							</DialogDescription>
 							{faculty.isClassAdviser && (
 								<div className="mt-2">
-									<Badge className="bg-amber-50 text-amber-800 hover:bg-amber-100 shadow-none border-amber-200 font-bold text-sm px-2 py-0.5">
+									<Badge className="h-6 bg-amber-50 text-amber-800 hover:bg-amber-100 shadow-none border-amber-200 font-bold text-sm px-2">
 										<Star className="size-3 fill-amber-500 text-amber-600 mr-1.5" />
 										{faculty.advisedSectionName ? `Adviser: ${faculty.advisedSectionName}` : 'Class Adviser'}
 									</Badge>
