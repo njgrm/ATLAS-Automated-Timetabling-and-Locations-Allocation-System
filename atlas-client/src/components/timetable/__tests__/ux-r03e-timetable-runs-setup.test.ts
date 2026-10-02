@@ -248,9 +248,14 @@ test('UX-R03e setup row 2: the pane renders the drift banner directly with no se
 	assert.doesNotMatch(code, /handleSyncSetup|runSyncSetup|createSyncSetupInFlightGuard/);
 	const banner = source('src/components/timetable/simple/SimpleDriftBanner.tsx');
 	assert.doesNotMatch(banner, /runSyncSetup|createSyncSetupInFlightGuard/);
-	// The header keeps its own drift entry point.
+	// SUPERSEDED: before the shared notice-slot extraction, the header rendered
+	// SimpleDriftBanner directly. Retain the old claim as history beside its replacement:
+	// assert.match(header, /<SimpleDriftBanner/);
+	// The header now derives the notice through the shared slot that owns the banner.
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
-	assert.match(header, /<SimpleDriftBanner/);
+	const noticeSlot = source('src/components/timetable/simple/SimpleHeaderChangeNoticeSlot.tsx');
+	assert.match(header, /useRunChangeNotice/);
+	assert.match(noticeSlot, /<SimpleDriftBanner/);
 });
 
 test('UX-R03e setup row 2: header and pane share one readiness-chip implementation', () => {
@@ -333,7 +338,11 @@ test('UX-R03e setup row 3: header, menu, and banner entry points are preserved',
 	assert.match(source('src/components/timetable/simple/SimpleHeaderActions.tsx'), /Preview demand/);
 	assert.match(header, /data-testid="timetable-simple-more-trigger"/);
 	const menu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
-	assert.match(menu, /data-testid="timetable-more-policy"/);
+	// SUPERSEDED (A2 timetable sub-nav): the Policies link left More when it
+	// became a persistent tab. Retain the old predicate as history beside its replacement:
+	// assert.match(menu, /data-testid="timetable-more-policy"/);
+	assert.doesNotMatch(menu, /timetable-more-policy/);
+	assert.match(source('src/components/timetable/TimetableSubNav.tsx'), /key: 'policies', label: 'Policies', to: '\/timetable\/policies'/);
 	assert.match(menu, /Refresh timetable/);
 	const banner = source('src/components/timetable/simple/SimpleDriftBanner.tsx');
 	assert.doesNotMatch(banner, /Sync with setup|timetable-simple-sync-setup/);
