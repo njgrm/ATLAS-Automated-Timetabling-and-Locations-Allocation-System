@@ -14,8 +14,13 @@ schedulers can hand-fix and publish, official printouts, and SMART-family visual
 - LIVE: `4b046877803fad0f57341114db1155a0c72fc362` (prefix `4b046877`), narrow P06c timetable-control clarity
   release, deployed 2026-10-02 20:43 Asia/Manila. Tree
   `E:\ATLAS-worktrees\lane-a4-release-20261002-4b046877`; the SYSTEM release task confirmed `/api/v1/health/ready`,
-  client 200, and that the 5001 listener runs from this tree. Independent database, Tailnet-chunk, and browser
-  acceptance follow in the same release closure.
+  client 200, and that the 5001 listener runs from this tree. Independent post-action QA confirmed machine SHA/source,
+  listeners 5001/5174, health 200, database-backed subjects 200, and an exact Tailnet-to-build asset match
+  (`index-DEIh8rCq.js`, SHA-256 `0069a578ad6d4ecb35b2d816d7b37d5e299b8a77d97994ea86ef84948f98fe75`).
+  Terra browser QA accepted 7/7 rows in authenticated Brave at 1366x768 and 390x844: published Term 1 Run 360,
+  P06c warning copy, retained P07 Flag/HGP controls, no overflow or console errors. A page-load 201 from the
+  collaboration-ticket endpoint issues a 60-second in-memory ticket; its client and server blobs are unchanged from
+  the P07 release and it is not evidence of a durable timetable write.
 - Rollback basis: prior accepted P07 release `5b084c7591d45a85e609aa05aec7ef76c68e4d98` at
   `E:\ATLAS-runtime-supervised-5b084c75-20261002`; the runner audit captures the pre-cutover task XML and machine
   runtime variables.
