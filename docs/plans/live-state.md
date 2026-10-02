@@ -3,7 +3,7 @@
 Current operational truth only, kept under 60 lines. Update it when a live fact changes; do not append history.
 Full history to 2026-09-30: `docs/archive/2026-09/live-state-to-20260930.md` (and Git).
 
-Last reconciled: 2026-09-30 evening (Lane C, trim after the demo).
+Last reconciled: 2026-10-02 evening (Lane C, p07 supervised cutover).
 
 ## Objective
 
@@ -11,11 +11,12 @@ A correct, calm ATLAS for school 1 on EnrollPro's active year: dependable Teachi
 schedulers can hand-fix and publish, official printouts, and SMART-family visual cohesion (`DESIGN.md`).
 
 ## Live release
-- Release candidate: `5b084c75` (p07 Flag/HGP timetable controls); incumbent `fdae67ec`; rollback basis `c82b8636`. Approved for supervised cutover after the recorded build, discriminator, and post-release checks.
-- LIVE: `fdae67ec64a4713d7c5c2446e03c25c29ddf704f` (prefix `fdae67ec`), train 21, deployed 2026-09-30 11:17 +08.
-  Tree `E:\ATLAS-worktrees\lane-a4-release-20260930-21prod`. Includes decision 15 (teacher lunch) and the header
-  hotfix `c82b8636`.
-- Rollback basis: `c82b8636` (train 20), tree `E:\ATLAS-worktrees\lane-a4-release-20260930-20prod`.
+- LIVE: `5b084c7591d45a85e609aa05aec7ef76c68e4d98` (prefix `5b084c75`), p07 Flag/HGP timetable controls,
+  deployed 2026-10-02. Tree `E:\ATLAS-runtime-supervised-5b084c75-20261002`; supervised API 5001 and client
+  5174 are target-owned. Post-cutover health and database-backed subjects read are 200; the Tailnet client serves
+  `SchedulingPolicyPane-C01uMS9A.js` with the recorded target hash and `HGP` marker.
+- Rollback basis: incumbent `fdae67ec64a4713d7c5c2446e03c25c29ddf704f`, with predecessor `c82b8636`; runner
+  audit captures the pre-cutover task XML and machine runtime variables.
 - Next: train 22 (move-swap c2 `8c1b9218`, unassigned panel `22b34170`, placement feasibility `8766c084`/`fffa830c`),
   after the 3 header tests are updated. The deploy gate (`ops/runtime/deploy-runner.ps1`) requires the target
   prefix to be written in THIS section before cutover.
