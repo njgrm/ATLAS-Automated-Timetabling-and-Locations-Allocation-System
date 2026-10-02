@@ -148,7 +148,7 @@ function makeClient(options: {
 			advisoryCreditMinutes: options.advisoryCreditMinutes === undefined ? 60 : options.advisoryCreditMinutes,
 		}) },
 		classProgramSlot: { findMany: async () => slots },
-		policySpecialEvent: { findMany: async () => options.specialEvents ?? [] },
+		policySpecialEvent: { findMany: async (args: any) => (options.specialEvents ?? []).filter((event) => args?.where?.enabled !== true || event.enabled !== false) },
 		teacherProgramPresentationRevision: {
 			findFirst: async (args: any) => {
 				const where = args?.where ?? {};
@@ -242,6 +242,24 @@ test('P07 teacher program annotates Monday Flag/HGP over teaching without adding
 	assert.equal(monday.minutes, 45);
 	assert.equal(shape.rows.some((row) => row.kind === 'BREAK' && /Flag/.test(row.label)), false, 'Flag/HGP is not exported as a break or extra period');
 	assert.equal(shape.summary.actualTeachingMinutes, baseline.summary.actualTeachingMinutes, 'teaching load remains unchanged from the same source run');
+});
+
+test('P07 teacher program honors persisted disabled scopes after legacy global Flag retirement', async () => {
+	const retiredLegacyRows = [
+		{ eventType: 'FLAG_OR_HGP', label: 'Legacy Global Flag', gradeGroup: null, programType: null, startTime: '07:00', endTime: '07:20', enabled: false },
+		{ eventType: 'FLAG_OR_HGP', label: 'Morning Flag / HGP', gradeGroup: '7-8', programType: null, startTime: '06:50', endTime: '07:20', enabled: false },
+		{ eventType: 'FLAG_OR_HGP', label: 'Afternoon Flag / HGP', gradeGroup: '9-10', programType: null, startTime: '12:20', endTime: '12:50', enabled: false },
+	];
+	const disabled = await buildShape(makeClient({ specialEvents: retiredLegacyRows }));
+	assert.equal(disabled.rows.some((row) => row.kind === 'TEACHING' && /Flag|HGP/.test(row.label)), false, 'disabled scoped rows cannot inherit the retired global interval');
+
+	const oneEnabled = await buildShape(makeClient({ specialEvents: [
+		...retiredLegacyRows.map((row) => row.gradeGroup === '7-8' ? { ...row, enabled: true } : row),
+	] }));
+	const monday = oneEnabled.rows.find((row) => row.kind === 'TEACHING' && /Biology · Morning Flag \/ HGP/.test(row.label));
+	assert.ok(monday, 'the enabled morning scope is shown on Monday');
+	assert.deepEqual(monday.days, ['MONDAY']);
+	assert.equal(oneEnabled.rows.some((row) => row.kind === 'BREAK' && /Flag|HGP/.test(row.label)), false, 'Flag/HGP remains an overlay, not a break');
 });
 
 // ─── Control 2 — no false health breaks ───
