@@ -8,6 +8,7 @@
     "build": "vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:p07-flag-hgp": "tsx --test src/components/scheduling-policy/__tests__/flag-hgp-overlay-settings.test.tsx src/lib/__tests__/timetable-grid-shape-authority.test.ts src/lib/__tests__/timetable-day-scope-c03r.test.ts",
+    "test:p06c-r4-visual-fixture": "tsx --test --test-force-exit src/dev/__tests__/p06c-r4-visual-fixture.test.tsx",
     "preview": "vite preview --port 5174",
     "test:published-revision": "tsx --test src/lib/__tests__/published-revision-client.test.ts",
     "test:a8-post-generation-refresh": "tsx --test --test-force-exit src/components/timetable/__tests__/a8-post-generation-refresh.test.tsx",
