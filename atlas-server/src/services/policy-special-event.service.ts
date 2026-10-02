@@ -5,6 +5,7 @@
 
 import { prisma } from '../lib/prisma.js';
 import { VALID_EVENT_TYPES, VALID_GRADE_GROUPS, getEffectiveEvents, isFlagCeremonyEvent, type GradeGroup, type SpecialEventType, type SpecialEventRowLike, type EffectiveSpecialEvent } from '../lib/policy-special-events.js';
+import { withFlagHgpAuthorityLock } from './policy-flag-hgp-authority-lock.js';
 
 // Re-export types from the pure module
 export { VALID_EVENT_TYPES, VALID_GRADE_GROUPS, getEffectiveEvents };
@@ -167,42 +168,44 @@ export async function upsertSpecialEvents(
 	// both persisted fallback sources here so disabled scopes stay disabled in
 	// every read path (generation, warnings, frozen identity, and exports).
 	events.forEach(validateInput);
-	const incomingFlagRows = events.filter((event) => isFlagCeremonyEvent(event.eventType, event.label));
-	const savesScopedFlag = incomingFlagRows.some((event) => event.gradeGroup != null);
-	const existingFlagRows = incomingFlagRows.length > 0
-		? await client.policySpecialEvent.findMany({
-			where: { schoolId, schoolYearId },
-			select: { id: true, eventType: true, label: true, gradeGroup: true },
-		})
-		: [];
-	const hasPersistedScopedFlag = existingFlagRows.some((row) => row.gradeGroup != null && isFlagCeremonyEvent(row.eventType, row.label));
-	const hasScopedAuthority = savesScopedFlag || hasPersistedScopedFlag;
-	if (hasScopedAuthority) {
-		const legacyFlagIds = existingFlagRows
-			.filter((row) => row.gradeGroup == null && isFlagCeremonyEvent(row.eventType, row.label))
-			.map((row) => row.id);
-		if (legacyFlagIds.length > 0) {
-			await client.policySpecialEvent.updateMany({
-				where: { id: { in: legacyFlagIds } },
-				data: { enabled: false },
+	return withFlagHgpAuthorityLock(client, schoolId, schoolYearId, async (tx) => {
+		const incomingFlagRows = events.filter((event) => isFlagCeremonyEvent(event.eventType, event.label));
+		const savesScopedFlag = incomingFlagRows.some((event) => event.gradeGroup != null);
+		const existingFlagRows = incomingFlagRows.length > 0
+			? await tx.policySpecialEvent.findMany({
+				where: { schoolId, schoolYearId },
+				select: { id: true, eventType: true, label: true, gradeGroup: true },
+			})
+			: [];
+		const hasPersistedScopedFlag = existingFlagRows.some((row) => row.gradeGroup != null && isFlagCeremonyEvent(row.eventType, row.label));
+		const hasScopedAuthority = savesScopedFlag || hasPersistedScopedFlag;
+		if (hasScopedAuthority) {
+			const legacyFlagIds = existingFlagRows
+				.filter((row) => row.gradeGroup == null && isFlagCeremonyEvent(row.eventType, row.label))
+				.map((row) => row.id);
+			if (legacyFlagIds.length > 0) {
+				await tx.policySpecialEvent.updateMany({
+					where: { id: { in: legacyFlagIds } },
+					data: { enabled: false },
+				});
+			}
+			await tx.schedulingPolicy.updateMany({
+				where: { schoolId, schoolYearId },
+				data: { enableFlagCeremony: false },
 			});
 		}
-		await client.schedulingPolicy.updateMany({
-			where: { schoolId, schoolYearId },
-			data: { enableFlagCeremony: false },
-		});
-	}
 
-	const effectiveEvents = hasScopedAuthority
-		? events.map((event) => isFlagCeremonyEvent(event.eventType, event.label) && event.gradeGroup == null
-			? { ...event, enabled: false }
-			: event)
-		: events;
-	const results: SpecialEventRow[] = [];
-	for (const event of effectiveEvents) {
-		results.push(await upsertSpecialEvent(schoolId, schoolYearId, event, client));
-	}
-	return results;
+		const effectiveEvents = hasScopedAuthority
+			? events.map((event) => isFlagCeremonyEvent(event.eventType, event.label) && event.gradeGroup == null
+				? { ...event, enabled: false }
+				: event)
+			: events;
+		const results: SpecialEventRow[] = [];
+		for (const event of effectiveEvents) {
+			results.push(await upsertSpecialEvent(schoolId, schoolYearId, event, tx as typeof prisma));
+		}
+		return results;
+	});
 }
 
 export async function deleteSpecialEvent(schoolId: number, schoolYearId: number, eventId: number): Promise<void> {

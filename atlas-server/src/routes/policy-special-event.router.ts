@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
+import { assertRequestSchoolScope } from '../middleware/authorize.js';
 import * as eventService from '../services/policy-special-event.service.js';
 
 const router = Router();
@@ -54,6 +55,7 @@ router.put(
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
 			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
 			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+			if (!assertRequestSchoolScope(req, res, schoolId)) return;
 
 			const { events } = req.body as { events?: eventService.SpecialEventInput[] };
 			if (!Array.isArray(events)) {
