@@ -382,10 +382,10 @@ export function BlockerGroupCard({ group, onNavigate }: { group: BlockerGroup; o
 			<div className="flex items-start justify-between gap-2">
 				<div className="min-w-0">
 					<p className="text-sm font-semibold">{group.plainLabel}</p>
-					<p className="mt-0.5 text-xs text-red-700">
+					<div className="mt-0.5 text-xs text-red-700">
 						<Badge variant="outline" className="mr-1 h-4 px-1 text-[0.625rem] font-normal">{scopeLabel}</Badge>
 						{group.count} session{group.count === 1 ? '' : 's'} affected
-					</p>
+					</div>
 					<p className="mt-1 text-xs text-red-700">Why it matters: {whyItMatters}</p>
 				</div>
 				<Button
