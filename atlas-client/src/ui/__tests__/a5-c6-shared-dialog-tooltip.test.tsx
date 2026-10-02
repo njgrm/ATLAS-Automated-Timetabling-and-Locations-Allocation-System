@@ -322,7 +322,23 @@ test('A5-35.1-C3 the five /teachers quick-filter helpers are real sentences, eac
 	// otherwise asserts class contracts, so the one function this row now needs
 	// is imported on its own.
 	const { overCapChipHelper } = await import('@/pages/Faculty');
+	/*
+	 * D6 (2026-10-03) — the FILE this row reads changed, and the row is re-pointed rather than
+	 * weakened (`AGENTS.md` §16: corrections are additive, never subtractive).
+	 *
+	 * `pages/Faculty.tsx` was already at §8's 1000-line cap (991 on the base commit), so D6 moved
+	 * the attention-chip block whole into `components/faculty/facultyAttentionChips.ts`. The five
+	 * helper SENTENCES moved with it, so asserting them in the page file asserts a string that is
+	 * still shipped from somewhere this row can no longer see — a false negative about the page and
+	 * a silent hole in the row.
+	 *
+	 * The claim is unchanged and still the point: every quick-filter helper is a real sentence, wide
+	 * enough that wrapping is the only way to read it. It is now asserted where the copy lives, and
+	 * BOTH files are checked so the page cannot lose the import that makes the move real.
+	 */
 	const page = SRC('pages/Faculty.tsx');
+	const chips = SRC('components/faculty/facultyAttentionChips.ts');
+	const helpersSource = page + chips;
 	// A3 C17 ROW 5 MADE THE FIFTH HELPER DERIVED, AND THE ROW IS KEPT RATHER
 	// THAN DELETED, because its intent is unchanged and still the point: every
 	// quick-filter helper must be a real sentence, wide enough that wrapping is
@@ -349,7 +365,7 @@ test('A5-35.1-C3 the five /teachers quick-filter helpers are real sentences, eac
 		'All teachers',
 	];
 	for (const helper of helpers) {
-		assert.ok(page.includes(helper), `the helper sentence is gone from pages/Faculty.tsx: ${helper}`);
+		assert.ok(helpersSource.includes(helper), `the helper sentence is gone from the teachers chip module: ${helper}`);
 		assert.ok(
 			helper.length > 24,
 			`"${helper}" is too short to be the sentence that was clipped; the fixture would not discriminate`,
@@ -367,19 +383,29 @@ test('A5-35.1-C3 the five /teachers quick-filter helpers are real sentences, eac
 		`the default-roster sentence must be unchanged, got: "${derived}"`,
 	);
 	assert.ok(derived.length > 24, 'the derived helper is too short to be the clipped sentence');
+	// And the page must actually USE the extracted block, or this row would pass
+	// while the chip showed something else entirely.
+	assert.ok(
+		page.includes('facultyAttentionChips('),
+		'pages/Faculty.tsx must build its chips from facultyAttentionChips, or the sentences above are shipped from nowhere',
+	);
 	// And the page must actually USE it, or this row would pass while the chip
 	// showed something else entirely.
 	assert.ok(
-		page.includes('overCapChipHelper(faculty)'),
+		chips.includes('overCapChipHelper('),
 		'the over-cap chip must take its helper from overCapChipHelper, not a literal',
 	);
+	/* The pill LABELS moved with the block D6 (2026-10-03) extracted into
+	   `facultyAttentionChips.ts`, so they are read from that module for the same reason the helper
+	   sentences are — and the `page` import assertion above is what proves the two files are actually
+	   connected, so a chip module nobody renders cannot satisfy this row. */
 	for (const label of labels) {
-		assert.ok(page.includes(label), `the quick-filter pill label is gone from pages/Faculty.tsx: ${label}`);
+		assert.ok(chips.includes(label), `the quick-filter pill label is gone from the teachers chip module: ${label}`);
 	}
 	// All five helpers are attached to those five pills, so "the pill the operator
 	// hovers" and "the sentence the operator cannot read" are the same surface.
 	assert.equal(
-		(page.match(/helper: /g) ?? []).length >= 5,
+		(chips.match(/helper: /g) ?? []).length >= 5,
 		true,
 		'the quick-filter chips no longer carry helper sentences for the tooltips to show',
 	);

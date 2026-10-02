@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 
 import { CreatePlaceholderDialog } from '@/components/faculty/CreatePlaceholderDialog';
-import { overCapChipHelper } from '@/components/faculty/facultyOverCapHelpers';
 export { overCapChipHelper, overCapWeeklyMaxHours } from '@/components/faculty/facultyOverCapHelpers';
 import { DeletePlaceholderDialog } from '@/components/faculty/DeletePlaceholderDialog';
 
@@ -50,9 +49,31 @@ import { buildDuplicateNameCue, duplicateTeacherNameKey } from '@/components/fac
  */
 import { teacherLoadTruth, teacherStatItems } from '@/components/faculty/teacherLoadTruth';
 import { TeacherAttentionFilters } from '@/components/faculty/TeacherAttentionFilters';
-// A5 C3 slice B / B3: the four roster filters, extracted so this file stays under §8's
-// 1000-line cap and so the one shared picker is the only way a filter is built here.
+/**
+ * D6 (2026-10-03) — the five attention chips, extracted so this file stays under §8's 1000-line
+ * cap. `pages/Faculty.tsx` was at 991 physical lines on the base commit and D6's additions took it
+ * over; the block moved WHOLE, so no count changed.
+ */
+import { facultyAttentionChips } from '@/components/faculty/facultyAttentionChips';
+// A5 C3 slice B / B3: the roster filters, extracted so this file stays under §8's 1000-line cap
+// and so the one shared picker is the only way a filter is built here.
 import { FacultyFilterRow } from '@/components/faculty/FacultyFilterRow';
+/**
+ * D6 (2026-10-03) — the redesigned filter bar's WORDS and its two predicates.
+ *
+ * `facultyFilterCopy` holds every user-facing string, so a wording change is a one-file edit and no
+ * committed test holds a literal this page no longer renders. `teacherListFilter` owns the meaning of
+ * `Permanent` / `Others`; `TEACHER_SEARCH_*` is the search box the member asked for in place of the
+ * reset affordance.
+ */
+import {
+	TEACHER_SEARCH_ARIA_LABEL,
+	TEACHER_SEARCH_PLACEHOLDER,
+} from '@/components/faculty/facultyFilterCopy';
+import {
+	isOtherTeacher,
+	type TeacherListFilterValue,
+} from '@/components/faculty/teacherListFilter';
 import { toast } from 'sonner';
 import {
 	promoteActiveSchoolYearContext,
@@ -107,31 +128,9 @@ type TeacherSummaryResponse = {
 type TeacherAttentionFilter = 'all' | 'needs-load' | 'over-cap' | 'no-active-load' | 'placeholders';
 
 /**
- * A3 c17 row 5 — the `Above weekly max` helper sentence, with the weekly
- * maximum READ FROM THE ROSTER instead of typed into the string.
- *
- * The operator's report was "Above weekly max hover text cut off" with the note
- * that "its text hard-codes 40h". The clipping is a shared-tooltip matter that
- * A5 owns; what is wrong HERE, and what only this function can fix, is the
- * number. A teacher saved with a 32h maximum was being told, in this sentence,
- * that they were above the 40h weekly maximum — a different rule from the one
- * the roster applied to them, in the sentence that explains the count.
- *
- * The fallbacks are ordered by how much is actually known: the maximum among
- * the teachers THIS chip counts, then the roster-wide maximum, then the policy
- * constant. The constant is reached only for an empty roster, where no teacher
- * was miscounted and so nothing on screen is false.
- *
- * The counted set is the same predicate the chip's `count` uses, less
- * placeholders: a to-be-hired record is an unfilled slot, not a person over a
- * cap, and it is excluded from the count for the same reason it is excluded
- * here. `count` semantics are untouched by this change — several tests assert
- * that number, and it is the generation-blocking one.
- *
- * Exported so a control can drive the real derivation with a real roster
- * instead of matching this sentence as a literal in the source. A source-text
- * assertion would pass unchanged if the template silently reverted to `40h`,
- * which is the exact defect this row exists to remove.
+ * A3 c17 row 5 — the `Above weekly max` helper sentence, with the weekly maximum read from the
+ * roster rather than typed in. Its derivation lives in `facultyOverCapHelpers.ts` and the chip in
+ * `facultyAttentionChips.ts`; D6 (2026-10-03) moved both out to keep this file under §8's cap.
  */
 export default function Faculty() {
 	const [faculty, setFaculty] = useState<FacultySummary[]>([]);
@@ -232,12 +231,29 @@ export default function Faculty() {
 	const [pageSize, setPageSize] = useState(25);
 
 	// Filters
-	const [schedulingFilter, setSchedulingFilter] = useState<'all' | 'active' | 'excluded'>('all');
-	const [assignmentFilter, setAssignmentFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
+	/*
+	 * D6 (2026-10-03) — `schedulingFilter` and `assignmentFilter` are replaced by ONE
+	 * `teacherListFilter`. The `Load` filter is gone because the load state is now a colour on every
+	 * row (`teacherLoadColour.ts`), and `No subjects assigned` still narrows to the same set in one
+	 * control. `teacherListFilter.ts` owns what each slice MEANS.
+	 */
+	const [teacherListFilter, setTeacherListFilter] = useState<TeacherListFilterValue>('all');
 	const [departmentFilter, setDepartmentFilter] = useState<string>('all');
 	const [gradeLevelFilter, setGradeLevelFilter] = useState<number | 'all'>('all');
 	const [attentionFilter, setAttentionFilter] = useState<TeacherAttentionFilter>('all');
 	const { actorSchoolId } = useActorSchoolScope();
+
+	/**
+	 * THE ONE MAP from the visible filter to the server's `scheduling` parameter.
+	 *
+	 * `permanent` IS the server's `active` on this roster. `others` CANNOT be the server's
+	 * `excluded`, which is only `!isActiveForScheduling` and would omit the to-be-hired records that
+	 * ARE active — so `others` is filtered on the client instead. That asymmetry is why only one of
+	 * the two slices is sent, and it is the reason not to "simplify" this into a two-way map.
+	 */
+	const serverSchedulingParam = useMemo<'active' | undefined>(() => {
+		return teacherListFilter === 'permanent' ? 'active' : undefined;
+	}, [teacherListFilter]);
 
 	const fetchFaculty = useCallback(async (options?: { forceRefresh?: boolean }) => {
 		if (actorSchoolId == null) {
@@ -302,8 +318,11 @@ export default function Faculty() {
 							page,
 							pageSize,
 						query: searchQuery.trim() || undefined,
-						scheduling: schedulingFilter,
-						assignment: assignmentFilter,
+						/* D6: the standalone `Load` filter is gone, so this page no longer sends
+						 * `assignment` at all. The server keeps the parameter for its other
+						 * callers; not sending it is what makes the removed filter incapable
+						 * of narrowing the list. `schedulingFilter` -> `serverSchedulingParam`. */
+						scheduling: serverSchedulingParam,
 						department: departmentFilter !== 'all' ? departmentFilter : undefined,
 						gradeLevel: gradeLevelFilter !== 'all' ? gradeLevelFilter : undefined,
 						sortField,
@@ -391,7 +410,7 @@ export default function Faculty() {
 			setRefreshing(false);
 			setLoading(false);
 		}
-	}, [actorSchoolId, assignmentFilter, departmentFilter, gradeLevelFilter, isOnline, page, pageSize, schedulingFilter, searchQuery, sortDir, sortField]);
+}, [actorSchoolId, departmentFilter, gradeLevelFilter, isOnline, page, pageSize, searchQuery, serverSchedulingParam, sortDir, sortField]);
 
 	useEffect(() => {
 		void fetchFaculty({});
@@ -517,11 +536,11 @@ export default function Faculty() {
 		}
 
 		// Filters
-		if (schedulingFilter === 'active') list = list.filter((f) => f.isActiveForScheduling);
-		else if (schedulingFilter === 'excluded') list = list.filter((f) => !f.isActiveForScheduling);
-
-		if (assignmentFilter === 'assigned') list = list.filter((f) => (f.subjectCount ?? 0) > 0);
-		else if (assignmentFilter === 'unassigned') list = list.filter((f) => (f.subjectCount ?? 0) === 0);
+		/* D6: `others` is filtered HERE, on the client, and never through the server's
+		 * `scheduling=excluded` — see `serverSchedulingParam`. `permanent` was already applied
+		 * server-side; re-applying it here would be a second definition of the same predicate,
+		 * which is what `teacherLoadTruth.ts` exists to prevent. */
+		if (teacherListFilter === 'others') list = list.filter((f) => isOtherTeacher(f));
 
 		if (departmentFilter !== 'all') list = list.filter((f) => f.department === departmentFilter);
 		if (gradeLevelFilter !== 'all') list = list.filter((f) => (f.assignedGradeLevels ?? []).includes(gradeLevelFilter));
@@ -547,10 +566,10 @@ export default function Faculty() {
 		const tp = Math.max(1, Math.ceil(tf / pageSize));
 		const start = (page - 1) * pageSize;
 		return { paged: sorted.slice(start, start + pageSize), totalFiltered: tf, totalPages: tp };
-	}, [faculty, serverPagination, searchQuery, schedulingFilter, assignmentFilter, departmentFilter, gradeLevelFilter, attentionFilter, sortField, sortDir, page, pageSize]);
+	}, [faculty, serverPagination, searchQuery, teacherListFilter, departmentFilter, gradeLevelFilter, attentionFilter, sortField, sortDir, page, pageSize]);
 
 	// Reset page when filters change
-	useEffect(() => { setPage(1); }, [searchQuery, schedulingFilter, assignmentFilter, departmentFilter, gradeLevelFilter, attentionFilter, pageSize, sortField, sortDir]);
+	useEffect(() => { setPage(1); }, [searchQuery, teacherListFilter, departmentFilter, gradeLevelFilter, attentionFilter, pageSize, sortField, sortDir]);
 
 	const toggleSort = (field: SortField) => {
 		if (sortField === field) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -559,11 +578,10 @@ export default function Faculty() {
 
 	const tablePage = serverPagination?.page ?? page;
 	const tablePageSize = serverPagination?.pageSize ?? pageSize;
-	const hasActiveFilters = schedulingFilter !== 'all' || assignmentFilter !== 'all' || departmentFilter !== 'all' || gradeLevelFilter !== 'all' || attentionFilter !== 'all';
+	const hasActiveFilters = teacherListFilter !== 'all' || departmentFilter !== 'all' || gradeLevelFilter !== 'all' || attentionFilter !== 'all';
 
 	const clearAllFilters = useCallback(() => {
-		setSchedulingFilter('all');
-		setAssignmentFilter('all');
+		setTeacherListFilter('all');
 		setDepartmentFilter('all');
 		setGradeLevelFilter('all');
 		setAttentionFilter('all');
@@ -720,49 +738,40 @@ export default function Faculty() {
 		if (filter === 'all') {
 			return;
 		}
+		/* D6: each chip sets ONE slice and no chip reaches into the load state, which is what lets
+		 * the `Load` filter be deleted rather than renamed. `needs-load` used to pair two filters
+		 * for one idea; its own `attentionFilter` predicate has always carried the load half, and
+		 * `placeholders` is exactly the `others` slice. */
 		if (filter === 'needs-load') {
-			setSchedulingFilter('active');
-			setAssignmentFilter('unassigned');
+			setTeacherListFilter('permanent');
 			setSortField('status');
 			setSortDir('asc');
 			return;
 		}
 		if (filter === 'over-cap') {
-			setSchedulingFilter('active');
-			setAssignmentFilter('all');
+			setTeacherListFilter('permanent');
 			setSortField('status');
 			setSortDir('asc');
 			return;
 		}
 		if (filter === 'no-active-load') {
-			setSchedulingFilter('active');
-			setAssignmentFilter('all');
+			setTeacherListFilter('permanent');
 			setSortField('subjects');
 			setSortDir('asc');
 			return;
 		}
 		if (filter === 'placeholders') {
-			setSchedulingFilter('all');
-			setAssignmentFilter('all');
+			setTeacherListFilter('others');
 			setSortField('name');
 			setSortDir('asc');
 			return;
 		}
 	}, []);
 
-	const attentionChips = [
-		/*
-		 * A3 c17 x A6 c11 union. A6 c11 owns the COUNTS (`loadTruth.*`, which
-		 * excludes synthetic placeholder load); A3 c17 owns the `over-cap`
-		 * helper TEXT, which must read the saved weekly maximum rather than a
-		 * hard-coded 40h. Keep their counts and my helper.
-		 */
-		{ id: 'needs-load' as const, label: 'No subjects assigned', helper: 'Active teachers with no subject assigned in Teaching Load.', count: loadTruth.withoutLoadCount },
-		{ id: 'over-cap' as const, label: 'Above weekly max', helper: overCapChipHelper(faculty), count: loadTruth.overCapRealCount },
-		{ id: 'no-active-load' as const, label: 'No sections assigned', helper: 'Active teachers with no section assigned yet.', count: faculty.filter((teacher) => teacher.isActiveForScheduling && !teacher.isPlaceholder && (teacher.sectionCount ?? 0) === 0).length },
-		{ id: 'placeholders' as const, label: 'Temporary teachers', helper: 'Placeholder records for teachers who have not been hired yet. Replace before publishing.', count: faculty.filter((teacher) => teacher.isPlaceholder).length },
-		{ id: 'all' as const, label: 'All teachers', helper: 'Clear the attention filter and show every teacher.', count: rosterStats?.totalCount ?? faculty.length },
-	];
+	const attentionChips = useMemo(
+		() => facultyAttentionChips({ roster: faculty, loadTruth, serverTotalCount: rosterStats?.totalCount ?? null }),
+		[faculty, loadTruth, rosterStats],
+	);
 
 return (
 		<AdminWorkspaceFrame
@@ -799,34 +808,33 @@ return (
 				/>
 			)}
 			toolbar={(
-				/* A5 c8 (2026-09-29) — THE ONE SHARED BAR. `AdminSearchFilterToolbar` is
-				   deleted from `AdminWorkspace.tsx`; this page was its last consumer, so
-				   there is now no second filter-bar implementation in the codebase. The
-				   four roster filters that sat behind its disclosure are children of the
-				   shared `FilterBar` row, and the one `Reset filters` control is
-				   `FilterBar`'s `onReset` at the end of the same row. */
-				<FilterBar
-					dataTestId="teachers-filter-bar"
-					search={{
-						value: searchQuery,
-						onChange: setSearchQuery,
-						placeholder: 'Search teacher, department, or specialization...',
-						ariaLabel: 'Search teachers by name, department, or specialization',
-					}}
-					onReset={hasActiveFilters ? clearAllFilters : undefined}
-					resetLabel="Reset filters"
-				>					{/* A5 C3 slice B: the four roster filters live in
-					    `components/faculty/FacultyFilterRow.tsx` and sit on the one shared
-					    `@/ui` picker. Two reasons, in order: the file is at §8's 1000-line
-					    cap (981 physical at 419277e4) and the conversion had to land with the
-					    extraction; and the four triggers were `h-10 w-44 text-sm
-					    bg-background` — a control that existed in no other form anywhere in
-					    the product. */}
+							/* A5 c8 (2026-09-29) — THE ONE SHARED BAR. `AdminSearchFilterToolbar` is
+							   deleted from `AdminWorkspace.tsx`; this page was its last consumer, so
+							   there is now no second filter-bar implementation in the codebase. The
+							   roster filters that sat behind its disclosure are children of the
+							   shared `FilterBar` row.
+
+							   D6: `onReset` is not passed, so no reset control renders on this row at all.
+							   The table's no-results empty state still offers one. */
+							<FilterBar
+								dataTestId="teachers-filter-bar"
+								/* D6: the search box replaces the reset affordance, and it searches PEOPLE (name,
+								 * department, specialization) — subject and grade level are FILTERS, and load is the
+								 * row colour. Why the placeholder is this short is argued where it is owned:
+								 * `facultyFilterCopy.ts`. */
+								search={{
+									value: searchQuery,
+									onChange: setSearchQuery,
+									placeholder: TEACHER_SEARCH_PLACEHOLDER,
+									ariaLabel: TEACHER_SEARCH_ARIA_LABEL,
+								}}
+							>
+								    {/* A5 C3 slice B: the roster filters live in
+								        `components/faculty/FacultyFilterRow.tsx` on the one shared `@/ui` picker.
+								        They were extracted because this file sits at §8's 1000-line cap. */}
 					<FacultyFilterRow
-						schedulingFilter={schedulingFilter}
-						onSchedulingFilterChange={(v) => setSchedulingFilter(v as typeof schedulingFilter)}
-						assignmentFilter={assignmentFilter}
-						onAssignmentFilterChange={(v) => setAssignmentFilter(v as typeof assignmentFilter)}
+						teacherListFilter={teacherListFilter}
+						onTeacherListFilterChange={(v) => setTeacherListFilter(v as TeacherListFilterValue)}
 						departments={departments}
 						departmentFilter={departmentFilter}
 						onDepartmentFilterChange={setDepartmentFilter}

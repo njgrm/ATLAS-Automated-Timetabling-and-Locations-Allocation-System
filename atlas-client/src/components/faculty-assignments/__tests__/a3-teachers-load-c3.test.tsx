@@ -850,9 +850,25 @@ test('F25-3 the removed Next-teacher strip keeps its repair logic in the review 
 	assert.match(page, /const nextTeacherToFix = useMemo/, 'the next-teacher selection must be preserved');
 	assert.match(page, /const nextTeacherIntent =/, 'the repair intent must be preserved');
 	assert.match(page, /openRosterReview/, 'the review must be seeded from the next teacher');
-	// The attention chips that lived inside the same wrapper are preserved.
+	/*
+	 * D6 (2026-10-03) — the chip DEFINITIONS moved, the row did not.
+	 *
+	 * `pages/Faculty.tsx` was at §8's 1000-line cap (991 on the base commit), so D6 extracted the
+	 * attention-chip block whole into `components/faculty/facultyAttentionChips.ts`. The claim this row
+	 * makes — that removing the Next-teacher strip did not take the chips with it — is unchanged and
+	 * still asserted, in the two places it now has to be true: the page still RENDERS the chip row,
+	 * and the extracted module still DEFINES the five chips. Asserting the definition against a file
+	 * that no longer holds it would be a false negative; asserting only the render would leave the
+	 * definitions themselves unchecked, so BOTH are read.
+	 */
+	const chipsModule = read('src/components/faculty/facultyAttentionChips.ts');
 	assert.match(page, /<TeacherAttentionFilters/);
-	assert.match(page, /const attentionChips = \[/, 'the chip definitions must survive');
+	assert.match(page, /facultyAttentionChips\(/, 'the page must build its chips from the extracted module');
+	assert.match(
+		chipsModule,
+		/facultyAttentionChips[\s\S]*id: 'all'/,
+		'the chip definitions must survive',
+	);
 });
 
 test('F25-4 the attention chip filters still work and are the whole leading row', () => {

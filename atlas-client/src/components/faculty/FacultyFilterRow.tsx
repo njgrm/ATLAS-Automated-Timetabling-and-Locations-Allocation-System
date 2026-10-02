@@ -1,5 +1,5 @@
 /**
- * A5 C3 slice B (2026-09-29) — `/faculty`'s roster filter row, extracted and on the one
+ * A5 C3 slice B (2026-09-29) — `/faculty`'s teacher-list filter row, extracted and on the one
  * shared picker.
  *
  * B3, FIRST. `AGENTS.md` §8 caps a React component file at **1000 physical lines** and this
@@ -10,7 +10,7 @@
  * Both are recorded rather than one being "corrected", because a cap that is checked with two
  * different counters is a cap that will eventually be checked wrong.)
  *
- * The filter row moves out whole: the four filters, the disclosure's contents and
+ * The filter row moves out whole: the filters, the disclosure's contents and
  * the conditional `Reset filters` button. What does NOT move is the layout decision — how
  * many filters are always visible versus behind a disclosure — which A5 c8 settled for the
  * whole product: ALL of them, in one wrapping row, with no disclosure anywhere.
@@ -22,35 +22,45 @@
  * height shared with the search box, R2-5's search box suppressed on every list short enough not
  * to need one, and R3-1's self-naming trigger (`Grade: All`).
  *
- * EVERY WORD IS THE PAGE'S OWN — `All roster states`, `Active teachers`, `Excluded teachers`,
- * `All load states`, `With teaching load`, `Needs teaching load`, `All Departments`,
- * `All grades`, `Grade {n}`. The accessible names keep the long form, and
- * `data-testid="teachers-grade-filter"` is preserved so the committed suites that reach for it
- * keep working.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * D6 (2026-10-03, `forReview/miss-jo-1.docx`) — THE TEACHER-LIST REDESIGN. ONE CONTROL FEWER.
  *
- * A5 c8 (2026-09-29) — TWO THINGS CHANGED IN THIS FILE, both subtraction.
+ * The member's document renames `Roster` to `Teacher List`, adds a `GRADE LEVEL` wording, asks
+ * for the load state to become a COLOUR on the department result instead of its own filter, and
+ * asks for the search box to replace the reset affordance.
  *
- *   1. The `Reset filters` BUTTON IS GONE from here. It is `FilterBar`'s single
- *      `onReset` control now, rendered at the end of the same row with the same
- *      ghost chrome, and this page's `hasActiveFilters` / `onClearAllFilters` feed
- *      it through the bar's props. Two reset controls on one row is the "two
- *      controls that say the same thing" `AGENTS.md` §8 forbids, and the props
- *      stay on `FacultyFilterRow` only as far as the bar needs them — which is not
- *      at all, so they are gone too.
- *   2. The fragment this file returns is unchanged (`<>…</>`): it is a set of
- *      sibling PICKERS, and `FilterBar` is what gives them a row. The row is not
- *      this file's to build, which is the whole point of §3's "no page may be left
- *      with two filter-bar implementations".
+ * WHAT LEFT, AND WHY THAT IS THE POINT. `Roster`, `Load`, `Department`, `Grade` — four filters.
+ * `Teacher list`, `Department`, `Grade level` — THREE. Net visible controls on this row go DOWN by
+ * one and the `Load` filter is gone entirely, because the member's own sentence says the load
+ * state should "remove the load filter on the current system" and become a colour on the row. Adding
+ * a `Loading` toggle as well — the document's `LOADING BUTTON: with load / non load` — would put the
+ * SAME FACT back on screen as a control beside the colour that now states it, which is `AGENTS.md`
+ * §8's "never two chips that say the same thing" and its design-gate rule 3, subtract first. The
+ * roster's own `No subjects assigned` chip already filters to exactly that set, so the capability
+ * the `LOADING BUTTON` asked for is not lost — it is one control instead of two.
+ *
+ * WORDS LIVE IN `facultyFilterCopy.ts`, not here, so a wording change is a one-file edit and every
+ * committed test that asserts a label asserts the label this component actually renders.
  */
 import { FilterPicker } from '@/ui/filter-picker';
 import { GRADE_OPTIONS } from '@/lib/subject-constants';
 import { departmentLabel } from '@/lib/deped-glossary';
+import {
+	ALL_DEPARTMENTS_OPTION_LABEL,
+	ALL_GRADES_OPTION_LABEL,
+	DEPARTMENT_FILTER_ARIA_LABEL,
+	DEPARTMENT_FILTER_NAME,
+	GRADE_LEVEL_FILTER_ARIA_LABEL,
+	GRADE_LEVEL_FILTER_NAME,
+	TEACHER_LIST_FILTER_ARIA_LABEL,
+	TEACHER_LIST_FILTER_NAME,
+	TEACHER_LIST_FILTER_OPTIONS,
+} from '@/components/faculty/facultyFilterCopy';
+import type { TeacherListFilterValue } from '@/components/faculty/teacherListFilter';
 
 export type FacultyFilterRowProps = {
-	schedulingFilter: string;
-	onSchedulingFilterChange: (value: string) => void;
-	assignmentFilter: string;
-	onAssignmentFilterChange: (value: string) => void;
+	teacherListFilter: TeacherListFilterValue;
+	onTeacherListFilterChange: (value: string) => void;
 	/** Empty hides the department filter entirely — a page with one department offers no choice. */
 	departments: string[];
 	departmentFilter: string;
@@ -60,10 +70,8 @@ export type FacultyFilterRowProps = {
 };
 
 export function FacultyFilterRow({
-	schedulingFilter,
-	onSchedulingFilterChange,
-	assignmentFilter,
-	onAssignmentFilterChange,
+	teacherListFilter,
+	onTeacherListFilterChange,
 	departments,
 	departmentFilter,
 	onDepartmentFilterChange,
@@ -73,53 +81,38 @@ export function FacultyFilterRow({
 	return (
 		<>
 			<FilterPicker
-				name="Roster"
+				name={TEACHER_LIST_FILTER_NAME}
 				width="auto"
-				ariaLabel="Filter by teacher roster state"
-				value={schedulingFilter}
-				onValueChange={onSchedulingFilterChange}
-				options={[
-					{ value: 'all', label: 'All roster states' },
-					{ value: 'active', label: 'Active teachers' },
-					{ value: 'excluded', label: 'Excluded teachers' },
-				]}
-			/>
-			<FilterPicker
-				name="Load"
-				width="auto"
-				ariaLabel="Filter by teaching load state"
-				value={assignmentFilter}
-				onValueChange={onAssignmentFilterChange}
-				options={[
-					{ value: 'all', label: 'All load states' },
-					{ value: 'assigned', label: 'With teaching load' },
-					{ value: 'unassigned', label: 'Needs teaching load' },
-				]}
+				ariaLabel={TEACHER_LIST_FILTER_ARIA_LABEL}
+				value={teacherListFilter}
+				onValueChange={onTeacherListFilterChange}
+				options={[...TEACHER_LIST_FILTER_OPTIONS]}
+				dataTestId="teachers-list-filter"
 			/>
 			{departments.length > 0 && (
 				<FilterPicker
-					name="Department"
+					name={DEPARTMENT_FILTER_NAME}
 					width="auto"
-					ariaLabel="Filter by department"
+					ariaLabel={DEPARTMENT_FILTER_ARIA_LABEL}
 					value={departmentFilter}
 					onValueChange={onDepartmentFilterChange}
 					/* Data-derived: a school with more than eight departments earns R2-5's
 					 * search box, and one with fewer does not. The rule is the same rule
 					 * everywhere, which is the point. */
 					options={[
-						{ value: 'all', label: 'All Departments' },
+						{ value: 'all', label: ALL_DEPARTMENTS_OPTION_LABEL },
 						...departments.map((d) => ({ value: d, label: departmentLabel(d) })),
 					]}
 				/>
 			)}
 			<FilterPicker
-				name="Grade"
+				name={GRADE_LEVEL_FILTER_NAME}
 				width="auto"
-				ariaLabel="Filter by grade taught"
+				ariaLabel={GRADE_LEVEL_FILTER_ARIA_LABEL}
 				value={String(gradeLevelFilter)}
 				onValueChange={(v) => onGradeLevelFilterChange(v === 'all' ? 'all' : Number(v))}
 				options={[
-					{ value: 'all', label: 'All grades' },
+					{ value: 'all', label: ALL_GRADES_OPTION_LABEL },
 					...GRADE_OPTIONS.map((g) => ({ value: String(g), label: `Grade ${g}` })),
 				]}
 				dataTestId="teachers-grade-filter"
