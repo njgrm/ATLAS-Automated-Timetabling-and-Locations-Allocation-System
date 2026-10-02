@@ -68,9 +68,9 @@ function cleanPlacementInput(overrides: Partial<InlinePlacementInput> = {}): Inl
 	};
 }
 
-/* ── B1 — failing-first control: a clean slot must not auto-commit ───────── */
+/* ── B1 — control: a clean slot commits on the single click (2026-09-30) ──── */
 
-test('B1 control: a clean slot returns a pending confirm, never an auto-commit', () => {
+test('B1 control: a clean slot returns an auto-commit decision (operator decision 11)', () => {
 	const cleanPreview = { allowed: true, hardViolations: [], softViolations: [] };
 	const decision = decideAutoSavePlacement({
 		hasFacultyOwner: true,
@@ -78,16 +78,17 @@ test('B1 control: a clean slot returns a pending confirm, never an auto-commit',
 		targetSlotOccupied: false,
 		preview: cleanPreview,
 	});
-	// Failing-first control: the pre-B1 contract returned `{ kind: 'auto-commit' }`
-	// here, which committed without ever stating the consequence. That kind no
-	// longer exists in the union and the clean path must pause for a Confirm.
-	assert.notEqual((decision as { kind: string }).kind, 'auto-commit', 'a clean slot must never commit without a confirm');
-	assert.deepEqual(decision, { kind: 'preview-confirm', softCount: 0 });
+	// 2026-09-30 (operator decision 11): a clean or soft-warned slot commits on
+	// the SINGLE slot click, with a plain receipt and Undo — no second Confirm.
+	// The pre-B1 contract returned `{ kind: 'auto-commit' }`; B1 replaced it with
+	// an inline confirm, and this decision restores the auto-commit for the
+	// ordinary case while the fail-closed kinds below keep the review path.
+	assert.deepEqual(decision, { kind: 'auto-commit', softCount: 0 });
 });
 
-test('B1 control: only a genuinely clean, owned, room-resolved, free slot reaches the confirm', () => {
-	// The confirm boundary must stay fail-closed: each precondition below still
-	// routes to a review/blocked decision rather than the inline confirm.
+test('B1 control: only a genuinely clean, owned, room-resolved, free slot reaches the auto-commit', () => {
+	// The fail-closed preconditions are UNCHANGED: each still routes to a
+	// review/blocked decision rather than the single-click commit.
 	const base = {
 		hasFacultyOwner: true,
 		resolvedRoomId: 103,
@@ -102,11 +103,11 @@ test('B1 control: only a genuinely clean, owned, room-resolved, free slot reache
 		decideAutoSavePlacement({ ...base, preview: { allowed: false, hardViolations: [{}], softViolations: [] } }),
 		{ kind: 'review-blocked', hardTitle: null },
 	);
-	// A soft-warned slot keeps its own decision so the count is carried, but the
-	// hook routes it to the same inline preview (no modal).
+	// A soft-warned slot also commits on the single click, carrying its count so
+	// the warned destination is acknowledged.
 	assert.deepEqual(
 		decideAutoSavePlacement({ ...base, preview: { allowed: true, hardViolations: [], softViolations: [{}, {}] } }),
-		{ kind: 'review-soft', softCount: 2 },
+		{ kind: 'auto-commit', softCount: 2 },
 	);
 });
 
@@ -206,13 +207,13 @@ test('B1 source contract: choosing a room re-runs the authoritative preview befo
 	assert.match(hook, /roomId: null,[\s\S]{0,200}roomLabel: null/, 'an unresolved room opens the inline chooser, not a dialog');
 });
 
-test('B1 source contract: the placement hook routes the confirm decisions inline', () => {
+test('B1 source contract: the placement hook auto-commits the clean/warned decision with a receipt and Undo', () => {
 	const hook = source('src/hooks/useScheduleReviewWorkspaceState.ts');
-	assert.doesNotMatch(hook, /decision\.kind === 'auto-commit'/, 'the removed auto-commit branch must be gone');
-	assert.match(hook, /decision\.kind === 'preview-confirm' \|\| decision\.kind === 'review-soft'/);
-	assert.match(hook, /buildInlinePlacementPreviewData\(/);
-	assert.match(hook, /const confirmInlinePlacement = useCallback/);
-	assert.match(hook, /commitEditWithMeta\(\s*pending\.proposal/, 'the confirm is the only commit path');
+	assert.match(hook, /decision\.kind === 'auto-commit'/, 'the ordinary case commits on the single click');
+	assert.doesNotMatch(hook, /decision\.kind === 'preview-confirm' \|\| decision\.kind === 'review-soft'/, 'the retired inline-confirm routing is gone');
+	assert.match(hook, /buildInlinePlacementPreviewData\(/, 'the no-room inline chooser still renders');
+	assert.match(hook, /const confirmInlinePlacement = useCallback/, 'the no-room review path keeps its single Confirm');
+	assert.match(hook, /commitEditWithMeta\(\s*pending\.proposal/, 'the no-room confirm is still a commit path');
 });
 
 /* ── C1-c — the room instruction matches what the screen can actually do ──── */
