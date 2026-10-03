@@ -3,7 +3,7 @@
 Current operational truth only, kept under 60 lines. Update it when a live fact changes; do not append history.
 Full history to 2026-09-30: `docs/archive/2026-09/live-state-to-20260930.md` (and Git).
 
-Last reconciled: 2026-10-03 14:05 MPST (cadence hold imposed; live release confirmed; five other live UX changes still lack rendered acceptance, and program labels have after-only evidence).
+Last reconciled: 2026-10-03 14:18 MPST (cadence hold; release 1cbae2e3 independently QA-passed with the documented status-handle limitation; five other live UX changes still lack rendered acceptance, and program labels have after-only evidence).
 
 ## Objective
 
@@ -13,7 +13,8 @@ schedulers can hand-fix and publish, official printouts, and SMART-family visual
 ## Live release
 - LIVE: `1cbae2e3c3c83aa70e2ff5a9763e6bbb4e5e0204` (prefix `1cbae2e3`), Subjects program-label correction deployed 2026-10-03
   13:47 MPST at `E:\ATLAS-worktrees\lane-a4-release-20261003-1cbae2e3`. SYSTEM task result
-  `20261003-134416-1cbae2e3` is LIVE; 1366x768 live browser acceptance passed, with independent post-action QA kept separate.
+  `20261003-134416-1cbae2e3` is LIVE; 1366x768 live browser acceptance passed, with independent post-action QA PASS_WITH_LIMITATION
+  (read-only status showed target handles as `live=false`; HTTP liveness/readiness and release identity all passed).
 - Rollback basis: incumbent `e44d49256715cd2fa955e009b795904a9abb7b9d` (prefix `e44d4925`) at
   `E:\ATLAS-worktrees\lane-a4-release-20261003-e44d4925`; prior accepted P06c remains the historical fallback.
 - Next: no cutover. Assemble one batch of outstanding corrections, review it once, pin it once, and close rendered acceptance
