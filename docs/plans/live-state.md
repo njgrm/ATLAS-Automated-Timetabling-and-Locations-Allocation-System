@@ -3,7 +3,7 @@
 Current operational truth only, kept under 60 lines. Update it when a live fact changes; do not append history.
 Full history to 2026-09-30: `docs/archive/2026-09/live-state-to-20260930.md` (and Git).
 
-Last reconciled: 2026-10-03 12:25 MPST (2026-10-03 train live; health and DB-backed read verified).
+Last reconciled: 2026-10-03 13:32 MPST (Subjects program-label candidate integrated; pending release preparation and browser acceptance).
 
 ## Objective
 
@@ -14,10 +14,12 @@ schedulers can hand-fix and publish, official printouts, and SMART-family visual
 - LIVE: `e44d49256715cd2fa955e009b795904a9abb7b9d` (prefix `e44d4925`), 2026-10-03 train, deployed 2026-10-03 12:20
   MPST at `E:\ATLAS-worktrees\lane-a4-release-20261003-e44d4925`. SYSTEM task result
   `20261003-121858-e44d4925` is LIVE; independent post-action runtime and Terra live browser acceptance are pending.
-- Rollback basis: incumbent `a46710d6aa9c0312c18d0f9881a4cd622f51b959` (prefix `a46710d6`) at
+- PENDING TARGET: `f1388ef4cee3304f968e50f8186b12e9a9d32136` (Subjects program-label correction integrated at 2026-10-03
+  13:32 MPST); rollback basis is current LIVE `e44d49256715cd2fa955e009b795904a9abb7b9d`.
+- Rollback basis for current LIVE: incumbent `a46710d6aa9c0312c18d0f9881a4cd622f51b959` (prefix `a46710d6`) at
   `E:\ATLAS-worktrees\lane-a4-release-20261003-a46710d6`; prior accepted P06c remains the historical fallback.
-- Next: live browser acceptance of the train's changed screens, then close the pending visual judgement. Do not equate
-  the task LIVE receipt with rendered acceptance.
+- Next: prepare and deploy the pending target, then capture live browser acceptance of `/subjects`. Do not equate
+  a task LIVE receipt with rendered acceptance.
 - Runtime: API 5001, client 5174, funnel `https://njgrm.buru-degree.ts.net`; staging API 5101 (not responding
   2026-09-30 17:00, unverified since).
 
