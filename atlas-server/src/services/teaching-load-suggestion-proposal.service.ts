@@ -115,7 +115,7 @@ function isCompleteEvaluatedDistribution(plan: unknown): plan is TeachingLoadDis
 export function placementLinesForDistribution(plan: TeachingLoadDistributionPlan): PlacementCheckLineRequest[] {
 	return [
 		...plan.inserts.map((row) => ({ sectionId: row.sectionId, subjectId: row.subjectId, facultyId: row.facultyId })),
-		...plan.moves.map((row) => ({ sectionId: row.sectionId, subjectId: row.subjectId, facultyId: row.toFacultyId })),
+		...plan.moves.map((row) => ({ sectionId: row.sectionId, subjectId: row.subjectId, facultyId: row.toFacultyId, replacesExistingPlacement: true })),
 	];
 }
 
@@ -495,7 +495,7 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 		...candidateRows
 		.filter((row) => typeof row.facultyId === 'number' && (row.facultyId as number) > 0)
 		.map((row) => ({ sectionId: row.sectionId, subjectId: row.subjectId, facultyId: row.facultyId as number })),
-		...refreshedPlan.moves.map((row) => ({ sectionId: row.sectionId, subjectId: row.subjectId, facultyId: row.toFacultyId })),
+		...refreshedPlan.moves.map((row) => ({ sectionId: row.sectionId, subjectId: row.subjectId, facultyId: row.toFacultyId, replacesExistingPlacement: true })),
 	];
 	const placementGate = await (dependencies.evaluatePlacement ?? evaluatePlacementWriteGate)(existing.schoolId, existing.schoolYearId, placementLines);
 	assertPlacementGate(placementGate);

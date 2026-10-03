@@ -71,6 +71,8 @@ export interface PlacementCheckLineRequest {
   sectionId: number;
   subjectId: number;
   facultyId: number;
+  /** A distribution MOVE replaces this pair's existing placements; an INSERT does not. */
+  replacesExistingPlacement?: boolean;
 }
 
 /** One occupancy reservation from a DRAFT lock row or an active draft-run entry. */
@@ -290,13 +292,12 @@ function evaluateOnePlacementLine(
 
   const reasons = new Set<InsertionReason | 'INDIVIDUALLY_PREVIEWABLE'>();
   const reservations: PlacementOccupancyLock[] = [];
-  // A move replaces this pair's existing placements. Keeping those sessions in
-  // occupancy would make the section conflict with itself and reject every
-  // otherwise-valid teacher reassignment. Other subjects in the section and
-  // every other class held by the receiver remain blocking occupancy.
-  const occupancyWithoutCurrentPair = input.occupancyLocks.filter((lock) => !(
-    lock.sectionId === request.sectionId && lock.subjectId === request.subjectId
-  ));
+  // Only a reviewed distribution MOVE replaces this pair's existing placements.
+  // A preview, manual assignment, or alternative search must retain every lock:
+  // same-subject rows can also represent the section's other occupied periods.
+  const occupancyWithoutCurrentPair = request.replacesExistingPlacement === true
+    ? input.occupancyLocks.filter((lock) => !(lock.sectionId === request.sectionId && lock.subjectId === request.subjectId))
+    : input.occupancyLocks;
   let teacherBusySlots = 0;
   for (const line of demandLines) {
     const occupancy = occupancyForTerm([...occupancyWithoutCurrentPair, ...reservations], line.termIndex);
@@ -368,9 +369,7 @@ function findAlternatives(
 ): PlacementAlternative[] {
   const key = `${request.subjectId}:${(section.programType ?? 'REGULAR').toUpperCase()}`;
   const candidates = input.qualifiedAlternatives?.get(key) ?? [];
-  const occupancyWithoutCurrentPair = input.occupancyLocks.filter((lock) => !(
-    lock.sectionId === request.sectionId && lock.subjectId === request.subjectId
-  ));
+  const occupancyWithoutCurrentPair = input.occupancyLocks;
   const alternatives: PlacementAlternative[] = [];
   for (const candidate of candidates.slice(0, MAX_ALTERNATIVE_CANDIDATES)) {
     if (candidate.facultyId === request.facultyId) continue;

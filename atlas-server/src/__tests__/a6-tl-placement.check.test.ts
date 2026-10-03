@@ -319,7 +319,7 @@ test('a moved load replaces its own existing placement instead of conflicting wi
     termIndex: 1,
   };
   const [verdict] = evaluatePlacementVerdicts(baseInput({
-    request: [{ sectionId: SECTION_MAKABANSA, subjectId: SUBJECT_TLE, facultyId: 99 }],
+    request: [{ sectionId: SECTION_MAKABANSA, subjectId: SUBJECT_TLE, facultyId: 99, replacesExistingPlacement: true }],
     demandLines: [demandLine(makabansa('T1', 1))],
     weeklySlots: [{ day: 'FRIDAY', startTime: '11:30', endTime: '12:15' }],
     occupancyLocks: [currentPairPlacement],
