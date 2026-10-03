@@ -57,7 +57,7 @@ test('summarizeCandidateRejections tolerates undefined/null/empty input', () => 
 	assert.equal(totalCandidateRejections([rejection()]), 1);
 });
 
-test('candidateRejectionsForResult prefers the top-level list and falls back to the plan', () => {
+test('candidateRejectionsForResult preserves both coverage and distribution diagnostics', () => {
 	const planRow = rejection({ reason: 'HARD_CAP_EXCEEDED' });
 	const topRow = rejection({ reason: 'PLACEHOLDER_FACULTY' });
 	assert.deepEqual(
@@ -66,7 +66,12 @@ test('candidateRejectionsForResult prefers the top-level list and falls back to 
 	);
 	assert.deepEqual(
 		candidateRejectionsForResult({ candidateRejections: [topRow], distribution: { candidateRejections: [planRow] } }),
+		[topRow, planRow],
+	);
+	assert.deepEqual(
+		candidateRejectionsForResult({ candidateRejections: [topRow], distribution: { candidateRejections: [topRow] } }),
 		[topRow],
+		'the same diagnostic is shown once even if both response fields contain it',
 	);
 	assert.deepEqual(candidateRejectionsForResult(null), []);
 });

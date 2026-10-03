@@ -25,7 +25,7 @@ test('the suggestion summary renders concise candidate diagnostics, not a raw lo
 	// A dedicated, compact surface exists with per-reason rows.
 	assert.match(panel, /data-testid="teaching-load-candidate-diagnostics"/);
 	assert.match(panel, /data-testid=\{`teaching-load-rejection-\$\{group\.reason\}`\}/);
-	assert.match(panel, /Zero-load teachers are always evaluated/);
+	assert.match(panel, /ATLAS checked available teachers before proposing each assignment or move/);
 
 	// It must not degrade into a raw log dump.
 	for (const file of [modal, panel]) {

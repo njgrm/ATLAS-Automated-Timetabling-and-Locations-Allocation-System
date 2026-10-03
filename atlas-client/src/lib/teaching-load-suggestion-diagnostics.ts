@@ -180,9 +180,18 @@ export function candidateRejectionsForResult(result: {
 	distribution?: { candidateRejections?: TeachingLoadCandidateRejection[] };
 } | null | undefined): TeachingLoadCandidateRejection[] {
 	if (!result) return [];
-	return asRejectionList(result.candidateRejections).length > 0
-		? asRejectionList(result.candidateRejections)
-		: asRejectionList(result.distribution?.candidateRejections);
+	// Coverage and distribution are separate suggestion passes. Showing one list
+	// must never hide a move rejected for timetable shape. Deduplicate the shared
+	// row shape because a future producer may deliberately repeat a diagnostic in
+	// both response fields.
+	const seen = new Set<string>();
+	return [...asRejectionList(result.candidateRejections), ...asRejectionList(result.distribution?.candidateRejections)]
+		.filter((row) => {
+			const key = [row.subjectId, row.sectionId, row.facultyId, row.reason, row.placementReason ?? ''].join(':');
+			if (seen.has(key)) return false;
+			seen.add(key);
+			return true;
+		});
 }
 
 export function totalCandidateRejections(rejections: TeachingLoadCandidateRejection[] | undefined | null): number {
