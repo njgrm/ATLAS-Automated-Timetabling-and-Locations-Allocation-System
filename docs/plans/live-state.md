@@ -3,7 +3,7 @@
 Current operational truth only, kept under 60 lines. Update it when a live fact changes; do not append history.
 Full history to 2026-09-30: `docs/archive/2026-09/live-state-to-20260930.md` (and Git).
 
-Last reconciled: 2026-10-03 14:18 MPST (cadence hold; release 1cbae2e3 independently QA-passed with the documented status-handle limitation; five other live UX changes still lack rendered acceptance, and program labels have after-only evidence).
+Last reconciled: 2026-10-03 15:35 MPST (desktop acceptance complete for the current release; mobile deliberately unperformed; A7 relaxed-header restart is a clean review candidate, not integrated).
 
 ## Objective
 
@@ -11,14 +11,12 @@ A correct, calm ATLAS for school 1 on EnrollPro's active year: dependable Teachi
 schedulers can hand-fix and publish, official printouts, and SMART-family visual cohesion (`DESIGN.md`).
 
 ## Live release
-- LIVE: `1cbae2e3c3c83aa70e2ff5a9763e6bbb4e5e0204` (prefix `1cbae2e3`), Subjects program-label correction deployed 2026-10-03
-  13:47 MPST at `E:\ATLAS-worktrees\lane-a4-release-20261003-1cbae2e3`. SYSTEM task result
-  `20261003-134416-1cbae2e3` is LIVE; 1366x768 live browser acceptance passed, with independent post-action QA PASS_WITH_LIMITATION
-  (read-only status showed target handles as `live=false`; HTTP liveness/readiness and release identity all passed).
-- Rollback basis: incumbent `e44d49256715cd2fa955e009b795904a9abb7b9d` (prefix `e44d4925`) at
-  `E:\ATLAS-worktrees\lane-a4-release-20261003-e44d4925`; prior accepted P06c remains the historical fallback.
-- Next: no cutover. Assemble one batch of outstanding corrections, review it once, pin it once, and close rendered acceptance
-  for the five remaining live UX changes plus before/after evidence for program labels.
+- LIVE: `e44d49256715cd2fa955e009b795904a9abb7b9d` (prefix `e44d4925`), deployed 2026-10-03 12:20 MPST at
+  `E:\ATLAS-worktrees\lane-a4-release-20261003-e44d4925`; desktop Tailnet acceptance passed for Class Schedule,
+  Subjects, Teachers, and Teaching Load. Mobile acceptance remains unperformed by explicit operator direction.
+- Rollback basis: `a46710d6` (full SHA retained in the release packet) at the preceding release worktree.
+- Next: no cutover. Review the A7 candidate once, then assemble one batch of outstanding corrections; do not regenerate or
+  publish live data without a separate HIGH approval.
 - Runtime: API 5001, client 5174, funnel `https://njgrm.buru-degree.ts.net`; staging API 5101 (not responding
   2026-09-30 17:00, unverified since).
 
@@ -30,7 +28,9 @@ schedulers can hand-fix and publish, official printouts, and SMART-family visual
 
 ## Open items
 - Makabansa generator repair (decision 14): the generator should move one blocking class instead of giving up.
-- Relaxed header, one row above the grid (worktree `lane-a7-relaxed-header`, 19 uncommitted files: triage first).
+- Relaxed header, one row above the grid (candidate `6da50e65`, worktree `E:\ATLAS-worktrees\lane-a7-relaxed-header-r1`, clean;
+  focused A7 4/4, A2 header rows 8/8, C11 16/16, header budget 29/29, and production build pass; independent QA and rendered
+  loopback evidence still required before integration).
 - Fast release path: a fixed script run by an elevated scheduled task; no AI holds admin (Lane C proposal, 30 Sep).
 - SMART/AIMS direct federation: EnrollPro only today; companion repos stay read-only.
 
