@@ -25,7 +25,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  createPlacementPlanningSession,
   evaluatePlacementVerdicts,
+  selectFirstTimetableFeasibleCandidate,
   type PlacementCheckLineRequest,
   type PlacementEvaluatorInput,
   type PlacementOccupancyLock,
@@ -274,6 +276,18 @@ test('empty occupancy: everything is placeable', () => {
   }));
   assert.equal(makabansa.placeable, true);
   assert.equal(mabini.placeable, true);
+});
+
+test('candidate ranking keeps one reservation session: skip the busy teacher, then reserve the teacher who fits', () => {
+  const session = createPlacementPlanningSession(baseInput());
+  const result = selectFirstTimetableFeasibleCandidate(
+    session,
+    { sectionId: SECTION_MAKABANSA, subjectId: SUBJECT_TLE },
+    [TEACHER_NAVARRO, 99],
+  );
+  assert.equal(result.facultyId, 99, 'the next ranked qualified teacher reserves the actual available period');
+  assert.equal(result.rejected.length, 1, 'the capacity-ranked busy teacher is retained as an explainable rejection');
+  assert.equal(result.rejected[0]?.reason, 'NO_AVAILABLE_SLOT');
 });
 
 test('a suggestion batch reserves its planned slots so two loads cannot both claim the same timetable shape', () => {
