@@ -35,6 +35,15 @@ export type RunChangeNotice = {
 	node: ReactNode;
 	/** The drift status, for callers that label a menu entry from it. */
 	status: 'FRESH' | 'STALE' | 'UNKNOWN';
+	/**
+	 * A7 c14 (operator, 2026-09-30 08:15) — `true` when there is a REAL, trustworthy
+	 * drift this run can be regenerated against: the change notice is up, the run is
+	 * not published, and the comparison is claimed (`driftClaim !== null`). The
+	 * header uses it to mount the ONE `Update schedule` entry in its `More` menu —
+	 * the same predicate `SimpleDriftBanner` uses for its own apply action, so the
+	 * two can never disagree about whether regeneration is offered.
+	 */
+	regenerateAvailable: boolean;
 };
 
 export function useRunChangeNotice(input: {
@@ -45,8 +54,17 @@ export function useRunChangeNotice(input: {
 	generationEnabled: boolean;
 	/** The workspace's own generation trigger. Omit it and the apply action is not mounted. */
 	onRegenerate?: () => void;
+	/**
+	 * A7 c14 (operator, 2026-09-30 08:15) — when `false`, the returned notice node
+	 * renders ONLY the sentence and `See what changed`; the `Update schedule` action
+	 * is NOT in it. The Simple header passes `false`, because its `Update schedule`
+	 * now lives in the `More` menu, and mounts that entry off `regenerateAvailable`.
+	 * Defaults to `true`, so every pre-existing caller (the Expert header) is
+	 * unchanged.
+	 */
+	includeApplyAction?: boolean;
 }): RunChangeNotice {
-	const { context, capabilities, isPublished, generationEnabled, onRegenerate } = input;
+	const { context, capabilities, isPublished, generationEnabled, onRegenerate, includeApplyAction = true } = input;
 	// The run's OWN end time, exactly as `SimpleDriftBanner` reads it. Both
 	// callers now go through here, so the two layouts cannot disagree about
 	// whether a comparison is trustworthy about the run on screen.
@@ -60,9 +78,15 @@ export function useRunChangeNotice(input: {
 		[context.draft?.inputState, context.draft?.finishedAt, context.draft?.createdAt, context.draft],
 	);
 	const show = !context.isPreGenerationWorkspace && context.draft != null && drift.status !== 'FRESH';
+	// A7 c14 — the SAME `!isPublished && driftClaim` guard `SimpleDriftBanner` uses
+	// for its apply action. `node` deliberately does NOT receive `onRegenerate`: the
+	// status line shows the sentence and `See what changed`, and `Update schedule`
+	// is mounted by the header's `More` menu off this flag.
+	const regenerateAvailable = show && !isPublished && drift.driftClaim !== null;
 	return {
 		show,
 		status: drift.status,
+		regenerateAvailable,
 		node: show ? (
 			<SimpleDriftBanner
 				schoolId={context.schoolId}
@@ -77,7 +101,7 @@ export function useRunChangeNotice(input: {
 				layout="inline"
 				showActions={false}
 				showRolloverGuidance={false}
-				onRegenerate={onRegenerate}
+				onRegenerate={includeApplyAction ? onRegenerate : undefined}
 				regenerationEnabled={generationEnabled}
 				regenerating={context.generating}
 			/>

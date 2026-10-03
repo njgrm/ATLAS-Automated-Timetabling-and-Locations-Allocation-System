@@ -624,7 +624,10 @@ test('F2R2 RENDERED (QA-B2 re-point): the Simple header mounts the same sentence
 		} as any),
 		withRouter,
 	);
-	assert.ok(view.has('timetable-draft-state-strip'), 'the Simple layout renders the SAME persistent state sentence');
+	/* A7 c14 (operator, 2026-09-30 08:15) — SUPERSEDED: the mounted `TimetableDraftStateStrip`
+	 * is no longer in the Simple header; the header's own ONE status line names the run
+	 * and its state from the SAME `describeRunState` derivation. The claim is unchanged. */
+	assert.ok(view.has('timetable-run-identity'), 'the Simple layout renders the SAME persistent state sentence, from the ONE derivation');
 	/* SUPERSEDED IN PLACE — A2 HEADER-BUDGET, CORRECTION 2 (F1, 2026-09-29). The
 	 * original assertion is retained VERBATIM as a comment and is NOT run as
 	 * pass/fail (AGENTS.md §16 forbids closing a finding by editing the row that
@@ -723,7 +726,9 @@ test('M5R RENDERED (correction 4, F4 re-point): the REAL Simple header puts the 
 		withRouter,
 	);
 	// The persistent sentence the strip is FOR is on screen, from the one derivation.
-	assert.ok(view.has('timetable-draft-state-strip'), 'the persistent strip is mounted by the REAL header');
+	// A7 c14 (operator, 2026-09-30 08:15) — SUPERSEDED: it is the header's own ONE
+	// status line now, not a mounted `TimetableDraftStateStrip`.
+	assert.ok(view.has('timetable-run-identity'), 'the persistent state sentence is mounted by the REAL header');
 	/* SUPERSEDED IN PLACE — A2 HEADER-BUDGET, CORRECTION 2 (F1, 2026-09-29). The
 	 * original assertion is retained VERBATIM as a comment and is NOT run as
 	 * pass/fail (AGENTS.md §16 forbids closing a finding by editing the row that
@@ -749,8 +754,8 @@ test('M5R RENDERED (correction 4, F4 re-point): the REAL Simple header puts the 
 	const undo = view.byLabel('Undo last manual schedule change');
 	assert.ok(undo, 'the single Undo the workspace builds is on screen, not buried in a menu');
 	assert.equal((undo as HTMLButtonElement).disabled, false, 'and it is live with one edit in the draft');
-	assert.equal(view.host.querySelectorAll('[data-testid="timetable-draft-state-strip"]').length, 1,
-		'and there is exactly ONE strip, so there is one Undo surface per layout');
+	assert.equal(view.host.querySelectorAll('[data-testid="timetable-run-identity"]').length, 1,
+		'and the state is named exactly ONCE, so there is one Undo surface per layout');
 	act(() => { (undo as HTMLElement).dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })); });
 	assert.equal(reverted, 1, 'ONE click reverts the last edit — no second step, no dialog');
 });

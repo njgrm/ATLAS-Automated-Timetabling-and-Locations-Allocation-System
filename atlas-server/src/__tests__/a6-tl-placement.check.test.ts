@@ -25,7 +25,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  createPlacementPlanningSession,
   evaluatePlacementVerdicts,
+  selectFirstTimetableFeasibleCandidate,
   type PlacementCheckLineRequest,
   type PlacementEvaluatorInput,
   type PlacementOccupancyLock,
@@ -123,12 +125,14 @@ function demandLine(input: {
 }
 
 const SUBJECT_TLE = 11;
+const SUBJECT_MATH = 12;
 const SECTION_MAKABANSA = 87;
 const SECTION_MABINI = 90;
 const TEACHER_NAVARRO = 25;
 
 const SUBJECT_META = new Map([
   [SUBJECT_TLE, { preferredRoomType: 'CLASSROOM', code: 'TLE_ICT', name: 'TLE Exploratory – ICT' }],
+  [SUBJECT_MATH, { preferredRoomType: 'CLASSROOM', code: 'MATH', name: 'Mathematics' }],
 ]);
 
 const SECTION_META = new Map([
@@ -272,6 +276,96 @@ test('empty occupancy: everything is placeable', () => {
   }));
   assert.equal(makabansa.placeable, true);
   assert.equal(mabini.placeable, true);
+});
+
+test('candidate ranking keeps one reservation session: skip the busy teacher, then reserve the teacher who fits', () => {
+  const session = createPlacementPlanningSession(baseInput());
+  const result = selectFirstTimetableFeasibleCandidate(
+    session,
+    { sectionId: SECTION_MAKABANSA, subjectId: SUBJECT_TLE },
+    [TEACHER_NAVARRO, 99],
+  );
+  assert.equal(result.facultyId, 99, 'the next ranked qualified teacher reserves the actual available period');
+  assert.equal(result.rejected.length, 1, 'the capacity-ranked busy teacher is retained as an explainable rejection');
+  assert.equal(result.rejected[0]?.reason, 'NO_AVAILABLE_SLOT');
+});
+
+test('a suggestion batch reserves its planned slots so two loads cannot both claim the same timetable shape', () => {
+  const onlySlot: WeeklySlot[] = [{ day: 'FRIDAY', startTime: '11:30', endTime: '12:15' }];
+  const mathDemand = demandLine({
+    sectionExternalId: SECTION_MAKABANSA,
+    sectionName: 'Grade 8 Makabansa',
+    gradeLevel: 8,
+    enrolledCount: 35,
+    subjectId: SUBJECT_MATH,
+    subjectCode: 'MATH',
+    subjectName: 'Mathematics',
+    termIdentity: 'T1',
+    termIndex: 1,
+    sessionsPerWeek: 1,
+    ownerFacultyId: TEACHER_NAVARRO,
+  });
+
+  const [tle, math] = evaluatePlacementVerdicts(baseInput({
+    request: [
+      { sectionId: SECTION_MAKABANSA, subjectId: SUBJECT_TLE, facultyId: TEACHER_NAVARRO },
+      { sectionId: SECTION_MAKABANSA, subjectId: SUBJECT_MATH, facultyId: TEACHER_NAVARRO },
+    ],
+    demandLines: [demandLine(makabansa('T1', 1)), mathDemand],
+    weeklySlots: onlySlot,
+    occupancyLocks: [],
+  }));
+
+  assert.equal(tle.placeable, true, 'the first load reserves the one real class slot');
+  assert.equal(math.placeable, false, 'the second load cannot reuse the same section, teacher, and room slot');
+  assert.equal(math.reason, 'NO_AVAILABLE_SLOT');
+});
+
+test('a moved load replaces its own existing placement instead of conflicting with itself', () => {
+  const currentPairPlacement: PlacementOccupancyLock = {
+    sectionId: SECTION_MAKABANSA,
+    subjectId: SUBJECT_TLE,
+    facultyId: TEACHER_NAVARRO,
+    roomId: 1,
+    day: 'FRIDAY',
+    startTime: '11:30',
+    endTime: '12:15',
+    termIndex: 1,
+  };
+  const [verdict] = evaluatePlacementVerdicts(baseInput({
+    request: [{ sectionId: SECTION_MAKABANSA, subjectId: SUBJECT_TLE, facultyId: 99, replacesExistingPlacement: true }],
+    demandLines: [demandLine(makabansa('T1', 1))],
+    weeklySlots: [{ day: 'FRIDAY', startTime: '11:30', endTime: '12:15' }],
+    occupancyLocks: [currentPairPlacement],
+  }));
+
+  assert.equal(verdict.placeable, true, 'the receiver can reuse the pair\'s real existing slot');
+});
+
+test('an ordinary preview retains same-pair locks and offers no teacher for their occupied slot', () => {
+  const samePairLock: PlacementOccupancyLock = {
+    sectionId: SECTION_MAKABANSA,
+    subjectId: SUBJECT_TLE,
+    facultyId: null,
+    roomId: 1,
+    day: 'FRIDAY',
+    startTime: '11:30',
+    endTime: '12:15',
+    termIndex: 1,
+  };
+  const [verdict] = evaluatePlacementVerdicts(baseInput({
+    request: [MAKABANSA_REQUEST],
+    demandLines: [demandLine(makabansa('T1', 1))],
+    weeklySlots: [{ day: 'FRIDAY', startTime: '11:30', endTime: '12:15' }],
+    occupancyLocks: [samePairLock],
+    qualifiedAlternatives: new Map([[
+      `${SUBJECT_TLE}:REGULAR`,
+      [{ facultyId: 99, facultyName: 'EDUARDO VILLAREAL' }],
+    ]]),
+  }));
+
+  assert.equal(verdict.placeable, false, 'a manual or preview request cannot overwrite a same-pair lock');
+  assert.deepEqual(verdict.alternatives, [], 'a free teacher is not offered for an already occupied class slot');
 });
 
 test('a requested pair outside canonical demand is placeable (nothing to place)', () => {

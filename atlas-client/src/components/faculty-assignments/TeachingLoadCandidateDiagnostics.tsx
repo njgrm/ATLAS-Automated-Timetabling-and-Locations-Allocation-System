@@ -33,8 +33,8 @@ export function TeachingLoadCandidateDiagnostics({ rejections }: TeachingLoadCan
 					{rejections.length} skipped
 				</span>
 			</div>
-			<p className="text-xs font-medium text-muted-foreground leading-relaxed">
-				Zero-load teachers are always evaluated. These candidates were skipped before an assignment was suggested:
+			<p className="text-xs font-medium text-muted-foreground leading-relaxed" aria-live="polite">
+				ATLAS checked available teachers before proposing each assignment or move. Review the reasons below when a class still needs your decision.
 			</p>
 			<div className="grid gap-1.5" data-testid="teaching-load-rejection-groups">
 				{rejectionGroups.map((group) => (

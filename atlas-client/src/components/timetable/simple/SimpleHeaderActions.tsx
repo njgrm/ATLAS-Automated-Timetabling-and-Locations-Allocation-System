@@ -248,7 +248,16 @@ export type SimpleMoreScheduleActionsProps = {
 	pastYearsHref: string | null;
 	/** A former lifecycle next step that no visible control owns. */
 	nextStep: { label: string; disabled: boolean; href: string | null; onSelect: () => void } | null;
-};
+	/**
+	 * A7 c14 (operator, 2026-09-30 08:15) — the drift's `Update schedule` action,
+	 * moved off the header row (and off the status line) into this menu. `null`
+	 * renders nothing, which is the FRESH/no-drift state: a control with nothing to
+	 * apply is never mounted. The dispatcher is the SAME workspace generation
+	 * trigger the drift banner's confirm uses, so the two cannot become two
+	 * regeneration paths.
+	 */
+	updateSchedule?: { visible: boolean; disabled: boolean; reason: string | null; onSelect: () => void } | null;
+}
 
 export function SimpleMoreScheduleActions({
 	onClose,
@@ -260,10 +269,30 @@ export function SimpleMoreScheduleActions({
 	returnToPublished,
 	pastYearsHref,
 	nextStep,
+	updateSchedule = null,
 }: SimpleMoreScheduleActionsProps) {
 	return (
 		<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-schedule-actions">
 			<DropdownMenuLabel className="px-0 py-0 text-xs">Schedule actions</DropdownMenuLabel>
+			{/* A7 c14 — the drift's ONE apply action, moved out of the header row. */}
+			{updateSchedule?.visible ? (
+				<DropdownMenuItem
+					className={cn('gap-2 text-xs', updateSchedule.disabled ? 'h-auto min-h-9 items-start py-1.5 data-[disabled]:opacity-100' : 'h-9')}
+					disabled={updateSchedule.disabled}
+					onSelect={(event) => { event.preventDefault(); onClose(); updateSchedule.onSelect(); }}
+					data-testid="timetable-simple-regenerate-to-apply"
+				>
+					<RefreshCw className={cn('size-3.5', updateSchedule.disabled && 'mt-0.5 text-muted-foreground')} aria-hidden="true" />
+					{updateSchedule.disabled && updateSchedule.reason ? (
+						<span className="flex flex-col">
+							<span className="text-muted-foreground">Update schedule</span>
+							<span className="text-xs text-muted-foreground" data-testid="timetable-simple-regenerate-to-apply-reason">{updateSchedule.reason}</span>
+						</span>
+					) : (
+						<span>Update schedule</span>
+					)}
+				</DropdownMenuItem>
+			) : null}
 			{nextStep ? (
 				nextStep.href ? (
 					<DropdownMenuItem asChild className="h-9 gap-2 text-xs" data-testid="timetable-more-next-step">

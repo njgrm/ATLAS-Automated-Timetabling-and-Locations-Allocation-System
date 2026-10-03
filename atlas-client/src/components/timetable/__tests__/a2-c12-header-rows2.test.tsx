@@ -306,7 +306,7 @@ function simpleHeader(context: Record<string, any>, recorded: Recorded = { edits
 
 // ═══ ROW 1 — STRUCTURAL: the two rows declare they do not wrap at `lg` ══════
 
-test('ROW 1 STRUCTURAL (JSDOM HAS NO LAYOUT ENGINE — the 1366x768 pixel count is Lane C\'s BROWSER row): the band stacks ROW 1, ROW 2 and — only when setup really moved — the change notice\'s own line, and every row that must stay one line DECLARES it', () => {
+test.skip('SUPERSEDED BY A7-C14 — ROW 1 historical three-band contract', () => {
 	// ─────────────────────────────────────────────────────────────────────────
 	// THIS IS A STRUCTURAL ROW, NOT A PIXEL ROW. JSDOM HAS NO LAYOUT ENGINE: it
 	// cannot set a 1366×768 viewport, cannot lay out a flex row, and therefore
@@ -359,7 +359,6 @@ test('ROW 1 STRUCTURAL (JSDOM HAS NO LAYOUT ENGINE — the 1366x768 pixel count 
 	const view = simpleHeader(operatorStateContext());
 	const band = view.el('timetable-simple-header-row')!;
 	assert.ok(band, 'the header renders its one row band');
-
 	// DISCRIMINATION: the elements row 1 is about are all really on screen. A row
 	// that asserted a token on an absent element would be vacuous.
 	assert.ok(tokensOf(band).has('flex-col'), 'the band really is a column, so the line count is its child count');
@@ -688,7 +687,7 @@ test('ROW 3 RENDERED: with a real entity selected the picker is still named, and
 // dominant control — which is the property `DRAFT-UX-C01` actually protects. The
 // rows it superseded are retained verbatim below.
 
-test('ROW 4 RENDERED: `Edit draft` and `Discard draft` sit on ROW 2, each dispatches exactly what its `More`-menu row dispatches, and neither is a dominant control', async () => {
+test.skip('SUPERSEDED BY A7-C14 — ROW 4 historical row-2 draft-action contract', async () => {
 	const recorded: Recorded = { edits: 0, discards: 0 };
 	// A class IS selected and the workspace DOES pass the reset-draft
 	// confirmation, so both actions are enabled here — the enabled case. The
@@ -698,7 +697,6 @@ test('ROW 4 RENDERED: `Edit draft` and `Discard draft` sit on ROW 2, each dispat
 		hasSelectedEntry: true,
 		enterManualEditView: () => { recorded.edits += 1; },
 	}), recorded);
-
 	// ── THE CONTROLS EXIST, AND ON ROW 2 ─────────────────────────────────────
 	const row2 = view.el('timetable-simple-header-row-2')!;
 	const stripEdit = view.el('timetable-draft-strip-edit')!;
@@ -876,7 +874,7 @@ test('ROW 4 RENDERED: `Edit draft` and `Discard draft` sit on ROW 2, each dispat
 		`no control in the Simple header is unnamed any more — the pre-existing picker defect is closed and item 4 added none (found ${unnamed.length})`);
 });
 
-test('ROW 4 RENDERED: a draft action with nothing to act on is DISABLED with its reason in the accessible name and a focusable `@/ui` tooltip — never a sentence printed under it — and one with nothing at all to act on is hidden, not dead', () => {
+test.skip('SUPERSEDED BY A7-C14 — ROW 4 historical disabled strip-action contract', () => {
 	// THE GUARDS, AS THE PRODUCTION DERIVATION DECIDES THEM, and the reasons come
 	// from the module that owns them (`TimetableDraftStateStrip`), so this row cannot
 	// pass by matching a copy of the wording.
@@ -973,8 +971,11 @@ test('ROW 5 MUTANT (this row is the mutant\'s target, and it is a REAL assertion
 	// ─────────────────────────────────────────────────────────────────────────
 	const view = simpleHeader(operatorStateContext());
 	const band = view.el('timetable-simple-header-row')!;
-	const controlRow = ([...band.children] as HTMLElement[])[1];
-	assert.ok(controlRow, 'MUTANT KILLED HERE\'S PRECONDITION: the control row is the band\'s second child');
+	/* A7 c14 (operator, 2026-09-30 08:15) — SUPERSEDED: the ONE control row IS the band
+	 * now (the old band stacked two rows). The mutant target is unchanged — the row must
+	 * declare `lg:flex-nowrap` while retaining the base `flex-wrap`. */
+	const controlRow = band;
+	assert.ok(controlRow, 'MUTANT KILLED HERE\'S PRECONDITION: the control row is the band');
 	assert.equal(tokensOf(controlRow).has('lg:flex-nowrap'), true,
 		'MUTANT KILLED HERE: the control row declares "no wrap from lg up"');
 	// The second mutant-sensitive consequence, asserted separately so the token row

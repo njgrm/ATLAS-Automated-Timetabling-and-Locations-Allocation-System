@@ -579,7 +579,11 @@ async function run(): Promise<void> {
 	const proposalSuccess = proposalClient(initialProposalState);
 	const applied = await withDataContext(proposalSuccess.client, () => applyTeachingLoadSuggestionProposal(
 		{ proposalId: 41, actorId: 77, actorSchoolId: 1 },
-		{ preview: async () => structuredClone(preview), resolveDerivedDemand: derivedAuthority as any },
+		{
+			preview: async () => structuredClone(preview),
+			resolveDerivedDemand: derivedAuthority as any,
+			evaluatePlacement: async () => ({ placeable: true, demandReady: true, evaluated: true, blockers: [] }),
+		},
 	));
 	assert.equal(applied.proposal.status, 'APPLIED');
 	let appliedState = proposalSuccess.snapshot();
@@ -602,7 +606,11 @@ async function run(): Promise<void> {
 	await withDataContext(proposalFailure.client, () => assert.rejects(
 		applyTeachingLoadSuggestionProposal(
 			{ proposalId: 41, actorId: 77, actorSchoolId: 1 },
-			{ preview: async () => structuredClone(preview), resolveDerivedDemand: derivedAuthority as any },
+			{
+				preview: async () => structuredClone(preview),
+				resolveDerivedDemand: derivedAuthority as any,
+				evaluatePlacement: async () => ({ placeable: true, demandReady: true, evaluated: true, blockers: [] }),
+			},
 		),
 		/injected audit failure/,
 	));

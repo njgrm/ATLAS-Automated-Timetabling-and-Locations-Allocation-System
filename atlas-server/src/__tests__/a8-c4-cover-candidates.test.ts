@@ -44,6 +44,11 @@ import {
 } from '../services/teaching-load-cover.service.js';
 import { autoFill } from '../services/teaching-load-automation.service.js';
 import { evaluateWeeklyLoad } from '../services/teaching-load-capacity.service.js';
+import {
+	createPlacementPlanningSession,
+	type TeachingLoadPlacementPlanner,
+} from '../services/teaching-load-placement-check.service.js';
+import type { TimetableDemandLine } from '../services/timetable-demand.service.js';
 
 // ─── In-memory Prisma-shaped world ───────────────────────────────────────────
 
@@ -932,6 +937,110 @@ function anyoneWorld(): World {
 		facultySubjects: [facultySubjectRow(700, 900, MAPEH)],
 	});
 }
+
+/** A real occupancy snapshot for the auto-fill wiring test below. */
+function shapeRankingPlanner(): TeachingLoadPlacementPlanner {
+	const demandLines: TimetableDemandLine[] = [SECTION_OPEN_UNOWNED, SECTION_OPEN_PLACEHOLDER].map((sectionId) => ({
+		demandKey: `${MAPEH}:${sectionId}:T1`,
+		offeringId: 0,
+		offeringVersion: 0,
+		subjectId: MAPEH,
+		subjectCode: 'MAPEH',
+		subjectName: 'MAPEH subject',
+		classification: 'CORE',
+		rotationFamily: null,
+		rotationOrder: null,
+		termMode: 'ALL',
+		termIdentity: 'T1',
+		termIndex: 1,
+		applicableTermIdentities: ['T1'],
+		sectionMirrorId: sectionId,
+		sectionExternalId: sectionId,
+		sectionName: `G7-${sectionId}`,
+		gradeLevel: 7,
+		programType: 'REGULAR',
+		homeRoomId: null,
+		buildingZoneId: null,
+		maxCapacity: 50,
+		enrolledCount: 50,
+		weeklyMinutes: 45,
+		periodLengthMinutes: 45,
+		sessionsPerWeek: 1,
+		durationPerSessionMinutes: 45,
+		ownerFacultyId: null,
+		ownerFacultyName: null,
+		ownerState: 'VALID',
+	}));
+	return {
+		demandReady: true,
+		evaluated: true,
+		begin(facultyMeta = new Map()) {
+			return createPlacementPlanningSession({
+				demandLines,
+				weeklySlots: [{ day: 'MONDAY', startTime: '09:00', endTime: '09:45' }],
+				usableRooms: [{
+					id: 1, name: 'Room 101', buildingId: 1, buildingZoneId: null,
+					buildingGradeScope: [], type: 'CLASSROOM', capacity: 50,
+					isTeachingSpace: true, isSharedFacility: false,
+				}],
+				occupancyLocks: [{
+					sectionId: -1, subjectId: 0, facultyId: 101, roomId: null,
+					day: 'MONDAY', startTime: '09:00', endTime: '09:45', termIndex: 1,
+				}],
+				subjectMeta: new Map([[MAPEH, { preferredRoomType: 'CLASSROOM', code: 'MAPEH', name: 'MAPEH subject' }]]),
+				sectionMeta: new Map([
+					[SECTION_OPEN_UNOWNED, { name: `G7-${SECTION_OPEN_UNOWNED}`, gradeLevel: 7, enrolledCount: 50, programType: 'REGULAR' }],
+					[SECTION_OPEN_PLACEHOLDER, { name: `G7-${SECTION_OPEN_PLACEHOLDER}`, gradeLevel: 7, enrolledCount: 50, programType: 'REGULAR' }],
+				]),
+				facultyMeta: new Map(facultyMeta),
+			});
+		},
+	};
+}
+
+test('4b2. autoFill ranks by timetable fit and reserves its chosen slot for the next pair', async () => {
+	const world = isolatedWorld({
+		sections: [section(SECTION_OPEN_UNOWNED), section(SECTION_OPEN_PLACEHOLDER)],
+		faculty: [faculty(101, 'MAPEH', { maxHours: 30 }), faculty(102, 'MAPEH', { maxHours: 30 })],
+	});
+	const result = await withWorld(world, () => autoFill(SCHOOL, YEAR, undefined, {
+		previewOnly: true,
+		placementPlanner: shapeRankingPlanner(),
+	}));
+	const rows = result.suggestedRows ?? [];
+	assert.equal(rows.some((row) => row.sectionId === SECTION_OPEN_UNOWNED && row.facultyId === 102), true,
+		'the next qualified teacher is selected when the capacity-ranked teacher is busy');
+	assert.equal(rows.some((row) => row.sectionId === SECTION_OPEN_PLACEHOLDER && row.assignmentType === 'REAL_TEACHER'), false,
+		'the first chosen teacher reserves the only room/period, so the second pair is not falsely suggested');
+	assert.equal(result.unresolved, 1, 'the reservation conflict is reported as uncovered, never hidden by a proposal');
+	assert.equal(result.candidateRejections?.some((row) =>
+		row.sectionId === SECTION_OPEN_UNOWNED && row.facultyId === 101 && row.reason === 'TIMETABLE_SHAPE_CONFLICT'
+	), true, 'the busy capacity-ranked teacher is retained as a shape rejection');
+	assert.equal(result.candidateRejections?.some((row) =>
+		row.sectionId === SECTION_OPEN_PLACEHOLDER && row.facultyId === 102 && row.reason === 'TIMETABLE_SHAPE_CONFLICT'
+	), true, 'the second pair sees the shared reservation from the chosen first pair');
+});
+
+test('4b3. autoFill rebalances an overload to the first receiver whose class time fits', async () => {
+	const world = isolatedWorld({
+		sections: [section(SECTION_OPEN_UNOWNED)],
+		faculty: [
+			faculty(100, 'MAPEH', { maxHours: 1 }),
+			faculty(101, 'MAPEH', { maxHours: 30 }),
+			faculty(102, 'MAPEH', { maxHours: 30 }),
+		],
+		ownerships: [ownershipRow(810, 100, subject(MAPEH, 'MAPEH', 'MAPEH', [7]), SECTION_OPEN_UNOWNED)],
+	});
+	const result = await withWorld(world, () => autoFill(SCHOOL, YEAR, undefined, {
+		previewOnly: true,
+		placementPlanner: shapeRankingPlanner(),
+	}));
+	assert.equal(result.distribution?.moves[0]?.toFacultyId, 102,
+		'the next qualified receiver is selected when the capacity-ranked receiver is already booked');
+	assert.equal(result.distribution?.candidateRejections?.some((row) =>
+		row.sectionId === SECTION_OPEN_UNOWNED && row.facultyId === 101 && row.reason === 'TIMETABLE_SHAPE_CONFLICT'
+	), true, 'the blocked receiver is visible for scheduler review rather than becoming a rejected proposal');
+});
 
 test('4b. autoFill (allowUnqualifiedRealFaculty): the placeholder pool is unreachable while ANY admitted real teacher has room', async () => {
 	// Ana (SCI) is unqualified for MAPEH — tier null — but she HAS room. With the

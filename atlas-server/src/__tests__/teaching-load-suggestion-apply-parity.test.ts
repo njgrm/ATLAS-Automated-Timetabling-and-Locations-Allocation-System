@@ -457,6 +457,8 @@ function writesBy(state: { writes: Array<{ model: string; op: string }> }, model
 	return state.writes.filter((entry) => entry.model === model && entry.op === op).length;
 }
 
+const placementReady = async () => ({ placeable: true, demandReady: true, evaluated: true, blockers: [] });
+
 async function expectStale(state: ApplyState, mutateBeforeTransaction: (client: any) => void) {
 	const plan = buildPlan();
 	const preview = buildPreview(plan);
@@ -470,7 +472,7 @@ async function expectStale(state: ApplyState, mutateBeforeTransaction: (client: 
 	try {
 		await withDataContext(client, () => applyTeachingLoadSuggestionProposal(
 			{ proposalId: 1, actorId: ACTOR, actorSchoolId: SCHOOL },
-			{ preview: previewWithRace as any, resolveDerivedDemand: derivedAuthority as any },
+			{ preview: previewWithRace as any, resolveDerivedDemand: derivedAuthority as any, evaluatePlacement: placementReady },
 		));
 	} catch (error) {
 		code = (error as { code?: string })?.code;
@@ -491,7 +493,7 @@ async function run(): Promise<void> {
 
 		const result = await withDataContext(client, () => applyTeachingLoadSuggestionProposal(
 			{ proposalId: 1, actorId: ACTOR, actorSchoolId: SCHOOL },
-			{ preview: freshPreview as any, resolveDerivedDemand: derivedAuthority as any },
+			{ preview: freshPreview as any, resolveDerivedDemand: derivedAuthority as any, evaluatePlacement: placementReady },
 		));
 
 		check(result.applyResult?.movesApplied === 1, `positive apply persisted one move (got ${result.applyResult?.movesApplied})`);
@@ -574,7 +576,7 @@ async function run(): Promise<void> {
 		try {
 			await withDataContext(client, () => applyTeachingLoadSuggestionProposal(
 				{ proposalId: 1, actorId: ACTOR, actorSchoolId: SCHOOL },
-				{ preview: previewWithRace as any, resolveDerivedDemand: derivedAuthority as any },
+				{ preview: previewWithRace as any, resolveDerivedDemand: derivedAuthority as any, evaluatePlacement: placementReady },
 			));
 		} catch (error) {
 			code = (error as { code?: string })?.code;

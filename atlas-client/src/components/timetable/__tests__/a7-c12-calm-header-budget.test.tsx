@@ -287,10 +287,13 @@ test('A (PINNED COUNT) state A no draft: the header renders EXACTLY the six name
 	assert.deepEqual(found, expected,
 		`the header's counted-control inventory is exactly the six named controls; got ${JSON.stringify(found)}`);
 	assert.ok(found.length <= 6, `and it is at most six; got ${found.length}`);
-	// DISCRIMINATION: the tabs and the title ARE rendered, and are excluded by the
-	// pinned rule rather than by the header having lost them.
-	assert.ok(header.querySelector('[data-testid="timetable-sub-nav"]'), 'the tabs are still on the header row');
+	// DISCRIMINATION: the title IS rendered, and it is excluded by the pinned rule
+	// rather than by the header having lost it. A7 c14 (operator, 2026-09-30 08:15)
+	// SUPERSEDED the old second discrimination — the tabs are no longer a header band
+	// and are reachable from `More` (decision 2 preserved in its new form).
 	assert.ok(header.querySelector('[data-testid="timetable-page-heading"]'), 'and the page title is still there');
+	assert.equal(header.querySelector('[data-testid="timetable-sub-nav"]'), null,
+		'and the tab band is no longer above the grid (it moved into More)');
 });
 
 // ═══ ROW B — THE YEAR BANNER IS ONE SENTENCE WITH ONE LINK ══════════════════

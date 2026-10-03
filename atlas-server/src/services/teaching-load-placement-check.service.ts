@@ -71,6 +71,8 @@ export interface PlacementCheckLineRequest {
   sectionId: number;
   subjectId: number;
   facultyId: number;
+  /** A distribution MOVE replaces this pair's existing placements; an INSERT does not. */
+  replacesExistingPlacement?: boolean;
 }
 
 /** One occupancy reservation from a DRAFT lock row or an active draft-run entry. */
@@ -160,7 +162,32 @@ export interface PlacementCheckResult {
 export interface PlacementWriteGateResult {
   placeable: boolean;
   demandReady: boolean;
+  evaluated: boolean;
   blockers: PlacementBlocker[];
+}
+
+/**
+ * Stateful, zero-write planner used while Teaching Load ranks a batch. A
+ * successful trial reserves the same section/teacher/room slots for the next
+ * trial, so two otherwise-good suggestions cannot quietly claim one period.
+ */
+export interface PlacementPlanningSession {
+  tryAssign(request: PlacementCheckLineRequest): PlacementLineVerdict;
+}
+
+export interface PlacementCandidateSelection {
+  facultyId: number | null;
+  rejected: PlacementLineVerdict[];
+}
+
+/**
+ * One prepared timetable-shape snapshot. Loading it once avoids an N+1 read
+ * while auto-fill considers its already-ranked teacher candidates.
+ */
+export interface TeachingLoadPlacementPlanner {
+  demandReady: boolean;
+  evaluated: boolean;
+  begin(facultyMeta?: ReadonlyMap<number, string>): PlacementPlanningSession | null;
 }
 
 export type PlacementServiceError = Error & {
@@ -244,14 +271,44 @@ function subjectInput(subject: PlacementSubjectMeta, section: PlacementSectionMe
  * `searchCandidateSlots`.
  */
 export function evaluatePlacementVerdicts(input: PlacementEvaluatorInput): PlacementLineVerdict[] {
-  const verdicts: PlacementLineVerdict[] = [];
-  for (const request of input.request) {
-    verdicts.push(evaluateOnePlacementLine(input, request));
-  }
-  return verdicts;
+  const session = createPlacementPlanningSession(input);
+  return input.request.map((request) => session.tryAssign(request));
 }
 
-function evaluateOnePlacementLine(input: PlacementEvaluatorInput, request: PlacementCheckLineRequest): PlacementLineVerdict {
+/** Pure planning session; safe to use in the auto-fill candidate loop and tests. */
+export function createPlacementPlanningSession(input: Omit<PlacementEvaluatorInput, 'request'>): PlacementPlanningSession {
+  const plannedLocks = [...input.occupancyLocks];
+  return {
+    tryAssign(request: PlacementCheckLineRequest): PlacementLineVerdict {
+      const evaluated = evaluateOnePlacementLine({ ...input, request: [request], occupancyLocks: plannedLocks }, request);
+      if (evaluated.verdict.placeable) plannedLocks.push(...evaluated.reservations);
+      return evaluated.verdict;
+    },
+  };
+}
+
+/**
+ * Walk the capacity/qualification-ranked teachers in order and commit the first
+ * teacher whose real timetable slots fit. Failed trials never reserve a slot.
+ */
+export function selectFirstTimetableFeasibleCandidate(
+  session: PlacementPlanningSession,
+  request: Omit<PlacementCheckLineRequest, 'facultyId'>,
+  rankedFacultyIds: ReadonlyArray<number>,
+): PlacementCandidateSelection {
+  const rejected: PlacementLineVerdict[] = [];
+  for (const facultyId of rankedFacultyIds) {
+    const verdict = session.tryAssign({ ...request, facultyId });
+    if (verdict.placeable) return { facultyId, rejected };
+    rejected.push(verdict);
+  }
+  return { facultyId: null, rejected };
+}
+
+function evaluateOnePlacementLine(
+  input: PlacementEvaluatorInput,
+  request: PlacementCheckLineRequest,
+): { verdict: PlacementLineVerdict; reservations: PlacementOccupancyLock[] } {
   const section = input.sectionMeta.get(request.sectionId) ?? null;
   const subject = input.subjectMeta.get(request.subjectId) ?? null;
   const sectionName = section?.name ?? `Section ${request.sectionId}`;
@@ -263,7 +320,7 @@ function evaluateOnePlacementLine(input: PlacementEvaluatorInput, request: Place
   );
   // No canonical demand for this pair: there is nothing for the timetable to place.
   if (demandLines.length === 0 || !section || !subject) {
-    return {
+    return { verdict: {
       sectionId: request.sectionId,
       subjectId: request.subjectId,
       facultyId: request.facultyId,
@@ -275,16 +332,23 @@ function evaluateOnePlacementLine(input: PlacementEvaluatorInput, request: Place
       sentence: null,
       alternatives: [],
       teacherBusySlots: 0,
-    };
+    }, reservations: [] };
   }
 
   const subjectSpec = subjectInput(subject, section);
   const compatibleRooms = filterCompatibleRooms(input.usableRooms, subjectSpec);
 
   const reasons = new Set<InsertionReason | 'INDIVIDUALLY_PREVIEWABLE'>();
+  const reservations: PlacementOccupancyLock[] = [];
+  // Only a reviewed distribution MOVE replaces this pair's existing placements.
+  // A preview, manual assignment, or alternative search must retain every lock:
+  // same-subject rows can also represent the section's other occupied periods.
+  const occupancyWithoutCurrentPair = request.replacesExistingPlacement === true
+    ? input.occupancyLocks.filter((lock) => !(lock.sectionId === request.sectionId && lock.subjectId === request.subjectId))
+    : input.occupancyLocks;
   let teacherBusySlots = 0;
   for (const line of demandLines) {
-    const occupancy = occupancyForTerm(input.occupancyLocks, line.termIndex);
+    const occupancy = occupancyForTerm([...occupancyWithoutCurrentPair, ...reservations], line.termIndex);
     const search = searchCandidateSlots(
       { ...line, ownerFacultyId: request.facultyId },
       input.weeklySlots,
@@ -293,11 +357,24 @@ function evaluateOnePlacementLine(input: PlacementEvaluatorInput, request: Place
       subjectSpec,
     );
     teacherBusySlots += search.diagnostic.teacherBusySlots;
-    if (!search.feasible) reasons.add(search.reason);
+    if (!search.feasible) {
+      reasons.add(search.reason);
+      continue;
+    }
+    reservations.push(...search.candidates.map((candidate) => ({
+      sectionId: request.sectionId,
+      subjectId: request.subjectId,
+      facultyId: request.facultyId,
+      roomId: candidate.roomId,
+      day: candidate.day,
+      startTime: candidate.startTime,
+      endTime: candidate.endTime,
+      termIndex: line.termIndex,
+    })));
   }
 
   if (reasons.size === 0) {
-    return {
+    return { verdict: {
       sectionId: request.sectionId,
       subjectId: request.subjectId,
       facultyId: request.facultyId,
@@ -309,11 +386,11 @@ function evaluateOnePlacementLine(input: PlacementEvaluatorInput, request: Place
       sentence: null,
       alternatives: [],
       teacherBusySlots,
-    };
+    }, reservations };
   }
 
   const reason = chooseReason(reasons);
-  return {
+  return { verdict: {
     sectionId: request.sectionId,
     subjectId: request.subjectId,
     facultyId: request.facultyId,
@@ -325,7 +402,7 @@ function evaluateOnePlacementLine(input: PlacementEvaluatorInput, request: Place
     sentence: buildSentence(sectionName, subjectName, facultyName, reason === 'INDIVIDUALLY_PREVIEWABLE' ? 'HARD_CONFLICT' : reason),
     alternatives: findAlternatives(input, request, section, subject, demandLines, compatibleRooms, subjectSpec),
     teacherBusySlots,
-  };
+  }, reservations: [] };
 }
 
 /** A replacement teacher is offered only when every applicable term still fits. */
@@ -340,13 +417,15 @@ function findAlternatives(
 ): PlacementAlternative[] {
   const key = `${request.subjectId}:${(section.programType ?? 'REGULAR').toUpperCase()}`;
   const candidates = input.qualifiedAlternatives?.get(key) ?? [];
+  const occupancyWithoutCurrentPair = input.occupancyLocks;
   const alternatives: PlacementAlternative[] = [];
   for (const candidate of candidates.slice(0, MAX_ALTERNATIVE_CANDIDATES)) {
     if (candidate.facultyId === request.facultyId) continue;
     let fits = true;
     let firstSlot: WeeklySlot | null = null;
+    const reservations: PlacementOccupancyLock[] = [];
     for (const line of demandLines) {
-      const occupancy = occupancyForTerm(input.occupancyLocks, line.termIndex);
+      const occupancy = occupancyForTerm([...occupancyWithoutCurrentPair, ...reservations], line.termIndex);
       const search = searchCandidateSlots(
         { ...line, ownerFacultyId: candidate.facultyId },
         input.weeklySlots,
@@ -359,6 +438,16 @@ function findAlternatives(
         break;
       }
       if (!firstSlot && search.candidates.length > 0) firstSlot = search.candidates[0]!;
+      reservations.push(...search.candidates.map((slot) => ({
+        sectionId: request.sectionId,
+        subjectId: request.subjectId,
+        facultyId: candidate.facultyId,
+        roomId: slot.roomId,
+        day: slot.day,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        termIndex: line.termIndex,
+      })));
     }
     if (fits && firstSlot) {
       alternatives.push({
@@ -518,6 +607,40 @@ async function preparePlacementInput(schoolId: number, schoolYearId: number): Pr
   };
 }
 
+/**
+ * Loads the generator-aligned shape once for a Teaching Load preview. The
+ * returned session deliberately has no database access: candidate ranking is a
+ * deterministic walk over one occupancy snapshot, not a second scheduler.
+ */
+export async function prepareTeachingLoadPlacementPlanner(
+  schoolId: number,
+  schoolYearId: number,
+): Promise<TeachingLoadPlacementPlanner> {
+  try {
+    const prepared = await preparePlacementInput(schoolId, schoolYearId);
+    const evaluated = prepared.demandReady
+      && prepared.input.weeklySlots.length > 0
+      && prepared.input.usableRooms.length > 0;
+    return {
+      demandReady: prepared.demandReady,
+      evaluated,
+      begin(facultyMeta: ReadonlyMap<number, string> = new Map()): PlacementPlanningSession | null {
+        if (!evaluated) return null;
+        return createPlacementPlanningSession({
+          ...prepared.input,
+          facultyMeta: new Map(facultyMeta),
+        });
+      },
+    };
+  } catch {
+    return {
+      demandReady: false,
+      evaluated: false,
+      begin: () => null,
+    };
+  }
+}
+
 async function loadQualificationPolicy(schoolId: number): Promise<QualificationPolicy> {
   const [aliasRows, labelRows, prefixRows, permRows] = await Promise.all([
     db().departmentAlias.findMany({ where: { schoolId }, select: { alias: true, department: true } }),
@@ -601,9 +724,9 @@ async function resolveQualifiedAlternatives(
 
 /**
  * Bounded, zero-write placement check for a small set of requested lines.
- * `demandReady:false` means the canonical demand authority is unavailable: the
- * check then reports every line placeable (it cannot know) rather than locking
- * the operator out of Teaching Load during an unrelated demand outage.
+ * `evaluated:false` means the canonical placement authority is unavailable.
+ * Callers must fail closed: an unknown timetable shape is not proof that a
+ * Teaching Load can be scheduled.
  */
 export async function checkTeachingLoadPlacement(
   schoolId: number,
@@ -611,10 +734,8 @@ export async function checkTeachingLoadPlacement(
   request: PlacementCheckLineRequest[],
 ): Promise<PlacementCheckResult> {
   const prepared = await preparePlacementInput(schoolId, schoolYearId);
-  // Not evaluable: without the canonical demand, a configured day shape, or any
-  // teaching room the check cannot know a slot, so it must not claim a block.
-  // This keeps an unrelated demand/policy/room-setup gap from locking the
-  // operator out of Teaching Load.
+  // Not evaluable: without canonical demand, a configured day shape, or a
+  // teaching room, ATLAS cannot honestly claim that this load will fit.
   if (!prepared.demandReady || prepared.input.weeklySlots.length === 0 || prepared.input.usableRooms.length === 0) {
     return {
       schoolId,
@@ -676,20 +797,19 @@ export async function evaluatePlacementWriteGate(
   schoolYearId: number,
   lines: PlacementCheckLineRequest[],
 ): Promise<PlacementWriteGateResult> {
-  if (lines.length === 0) return { placeable: true, demandReady: true, blockers: [] };
+  if (lines.length === 0) return { placeable: true, demandReady: true, evaluated: true, blockers: [] };
   try {
     const result = await checkTeachingLoadPlacement(schoolId, schoolYearId, lines);
     const blockers = placementBlockersFromVerdicts(result.lines);
-    return { placeable: blockers.length === 0, demandReady: result.demandReady, blockers };
+    return {
+      placeable: result.evaluated && blockers.length === 0,
+      demandReady: result.demandReady,
+      evaluated: result.evaluated,
+      blockers,
+    };
   } catch (error) {
-    // This gate is an advisory guard, not the authority that makes a save
-    // correct: the DB-level ownership/version guards remain authoritative. If
-    // the check itself cannot run (e.g. a data-access context that does not
-    // expose the timetable models), it must not turn a legitimate save into a
-    // server error. The failure is logged, and the operator-facing preview
-    // route still fails loudly.
-    console.warn('[ATLAS] placement check unavailable; save proceeds unchecked:', String((error as Error)?.message ?? error));
-    return { placeable: true, demandReady: false, blockers: [] };
+    console.warn('[ATLAS] placement check unavailable:', String((error as Error)?.message ?? error));
+    return { placeable: true, demandReady: false, evaluated: false, blockers: [] };
   }
 }
 

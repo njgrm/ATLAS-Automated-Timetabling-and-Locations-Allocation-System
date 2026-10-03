@@ -487,9 +487,21 @@ test('A4 RENDERED: an unproven comparison promises no change in BOTH layouts; a 
 		assert.match(proven, /data-drift-claimable="true"/, `${layoutName}: a comparison ATLAS can tie to this run MAY claim a change`);
 		assert.equal(driftSentenceOf(proven), 'Rooms changed.',
 			`${layoutName}: a proven change NAMES the changed area — the server's own changedDomains, not an invented noun`);
-		assert.match(proven, /timetable-simple-regenerate-to-apply/, `${layoutName}: a proven change offers the one primary "Update schedule"`);
-		assert.equal((proven.match(/timetable-simple-regenerate-to-apply/g) ?? []).length, 1,
-			`${layoutName}: and exactly one, never a competing duplicate`);
+		// A7 c14 (operator, 2026-09-30 08:15) — SUPERSEDED for the SIMPLE layout only: the
+		// operator moved `Update schedule` off the row into `More`, so a static-markup
+		// render no longer contains the apply control. (Its More-menu reachability is
+		// decided on the mount by `a7-c14-relaxed-header.test.tsx` row D and
+		// `a2-c11-s2-header-banners.test.tsx`.) The Expert layout is unchanged and keeps
+		// the ONE apply control on its drift row.
+		if (layoutName === 'Simple') {
+			assert.doesNotMatch(proven, /timetable-simple-regenerate-to-apply/,
+				'Simple: the drift line mounts no apply control — "Update schedule" is a More entry now');
+		} else {
+			assert.match(proven, /timetable-simple-regenerate-to-apply/,
+				`${layoutName}: a proven change still offers the one primary "Update schedule"`);
+			assert.equal((proven.match(/timetable-simple-regenerate-to-apply/g) ?? []).length, 1,
+				`${layoutName}: and exactly one, never a competing duplicate`);
+		}
 		// The load-bearing rule's other half, asserted as a NEGATIVE: on a schedule
 		// that really did change, the promise is a lie and must not be printed.
 		assert.doesNotMatch(proven, /This schedule is unchanged/,
@@ -574,30 +586,23 @@ test('A3/C5: the header renders one compact status region and one primary, with 
 		blockingHardCount: 1,
 		summary: { assignedCount: 5, classesProcessed: 5, hardViolationCount: 1, unassignedCount: 0 },
 	});
-	// ── SUPERSEDED IN PLACE, 2026-09-29, A2 HEADER-BUDGET (operator) ──
-	// AGENTS.md §8's "Header budget" caps the `<header>` BOX at two calm rows, and
-	// the in-header status region was the surface that made the box a third band.
-	// The status line is now `SimpleHeaderStatusBand` in
-	// `simple/SimpleHeaderTrailingSurfaces.tsx`, a SIBLING of `</header>`, with
-	// `data-testid="timetable-simple-status-band"`. The structural pin is retained
-	// VERBATIM and is NOT run as pass/fail:
+	// ── SUPERSEDED IN PLACE, 2026-09-30, A7 c14 (operator's 08:15 instruction) ──
+	// The operator capped the header area at ONE control row plus ONE status line under
+	// it. The status surface is the header's OWN `timetable-simple-status-line`, inside
+	// the box, directly under the row — not the former `timetable-simple-status-band`
+	// sibling. Original structural pin retained VERBATIM, not run as pass/fail:
 	//   assert.equal((markup.match(/data-testid="timetable-simple-status-region"/g) ?? []).length, 1, 'exactly one status region');
-	//
-	// THE CLAIM IS UNCHANGED — "exactly one status surface, never two" — only the
-	// element that carries it moved. The two assertions below restate it: exactly
-	// ONE band renders, and the superseded in-box region renders ZERO times, so the
-	// old surface cannot quietly come back alongside the new one.
-	assert.equal((markup.match(/data-testid="timetable-simple-status-band"/g) ?? []).length, 1, 'exactly one status surface');
+	//   assert.equal((markup.match(/data-testid="timetable-simple-status-band"/g) ?? []).length, 1, 'exactly one status surface');
+	assert.equal((markup.match(/data-testid="timetable-simple-status-line"/g) ?? []).length, 1, 'exactly one status surface');
+	assert.equal((markup.match(/data-testid="timetable-simple-status-band"/g) ?? []).length, 0, 'and the superseded sibling status band is gone');
 	assert.equal((markup.match(/data-testid="timetable-simple-status-region"/g) ?? []).length, 0, 'and the superseded in-box status region is gone');
-	// It is a SIBLING of the header box, not a child of it — read on the RENDERED
-	// output, because counting the one element is not enough: a status line mounted
-	// back at the END of the `<header>` would still render exactly once. The box's
-	// own closing tag has to come first. `renderToStaticMarkup` emits no comments,
-	// so this is the element's real closing tag. (This assertion was added after a
-	// mutant that re-mounted the surface inside `</header>` PASSED the rest of the
-	// row; the D1 row in `timetable-header-collapse-c01` records the same finding.)
-	assert.ok(markup.indexOf('</header>') < markup.indexOf('data-testid="timetable-simple-status-band"'),
-		'the one status surface renders after the header box closes — a sibling, not a third row inside it');
+	// It is the header's own second band — read on the RENDERED output: it opens after
+	// the row band and before the header box closes, directly under the row.
+	const rowAt = markup.indexOf('data-testid="timetable-simple-header-row"');
+	const statusAt = markup.indexOf('data-testid="timetable-simple-status-line"');
+	const closeAt = markup.indexOf('</header>');
+	assert.ok(rowAt < statusAt && statusAt < closeAt,
+		'the ONE status line renders after the row opens and inside the header box, directly under it');
 	// C5 — the ONE status chip. It is a row-1 control now, not a child of a status
 	// region, so the message is corrected to the structure that is actually
 	// asserted; the assertion itself is unchanged.
@@ -629,7 +634,14 @@ test('A3/C5: the header renders one compact status region and one primary, with 
 	assert.equal((markup.match(/data-testid="timetable-simple-primary-action"/g) ?? []).length, 0, 'no second lifecycle primary');
 	// A3 — the setup repairs are relocated to the setup sub-page, not the header.
 	assert.doesNotMatch(markup, /timetable-simple-sync-setup/, 'Sync with setup is not a header control');
-	assert.doesNotMatch(markup, /timetable-simple-impact-preview/, 'Preview impact is not a header control');
+	// A7 c14 (operator, 2026-09-30 08:15) — SUPERSEDED: the read-only detail
+	// (`timetable-simple-impact-preview`, "See what changed") now renders INSIDE the ONE
+	// status line, which packet §2 requires. It is still never a control on the row.
+	const previewAt = markup.indexOf('data-testid="timetable-simple-impact-preview"');
+	if (previewAt >= 0) {
+		assert.ok(previewAt > statusAt,
+			'the read-only detail renders in the ONE status line, never as a control on the row');
+	}
 	// SUPERSEDED (DRAFT-UX-C01): assert.match(markup, /data-testid="timetable-simple-review-setup"/, 'one labelled way to the setup repairs remains');
 	assert.match(source('src/components/timetable/simple/SimpleHeaderActions.tsx'), /data-testid="timetable-simple-review-setup"/, 'one labelled way to the setup repairs remains (in More)');
 	// Status key, Tutorial and Day options are not header controls any more.
@@ -679,48 +691,42 @@ test('C5: the status band carries no band chrome and the action row adds no bott
 	//     this one", which is what the count assertions decide.
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
 	const statusStrip = source('src/components/timetable/simple/SimpleHeaderStatusStrip.tsx');
-	const trailing = source('src/components/timetable/simple/SimpleHeaderTrailingSurfaces.tsx');
-	// DISCRIMINATION: the pin names the file that owns the status markup, so a
-	// silent move of it into some third module fails here rather than passing by
-	// reading an empty string.
-	assert.match(trailing, /data-testid="timetable-simple-status-band"/,
-		'the status line markup lives in the trailing surfaces module');
-	assert.match(header, /<SimpleHeaderTrailingSurfaces/,
-		'and the header renders that surface, so the line is actually mounted');
+	const statusLineModule = source('src/components/timetable/simple/SimpleHeaderStatusLine.tsx');
+	// A7 c14 (operator, 2026-09-30 08:15) — SUPERSEDED: the ONE status line is now
+	// `data-testid="timetable-simple-status-line"`, owned by
+	// `simple/SimpleHeaderStatusLine.tsx`, and rendered as the header's own second band
+	// directly under the row. The old sibling module no longer owns a status band.
+	assert.match(statusLineModule, /data-testid="timetable-simple-status-line"/,
+		'the status line markup lives in its own status-line module');
+	assert.match(header, /<SimpleHeaderStatusLine/,
+		'and the header renders that line, so the line is actually mounted');
 	// The module the header no longer uses is untouched and still exported, so this
 	// row cannot pass by reading an empty file.
 	assert.match(statusStrip, /data-testid="timetable-simple-status-region"/,
 		'the superseded status-strip module still owns its own region for the Expert surface');
-	assert.equal((header.match(/<SimpleHeaderTrailingSurfaces/g) ?? []).length, 1,
-		'exactly one trailing surface is mounted — the status line cannot be doubled');
-	// EXACTLY ONE status line across the whole header surface. A second copy in
-	// EITHER file still fails this row.
-	assert.equal((`${header}\n${trailing}`.match(/data-testid="timetable-simple-status-band"/g) ?? []).length, 1,
+	assert.equal((header.match(/<SimpleHeaderStatusLine/g) ?? []).length, 1,
+		'exactly one status line is mounted — the line cannot be doubled');
+	assert.equal((statusLineModule.match(/data-testid="timetable-simple-status-line"/g) ?? []).length, 1,
 		'exactly one status line element');
 	// NO CARD CHROME on the line: no margin band, no rounded card, no shadow.
-	const bandTag = trailing.match(/<div[^>]*data-testid="timetable-simple-status-band"[^>]*>/)?.[0];
+	const bandTag = statusLineModule.match(/<div[^>]*data-testid="timetable-simple-status-line"[^>]*>/)?.[0];
 	assert.ok(bandTag, 'the status line still renders');
 	assert.doesNotMatch(bandTag, /mt-1|mb-1|rounded-|shadow-|ring-/,
 		'the status line renders no bordered/padded card band of its own');
-	// NO EXTRA BAND PADDING BELOW THE HEADER BOX. Read as the THINNESS of the one
-	// line plus the fact that nothing else follows the box: a second padded band,
-	// or a line that grows, fails here.
 	assert.match(bandTag, /py-1/, 'the status line keeps its one thin line of padding');
 	assert.doesNotMatch(bandTag, /py-[2-9]|py-\[|pb-[2-9]|pt-[2-9]/,
 		'and that line never grows into a band');
-	// The header BOX itself is the two rows and nothing else: exactly one row band,
-	// the line is mounted after the box rather than inside it, and the box's own
-	// element is the one §8 bounds. (A `</header>` COUNT is deliberately not used:
-	// the file's record comments quote the tag in prose, so counting it would read
-	// a comment. This reads the element's own literal and its position instead.)
+	// The line is the header's own SECOND band: exactly one row band, and the ONE status
+	// line is mounted INSIDE the box, directly under the row. (A `</header>` COUNT is
+	// deliberately not used: the file's record comments quote the tag in prose.)
 	assert.equal((header.match(/data-testid="timetable-simple-header-row"/g) ?? []).length, 1,
 		'exactly one header row band');
 	assert.equal((header.match(/data-testid="timetable-simple-status-band"/g) ?? []).length, 0,
-		'the status line is not inside the header box');
+		'the superseded sibling status band is not in the header either');
 	const headerBoxAt = header.indexOf('<header className="shrink-0 border-b border-border bg-background" data-testid="timetable-simple-header">');
 	assert.ok(headerBoxAt >= 0, 'the header box element is the one §8 bounds');
-	assert.ok(header.indexOf('<SimpleHeaderTrailingSurfaces') > headerBoxAt,
-		'and the status line is mounted AFTER the box, as a sibling, not inside it');
+	assert.ok(header.indexOf('<SimpleHeaderStatusLine') > headerBoxAt,
+		'and the ONE status line is mounted INSIDE the box, under the row, never as a sibling band');
 });
 
 test('C6: the primary action leads the narrow action strip and returns inline at lg', () => {

@@ -542,9 +542,10 @@ test('ROW 4 MUTANT (this row is the mutant’s target, and it is a REAL assertio
 	assert.ok(banner, 'the armed swap is signalled — so the containment row below cannot pass vacuously');
 	assert.equal(header.contains(banner!), false, 'MUTANT KILLED HERE: the swap banner is never a child of the header element');
 	// The second mutant-sensitive consequence: with the banner back inside, the
-	// header box would carry a SECOND text band. Asserted separately so the
-	// count row and the containment row cannot be satisfied by one fix.
-	assert.equal(headerBands(header).length, 1, 'MUTANT KILLED HERE TOO: the banner is not a band of the header box');
+	// header box would carry a THIRD text band. A7 c14 (operator, 2026-09-30 08:15)
+	// SUPERSEDED the old count of ONE: the box is now the ONE control row plus the ONE
+	// status line. The banner is still not a band of the box. Re-pinned, not deleted.
+	assert.equal(headerBands(header).length, 2, 'MUTANT KILLED HERE TOO: the banner adds no band — the box is the row plus the status line');
 });
 
 // ═══ ROW 5 — REGRESSION: the move cost no control ══════════════════════════

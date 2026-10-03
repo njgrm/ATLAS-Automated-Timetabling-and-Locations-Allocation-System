@@ -182,7 +182,8 @@
     "test:a7-c13-clip": "tsx --test src/components/timetable/__tests__/a7-c13-clip.test.tsx src/components/timetable/__tests__/a7-c13-dom.test.tsx",
     "test:a5-unassigned-panel": "node --experimental-test-module-mocks --import tsx --test --test-force-exit src/components/timetable/__tests__/a5-unassigned-panel.test.tsx && node --experimental-test-module-mocks --import tsx --test --test-force-exit src/components/timetable/__tests__/a5-unassigned-panel-autocommit.test.tsx",
     "test:timetable-break-block-c01": "tsx --test src/lib/__tests__/timetable-break-block-c01.test.ts",
-    "test:vocab-state-model-c01": "tsx --test src/lib/__tests__/vocab-state-model-c01.test.ts"
+    "test:vocab-state-model-c01": "tsx --test src/lib/__tests__/vocab-state-model-c01.test.ts",
+    "test:a7-c14-relaxed-header": "tsx --test src/components/timetable/__tests__/a7-c14-relaxed-header.test.tsx"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

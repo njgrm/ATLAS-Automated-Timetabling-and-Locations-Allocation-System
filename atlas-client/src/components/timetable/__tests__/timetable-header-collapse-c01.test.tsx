@@ -423,20 +423,23 @@ test('D1 the header renders exactly one row band holding the one status region a
 	const markup = renderHeader(CLEAN_UNPUBLISHED);
 
 	// Exactly one status SURFACE and exactly one header row band.
-	// ── SUPERSEDED IN PLACE, 2026-09-29, A2 HEADER-BUDGET (operator) ──
-	// AGENTS.md §8's "Header budget" caps the `<header>` BOX at two calm rows, so
-	// the in-box status region became a third band and the whole status line moved
-	// out of the box to a SIBLING: `SimpleHeaderStatusBand` in
-	// `simple/SimpleHeaderTrailingSurfaces.tsx`, `data-testid="timetable-simple-status-band"`.
-	// The original assertion is retained VERBATIM and is NOT run as pass/fail:
+	// ── SUPERSEDED IN PLACE, 2026-09-30, A7 c14 (operator's 08:15 instruction) ──
+	// The operator capped the header area at ONE control row plus ONE status line
+	// under it. The status surface is therefore the header's OWN
+	// `timetable-simple-status-line` (inside the box, under the row), not the former
+	// `timetable-simple-status-band` sibling. Original assertion retained VERBATIM,
+	// not run as pass/fail:
 	//   assert.equal((markup.match(/data-testid="timetable-simple-status-region"/g) ?? []).length, 1, 'exactly one status region may render');
-	// The CLAIM is unchanged — exactly one status surface, never two — so it is
-	// restated on the element that now carries it, AND the superseded in-box region
-	// is asserted at zero so the old surface cannot return alongside the new one.
+	//   assert.equal((markup.match(/data-testid="timetable-simple-status-band"/g) ?? []).length, 1, 'exactly one status surface may render');
 	assert.equal(
-		(markup.match(/data-testid="timetable-simple-status-band"/g) ?? []).length,
+		(markup.match(/data-testid="timetable-simple-status-line"/g) ?? []).length,
 		1,
 		'exactly one status surface may render',
+	);
+	assert.equal(
+		(markup.match(/data-testid="timetable-simple-status-band"/g) ?? []).length,
+		0,
+		'the superseded sibling status band is gone',
 	);
 	assert.equal(
 		(markup.match(/data-testid="timetable-simple-status-region"/g) ?? []).length,
@@ -454,46 +457,45 @@ test('D1 the header renders exactly one row band holding the one status region a
 		(markup.match(/data-testid="timetable-simple-primary-action"/g) ?? []).length <= 1,
 		'never two lifecycle primaries',
 	);
-	// The status chip renders — it is a row-1 control now rather than a child of
-	// the status region, so the message is corrected to the structure asserted.
+	// The status chip renders — inside the status line now.
 	assert.match(markup, /data-testid="timetable-simple-readiness-chip"/);
 
 	// Source structure: the row band opens before the first action-row control, and
-	// the ONE status line opens after the row band's contents — it is a sibling of
-	// the box, so "before the action controls" is no longer what it means.
+	// the ONE status line opens AFTER the row's contents.
 	//   const regionAt = markup.indexOf('data-testid="timetable-simple-status-region"');
 	//   assert.ok(regionAt < actionAt, 'the status region and the action controls share the one row band');
 	// retained verbatim above and superseded, because the line no longer shares the
 	// row band. What replaces it is the same ordering claim about the new element,
-	// and it still discriminates: a status line mounted back inside the box would
-	// render BEFORE the action controls and fail this.
+	// read from the RENDERED output: the row band opens before the status line.
 	const rowAt = markup.indexOf('data-testid="timetable-simple-header-row"');
-	const bandAt = markup.indexOf('data-testid="timetable-simple-status-band"');
+	const bandAt = markup.indexOf('data-testid="timetable-simple-status-line"');
 	const actionAt = markup.indexOf('data-testid="timetable-simple-term-switcher"');
 	assert.ok(rowAt >= 0, 'the row band renders');
 	assert.ok(bandAt >= 0, 'the one status line renders');
 	assert.ok(rowAt < actionAt, 'the one row band opens before the first action-row control');
-	// THE DECISIVE HALF, and it is on the RENDERED output rather than on an
-	// ordering between two testids. An earlier draft of this row compared
-	// `actionAt < bandAt` alone, and that is NOT sufficient: a status line moved
-	// back to the END of the `<header>` element still renders after the action
-	// controls and would have satisfied it. This row was checked against that
-	// exact mutant (the surface re-mounted inside `</header>`) and it passed, so
-	// the comparison below was added. The header box's own closing tag must come
-	// BEFORE the status line, which is only true when the line is a sibling of the
-	// box and not a child of it. `renderToStaticMarkup` emits no comments, so the
-	// first `</header>` is the element's real closing tag.
+	// THE DECISIVE HALF, and it is on the RENDERED output: A7 c14 puts the status line
+	// INSIDE the header box, directly under the row. Its opening tag must therefore
+	// come AFTER the row band opens and BEFORE the header box closes. The old
+	// sibling claim (`headerCloseAt < bandAt`) is superseded by this one, which still
+	// discriminates: a status line moved OUT of the box would render after `</header>`
+	// and fail the `bandAt < headerCloseAt` half.
 	const headerCloseAt = markup.indexOf('</header>');
 	assert.ok(headerCloseAt >= 0, 'the header box closes');
 	assert.equal((markup.match(/<\/header>/g) ?? []).length, 1, 'the header box closes exactly once');
-	assert.ok(headerCloseAt < bandAt, 'and the one status line renders AFTER the header box closes — a sibling of it, not inside it');
+	assert.ok(rowAt < bandAt, 'the ONE status line renders after the control row opens');
+	assert.ok(bandAt < headerCloseAt, 'and the ONE status line renders INSIDE the header box, directly under the row');
 });
 
 test('D1 at ≥1366px the header uses bounded wrapping rows instead of a horizontal strip', () => {
 	const markup = renderHeader(CLEAN_UNPUBLISHED);
 
 	const rowClasses = classOf(tagFor(markup, 'timetable-simple-header-row'));
-	assert.match(rowClasses, /flex-col/);
+	/* A7 c14 (operator, 2026-09-30 08:15) — SUPERSEDED: the row band used to be a
+	 * `flex-col` STACK of two rows; it is now the ONE control row itself, so `flex-col`
+	 * is replaced by the no-horizontal-strip mechanism (`lg:flex-nowrap` + `min-w-0`).
+	 * Re-pinned, not deleted (AGENTS.md §16). */
+	assert.doesNotMatch(rowClasses, /flex-col/);
+	assert.match(rowClasses, /lg:flex-nowrap/);
 	assert.doesNotMatch(rowClasses, /wide:flex-row|wide:flex-nowrap|overflow-x-auto/);
 	// MECHANISM SUPERSEDED 2026-09-28 (A2 C12 item 1, on Lane C's 21:10 ruling that
 	// the header must be at most 2 VISUAL rows at 1366 px). These two rows used to
@@ -525,7 +527,10 @@ test('D1 at ≥1366px the header uses bounded wrapping rows instead of a horizon
 	// must carry `lg:flex-nowrap`. That discriminates in both directions — a row
 	// that lost the token fails, and so does one that grows a `wide:flex-row`
 	// override, because the assertion names the `lg:` variant specifically.
-	const controlRowTag = markup.match(/<div[^>]*data-testid="timetable-simple-header-row-2"[^>]*>/)?.[0];
+	// A7 c14 (operator, 2026-09-30 08:15) — SUPERSEDED: the control row is the ONE row
+	// band (`timetable-simple-header-row`); the old `-row-2` is gone. Same claim, read
+	// from the row that now owns it.
+	const controlRowTag = markup.match(/<div[^>]*data-testid="timetable-simple-header-row"[^>]*>/)?.[0];
 	assert.ok(controlRowTag, 'the control row renders');
 	assert.match(controlRowTag, /lg:flex-nowrap/,
 		'the control row does not wrap from lg up, so it is ONE visual line at 1366 px');
@@ -566,14 +571,19 @@ test('C1 the rendered header has no horizontal strip overflow at desktop widths'
 	// string no longer describes it. The `[^"]*` tail is the mechanical fix; the
 	// no-horizontal-strip claim above is unchanged, and the mechanism is asserted
 	// explicitly in the D1 row above.
-	assert.match(markup, /class="flex min-w-0 flex-wrap items-center gap-1\.5 px-3[^"]*"/);
+	// A7 c14 (operator, 2026-09-30 08:15): the ONE control row keeps `px-3` but uses
+	// `gap-2`; the class is re-pinned to the row the header now renders.
+	assert.match(markup, /class="flex min-w-0 flex-wrap items-center gap-2 px-3[^"]*"/);
 });
 
 test('D1 the mobile schedule entity sheet remains available', () => {
 	const markup = renderHeader(CLEAN_UNPUBLISHED);
 
 	// The inline switcher is for desktop; the sheet remains for touch-sized layouts.
-	const switcher = markup.match(/class="(hidden min-w-0 flex-1 lg:flex[^"]*)"/)?.[1];
+	// A7 c14 (operator, 2026-09-30 08:15) — SUPERSEDED: the desktop face is now the
+	// `hidden min-w-0 lg:flex` wrapper on the ONE control row (the old row-1/row-2 split
+	// is gone). Same property: hidden below `lg`, shown from `lg`.
+	const switcher = markup.match(/class="(hidden min-w-0 lg:flex[^"]*)"/)?.[1];
 	assert.ok(switcher, 'the inline switcher must render');
 	assert.match(switcher, /lg:flex/, 'the inline switcher shows from lg');
 	const trigger = classOf(tagFor(markup, 'timetable-simple-schedule-sheet-trigger'));

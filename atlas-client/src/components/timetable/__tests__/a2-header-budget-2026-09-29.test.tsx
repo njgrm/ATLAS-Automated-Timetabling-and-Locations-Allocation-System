@@ -487,32 +487,43 @@ function headerRowStack(host: Element): { bands: HTMLElement[]; rows: HTMLElemen
 	return { bands, rows, header };
 }
 
-test('H1 STRUCTURAL (JSDOM HAS NO LAYOUT ENGINE — this is NOT a pixel row), state A: the header box stacks exactly TWO rows and nothing else', () => {
-	const { bands, rows } = headerRowStack(headerTree(headerMarkup(stateAContext(), undoControl())));
-	assert.equal(bands.length, 1,
-		`the header box paints exactly one band, the row band; it painted ${bands.length}`);
-	assert.equal(bands[0].getAttribute('data-testid'), 'timetable-simple-header-row', 'and that band is the row band');
-	assert.equal((bands[0].getAttribute('class') ?? '').includes('flex-col'), true,
-		'and it really is a column, so the row count follows from the child count');
-	assert.equal(rows.length, 2, `the row band stacks exactly two rows; it stacked ${rows.length}`);
-	assert.equal(rows[0].getAttribute('data-testid'), 'timetable-simple-header-row-1', 'row 1');
-	assert.equal(rows[1].getAttribute('data-testid'), 'timetable-simple-header-row-2', 'row 2');
-	// DISCRIMINATION: row 1 really carries the title and the tabs, so this row is
-	// not satisfied by an empty band.
-	assert.ok(q(rows[0], 'timetable-page-heading'), 'row 1 carries the page title');
-	assert.ok(q(rows[0], 'timetable-sub-nav'), 'row 1 carries the tabs');
-	// …and row 2 really carries the three pickers.
-	assert.ok(q(rows[1], 'timetable-simple-term-filter'), 'row 2 carries the Term picker');
-	assert.ok(q(rows[1], 'timetable-simple-view-mode-select'), 'row 2 carries the Show picker');
-	assert.ok(q(rows[1], 'timetable-simple-entity-select'), 'row 2 carries the Schedule for picker');
+test('H1 STRUCTURAL (JSDOM HAS NO LAYOUT ENGINE — this is NOT a pixel row), state A: the header box paints the ONE control row plus the ONE status line and nothing else', () => {
+	/* A7 c14 (operator, 2026-09-30 08:15 — "above the grid only ONE row … plus ONE
+	 * plain status line under the row"). SUPERSEDED: this row used to assert ONE band
+	 * that stacked a title/tabs row and a picker row. The accepted contract now has
+	 * TWO painting bands — the ONE control row and the ONE status line — and the tabs
+	 * move into `More`. The assertion is re-pinned, not deleted (AGENTS.md §16). */
+	const host = headerTree(headerMarkup(stateAContext(), undoControl()));
+	const header = host.querySelector('[data-testid="timetable-simple-header"]') as HTMLElement;
+	const bands = headerBands(header);
+	assert.equal(bands.length, 2,
+		`the header box paints exactly two bands — the control row and the ONE status line; it painted ${bands.length}`);
+	assert.equal(bands[0].getAttribute('data-testid'), 'timetable-simple-header-row', 'band 1 is the ONE control row');
+	assert.equal(bands[1].getAttribute('data-testid'), 'timetable-simple-status-line', 'band 2 is the ONE status line');
+	// …and the control row is a real single flex row (wrapping below `lg`).
+	assert.equal((bands[0].getAttribute('class') ?? '').includes('lg:flex-nowrap'), true,
+		'the control row holds one visual line from `lg` up');
+	// DISCRIMINATION: the row really carries the named controls, so this is not an
+	// empty band.
+	assert.ok(q(bands[0], 'timetable-page-heading'), 'the row carries the page title');
+	assert.ok(q(bands[0], 'timetable-simple-term-filter'), 'and the Term picker');
+	assert.ok(q(bands[0], 'timetable-simple-view-mode-select'), 'and the Show picker');
+	assert.ok(q(bands[0], 'timetable-simple-entity-select'), 'and the Schedule for picker');
+	assert.ok(q(bands[0], 'timetable-simple-more-trigger'), 'and More');
+	// A7 c14: the tab band is NOT above the grid — it moved into More (decision 2's
+	// guard is decided by `a7-c14-relaxed-header.test.tsx` row D).
+	assert.equal(q(bands[0], 'timetable-sub-nav'), null, 'no tab band in the control row');
+	// …and the status line really carries the ONE readiness/warnings control.
+	assert.ok(q(bands[1], 'timetable-simple-warnings-control'), 'the status line carries the readiness control');
 });
 
-test('H1 STRUCTURAL (JSDOM HAS NO LAYOUT ENGINE — this is NOT a pixel row), state B: the header box still stacks exactly TWO rows with a draft on screen', () => {
-	const { bands, rows } = headerRowStack(headerTree(headerMarkup(stateBContext(), undoControl())));
-	assert.equal(bands.length, 1, `exactly one band with a draft run on screen; got ${bands.length}`);
-	assert.equal(rows.length, 2, `still exactly two rows; got ${rows.length}`);
-	assert.equal(rows[0].getAttribute('data-testid'), 'timetable-simple-header-row-1', 'row 1');
-	assert.equal(rows[1].getAttribute('data-testid'), 'timetable-simple-header-row-2', 'row 2');
+test('H1 STRUCTURAL (JSDOM HAS NO LAYOUT ENGINE — this is NOT a pixel row), state B: the header box paints the same ONE control row and ONE status line with a draft on screen', () => {
+	const host = headerTree(headerMarkup(stateBContext(), undoControl()));
+	const header = host.querySelector('[data-testid="timetable-simple-header"]') as HTMLElement;
+	const bands = headerBands(header);
+	assert.equal(bands.length, 2, `still exactly two bands with a draft run on screen; got ${bands.length}`);
+	assert.equal(bands[0].getAttribute('data-testid'), 'timetable-simple-header-row', 'band 1 is the control row');
+	assert.equal(bands[1].getAttribute('data-testid'), 'timetable-simple-status-line', 'band 2 is the status line');
 });
 
 // ═══ H2 — ONE STATUS CHIP ══════════════════════════════════════════════════
@@ -805,17 +816,24 @@ test('H5 state A: nothing placed means no `Discard`, no undo cluster inside the 
 	assert.equal(header.querySelector('[data-testid="timetable-undo-redo-control"]'), null,
 		'the Undo / Redo / History cluster is not rendered when nothing can act on it');
 	assert.ok(q(host, 'timetable-simple-more-trigger'), '`More` is still on screen — the menu is never the thing that disappears');
-	assert.equal(headerBands(header).length, 1, 'and the header box still paints only the one row band');
-	assert.equal(headerBands(header)[0].children.length, 2, 'which still stacks exactly two rows');
+	// A7 c14 (operator, 2026-09-30 08:15) — SUPERSEDED: the header box is now the ONE
+	// control row plus the ONE status line (not one band stacking two rows).
+	assert.equal(headerBands(header).length, 2, 'and the header box paints the control row and the ONE status line');
+	assert.equal(headerBands(header)[0].getAttribute('data-testid'), 'timetable-simple-header-row', 'band 1 is the control row');
+	assert.equal(headerBands(header)[1].getAttribute('data-testid'), 'timetable-simple-status-line', 'band 2 is the status line');
 });
 
 test('H5 state B, idle history: a draft with `editHistoryCount === 0` and no redo still hides the undo cluster', () => {
 	const host = headerTree(headerMarkup(stateBContext({ editHistoryCount: 0 }), undoControl({ editHistoryCount: 0 })));
 	assert.equal(q(host, 'timetable-undo-redo-control'), null,
 		'an empty edit history and no redo is "nothing to act on", so the cluster is hidden');
-	// DISCRIMINATION: the DRAFT actions themselves ARE on screen now, so this row is
-	// not passing because row 2 rendered nothing.
-	assert.ok(q(host, 'timetable-draft-strip-discard'), 'a draft exists, so `Discard draft` is on screen in state B');
+	// DISCRIMINATION: the header really rendered the run on screen, so this row is not
+	// passing because the header rendered nothing. A7 c14 (operator, 2026-09-30 08:15)
+	// superseded the old `timetable-draft-strip-discard` discrimination: the draft
+	// actions now live ONLY in `More`, so the run's own presence in the status line is
+	// the non-vacuity signal here (the draft actions are decided by H8/H12-F4).
+	assert.match(visibleText(q(host, 'timetable-run-identity')!), /Edit — teachers and students cannot see it yet\. \(Run 321\)/,
+		'a draft run is on screen, so the header is not empty');
 });
 
 test('H5 state B with history: `editHistoryCount === 3` renders the cluster with all three controls', () => {
@@ -835,30 +853,27 @@ test('H5 state B with history: `editHistoryCount === 3` renders the cluster with
 
 // ═══ H6 — NO HELPER SENTENCE UNDER A BUTTON ════════════════════════════════
 
-test('H6 state B: `Edit` / `Discard` have NO visible reason, the reason is in a @/ui tooltip, and `aria-label` still carries it', () => {
-	const host = headerTree(headerMarkup(stateBContext({ hasSelectedEntry: false }), undoControl()));
-	// No selection => `Edit draft` is disabled, which is exactly the state where the
-	// operator saw a sentence printed under the button.
-	const edit = q(host, 'timetable-draft-strip-edit');
-	assert.ok(edit, '`Edit draft` is on screen in state B');
-	assert.equal(edit!.hasAttribute('disabled'), true, 'it is the disabled control under test');
-	// The reason is the PRODUCTION constant, so this row cannot pass while the
-	// control's own aria-label drifted away from it.
-	const expected = DRAFT_EDIT_NEEDS_SELECTION;
-	assert.equal(q(host, 'timetable-draft-strip-edit-reason'), null,
-		'NO visible sibling reason element is rendered under `Edit`');
-	assert.equal(edit!.getAttribute('aria-label'), `${EDIT_STATE_LABEL} — ${expected}`,
-		'and the disabled control\'s aria-label still carries the reason verbatim, so nothing depends on a hover');
-	// The reason is REACHABLE: it is a `@/ui` Tooltip on the focusable wrapper the
-	// disabled button sits in, and the wrapper is in the tab order.
-	const wrapper = edit!.parentElement;
-	assert.ok(wrapper, 'the disabled button is wrapped');
-	assert.equal(wrapper!.tagName.toLowerCase(), 'span', 'in a wrapper span (a disabled button cannot fire a Radix tooltip)');
-	assert.equal(wrapper!.getAttribute('tabindex'), '0', 'and that wrapper is focusable, so the reason is reachable by keyboard');
-
-	const discard = q(host, 'timetable-draft-strip-discard');
-	assert.ok(discard, '`Discard draft` is on screen in state B');
-	assert.equal(q(host, 'timetable-draft-strip-discard-reason'), null, 'and no visible reason under `Discard draft` either');
+test('H6 state B: the disabled `Edit draft` still states its reason in REACHABLE, non-hover-only words — now on its `More`-menu row', async () => {
+	/* A7 c14 (operator, 2026-09-30 08:15) — SUPERSEDED: `Edit draft` is no longer a
+	 * header-row control, so the row-2 `@/ui` Tooltip this row used to read does not
+	 * exist any more. Its PURPOSE is unchanged — a disabled draft action must state its
+	 * reason where the operator can reach it, never in a hover-only native `title` — and
+	 * it is decided on the one surface the action now lives on: its `More` menu row,
+	 * which prints the reason as VISIBLE text. Re-pinned, not deleted (AGENTS.md §16). */
+	const view = mountHeader(stateBContext({ hasSelectedEntry: false }), undoControl());
+	const menu = await view.openMenu('timetable-simple-more-trigger');
+	assert.ok(menu, 'the More menu opens through the production trigger');
+	const edit = menu!.querySelector('[data-testid="timetable-simple-edit-draft-action"]') as HTMLElement | null;
+	assert.ok(edit, '`Edit draft` is on screen in state B (inside More)');
+	assert.ok(edit!.hasAttribute('data-disabled') || edit!.getAttribute('aria-disabled') === 'true',
+		'it is the disabled control under test (a Radix menu row marks disabled with `data-disabled`)');
+	assert.equal(edit!.hasAttribute('title'), false, 'the reason is never a native `title`');
+	const reason = menu!.querySelector('[data-testid="timetable-edit-draft-blocked-reason"]') as HTMLElement | null;
+	assert.ok(reason, 'the reason is a VISIBLE sibling element, reachable without a hover');
+	assert.match(reason!.textContent ?? '', /Pick a class on the grid first/,
+		'and it is the truthful reason, in words the operator reads');
+	const discard = menu!.querySelector('[data-testid="timetable-more-discard-draft"]');
+	assert.ok(discard, 'and `Discard draft` is reachable from the same menu');
 });
 
 test('H6 state A: `Discard draft` is absent entirely, so it can print no reason', () => {
@@ -876,13 +891,17 @@ test('H7 state A: all three row-2 pickers carry the ONE shared @/ui chrome, a no
 	assertNoTruncation('state A', host.querySelector('[data-testid="timetable-simple-header"]') as HTMLElement);
 
 	const header = host.querySelector('[data-testid="timetable-simple-header"]') as HTMLElement;
-	const row2 = q(header, 'timetable-simple-header-row-2');
-	assert.ok(row2, 'row 2 exists');
+	/* A7 c14 (operator, 2026-09-30 08:15) — SUPERSEDED: the pickers moved from a
+	 * separate row 2 into the ONE control row, so `timetable-simple-header-row-2` no
+	 * longer exists. The claim is unchanged — all three pickers carry the ONE shared
+	 * `@/ui` chrome — and is read from the ONE control row. Re-pinned, not deleted. */
+	const row = q(header, 'timetable-simple-header-row');
+	assert.ok(row, 'the ONE control row exists');
 	const chromeTokens = (SHARED_PICKER_CLASS as string).split(/\s+/);
 	const triggers: Record<string, HTMLElement | null> = {
 		Term: q(header, 'timetable-simple-term-filter'),
 		Show: q(header, 'timetable-simple-view-mode-select'),
-		'Schedule for': row2.querySelector('button[role="combobox"]'),
+		'Schedule for': row!.querySelector('button[role="combobox"]'),
 	};
 	for (const [name, trigger] of Object.entries(triggers)) {
 		assert.ok(trigger, `the ${name} picker trigger is rendered`);
@@ -1201,8 +1220,11 @@ test('H11 SOURCE-SHAPE ROW: the draft-ux-c01 statement that OOMed on 2026-09-29 
  * row fails on it. */
 test('H12 F1 state B: the run\'s state is stated ONCE in the band — the sentence survives with its run number, the restatement is gone', () => {
 	const host = headerTree(headerMarkup(stateBContext(), undoControl()));
-	const band = q(host, 'timetable-simple-status-band');
-	assert.ok(band, 'the trailing status band is on screen (otherwise this row is vacuous)');
+	/* A7 c14 (operator, 2026-09-30 08:15) — SUPERSEDED: the trailing status band is now
+	 * the header's own ONE status line (`timetable-simple-status-line`). Same body,
+	 * same claim. Re-pinned, not deleted. */
+	const band = q(host, 'timetable-simple-status-line');
+	assert.ok(band, 'the ONE status line is on screen (otherwise this row is vacuous)');
 	const identity = q(band, 'timetable-run-identity');
 	assert.ok(identity, 'the run-identity clause is on screen');
 	assert.match(visibleText(identity), new RegExp(`${EDIT_STATE_LABEL} — teachers and students cannot see it yet\\. \\(Run 321\\)`),
@@ -1238,8 +1260,9 @@ test('H12 F1 state B: the run\'s state is stated ONCE in the band — the senten
  * DISCRIMINATION: deleting the separator is a one-line change and this row fails. */
 test('H12 F2 state B: a real separator sits BETWEEN the run clause and the amber term notice, and belongs to neither', () => {
 	const host = headerTree(headerMarkup(stateBContext(), undoControl()));
-	const band = q(host, 'timetable-simple-status-band');
-	assert.ok(band, 'the trailing status band is on screen');
+	/* A7 c14 — the band is the header's own `timetable-simple-status-line` now. */
+	const band = q(host, 'timetable-simple-status-line');
+	assert.ok(band, 'the ONE status line is on screen');
 	const identity = q(band, 'timetable-run-identity');
 	const notice = q(band, 'timetable-term-authority-unverified');
 	// NON-VACUITY: the separator row is only meaningful with BOTH facts on screen,
@@ -1349,7 +1372,10 @@ test('H12 F4 state A: row 2 renders NO draft control at all — with no draft on
 	const host = headerTree(headerMarkup(stateAContext(), undoControl()));
 	// DISCRIMINATION, PART 1: state A really is the no-draft state, so this row is
 	// not passing because the strip rendered nothing for an unrelated reason.
-	assert.equal(q(host, 'timetable-run-identity'), null,
+	// A7 c14 (operator, 2026-09-30 08:15) — SUPERSEDED: the ONE status line always
+	// renders, and with no run it says the plain next step. There is still no RUN to
+	// edit, which is what this half decides. Re-pinned, not deleted (AGENTS.md §16).
+	assert.match(visibleText(q(host, 'timetable-run-identity')!), /Ready to build a schedule/,
 		'there is no run on screen in state A, so there is no draft to act on');
 	assert.equal(q(host, 'timetable-draft-strip-edit'), null,
 		'`Edit draft` renders NOTHING in state A — the dead button the reviewer named is gone');
@@ -1372,15 +1398,21 @@ test('H12 F4 state A: row 2 renders NO draft control at all — with no draft on
 		'and row 2 introduces no other draft control in its place');
 });
 
-test('H12 F4 state B: a draft IS on screen, so BOTH draft controls stay — the fix hides the dead one, not the verb', () => {
-	const host = headerTree(headerMarkup(stateBContext(), undoControl()));
-	assert.ok(q(host, 'timetable-draft-strip-edit'),
-		'`Edit draft` is still on screen in state B (a real draft is there to edit)');
-	assert.ok(q(host, 'timetable-draft-strip-discard'),
+test('H12 F4 state B: a draft IS on screen, so BOTH draft verbs stay REACHABLE — in `More`, where A7 c14 put them', async () => {
+	/* A7 c14 (operator, 2026-09-30 08:15) — SUPERSEDED: `Edit draft` / `Discard draft`
+	 * are no longer row-2 controls; the operator moved them into `More`. The PURPOSE is
+	 * unchanged — a draft on screen must not lose either verb — so both are read from
+	 * the menu that now owns them. Re-pinned, not deleted (AGENTS.md §16). */
+	const view = mountHeader(stateBContext(), undoControl());
+	const header = view.host.querySelector('[data-testid="timetable-simple-header"]') as HTMLElement;
+	assert.equal(header.querySelector('[data-testid="timetable-draft-strip-edit"]'), null,
+		'`Edit draft` is not a header-row control any more');
+	assert.equal(header.querySelector('[data-testid="timetable-draft-strip-discard"]'), null,
+		'and neither is `Discard draft`');
+	const menu = await view.openMenu('timetable-simple-more-trigger');
+	assert.ok(menu, 'the More menu opens through the production trigger');
+	assert.ok(menu!.querySelector('[data-testid="timetable-simple-edit-draft-action"]'),
+		'`Edit draft` is still reachable in state B (a real draft is there to edit)');
+	assert.ok(menu!.querySelector('[data-testid="timetable-more-discard-draft"]'),
 		'and so is `Discard draft`');
-	// It is the DISABLED shape the reviewer accepted for state B, with the reason in
-	// a `@/ui` tooltip and the aria-label — H6 above already owns the tooltip half;
-	// this row owns only "present, and disabled rather than hidden".
-	assert.equal(q(host, 'timetable-draft-strip-edit')!.hasAttribute('disabled'), true,
-		'`Edit draft` is present and disabled, not hidden — no class is selected in this fixture');
 });

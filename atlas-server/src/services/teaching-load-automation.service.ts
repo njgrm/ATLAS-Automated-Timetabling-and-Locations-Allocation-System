@@ -60,6 +60,12 @@ import {
 	type TeachingLoadCapMode,
 } from './teaching-load-capacity.service.js';
 import {
+	prepareTeachingLoadPlacementPlanner,
+	selectFirstTimetableFeasibleCandidate,
+	type PlacementPlanningSession,
+	type TeachingLoadPlacementPlanner,
+} from './teaching-load-placement-check.service.js';
+import {
 	buildQualificationPolicySnapshot,
 	evaluateQualificationWithPolicy,
 	resolveSubjectAllowedOwnerDepartments as resolvePersistedAllowedOwnerDepartments,
@@ -141,7 +147,7 @@ export async function loadPersistedQualificationAuthority(schoolId: number, clie
 	};
 }
 
-interface AutoFillOptions {
+export interface AutoFillOptions {
 	previewOnly?: boolean;
 	staffingOnly?: boolean;
 	coverageMode?: CoverageMode;
@@ -181,6 +187,8 @@ interface AutoFillOptions {
 	 * way, so its three tiers never shrink.
 	 */
 	allowUnqualifiedRealFaculty?: boolean;
+	/** Test seam for exercising auto-fill's shape-ranking wiring with a fixed snapshot. */
+	placementPlanner?: TeachingLoadPlacementPlanner;
 }
 
 export interface StaffingTruthBucket {
@@ -244,7 +252,9 @@ export type TeachingLoadCandidateRejectionReason =
 	 * day). Emitted only under the HARD policy switch; always overridable by a
 	 * manual assignment.
 	 */
-	| 'SHIFT_COHERENCE_CONFLICT';
+	| 'SHIFT_COHERENCE_CONFLICT'
+	/** The candidate has capacity but cannot fit the current timetable shape. */
+	| 'TIMETABLE_SHAPE_CONFLICT';
 
 export interface TeachingLoadCandidateRejection {
 	subjectId: number;
@@ -254,6 +264,8 @@ export interface TeachingLoadCandidateRejection {
 	facultyId: number;
 	facultyName: string;
 	reason: TeachingLoadCandidateRejectionReason;
+	/** Generator-aligned placement reason when the timetable shape rejected the candidate. */
+	placementReason?: string;
 	/**
 	 * SHIFT-COHERENCE-C01 (D11): present only on a `SHIFT_COHERENCE_CONFLICT`
 	 * rejection so the operator sees the exact windows that make the teacher
@@ -1964,6 +1976,7 @@ function findBestCandidateForMode(
 	candidateReach?: { allowUnqualified?: boolean },
 ): {
 	faculty: FacultyRow | null;
+	rankedFaculty: FacultyRow[];
 	rejections: TeachingLoadCandidateRejection[];
 	preferenceNotice: TeachingLoadPreferenceNotice | null;
 	shiftCoherenceNotice: TeachingLoadShiftCoherenceNotice | null;
@@ -2122,7 +2135,7 @@ function findBestCandidateForMode(
 	}
 
 	if (candidates.length === 0) {
-		return { faculty: null, rejections, preferenceNotice: null, shiftCoherenceNotice: null };
+		return { faculty: null, rankedFaculty: [], rejections, preferenceNotice: null, shiftCoherenceNotice: null };
 	}
 
 	// HARD removes every spanning candidate from selection. When none remain the
@@ -2131,7 +2144,7 @@ function findBestCandidateForMode(
 		? candidates.filter((candidate) => !candidate.shiftSpans)
 		: candidates;
 	if (selectable.length === 0) {
-		return { faculty: null, rejections, preferenceNotice: null, shiftCoherenceNotice: null };
+		return { faculty: null, rankedFaculty: [], rejections, preferenceNotice: null, shiftCoherenceNotice: null };
 	}
 
 	selectable.sort((a, b) => compareCoverageCandidateRank({
@@ -2190,7 +2203,13 @@ function findBestCandidateForMode(
 			}
 			: null;
 
-	return { faculty: selected.faculty, rejections, preferenceNotice, shiftCoherenceNotice };
+	return {
+		faculty: selected.faculty,
+		rankedFaculty: selectable.map((candidate) => candidate.faculty),
+		rejections,
+		preferenceNotice,
+		shiftCoherenceNotice,
+	};
 }
 
 function simulateRealFacultyCoverage(input: {
@@ -2529,6 +2548,7 @@ async function buildTeachingLoadDistributionPlan(params: {
 	preserved: number;
 	unresolved: number;
 	suggestedRows: SuggestedRowPreview[];
+	placementSession?: PlacementPlanningSession | null;
 }): Promise<TeachingLoadDistributionPlan> {
 	const retains: DistributionRetainAction[] = [];
 	const inserts: DistributionInsertAction[] = [];
@@ -2556,6 +2576,7 @@ async function buildTeachingLoadDistributionPlan(params: {
 			actorId: 0,
 			authToken: params.authToken,
 			previewOnly: true,
+			placementSession: params.placementSession ?? undefined,
 		});
 		// If the evaluator resolved no sections or could not resolve the effective
 		// persisted policy it could not judge distribution. Treat that as
@@ -2885,6 +2906,16 @@ export async function autoFill(
 	// distribution evaluation for this preview. This keeps aliases, owner
 	// prefixes, cross-department permissions, and policy revision coherent.
 	const qualificationAuthority = await loadPersistedQualificationAuthority(schoolId);
+	// Prepare the generator-aligned timetable shape ONCE. The candidate loop below
+	// walks its ranked teachers against this shared reservation session, so a
+	// proposal prefers a teacher who can actually be placed instead of discovering
+	// the conflict only after its preview is built. When shape authority is not
+	// ready, no candidate is claimed feasible; proposal creation remains fail-closed
+	// through the existing placement gate.
+	const placementPlanner = options?.placementPlanner ?? await prepareTeachingLoadPlacementPlanner(schoolId, schoolYearId);
+	const placementSession = placementPlanner.begin(new Map(
+		faculty.map((member) => [member.id, `${member.lastName}, ${member.firstName}`]),
+	));
 
 	// ─── Step 1: Build resolved-pair set + capacity used per faculty ───────────
 	const existingOwnerships = await db().subjectSectionOwnership.findMany({
@@ -3337,6 +3368,24 @@ export async function autoFill(
 			const ledger = capacityLedgersByFaculty.get(candidate.member.id) ?? createEmptyCapacityLedger();
 			const delta = estimateCapacityLaneDeltaMinutes(ledger, laneKey, minutes);
 			if (candidate.used + delta > budget) continue;
+			const placement = placementSession?.tryAssign({
+				sectionId: pair.sectionId,
+				subjectId: pair.subjectId,
+				facultyId: candidate.member.id,
+			});
+			if (placement && !placement.placeable) {
+				appendBoundedCandidateRejections(autoFillCandidateRejections, [{
+					subjectId: pair.subjectId,
+					subjectCode: pair.subject.code,
+					sectionId: pair.sectionId,
+					sectionName: pair.sectionName,
+					facultyId: candidate.member.id,
+					facultyName: `${candidate.member.lastName}, ${candidate.member.firstName}`,
+					reason: 'TIMETABLE_SHAPE_CONFLICT',
+					placementReason: placement.reason,
+				}]);
+				continue;
+			}
 			applyCapacityLaneMinutesToLedger(ledger, laneKey, minutes);
 			capacityLedgersByFaculty.set(candidate.member.id, ledger);
 			capacityUsed.set(candidate.member.id, ledger.creditedMinutes);
@@ -3396,13 +3445,38 @@ export async function autoFill(
 				{ allowUnqualified: allowUnqualifiedRealFaculty },
 			);
 			appendBoundedCandidateRejections(autoFillCandidateRejections, selection.rejections);
-			if (selection.preferenceNotice && autoFillPreferenceNotices.length < MAX_CANDIDATE_REJECTIONS) {
+			let candidate = selection.faculty;
+			if (placementSession && candidate) {
+				const placementSelection = selectFirstTimetableFeasibleCandidate(
+					placementSession,
+					{ sectionId: pair.sectionId, subjectId: pair.subjectId },
+					selection.rankedFaculty.map((rankedCandidate) => rankedCandidate.id),
+				);
+				candidate = selection.rankedFaculty.find((rankedCandidate) => rankedCandidate.id === placementSelection.facultyId) ?? null;
+				for (const placement of placementSelection.rejected) {
+					const rankedCandidate = selection.rankedFaculty.find((entry) => entry.id === placement.facultyId);
+					if (!rankedCandidate) continue;
+					appendBoundedCandidateRejections(autoFillCandidateRejections, [{
+						subjectId: pair.subjectId,
+						subjectCode: subjectRow.code,
+						sectionId: pair.sectionId,
+						sectionName: pair.sectionName,
+						facultyId: rankedCandidate.id,
+						facultyName: `${rankedCandidate.lastName}, ${rankedCandidate.firstName}`,
+						reason: 'TIMETABLE_SHAPE_CONFLICT',
+						placementReason: placement.reason,
+					}]);
+				}
+			}
+			// These notices describe the original capacity-ranked choice. If shape
+			// ranking selected a different teacher, omit the advisory rather than
+			// attach an inaccurate name to the accepted assignment.
+			if (candidate === selection.faculty && selection.preferenceNotice && autoFillPreferenceNotices.length < MAX_CANDIDATE_REJECTIONS) {
 				autoFillPreferenceNotices.push(selection.preferenceNotice);
 			}
-			if (selection.shiftCoherenceNotice && autoFillShiftCoherenceNotices.length < MAX_CANDIDATE_REJECTIONS) {
+			if (candidate === selection.faculty && selection.shiftCoherenceNotice && autoFillShiftCoherenceNotices.length < MAX_CANDIDATE_REJECTIONS) {
 				autoFillShiftCoherenceNotices.push(selection.shiftCoherenceNotice);
 			}
-			const candidate = selection.faculty;
 			if (!candidate) {
 				// A8 c4 item 3 ORDER INVARIANT: the saved-placeholder pool is
 				// reachable ONLY when (a) the caller permits placeholders at all and
@@ -3603,6 +3677,7 @@ export async function autoFill(
 		preserved,
 		unresolved: finalUnresolved,
 		suggestedRows,
+		placementSession,
 	});
 
 	if (distribution.summary.aboveStandardFaculty > 0) {
@@ -3928,6 +4003,8 @@ export interface OverCapRebalanceInput {
 	 * inside its Serializable transaction through the transaction client.
 	 */
 	client?: unknown;
+	/** Shares accepted suggestion reservations with previewed distribution moves. */
+	placementSession?: PlacementPlanningSession;
 }
 
 export interface OverCapRebalanceMove {
@@ -4248,6 +4325,12 @@ export async function previewOrApplyOverCapRebalance(
 	// subject owner prefixes, explicit cross-department permissions, and
 	// specialization aliases. Legacy prefix/glossary/name inference is disabled.
 	const qualificationAuthority = await loadPersistedQualificationAuthority(input.schoolId);
+	// Reuse the suggestion session when present. Standalone redistribution
+	// previews prepare the same generator-aligned snapshot once for move search.
+	const placementSession = input.placementSession ?? (await prepareTeachingLoadPlacementPlanner(
+		input.schoolId,
+		input.schoolYearId,
+	)).begin(new Map(faculty.map((member) => [member.id, `${member.lastName}, ${member.firstName}`])));
 
 	// Build section name + program-type maps
 	const sectionNameMap = new Map<number, string>();
@@ -4305,15 +4388,13 @@ export async function previewOrApplyOverCapRebalance(
 			const sectionProgramType = sectionProgramTypeMap.get(ownership.sectionId) ?? 'REGULAR';
 			const ownershipRejections: TeachingLoadCandidateRejection[] = [];
 
-			// Find best receiver
-			let bestReceiver: typeof realFaculty[number] | null = null;
-			let bestTier = Infinity;
-			let bestAuthority: TeachingLoadQualificationAuthority | null = null;
-			let bestSpareMinutes = -1;
-			// Adviser tie-break: an adviser with no real (non-HG) teaching pair for
-			// their advised section is preferred over an otherwise equally eligible
-			// receiver. This never bypasses tier, capacity, scope, or uniqueness.
-			let bestAdviserPreference = false;
+			const eligibleReceivers: Array<{
+				candidate: typeof realFaculty[number];
+				tier: number;
+				authority: TeachingLoadQualificationAuthority;
+				spareMinutes: number;
+				adviserPreference: boolean;
+			}> = [];
 
 			for (const candidate of facultyCandidatesByStableId) {
 				if (candidate.id === overFaculty.facultyId) {
@@ -4406,18 +4487,47 @@ export async function previewOrApplyOverCapRebalance(
 				);
 				const adviserPreference = isAdviserForSection && !hasRealPairForSection;
 
-				const betterTier = tier < bestTier;
-				const sameTier = tier === bestTier;
-				const betterPreference = sameTier && adviserPreference && !bestAdviserPreference;
-				const samePreference = sameTier && adviserPreference === bestAdviserPreference;
-				if (betterTier || betterPreference || (samePreference && spareMinutes > bestSpareMinutes)) {
-					bestReceiver = candidate;
-					bestTier = tier;
-					bestAuthority = qualification.authority;
-					bestSpareMinutes = spareMinutes;
-					bestAdviserPreference = adviserPreference;
-				}
+				eligibleReceivers.push({ candidate, tier, authority: qualification.authority, spareMinutes, adviserPreference });
 			}
+
+			// Preserve the established capacity/qualification ordering, then choose
+			// the first receiver whose real timetable slots fit. Failed trials never
+			// reserve a slot; accepted moves reserve one for the remaining loop.
+			eligibleReceivers.sort((left, right) =>
+				(left.tier - right.tier)
+				|| Number(right.adviserPreference) - Number(left.adviserPreference)
+				|| (right.spareMinutes - left.spareMinutes)
+				|| (left.candidate.id - right.candidate.id));
+			let selectedReceiver = eligibleReceivers[0] ?? null;
+			if (placementSession && eligibleReceivers.length > 0) {
+				const placementSelection = selectFirstTimetableFeasibleCandidate(
+					placementSession,
+					{ sectionId: ownership.sectionId, subjectId: ownership.subjectId, replacesExistingPlacement: true },
+					eligibleReceivers.map((entry) => entry.candidate.id),
+				);
+				selectedReceiver = eligibleReceivers.find((entry) => entry.candidate.id === placementSelection.facultyId) ?? null;
+				for (const rejected of placementSelection.rejected) {
+					appendBoundedCandidateRejections(ownershipRejections, [{
+						subjectId: subject.id,
+						subjectCode: subject.code,
+						sectionId: ownership.sectionId,
+						sectionName: sectionNameMap.get(ownership.sectionId) ?? `Section ${ownership.sectionId}`,
+						facultyId: rejected.facultyId,
+						facultyName: rejected.facultyName,
+						reason: 'TIMETABLE_SHAPE_CONFLICT',
+						placementReason: rejected.reason,
+					}]);
+				}
+				// Unlike capacity-only tie breaks, a timetable rejection changes the
+				// scheduler's next action. Keep it visible even when another receiver
+				// can take the move.
+				appendBoundedCandidateRejections(candidateRejections, ownershipRejections.filter(
+					(rejection) => rejection.reason === 'TIMETABLE_SHAPE_CONFLICT',
+				));
+			}
+			const bestReceiver = selectedReceiver?.candidate ?? null;
+			const bestTier = selectedReceiver?.tier ?? Infinity;
+			const bestAuthority = selectedReceiver?.authority ?? null;
 
 			if (!bestReceiver) {
 				appendBoundedCandidateRejections(candidateRejections, ownershipRejections);
