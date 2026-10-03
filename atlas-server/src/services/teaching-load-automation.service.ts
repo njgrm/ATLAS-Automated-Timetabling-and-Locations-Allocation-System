@@ -62,6 +62,7 @@ import {
 import {
 	prepareTeachingLoadPlacementPlanner,
 	selectFirstTimetableFeasibleCandidate,
+	type PlacementPlanningSession,
 	type TeachingLoadPlacementPlanner,
 } from './teaching-load-placement-check.service.js';
 import {
@@ -2547,6 +2548,7 @@ async function buildTeachingLoadDistributionPlan(params: {
 	preserved: number;
 	unresolved: number;
 	suggestedRows: SuggestedRowPreview[];
+	placementSession?: PlacementPlanningSession | null;
 }): Promise<TeachingLoadDistributionPlan> {
 	const retains: DistributionRetainAction[] = [];
 	const inserts: DistributionInsertAction[] = [];
@@ -2574,6 +2576,7 @@ async function buildTeachingLoadDistributionPlan(params: {
 			actorId: 0,
 			authToken: params.authToken,
 			previewOnly: true,
+			placementSession: params.placementSession ?? undefined,
 		});
 		// If the evaluator resolved no sections or could not resolve the effective
 		// persisted policy it could not judge distribution. Treat that as
@@ -3674,6 +3677,7 @@ export async function autoFill(
 		preserved,
 		unresolved: finalUnresolved,
 		suggestedRows,
+		placementSession,
 	});
 
 	if (distribution.summary.aboveStandardFaculty > 0) {
@@ -3999,6 +4003,8 @@ export interface OverCapRebalanceInput {
 	 * inside its Serializable transaction through the transaction client.
 	 */
 	client?: unknown;
+	/** Shares accepted suggestion reservations with previewed distribution moves. */
+	placementSession?: PlacementPlanningSession;
 }
 
 export interface OverCapRebalanceMove {
@@ -4319,6 +4325,12 @@ export async function previewOrApplyOverCapRebalance(
 	// subject owner prefixes, explicit cross-department permissions, and
 	// specialization aliases. Legacy prefix/glossary/name inference is disabled.
 	const qualificationAuthority = await loadPersistedQualificationAuthority(input.schoolId);
+	// Reuse the suggestion session when present. Standalone redistribution
+	// previews prepare the same generator-aligned snapshot once for move search.
+	const placementSession = input.placementSession ?? (await prepareTeachingLoadPlacementPlanner(
+		input.schoolId,
+		input.schoolYearId,
+	)).begin(new Map(faculty.map((member) => [member.id, `${member.lastName}, ${member.firstName}`])));
 
 	// Build section name + program-type maps
 	const sectionNameMap = new Map<number, string>();
@@ -4376,15 +4388,13 @@ export async function previewOrApplyOverCapRebalance(
 			const sectionProgramType = sectionProgramTypeMap.get(ownership.sectionId) ?? 'REGULAR';
 			const ownershipRejections: TeachingLoadCandidateRejection[] = [];
 
-			// Find best receiver
-			let bestReceiver: typeof realFaculty[number] | null = null;
-			let bestTier = Infinity;
-			let bestAuthority: TeachingLoadQualificationAuthority | null = null;
-			let bestSpareMinutes = -1;
-			// Adviser tie-break: an adviser with no real (non-HG) teaching pair for
-			// their advised section is preferred over an otherwise equally eligible
-			// receiver. This never bypasses tier, capacity, scope, or uniqueness.
-			let bestAdviserPreference = false;
+			const eligibleReceivers: Array<{
+				candidate: typeof realFaculty[number];
+				tier: number;
+				authority: TeachingLoadQualificationAuthority;
+				spareMinutes: number;
+				adviserPreference: boolean;
+			}> = [];
 
 			for (const candidate of facultyCandidatesByStableId) {
 				if (candidate.id === overFaculty.facultyId) {
@@ -4477,18 +4487,47 @@ export async function previewOrApplyOverCapRebalance(
 				);
 				const adviserPreference = isAdviserForSection && !hasRealPairForSection;
 
-				const betterTier = tier < bestTier;
-				const sameTier = tier === bestTier;
-				const betterPreference = sameTier && adviserPreference && !bestAdviserPreference;
-				const samePreference = sameTier && adviserPreference === bestAdviserPreference;
-				if (betterTier || betterPreference || (samePreference && spareMinutes > bestSpareMinutes)) {
-					bestReceiver = candidate;
-					bestTier = tier;
-					bestAuthority = qualification.authority;
-					bestSpareMinutes = spareMinutes;
-					bestAdviserPreference = adviserPreference;
-				}
+				eligibleReceivers.push({ candidate, tier, authority: qualification.authority, spareMinutes, adviserPreference });
 			}
+
+			// Preserve the established capacity/qualification ordering, then choose
+			// the first receiver whose real timetable slots fit. Failed trials never
+			// reserve a slot; accepted moves reserve one for the remaining loop.
+			eligibleReceivers.sort((left, right) =>
+				(left.tier - right.tier)
+				|| Number(right.adviserPreference) - Number(left.adviserPreference)
+				|| (right.spareMinutes - left.spareMinutes)
+				|| (left.candidate.id - right.candidate.id));
+			let selectedReceiver = eligibleReceivers[0] ?? null;
+			if (placementSession && eligibleReceivers.length > 0) {
+				const placementSelection = selectFirstTimetableFeasibleCandidate(
+					placementSession,
+					{ sectionId: ownership.sectionId, subjectId: ownership.subjectId, replacesExistingPlacement: true },
+					eligibleReceivers.map((entry) => entry.candidate.id),
+				);
+				selectedReceiver = eligibleReceivers.find((entry) => entry.candidate.id === placementSelection.facultyId) ?? null;
+				for (const rejected of placementSelection.rejected) {
+					appendBoundedCandidateRejections(ownershipRejections, [{
+						subjectId: subject.id,
+						subjectCode: subject.code,
+						sectionId: ownership.sectionId,
+						sectionName: sectionNameMap.get(ownership.sectionId) ?? `Section ${ownership.sectionId}`,
+						facultyId: rejected.facultyId,
+						facultyName: rejected.facultyName,
+						reason: 'TIMETABLE_SHAPE_CONFLICT',
+						placementReason: rejected.reason,
+					}]);
+				}
+				// Unlike capacity-only tie breaks, a timetable rejection changes the
+				// scheduler's next action. Keep it visible even when another receiver
+				// can take the move.
+				appendBoundedCandidateRejections(candidateRejections, ownershipRejections.filter(
+					(rejection) => rejection.reason === 'TIMETABLE_SHAPE_CONFLICT',
+				));
+			}
+			const bestReceiver = selectedReceiver?.candidate ?? null;
+			const bestTier = selectedReceiver?.tier ?? Infinity;
+			const bestAuthority = selectedReceiver?.authority ?? null;
 
 			if (!bestReceiver) {
 				appendBoundedCandidateRejections(candidateRejections, ownershipRejections);

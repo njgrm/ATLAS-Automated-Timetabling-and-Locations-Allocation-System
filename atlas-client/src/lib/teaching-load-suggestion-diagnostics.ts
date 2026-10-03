@@ -30,6 +30,7 @@ export const CANDIDATE_REJECTION_LABELS: Record<TeachingLoadCandidateRejectionRe
 	HARD_CAP_EXCEEDED: 'Already at the weekly maximum',
 	CURRENT_OWNER: 'Already owns this class',
 	PLACEHOLDER_FACULTY: 'Temporary substitute, not a real teacher',
+	TIMETABLE_SHAPE_CONFLICT: 'No free class time',
 	OUTSIDE_CANONICAL_DEMAND: 'Not part of current-year demand',
 	SHIFT_COHERENCE_CONFLICT: 'Would span both shift windows',
 	// Reserved R5 vocabulary (not currently emitted by the producer).
@@ -47,6 +48,7 @@ export const CANDIDATE_REJECTION_DETAILS: Record<TeachingLoadCandidateRejectionR
 	HARD_CAP_EXCEEDED: 'Adding this class would push the teacher above the weekly maximum.',
 	CURRENT_OWNER: 'This teacher already holds the class, so no new assignment is needed.',
 	PLACEHOLDER_FACULTY: 'Temporary substitute rows are not offered as real Teaching Load owners.',
+	TIMETABLE_SHAPE_CONFLICT: 'This qualified teacher has no compatible class time left for this section. Choose a different move or adjust the timetable.',
 	OUTSIDE_CANONICAL_DEMAND: 'This class is outside the canonical current-year derived demand, so no load was moved to it.',
 	SHIFT_COHERENCE_CONFLICT: 'Assigning this class would place the teacher in both the morning and afternoon shift windows, exceeding the 8-hour service day. A manual assignment can override the guard.',
 	// Reserved R5 vocabulary (not currently emitted by the producer).
@@ -68,6 +70,7 @@ export const CANDIDATE_REJECTION_ORDER: TeachingLoadCandidateRejectionReason[] =
 	'DEPARTMENT_RESTRICTED',
 	'OUTSIDE_CANONICAL_DEMAND',
 	'SHIFT_COHERENCE_CONFLICT',
+	'TIMETABLE_SHAPE_CONFLICT',
 	'HARD_CAP_EXCEEDED',
 	'CURRENT_OWNER',
 	'INACTIVE_FACULTY',

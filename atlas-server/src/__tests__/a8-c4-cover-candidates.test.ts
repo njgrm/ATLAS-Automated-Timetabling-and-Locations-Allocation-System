@@ -1021,6 +1021,27 @@ test('4b2. autoFill ranks by timetable fit and reserves its chosen slot for the 
 	), true, 'the second pair sees the shared reservation from the chosen first pair');
 });
 
+test('4b3. autoFill rebalances an overload to the first receiver whose class time fits', async () => {
+	const world = isolatedWorld({
+		sections: [section(SECTION_OPEN_UNOWNED)],
+		faculty: [
+			faculty(100, 'MAPEH', { maxHours: 1 }),
+			faculty(101, 'MAPEH', { maxHours: 30 }),
+			faculty(102, 'MAPEH', { maxHours: 30 }),
+		],
+		ownerships: [ownershipRow(810, 100, subject(MAPEH, 'MAPEH', 'MAPEH', [7]), SECTION_OPEN_UNOWNED)],
+	});
+	const result = await withWorld(world, () => autoFill(SCHOOL, YEAR, undefined, {
+		previewOnly: true,
+		placementPlanner: shapeRankingPlanner(),
+	}));
+	assert.equal(result.distribution?.moves[0]?.toFacultyId, 102,
+		'the next qualified receiver is selected when the capacity-ranked receiver is already booked');
+	assert.equal(result.distribution?.candidateRejections?.some((row) =>
+		row.sectionId === SECTION_OPEN_UNOWNED && row.facultyId === 101 && row.reason === 'TIMETABLE_SHAPE_CONFLICT'
+	), true, 'the blocked receiver is visible for scheduler review rather than becoming a rejected proposal');
+});
+
 test('4b. autoFill (allowUnqualifiedRealFaculty): the placeholder pool is unreachable while ANY admitted real teacher has room', async () => {
 	// Ana (SCI) is unqualified for MAPEH — tier null — but she HAS room. With the
 	// caller opting in, the ANYONE tier is reachable, so the placeholder pool must

@@ -2241,6 +2241,8 @@ export type TeachingLoadCandidateRejectionReason =
 	| 'HARD_CAP_EXCEEDED'
 	| 'CURRENT_OWNER'
 	| 'PLACEHOLDER_FACULTY'
+	/** A qualified, in-capacity teacher has no compatible class time. */
+	| 'TIMETABLE_SHAPE_CONFLICT'
 	/** Emitted by the server preview; parsed from the distribution plan. */
 	| 'OUTSIDE_CANONICAL_DEMAND'
 	/**
@@ -2265,6 +2267,8 @@ export type TeachingLoadCandidateRejection = {
 	facultyId: number;
 	facultyName: string;
 	reason: TeachingLoadCandidateRejectionReason;
+	/** Generator-aligned reason retained for the on-demand explanation. */
+	placementReason?: string;
 };
 
 /**
