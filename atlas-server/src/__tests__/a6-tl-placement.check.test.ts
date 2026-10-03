@@ -328,6 +328,32 @@ test('a moved load replaces its own existing placement instead of conflicting wi
   assert.equal(verdict.placeable, true, 'the receiver can reuse the pair\'s real existing slot');
 });
 
+test('an ordinary preview retains same-pair locks and offers no teacher for their occupied slot', () => {
+  const samePairLock: PlacementOccupancyLock = {
+    sectionId: SECTION_MAKABANSA,
+    subjectId: SUBJECT_TLE,
+    facultyId: null,
+    roomId: 1,
+    day: 'FRIDAY',
+    startTime: '11:30',
+    endTime: '12:15',
+    termIndex: 1,
+  };
+  const [verdict] = evaluatePlacementVerdicts(baseInput({
+    request: [MAKABANSA_REQUEST],
+    demandLines: [demandLine(makabansa('T1', 1))],
+    weeklySlots: [{ day: 'FRIDAY', startTime: '11:30', endTime: '12:15' }],
+    occupancyLocks: [samePairLock],
+    qualifiedAlternatives: new Map([[
+      `${SUBJECT_TLE}:REGULAR`,
+      [{ facultyId: 99, facultyName: 'EDUARDO VILLAREAL' }],
+    ]]),
+  }));
+
+  assert.equal(verdict.placeable, false, 'a manual or preview request cannot overwrite a same-pair lock');
+  assert.deepEqual(verdict.alternatives, [], 'a free teacher is not offered for an already occupied class slot');
+});
+
 test('a requested pair outside canonical demand is placeable (nothing to place)', () => {
   const [verdict] = evaluatePlacementVerdicts(baseInput({
     request: [{ sectionId: 999, subjectId: SUBJECT_TLE, facultyId: TEACHER_NAVARRO }],
