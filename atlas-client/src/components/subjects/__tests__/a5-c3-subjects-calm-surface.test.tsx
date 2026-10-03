@@ -467,7 +467,7 @@ test('A5-C3-A2b: the mobile card shows no subject-code chip either', async () =>
 // A3 — programs are chips, and never a count or a spelled-out name
 // ─────────────────────────────────────────────────────────────────────────────
 
-test('A5-C3-A3a: program coverage renders one abbreviated chip per scope, never "N programs"', async () => {
+test('A5-C3-A3a: program coverage renders one compact plain-language chip per scope, never "N programs"', async () => {
 	const seen = await snapshot(rowFor(subjectFixture()), (host) => {
 		const chips = Array.from(host.querySelectorAll('[data-testid="subject-program-chips"] span')) as HTMLElement[];
 		return {
@@ -477,7 +477,7 @@ test('A5-C3-A3a: program coverage renders one abbreviated chip per scope, never 
 			text: operatorText(host),
 		};
 	});
-	assert.deepEqual(seen.labels, ['BEC', 'STE'], 'program scopes are not one abbreviated chip each');
+	assert.deepEqual(seen.labels, ['Regular', 'Science'], 'program scopes are not one compact plain-language chip each');
 	assert.doesNotMatch(seen.text, /\d+ programs/, 'the "{n} programs" count is still rendered');
 	assert.doesNotMatch(seen.text, /Science, Technology, and Engineering/, 'the spelled-out program name is still the visible label');
 	/* The full name is preserved, one hover away in an @/ui Tooltip (J4), and each chip is
@@ -489,12 +489,12 @@ test('A5-C3-A3a: program coverage renders one abbreviated chip per scope, never 
 	assert.equal(seen.focusable, '0', 'a program chip is not keyboard-focusable');
 });
 
-test('A5-C3-A3b: a scope code outside the operator\'s abbreviation list falls back to the glossary short label, and an unmapped code keeps a neutral colour', async () => {
+test('A5-C3-A3b: a scope code outside the operator\'s options stays named, and an unmapped code keeps a neutral colour', async () => {
 	const seen = await snapshot(rowFor(subjectFixture({ programScopes: ['SPJ', 'SPZZ'] })), (host) => {
 		const chips = Array.from(host.querySelectorAll('[data-testid="subject-program-chips"] span')) as HTMLElement[];
 		return { labels: chips.map((c) => (c.textContent ?? '').trim()), classes: chips.map((c) => c.className) };
 	});
-	assert.deepEqual(seen.labels, ['SPJ', 'SPZZ'], 'an unmapped program scope is hidden or numbered instead of named');
+	assert.deepEqual(seen.labels, ['Journalism', 'SPZZ'], 'an unmapped program scope is hidden or numbered instead of named');
 	/* An unmapped code must not be dropped, and must not be given a colour we invented. */
 	assert.doesNotMatch(
 		seen.classes[1] ?? '',
@@ -512,7 +512,7 @@ test('A5-C3-A3c: the mobile card gives programs their own line instead of joinin
 	});
 	assert.notEqual(seen.gradeRowText, 'NO_GRADE_ROW', 'the Grade level row is gone');
 	assert.doesNotMatch(seen.gradeRowText, /·/, 'the grade value still carries a second fact joined onto it');
-	assert.match(seen.text, /BEC/, 'the mobile card lost the program chips');
+	assert.match(seen.text, /Regular/, 'the mobile card lost the program chips');
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

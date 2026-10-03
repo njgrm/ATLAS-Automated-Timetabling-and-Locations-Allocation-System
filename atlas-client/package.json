@@ -113,6 +113,7 @@
     "test:a8-c3-generate-gaps": "tsx --test src/components/timetable/__tests__/a8-c3-generate-gaps-groups.test.tsx",
     "test:mr-71-subjects-name-container": "tsx --test src/components/subjects/__tests__/mr-71-subjects-name-container.test.tsx",
     "test:a5-subjects-c1": "tsx --test src/components/subjects/__tests__/a5-subjects-c1.test.tsx",
+    "test:a4-subject-program-labels": "tsx --test src/components/subjects/__tests__/a4-subject-program-labels.test.tsx",
     "test:a5-docx1": "tsx --test src/components/subjects/__tests__/a5-docx1-subjects-polish.test.tsx src/components/faculty/__tests__/a5-docx1-placeholder-dialog.test.tsx",
     "test:a5-fix20-subject-discard": "tsx --test src/components/subjects/__tests__/a5-fix20-subject-discard.test.tsx",
     "test:a3-subjects": "tsx --test src/components/subjects/__tests__/subjects-ux-a3.test.tsx",
