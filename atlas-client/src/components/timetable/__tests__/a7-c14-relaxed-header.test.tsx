@@ -285,9 +285,17 @@ test('D the five section links and `Update schedule` are reachable from the More
 	}
 	const menu = dom.window.document.querySelector('[role="menu"]') as HTMLElement | null;
 	assert.ok(menu, 'More opens a menu');
+	const sectionGroup = menu!.querySelector('[data-testid="timetable-sub-nav"]') as HTMLElement | null;
+	assert.ok(sectionGroup, 'the rehomed section links have one labelled group');
+	assert.equal(sectionGroup!.getAttribute('role'), 'group', 'menu rows use menu/group semantics, never a tablist');
+	assert.equal(sectionGroup!.querySelector('[role="tab"]'), null, 'no tab role is nested inside the menu');
 	for (const key of ['schedule', 'draft', 'setup', 'policies', 'runs']) {
 		assert.ok(menu!.querySelector(`[data-testid="timetable-sub-nav-${key}"]`),
 			`the \`${key}\` section link is reachable inside More`);
 	}
+	assert.equal(menu!.querySelector('[data-testid="timetable-sub-nav-schedule"]')!.getAttribute('aria-current'), 'page',
+		'the active section remains exposed after the links move into More');
+	assert.equal(menu!.querySelector('[data-testid="timetable-sub-nav-draft"]')!.hasAttribute('aria-current'), false,
+		'an inactive section does not claim the current page');
 	assert.ok(menu!.querySelector('[data-testid="timetable-simple-more-sections"]'), 'the sections are a labelled group');
 });

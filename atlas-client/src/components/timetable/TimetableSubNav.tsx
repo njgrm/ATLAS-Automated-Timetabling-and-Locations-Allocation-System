@@ -111,12 +111,13 @@ export function TimetableSubNavLinks({ variant = 'nav' }: { variant?: 'nav' | 'm
 
 	if (variant === 'menu') {
 		return (
-			<nav aria-label={`${CLASS_SCHEDULE_LABEL} sections`} data-testid="timetable-sub-nav" role="tablist">
+			<div aria-label={`${CLASS_SCHEDULE_LABEL} sections`} data-testid="timetable-sub-nav" role="group">
 				{SUB_NAV_ITEMS.map((item) => (
 					<DropdownMenuItem key={item.key} asChild className="h-9 gap-2 text-xs">
 						<NavLink
 							to={item.to}
 							end={item.end}
+							aria-current={isTabActive(item) ? 'page' : undefined}
 							data-testid={`timetable-sub-nav-${item.key}`}
 							className={({ isActive }) => cn('flex w-full items-center', isActive ? 'font-semibold text-foreground' : 'text-muted-foreground')}
 						>
@@ -124,7 +125,7 @@ export function TimetableSubNavLinks({ variant = 'nav' }: { variant?: 'nav' | 'm
 						</NavLink>
 					</DropdownMenuItem>
 				))}
-			</nav>
+			</div>
 		);
 	}
 
