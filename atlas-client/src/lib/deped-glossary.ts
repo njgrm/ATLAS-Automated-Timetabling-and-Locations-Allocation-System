@@ -31,6 +31,8 @@ export function departmentLabel(code: string | null | undefined): string {
 /** Special-program scope code -> { short, full } descriptor. */
 export const PROGRAM_LABELS: Readonly<Record<string, { short: string; full: string }>> = {
 	REGULAR: { short: 'Regular', full: 'Regular Program' },
+	// `BEC` is the legacy/operator-facing name for the persisted REGULAR scope.
+	BEC: { short: 'Regular', full: 'Regular Program' },
 	STE: { short: 'STE', full: 'Science, Technology, and Engineering' },
 	SPA: { short: 'SPA', full: 'Special Program in the Arts' },
 	SPS: { short: 'SPS', full: 'Special Program in Sports' },
@@ -50,6 +52,30 @@ export function programShortLabel(code: string | null | undefined): string {
 export function programFullLabel(code: string | null | undefined): string {
 	if (!code) return 'Regular Program';
 	return PROGRAM_LABELS[code]?.full ?? programShortLabel(code);
+}
+
+/**
+ * Compact plain-language labels for the `/subjects` program chips. These are
+ * display-only; persisted/API values stay the program codes above. The full
+ * descriptor remains available through the chip Tooltip.
+ */
+export const PROGRAM_CHIP_LABELS: Readonly<Record<string, string>> = {
+	REGULAR: 'Regular',
+	// Accept the legacy display value too; never put `BEC` back on the chip face.
+	BEC: 'Regular',
+	STE: 'Science',
+	SPA: 'Arts',
+	SPS: 'Sports',
+	SPJ: 'Journalism',
+	SPFL: 'Foreign language',
+	SPTVE: 'Technical-vocational',
+	OTHER: 'Other',
+} as const;
+
+/** Resolve a program chip to a compact plain-language label. */
+export function programChipLabel(code: string | null | undefined): string {
+	if (!code) return PROGRAM_CHIP_LABELS.REGULAR;
+	return PROGRAM_CHIP_LABELS[code] ?? programShortLabel(code);
 }
 
 /** Compact grade label, e.g. `GR7`. Decision 5: compact form is `GR{grade}`, never `G{grade}`. */
