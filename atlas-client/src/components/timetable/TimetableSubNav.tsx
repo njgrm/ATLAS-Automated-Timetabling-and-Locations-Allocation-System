@@ -2,6 +2,7 @@ import { matchPath, NavLink, useLocation } from 'react-router-dom';
 
 import { cn } from '@/lib/utils';
 import { CLASS_SCHEDULE_LABEL } from '@/lib/class-schedule-naming';
+import { DropdownMenuItem } from '@/ui/dropdown-menu';
 import { resolveRouteChrome } from '@/components/app-shell/navigation';
 
 type TimetableSubNavItem = {
@@ -24,7 +25,7 @@ type TimetableSubNavItem = {
  * decision 8 settled it on "Draft". `key` is unchanged, so `timetable-sub-nav-draft` and
  * every assertion on it still hold.
  */
-const SUB_NAV_ITEMS: TimetableSubNavItem[] = [
+export const SUB_NAV_ITEMS: TimetableSubNavItem[] = [
 	{ key: 'schedule', label: 'Schedule', to: '/timetable', end: true },
 	{ key: 'draft', label: 'Draft', to: '/timetable/pre-generation' },
 	{ key: 'setup', label: 'Setup', to: '/timetable/setup' },
@@ -69,29 +70,71 @@ const SUB_NAV_ITEMS: TimetableSubNavItem[] = [
  * them silently elsewhere, so it is computed from `matchPath` below — the same rule that
  * paints the className.
  */
-export function TimetableSubNavRow() {
+/**
+ * A7 c14 (operator, 2026-09-30 08:15) — the page TITLE alone, no tabs.
+ *
+ * The Simple header's ONE control row carries `Class Schedule` as a non-control
+ * heading and NOTHING else from this module; the five section links move into the
+ * `More` menu (see `TimetableSubNavLinks` with `variant="menu"`). This is the same
+ * `<h1>`, the same `data-testid` and the same `resolveRouteChrome` call the
+ * extracted row used, so the title can never drift between the two surfaces.
+ */
+export function TimetablePageHeading() {
 	const location = useLocation();
 	const chrome = resolveRouteChrome(location.pathname);
 
-	// ONE rule for "is this the current tab", used by BOTH the ARIA state below and the
-	// painted className: matchPath with the options NavLink's resolver gets.
+	return (
+		<h1
+			className="shrink-0 text-base font-bold tracking-tight text-foreground"
+			data-testid="timetable-page-heading"
+		>
+			{chrome.title}
+		</h1>
+	);
+}
+
+/**
+ * A7 c14 (operator, 2026-09-30 08:15) — the five section links, as ONE list with
+ * TWO homes.
+ *
+ * `variant="nav"` is the standalone band every other timetable surface renders.
+ * `variant="menu"` rehomes the identical five links into the Simple header's
+ * `More` menu, so decision 2's requirement ("the tabs stay reachable and
+ * labelled") still holds after the tabs leave the header row. Every
+ * `timetable-sub-nav-${key}` testid and every href is unchanged, and there is
+ * still exactly ONE `SUB_NAV_ITEMS` list — the menu is a renderer, not a copy.
+ */
+export function TimetableSubNavLinks({ variant = 'nav' }: { variant?: 'nav' | 'menu' }) {
+	const location = useLocation();
 	const isTabActive = (item: TimetableSubNavItem) =>
 		matchPath({ path: item.to, end: item.end ?? false, caseSensitive: false }, location.pathname) !== null;
 
+	if (variant === 'menu') {
+		return (
+			<nav aria-label={`${CLASS_SCHEDULE_LABEL} sections`} data-testid="timetable-sub-nav" role="tablist">
+				{SUB_NAV_ITEMS.map((item) => (
+					<DropdownMenuItem key={item.key} asChild className="h-9 gap-2 text-xs">
+						<NavLink
+							to={item.to}
+							end={item.end}
+							data-testid={`timetable-sub-nav-${item.key}`}
+							className={({ isActive }) => cn('flex w-full items-center', isActive ? 'font-semibold text-foreground' : 'text-muted-foreground')}
+						>
+							{item.label}
+						</NavLink>
+					</DropdownMenuItem>
+				))}
+			</nav>
+		);
+	}
+
 	return (
-		<div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5">
-			<h1
-				className="text-base font-bold tracking-tight text-foreground"
-				data-testid="timetable-page-heading"
-			>
-				{chrome.title}
-			</h1>
-			<nav
-				aria-label={`${CLASS_SCHEDULE_LABEL} sections`}
-				data-testid="timetable-sub-nav"
-				role="tablist"
-				className="flex shrink-0 flex-nowrap items-center gap-1 whitespace-nowrap"
-			>
+		<nav
+			aria-label={`${CLASS_SCHEDULE_LABEL} sections`}
+			data-testid="timetable-sub-nav"
+			role="tablist"
+			className="flex min-w-0 flex-wrap items-center gap-1"
+		>
 			{SUB_NAV_ITEMS.map((item) => (
 				<NavLink
 					key={item.key}
@@ -117,6 +160,14 @@ export function TimetableSubNavRow() {
 				</NavLink>
 			))}
 			</nav>
+	);
+}
+
+export function TimetableSubNavRow() {
+	return (
+		<div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5">
+			<TimetablePageHeading />
+		<TimetableSubNavLinks />
 		</div>
 	);
 }

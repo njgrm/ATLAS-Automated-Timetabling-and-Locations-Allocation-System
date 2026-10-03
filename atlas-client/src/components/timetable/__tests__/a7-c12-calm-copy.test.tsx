@@ -207,13 +207,19 @@ async function settle(): Promise<void> {
 
 // ═══ ROW 1 — THE TAB READS `Draft`, NEVER `Planning` (RENDERED) ══════════════
 
-test('ROW 1 RENDERED: the draft tab reads `Draft` and never `Planning`', () => {
-	const host = tree(headerMarkup(baseContext()));
-	const draftTab = host.querySelector('[data-testid="timetable-sub-nav-draft"]');
-	assert.ok(draftTab, 'the draft tab is rendered');
+test('ROW 1 RENDERED: the draft tab reads `Draft` and never `Planning`', async () => {
+	/* A7 c14 (operator, 2026-09-30 08:15) — SUPERSEDED: the five section links moved
+	 * from the header row into `More`, so the tab is read from the menu that now owns
+	 * it through the real production trigger. Same label, same href, same testid. */
+	const view = await mountHeader(baseContext());
+	const menu = await view.openMenu();
+	assert.ok(menu, 'the More menu opens through the production trigger');
+	const draftTab = menu!.querySelector('[data-testid="timetable-sub-nav-draft"]');
+	assert.ok(draftTab, 'the draft tab is rendered inside More');
 	assert.equal((draftTab!.textContent ?? '').trim(), 'Draft', 'the tab reads `Draft`');
-	const nav = host.querySelector('[data-testid="timetable-sub-nav"]')!;
-	assert.equal((nav.textContent ?? '').includes('Planning'), false, 'and `Planning` never appears on the tab row');
+	const nav = menu!.querySelector('[data-testid="timetable-sub-nav"]');
+	assert.ok(nav, 'the section links keep their one labelled group');
+	assert.equal((nav!.textContent ?? '').includes('Planning'), false, 'and `Planning` never appears on the section list');
 });
 
 // ═══ ROW 6 — THE PUBLISH PRIMARY READS `Publish` (RENDERED) ══════════════════
@@ -501,10 +507,12 @@ test('R1-C2: every user-visible unplaced-count string uses the decision-8 `need(
 	assert.doesNotMatch(host.textContent ?? '', /need a time(?! slot)/,
 		'the rendered timetable surfaces never say "time" without "slot"');
 
-	// The readiness noun phrase and the tutorial copy.
+	// The readiness noun phrase and the tutorial copy. A7 c14 / current main keeps
+	// the phrase in the shared resolver rather than duplicating a literal here;
+	// the resolver assertions above are the deciding copy contract.
 	const readinessSource = source('src/components/timetable/simplePublishReadiness.ts');
-	assert.match(readinessSource, /needing a time slot/, 'the readiness clause says "a time slot"');
-	assert.doesNotMatch(readinessSource, /needing a time`/, 'and never the truncated noun phrase');
+	assert.match(readinessSource, /classesNeedingTime\(totalUnresolved\)/, 'readiness uses the shared time-slot phrase resolver');
+	assert.doesNotMatch(readinessSource, /still need a time(?! slot)/, 'and never the truncated noun phrase');
 	for (const step of simpleTutorialSteps('generated-issues')) {
 		assert.doesNotMatch(step.body, /need a time(?! slot)/, `tutorial step "${step.title}" must say "a time slot"`);
 	}

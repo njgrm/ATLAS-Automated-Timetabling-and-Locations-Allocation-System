@@ -50,10 +50,14 @@ import { SimpleTermSwitcher } from '@/components/timetable/simple/SimpleBenefici
 // the capped status region.
 import { resolveDraftStripProps, resolveDraftStripPublishPlan } from '@/components/timetable/TimetableDraftStateStrip';
 /* A2 HEADER-BUDGET — the title/tabs row (row 1), the ONE `describeRunState`
-   derivation, and row 2's extracted draft actions + task dispatcher. */
-import { TimetableSubNavRow } from '@/components/timetable/TimetableSubNav';
+   derivation, and row 2's extracted draft actions + task dispatcher.
+   A7 c14 (operator, 2026-09-30 08:15) — the header's ONE control row now renders
+   `TimetablePageHeading` (the same `<h1>`, no tabs) and the five section links
+   moved into `More` (`TimetableSubNavLinks variant="menu"`), so the tab row is
+   no longer on screen above the grid. */
+import { TimetablePageHeading } from '@/components/timetable/TimetableSubNav';
 import { describeRunState } from '@/components/timetable/RunStateBadge';
-import { SimpleHeaderDraftActions } from '@/components/timetable/simple/SimpleHeaderDraftActions';
+import { SimpleHeaderStatusLine } from '@/components/timetable/simple/SimpleHeaderStatusLine';
 import { createSimpleTaskStarter } from '@/components/timetable/simple/SimpleHeaderTasks';
 // A2 C12 / ITEM H — the armed-swap band and the generation-blocker sheet now
 // render as SIBLINGS of the `<header>` element, not as children of it. The banner
@@ -78,6 +82,7 @@ import { SchedulerPrintDialog } from '@/components/timetable/simple/SchedulerPri
 import { fetchRolloverStatus, type RolloverStatus } from '@/lib/settings';
 import { readRolloverAwarenessNotice } from '@/lib/rollover-awareness';
 import { dispatchSimpleReadinessRepair as dispatchReadinessRepair } from '@/components/timetable/simple/SimpleReadinessRepairDispatch';
+import { planningStateSentence } from '@/lib/timetable-plain-language';
 
 /* A2 C13 — the prop shape moved to `simple/SimpleHeaderReadinessTypes.ts` for the
    same reason the two types below moved there under A2 HEADER-BUDGET: this file sat
@@ -226,7 +231,13 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		capabilities,
 		isPublished: isRunPublished,
 		generationEnabled: generationReady,
+		/* A7 c14 (operator, 2026-09-30 08:15) — the status line carries the sentence
+		 * and `See what changed`; `Update schedule` is mounted by the `More` menu off
+		 * `changeNotice.regenerateAvailable`. `onRegenerate` is still handed over so
+		 * the hook keeps ONE definition of "what applying a drift dispatches", but no
+		 * apply control is rendered in the row/status line. */
 		onRegenerate: () => context.handleTriggerGenerate(capabilities.generationStoppers),
+		includeApplyAction: false,
 	});
 	const showDriftState = changeNotice.show;
 	const setupRepair = generationGate.repair.kind !== 'none' ? generationGate.repair : setupState.repair;
@@ -439,24 +450,42 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 			: null,
 		onDiscard: onDiscardDraft ?? null,
 	});
-	/* A2 HEADER-BUDGET — the two values the trailing status band needs, each the
-	 * EXISTING derivation handed across, never recomputed there: `stripDraftActions`
-	 * is the same resolved object the `More` menu renders (one derivation, two
-	 * renderers) with only a VISIBILITY restated — and that visibility is
-	 * `draftStrip.discardEnabled`, which `resolveDraftStripProps` already defines as
-	 * "there is a draft"; `runState` is the ONE `describeRunState` result. Full
-	 * record: SimpleHeaderTrailingSurfaces, SimpleSetupSharedControls, DraftActionButton. */
-	const stripDraftActions = {
-		edit: simpleDraftMenuActions.edit,
-		discard: simpleDraftMenuActions.discard,
-		/* correction 2 / F4: the same fact, named for the row-2 visibility decision. */
-		hasDraft: draftStrip.discardEnabled,
-	};
+	/* A7 c14 (operator, 2026-09-30 08:15) — `stripDraftActions` (the row-2 draft
+	 * buttons) and `SimpleHeaderDraftActions` are REMOVED from the header: `Edit
+	 * draft` / `Discard draft` render ONLY in the `More` menu, from the SAME
+	 * `simpleDraftMenuActions` object resolved above. The row no longer carries a
+	 * second renderer, which is what removes the `timetable-draft-strip-*` copies
+	 * from the header DOM. */
 	const runState = describeRunState({
 		isPreGeneration: context.isPreGenerationWorkspace,
 		runId: context.draft?.runId ?? null,
 		isPublished: isRunPublished,
 	});
+	/* A7 c14 — the plain state word for the ONE status line when there is no run
+	 * sentence to name (no draft yet, or a pre-generation workspace). It is
+	 * presentation only: it does not decide anything, and it never joins the
+	 * counted control budget because it is text, not a control. */
+	const statusFallbackLabel = context.isPreGenerationWorkspace
+		? planningStateSentence()
+		: hasGeneratedRun
+			? runState.badgeLabel
+			: 'Ready to build a schedule';
+	/* A7 c14 — the drift's ONE apply action, mounted in the `More` menu when (and
+	 * only when) a trustworthy drift is claimed. `onSelect` is the SAME workspace
+	 * generation trigger the drift banner's confirm uses, so there is still exactly
+	 * ONE regeneration path. */
+	const updateScheduleAction = changeNotice.regenerateAvailable
+		? {
+			visible: true,
+			disabled: !generationReady || context.generating || context.loading,
+			reason: context.generating
+				? 'A schedule build is already running.'
+				: context.loading
+					? 'ATLAS is still checking schedule information.'
+					: generationGate.shortReason,
+			onSelect: () => context.handleTriggerGenerate(capabilities.generationStoppers),
+		}
+		: null;
 	const warningsDispatch = resolveWarningsControlDispatch({
 		lifecycleKind: lifecycleAction.kind,
 		issueReviewEnabled: capabilities.gates.issueReview.enabled,
@@ -582,105 +611,84 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		context.setPresentationMode('workflow');
 	};
 
-	/* ── A2 C12 / ITEM H — the header BOX is the two rows and nothing else ─────
+	/* ── A7 c14 (operator, 2026-09-30 08:15) — the header BOX is ONE control row
+	 * plus ONE status line, and nothing else ───────────────────────────────────
 	 *
-	 * Lane C measured this header in a real browser at 1366×768 in the operator's
-	 * own state (a resolved run, 3 must-fix, 145 advisories, term authority
-	 * unverified) and found SEVEN text bands / 204 px, against an accepted target
-	 * of at most TWO rows. The structural work was already done (`SimpleHeaderStatusStrip`
-	 * plus one control row in `timetable-simple-header-row`); the surplus came from
-	 * two surfaces still rendered INSIDE the `<header>` element.
+	 * THE OPERATOR'S INSTRUCTION, verbatim: "above the grid only ONE row: Term,
+	 * Show (Section / Teacher / Room), Schedule for, and on the right one primary
+	 * action (Publish schedule when a draft is ready, else Build a new draft) plus
+	 * More. Everything else … moves into More or a single status line under the
+	 * row, in plain words." What that changed here:
+	 *   - the title/tabs row and the picker row COLLAPSED into one
+	 *     `timetable-simple-header-row`: the page heading (not a control), `Term`,
+	 *     `Show`, `Schedule for`, the ONE primary and `More`;
+	 *   - the five section links moved into `More`
+	 *     (`TimetableSubNavLinks variant="menu"`), so `timetable-sub-nav` is no
+	 *     longer on screen above the grid — see `ScheduleReviewWorkspace`, which
+	 *     still skips the standalone band for the Simple chrome;
+	 *   - `Edit draft` / `Discard draft` no longer render as row buttons (only in
+	 *     `More`), and the change-row wrapper is gone;
+	 *   - the second band is the ONE `SimpleHeaderStatusLine`
+	 *     (`data-testid="timetable-simple-status-line"`), which carries the run
+	 *     state, the readiness/warnings control, the change sentence +
+	 *     `See what changed`, and the capped notices. `Update schedule` is a `More`
+	 *     entry, not a status-line control.
 	 *
-	 * THE OPERATOR'S INSTRUCTION, verbatim: "move blocker sheet and swap banner out
-	 * of the header box". `SimpleHeaderTrailingSurfaces` below now renders both,
-	 * immediately after `</header>`, as siblings. Its doc comment is the record of
-	 * what moved, what deliberately did not, which band Lane C called the "blocker
-	 * line", and why a JSDOM row is DOM-shape rather than a 1366×768 pixel count.
-	 *
-	 * It is a sub-component rather than an in-file move because this file stood at
-	 * 971 physical lines and the move leaves it at 993 — under the §8 1000-line cap,
-	 * but with seven lines of headroom, and a record this size does not belong in
-	 * those last seven. §8's answer is to EXTRACT, never to delete a comment. NO state
-	 * and NO handler moved: `blockerSheetOpen`, `setBlockerSheetOpen`,
-	 * `swapClassTimesMode` and `onSwapClassTimesCancel` stay here, so this component
-	 * remains the logical owner of both surfaces and only their JSX position
-	 * changed. The fragment wrapper is what makes them siblings of the `<header>`
-	 * rather than children. */
+	 * `SimpleHeaderTrailingSurfaces` below still renders the armed-swap banner and
+	 * the portal-mounted blocker sheet as SIBLINGS of `</header>` (unchanged): the
+	 * header box otherwise renders exactly the two bands above. NO state and NO
+	 * handler moved; only their JSX position did. */
 	return (
 		<>
 		<header className="shrink-0 border-b border-border bg-background" data-testid="timetable-simple-header">
-			{/* A2 HEADER-BUDGET (operator, 2026-09-29) — THE HEADER IS TWO ROWS. The
-			   operator: the header "has regressed … messy … we need a less is more
-			   approach and relaxed view". §8 names the shape: row 1 = title, tabs, ONE
-			   status chip, the primary action, `More`; row 2 = `Term` · `Show` ·
-			   `Schedule for` plus only the actions with something to act on. OUT OF THE
-			   BOX, and why: the title/tabs band (`TimetableSubNavRow` is now HERE, and
-			   `ScheduleReviewWorkspace` skips the standalone `TimetableSubNav` exactly
-			   when this header shows them, so they are never on screen twice); the status
-			   strip with its SECOND chip `RunStateBadge`, its `SimpleTermScopeLine`
-			   (`Term: Viewi…`, `school is i…` — all `lg:truncate`, which §8 forbids) and
-			   its notices, now a SIBLING of `</header>`; and the long
-			   `timetable-curriculum-readiness-message` paragraph, now the chip's short
-			   `N setup items to fix` label with the diagnostic behind a `@/ui` Tooltip.
-			   `RunStateBadge`/`runIdentityBadgeLabel` are untouched and still serve the
-			   Expert header. UNCHANGED: the change notice is the first child of the
-			   control row (C11 S2), and the primary action, the chip's
-			   `generation-blockers` dispatch and the `More` menu are as they were. */}
+			{/* A7 c14 — ONE control row, `lg:flex-nowrap` so it holds a single visual
+			   line at 1366 px and wraps only below `lg`. */}
 			<div
-				className="flex min-w-0 flex-col gap-0"
+				className="flex min-w-0 flex-wrap items-center gap-2 px-3 py-1.5 lg:flex-nowrap"
 				data-testid="timetable-simple-header-row"
 			>
-			{/* A2 C12 / ITEM 1 — `lg:flex-nowrap` holds this row to ONE visual line at
-			    1366 px. The base `flex-wrap` is RETAINED for narrow/390 px layouts. */}
-			<div
-				className="flex min-w-0 flex-wrap items-center gap-2 lg:flex-nowrap"
-				data-testid="timetable-simple-header-row-1"
-			>
-				{/* The title and the tabs, in row 1, from the ONE extraction. */}
-				<TimetableSubNavRow />
+				{/* The page title, not a control, from the ONE shared heading. */}
+				<TimetablePageHeading />
 
-				{/* A2 C12 / ITEM 1 — no wrap from `lg` up, so the status / primary /
-				    Undo / More cluster stays on this row's single line. */}
-			<div className="flex min-w-0 flex-wrap items-center gap-1.5 pr-3 lg:ml-auto lg:flex-nowrap lg:justify-end">
-					{/* A2 HEADER-BUDGET — the ONE status chip. Its face is unchanged
-					    (`SimpleReadinessChip` in `SimpleWarningsControl`); the setup-blocked
-					    LABEL is the short `N setup items to fix`, and the long
-					    `setupBlockedDiagnostic` it replaced is the control's tooltip. */}
-				<SimpleWarningsControl
-					readiness={readiness}
-					dispatch={warningsDispatch}
-					diagnostic={setupBlockedDiagnostic}
-					onClick={handleWarningsClick}
-				>
-				<SimpleReadinessChip
-					readiness={readiness}
-					publishBlocked={publishBlocked}
-					publishBlockedReason={publishBlockedReason}
-					blockingHardCount={context.blockingHardCount}
-					softCount={context.softCount}
-					setupBlockerCount={setupBlockerCount}
+				<SimpleTermSwitcher context={context} />
+
+				{/* Desktop face of the Show/`Schedule for` pickers; the compact Sheet
+				    trigger below is the touch-sized face (`lg:hidden`), never a second
+				    desktop control. */}
+				<div className="hidden min-w-0 lg:flex lg:shrink-0">
+					<SimpleScheduleControls
+						context={context}
+						lastEntityByMode={lastEntityByMode}
+						onViewModeChange={handleViewModeChange}
+						onEntityChange={handleEntityChange}
+					/>
+				</div>
+
+				<SimpleScheduleSheet
+					context={context}
+					lastEntityByMode={lastEntityByMode}
+					onViewModeChange={handleViewModeChange}
+					onEntityChange={handleEntityChange}
 				/>
-				</SimpleWarningsControl>
 
+				<div className="flex min-w-0 flex-wrap items-center gap-1.5 pr-3 lg:ml-auto lg:flex-nowrap lg:justify-end">
 					{/* DRAFT-UX-C01 (operator, 2026-09-25) — the ONE solid primary:
 					    `Generate` with no generated run, `Publish schedule` once a run
-					    exists. The draft's own verb is NOT traded for it; it is an entry
-					    of the More menu beside `Discard draft`. See
-					    `resolveSimpleHeaderPrimary`. */}
-				{headerPrimary === 'generate' ? (
-					<SimpleGenerateAction
-						primary
-						actionState={generateActionState}
-						onClick={handleGenerateClick}
-						published={false}
-					/>
-				) : headerPrimary === 'publish' ? (
-					<SimplePublishAction
-						actionState={publishActionState}
-						primary
-						onClick={handlePublishActionClick}
-					/>
-				) : headerPrimary === 'published' ? (
+					    exists. See `resolveSimpleHeaderPrimary`. */}
+					{headerPrimary === 'generate' ? (
+						<SimpleGenerateAction
+							primary
+							actionState={generateActionState}
+							onClick={handleGenerateClick}
+							published={false}
+						/>
+					) : headerPrimary === 'publish' ? (
+						<SimplePublishAction
+							actionState={publishActionState}
+							primary
+							onClick={handlePublishActionClick}
+						/>
+					) : headerPrimary === 'published' ? (
 						<SimplePublishedState followUpCount={context.summary?.unassignedCount ?? 0} />
 					) : null}
 
@@ -734,6 +742,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 									}}
 									pastYearsHref={pastYearsHref}
 									nextStep={moreNextStep}
+									/* A7 c14 — the drift's `Update schedule`, moved off the
+									   header row/status line into this menu. */
+									updateSchedule={updateScheduleAction}
 								/>
 								<SimpleMoreMenuContent
 									context={context}
@@ -764,42 +775,35 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					</DropdownMenu>
 				</div>
 			</div>
-			{/* ROW 2 — the pickers, and only the actions with something to act on.
-			    A2 HEADER-BUDGET: all three pickers carry the ONE shared `@/ui` chrome,
-			    so all three look like Teaching Load's. */}
-			<div
-				className="flex min-w-0 flex-wrap items-center gap-1.5 px-3 pb-1.5 lg:flex-nowrap"
-				data-testid="timetable-simple-header-row-2"
-			>
-				<SimpleTermSwitcher context={context} />
-
-				<div className="hidden min-w-0 flex-1 lg:flex lg:shrink-0 lg:min-w-[24rem]">
-					<SimpleScheduleControls
-						context={context}
-						lastEntityByMode={lastEntityByMode}
-						onViewModeChange={handleViewModeChange}
-						onEntityChange={handleEntityChange}
-					/>
-				</div>
-
-				<SimpleScheduleSheet
-					context={context}
-					lastEntityByMode={lastEntityByMode}
-					onViewModeChange={handleViewModeChange}
-					onEntityChange={handleEntityChange}
-				/>
-
-				{/* A2 HEADER-BUDGET — the draft actions, right-aligned, ONLY when they have
-				    something to act on; a disabled one states its reason in a `@/ui`
-				    Tooltip, never as a sentence beneath it. The SAME already-resolved
-				    `simpleDraftMenuActions` the `More` menu renders — one derivation, two
-				    renderers, so the two cannot disagree. Extracted for §8's line cap. */}
-				<SimpleHeaderDraftActions actions={stripDraftActions} />
-			</div>
-			{/* Lane C 30 Sep: the change notice gets its own slim line so it never pushes the filters right. */}
-			{changeNotice.node ? <div className="px-3 pb-1.5" data-testid="timetable-simple-header-change-row">{changeNotice.node}</div> : null}
-			</div>
-			{/* ── end of the two-row band (A2 HEADER-BUDGET) ── */}
+			{/* A7 c14 (operator, 2026-09-30 08:15) — the ONE status line under the
+			    control row: run state, the readiness/warnings control, the change
+			    sentence + `See what changed`, and the capped notices. Nothing here is
+			    clipped (`SimpleHeaderStatusLine` carries no `truncate`): long text wraps. */}
+			<SimpleHeaderStatusLine
+				runState={runState}
+				stateFallback={statusFallbackLabel}
+				warningsControl={(
+					<SimpleWarningsControl
+						readiness={readiness}
+						dispatch={warningsDispatch}
+						diagnostic={setupBlockedDiagnostic}
+						onClick={handleWarningsClick}
+					>
+						<SimpleReadinessChip
+							readiness={readiness}
+							publishBlocked={publishBlocked}
+							publishBlockedReason={publishBlockedReason}
+							blockingHardCount={context.blockingHardCount}
+							softCount={context.softCount}
+							setupBlockerCount={setupBlockerCount}
+						/>
+					</SimpleWarningsControl>
+				)}
+				changeNotice={changeNotice.node}
+				messages={bandMessages}
+				termAuthorityNotice={termAuthorityNotice}
+			/>
+			{/* ── end of the ONE control row + ONE status line (A7 c14) ── */}
 
 			<SchedulerPrintDialog
 				open={printPanelOpen}
@@ -883,7 +887,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		    `simple/SimpleHeaderTrailingSurfaces.tsx` for the full record: what
 		    moved, what did not, and which band Lane C called the "blocker line".
 		    The armed-swap band PAINTS, so it is the first of the two; the blocker
-		    sheet is portal-mounted and paints nothing while closed. */}
+		    sheet is portal-mounted and paints nothing while closed.
+		    A7 c14 — the status band is no longer a third sibling: it is the header's
+		    own `timetable-simple-status-line`, so only these two enter here. */}
 		<SimpleHeaderTrailingSurfaces
 			swapClassTimesMode={swapClassTimesMode}
 			onSwapClassTimesCancel={onSwapClassTimesCancel}
@@ -893,12 +899,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 			onRetry={context.handleRefresh}
 			labelForSection={context.sectionLabel}
 			labelForSubject={context.subjectLabel}
-			/* A2 HEADER-BUDGET — the ONE `describeRunState` result and the exceptional
-			   notices, handed over rather than re-derived across the boundary; the
-			   setup-blocked paragraph is filtered out because the chip carries that fact. */
-			runState={runState}
-			messages={bandMessages}
-			termAuthorityNotice={termAuthorityNotice}
 		/>
 		</>
 	);

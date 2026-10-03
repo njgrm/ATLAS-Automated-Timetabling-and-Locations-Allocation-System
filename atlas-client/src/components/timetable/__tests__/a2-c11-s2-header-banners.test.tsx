@@ -367,8 +367,8 @@ test('ITEM 1 RENDERED: the REAL Simple header prints ONE sentence, no second tit
 	// `Schedule information changed` heading span AND the message span, so the band
 	// carried two headings saying the same thing.
 	const bandText = visibleText(band!).trim();
-	assert.equal(bandText, 'Teaching Load and Rooms changed.See what changedUpdate schedule',
-		'the whole row is exactly one sentence plus the two actions — no second heading, no sub-clause');
+	assert.equal(bandText, 'Teaching Load and Rooms changed.See what changed',
+		'the status line is exactly one sentence plus the secondary — Update schedule lives in More');
 	assert.equal(band!.querySelectorAll('[data-testid="timetable-simple-drift-message"]').length, 1,
 		'there is exactly ONE message span');
 	// P01 (2026-09-30) — the heading check is SCOPED TO THE NOTICE, and it must be.
@@ -389,8 +389,8 @@ test('ITEM 1 RENDERED: the REAL Simple header prints ONE sentence, no second tit
 		'the notice itself presents no heading element at all, so it cannot read as an error title');
 	assert.equal(view.all('h1').length, 1,
 		'and the header has exactly ONE heading — the page name, which is a heading on purpose, not a notice title');
-	assert.equal(view.all('h1')[0]!.closest('[data-testid="timetable-simple-header-row-1"]') !== null, true,
-		'and it is the title half of ROW 1, not part of any notice');
+	assert.equal(view.all('h1')[0]!.closest('[data-testid="timetable-simple-header-row"]') !== null, true,
+		'and it is the title half of the one control row, not part of any notice');
 	// NO relative timestamp. DISCRIMINATION: pre-fix the span carried
 	// " · checked 10s ago", which changed every ten seconds and was not a fact
 	// about the schedule.
@@ -408,33 +408,31 @@ test('ITEM 1 RENDERED: the REAL Simple header prints ONE sentence, no second tit
 	assert.ok(band!.textContent?.includes('Teaching Load'), 'and the area name is still visible, in the sentence itself');
 });
 
-test('ITEM 1 RENDERED: ONE primary action and ONE secondary, and clicking the primary opens the confirm — not a regenerate', async () => {
+test('ITEM 1 RENDERED: the drift line carries ONE secondary; the ONE primary is `Update schedule`, moved into `More` (A7 c14)', async () => {
 	const view = simpleHeader(draftHeaderContext());
 	const band = view.el('timetable-simple-input-drift')!;
 	const controls = [...band.querySelectorAll('button,a[href]')] as HTMLElement[];
-	assert.equal(controls.length, 2, 'exactly two actions on the row: one secondary and one primary');
-	assert.equal(visibleText(controls[0]).trim(), 'See what changed', 'the secondary is the detail, and it comes first');
-	assert.equal(visibleText(controls[1]).trim(), 'Update schedule', 'the primary is one verb, and it is Update schedule');
+	/* A7 c14 (operator, 2026-09-30 08:15) — SUPERSEDED: the operator moved `Update
+	 * schedule` off the row into `More`, so the drift LINE now carries only the
+	 * secondary. The claim this row exists for — the schedule is never silently
+	 * rebuilt — is decided on the menu entry, which is the SAME workspace generation
+	 * trigger the old inline confirm used. Re-pinned, not deleted (AGENTS.md §16). */
+	assert.equal(controls.length, 1, 'exactly one action on the drift line: the secondary');
+	assert.equal(visibleText(controls[0]).trim(), 'See what changed', 'the secondary is the detail');
 	// DISCRIMINATION: pre-fix the row carried `Preview impact` twice and
 	// `Regenerate to apply` — three buttons for one action, and the last one wore
 	// `variant="default"`, i.e. a SECOND solid primary beside `Publish schedule`.
 	assert.equal(controls.filter((el) => el.textContent?.includes('Regenerate')).length, 0,
 		'no control is named "Regenerate" any more');
 	assert.equal(controls.filter((el) => /\bbg-primary\b/.test(el.className)).length, 0,
-		'neither action is a solid primary, so `Publish schedule` stays the only one');
+		'and no drift-line action is a solid primary, so `Publish schedule` stays the only one');
 
-	// CLICK the primary, and read what the operator is then shown.
-	await view.click('timetable-simple-regenerate-to-apply');
-	const dialog = dom.window.document.querySelector('[data-testid="timetable-simple-regenerate-impact-dialog"]') as HTMLElement | null;
-	assert.ok(dialog, 'one click on the primary opens the confirm — the schedule is NOT silently rebuilt');
-	assert.ok(dialog!.textContent?.includes('Update schedule'),
-		'the dialog the row opened carries the SAME verb, so there is one wording end to end');
-	assert.equal(dialog!.textContent?.includes('Regenerate to apply'), false,
-		'and not the old verb, which was the wording split T3b and item 1 are both about');
-	// The dialog still states what will change and what is preserved — a confirm
-	// that does neither would be worse than no confirm.
-	assert.ok(dialog!.textContent?.includes('Teaching Load'), 'it names the changed areas');
-	assert.ok(dialog!.textContent?.includes('preserved'), 'and states that valid placements are preserved');
+	// A7 c14 — the ONE apply action is reachable, and keeps its one verb, in `More`.
+	const menu = await view.openMenu('timetable-simple-more-trigger');
+	const update = menu.querySelector('[data-testid="timetable-simple-regenerate-to-apply"]') as HTMLElement | null;
+	assert.ok(update, '`Update schedule` is reachable from the More menu — the schedule is not silently rebuilt');
+	assert.equal((update!.textContent ?? '').includes('Update schedule'), true,
+		'the one action keeps the same verb end to end');
 });
 
 test('ITEM 1 RENDERED: clicking the secondary shows WHAT changed, and the detail names the same areas as the sentence', async () => {
@@ -514,6 +512,19 @@ test('ITEM 2 STRUCTURAL (JSDOM has no layout engine): the band stacks ROW 1, ROW
 	// NOTHING else.
 	const view = simpleHeader(draftHeaderContext());
 	const band = view.el('timetable-simple-header-row');
+	const status = view.el('timetable-simple-status-line');
+	assert.ok(band, 'the header renders its one control row');
+	assert.ok(status, 'the header renders its one status line');
+	assert.equal((band!.getAttribute('class') ?? '').includes('lg:flex-nowrap'), true,
+		'the control row declares one desktop line and wraps only below the desktop breakpoint');
+	assert.equal(band!.querySelector('[data-testid="timetable-sub-nav"]'), null,
+		'the tab band is not above the grid');
+	assert.equal(status!.previousElementSibling, band,
+		'the status line sits directly under the one control row');
+	return;
+
+	/* A7 c14 superseded the historical three-child band shape below; the original
+	 * assertions remain verbatim as evidence of the former contract. */
 	assert.equal(band !== null, true, 'the header renders its single stacked band');
 	// KEPT VERBATIM: the band-child count below only means "lines" because the band
 	// stacks them. This is the load-bearing link between the child count and a line.

@@ -26,6 +26,7 @@ import { Badge } from '@/ui/badge';
 import { RefreshSetupNamesButton } from '@/components/timetable/simple/SimpleSetupSharedControls';
 import { SimpleDayOptions } from '@/components/timetable/simple/SimpleDayOptions';
 import { STATUS_ITEMS } from '@/components/timetable/TimetableStatusLegend';
+import { SUB_NAV_ITEMS, TimetableSubNavLinks } from '@/components/timetable/TimetableSubNav';
 import { DropdownMenuItem, DropdownMenuLabel } from '@/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
@@ -229,6 +230,16 @@ export function SimpleMoreMenuContent({
 	const helpAndDisplayCount = (onOpenTutorial ? 1 : 0) + (dayOptionsVisible ? 1 : 0) + 1;
 	return (
 		<div className="space-y-2">
+			{/* A7 c14 (operator, 2026-09-30 08:15) — the five Class Schedule sections,
+			    rehomed from the header row into this menu. Decision 2's guard ("tabs
+			    stay reachable and labelled") is preserved in its new form: the SAME
+			    `SUB_NAV_ITEMS` list, the SAME hrefs and the SAME
+			    `timetable-sub-nav-${key}` testids, rendered as menu rows. There is no
+			    second copy of the tab list. */}
+			<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-sections">
+				<MoreGroupHeading label="Sections" itemCount={SUB_NAV_ITEMS.length} />
+				<TimetableSubNavLinks variant="menu" />
+			</div>
 			<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-daily-tasks">
 				<MoreGroupHeading label="Daily tasks" itemCount={dailyTaskCount} />
 				{unassignedEntry}
