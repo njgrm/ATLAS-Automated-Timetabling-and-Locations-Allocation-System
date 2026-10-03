@@ -277,6 +277,13 @@ async function runFixtureTests() {
 			select: { id: true },
 		});
 		policyId = (policy as any).id as number;
+		const building = await instrumented.building.create({
+			data: { schoolId: fixtureSchoolId, name: 'Shape gate building', gradeScope: [7] },
+			select: { id: true },
+		});
+		await instrumented.room.create({
+			data: { buildingId: (building as any).id, name: 'Shape gate room', type: 'CLASSROOM', capacity: 50, isTeachingSpace: true, isSharedFacility: false },
+		});
 
 		const math = await instrumented.subject.create({
 			data: { schoolId: fixtureSchoolId, code: 'MATH', name: 'Mathematics', minMinutesPerWeek: subjectMinutes, programScopes: ['REGULAR'], gradeLevels: [7], ownerDepartment: 'MATH', isActive: true },
@@ -603,6 +610,8 @@ async function runFixtureTests() {
 			await tx.teachingLoadCycle.deleteMany({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } });
 			await tx.teachingLoadSuggestionProposal.deleteMany({ where: { schoolId: fixtureSchoolId } });
 			await tx.auditLog.deleteMany({ where: { schoolId: fixtureSchoolId } });
+			await tx.room.deleteMany({ where: { building: { schoolId: fixtureSchoolId } } });
+			await tx.building.deleteMany({ where: { schoolId: fixtureSchoolId } });
 			await tx.sectionMirror.deleteMany({ where: { schoolId: fixtureSchoolId } });
 			await tx.facultyMirror.deleteMany({ where: { schoolId: fixtureSchoolId } });
 			await tx.specializationAlias.deleteMany({ where: { schoolId: fixtureSchoolId } });
@@ -613,7 +622,7 @@ async function runFixtureTests() {
 		});
 
 		const residue = await instrumented.$transaction(async (tx: any) => {
-			const [schools, ownerships, facultySubjects, sections, faculty, subjects, cycles, proposals, audits, policies] = await Promise.all([
+			const [schools, ownerships, facultySubjects, sections, faculty, subjects, cycles, proposals, audits, policies, rooms, buildings] = await Promise.all([
 				tx.school.count({ where: { id: fixtureSchoolId } }),
 				tx.subjectSectionOwnership.count({ where: { schoolId: fixtureSchoolId } }),
 				tx.facultySubject.count({ where: { schoolId: fixtureSchoolId } }),
@@ -624,8 +633,10 @@ async function runFixtureTests() {
 				tx.teachingLoadSuggestionProposal.count({ where: { schoolId: fixtureSchoolId } }),
 				tx.auditLog.count({ where: { schoolId: fixtureSchoolId } }),
 				tx.schedulingPolicy.count({ where: { schoolId: fixtureSchoolId } }),
+				tx.room.count({ where: { building: { schoolId: fixtureSchoolId } } }),
+				tx.building.count({ where: { schoolId: fixtureSchoolId } }),
 			]);
-			return [schools, ownerships, facultySubjects, sections, faculty, subjects, cycles, proposals, audits, policies];
+			return [schools, ownerships, facultySubjects, sections, faculty, subjects, cycles, proposals, audits, policies, rooms, buildings];
 		});
 		assertEqual(residue.reduce((sum: number, value: number) => sum + value, 0), 0, 'zero residue across all fixture-scoped models');
 

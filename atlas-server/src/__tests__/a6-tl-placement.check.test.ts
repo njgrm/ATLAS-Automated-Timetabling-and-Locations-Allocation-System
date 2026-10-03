@@ -123,12 +123,14 @@ function demandLine(input: {
 }
 
 const SUBJECT_TLE = 11;
+const SUBJECT_MATH = 12;
 const SECTION_MAKABANSA = 87;
 const SECTION_MABINI = 90;
 const TEACHER_NAVARRO = 25;
 
 const SUBJECT_META = new Map([
   [SUBJECT_TLE, { preferredRoomType: 'CLASSROOM', code: 'TLE_ICT', name: 'TLE Exploratory – ICT' }],
+  [SUBJECT_MATH, { preferredRoomType: 'CLASSROOM', code: 'MATH', name: 'Mathematics' }],
 ]);
 
 const SECTION_META = new Map([
@@ -272,6 +274,58 @@ test('empty occupancy: everything is placeable', () => {
   }));
   assert.equal(makabansa.placeable, true);
   assert.equal(mabini.placeable, true);
+});
+
+test('a suggestion batch reserves its planned slots so two loads cannot both claim the same timetable shape', () => {
+  const onlySlot: WeeklySlot[] = [{ day: 'FRIDAY', startTime: '11:30', endTime: '12:15' }];
+  const mathDemand = demandLine({
+    sectionExternalId: SECTION_MAKABANSA,
+    sectionName: 'Grade 8 Makabansa',
+    gradeLevel: 8,
+    enrolledCount: 35,
+    subjectId: SUBJECT_MATH,
+    subjectCode: 'MATH',
+    subjectName: 'Mathematics',
+    termIdentity: 'T1',
+    termIndex: 1,
+    sessionsPerWeek: 1,
+    ownerFacultyId: TEACHER_NAVARRO,
+  });
+
+  const [tle, math] = evaluatePlacementVerdicts(baseInput({
+    request: [
+      { sectionId: SECTION_MAKABANSA, subjectId: SUBJECT_TLE, facultyId: TEACHER_NAVARRO },
+      { sectionId: SECTION_MAKABANSA, subjectId: SUBJECT_MATH, facultyId: TEACHER_NAVARRO },
+    ],
+    demandLines: [demandLine(makabansa('T1', 1)), mathDemand],
+    weeklySlots: onlySlot,
+    occupancyLocks: [],
+  }));
+
+  assert.equal(tle.placeable, true, 'the first load reserves the one real class slot');
+  assert.equal(math.placeable, false, 'the second load cannot reuse the same section, teacher, and room slot');
+  assert.equal(math.reason, 'NO_AVAILABLE_SLOT');
+});
+
+test('a moved load replaces its own existing placement instead of conflicting with itself', () => {
+  const currentPairPlacement: PlacementOccupancyLock = {
+    sectionId: SECTION_MAKABANSA,
+    subjectId: SUBJECT_TLE,
+    facultyId: TEACHER_NAVARRO,
+    roomId: 1,
+    day: 'FRIDAY',
+    startTime: '11:30',
+    endTime: '12:15',
+    termIndex: 1,
+  };
+  const [verdict] = evaluatePlacementVerdicts(baseInput({
+    request: [{ sectionId: SECTION_MAKABANSA, subjectId: SUBJECT_TLE, facultyId: 99 }],
+    demandLines: [demandLine(makabansa('T1', 1))],
+    weeklySlots: [{ day: 'FRIDAY', startTime: '11:30', endTime: '12:15' }],
+    occupancyLocks: [currentPairPlacement],
+  }));
+
+  assert.equal(verdict.placeable, true, 'the receiver can reuse the pair\'s real existing slot');
 });
 
 test('a requested pair outside canonical demand is placeable (nothing to place)', () => {

@@ -329,13 +329,19 @@ export default function TeachingLoad() {
 			}
 		} catch (error: any) {
 			if (!stillCurrent()) return;
+			if (placementGate.noteBlockersFromError(error)) {
+				const message = 'ATLAS found a load that does not fit the real class times. Use a named teacher who fits, then preview again.';
+				setDraftStatusMessage(message);
+				toast.error(message, { id: toastId });
+				return;
+			}
 			const message = error?.response?.data?.message ?? 'ATLAS could not prepare a Teaching Load suggestion. Refresh the source and try again.';
 			setDraftStatusMessage(message);
 			toast.error(message, { id: toastId });
 		} finally {
 			if (stillCurrent()) setSuggestionLoading(false);
 		}
-	}, [data.activeSchoolYearId, data.schoolId, ui]);
+	}, [data.activeSchoolYearId, data.schoolId, placementGate, ui]);
 
 	const suggestionApplyDisabledReason = useMemo(() => {
 		if (!autoFillResult) return 'Preview a Teaching Load suggestion before applying it.';

@@ -14,7 +14,11 @@ import { buildDerivedDemand, type DerivedDemandResult } from './derived-demand.s
 import { workloadPolicyRevision } from './workload-policy.service.js';
 import { getEffectiveWorkloadPolicyFromClient, type EffectiveWorkloadPolicy } from './scheduling-policy.service.js';
 import { resolveRealFacultyCapMinutes } from './teaching-load-capacity.service.js';
-import { evaluatePlacementWriteGate } from './teaching-load-placement-check.service.js';
+import {
+	evaluatePlacementWriteGate,
+	type PlacementCheckLineRequest,
+	type PlacementWriteGateResult,
+} from './teaching-load-placement-check.service.js';
 
 const db = () => getDataContext();
 
@@ -105,6 +109,29 @@ function isCompleteEvaluatedDistribution(plan: unknown): plan is TeachingLoadDis
 		return false;
 	}
 	return true;
+}
+
+/** Every newly-owned or moved pair whose receiver the timetable must place. */
+export function placementLinesForDistribution(plan: TeachingLoadDistributionPlan): PlacementCheckLineRequest[] {
+	return [
+		...plan.inserts.map((row) => ({ sectionId: row.sectionId, subjectId: row.subjectId, facultyId: row.facultyId })),
+		...plan.moves.map((row) => ({ sectionId: row.sectionId, subjectId: row.subjectId, facultyId: row.toFacultyId })),
+	];
+}
+
+function assertPlacementGate(gate: PlacementWriteGateResult): void {
+	if (!gate.evaluated) {
+		throw err(409, 'TEACHING_LOAD_PLACEMENT_NOT_READY', 'ATLAS cannot verify the timetable shape yet. Finish term, class-time, and teaching-room setup before preparing suggestions.', {
+			actionHint: 'Finish timetable setup, then preview a fresh Teaching Load suggestion.',
+			details: { demandReady: gate.demandReady },
+		});
+	}
+	if (!gate.placeable) {
+		throw err(409, 'TEACHING_LOAD_UNPLACEABLE', 'The timetable cannot place one or more suggested classes. Choose a teacher who fits the real class times.', {
+			actionHint: 'Use a named teacher who fits, then preview the suggestion again.',
+			details: { blockers: gate.blockers },
+		});
+	}
 }
 
 /**
@@ -302,17 +329,29 @@ export async function createTeachingLoadSuggestionProposal(input: {
 	actorSchoolId: number | null;
 	authToken?: string;
 	coverageMode?: CoverageMode;
-}): Promise<TeachingLoadSuggestionProposalResult> {
+}, dependencies: {
+	preview?: typeof autoFill;
+	evaluatePlacement?: typeof evaluatePlacementWriteGate;
+} = {}): Promise<TeachingLoadSuggestionProposalResult> {
 	requireActor(input.actorId);
 	await assertTeachingLoadWriteAuthority({
 		schoolId: input.schoolId,
 		schoolYearId: input.schoolYearId,
 		actorSchoolId: input.actorSchoolId,
 	});
-	const preview = await autoFill(input.schoolId, input.schoolYearId, input.authToken, {
+	const preview = await (dependencies.preview ?? autoFill)(input.schoolId, input.schoolYearId, input.authToken, {
 		previewOnly: true,
 		coverageMode: input.coverageMode,
 	});
+	if (!isCompleteEvaluatedDistribution(preview.distribution)) {
+		throw distributionStale('ATLAS could not evaluate a complete Teaching Load distribution. Preview again after source setup is ready.');
+	}
+	const placementGate = await (dependencies.evaluatePlacement ?? evaluatePlacementWriteGate)(
+		input.schoolId,
+		input.schoolYearId,
+		placementLinesForDistribution(preview.distribution),
+	);
+	assertPlacementGate(placementGate);
 	const breakdown = suggestedAssignmentBreakdown(preview);
 
 	const proposal = await db().$transaction(async (tx) => {
@@ -386,6 +425,8 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 	 * by the dedicated derived-demand correction suite.
 	 */
 	resolveDerivedDemand?: (schoolId: number, schoolYearId: number, client: unknown) => Promise<DerivedDemandResult>;
+	/** Test seams use an already-proven feasible shape when placement is outside their subject. */
+	evaluatePlacement?: typeof evaluatePlacementWriteGate;
 } = {}): Promise<TeachingLoadSuggestionProposalResult> {
 	requireActor(input.actorId);
 	const existing = await db().teachingLoadSuggestionProposal.findUnique({
@@ -450,16 +491,14 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 	// timetable cannot place. This zero-write gate runs BEFORE the transaction,
 	// so a refusal consumes nothing and the pending proposal is left intact for
 	// the operator to re-apply with a teacher who fits.
-	const placementLines = candidateRows
+	const placementLines = [
+		...candidateRows
 		.filter((row) => typeof row.facultyId === 'number' && (row.facultyId as number) > 0)
-		.map((row) => ({ sectionId: row.sectionId, subjectId: row.subjectId, facultyId: row.facultyId as number }));
-	const placementGate = await evaluatePlacementWriteGate(existing.schoolId, existing.schoolYearId, placementLines);
-	if (!placementGate.placeable) {
-		throw err(409, 'TEACHING_LOAD_UNPLACEABLE', 'The timetable cannot place one or more of these classes. Choose a teacher who fits the free time.', {
-			actionHint: 'Choose a teacher who fits the free time, then apply the suggestion again.',
-			details: { blockers: placementGate.blockers },
-		});
-	}
+		.map((row) => ({ sectionId: row.sectionId, subjectId: row.subjectId, facultyId: row.facultyId as number })),
+		...refreshedPlan.moves.map((row) => ({ sectionId: row.sectionId, subjectId: row.subjectId, facultyId: row.toFacultyId })),
+	];
+	const placementGate = await (dependencies.evaluatePlacement ?? evaluatePlacementWriteGate)(existing.schoolId, existing.schoolYearId, placementLines);
+	assertPlacementGate(placementGate);
 
 	const txResult = await db().$transaction(async (tx) => {
 		await assertTeachingLoadWriteAuthority({
