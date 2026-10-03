@@ -16,13 +16,14 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { ROOM_TYPE_LABELS } from '@/lib/subject-constants';
 import { GRADE_COLORS } from '@/lib/grade-labels';
 import { cn } from '@/lib/utils';
 import { AccessibleInfo } from '@/components/smart/AccessibleInfo';
 import { splitSubjectFeatures, subjectFeatureHelp, ownerDepartmentRead } from './subject-feature-presentation';
 import { ProgramScopeChips } from './ProgramScopeChips';
-import { SUBJECT_ACTION_CELL_Z, SUBJECT_ACTION_COLUMN_WIDTH_CLASS } from './subject-action-column';
+import { SUBJECT_ACTION_CELL_Z, SUBJECT_ACTION_COLUMN_WIDTH_CLASS, SUBJECT_NAME_COLUMN_WIDTH_CLASS } from './subject-action-column';
 import type { Subject, SubjectCoverageRow } from '@/types';
 import type { SubjectCoverageVerdict } from '@/components/subjects/subjects-coverage-truth';
 
@@ -157,21 +158,73 @@ export function SubjectRow({
 		<tr className="border-b last:border-0 hover:bg-muted/30 transition-colors group">
 			{/* Col 1 — Subject: name + one status badge.
 
-				A5 C3 / A2: the subject-CODE chip is GONE from this row, along with
-				its `TooltipProvider`/`Tooltip` wrapper, its `tabIndex={0}` and its
-				40-word `aria-label`. That is a subtraction of one chip, one focusable
-				element and one affordance from EVERY row of the catalog, in the region
-				where the operator is reading names.
-
-				Why it goes rather than moves behind a detail: the user named in §11 rule 1
-				came to find one subject and see whether it is covered. `subject.name` is
-				already the row's bold title; the code is the identifier curriculum
+				A5 C3 / A2: the subject-CODE chip is GONE from this row, along with its
+				`TooltipProvider`/`Tooltip` wrapper, its `tabIndex={0}` and its 40-word
+				`aria-label`. That is a subtraction of one chip, one focusable element and
+				one affordance from EVERY row of the catalog, in the region where the
+				operator is reading names. The code is the identifier curriculum
 				requirements and EnrollPro records key on, not one a scheduler decides
-				coverage from. It is still on the edit form, where an officer enters it.
-				No `title=` attribute replaces it (§8). */}
-			<td className="px-4 py-3">
+				coverage from; it is still on the edit form, where an officer enters it.
+				No `title=` attribute replaces it (§8).
+
+				MR-71 (operator, 2026-10-03, subject.docx item 1: "notice the text being
+				cut due to the small container. Adjust the container size").
+
+				THE DEFECT. The name was `truncate` inside a flex `min-w-0` cell with no
+				width of its own, so the six-column table's own layout squeezed column 1 to
+				whatever the other five columns happened to leave, and every long DepEd
+				subject name was cut with a "…" on the operator's primary reading surface.
+
+				THE FIX IS THE CONTAINER, NOT THE CLIP — two changes, both about GIVING THE
+				NAME ROOM rather than dropping `truncate` and letting a long name push the
+				row out of alignment:
+
+				  1. `SUBJECT_NAME_COLUMN_WIDTH_CLASS`, the SAME declared-width mechanism the
+				     action column already uses (`SUBJECT_ACTION_COLUMN_WIDTH_CLASS`) and for
+				     the same reason (`subject-action-column.ts`): a `w-*` alone is only a
+				     PREFERRED size the table's own layout can squeeze, so it is paired with
+				     `shrink-0`. The header's `<th>` takes the same constant, so the column's
+				     edges line up instead of the header and the cells each deciding
+				     independently — the defect the action column already had to fix once.
+
+				  2. `line-clamp-2 … break-words` in place of `truncate`, so the name may use
+				     TWO lines and a long word breaks rather than overflowing. That is the
+					 repository's own established treatment for a long name in a table cell
+				     (`BuildingPanel.tsx` and `SectionRoomPicker.tsx` use exactly this pair),
+				     so this row reads like the other tables instead of inventing a second
+				     one. Two lines is a BOUND, not a licence to grow: a longer name still
+				     clamps, and the Tooltip is what makes it recoverable.
+
+				THE FULL NAME IS ALWAYS AN ACCESSIBLE NAME, AND ONE HOVER AWAY. The `@/ui`
+				Tooltip is the pattern `ProgramScopeChips` uses two columns to the right for
+				the same problem (J4/R2-5: `Tooltip`, not `HoverCard`, because
+				`@radix-ui/react-hover-card` is not a dependency). `tabIndex={0}` keeps it
+				reachable by keyboard rather than by hover alone (WCAG 2.1.1), and the
+				`aria-label` IS the full name, so assistive tech announces it whether or not a
+				bubble is ever opened. Never a raw `title=` (§8).
+
+				NOT the mobile card. `SubjectMobileCard`'s own `truncate` is a DIFFERENT
+				surface at a DIFFERENT width, and `subject.docx` is about this table; it is
+				left alone rather than swept. */}
+			<td className={`px-4 py-3 ${SUBJECT_NAME_COLUMN_WIDTH_CLASS}`}>
 				<div className="flex flex-col min-w-0">
-					<span className="font-bold text-foreground leading-tight truncate">{subject.name}</span>
+					<TooltipProvider delayDuration={200}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span
+									data-testid="subject-name"
+									tabIndex={0}
+									aria-label={subject.name}
+									className="font-bold text-foreground leading-tight line-clamp-2 break-words min-w-0"
+								>
+									{subject.name}
+								</span>
+							</TooltipTrigger>
+							<TooltipContent side="top" className="max-w-72">
+								{subject.name}
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 					<div className="mt-1 flex flex-wrap items-center gap-1.5">
 						{isArchived && (
 							<Badge className="h-4 px-1.5 text-[0.65rem] font-bold bg-amber-100 text-amber-700 border border-amber-200 shadow-none">Archived</Badge>

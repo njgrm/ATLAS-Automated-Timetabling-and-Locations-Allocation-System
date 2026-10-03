@@ -113,7 +113,7 @@ export function simpleSetupGuidance(
 		case 'unavailable':
 			return 'ATLAS could not finish the schedule check. Retry schedule check; timetable generation stays unavailable until it completes.';
 		case 'ready':
-			return 'ATLAS checked the schedule information. Review any warnings before publishing.';
+			return 'ATLAS checked the schedule information. Review any warnings before saving.';
 	}
 }
 

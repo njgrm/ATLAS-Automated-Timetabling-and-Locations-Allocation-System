@@ -134,7 +134,7 @@ function resolveRepairIdentity(
  * explicit requirement and are the only new controls on this row.
  */
 function BlockerGroupRow({ group, onNavigate }: { group: BlockerGroup; onNavigate: (href: string, reason?: string, groupCount?: number, identity?: RepairIdentity | null) => void }) {
-	const whyItMatters = group.items[0]?.nextStep ?? 'Fix this group before the schedule can be published.';
+	const whyItMatters = group.items[0]?.nextStep ?? 'Fix this group before the schedule can be saved.';
 	const scopeLabel = plainScopeLabel(group.scope);
 	const destination = resolveBlockerDestination(group.reason, group.actionHref);
 	return (
@@ -302,7 +302,7 @@ export function SimplePublishReadinessSheetBody({
 					{!readiness.hasGeneratedRun && (
 						<div className="rounded-xl border border-slate-200 bg-muted/30 p-3 text-foreground" data-testid="timetable-simple-no-run-readiness">
 							<p className="text-sm font-semibold">No timetable generated yet</p>
-							<p className="mt-1 text-xs text-muted-foreground">Generate a draft before reviewing publish readiness. Preview and readiness checks alone cannot be published.</p>
+							<p className="mt-1 text-xs text-muted-foreground">Generate a schedule before reviewing save readiness. Preview and readiness checks alone cannot be saved.</p>
 						</div>
 					)}
 
@@ -311,7 +311,7 @@ export function SimplePublishReadinessSheetBody({
 							className="rounded-xl border border-border bg-muted/30 p-3 text-xs text-muted-foreground"
 							data-testid="timetable-simple-readiness-scope"
 						>
-							<p className="font-semibold text-foreground">The whole year&rsquo;s schedule decides whether you can publish</p>
+							<p className="font-semibold text-foreground">The whole year&rsquo;s schedule decides whether you can save</p>
 							<p className="mt-1">
 								{plainScopeLabel('run-wide')}: <span className="font-medium text-foreground" data-testid="timetable-simple-run-wide-blocking">{readiness.runWideBlockingHard}</span> {MUST_FIX_LABEL} · <span className="font-medium text-foreground" data-testid="timetable-simple-run-wide-unassigned">{readiness.runWideUnassigned}</span> session{readiness.runWideUnassigned === 1 ? '' : 's'} still to place
 							</p>
@@ -325,7 +325,7 @@ export function SimplePublishReadinessSheetBody({
 						<div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-900" data-testid="timetable-simple-ready-to-publish">
 							<CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
 							<div>
-								<p className="text-sm font-semibold">Ready to publish</p>
+								<p className="text-sm font-semibold">Ready to save</p>
 								<p className="mt-0.5 text-xs">No &ldquo;{MUST_FIX_LABEL}&rdquo; problems and no unresolved sessions remain for the {plainScopeLabel('run-wide').toLowerCase()}.</p>
 							</div>
 						</div>
@@ -334,7 +334,7 @@ export function SimplePublishReadinessSheetBody({
 					{readiness.hasBlockers && (
 						<>
 							<div className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-900">
-								<p className="text-sm font-semibold">Cannot publish yet</p>
+								<p className="text-sm font-semibold">Cannot save yet</p>
 								<p className="mt-1 text-xs" data-testid="timetable-simple-blocker-sentence">
 									{readiness.blockerSentence}
 								</p>

@@ -111,7 +111,7 @@ export function ScheduleReviewInputStateBanner({
 				    action is unchanged; only the register is. Expert-only today. */}
 				<Button variant="outline" size="sm" className="h-8 gap-1.5" disabled={!generationEnabled || loading} onClick={onRegenerate}>
 					<RotateCw className="size-3.5" />
-					<span className="hidden sm:inline">Regenerate Draft</span>
+					<span className="hidden sm:inline">Regenerate</span>
 				</Button>
 			</div>
 		</div>

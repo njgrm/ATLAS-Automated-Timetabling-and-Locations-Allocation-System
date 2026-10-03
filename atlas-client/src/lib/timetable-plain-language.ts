@@ -107,7 +107,7 @@ export function publishBlockedSentence(input: {
 	const tail = unplaced > 0
 		? classesNeedingTime(unplaced)
 		: mustFixCountLabel(input.blockingHardCount);
-	return `${tail} — this schedule cannot be published yet.`;
+	return `${tail}${CLAUSE_SEPARATOR}${SAVE_BLOCKED_SHORT}`;
 }
 
 /* The consequence sentences ("This blocks saving and publishing." / "This does
@@ -122,9 +122,9 @@ export function publishBlockedSentence(input: {
  * rather than contradictory) and what a zero in the first column means.
  */
 export const HARD_COUNT_RELATIONSHIP_NOTE =
-	'“Must fix” counts the problems that stop you saving and publishing. The total also counts '
-	+ 'serious problems that do not stop publishing, so the total can be higher. '
-	+ 'If “Must fix” is 0 but the total is not, the schedule can still be published.';
+	'“Must fix” counts the problems that stop you saving. The total also counts '
+	+ 'serious problems that do not stop saving, so the total can be higher. '
+	+ 'If “Must fix” is 0 but the total is not, the schedule can still be saved.';
 
 /**
  * Plain scope words. `run-wide` is the whole year's schedule, which is what
@@ -241,7 +241,7 @@ export function roomRequestAppealState(status: string | null | undefined): strin
  */
 export function runAnchorLabel(runId: number, humanAnchor?: string | null): string {
 	const anchor = humanAnchor?.trim();
-	return anchor ? `${anchor} · run ${runId}` : `Draft · run ${runId}`;
+	return anchor ? `${anchor} · run ${runId}` : `${EDIT_STATE_LABEL} · run ${runId}`;
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -285,7 +285,7 @@ export const WEEKLY_UNPLACED_LABEL = 'Weekly demand with no time yet';
  * label so the two can never drift apart.
  */
 export const UNPLACED_COUNT_DISAMBIGUATION =
-	`"${WEEKLY_UNPLACED_LABEL}" is this year's demand. A new draft counts the classes it could not place.`;
+	`"${WEEKLY_UNPLACED_LABEL}" is this year's demand. A new schedule counts the classes it could not place.`;
 
 /** The short badge form of the same population, for a space-limited badge. */
 export const WEEKLY_UNPLACED_BADGE_LABEL = 'classes with no time yet';
@@ -322,11 +322,10 @@ export function runStateSentence(input: {
 }): string | null {
 	// U5: the empty state. "Planning draft — no generated run yet" described the
 	// surface's own implementation and then said nothing had been made.
-	if (input.isPreGeneration) return 'Draft · nothing placed yet';
+	// D1: the word "Draft" is retired here too — `planningStateSentence()`.
+	if (input.isPreGeneration) return planningStateSentence();
 	if (!input.hasRun || input.runId == null || !Number.isFinite(input.runId)) return null;
-	const meaning = input.isPublished
-		? 'Published — this is the schedule in use.'
-		: 'Draft — teachers and students cannot see it yet.';
+	const meaning = input.isPublished ? saveStateSentence() : editStateSentence();
 	return `${meaning} (Run ${input.runId})`;
 }
 
@@ -347,7 +346,9 @@ export function runStateBadgeLabel(input: {
 	isPublished: boolean;
 }): string {
 	if (input.isPreGeneration || !input.hasRun) return 'No schedule yet';
-	return input.isPublished ? 'Published schedule' : 'Draft schedule';
+	// D1: the badge is `Save schedule` / `Edit schedule`, derived from the ONE
+	// mapping, so it can never disagree with `stateWord` or the strip.
+	return stateBadgeLabel(input.isPublished);
 }
 
 /**
@@ -556,8 +557,8 @@ export const GENERATE_DIALOG_LOCKED_LABEL = 'Locked classes kept';
 export const GENERATE_SETUP_UNAVAILABLE_SENTENCE =
 	'If the setup data is missing, nothing is scheduled and ATLAS says what to fix.';
 
-/** What generating does NOT do, in six words. The reassurance a scheduler needs. */
-export const GENERATE_PUBLISHES_NOTHING_SENTENCE = 'Nothing is published until you publish it.';
+/** What generating does NOT do, in plain words. D1 re-words it; see the D1 block
+ *  below for the constant that is actually exported. */
 
 export type GenerateDialogTermSource = 'atlas' | 'enrollpro' | 'enrollpro-verified' | string | null | undefined;
 
@@ -675,20 +676,180 @@ export function buildGenerateDialogCopy(input: GenerateDialogCopyInput): Generat
 	};
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * OPERATOR DECISION D1 (NJ, 2026-10-03, verbatim):
+ *   "Yes, we'll use SAVE and EDIT instead of Publish and Draft"
+ *
+ * ── THE RULING, AND WHAT IT IS NOT ──────────────────────────────────────────
+ * The state this module and the header have always called `Draft` is presented
+ * to users as **Edit**. The state called `Published` is presented as **Save**.
+ * `Generate` keeps its name — the operator named only two words.
+ *
+ * DISPLAY LAYER ONLY, exactly like the REGULAR-to-BEC change this follows: no
+ * database enum, Prisma field, API status value or persisted value is renamed.
+ * `GenerationRunStatus` is still `QUEUED | RUNNING | COMPLETED | FAILED`, and
+ * `summary.isPublished` is still the boolean the server writes. Every mapping
+ * below is stored-value → new display copy, so the rename is one edit here and
+ * cannot leave a surface behind.
+ *
+ * ── WHAT IS *NOT* CHANGED, AND WHY ──────────────────────────────────────────
+ * 1. The PUBLICATION GATE. "Save" is a new WORD for the existing published
+ *    state; it is not a new gate and it is not a weaker one. A run with HARD
+ *    violations is still not savable, because the gate reads
+ *    `capabilities.gates.publication`, which is unchanged. Renaming the verb on
+ *    the control does not rename the authority behind it.
+ * 2. WHO MAY DO IT. No role's permission changes. This is wording.
+ * 3. THE SERVER. Nothing under `atlas-server/` is touched.
+ *
+ * ── WHY THE STATE SET IS UNCHANGED ──────────────────────────────────────────
+ * The brief asks for a STATE MODEL control: the schedule's states are the same
+ * set as before, nothing added and nothing lost. These are therefore exactly
+ * FOUR functions over an unchanged input shape — `isPublished: boolean` plus
+ * the existing pre-generation/run-less branches. `vocab-state-model-c01.test.ts`
+ * asserts the set, so a future word change that quietly adds or drops a state
+ * fails a gate.
+ */
+
+/** The one word for the state a scheduler works in: what used to be "Draft". */
+export const EDIT_STATE_LABEL = 'Edit';
+
+/** The one word for the state that is in use: what used to be "Published". */
+export const SAVE_STATE_LABEL = 'Save';
+
+/**
+ * `Edit` + the consequence, in one sentence. The old wording was "Draft —
+ * teachers and students cannot see it yet.", which is still exactly true; only
+ * the state word changes.
+ */
+export function editStateSentence(): string {
+	return `${EDIT_STATE_LABEL} — teachers and students cannot see it yet.`;
+}
+
+/** `Save` + the consequence. The old wording said "Published" for the state. */
+export function saveStateSentence(): string {
+	return `${SAVE_STATE_LABEL} — this is the schedule in use.`;
+}
+
+/**
+ * The pre-generation state. It is a planner, not a run, so it never wore the
+ * published word; it wore "Draft", which is the word being retired, so it
+ * becomes "Edit" and nothing else changes.
+ */
+export function planningStateSentence(): string {
+	return `${EDIT_STATE_LABEL} · nothing placed yet`;
+}
+
+/**
+ * The stable part of the pre-generation sentence — what it says is MISSING —
+ * split out so a control can assert the claim without pinning the state word.
+ * A wording change to `EDIT_STATE_LABEL` therefore cannot silently turn this
+ * sentence into a bare noun.
+ */
+export const PLANNING_STATE_SENTENCE_STARTS_WITH = 'Edit';
+
+/** The state chip / badge label for the run on screen. */
+export function stateBadgeLabel(isPublished: boolean): string {
+	return `${isPublished ? SAVE_STATE_LABEL : EDIT_STATE_LABEL} schedule`;
+}
+
+/** The short state word with no "schedule" — the strip's whole textContent. */
+export function stateWord(isPublished: boolean): string {
+	return isPublished ? SAVE_STATE_LABEL : EDIT_STATE_LABEL;
+}
+
+/**
+ * WHO CAN SEE IT. Two sentences that are deliberately different facts and must
+ * not be merged: this one names VISIBILITY, not which run is on screen.
+ */
+export function stateVisibilitySentence(isPublished: boolean): string {
+	return isPublished
+		? SAVE_STATE_LABEL
+		: `${EDIT_STATE_LABEL} — not visible to teachers until you save`;
+}
+
+/** The "Generate" verb is UNCHANGED by D1 — the operator named only Save and Edit. */
+export const GENERATE_VERB_LABEL = 'Generate';
+
+/**
+ * `BUILD_NEW_DRAFT_LABEL` keeps its exported NAME (21 production importers and a
+ * committed source contract depend on it) and changes only its VALUE, so the
+ * retire-and-replace note in `timetable-more-menu-a2.test.ts` still holds: one
+ * More row, one dialog title, one aria-label, all from this one constant.
+ */
+export const BUILD_NEW_DRAFT_LABEL = 'Generate a schedule';
+
+/**
+ * The reassurance on the dialog's first line when a schedule is already saved.
+ * `PUBLISHED_SCHEDULE_STAYS_IN_USE` keeps its name and changes its words — the
+ * sentence's claim is unaffected by the vocabulary.
+ */
+export const PUBLISHED_SCHEDULE_STAYS_IN_USE = 'Your saved schedule stays in use.';
+
+/**
+ * The generate dialog's "nothing is published by generating" reassurance. The
+ * member's words (class-schedule.docx): "do not use DRAFT. All generated
+ * schedule should automatically SAVE" — so this sentence now names SAVE, and
+ * it is still TRUE: the server writes the run with `status: 'COMPLETED'` inside
+ * the generation transaction, and `summary.isPublished` stays false until the
+ * publication gate is passed.
+ */
+export const GENERATE_PUBLISHES_NOTHING_SENTENCE = 'Nothing is saved for everyone to use until you save it.';
+
+/**
+ * The OBLIGATION clause every blocked sentence ends with. D1 changed the VERB
+ * (`published` -> `saved`) and nothing else about the claim.
+ *
+ * There is ONE clause, exactly as at the base: `SAVE_BLOCKED_TAIL` and
+ * `SAVE_BLOCKED_SHORT` are the same string, so the chip's `title`, the blocked
+ * sentence and the `tt-warning-surface-c07b` rows can never name two different
+ * consequences for one state. It is exported so a test can assert that a
+ * sentence ENDS WITH the production tail instead of retyping it — which is how
+ * the eight `tt-warning-surface-c07b` rows now assert the count phrase (the
+ * part decision 8 actually fixed) without pinning the verb a second time.
+ */
+export const SAVE_BLOCKED_SHORT = 'this schedule cannot be saved yet.';
+
+/**
+ * The MID-SENTENCE form of the same obligation, used where the clause continues a
+ * count phrase ("3 Must fix problems still need fixing before this schedule can be
+ * saved."). It is deliberately NOT the standalone sentence: joining one to the
+ * other would be ungrammatical, so this is the second named form of ONE clause.
+ */
+export const SAVE_BLOCKED_CONTINUATION = 'before this schedule can be saved.';
+
+/**
+ * The OBLIGATION clause every blocked sentence ends with. D1 changed the VERB
+ * (`published` -> `saved`) and nothing else about the claim.
+ *
+ * This is the CONTINUATION form — it follows a count phrase ("2 Must fix problems
+ * still need fixing `SAVE_BLOCKED_TAIL`"), which is why it is not the standalone
+ * `SAVE_BLOCKED_SHORT` sentence. It is exported so a test can assert that a
+ * sentence ENDS WITH the production clause instead of retyping it — which is how
+ * the eight `tt-warning-surface-realism-c07b` rows assert the count phrase (the
+ * part decision 8 actually fixed) without pinning the verb a second time.
+ */
+export const SAVE_BLOCKED_TAIL = SAVE_BLOCKED_CONTINUATION;
+
+/** The separator the chip's structural row splits on to find the clause above. */
+export const CLAUSE_SEPARATOR = ' — ';
+
+/**
+ * `Publish` as a control verb becomes `Save`. The gate behind it
+ * (`gates.publication`) is untouched: a HARD-violating run still refuses.
+ */
+export const SAVE_CONTROL_LABEL = 'Save';
+
+/** The ≤6-word short reason printed beside a disabled Save control. */
+export const SAVE_SHORT_FALLBACK = 'Saving is not available';
+
 /* ── #56 — ONE verb for "generate", on a published schedule ─────────────────── */
 
 /**
- * The single verb. It was four different ones for one action: the More menu said
- * "New version", the dialog asked "Generate updated schedule?", and the button
- * said "Generate schedule" — beside dated "Change after publishing" semantics,
- * so a scheduler could not tell whether they were editing the LIVE schedule or
- * building a throwaway draft. "Build a new draft" answers that: it is a verb, it
- * names the artefact, and it cannot be read as an edit to the published one.
+ * The single verb for making a new schedule from the one in use. #56 collapsed
+ * four names for one action; D1 changes the ARTEFACT word ("draft" → "schedule")
+ * without reopening that collapse.
  */
-export const BUILD_NEW_DRAFT_LABEL = 'Generate a draft';
-
-/** The reassurance that belongs on the dialog's first line when one is published. */
-export const PUBLISHED_SCHEDULE_STAYS_IN_USE = 'Your published schedule stays in use.';
+export const BUILD_NEW_SCHEDULE_DESCRIPTION = `${GENERATE_VERB_LABEL} a schedule`;
 
 /** The dialog title beside `BUILD_NEW_DRAFT_LABEL`. */
 export function buildNewDraftDialogTitle(isPublished: boolean): string {
@@ -708,8 +869,8 @@ export function buildNewDraftDialogTitle(isPublished: boolean): string {
 export function generationOutcomeToastSentence(unplacedCount: number): string {
 	const unplaced = countOrZero(unplacedCount);
 	const outstanding = unplaced === 0 ? `${unplaced} classes left to place` : classesNeedingTime(unplaced);
-	const review = unplaced === 0 ? 'Review it, then publish.' : 'Review them, then publish.';
-	return `Draft schedule ready — ${outstanding}. ${review}`;
+	const review = unplaced === 0 ? 'Review it, then save.' : 'Review them, then save.';
+	return `Schedule ready — ${outstanding}. ${review}`;
 }
 
 /**
@@ -736,5 +897,5 @@ export function generationNotificationSentence(unplacedCount: number): string {
 export function publishPlacementBlockedSentence(count: number): string {
 	const unplaced = countOrZero(count);
 	if (unplaced === 0) return `${ALL_SESSIONS_PLACED_LABEL}.`;
-	return `${classesNeedingTime(unplaced)}. Place them before you publish.`;
+	return `${classesNeedingTime(unplaced)}. Place them before you save.`;
 }

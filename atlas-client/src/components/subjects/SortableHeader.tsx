@@ -12,6 +12,17 @@ type SortableHeaderProps = {
 	sortDir: SortDir;
 	onToggleSort: (field: SortField) => void;
 	align?: 'left' | 'right';
+	/**
+	 * Merged AFTER the primitive's own layout classes, so this table can pin one
+	 * column's declared width without the primitive needing to know about it.
+	 *
+	 * MR-71: the Subject column carries `SUBJECT_NAME_COLUMN_WIDTH_CLASS` so its
+	 * header and its cells share ONE width. The same reason the shared primitive
+	 * already exposes the prop — a `w-*` a header and a cell each decide
+	 * independently is how a column's edges drift, and `subject-action-column.ts`
+	 * already documents that defect for the Action column.
+	 */
+	headerClassName?: string;
 };
 
 /**
@@ -29,6 +40,7 @@ export function SortableHeader({
 	sortDir,
 	onToggleSort,
 	align = 'left',
+	headerClassName,
 }: SortableHeaderProps) {
 	return (
 		<SortableColumnHeader
@@ -38,6 +50,7 @@ export function SortableHeader({
 			sortDir={sortDir}
 			onToggleSort={onToggleSort}
 			align={align}
+			headerClassName={headerClassName}
 		/>
 	);
 }

@@ -98,6 +98,7 @@ const { TimetableSimpleHeader } = await import('@/components/timetable/Timetable
 const { ScheduleReviewWorkspaceHeader } = await import('@/components/timetable/ScheduleReviewWorkspaceHeader');
 const { describeRunState, runIdentityBadgeLabel } = await import('@/components/timetable/RunStateBadge');
 const { deriveGenerationReadinessState } = await import('@/lib/timetable-generation-readiness');
+const { BUILD_NEW_DRAFT_LABEL, EDIT_STATE_LABEL, SAVE_STATE_LABEL } = await import('@/lib/timetable-plain-language');
 
 const roots: any[] = [];
 afterEach(() => { for (const mounted of roots.splice(0)) act(() => mounted.unmount()); });
@@ -465,9 +466,11 @@ test('T2 RENDERED: the REAL history dialog prints the class name, and the row st
 
 // ═══ T3 — three truthful labels ═══════════════════════════════════════════
 
-test('T3a the header names the RUN: "Run 321 · Draft", not a bare "Draft schedule"', () => {
-	assert.equal(runIdentityBadgeLabel({ isPreGeneration: false, runId: 321, isPublished: false }), 'Run 321 · Draft');
-	assert.equal(runIdentityBadgeLabel({ isPreGeneration: false, runId: 321, isPublished: true }), 'Run 321 · Published');
+test('T3a the header names the RUN and the STATE, in that order', () => {
+	// D1: the state WORDS are `Edit` / `Save`; the SHAPE the row pins is state-first
+	// with the run number trailing, and that shape is asserted through the mapping.
+	assert.equal(runIdentityBadgeLabel({ isPreGeneration: false, runId: 321, isPublished: false }), `Run 321 · ${EDIT_STATE_LABEL}`);
+	assert.equal(runIdentityBadgeLabel({ isPreGeneration: false, runId: 321, isPublished: true }), `Run 321 · ${SAVE_STATE_LABEL}`);
 	// Nothing to name in the two run-less states, so nothing is printed.
 	assert.equal(runIdentityBadgeLabel({ isPreGeneration: true, runId: 321, isPublished: false }), null);
 	assert.equal(runIdentityBadgeLabel({ isPreGeneration: false, runId: null, isPublished: false }), null);
@@ -493,8 +496,8 @@ test('T3b RENDERED: the REAL More menu names the action the way the dialog names
 	// `Build a new draft` is now `Generate a draft`. The property is unchanged —
 	// the More row and the dialog still say ONE thing, and the retired second
 	// wording never returns.
-	assert.ok((row.textContent ?? '').includes('Generate a draft'),
-		'the row says the one verb: "Generate a draft"');
+	assert.ok((row.textContent ?? '').includes(BUILD_NEW_DRAFT_LABEL),
+		'the row says the one Generate verb, from the one constant');
 	assert.equal((row.textContent ?? '').includes('Build a new draft'), false,
 		'and never the retired wording, which is the split T3b names');
 	assert.equal(row.getAttribute('aria-label'), null,
@@ -549,9 +552,9 @@ test('T3b RENDERED: the REAL More menu names the action the way the dialog names
 	assert.ok(blockedRow, 'the row is still rendered when generation is gated');
 	const blockedText = (blockedRow.textContent ?? '').trim();
 	// A7 c12b SUPERSEDED: the one verb is `Generate a draft`.
-	assert.ok(blockedText.startsWith('Generate a draft'), `the disabled row keeps the one verb (read: ${blockedText})`);
+	assert.ok(blockedText.startsWith(BUILD_NEW_DRAFT_LABEL), `the disabled row keeps the one verb (read: ${blockedText})`);
 	assert.equal(blockedText.includes('Build a new draft'), false, 'and never the retired wording, in any state');
-	assert.match(blockedRow.getAttribute('aria-label') ?? '', /^Generate a draft — /,
+	assert.match(blockedRow.getAttribute('aria-label') ?? '', new RegExp(`^${BUILD_NEW_DRAFT_LABEL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} — `),
 		'the accessible name and the visible label are the same verb, so they cannot differ');
 });
 

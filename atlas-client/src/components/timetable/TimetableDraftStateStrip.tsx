@@ -62,8 +62,11 @@ export type DraftStripPublishPlan =
 	| { readonly kind: 'publish-task' };
 
 /** Shown on a Publish control that cannot act, without needing a hover. */
-export const PUBLISH_WHEN_ALREADY_PUBLISHED = 'This schedule is already published.';
-export const PUBLISH_GATE_CLOSED = 'Publishing is not available for this school right now.';
+// D1: WORDS only. The refusal below is the publication gate and it is
+// unchanged — `resolveDraftStripPublishPlan` still refuses an already-published
+// run and a closed gate, in that order.
+export const PUBLISH_WHEN_ALREADY_PUBLISHED = 'This schedule is already saved.';
+export const PUBLISH_GATE_CLOSED = 'Saving is not available for this school right now.';
 
 /**
  * The one publication rule.
@@ -366,8 +369,8 @@ export function DraftStripActions({
 		: actions.edit;
 	return (
 		<>
-			<DraftActionButton action={edit} icon="edit" label="Edit draft" testId={editTestId} reasonPresentation={reasonPresentation} />
-			<DraftActionButton action={discard} icon="discard" label="Discard draft" testId={discardTestId} reasonPresentation={reasonPresentation} />
+			<DraftActionButton action={edit} icon="edit" label="Edit" testId={editTestId} reasonPresentation={reasonPresentation} />
+			<DraftActionButton action={discard} icon="discard" label="Discard" testId={discardTestId} reasonPresentation={reasonPresentation} />
 		</>
 	);
 }
@@ -441,10 +444,10 @@ export const DRAFT_EDIT_NEEDS_SELECTION = 'Pick a class on the grid first, then 
  * scheduler is never shown an enabled control whose handler does nothing.
  */
 export const DRAFT_EDIT_UNAVAILABLE = 'Edit is not available on this schedule surface.';
-export const DRAFT_DISCARD_UNAVAILABLE = 'Discarding the draft is not available on this schedule surface.';
+export const DRAFT_DISCARD_UNAVAILABLE = 'Clearing the plan is not available on this schedule surface.';
 export const DRAFT_PUBLISH_UNAVAILABLE = 'Publishing is not available on this schedule surface.';
 /** C11 correction 2 (QA-B2) — the More-menu `Discard draft` entry's own reason. */
-export const DRAFT_DISCARD_REASON_NEEDS_DRAFT = 'There is no draft on this schedule to discard.';
+export const DRAFT_DISCARD_REASON_NEEDS_DRAFT = 'There is nothing placed on this schedule to clear.';
 
 /**
  * The persistent draft-state line, and — since A2 C12 / ITEM 4 — the two VISIBLE

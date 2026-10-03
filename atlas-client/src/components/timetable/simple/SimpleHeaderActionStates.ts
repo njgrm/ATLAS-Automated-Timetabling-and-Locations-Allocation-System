@@ -19,6 +19,8 @@
  * physical lines and changes no behaviour.
  * ------------------------------------------------------------------ */
 
+import { SAVE_SHORT_FALLBACK } from '@/lib/timetable-plain-language';
+
 export type SimpleHeaderActionState = {
 	disabled: boolean;
 	reason: string | null;
@@ -61,7 +63,8 @@ export function shouldDispatchSimplePublish(publicationEnabled: boolean, isRunPu
  * branch unreachable in production and keeps it honest rather than clever.
  */
 const GENERATE_SHORT_FALLBACK = 'Generation is not available';
-const PUBLISH_SHORT_FALLBACK = 'Publishing is not available';
+// D1: the fallback is re-worded onto the new verb; the GATE is untouched.
+const PUBLISH_SHORT_FALLBACK = SAVE_SHORT_FALLBACK;
 
 export function resolveSimpleGenerateActionState(input: {
 	canPlanOrGenerate: boolean;
@@ -101,11 +104,11 @@ export function resolveSimplePublishActionState(input: {
 	/** A2 C13 — the gate's own short form, carried beside its full reason. */
 	gateShortReason?: string | null;
 }): SimpleHeaderActionState {
-	if (input.isRunPublished) return { disabled: true, reason: 'This schedule is already published.', shortReason: 'Already published' };
+	if (input.isRunPublished) return { disabled: true, reason: 'This schedule is already saved.', shortReason: 'Already saved' };
 	if (input.publicationEnabled) return { disabled: false, reason: null, shortReason: null };
 	return {
 		disabled: true,
-		reason: input.gateReason ?? 'Publishing is not available for this run yet.',
+		reason: input.gateReason ?? 'Saving is not available for this run yet.',
 		shortReason: input.gateShortReason ?? PUBLISH_SHORT_FALLBACK,
 	};
 }

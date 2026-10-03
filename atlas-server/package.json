@@ -91,7 +91,8 @@
     "test:a7-year-setup-carryover": "node scripts/run-db-suite.mjs src/__tests__/a7-year-setup-carryover-c4.test.ts",
     "test:a7-c7-rollover-banner-db": "node scripts/run-db-suite.mjs src/__tests__/a7-rollover-banner-id-space-c7.test.ts",
     "test:a2-c17-preference-adherence": "tsx --test src/__tests__/a2-c17-preference-adherence.test.ts src/__tests__/a2-c17-preference-adherence-route.test.ts",
-    "test:cover-candidates": "tsx --test src/__tests__/a8-c4-cover-candidates.test.ts src/__tests__/a8-c4-cover-routes.test.ts src/__tests__/a8-c4-insert-receiver-guard.test.ts"
+    "test:cover-candidates": "tsx --test src/__tests__/a8-c4-cover-candidates.test.ts src/__tests__/a8-c4-cover-routes.test.ts src/__tests__/a8-c4-insert-receiver-guard.test.ts",
+    "test:auth-enforce-capability-c01": "tsx --test src/__tests__/auth-enforce-capability-c01.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.2",

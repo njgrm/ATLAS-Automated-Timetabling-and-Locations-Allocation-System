@@ -149,6 +149,40 @@ afterEach(() => {
 	for (const stray of [...dom.window.document.body.children]) stray.remove();
 });
 
+/**
+ * The saved-schedule surface's own label, read from the PRODUCTION module rather
+ * than retyped here.
+ *
+ * PLACEMENT IS LOAD-BEARING. This file bootstraps JSDOM and then dynamically
+ * imports the production components (see `beforeEach`/`mountHeader`). A
+ * STATIC import of `SimpleHeaderHelpers` at the top of the file ran before
+ * `globalThis.window`/`document` existed, and every Radix menu then failed to open
+ * — H4 and H8 both failed on `the real More menu opens through the production
+ * trigger`, with no error anywhere. The suite went 29/29 -> 22/29 on an import
+ * alone. So the label is resolved through the same lazy path as the components.
+ */
+const { PUBLISHED_CHANGE_HINT: savedChangeHint } = await import(
+	'@/components/timetable/simple/SimpleHeaderHelpers'
+);
+// Same reason for the same reason: lazy, so the JSDOM globals exist first.
+const {
+	EDIT_STATE_LABEL,
+	SAVE_STATE_LABEL,
+} = await import('@/lib/timetable-plain-language');
+const { DRAFT_EDIT_NEEDS_SELECTION } = await import(
+	'@/components/timetable/TimetableDraftStateStrip'
+);
+/**
+ * The saved-schedule label, assembled the way the production surface assembles
+ * it: the module's own `PUBLISHED_CHANGE_HINT` plus the one follow-up sentence.
+ */
+function savedSurfaceLabel(followUpCount: number): string {
+	return followUpCount > 0
+		? `Saved schedule — ${followUpCount} follow-up item${followUpCount === 1 ? '' : 's'} remain`
+		: 'Saved schedule';
+}
+
+
 // ═══ RENDER HELPERS ══════════════════════════════════════════════════════════
 
 /** STATIC render — the default for every structural row. No client tree, no
@@ -499,14 +533,14 @@ test('H2 state A: exactly ONE status chip, no run-state badge, and nothing else 
 	// through its control, not a second place the header says it.
 	const all = [...header.querySelectorAll<HTMLElement>('[data-testid]')]
 		/* A7 c12b SUPERSEDED this detector's phrasing: the chip's sentence changed
-		 * from `No 2022-2023 timetable yet` (row 13) to `No draft yet for 2022-2023`.
-		 * `draft yet` is added so the SAME property — exactly one element claims
+		 * from `No 2022-2023 timetable yet` (row 13) to `No schedule yet for 2022-2023`.
+		 * `yet` is added so the SAME property — exactly one element claims
 		 * there is nothing to show — is still decided. AGENTS.md §16. */
 		.filter((element) => /\bno .*(timetable yet|schedule yet|draft yet)\b/i.test(visibleText(element)));
 	const claims = all.filter((element) => !all.some((other) => other !== element && element.contains(other)));
 	assert.equal(claims.length, 1,
 		`exactly ONE element claims there is no schedule; ${claims.length} do: ${all.map((e) => `${e.getAttribute('data-testid')}="${visibleText(e).trim()}"`).join(' | ')}`);
-	assert.match(visibleText(claims[0]), /No draft yet for 2022-2023/,
+	assert.match(visibleText(claims[0]), /No schedule yet for 2022-2023/,
 		'and the surviving claim is the readiness chip\'s own truthful sentence (A7 c12b row 13)');
 	assert.ok(q(host, 'timetable-simple-warnings-control'),
 		'the chip is still the face of the merged warnings control — no control was added or lost');
@@ -578,10 +612,10 @@ test('H3 state C+ (PUBLISHED, 2 follow-ups): the longer follow-up sentence is re
 	// component rather than from a literal.
 	assert.equal(published.getAttribute('data-published-follow-ups'), '2', 'the fixture really is the follow-up state');
 	assert.equal(visibleText(published),
-		'Published schedule — 2 follow-up items remainChanges start on a date you choose',
+		`${savedSurfaceLabel(2)}${savedChangeHint}`,
 		'every sentence in the published surface is rendered in full');
 	assert.equal(published.getAttribute('aria-label'),
-		'Published schedule — 2 follow-up items remain. Changes start on a date you choose.',
+		`${savedSurfaceLabel(2)}. ${savedChangeHint}.`,
 		'and the accessible name carries the same two sentences');
 	// THE STRUCTURAL REASON, asserted because it is load-bearing: `truncate` could
 	// never paint here because `shrink-0` gives the surface its full content width.
@@ -763,7 +797,7 @@ test('H4 state B with 468 setup blockers: the same short label, and a run on scr
 
 // ═══ H5 — IDLE ACTIONS ARE HIDDEN ══════════════════════════════════════════
 
-test('H5 state A: no draft means no `Discard draft`, no undo cluster inside the header, and `More` is present', () => {
+test('H5 state A: nothing placed means no `Discard`, no undo cluster inside the header, and `More` is present', () => {
 	const host = headerTree(headerMarkup(stateAContext(), undoControl()));
 	const header = host.querySelector('[data-testid="timetable-simple-header"]') as HTMLElement;
 	assert.equal(q(host, 'timetable-draft-strip-discard'), null,
@@ -801,17 +835,19 @@ test('H5 state B with history: `editHistoryCount === 3` renders the cluster with
 
 // ═══ H6 — NO HELPER SENTENCE UNDER A BUTTON ════════════════════════════════
 
-test('H6 state B: `Edit draft` / `Discard draft` have NO visible reason, the reason is in a @/ui tooltip, and `aria-label` still carries it', () => {
+test('H6 state B: `Edit` / `Discard` have NO visible reason, the reason is in a @/ui tooltip, and `aria-label` still carries it', () => {
 	const host = headerTree(headerMarkup(stateBContext({ hasSelectedEntry: false }), undoControl()));
 	// No selection => `Edit draft` is disabled, which is exactly the state where the
 	// operator saw a sentence printed under the button.
 	const edit = q(host, 'timetable-draft-strip-edit');
 	assert.ok(edit, '`Edit draft` is on screen in state B');
 	assert.equal(edit!.hasAttribute('disabled'), true, 'it is the disabled control under test');
-	const expected = 'Pick a class on the grid first, then choose Edit.';
+	// The reason is the PRODUCTION constant, so this row cannot pass while the
+	// control's own aria-label drifted away from it.
+	const expected = DRAFT_EDIT_NEEDS_SELECTION;
 	assert.equal(q(host, 'timetable-draft-strip-edit-reason'), null,
-		'NO visible sibling reason element is rendered under `Edit draft`');
-	assert.equal(edit!.getAttribute('aria-label'), `Edit draft — ${expected}`,
+		'NO visible sibling reason element is rendered under `Edit`');
+	assert.equal(edit!.getAttribute('aria-label'), `${EDIT_STATE_LABEL} — ${expected}`,
 		'and the disabled control\'s aria-label still carries the reason verbatim, so nothing depends on a hover');
 	// The reason is REACHABLE: it is a `@/ui` Tooltip on the focusable wrapper the
 	// disabled button sits in, and the wrapper is in the tab order.
@@ -1169,8 +1205,8 @@ test('H12 F1 state B: the run\'s state is stated ONCE in the band — the senten
 	assert.ok(band, 'the trailing status band is on screen (otherwise this row is vacuous)');
 	const identity = q(band, 'timetable-run-identity');
 	assert.ok(identity, 'the run-identity clause is on screen');
-	assert.match(visibleText(identity), /Draft — teachers and students cannot see it yet\. \(Run 321\)/,
-		'the surviving sentence keeps both halves: what a draft MEANS, and WHICH run it is');
+	assert.match(visibleText(identity), new RegExp(`${EDIT_STATE_LABEL} — teachers and students cannot see it yet\\. \\(Run 321\\)`),
+		'the surviving sentence keeps both halves: what the state MEANS, and WHICH run it is');
 	// THE RESTATEMENT IS GONE FROM THIS BAND. `timetable-draft-visibility` is the
 	// OTHER surface's testid — `DraftVisibilityState` inside
 	// `TimetableDraftStateStrip`, used by the EXPERT header — and that surface is
@@ -1259,7 +1295,7 @@ test('H12 F3 state C+ (PUBLISHED, 2 follow-ups): the follow-up count is stated O
 	assert.ok(published, 'the published primary surface is on screen');
 	assert.equal(published.getAttribute('data-published-follow-ups'), '2', 'the fixture really is the follow-up state');
 	// THE CHIP NAMES THE STATE AND NOTHING ELSE.
-	assert.equal(visibleText(chip).trim(), 'Published',
+	assert.equal(visibleText(chip).trim(), SAVE_STATE_LABEL,
 		'the status chip says the state, and no number — it is one fact in one role');
 	assert.doesNotMatch(visibleText(chip), /follow-up/,
 		'the chip does not restate the follow-up count beside the surface that owns it');
@@ -1286,9 +1322,9 @@ test('H12 F3 state C (PUBLISHED, no follow-ups): the exact `schedule-clarity-c03
 	const published = q(host, 'timetable-simple-published-state');
 	assert.ok(published, 'the published primary surface is on screen');
 	assert.equal(published.getAttribute('aria-label'),
-		'Published schedule. Changes start on a date you choose.',
+		`${savedSurfaceLabel(0)}. ${savedChangeHint}.`,
 		'the no-follow-ups accessible name is byte-identical to the one `schedule-clarity-c03` pins');
-	assert.equal(visibleText(q(host, 'timetable-simple-readiness-chip')!).trim(), 'Published',
+	assert.equal(visibleText(q(host, 'timetable-simple-readiness-chip')!).trim(), SAVE_STATE_LABEL,
 		'and the chip agrees with it, which is the point: one state, one surface saying it');
 });
 

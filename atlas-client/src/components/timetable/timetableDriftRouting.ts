@@ -205,5 +205,5 @@ export function formatChangedInputNames(domains: readonly string[] | null | unde
  */
 export function publicationStalePublishMessage(changedDomains: readonly string[] | null | undefined): string {
 	const subject = formatChangedInputNames(changedDomains) ?? 'Setup data';
-	return `Publish blocked: ${subject} changed after this draft was built. ${BUILD_NEW_DRAFT_LABEL} to continue — any manual changes on this draft will be rebuilt.`;
+	return `Save blocked: ${subject} changed after this schedule was built. ${BUILD_NEW_DRAFT_LABEL} to continue — any manual changes on this schedule will be rebuilt.`;
 }

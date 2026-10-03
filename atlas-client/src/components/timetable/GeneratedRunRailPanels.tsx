@@ -718,7 +718,7 @@ function UnassignedRailRow({
 							<div className="flex items-center gap-1.5 text-xs">
 								<ShieldAlert className="size-3 text-red-600 shrink-0" />
 								<span className="text-red-700 font-semibold">Recovery required</span>
-								<span className="text-muted-foreground">- this session still needs an operator review before publishing</span>
+								<span className="text-muted-foreground">- this session still needs an operator review before saving</span>
 							</div>
 							<div className="flex flex-wrap items-center gap-1.5 text-xs">
 								{renderUnassignedReasonBadge(item.reason)}

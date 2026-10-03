@@ -55,6 +55,7 @@ import { ConstraintRow, SOFT_CONSTRAINT_LABELS, DEFAULT_CONSTRAINT_CONFIG } from
 import { PublishChecklistContent, buildBlockerGroups, UNASSIGNED_GROUP_MAP } from '../../components/timetable/simple/SimpleTaskDrawerHelpers';
 import type { DraftReport, UnassignedItem, Violation, ViolationReport } from '../../types';
 import { resolveViolationLabel } from '../../hooks/useTimetableData';
+import { SAVE_BLOCKED_TAIL } from '../timetable-plain-language';
 
 const clientRoot = resolve(import.meta.dirname, '../../..');
 const repoRoot = resolve(clientRoot, '..');
@@ -139,6 +140,7 @@ test('B1 a run-wide blocking HARD blocks publish even when the selected term is 
 	assert.equal(readiness.selectedTermBlockingHard, 0, 'the selected term is genuinely clean');
 	assert.equal(readiness.hasBlockers, true);
 	assert.equal(readiness.isClean, false);
+	// D1: the clean state's own word is now `save`; the retired `publish` must be absent.
 	assert.doesNotMatch(readiness.summaryText, /Ready to publish/);
 });
 
@@ -152,7 +154,7 @@ test('B1 the run-wide gate is clean only when blockingHard and unassigned are bo
 		{ blockingHardCount: 0, unassignedCount: 0, softCount: 0 },
 	);
 	assert.equal(clean.isClean, true);
-	assert.match(clean.summaryText, /Ready to publish/);
+	assert.match(clean.summaryText, /Ready to save/);
 
 	const unassigned = deriveSimplePublishReadiness(
 		draftReport(),
@@ -682,13 +684,13 @@ test('F1 rendered (a): run-wide hard blockers with zero unresolved sessions neve
 		runWide: { blockingHardCount: 2, unassignedCount: 0, softCount: 0 },
 	});
 	// The gate blocks AND the affected sessions are listed…
-	assert.match(markup, /Cannot publish yet/);
+	assert.match(markup, /Cannot save yet/);
 	assert.match(markup, /data-testid="timetable-simple-blocker-group"/);
 	assert.match(markup, /sessions affected/);
 	// …so the sentence must name the hard blockers, never the false zero claim.
 	assert.equal(
 		blockerSentenceFromMarkup(markup),
-		'2 Must fix problems still need fixing before this schedule can be published.',
+		`2 Must fix problems still need fixing ${SAVE_BLOCKED_TAIL}`,
 	);
 	assert.doesNotMatch(markup, /0 sessions? still need fixing/);
 	assert.doesNotMatch(markup, /session[s]? still need fixing/);
@@ -702,16 +704,16 @@ test('F1 rendered (b): a selected-term-only allowlisted HARD with a clean run-wi
 	assert.match(markup, /data-blocker-scope="selected-term"/);
 	assert.equal(
 		blockerSentenceFromMarkup(markup),
-		'1 Must fix problem still needs fixing before this schedule can be published.',
+		`1 Must fix problem still needs fixing ${SAVE_BLOCKED_TAIL}`,
 	);
 	assert.doesNotMatch(markup, /0 sessions? still need fixing/);
 });
 
-test('F1 rendered (c): the fully clean gate says Ready to publish', () => {
+test('F1 rendered (c): the fully clean gate says Ready to save', () => {
 	const markup = renderSheet({ violations: [], runWide: { blockingHardCount: 0, unassignedCount: 0, softCount: 0 } });
 	assert.match(markup, /data-testid="timetable-simple-ready-to-publish"/);
-	assert.match(markup, /Ready to publish/);
-	assert.doesNotMatch(markup, /Cannot publish yet/);
+	assert.match(markup, /Ready to save/);
+	assert.doesNotMatch(markup, /Cannot save yet/);
 });
 
 test('F1 rendered: an unresolved-only block names the sessions and invents no hard blocker', () => {
@@ -719,10 +721,10 @@ test('F1 rendered: an unresolved-only block names the sessions and invents no ha
 		violations: [],
 		runWide: { blockingHardCount: 0, unassignedCount: 3, softCount: 0 },
 	});
-	assert.match(markup, /Cannot publish yet/);
+	assert.match(markup, /Cannot save yet/);
 	assert.equal(
 		blockerSentenceFromMarkup(markup),
-		'3 classes need a time slot before this schedule can be published.',
+		`3 classes need a time slot ${SAVE_BLOCKED_TAIL}`,
 	);
 	// The retired name is the subject of this guard, not `MUST_FIX_LABEL`.
 	// A2-TIMETABLE-CUSTODY: an unresolved-only block must not name a blocking
@@ -743,14 +745,17 @@ test('F1 summaryText is driven by the same hard/unresolved pair', () => {
 	);
 	assert.equal(hardOnly.totalUnresolved, 0, 'the run-wide unresolved count is genuinely zero');
 	assert.equal(hardOnly.totalHardBlockers, 2, 'the run-wide hard gate is what blocks');
-	assert.match(hardOnly.summaryText, /Cannot publish yet\n2 Must fix problems still need fixing before this schedule can be published\./);
+	assert.ok(
+		hardOnly.summaryText.includes(`Cannot save yet\n2 Must fix problems still need fixing ${SAVE_BLOCKED_TAIL}`),
+		`the headline and the sentence are the pair this row decides; got ${JSON.stringify(hardOnly.summaryText.slice(0, 120))}`,
+	);
 	assert.doesNotMatch(hardOnly.summaryText, /0 sessions still need fixing/);
 
 	const unresolvedOnly = deriveSimplePublishReadiness(
 		draftReport(), [], label('Section'), label('Subject'), label('Teacher'),
 		{ blockingHardCount: 0, unassignedCount: 2, softCount: 0 },
 	);
-	assert.match(unresolvedOnly.summaryText, /2 classes need a time slot before this schedule can be published\./);
+	assert.ok(unresolvedOnly.summaryText.includes(`2 classes need a time slot ${SAVE_BLOCKED_TAIL}`), 'the unresolved-only summary names the classes and the obligation');
 	// Retired-wording guard — see the note on the F1 unresolved-only row. The
 	// claim is that no blocking problem is named, and the `Must fix` advice line
 	// this summary carries is not one.
@@ -760,17 +765,17 @@ test('F1 summaryText is driven by the same hard/unresolved pair', () => {
 		draftReport(), [], label('Section'), label('Subject'), label('Teacher'),
 		{ blockingHardCount: 1, unassignedCount: 2, softCount: 0 },
 	);
-	assert.match(both.summaryText, /1 Must fix problem and 2 classes need a time slot before this schedule can be published\./);
+	assert.ok(both.summaryText.includes(`1 Must fix problem and 2 classes need a time slot ${SAVE_BLOCKED_TAIL}`), 'the mixed summary counts each population once');
 	assert.equal(
 		both.blockerSentence,
-		'1 Must fix problem and 2 classes need a time slot before this schedule can be published.',
+		`1 Must fix problem and 2 classes need a time slot ${SAVE_BLOCKED_TAIL}`,
 	);
 });
 
 test('mutant: deriving the block sentence from totalUnresolved alone is detected', () => {
 	// The candidate's rule: the sentence counted unresolved sessions only.
 	const mutantSentence = (unresolved: number) =>
-		`${unresolved} session${unresolved === 1 ? '' : 's'} still need fixing before this schedule can be published.`;
+		`${unresolved} session${unresolved === 1 ? '' : 's'} still need fixing ${SAVE_BLOCKED_TAIL}`;
 	const readiness = deriveSimplePublishReadiness(
 		draftReport(), [], label('Section'), label('Subject'), label('Teacher'),
 		{ blockingHardCount: 2, unassignedCount: 0, softCount: 0 },
@@ -1067,7 +1072,7 @@ test('R2 (a) unresolved-only: two producer-shaped queue sessions report zero har
 
 	assert.equal(readiness.totalHardBlockers, 0, 'the queue is SOFT — there is no hard violation to count');
 	assert.equal(readiness.totalUnresolved, 2);
-	assert.equal(readiness.blockerSentence, '2 classes need a time slot before this schedule can be published.');
+	assert.equal(readiness.blockerSentence, `2 classes need a time slot ${SAVE_BLOCKED_TAIL}`);
 	// A2-TIMETABLE-CUSTODY: this row used to read the count back OUT of the
 	// summary with a `/(\d+) Must fix/` reader, which couples the test to the
 	// exact phrasing of its own subject — every wording change broke a test that
@@ -1077,10 +1082,11 @@ test('R2 (a) unresolved-only: two producer-shaped queue sessions report zero har
 	// invented or dropped blocking count breaks it outright.
 	assert.equal(readiness.totalHardBlockers, readiness.runWideBlockingHard, 'the summary hard clause tracks the run-wide hard gate');
 	assert.doesNotMatch(readiness.summaryText, /hard blocker/);
-	assert.match(readiness.summaryText, /2 classes need a time slot before this schedule can be published\./);
+	assert.ok(readiness.summaryText.includes(`2 classes need a time slot ${SAVE_BLOCKED_TAIL}`),
+		'the rendered summary names the classes and the obligation');
 
 	const markup = renderSheet({ draft, violations: [], runWide });
-	assert.equal(blockerSentenceFromMarkup(markup), '2 classes need a time slot before this schedule can be published.');
+	assert.equal(blockerSentenceFromMarkup(markup), `2 classes need a time slot ${SAVE_BLOCKED_TAIL}`);
 	assert.equal(renderedCount(markup, 'timetable-simple-run-wide-blocking'), 0, 'the panel hard gate is 0');
 	assert.doesNotMatch(markup, /hard blocker/, 'the sentence never contradicts the rendered 0 blocking hard gate');
 	assert.match(markup, /data-testid="timetable-simple-blocker-group"/, 'the affected queue sessions are still listed');
@@ -1093,12 +1099,12 @@ test('R2 (b) hard-only: the run-wide hard gate blocks and no unresolved claim is
 
 	assert.equal(readiness.totalHardBlockers, 2);
 	assert.equal(readiness.totalUnresolved, 0);
-	assert.equal(readiness.blockerSentence, '2 Must fix problems still need fixing before this schedule can be published.');
+	assert.equal(readiness.blockerSentence, `2 Must fix problems still need fixing ${SAVE_BLOCKED_TAIL}`);
 	assert.equal(readiness.totalHardBlockers, readiness.runWideBlockingHard);
 	assert.doesNotMatch(readiness.summaryText, /unresolved session/);
 
 	const markup = renderSheet({ draft, violations: [], runWide });
-	assert.equal(blockerSentenceFromMarkup(markup), '2 Must fix problems still need fixing before this schedule can be published.');
+	assert.equal(blockerSentenceFromMarkup(markup), `2 Must fix problems still need fixing ${SAVE_BLOCKED_TAIL}`);
 	assert.equal(renderedCount(markup, 'timetable-simple-run-wide-blocking'), 2);
 	assert.equal(unresolvedCountIn(blockerSentenceFromMarkup(markup)), 0);
 });
@@ -1115,7 +1121,7 @@ test('R2 (c) mixed: one hard blocker plus two unresolved sessions are counted on
 	assert.equal(readiness.totalHardBlockers + readiness.totalUnresolved, 3, 'each problem session is claimed exactly once');
 	assert.equal(
 		readiness.blockerSentence,
-		'1 Must fix problem and 2 classes need a time slot before this schedule can be published.',
+		`1 Must fix problem and 2 classes need a time slot ${SAVE_BLOCKED_TAIL}`,
 	);
 	assert.equal(readiness.totalHardBlockers, readiness.runWideBlockingHard);
 	assert.equal(unresolvedCountIn(readiness.summaryText), 2);
@@ -1123,7 +1129,7 @@ test('R2 (c) mixed: one hard blocker plus two unresolved sessions are counted on
 	const markup = renderSheet({ draft, violations: [], runWide });
 	assert.equal(
 		blockerSentenceFromMarkup(markup),
-		'1 Must fix problem and 2 classes need a time slot before this schedule can be published.',
+		`1 Must fix problem and 2 classes need a time slot ${SAVE_BLOCKED_TAIL}`,
 	);
 	assert.equal(renderedCount(markup, 'timetable-simple-run-wide-blocking'), 1);
 });
@@ -1136,12 +1142,12 @@ test('R2 (d) clean: a producer-shaped empty queue with a clean gate is ready to 
 	assert.equal(readiness.totalHardBlockers, 0);
 	assert.equal(readiness.totalUnresolved, 0);
 	assert.equal(readiness.blockerSentence, '');
-	assert.match(readiness.summaryText, /Ready to publish/);
+	assert.match(readiness.summaryText, /Ready to save/);
 	assert.equal(readiness.totalHardBlockers, readiness.runWideBlockingHard);
 
 	const markup = renderSheet({ draft, violations: [], runWide });
 	assert.match(markup, /data-testid="timetable-simple-ready-to-publish"/);
-	assert.match(markup, /Ready to publish/);
+	assert.match(markup, /Ready to save/);
 	assert.doesNotMatch(markup, /data-testid="timetable-simple-blocker-sentence"/);
 });
 
@@ -1160,7 +1166,7 @@ test('mutant: folding unresolved reason groups back into the hard-blocker count 
 	assert.equal(readiness.totalHardBlockers, 0);
 
 	// The mutant sentence beside the production panel's 0 blocking hard.
-	const mutantSentence = `${mutantHard} hard blockers and ${readiness.totalUnresolved} unresolved sessions still need fixing before this schedule can be published.`;
+	const mutantSentence = `${mutantHard} hard blockers and ${readiness.totalUnresolved} unresolved sessions still need fixing ${SAVE_BLOCKED_TAIL}`;
 	const mutantMarkup = renderToStaticMarkup(
 		createElement(MemoryRouter, null,
 			createElement('p', { 'data-testid': 'timetable-simple-blocker-sentence' }, mutantSentence),
@@ -1177,10 +1183,10 @@ test('mutant: reverting the sentence to totalUnresolved alone is detected on a p
 
 	// The original F1 defect: the sentence counted unresolved sessions only.
 	const mutantSentence = (unresolved: number) =>
-		`${unresolved} session${unresolved === 1 ? '' : 's'} still need fixing before this schedule can be published.`;
+		`${unresolved} session${unresolved === 1 ? '' : 's'} still need fixing ${SAVE_BLOCKED_TAIL}`;
 	assert.match(mutantSentence(readiness.totalUnresolved), /^0 sessions still need fixing/, 'the reverted rule ships the false zero claim');
 	assert.notEqual(readiness.blockerSentence, mutantSentence(readiness.totalUnresolved));
-	assert.equal(readiness.blockerSentence, '2 Must fix problems still need fixing before this schedule can be published.');
+	assert.equal(readiness.blockerSentence, `2 Must fix problems still need fixing ${SAVE_BLOCKED_TAIL}`);
 	assert.doesNotMatch(renderSheet({ draft, violations: [], runWide }), /0 sessions? still need fixing/);
 });
 

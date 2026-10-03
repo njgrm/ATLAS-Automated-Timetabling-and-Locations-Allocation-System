@@ -1,8 +1,16 @@
 import { useMemo } from 'react';
-import { ArrowRightLeft, CalendarClock, CheckCircle2, ClipboardCheck, GraduationCap, ListChecks, Play, Send, SlidersHorizontal, type LucideIcon } from 'lucide-react';
+import { ArrowRightLeft, CalendarClock, CheckCircle2, ClipboardCheck, GraduationCap, ListChecks, Play, Save, SlidersHorizontal, type LucideIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import { BUILD_NEW_DRAFT_LABEL, mustFixCountLabel, PUBLISHED_SCHEDULE_STAYS_IN_USE } from '@/lib/timetable-plain-language';
+import {
+	BUILD_NEW_DRAFT_LABEL,
+	GENERATE_VERB_LABEL,
+	mustFixCountLabel,
+	PUBLISHED_SCHEDULE_STAYS_IN_USE,
+	SAVE_BLOCKED_TAIL,
+	SAVE_CONTROL_LABEL,
+	SAVE_STATE_LABEL,
+} from '@/lib/timetable-plain-language';
 import { Button } from '@/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import type { TimetableCapabilities } from '@/lib/timetable-capabilities';
@@ -87,9 +95,9 @@ export function readinessLabel(context: ScheduleReviewWorkspaceHeaderContext) {
 		if (context.curriculumReadiness?.state === 'failed' || context.curriculumReadiness?.state === 'unavailable') {
 			return 'Schedule check needs retry';
 		}
-		return 'Working schedule draft';
+		return 'Working schedule';
 	}
-	if (!context.draft) return yearLabel ? `No draft yet for ${yearLabel}` : 'No draft yet for this school year';
+	if (!context.draft) return yearLabel ? `No schedule yet for ${yearLabel}` : 'No schedule yet for this school year';
 	const summaryRaw = context.draft.summary as unknown as Record<string, unknown> | null;
 	const isPublished = summaryRaw?.isPublished === true;
 	if (isPublished) {
@@ -130,7 +138,7 @@ export function readinessLabel(context: ScheduleReviewWorkspaceHeaderContext) {
 		 * SUPERSEDED in place, with the claim it used to make retained beside its
 		 * replacement (AGENTS.md §16 forbids closing a finding by editing the row
 		 * that found it). */
-		return 'Published';
+		return SAVE_STATE_LABEL;
 	}
 	/* C11 S2 (item 2) — the chip shows SEVERITY, not one number. It used to
 	 * return at the first branch that had a number, so a run with 3 must-fix AND
@@ -158,7 +166,7 @@ export function readinessLabel(context: ScheduleReviewWorkspaceHeaderContext) {
 	const unassigned = context.summary?.unassignedCount ?? 0;
 	if (unassigned > 0) return `${unassigned} unresolved`;
 	if (context.softCount > 0) return `${context.softCount} warning${context.softCount === 1 ? '' : 's'}`;
-	return 'Ready to publish';
+	return `Ready to ${SAVE_CONTROL_LABEL.toLowerCase()}`;
 }
 
 /**
@@ -218,7 +226,7 @@ export function SimpleFiltersContent({ context }: { context: ScheduleReviewWorks
 				</Select>
 			</div>
 			<p className="text-xs leading-relaxed text-muted-foreground">
-				These refinements only affect what appears in the grid. Timetable assignments and publish readiness stay unchanged.
+				These refinements only affect what appears in the grid. Timetable assignments and save readiness stay unchanged.
 			</p>
 		</div>
 	);
@@ -343,7 +351,7 @@ export function SimpleGenerateAction({
 	primary?: boolean;
 }) {
 	const { disabled, reason, shortReason } = actionState;
-	const name = published ? PUBLISHED_GENERATE_DESCRIPTION : 'Generate schedule';
+	const name = published ? PUBLISHED_GENERATE_DESCRIPTION : `${GENERATE_VERB_LABEL} schedule`;
 	return (
 		<>
 			<GatedAction disabled={disabled} reason={reason}>
@@ -363,12 +371,12 @@ export function SimpleGenerateAction({
 					size="sm"
 					className={primary ? 'h-11 min-w-28 gap-1.5 px-3 text-sm' : 'h-8 gap-1.5 px-2.5 text-xs'}
 					disabled={disabled}
-					aria-label={reason ? `${published ? BUILD_NEW_DRAFT_LABEL : 'Generate schedule'} — ${reason}` : name}
+					aria-label={reason ? `${published ? BUILD_NEW_DRAFT_LABEL : `${GENERATE_VERB_LABEL} schedule`} — ${reason}` : name}
 					onClick={onClick}
 					data-testid="timetable-simple-generate-action"
 				>
 					<Play className="size-3.5" aria-hidden="true" />
-					<span>{published ? PUBLISHED_GENERATE_LABEL : 'Generate'}</span>
+					<span>{published ? PUBLISHED_GENERATE_LABEL : GENERATE_VERB_LABEL}</span>
 				</Button>
 			</GatedAction>
 			{/* A7 c12b / decision 8 (CORRECTION item 3) — the standalone sentence
@@ -480,12 +488,12 @@ export function SimplePublishAction({
 					size="sm"
 					className="h-11 gap-1.5 px-3 text-sm"
 					disabled={disabled}
-					aria-label={reason ? `Publish — ${reason}` : 'Publish'}
+					aria-label={reason ? `${SAVE_CONTROL_LABEL} — ${reason}` : SAVE_CONTROL_LABEL}
 					onClick={onClick}
 					data-testid="timetable-simple-publish-action"
 				>
-					<Send className="size-3.5" aria-hidden="true" />
-					<span>Publish</span>
+					<Save className="size-3.5" aria-hidden="true" />
+										<span>{SAVE_CONTROL_LABEL}</span>
 				</Button>
 			</GatedAction>
 			<UnavailableReason reason={disabled ? shortReason : null} testId="timetable-simple-publish-short-reason" />
@@ -520,9 +528,11 @@ export function SimplePublishedState({ followUpCount }: { followUpCount: number 
 	// sat beside Swap and Teacher leaving, which do change a published schedule
 	// (as dated changes), so "view only" was untrue. The chip now says what a
 	// change does instead.
+	// D1: display words only. This surface is a STATUS, never an action, so
+	// renaming it changes nothing about who may act on a saved schedule.
 	const label = followUpCount > 0
-		? `Published schedule — ${followUpCount} follow-up item${followUpCount === 1 ? '' : 's'} remain`
-		: 'Published schedule';
+		? `Saved schedule — ${followUpCount} follow-up item${followUpCount === 1 ? '' : 's'} remain`
+		: 'Saved schedule';
 	return (
 		<div
 			className="flex h-11 min-w-28 shrink-0 items-center gap-1.5 rounded-lg border border-emerald-600 bg-emerald-50 px-3 text-sm font-semibold text-emerald-900"
@@ -624,24 +634,26 @@ export function useSimpleTasks(
 			},
 			{
 				id: 'plan-draft',
-				label: noCurrentTimetable ? 'Build Teaching Load' : context.isPreGenerationWorkspace ? 'Continue draft' : 'Plan draft',
-				primaryLabel: noCurrentTimetable ? 'Open Teaching Load' : context.isPreGenerationWorkspace ? 'Continue draft' : 'Plan before generating',
+				label: noCurrentTimetable ? 'Build Teaching Load' : context.isPreGenerationWorkspace ? 'Continue planning' : 'Plan first',
+				primaryLabel: noCurrentTimetable ? 'Open Teaching Load' : context.isPreGenerationWorkspace ? 'Continue planning' : 'Plan before generating',
 				helper: noCurrentTimetable
-					? `No draft yet for ${yearLabel}. Build Teaching Load before creating the first timetable.`
-					: 'Open the pre-generation draft queue and place sessions before generating a new run.',
+					? `No schedule yet for ${yearLabel}. Build Teaching Load before creating the first timetable.`
+					: 'Open the pre-generation queue and place sessions before generating a new schedule.',
 				icon: noCurrentTimetable ? GraduationCap : CalendarClock,
-				badge: taskCount(context.draftPlacementCount, 'draft'),
+				badge: taskCount(context.draftPlacementCount, 'planned'),
 				disabled: context.newDraftLoading || !context.schoolYearId,
 				href: noCurrentTimetable ? '/teaching-load' : undefined,
 			},
 			{
+				// D1: the task's DISPLAY words change; `id: 'publish'` is the task key
+				// every consumer imports and it is deliberately unchanged.
 				id: 'publish',
-				label: 'Publish',
-				primaryLabel: 'Publish',
+				label: SAVE_CONTROL_LABEL,
+				primaryLabel: SAVE_CONTROL_LABEL,
 				helper: gates.publication.enabled
-					? 'Publish when the schedule is clean.'
-					: (gates.publication.reason ?? 'Publishing is not available for this run yet.'),
-				icon: Send,
+					? 'Save when the schedule is clean.'
+					: (gates.publication.reason ?? 'Saving is not available for this run yet.'),
+				icon: Save,
 				disabled: !gates.publication.enabled,
 			},
 		];

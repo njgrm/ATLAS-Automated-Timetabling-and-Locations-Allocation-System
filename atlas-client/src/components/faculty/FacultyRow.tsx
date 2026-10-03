@@ -14,6 +14,7 @@ import {
 	duplicateTeacherNameCueExplanation,
 	duplicateTeacherNameCueLabel,
 } from '@/components/faculty/duplicateTeacherNames';
+import { teacherLoadColour } from '@/components/faculty/teacherLoadColour';
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
@@ -724,12 +725,41 @@ export function FacultyWeeklyLoadCell({ faculty }: { faculty: FacultySummary }) 
 export function FacultyLoadStateBadge({ faculty }: { faculty: FacultySummary }) {
 	const presentation = getFacultyLoadPresentation(faculty);
 
+	/*
+	 * D6 (2026-10-03, `forReview/miss-jo-1.docx`) — "YELLOW (no teaching load), GREEN (with
+	 * teaching load)": the load state is now a COLOUR on the row, not a filter beside it.
+	 *
+	 * IT IS ADDED TO THIS BADGE RATHER THAN BESIDE IT. The row already carries exactly one word
+	 * for load (`No load`, `Under`, `Ready`, `Near cap`, `Over cap`, `Excluded`), so a new
+	 * green/amber dot placed anywhere else on the row would be a SECOND thing claiming to say
+	 * "this teacher's load". Putting the cue inside the badge it corresponds to is subtraction in
+	 * effect: one control on the row, two pieces of information inside it, and the colour and the
+	 * word can never describe different teachers because they read the same row.
+	 *
+	 * The badge's own palette is UNCHANGED — `presentation.badgeClassName` still owns the
+	 * existing six states, and a committed control asserts those tones. The dot is additive
+	 * INSIDE it and paints from `teacherLoadColour`, which uses the `@/ui/badge` `success` /
+	 * `warning` pair rather than a page-local palette. That is why the old standalone `Load`
+	 * filter could be removed rather than renamed: the fact it filtered is now visible per row.
+	 */
+	const loadColour = teacherLoadColour(faculty);
+
 	return (
 		<TooltipProvider delayDuration={300}>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<Badge variant="outline" className={cn('cursor-help text-xs font-bold shadow-none', presentation.badgeClassName)}>
+					<Badge
+						variant="outline"
+						className={cn('cursor-help gap-1.5 text-xs font-bold shadow-none', presentation.badgeClassName)}
+						data-testid={loadColour.testId}
+					>
+						<span
+							aria-hidden="true"
+							data-testid="teacher-load-colour-dot"
+							className={loadColour.dotClassName}
+						/>
 						{presentation.label}
+						<span className="sr-only">. {loadColour.label}.</span>
 					</Badge>
 				</TooltipTrigger>
 				<TooltipContent className="max-w-60 leading-relaxed">{presentation.help}</TooltipContent>

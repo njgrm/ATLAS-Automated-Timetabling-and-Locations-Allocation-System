@@ -103,25 +103,25 @@ const NO_RUN_STEPS: readonly SimpleTutorialStep[] = [
 const GENERATED_STEPS: readonly SimpleTutorialStep[] = [
 	SCHEDULE_SWITCHER_STEP,
 	{
-		title: 'Generate a draft',
+		title: BUILD_NEW_DRAFT_LABEL,
 		// ROW 37: "More > Schedule data > Export workbook" named an item that has
 		// never existed. The one action is in Schedule actions, and since #56 its
 		// single verb is `BUILD_NEW_DRAFT_LABEL` — the same words the menu item
 		// and the confirmation dialog use.
-		body: `${morePath('Schedule actions', BUILD_NEW_DRAFT_LABEL)} Use it after setup or data changes. Publish is the main button.`,
+		body: `${morePath('Schedule actions', BUILD_NEW_DRAFT_LABEL)} Use it after setup or data changes. Save is the main button.`,
 		target: 'More menu',
 		targetTestId: 'timetable-simple-more-trigger',
 		icon: Play,
 	},
 	{
-		title: 'Understand publish blockers',
-		body: 'If the readiness chip shows Must fix, tap it to see which classes still need a time slot and why the schedule cannot be published yet.',
+		title: 'Understand save blockers',
+		body: 'If the readiness chip shows Must fix, tap it to see which classes still need a time slot and why the schedule cannot be saved yet.',
 		target: 'Readiness chip',
 		targetTestId: 'timetable-simple-readiness-chip',
 		icon: ListChecks,
 	},
 	{
-		title: 'Fix what blocks publishing',
+		title: 'Fix what blocks saving',
 		// ROW 37: the two former placement steps pointed at
 		// `timetable-selection-strip` and `simple-selected-primary-action`, which
 		// only render AFTER a class is selected, so a step opened from a cold
@@ -145,15 +145,15 @@ const GENERATED_STEPS: readonly SimpleTutorialStep[] = [
 const PUBLISHED_STEPS: readonly SimpleTutorialStep[] = [
 	SCHEDULE_SWITCHER_STEP,
 	{
-		title: 'This timetable is published',
-		body: 'Teachers and students are using the published schedule. It stays in use while you build a new draft.',
-		target: 'Published state',
+		title: 'This schedule is saved',
+		body: 'Teachers and students are using the saved schedule. It stays in use while you build a new one.',
+		target: 'Saved state',
 		targetTestId: 'timetable-simple-published-state',
 		icon: CheckCircle2,
 	},
 	{
 		// #56 — the tutorial says the same thing the menu item says.
-		title: 'Generate a draft',
+		title: BUILD_NEW_DRAFT_LABEL,
 		body: `${morePath('Schedule actions', BUILD_NEW_DRAFT_LABEL)} ${PUBLISHED_SCHEDULE_STAYS_IN_USE}`,
 		target: 'More menu',
 		targetTestId: 'timetable-simple-more-trigger',

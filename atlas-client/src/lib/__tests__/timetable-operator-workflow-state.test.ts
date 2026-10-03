@@ -9,6 +9,7 @@ import { deriveSimplePublishReadiness } from '../../components/timetable/simpleP
 import { buildBlockerGroups } from '../../components/timetable/simple/SimpleTaskDrawerHelpers';
 import { readinessLabel } from '../../components/timetable/simple/SimpleHeaderHelpers';
 import { CLASS_SCHEDULE_LABEL } from '../class-schedule-naming';
+import { SAVE_STATE_LABEL } from '../timetable-plain-language';
 
 const clientRoot = resolve(import.meta.dirname, '../../..');
 function source(path: string): string {
@@ -206,7 +207,7 @@ test('readiness chip never reports generated counts without a run', () => {
 	const labelText = readinessLabel(headerContext());
 	// A7 c12b (row 13) SUPERSEDED the sentence: `No SY 2029-2030 timetable yet` is
 	// now `No draft yet for SY 2029-2030`. The claim is unchanged.
-	assert.match(labelText, /No draft yet for SY 2029-2030/);
+	assert.match(labelText, /No schedule yet for SY 2029-2030/);
 	assert.doesNotMatch(labelText, /\d+ blocker|\d+ unresolved|\d+ warning/);
 });
 
@@ -214,7 +215,7 @@ test('readiness chip reports unresolved sessions instead of ready to publish', (
 	const draft = generatedDraft();
 	const unresolvedOnly = readinessLabel(headerContext({ draft, summary: { unassignedCount: 3 } }));
 	assert.equal(unresolvedOnly, '3 unresolved');
-	assert.doesNotMatch(unresolvedOnly, /Ready to publish/);
+	assert.doesNotMatch(unresolvedOnly, /Ready to save/);
 
 	// Negative: unresolved wins over softer warnings, never the reverse.
 	const unresolvedPlusWarnings = readinessLabel(
@@ -274,7 +275,7 @@ test('readiness chip keeps blockers first and stays honest when clean', () => {
 		readinessLabel(headerContext({ draft, summary: { unassignedCount: 0 }, softCount: 2 })),
 		'2 warnings',
 	);
-	assert.equal(readinessLabel(headerContext({ draft, summary: { unassignedCount: 0 } })), 'Ready to publish');
+	assert.equal(readinessLabel(headerContext({ draft, summary: { unassignedCount: 0 } })), 'Ready to save');
 });
 
 test('readiness chip distinguishes published follow-ups from clean published', () => {
@@ -317,18 +318,18 @@ test('readiness chip distinguishes published follow-ups from clean published', (
 	 * `a2-header-budget-2026-09-29.test.tsx`, row `H12 F3 state C+`. */
 	assert.equal(
 		readinessLabel(headerContext({ draft, summary: { unassignedCount: 2 } })),
-		'Published',
+		SAVE_STATE_LABEL,
 		'SUPERSEDED REPLACEMENT: a published run with follow-ups reads `Published` on the chip — the count belongs to the published primary surface, once',
 	);
-	assert.equal(readinessLabel(headerContext({ draft, summary: { unassignedCount: 0 } })), 'Published');
-	assert.equal(readinessLabel(headerContext({ draft, summary: { unassignedCount: 12 } })), 'Published',
+	assert.equal(readinessLabel(headerContext({ draft, summary: { unassignedCount: 0 } })), SAVE_STATE_LABEL);
+	assert.equal(readinessLabel(headerContext({ draft, summary: { unassignedCount: 12 } })), SAVE_STATE_LABEL,
 		'and the chip is identical for 2, 0 and 12 follow-ups, which is the rule: the chip never names a count');
 	assert.doesNotMatch(
 		readinessLabel(headerContext({ draft, summary: { unassignedCount: 2 } })),
 		/\d/,
 		'the readiness chip states the run\'s state and no number at all',
 	);
-	assert.equal(readinessLabel(headerContext({ isPreGenerationWorkspace: true })), 'Working schedule draft');
+	assert.equal(readinessLabel(headerContext({ isPreGenerationWorkspace: true })), 'Working schedule');
 });
 
 // --- TT-C04 publish readiness: no run is never clean ---
@@ -376,7 +377,7 @@ test('publish readiness clean run stays publishable; warnings-only is not clean'
 		label('Teacher'),
 	);
 	assert.equal(clean.isClean, true);
-	assert.match(clean.summaryText, /Ready to publish/);
+	assert.match(clean.summaryText, /Ready to save/);
 
 	const warned = deriveSimplePublishReadiness(
 		generatedDraft() as never,
@@ -478,7 +479,7 @@ test('publish stays disabled with unresolved sessions across surfaces', () => {
 	// assert.match(dialog, /must be placed before this schedule can be published/);
 	assert.match(dialog, /publishPlacementBlockedSentence\(publishUnassignedCount \?\? 0\)/, 'the count is still the gate, now naming its population in one noun and one verb');
 	assert.match(dialog, /publishUnassignedCount \?\? 0\) > 0 \|\| \(softCount > 0 && !publishAcknowledged\)/, 'the same > 0 condition still gates the Publish button');
-	assert.doesNotMatch(dialog, /must be placed before this schedule can be published/, 'and the ungrammatical pre-fix composition is gone');
+	assert.doesNotMatch(dialog, /must be placed before this schedule can be saved/, 'and the ungrammatical pre-fix composition is gone');
 });
 
 test('drawer blocker items carry plain-language next steps, never raw codes', () => {
@@ -534,7 +535,7 @@ test('TTX-01 no-run center has no write CTA and defers to the header action', ()
 	// The property — the empty centre defers to the header primary and dispatches
 	// nothing itself — is unchanged. Superseded literal retained:
 	//   assert.match(paneSurface, /primary action above/);
-	assert.match(paneSurface, /No draft yet\. Generate one to begin\./,
+	assert.match(paneSurface, /No schedule yet\. Generate one to begin\./,
 		'the empty centre names the draft and defers to the one word Generate');
 	assert.match(center, /<CenterWorkspacePaneSurface \{\.\.\.props\}/, 'the panel renders the pane surface that does');
 });

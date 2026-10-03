@@ -262,8 +262,8 @@ test('A5-C8-BAR-1: the bar is ONE wrapping row: search first, then every child, 
 			search={{ value: '', onChange: () => {}, placeholder: 'Search teachers' }}
 			onReset={() => {}}
 		>
-			<FilterPicker name="Roster" value="all" onValueChange={() => {}} options={[{ value: 'all', label: 'All roster states' }]} />
-			<FilterPicker name="Grade" value="all" onValueChange={() => {}} options={[{ value: 'all', label: 'All grades' }]} />
+			<FilterPicker name="Teacher list" value="all" onValueChange={() => {}} options={[{ value: 'all', label: 'All teachers' }]} />
+			<FilterPicker name="Grade level" value="all" onValueChange={() => {}} options={[{ value: 'all', label: 'All grades' }]} />
 		</FilterBar>,
 	);
 	const bar = host.firstElementChild as HTMLElement;
@@ -281,8 +281,15 @@ test('A5-C8-BAR-1: the bar is ONE wrapping row: search first, then every child, 
 	assert.match(bar.children[0].className, /w-\[240px\]/, 'the first thing in the row is not the shared 240px search box');
 	assert.equal(bar.children[0].querySelector('input')?.getAttribute('placeholder'), 'Search teachers');
 	assert.deepEqual(
-		Array.from(bar.children).slice(1).map((child) => child.tagName.toLowerCase() + ':' + visible(child).slice(0, 12)),
-		['button:Roster: All', 'button:Grade: All', 'button:Reset'],
+		/* No `.slice(...)` here any more, and that is the correction. D6 (2026-10-03) made two
+		   filter names longer than the 12-character budget the row carried — `Teacher list` is 12 and
+		   `Grade level` is 11, so `: All` was being cut off and the assertion was comparing two
+		   TRUNCATED strings that happened to be equal. Truncating a label before comparing it is the
+		   same defect as truncating one on screen, which is what this whole file exists to catch, so
+		   the full text is compared instead. It costs nothing: the strings are literal here, and the
+		   D6 suite asserts them from the copy module. */
+		Array.from(bar.children).slice(1).map((child) => child.tagName.toLowerCase() + ':' + visible(child)),
+		['button:Teacher list: All', 'button:Grade level: All', 'button:Reset'],
 		'the bar did not render the filters, then the reset, in that order',
 	);
 	await unmount(host);
@@ -499,13 +506,28 @@ test('A5-C8-REACH-2: /sections — Grade, Program and Home room are present with
 	await unmount(host);
 });
 
-test('A5-C8-REACH-3: /teachers — the four roster filters are present with no click, and there is ONE reset control', async () => {
+/*
+ * D6 (2026-10-03, `forReview/miss-jo-1.docx`) — this row's CLAIM CHANGED, not just its wording.
+ *
+ * It used to pin four filters including a standalone `Load`, and to pin that the row carried no
+ * reset of its own because the BAR supplied one. Both facts are now false, and this row is
+ * re-pointed rather than deleted (`AGENTS.md` §16: corrections are additive, never subtractive):
+ *
+ *  - `Roster` -> `Teacher list`, and the `Load` filter is GONE because the load state became a colour
+ *    on each row (`teacherLoadColour.ts`). The claim that survives is the one this file exists to
+ *    protect: every filter is present with no click, and none of them is behind a disclosure.
+ *  - The reset row now asserts the OPPOSITE of what it asserted — there is no reset control on this
+ *    bar AT ALL, because the search box replaced it. `FacultyFilterRow` still renders none of its
+ *    own, so that half is unchanged and is kept.
+ *
+ * The removed filter's behaviour is asserted where it now lives, in
+ * `components/faculty/__tests__/d6-teacher-list-filters.test.tsx`.
+ */
+test('A5-C8-REACH-3: /teachers — the roster filters are present with no click, and there is NO reset control', async () => {
 	const host = await render(
 		<FacultyFilterRow
-			schedulingFilter="all"
-			onSchedulingFilterChange={() => {}}
-			assignmentFilter="all"
-			onAssignmentFilterChange={() => {}}
+			teacherListFilter="all"
+			onTeacherListFilterChange={() => {}}
 			departments={['MATH', 'FIL']}
 			departmentFilter="all"
 			onDepartmentFilterChange={() => {}}
@@ -516,17 +538,24 @@ test('A5-C8-REACH-3: /teachers — the four roster filters are present with no c
 	const triggers = Array.from(host.querySelectorAll('[role="combobox"]')) as HTMLElement[];
 	assert.deepEqual(
 		triggers.map(visible),
-		['Roster: All', 'Load: All', 'Department: All', 'Grade: All'],
-		'the four roster filters are not all present; on the base commit they sat behind a disclosure',
+		['Teacher list: All', 'Department: All', 'Grade level: All'],
+		'the roster filters are not all present; on the base commit they sat behind a disclosure',
+	);
+	/* The removed `Load` filter, asserted as the ABSENCE OF A CONTROL — a renamed one would leave a
+	   fourth trigger here and put this row back to four. */
+	assert.equal(
+		triggers.some((t) => /(^|: )Load\b/.test(visible(t))),
+		false,
+		'the standalone Load filter is back on the Teachers bar; D6 replaced it with the row colour',
 	);
 	assert.ok(byTestId(host, 'teachers-grade-filter'), 'the `teachers-grade-filter` hook is gone');
-	/* `FacultyFilterRow` no longer renders its own reset: the row has exactly one, and
-	   it belongs to the bar. Two on one row is §8's "two controls that say the same
-	   thing". */
+	/* D6: the search box replaced the reset affordance, so this row carries NO reset control — not
+	   one of its own beside the bar's, and not the bar's either. This assertion is therefore
+	   STRONGER than the one it replaces, which only banned a second reset on the row. */
 	assert.equal(
 		Array.from(host.querySelectorAll('button')).filter((b) => (b.textContent ?? '').includes('Reset')).length,
 		0,
-		'FacultyFilterRow still renders its own reset control beside the bar\'s',
+		'a Reset control is back on the Teachers filter row; the member put the search box there instead',
 	);
 	await unmount(host);
 });
