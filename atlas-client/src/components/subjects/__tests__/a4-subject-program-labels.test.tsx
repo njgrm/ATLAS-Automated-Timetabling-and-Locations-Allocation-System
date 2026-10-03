@@ -44,20 +44,21 @@ test('A4: rendered program chips use compact plain-language labels instead of ra
 	const root: Root = createRoot(host);
 	try {
 		await act(async () => {
-			root.render(<ProgramScopeChips scopes={['REGULAR', 'STE', 'SPA', 'SPS']} />);
+			root.render(<ProgramScopeChips scopes={['REGULAR', 'BEC', 'STE', 'SPA', 'SPS']} />);
 		});
 
 		const container = host.querySelector('[data-testid="subject-program-chips"]');
 		assert.ok(container, 'the program chip row is missing');
 		const chips = Array.from(container.children) as HTMLElement[];
 		const labels = chips.map((chip) => (chip.textContent ?? '').trim());
-		assert.deepEqual(labels, ['Regular', 'Science', 'Arts', 'Sports']);
+		assert.deepEqual(labels, ['Regular', 'Regular', 'Science', 'Arts', 'Sports']);
 		for (const rawCode of ['BEC', 'STE', 'SPA', 'SPS']) {
 			assert.equal(labels.includes(rawCode), false, `raw program code ${rawCode} is still visible`);
 		}
 		assert.deepEqual(
 			chips.map((chip) => chip.getAttribute('aria-label')),
 			[
+				'Regular — Regular Program',
 				'Regular — Regular Program',
 				'Science — Science, Technology, and Engineering',
 				'Arts — Special Program in the Arts',

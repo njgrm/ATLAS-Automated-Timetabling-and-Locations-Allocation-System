@@ -43,6 +43,8 @@ export const PROGRAM_SCOPE_OPTIONS = [
 
 export const PROGRAM_SCOPE_BADGE: Record<string, string> = {
 	REGULAR: 'bg-sky-50 text-sky-700 border-sky-200',
+	// Legacy/operator-facing alias for the persisted REGULAR scope.
+	BEC: 'bg-sky-50 text-sky-700 border-sky-200',
 	STE: 'bg-emerald-50 text-emerald-700 border-emerald-200',
 	SPA: 'bg-purple-50 text-purple-700 border-purple-200',
 	SPS: 'bg-orange-50 text-orange-700 border-orange-200',

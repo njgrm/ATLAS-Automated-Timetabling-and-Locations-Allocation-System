@@ -31,6 +31,8 @@ export function departmentLabel(code: string | null | undefined): string {
 /** Special-program scope code -> { short, full } descriptor. */
 export const PROGRAM_LABELS: Readonly<Record<string, { short: string; full: string }>> = {
 	REGULAR: { short: 'Regular', full: 'Regular Program' },
+	// `BEC` is the legacy/operator-facing name for the persisted REGULAR scope.
+	BEC: { short: 'Regular', full: 'Regular Program' },
 	STE: { short: 'STE', full: 'Science, Technology, and Engineering' },
 	SPA: { short: 'SPA', full: 'Special Program in the Arts' },
 	SPS: { short: 'SPS', full: 'Special Program in Sports' },
@@ -59,6 +61,8 @@ export function programFullLabel(code: string | null | undefined): string {
  */
 export const PROGRAM_CHIP_LABELS: Readonly<Record<string, string>> = {
 	REGULAR: 'Regular',
+	// Accept the legacy display value too; never put `BEC` back on the chip face.
+	BEC: 'Regular',
 	STE: 'Science',
 	SPA: 'Arts',
 	SPS: 'Sports',
