@@ -33,7 +33,7 @@ function context(overrides: Record<string, unknown> = {}) {
 }
 
 test('Simple lifecycle labels describe the schedule and next action in plain language', () => {
-	assert.equal(readinessLabel(context({ isPreGenerationWorkspace: true })), 'Working schedule draft');
+	assert.equal(readinessLabel(context({ isPreGenerationWorkspace: true })), 'Working schedule');
 	assert.equal(readinessLabel(context({ isPreGenerationWorkspace: true, curriculumReadiness: { state: 'loading', message: 'technical diagnostic' } })), 'Checking schedule information…');
 	assert.equal(readinessLabel(context({ isPreGenerationWorkspace: true, curriculumReadiness: { state: 'failed', message: 'technical diagnostic' } })), 'Schedule check needs retry');
 	assert.equal(resolveTimetableLoadingIntent('/timetable/setup')?.title, 'Check schedule information');
@@ -41,10 +41,10 @@ test('Simple lifecycle labels describe the schedule and next action in plain lan
 		'ATLAS is checking the school year and schedule information. No changes are made by this check.');
 	const published = renderToStaticMarkup(createElement(SimplePublishedState, { followUpCount: 0 }));
 	// SUPERSEDED (LANE-C C03 B4): assert.match(published, /Published schedule — view only/);
-	assert.match(published, />Published schedule</);
+	assert.match(published, />Saved schedule</);
 	assert.match(published, /Changes start on a date you choose/);
 	assert.doesNotMatch(published, /view only/);
-	assert.doesNotMatch(published, /Published — read only/);
+	assert.doesNotMatch(published, /Saved — read only/);
 	assert.match(source('src/components/timetable/simple/SimpleDriftBanner.tsx'), /Schedule information changed/);
 	assert.match(source('src/lib/simple-timetable-state.ts'), /Checking schedule information…/);
 });
@@ -52,7 +52,7 @@ test('Simple lifecycle labels describe the schedule and next action in plain lan
 test('ordinary stale notice offers one safe setup action and promises the current schedule stays unchanged', () => {
 	const drift = source('src/components/timetable/simple/SimpleDriftBanner.tsx');
 	assert.match(drift, /The current schedule stays unchanged while you review school information\./i);
-	assert.doesNotMatch(drift, /Sync with setup|Refresh before publishing|Update schedule now/);
+	assert.doesNotMatch(drift, /Sync with setup|Refresh before saving|Update schedule now/);
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
 	assert.match(header, /showActions=\{false\}/, 'ordinary timetable notice must use its single-action form');
 	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): the setup link moved into More ▸ Schedule actions.
@@ -213,7 +213,7 @@ test('selected class actions show one concise context and safe preview guidance'
 
 test('drift actions distinguish safe published review from draft preview and confirmation', () => {
 	const drift = source('src/components/timetable/simple/SimpleDriftBanner.tsx');
-	assert.match(drift, /Published schedule is safe to view/);
+	assert.match(drift, /Saved schedule is safe to view/);
 	assert.match(drift, /Review changes/);
 	assert.match(drift, /Start a revision/);
 	assert.match(drift, /Regenerate to apply/);
@@ -221,7 +221,7 @@ test('drift actions distinguish safe published review from draft preview and con
 	assert.match(drift, /onClick=\{\(\) => setShowRegenerateImpact\(true\)\}/);
 	assert.match(drift, /onConfirm=\{handleRegenerate\}/);
 	assert.match(drift, /onClick=\{onStartRevision\}/);
-	assert.doesNotMatch(drift, /Refresh before publishing|Direct sync|stale inputs/i);
+	assert.doesNotMatch(drift, /Refresh before saving|Direct sync|stale inputs/i);
 });
 
 test('term switcher is a standalone, complete ordered-term control', () => {

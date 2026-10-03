@@ -682,7 +682,11 @@ test('D2 a published run is dominated by the published lifecycle surface; Genera
 	// honest status surface, never an action button.
 	assert.doesNotMatch(published, /^<button\b/, 'the published lifecycle surface is not an action button');
 	assert.match(published, /role="status"/);
-	assert.match(published, /Published/);
+	// D1: the published lifecycle surface's own label, from the chip's `label`.
+	// It is wrapped in a plain `<span>` and may carry a follow-up count, so the
+	// row asserts the saved-state word rather than pinning the old `Published`.
+	assert.match(published, /Saved schedule/);
+	assert.doesNotMatch(published, />Published schedule</);
 	assert.doesNotMatch(published, /view only/);
 	assert.match(published, /Changes start on a date you choose/);
 	assert.equal(solidButtons(markup).length, 0, 'a published run has no filled action');

@@ -147,6 +147,9 @@ async function click(element: HTMLElement) {
 	}
 }
 
+// D1: the state word the strip's own Edit control renders, from the one mapping.
+const { EDIT_STATE_LABEL } = await import('@/lib/timetable-plain-language');
+
 // ═══ FIXTURES ═══════════════════════════════════════════════════════════════
 
 const RUN_FINISHED_AT = '2026-09-28T08:00:00.000Z';
@@ -707,10 +710,10 @@ test('ROW 4 RENDERED: `Edit draft` and `Discard draft` sit on ROW 2, each dispat
 	assert.equal(row2.contains(stripDiscard), true, 'and so is `Discard draft`');
 	assert.equal(view.el('timetable-simple-header-row-1')!.contains(stripEdit), false,
 		'and neither is back on ROW 1, so the chip / primary / `More` line is untouched by them');
-	assert.equal(visibleText(stripEdit).trim(), 'Edit draft', 'with its own visible label');
-	assert.equal(visibleText(stripDiscard).trim(), 'Discard draft', 'and so does `Discard draft`');
+	assert.equal(visibleText(stripEdit).trim(), EDIT_STATE_LABEL, 'with its own visible label');
+	assert.equal(visibleText(stripDiscard).trim(), 'Discard', 'and so does `Discard`');
 	// They are CONTROLS, in the header, on screen — not hover-only affordances.
-	assert.equal(stripEdit.getAttribute('disabled'), null, '`Edit draft` is enabled when a class is selected');
+	assert.equal(stripEdit.getAttribute('disabled'), null, '`Edit` is enabled when a class is selected');
 	assert.equal(stripDiscard.getAttribute('disabled'), null, '`Discard draft` is enabled when a draft exists');
 	// They are NOT a second publication control, and NOT a second solid primary.
 	assert.equal(/\bbg-primary\b/.test(stripEdit.getAttribute('class') ?? ''), false,
@@ -909,7 +912,7 @@ test('ROW 4 RENDERED: a draft action with nothing to act on is DISABLED with its
 	// `title` (§8) and never a sentence printed under the button (§8 header budget).
 	assert.equal(stripEdit.hasAttribute('title'), false, 'no `title` carries the Edit reason');
 	assert.equal(view.el('timetable-draft-strip-edit-reason'), null, 'and no reason is printed beneath the control');
-	assert.equal(stripEdit.getAttribute('aria-label'), `Edit draft — ${DRAFT_EDIT_NEEDS_SELECTION}`,
+	assert.equal(stripEdit.getAttribute('aria-label'), `${EDIT_STATE_LABEL} — ${DRAFT_EDIT_NEEDS_SELECTION}`,
 		'the accessible name carries the EXISTING selection reason, imported from the module that owns it');
 	// …and the tooltip is REACHABLE. A disabled `<button>` takes no pointer events and
 	// cannot take focus, so a tooltip placed on IT never fires. The production wrapper

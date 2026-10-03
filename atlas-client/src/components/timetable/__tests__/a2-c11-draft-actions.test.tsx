@@ -54,6 +54,9 @@ const { MemoryRouter, Route, Routes, Link, useLocation } = await import('react-r
 const { AnimatePresence } = await import('motion/react');
 
 const { describeRunState, runVisibilitySentence } = await import('@/components/timetable/RunStateBadge');
+// D1: the two visibility sentences and the published state word now come from the
+// vocabulary module, so this suite asserts THROUGH them instead of retyping copy.
+const { stateVisibilitySentence, SAVE_CONTROL_LABEL } = await import('@/lib/timetable-plain-language');
 const { resolveCenterPane } = await import('@/components/timetable/MapRouteTransitionIntent');
 const { resolveTimetableRouteView } = await import('@/components/timetable/TimetableRouteViewSync');
 const { TimetableDraftStateStrip, resolveDraftStripPublishPlan, PUBLISH_WHEN_ALREADY_PUBLISHED } =
@@ -109,15 +112,15 @@ const withRouter = (child: any) => createElement(MemoryRouter, { initialEntries:
 test('D1 the visibility sentence comes from the ONE existing derivation, per state', () => {
 	// Asserted by VALUE against the shared export, so this row fails if the
 	// derivation drifts and cannot pass on a second, drifting copy.
-	assert.equal(runVisibilitySentence('draft'), 'Draft — not visible to teachers until you publish');
-	assert.equal(runVisibilitySentence('published'), 'Published');
+	assert.equal(runVisibilitySentence('draft'), stateVisibilitySentence(false));
+	assert.equal(runVisibilitySentence('published'), stateVisibilitySentence(true));
 	// `planning` and `empty` may not claim a visibility state at all.
 	assert.equal(runVisibilitySentence('planning'), null);
 	assert.equal(runVisibilitySentence('empty'), null);
 	// And `describeRunState` is the single place it is read from.
 	assert.equal(describeRunState({ isPreGeneration: false, runId: 321, isPublished: false }).visibility,
-		'Draft — not visible to teachers until you publish');
-	assert.equal(describeRunState({ isPreGeneration: false, runId: 321, isPublished: true }).visibility, 'Published');
+		stateVisibilitySentence(false));
+	assert.equal(describeRunState({ isPreGeneration: false, runId: 321, isPublished: true }).visibility, stateVisibilitySentence(true));
 	assert.equal(describeRunState({ isPreGeneration: true, runId: 321, isPublished: false }).visibility, null);
 });
 
@@ -180,7 +183,7 @@ test('D2R RENDERED (QA-B2 re-point): the draft strip is a SENTENCE and adds no c
 	const strip = renderIn(createElement(TimetableDraftStateStrip, {
 		visibility: describeRunState({ isPreGeneration: false, runId: 321, isPublished: false }).visibility,
 	}));
-	assert.equal(strip.testId('timetable-draft-visibility'), 'Draft — not visible to teachers until you publish',
+	assert.equal(strip.testId('timetable-draft-visibility'), stateVisibilitySentence(false),
 		'the DRAFT state still names its audience, from the one derivation');
 	// DISCRIMINATION: pre-correction this render produced THREE buttons. The row
 	// cannot pass while the strip owns a control.
@@ -212,7 +215,7 @@ test('D2R RENDERED (QA-B2 re-point): the draft strip is a SENTENCE and adds no c
 	const menu = resolveSimpleDraftMenuActions({
 		headerPrimary: 'publish',
 		draftStrip: {
-			visibility: 'Draft — not visible to teachers until you publish',
+			visibility: stateVisibilitySentence(false),
 			editEnabled: true, editBlockedReason: null,
 			discardEnabled: true,
 			publishEnabled: true, publishBlockedReason: null,
@@ -248,7 +251,7 @@ test('D3R RENDERED (QA-B2 re-point): a PUBLISHED run says Published and cannot P
 	const strip = renderIn(createElement(TimetableDraftStateStrip, {
 		visibility: describeRunState({ isPreGeneration: false, runId: 321, isPublished: true }).visibility,
 	}));
-	assert.equal(strip.testId('timetable-draft-visibility'), 'Published');
+	assert.equal(strip.testId('timetable-draft-visibility'), stateVisibilitySentence(true));
 	// The reason now travels with the publication control itself, which is the
 	// control that can no longer act — the same sentence, on the real surface.
 	const view = renderIn(createElement(SimplePublishAction, {
@@ -265,7 +268,7 @@ test('D3R RENDERED (QA-B2 re-point): a PUBLISHED run says Published and cannot P
 	}));
 	// A2 C13 — the visible reason is on screen beside the control, not hover-only.
 	// It is the resolver's own ≤ 6-word short form (same source as the `aria-label`).
-	assert.equal(view.testId('timetable-simple-publish-short-reason'), 'Already published');
+	assert.equal(view.testId('timetable-simple-publish-short-reason'), 'Already saved');
 	const publish = view.host.querySelector('[data-testid="timetable-simple-publish-action"]') as HTMLButtonElement;
 	assert.equal(publish.disabled, true, 'a published run cannot be published again');
 	// The FULL sentence is still carried, and still not hover-only (AGENTS.md §8).
@@ -277,7 +280,7 @@ test('D3R RENDERED (QA-B2 re-point): a PUBLISHED run says Published and cannot P
 	// disabled control still carries the full reason in its accessible name.
 	assert.equal(
 		publish.getAttribute('aria-label'),
-		`Publish — ${PUBLISH_WHEN_ALREADY_PUBLISHED}`,
+		`${SAVE_CONTROL_LABEL} — ${PUBLISH_WHEN_ALREADY_PUBLISHED}`,
 		'the control keeps the full reason in its accessible name',
 	);
 	// AGENTS.md §8 — no raw `title` attribute carrying the explanation.
@@ -652,7 +655,7 @@ test('M5 SUPERSEDED (correction 4, F4): Undo sits in the persistent draft strip 
 	const view = renderIn(createElement(
 		TimetableDraftStateStrip,
 		{
-			visibility: 'Draft — not visible to teachers until you publish',
+			visibility: stateVisibilitySentence(false),
 		},
 		createElement(TimetableUndoRedoControl, {
 			editHistoryCount: 1,
@@ -670,7 +673,7 @@ test('M5 SUPERSEDED (correction 4, F4): Undo sits in the persistent draft strip 
 	// Visible after any accepted edit, and inside the SAME persistent strip as the
 	// draft state — not buried in a menu.
 	assert.ok(view.has('timetable-draft-state-strip'), 'the persistent strip is on screen');
-	assert.ok(view.text.includes('not visible to teachers until you publish'), 'the draft state names its audience');
+	assert.ok(view.text.includes('not visible to teachers until you save'), 'the draft state names its audience');
 	const undo = view.byLabel('Undo last manual schedule change')
 		?? view.host.querySelector('[data-testid="timetable-visible-undo"]');
 	assert.ok(undo, 'the Undo control is rendered inside the strip');

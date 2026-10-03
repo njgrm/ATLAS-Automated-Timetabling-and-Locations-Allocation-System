@@ -429,10 +429,10 @@ export function SimpleMoreMenuContent({
 					>
 						<PencilLine className="size-3.5" aria-hidden="true" />
 						{draftActions.edit.enabled ? (
-							<span>Edit draft</span>
+							<span>Edit</span>
 						) : (
 							<span className="flex flex-col">
-								<span className="text-muted-foreground">Edit draft</span>
+								<span className="text-muted-foreground">Edit</span>
 								<span className="text-xs text-muted-foreground" data-testid="timetable-edit-draft-blocked-reason">
 									{draftActions.edit.reason}
 								</span>
@@ -453,10 +453,10 @@ export function SimpleMoreMenuContent({
 					>
 						<Trash2 className="size-3.5" aria-hidden="true" />
 						{draftActions.discard.enabled ? (
-							<span>Discard draft</span>
+							<span>Discard</span>
 						) : (
 							<span className="flex flex-col">
-								<span className="text-muted-foreground">Discard draft</span>
+								<span className="text-muted-foreground">Discard</span>
 								<span className="text-xs text-muted-foreground" data-testid="timetable-more-discard-draft-reason">
 									{draftActions.discard.reason}
 								</span>

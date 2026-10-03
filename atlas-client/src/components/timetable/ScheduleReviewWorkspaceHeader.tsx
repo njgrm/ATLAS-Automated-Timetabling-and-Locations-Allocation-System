@@ -367,7 +367,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context, onEditDraft, onDiscardDraf
 		{
 			id: 'review',
 			label: 'Review schedule',
-			helper: hardCount > 0 ? `Start with the “${MUST_FIX_LABEL}” problems before publishing.` : 'Check the generated timetable and publish when clean.',
+			helper: hardCount > 0 ? `Start with the “${MUST_FIX_LABEL}” problems before saving.` : 'Check the generated schedule and save when clean.',
 			icon: ListChecks,
 			active: !isPreGenerationWorkspace && leftTab === 'violations' && !hasSelectedEntry,
 			onClick: () => {

@@ -1252,7 +1252,7 @@ test('PL-J1.3 the publish checklist names the one word and states WHY the two ha
 	const noteText = note.textContent ?? '';
 	assert.match(noteText, /Must fix/, 'the note uses the one plain word');
 	assert.match(noteText, /total can be higher/, 'the note says why the two numbers may differ');
-	assert.match(noteText, /can still be published/, 'the note says what a zero in the first column means');
+	assert.match(noteText, /can still be saved/, 'the note says what a zero in the first column means');
 
 	// One concept, one name: none of the other three names appear.
 	assert.doesNotMatch(checklist.textContent ?? '', /Blocking hard violations/, 'the "blocking hard violations" jargon is gone');
@@ -1294,7 +1294,7 @@ test('PL-J1.3R the checklist and the unplaced panel name ONE unit for the same c
 
 	// The SAME number, in the SAME unit, in both places.
 	assert.match(checklist.textContent ?? '', /2 sessions still to place \(whole year\)/, 'the checklist line names sessions');
-	assert.match(panel.textContent ?? '', /2 sessions need placement before publishing\./, 'the panel line names sessions');
+	assert.match(panel.textContent ?? '', /2 sessions need placement before saving\./, 'the panel line names sessions');
 	// The regression itself: "classes" is not a plainer word for this count, it
 	// is a different one, and it contradicted the panel three lines below.
 	assert.doesNotMatch(checklist.textContent ?? '', /2 classes\b/, 'the checklist no longer calls the session count "classes"');
@@ -1373,7 +1373,7 @@ test('PL-J1.4 the readiness sheet uses the one word and says whose schedule deci
 	assert.match(text, /Must fix/, 'the sheet uses the one plain word');
 	assert.doesNotMatch(text, /blocking hard/, 'the "blocking hard" jargon is gone from the sheet');
 	assert.match(text, /The whole year/, 'the scope is stated in plain words, not "Run-wide"');
-	assert.match(text, /decides whether you can publish/, 'the sheet says whose schedule decides publishing');
+	assert.match(text, /decides whether you can save/, 'the sheet says whose schedule decides saving');
 	// The two figures are preserved exactly.
 	assert.equal(scope.querySelector('[data-testid="timetable-simple-run-wide-blocking"]')?.textContent, '2');
 	assert.equal(scope.querySelector('[data-testid="timetable-simple-run-wide-unassigned"]')?.textContent, '2');
@@ -1443,7 +1443,7 @@ test('PL-J1.4a the CLEAN state renders the one plain word and no retired name', 
 	const clean = host.querySelector<HTMLElement>('[data-testid="timetable-simple-ready-to-publish"]');
 	assert.ok(clean, 'the clean branch actually renders in this state');
 	assertNoRetiredNames(clean.textContent ?? '', 'the clean card');
-	assert.match(clean.textContent ?? '', /Ready to publish/, 'the state is named');
+	assert.match(clean.textContent ?? '', /Ready to save/, 'the state is named');
 	// The branch that used to read "No hard blockers or unresolved sessions
 	// remain run-wide" now routes both retired words through the module.
 	assert.match(clean.textContent ?? '', /No “Must fix” problems and no unresolved sessions remain for the whole year\./, 'the clean sentence states the one word and the plain scope');
@@ -1641,7 +1641,7 @@ test('PL-J4.1R the real blocking chip states the publish consequence, so "3 unre
 	const face = (chip.textContent ?? '').trim();
 	assert.match(face, /3 Must fix/, 'the visible face still names the count in the one plain word');
 	assert.doesNotMatch(face, /\d+ blocker/i, 'the consequence introduces no retired name');
-	assert.doesNotMatch(face, /cannot be published yet/, 'and the visible face does not print the long clause — that is what the demo clipped');
+	assert.doesNotMatch(face, /cannot be saved yet/, 'and the visible face does not print the long clause — that is what the demo clipped');
 	// The fact is still there, and still calm.
 	assert.match(chip.className, /\bh-6\b/, 'the calm height is preserved');
 	assert.doesNotMatch(chip.className, /destructive/, 'still no destructive register');
@@ -1713,8 +1713,8 @@ test('PL-J4.1T the blocking and the non-blocking chip are distinguishable by TEX
 		'and the NON-blocking chip states no consequence at all — not a shortened one');
 	assert.notEqual(blockedText, warnedText, 'the two states read differently');
 	assert.equal(warnedText, '5 warnings', 'the non-blocked chip states only its warning count');
-	assert.match(blockedSentence, /cannot be published yet/, 'only the blocking chip says publishing is shut');
-	assert.doesNotMatch(warnedText, /cannot be published|before publish/i, 'the non-blocking chip does not imply publishing is shut');
+	assert.match(blockedSentence, /cannot be saved yet/, 'only the blocking chip says saving is shut');
+	assert.doesNotMatch(warnedText, /cannot be saved|before sav/i, 'the non-blocking chip does not imply saving is shut');
 	// The plain word, too: the blocking chip is the one carrying the consequence.
 	assert.match(blockedText, /Must fix/, 'the blocking chip names the problem in the one plain word');
 	assert.doesNotMatch(warnedText, /Must fix/, 'the non-blocking chip does not claim a must-fix problem');
@@ -1756,7 +1756,7 @@ test('PL-J4.2 the chip never shows a green tick beside outstanding problems', as
 	assert.doesNotMatch(blocked.innerHTML, GREEN_TICK, 'a destructive chip never wears a green tick');
 
 	// (c) the tick is still earned when nothing is outstanding.
-	const clear = await renderReadinessChip({ readiness: 'Ready to publish', publishBlocked: false, blockingHardCount: 0, softCount: 0 });
+	const clear = await renderReadinessChip({ readiness: 'Ready to save', publishBlocked: false, blockingHardCount: 0, softCount: 0 });
 	assert.equal(clear.getAttribute('data-readiness-state'), 'clear');
 	assert.match(clear.innerHTML, GREEN_TICK, 'the tick remains for a genuinely clear schedule');
 
@@ -1928,10 +1928,10 @@ test('PL-J4.5 the routine rebuild is not the one destructive header button', asy
 	const { readFileSync } = await import('node:fs');
 	const { resolve } = await import('node:path');
 	const source = readFileSync(resolve(import.meta.dirname, '../ScheduleReviewInputStateBanner.tsx'), 'utf8');
-	assert.doesNotMatch(source, /variant="destructive"[^>]*onRegenerate/, 'Regenerate Draft no longer wears the destructive variant');
+	assert.doesNotMatch(source, /variant="destructive"[^>]*onRegenerate/, 'the rebuild control no longer wears the destructive variant');
 	// The action itself is unchanged: same handler, same label, same disabled rule.
 	assert.match(source, /onClick=\{onRegenerate\}/, 'the rebuild action is unchanged');
-	assert.match(source, /Regenerate Draft/, 'the rebuild label is unchanged');
+	assert.match(source, />Regenerate</, 'the rebuild control is still rendered, with its own label');
 	assert.match(source, /disabled=\{!generationEnabled \|\| loading\}/, 'the rebuild disabled rule is unchanged');
 });
 
@@ -1962,7 +1962,7 @@ test('PL-J4.5R the rendered banner gives the routine rebuild the neutral variant
 	));
 	const tokensOf = (element: Element) => new Set((element.getAttribute('class') ?? '').split(/\s+/).filter(Boolean));
 	const buttons = Array.from(container().querySelectorAll<HTMLButtonElement>('button'));
-	const rebuild = buttons.find((button) => button.textContent?.includes('Regenerate Draft'));
+	const rebuild = buttons.find((button) => button.textContent?.includes('Regenerate'));
 	assert.ok(rebuild, 'the rebuild control renders');
 	const reference = buttons.find((button) => button.textContent === 'destructive reference');
 	assert.ok(reference, 'a destructive button is rendered in this same DOM');
@@ -1980,5 +1980,5 @@ test('PL-J4.5R the rendered banner gives the routine rebuild the neutral variant
 	const labels = buttons
 		.filter((button) => !button.textContent?.includes('destructive reference'))
 		.map((button) => button.textContent?.replace(/\s+/g, ' ').trim());
-	assert.deepEqual(labels, ['Preview Impact', 'Sync with Setup', 'Manually Repair', 'Regenerate Draft'], 'all four banner actions still render, once each');
+	assert.deepEqual(labels, ['Preview Impact', 'Sync with Setup', 'Manually Repair', 'Regenerate'], 'all four banner actions still render, once each');
 });

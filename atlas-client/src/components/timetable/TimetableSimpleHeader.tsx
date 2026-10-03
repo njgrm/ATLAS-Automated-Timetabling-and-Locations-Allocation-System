@@ -522,7 +522,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	);
 	const unassignedUnavailable = context.isPreGenerationWorkspace
 		? 'Classes needing a time slot belong to a generated schedule; this is the working draft.'
-		: !hasGeneratedRun ? 'No draft yet.' : null;
+		: !hasGeneratedRun ? 'No schedule yet.' : null;
 
 	const exportRunId = context.draft?.runId ?? context.activeGeneratedRunId ?? null;
 	const exportYearLabel = context.schoolYearContext?.activeSchoolYearLabel ?? null;

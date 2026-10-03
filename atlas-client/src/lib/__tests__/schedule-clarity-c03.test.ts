@@ -32,6 +32,16 @@ import {
 	SimpleGenerateAction,
 	SimplePublishedState,
 } from '../../components/timetable/simple/SimpleHeaderHelpers';
+// D1 — the vocabulary module is the single source for every renamed word, so this
+// suite asserts THROUGH it rather than retyping copy it would have to re-pin.
+import {
+	BUILD_NEW_DRAFT_LABEL,
+	EDIT_STATE_LABEL,
+	PUBLISHED_SCHEDULE_STAYS_IN_USE,
+} from '../timetable-plain-language';
+
+/** The saved-schedule surface's own label, with no follow-ups. */
+const SAVED_SCHEDULE_LABEL = 'Saved schedule';
 import {
 	createSwapArmHandler,
 	SWAP_ARMED_FROM_SELECTION_MESSAGE,
@@ -165,9 +175,9 @@ test('B3 every published move path schedules a dated change instead of the refus
 test('B4 the published chip no longer claims "view only" and says how a change works', () => {
 	const markup = renderToStaticMarkup(createElement(SimplePublishedState, { followUpCount: 0 }));
 	assert.doesNotMatch(markup, /view only/i);
-	assert.match(markup, />Published schedule</);
+	assert.match(markup, />Saved schedule</);
 	assert.match(markup, new RegExp(PUBLISHED_CHANGE_HINT));
-	assert.match(markup, /aria-label="Published schedule\. Changes start on a date you choose\."/);
+	assert.match(markup, new RegExp(`aria-label="${SAVED_SCHEDULE_LABEL}\\. ${PUBLISHED_CHANGE_HINT}\\.`));
 	// Still a status surface, never an action.
 	assert.doesNotMatch(markup, /<button/);
 });
@@ -201,9 +211,9 @@ test('B4 beside a published schedule, Generate says it builds a new draft, not a
 	//
 	// A7 c12b (decision 8, row 8) SUPERSEDED the verb again: `Build a new draft`
 	// is `Generate a draft`. The property is unchanged.
-	assert.match(published, /aria-label="Generate a draft\. Your published schedule stays in use\."/);
+	assert.match(published, new RegExp(`aria-label="${PUBLISHED_GENERATE_LABEL}\\. ${PUBLISHED_SCHEDULE_STAYS_IN_USE}"`));
 	assert.doesNotMatch(published, /new version/i);
-	assert.equal(PUBLISHED_GENERATE_LABEL, 'Generate a draft', 'the label is the copy module\'s one verb, not a second string');
+	assert.equal(PUBLISHED_GENERATE_LABEL, BUILD_NEW_DRAFT_LABEL, 'the label IS the copy module\'s one verb, not a second string');
 	const ordinary = renderToStaticMarkup(createElement(SimpleGenerateAction, { actionState: READY_ACTION_STATE, onClick: () => {} }));
 	assert.match(ordinary, />Generate</);
 	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): beside a run, Generate is the More entry; it carries the same flag.
@@ -365,9 +375,18 @@ test('B9 an empty or loading draft says what it is instead of looking like the s
 	//   assert.match(center, /the published schedule is not shown here and does not change/);
 	assert.doesNotMatch(center, /the published schedule is not shown here and does not change/,
 		'SUPERSEDED: the 3-line draft paragraph is replaced by one line');
-	assert.match(center, /Draft · nothing placed yet\. Place classes from the list on the left, or Generate a draft\./,
-		'the one-line draft note names the state and the one verb');
-	assert.match(center, /newDraftLoading\s*\/\/[^\n]*\n\s*\? 'Loading the draft…'/);
+	// D1: the note names the Edit state and the one Generate verb, both from the
+	// vocabulary module, so a wording change does not need a fourth pin here.
+	// D1: the note opens with the Edit state, says what is missing, names where to
+	// act, and carries the ONE Generate verb — all four asserted separately so the
+	// row cannot pass on any one of them alone.
+	assert.ok(center.includes(`${EDIT_STATE_LABEL} · nothing placed yet.`),
+		'the note opens with the state word and what is missing');
+	assert.ok(center.includes('Place classes from the list on the left'),
+		'and says where the scheduler acts');
+	assert.ok(center.includes(BUILD_NEW_DRAFT_LABEL.toLowerCase()),
+		`and carries the one Generate verb`);
+	assert.ok(center.includes('? \'Loading the schedule…\''), 'the loading branch names what it is doing');
 });
 
 // ── B10 ───────────────────────────────────────────────────────────────────

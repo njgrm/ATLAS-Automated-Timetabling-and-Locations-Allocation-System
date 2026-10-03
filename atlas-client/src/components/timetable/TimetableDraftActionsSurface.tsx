@@ -247,8 +247,8 @@ export function TimetableExpertDraftActions({
 	const actions = resolveExpertDraftMenuActions({ hasSelectedClass, hasDraft, onEdit, onDiscard });
 	return (
 		<>
-			<DraftMenuRow action={actions.edit} icon="edit" label="Edit draft" testId="timetable-expert-edit-draft" />
-			<DraftMenuRow action={actions.discard} icon="discard" label="Discard draft" testId="timetable-expert-discard-draft" />
+			<DraftMenuRow action={actions.edit} icon="edit" label="Edit" testId="timetable-expert-edit-draft" />
+			<DraftMenuRow action={actions.discard} icon="discard" label="Discard" testId="timetable-expert-discard-draft" />
 		</>
 	);
 }

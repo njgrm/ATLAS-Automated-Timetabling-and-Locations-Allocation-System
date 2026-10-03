@@ -1,5 +1,5 @@
 import type { DraftReport, ScheduledEntry, UnassignedItem, UnassignedReason, Violation } from '@/types';
-import { CLASS_NOUN, classesNeedingTime, mustFixProblemCountLabel, MUST_FIX_LABEL, UNLABELLED_RULE_SENTENCE } from '@/lib/timetable-plain-language';
+import { CLASS_NOUN, classesNeedingTime, mustFixProblemCountLabel, MUST_FIX_LABEL, UNLABELLED_RULE_SENTENCE, SAVE_BLOCKED_CONTINUATION } from '@/lib/timetable-plain-language';
 import { NO_SECTION_ON_RECORD, NO_SUBJECT_ON_RECORD, resolveViolationEntityIdentity } from '@/lib/timetable-violation-identity';
 
 export type BlockerReason =
@@ -227,7 +227,7 @@ const VIOLATION_GROUPS: Record<string, BlockerConfig> = {
 		plainLabel: 'Incomplete modular group',
 		actionLabel: 'Open in review',
 		actionHref: '/timetable',
-		nextStep: 'A modular group is missing classes. Complete the group before publishing.',
+		nextStep: 'A modular group is missing classes. Complete the group before saving.',
 	},
 	ROOM_TYPE_MISMATCH: {
 		plainLabel: 'Room type mismatch',
@@ -258,7 +258,7 @@ const DEFAULT_BLOCKER_CONFIG: BlockerConfig = {
 	plainLabel: 'Needs review',
 	actionLabel: 'Open in review',
 	actionHref: '/timetable',
-	nextStep: 'Open the review rail and resolve this issue before publishing.',
+	nextStep: 'Open the review rail and resolve this issue before saving.',
 };
 
 /**
@@ -760,26 +760,30 @@ export function deriveSimplePublishReadiness(
 		blockerClauses.push(mustFixProblemCountLabel(totalHardBlockers));
 	}
 	const unresolvedClause = totalUnresolved > 0 ? classesNeedingTime(totalUnresolved) : '';
+	// D1: the CONTINUATION form of the obligation clause — the mid-sentence one
+	// ("…still need fixing before this schedule can be saved."), which is NOT the
+	// standalone `SAVE_BLOCKED_SHORT` sentence. It was a second, hand-typed copy of
+	// the same clause and is now ONE named constant, so a wording change lands once.
 	const blockerSentence = totalHardBlockers > 0 && unresolvedClause
-		? `${blockerClauses[0]} and ${unresolvedClause} before this schedule can be published.`
+		? `${blockerClauses[0]} and ${unresolvedClause} ${SAVE_BLOCKED_CONTINUATION}`
 		: totalHardBlockers > 0
-			? `${blockerClauses[0]} ${totalHardBlockers === 1 ? 'still needs' : 'still need'} fixing before this schedule can be published.`
+			? `${blockerClauses[0]} ${totalHardBlockers === 1 ? 'still needs' : 'still need'} fixing ${SAVE_BLOCKED_CONTINUATION}`
 			: unresolvedClause
-				? `${unresolvedClause} before this schedule can be published.`
+				? `${unresolvedClause} ${SAVE_BLOCKED_CONTINUATION}`
 				: '';
 
 	let summaryText: string;
 	if (!draft) {
-		summaryText = `No timetable generated yet\nGenerate a draft before reviewing publish readiness. Preview and readiness checks alone cannot be published.`;
+		summaryText = `No timetable generated yet\nGenerate a schedule before reviewing save readiness. Preview and readiness checks alone cannot be saved.`;
 	} else if (hasBlockers) {
 		// The wording below is the SAME sentence `SimplePublishReadinessSheet`
 		// already renders, so the resolver's copy text and the rendered sheet can no
 		// longer drift into two names for one idea.
-		summaryText = `Cannot publish yet\n${blockerSentence}\nFix the “${MUST_FIX_LABEL}” problems first. Warnings can be reviewed once they are clear.`;
+		summaryText = `Cannot save yet\n${blockerSentence}\nFix the “${MUST_FIX_LABEL}” problems first. Warnings can be reviewed once they are clear.`;
 	} else if (totalSoftWarnings > 0) {
 		summaryText = `Ready except for warnings\nNo “${MUST_FIX_LABEL}” problems remain. Review the warnings, then publish if the schedule is acceptable.`;
 	} else {
-		summaryText = `Ready to publish\nNo “${MUST_FIX_LABEL}” problems or classes without a time remain.`;
+		summaryText = `Ready to save\nNo “${MUST_FIX_LABEL}” problems or classes without a time remain.`;
 	}
 
 	return {

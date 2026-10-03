@@ -50,6 +50,14 @@ import { MemoryRouter } from 'react-router-dom';
 import { ScheduleReviewWorkspaceHeader } from '@/components/timetable/ScheduleReviewWorkspaceHeader';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
 import type { DraftReport } from '@/types';
+import {
+	editStateSentence,
+	planningStateSentence,
+	saveStateSentence,
+	stateBadgeLabel,
+	EDIT_STATE_LABEL,
+	SAVE_STATE_LABEL,
+} from '@/lib/timetable-plain-language';
 
 const PUBLISHED_RUN = 321;
 const NEWER_RUN = 322;
@@ -261,7 +269,7 @@ test('C3 (a) a newer unfinished run over a published draft.runId is not printed 
 	const identity = runIdentityText(markup);
 	assert.equal(
 		identity,
-		`Published — this is the schedule in use. (Run ${PUBLISHED_RUN})`,
+		`${saveStateSentence()} (Run ${PUBLISHED_RUN})`,
 		'the printed run number must be the run whose publication state is printed',
 	);
 	assert.ok(
@@ -286,12 +294,12 @@ test('C3 (a2) the same holds when the newer run FAILED rather than is in flight'
 	});
 	assert.equal(
 		runIdentityText(markup),
-		`Published — this is the schedule in use. (Run ${PUBLISHED_RUN})`,
+		`${saveStateSentence()} (Run ${PUBLISHED_RUN})`,
 		'a failed newer run is still not the published run on the grid',
 	);
 	assert.equal(
 		runBadgeText(markup),
-		'Published schedule',
+		stateBadgeLabel(true),
 		'and the badge describes the run that is actually on the grid',
 	);
 });
@@ -320,8 +328,8 @@ test('C3 (b) a FAILED-only run list with no draft renders the empty state, not "
 		'and the run-identity cell is omitted entirely, because no run is on the grid',
 	);
 	assert.ok(
-		!markup.includes('Draft schedule'),
-		'the pre-fix "Draft schedule" over a FAILED-only run list is gone',
+		!markup.includes(stateBadgeLabel(false)),
+		'no run-state badge is rendered over a FAILED-only run list',
 	);
 	assert.ok(
 		!new RegExp(`run ${NEWER_RUN}`).test(markup),
@@ -335,10 +343,10 @@ test('C3 (c) the normal case still renders the run number and Published', () => 
 	const markup = renderHeader();
 	assert.equal(
 		runIdentityText(markup),
-		`Published — this is the schedule in use. (Run ${PUBLISHED_RUN})`,
+		`${saveStateSentence()} (Run ${PUBLISHED_RUN})`,
 		'the ordinary case is unchanged',
 	);
-	assert.equal(runBadgeText(markup), 'Published schedule', 'and so is its badge');
+	assert.equal(runBadgeText(markup), stateBadgeLabel(true), 'and so is its badge');
 });
 
 test('C3 (c2) an unpublished draft still renders the run number and Draft', () => {
@@ -348,10 +356,10 @@ test('C3 (c2) an unpublished draft still renders the run number and Draft', () =
 	});
 	assert.equal(
 		runIdentityText(markup),
-		`Draft — teachers and students cannot see it yet. (Run ${PUBLISHED_RUN})`,
+		`${editStateSentence()} (Run ${PUBLISHED_RUN})`,
 		'a draft run says Draft, and says what that means',
 	);
-	assert.equal(runBadgeText(markup), 'Draft schedule', 'and the badge agrees');
+	assert.equal(runBadgeText(markup), stateBadgeLabel(false), 'and the badge agrees');
 });
 
 test('C3 (c3) the pre-generation planner keeps its own line and never claims a run', () => {
@@ -366,7 +374,7 @@ test('C3 (c3) the pre-generation planner keeps its own line and never claims a r
 	// A7 c12b (row 10) SUPERSEDED the planner line: `No schedule made yet.` is
 	// `Draft · nothing placed yet`. The property is unchanged — the line never
 	// claims a run it does not have.
-	assert.equal(runIdentityText(markup), 'Draft · nothing placed yet', 'the planner names the draft state');
+	assert.equal(runIdentityText(markup), planningStateSentence(), 'the planner names its own state');
 	assert.equal(runBadgeText(markup), 'No schedule yet', 'and the badge agrees with it');
 	assert.ok(!/Run/.test(runIdentityText(markup)), 'the planner line never claims a run it does not have');
 });
@@ -422,12 +430,12 @@ test('U1 the line is state-first: the state, what it means, then the run number'
 	);
 	assert.equal(
 		runIdentityText(renderHeader({ draft: publishedDraft(PUBLISHED_RUN, false) })),
-		`Draft — teachers and students cannot see it yet. (Run ${PUBLISHED_RUN})`,
+		`${editStateSentence()} (Run ${PUBLISHED_RUN})`,
 		'a draft says what a draft MEANS for the people it affects, with the number last',
 	);
 	assert.equal(
 		runIdentityText(renderHeader({ draft: publishedDraft(PUBLISHED_RUN, true) })),
-		`Published — this is the schedule in use. (Run ${PUBLISHED_RUN})`,
+		`${saveStateSentence()} (Run ${PUBLISHED_RUN})`,
 		'a published run says it is the one in use, with the number last',
 	);
 	// The number is genuinely secondary: it is the tail, never the lead-in.
@@ -438,22 +446,23 @@ test('U1 the line is state-first: the state, what it means, then the run number'
 	// control now pins that the line cannot open with the number at all.
 	const line = runIdentityText(renderHeader());
 	assert.match(line, /\(Run \d+\)$/, 'the run number is a trailing suffix, not the lead-in');
-	assert.match(line, /^Published|^Draft/, 'and the state word leads');
+	assert.ok(line.startsWith(SAVE_STATE_LABEL) || line.startsWith(EDIT_STATE_LABEL),
+		'and the state word leads');
 	assert.doesNotMatch(line, /^\d/, 'the number can never open the sentence');
 });
 
 // ── U2 — the badge carries no information ──────────────────────────────────
 
-test('U2 Draft and Published differ in LABEL, ICON and COLOUR — none alone is load-bearing', () => {
+test('U2 Edit and Save differ in LABEL, ICON and COLOUR — none alone is load-bearing', () => {
 	const draft = runBadgeState(renderHeader({ draft: publishedDraft(PUBLISHED_RUN, false) }));
 	const published = runBadgeState(renderHeader({ draft: publishedDraft(PUBLISHED_RUN, true) }));
 
-	assert.equal(draft.key, 'draft', 'a draft run keys the badge "draft"');
-	assert.equal(published.key, 'published', 'a published run keys it "published"');
+	assert.equal(draft.key, 'draft', 'an unpublished run keys the badge "draft" — D1 did not rename the key');
+	assert.equal(published.key, 'published', 'a saved run keys it "published" — D1 did not rename the key');
 
 	// 1. LABEL
-	assert.equal(runBadgeText(renderHeader({ draft: publishedDraft(PUBLISHED_RUN, false) })), 'Draft schedule');
-	assert.equal(runBadgeText(renderHeader({ draft: publishedDraft(PUBLISHED_RUN, true) })), 'Published schedule');
+	assert.equal(runBadgeText(renderHeader({ draft: publishedDraft(PUBLISHED_RUN, false) })), stateBadgeLabel(false));
+	assert.equal(runBadgeText(renderHeader({ draft: publishedDraft(PUBLISHED_RUN, true) })), stateBadgeLabel(true));
 	assert.notEqual(draft.tag, published.tag, 'and the two states are not the same element');
 
 	// 2. ICON — a distinct glyph per state, not a tint of one glyph.
@@ -471,11 +480,13 @@ test('U2 Draft and Published differ in LABEL, ICON and COLOUR — none alone is 
 		assert.ok(state.iconClass, 'each state renders an icon');
 	}
 	assert.match(renderHeader({ draft: publishedDraft(PUBLISHED_RUN, true) }), /aria-hidden="true"[^>]*data-testid="timetable-run-state-sign"/);
-	assert.equal(runBadgeText(renderHeader({ draft: publishedDraft(PUBLISHED_RUN, true) })), 'Published schedule', 'and the word is visible text, not a title attribute');
+	assert.equal(runBadgeText(renderHeader({ draft: publishedDraft(PUBLISHED_RUN, true) })), stateBadgeLabel(true), 'and the word is visible text, not a title attribute');
 });
 
 test('U2 every run state has its own key, sign and tone', () => {
 	const cases: Array<[Record<string, unknown>, string, string, string]> = [
+		// The KEYS are the stored values and D1 deliberately left them alone, so
+		// this table is a control that storage did not move.
 		[{ draft: publishedDraft(PUBLISHED_RUN, false) }, 'draft', 'in-progress', 'amber'],
 		[{ draft: publishedDraft(PUBLISHED_RUN, true) }, 'published', 'settled', 'emerald'],
 		[{ draft: null, summary: null, runs: [] }, 'empty', 'none', 'muted'],
@@ -491,7 +502,7 @@ test('U2 every run state has its own key, sign and tone', () => {
 
 // ── #51 — the run tab and the heading follow the RUN, never the layout mode ──
 
-test('#51 a published run on the Expert surface renders no "Draft" anywhere in its state chrome', () => {
+test('#51 a saved run on the Expert surface never calls itself an Edit state', () => {
 	const markup = renderHeader({ draft: publishedDraft(PUBLISHED_RUN, true) });
 	// The pre-candidate surface: the badge's variant AND its whole class string
 	// were chosen by `isPreGenerationWorkspace`, so a published run and an
@@ -508,9 +519,10 @@ test('#51 a published run on the Expert surface renders no "Draft" anywhere in i
 	);
 	// Test the words operators see. A broad markup slice also includes internal
 	// test IDs such as `timetable-draft-state-strip`, which are not visible copy.
-	assert.match(runIdentityText(markup), /^Published\b/, 'the state line leads with publication');
-	assert.doesNotMatch(runIdentityText(markup), /Draft/i, 'the visible state line never calls a published run a draft');
-	assert.equal(runBadgeText(markup), 'Published schedule', 'the visible badge agrees');
+	assert.ok(runIdentityText(markup).startsWith(SAVE_STATE_LABEL), 'the state line leads with the saved state');
+	assert.doesNotMatch(runIdentityText(markup), new RegExp(EDIT_STATE_LABEL, 'i'),
+		'the visible state line never calls a saved run an Edit state');
+	assert.equal(runBadgeText(markup), stateBadgeLabel(true), 'the visible badge agrees');
 	// The heading is a SECTION name, never a run state — which is why it cannot
 	// disagree with the badge.
 	assert.equal(runIdentityLabel(markup), 'State:', 'the strip cell is labelled by state');

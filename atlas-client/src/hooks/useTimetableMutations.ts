@@ -1031,7 +1031,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			violationReport?.counts?.runWide ?? null,
 		).softCount;
 		if (softViolationCount > 0 && !publishAcknowledged) {
-			toast.error('Review and acknowledge soft warnings before publishing.');
+			toast.error('Review and acknowledge soft warnings before saving.');
 			return;
 		}
 
