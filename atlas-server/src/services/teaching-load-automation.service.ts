@@ -60,6 +60,10 @@ import {
 	type TeachingLoadCapMode,
 } from './teaching-load-capacity.service.js';
 import {
+	prepareTeachingLoadPlacementPlanner,
+	selectFirstTimetableFeasibleCandidate,
+} from './teaching-load-placement-check.service.js';
+import {
 	buildQualificationPolicySnapshot,
 	evaluateQualificationWithPolicy,
 	resolveSubjectAllowedOwnerDepartments as resolvePersistedAllowedOwnerDepartments,
@@ -244,7 +248,9 @@ export type TeachingLoadCandidateRejectionReason =
 	 * day). Emitted only under the HARD policy switch; always overridable by a
 	 * manual assignment.
 	 */
-	| 'SHIFT_COHERENCE_CONFLICT';
+	| 'SHIFT_COHERENCE_CONFLICT'
+	/** The candidate has capacity but cannot fit the current timetable shape. */
+	| 'TIMETABLE_SHAPE_CONFLICT';
 
 export interface TeachingLoadCandidateRejection {
 	subjectId: number;
@@ -254,6 +260,8 @@ export interface TeachingLoadCandidateRejection {
 	facultyId: number;
 	facultyName: string;
 	reason: TeachingLoadCandidateRejectionReason;
+	/** Generator-aligned placement reason when the timetable shape rejected the candidate. */
+	placementReason?: string;
 	/**
 	 * SHIFT-COHERENCE-C01 (D11): present only on a `SHIFT_COHERENCE_CONFLICT`
 	 * rejection so the operator sees the exact windows that make the teacher
@@ -1964,6 +1972,7 @@ function findBestCandidateForMode(
 	candidateReach?: { allowUnqualified?: boolean },
 ): {
 	faculty: FacultyRow | null;
+	rankedFaculty: FacultyRow[];
 	rejections: TeachingLoadCandidateRejection[];
 	preferenceNotice: TeachingLoadPreferenceNotice | null;
 	shiftCoherenceNotice: TeachingLoadShiftCoherenceNotice | null;
@@ -2122,7 +2131,7 @@ function findBestCandidateForMode(
 	}
 
 	if (candidates.length === 0) {
-		return { faculty: null, rejections, preferenceNotice: null, shiftCoherenceNotice: null };
+		return { faculty: null, rankedFaculty: [], rejections, preferenceNotice: null, shiftCoherenceNotice: null };
 	}
 
 	// HARD removes every spanning candidate from selection. When none remain the
@@ -2131,7 +2140,7 @@ function findBestCandidateForMode(
 		? candidates.filter((candidate) => !candidate.shiftSpans)
 		: candidates;
 	if (selectable.length === 0) {
-		return { faculty: null, rejections, preferenceNotice: null, shiftCoherenceNotice: null };
+		return { faculty: null, rankedFaculty: [], rejections, preferenceNotice: null, shiftCoherenceNotice: null };
 	}
 
 	selectable.sort((a, b) => compareCoverageCandidateRank({
@@ -2190,7 +2199,13 @@ function findBestCandidateForMode(
 			}
 			: null;
 
-	return { faculty: selected.faculty, rejections, preferenceNotice, shiftCoherenceNotice };
+	return {
+		faculty: selected.faculty,
+		rankedFaculty: selectable.map((candidate) => candidate.faculty),
+		rejections,
+		preferenceNotice,
+		shiftCoherenceNotice,
+	};
 }
 
 function simulateRealFacultyCoverage(input: {
@@ -2885,6 +2900,16 @@ export async function autoFill(
 	// distribution evaluation for this preview. This keeps aliases, owner
 	// prefixes, cross-department permissions, and policy revision coherent.
 	const qualificationAuthority = await loadPersistedQualificationAuthority(schoolId);
+	// Prepare the generator-aligned timetable shape ONCE. The candidate loop below
+	// walks its ranked teachers against this shared reservation session, so a
+	// proposal prefers a teacher who can actually be placed instead of discovering
+	// the conflict only after its preview is built. When shape authority is not
+	// ready, no candidate is claimed feasible; proposal creation remains fail-closed
+	// through the existing placement gate.
+	const placementPlanner = await prepareTeachingLoadPlacementPlanner(schoolId, schoolYearId);
+	const placementSession = placementPlanner.begin(new Map(
+		faculty.map((member) => [member.id, `${member.lastName}, ${member.firstName}`]),
+	));
 
 	// ─── Step 1: Build resolved-pair set + capacity used per faculty ───────────
 	const existingOwnerships = await db().subjectSectionOwnership.findMany({
@@ -3337,6 +3362,24 @@ export async function autoFill(
 			const ledger = capacityLedgersByFaculty.get(candidate.member.id) ?? createEmptyCapacityLedger();
 			const delta = estimateCapacityLaneDeltaMinutes(ledger, laneKey, minutes);
 			if (candidate.used + delta > budget) continue;
+			const placement = placementSession?.tryAssign({
+				sectionId: pair.sectionId,
+				subjectId: pair.subjectId,
+				facultyId: candidate.member.id,
+			});
+			if (placement && !placement.placeable) {
+				appendBoundedCandidateRejections(autoFillCandidateRejections, [{
+					subjectId: pair.subjectId,
+					subjectCode: pair.subject.code,
+					sectionId: pair.sectionId,
+					sectionName: pair.sectionName,
+					facultyId: candidate.member.id,
+					facultyName: `${candidate.member.lastName}, ${candidate.member.firstName}`,
+					reason: 'TIMETABLE_SHAPE_CONFLICT',
+					placementReason: placement.reason,
+				}]);
+				continue;
+			}
 			applyCapacityLaneMinutesToLedger(ledger, laneKey, minutes);
 			capacityLedgersByFaculty.set(candidate.member.id, ledger);
 			capacityUsed.set(candidate.member.id, ledger.creditedMinutes);
@@ -3396,13 +3439,38 @@ export async function autoFill(
 				{ allowUnqualified: allowUnqualifiedRealFaculty },
 			);
 			appendBoundedCandidateRejections(autoFillCandidateRejections, selection.rejections);
-			if (selection.preferenceNotice && autoFillPreferenceNotices.length < MAX_CANDIDATE_REJECTIONS) {
+			let candidate = selection.faculty;
+			if (placementSession && candidate) {
+				const placementSelection = selectFirstTimetableFeasibleCandidate(
+					placementSession,
+					{ sectionId: pair.sectionId, subjectId: pair.subjectId },
+					selection.rankedFaculty.map((rankedCandidate) => rankedCandidate.id),
+				);
+				candidate = selection.rankedFaculty.find((rankedCandidate) => rankedCandidate.id === placementSelection.facultyId) ?? null;
+				for (const placement of placementSelection.rejected) {
+					const rankedCandidate = selection.rankedFaculty.find((entry) => entry.id === placement.facultyId);
+					if (!rankedCandidate) continue;
+					appendBoundedCandidateRejections(autoFillCandidateRejections, [{
+						subjectId: pair.subjectId,
+						subjectCode: subjectRow.code,
+						sectionId: pair.sectionId,
+						sectionName: pair.sectionName,
+						facultyId: rankedCandidate.id,
+						facultyName: `${rankedCandidate.lastName}, ${rankedCandidate.firstName}`,
+						reason: 'TIMETABLE_SHAPE_CONFLICT',
+						placementReason: placement.reason,
+					}]);
+				}
+			}
+			// These notices describe the original capacity-ranked choice. If shape
+			// ranking selected a different teacher, omit the advisory rather than
+			// attach an inaccurate name to the accepted assignment.
+			if (candidate === selection.faculty && selection.preferenceNotice && autoFillPreferenceNotices.length < MAX_CANDIDATE_REJECTIONS) {
 				autoFillPreferenceNotices.push(selection.preferenceNotice);
 			}
-			if (selection.shiftCoherenceNotice && autoFillShiftCoherenceNotices.length < MAX_CANDIDATE_REJECTIONS) {
+			if (candidate === selection.faculty && selection.shiftCoherenceNotice && autoFillShiftCoherenceNotices.length < MAX_CANDIDATE_REJECTIONS) {
 				autoFillShiftCoherenceNotices.push(selection.shiftCoherenceNotice);
 			}
-			const candidate = selection.faculty;
 			if (!candidate) {
 				// A8 c4 item 3 ORDER INVARIANT: the saved-placeholder pool is
 				// reachable ONLY when (a) the caller permits placeholders at all and

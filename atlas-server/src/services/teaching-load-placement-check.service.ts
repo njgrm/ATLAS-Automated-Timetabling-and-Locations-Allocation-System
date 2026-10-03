@@ -166,6 +166,30 @@ export interface PlacementWriteGateResult {
   blockers: PlacementBlocker[];
 }
 
+/**
+ * Stateful, zero-write planner used while Teaching Load ranks a batch. A
+ * successful trial reserves the same section/teacher/room slots for the next
+ * trial, so two otherwise-good suggestions cannot quietly claim one period.
+ */
+export interface PlacementPlanningSession {
+  tryAssign(request: PlacementCheckLineRequest): PlacementLineVerdict;
+}
+
+export interface PlacementCandidateSelection {
+  facultyId: number | null;
+  rejected: PlacementLineVerdict[];
+}
+
+/**
+ * One prepared timetable-shape snapshot. Loading it once avoids an N+1 read
+ * while auto-fill considers its already-ranked teacher candidates.
+ */
+export interface TeachingLoadPlacementPlanner {
+  demandReady: boolean;
+  evaluated: boolean;
+  begin(facultyMeta?: ReadonlyMap<number, string>): PlacementPlanningSession | null;
+}
+
 export type PlacementServiceError = Error & {
   statusCode: number;
   code: string;
@@ -247,14 +271,38 @@ function subjectInput(subject: PlacementSubjectMeta, section: PlacementSectionMe
  * `searchCandidateSlots`.
  */
 export function evaluatePlacementVerdicts(input: PlacementEvaluatorInput): PlacementLineVerdict[] {
-  const verdicts: PlacementLineVerdict[] = [];
+  const session = createPlacementPlanningSession(input);
+  return input.request.map((request) => session.tryAssign(request));
+}
+
+/** Pure planning session; safe to use in the auto-fill candidate loop and tests. */
+export function createPlacementPlanningSession(input: Omit<PlacementEvaluatorInput, 'request'>): PlacementPlanningSession {
   const plannedLocks = [...input.occupancyLocks];
-  for (const request of input.request) {
-    const evaluated = evaluateOnePlacementLine({ ...input, occupancyLocks: plannedLocks }, request);
-    verdicts.push(evaluated.verdict);
-    if (evaluated.verdict.placeable) plannedLocks.push(...evaluated.reservations);
+  return {
+    tryAssign(request: PlacementCheckLineRequest): PlacementLineVerdict {
+      const evaluated = evaluateOnePlacementLine({ ...input, request: [request], occupancyLocks: plannedLocks }, request);
+      if (evaluated.verdict.placeable) plannedLocks.push(...evaluated.reservations);
+      return evaluated.verdict;
+    },
+  };
+}
+
+/**
+ * Walk the capacity/qualification-ranked teachers in order and commit the first
+ * teacher whose real timetable slots fit. Failed trials never reserve a slot.
+ */
+export function selectFirstTimetableFeasibleCandidate(
+  session: PlacementPlanningSession,
+  request: Omit<PlacementCheckLineRequest, 'facultyId'>,
+  rankedFacultyIds: ReadonlyArray<number>,
+): PlacementCandidateSelection {
+  const rejected: PlacementLineVerdict[] = [];
+  for (const facultyId of rankedFacultyIds) {
+    const verdict = session.tryAssign({ ...request, facultyId });
+    if (verdict.placeable) return { facultyId, rejected };
+    rejected.push(verdict);
   }
-  return verdicts;
+  return { facultyId: null, rejected };
 }
 
 function evaluateOnePlacementLine(
@@ -557,6 +605,40 @@ async function preparePlacementInput(schoolId: number, schoolYearId: number): Pr
     subjectsById,
     programTypeBySection,
   };
+}
+
+/**
+ * Loads the generator-aligned shape once for a Teaching Load preview. The
+ * returned session deliberately has no database access: candidate ranking is a
+ * deterministic walk over one occupancy snapshot, not a second scheduler.
+ */
+export async function prepareTeachingLoadPlacementPlanner(
+  schoolId: number,
+  schoolYearId: number,
+): Promise<TeachingLoadPlacementPlanner> {
+  try {
+    const prepared = await preparePlacementInput(schoolId, schoolYearId);
+    const evaluated = prepared.demandReady
+      && prepared.input.weeklySlots.length > 0
+      && prepared.input.usableRooms.length > 0;
+    return {
+      demandReady: prepared.demandReady,
+      evaluated,
+      begin(facultyMeta: ReadonlyMap<number, string> = new Map()): PlacementPlanningSession | null {
+        if (!evaluated) return null;
+        return createPlacementPlanningSession({
+          ...prepared.input,
+          facultyMeta: new Map(facultyMeta),
+        });
+      },
+    };
+  } catch {
+    return {
+      demandReady: false,
+      evaluated: false,
+      begin: () => null,
+    };
+  }
 }
 
 async function loadQualificationPolicy(schoolId: number): Promise<QualificationPolicy> {
