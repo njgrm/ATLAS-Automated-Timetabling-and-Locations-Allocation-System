@@ -8,13 +8,10 @@
  * scheduler nothing about *which* programs. R1 A3, from the operator's own screenshot:
  * "spelled-out program names".
  *
- * WHAT IS THE CHIP, AND WHY THAT ABBREVIATION. The visible label is the operator's own
- * abbreviation from `PROGRAM_SCOPE_OPTIONS` (`subject-constants.ts`) — `REGULAR → BEC`, `STE`,
- * `SPA`, `SPS`, `OTHER → Other`. That list is the repository's existing display mapping (A3-31);
- * this component reads it rather than restating it, so a change to the operator's vocabulary
- * lands in one place. A scope code the list does not carry (`SPJ`, `SPFL`, `SPTVE` all exist in
- * `PROGRAM_LABELS`) falls back to `programShortLabel`, so an unmapped program is named rather
- * than hidden or numbered.
+ * WHAT IS THE CHIP, AND WHY THE SHORT WORD. The visible label comes from the shared glossary's
+ * `programChipLabel`: `REGULAR → Regular`, `STE → Science`, `SPA → Arts`, and `SPS → Sports`.
+ * The words are plain and compact enough for the existing one-line chip row; a scope code the
+ * map does not carry still falls back to `programShortLabel` rather than being hidden or numbered.
  *
  * COLOUR IS THE REPOSITORY'S, NOT A NEW PALETTE. `PROGRAM_SCOPE_BADGE` is the existing program
  * colour map; a code it does not carry gets the same neutral token the grade chips use for a
@@ -31,18 +28,16 @@
  * above a line of prose. The grade chips themselves are untouched.
  */
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
-import { PROGRAM_SCOPE_BADGE, PROGRAM_SCOPE_OPTIONS } from '@/lib/subject-constants';
-import { programFullLabel, programShortLabel } from '@/lib/deped-glossary';
+import { PROGRAM_SCOPE_BADGE } from '@/lib/subject-constants';
+import { programChipLabel, programFullLabel } from '@/lib/deped-glossary';
 import { cn } from '@/lib/utils';
 
 /** The same neutral token `SubjectRow` uses for a grade outside 7-10. */
 const NEUTRAL_CHIP = 'bg-muted text-muted-foreground';
 
-/** The operator's own abbreviation, then the glossary's short label, then the code itself. */
+/** The shared compact plain-language label, then the glossary fallback. */
 export function programScopeChipLabel(code: string): string {
-	const fromOptions = PROGRAM_SCOPE_OPTIONS.find((o) => o.value === code);
-	if (fromOptions) return fromOptions.label;
-	return programShortLabel(code);
+	return programChipLabel(code);
 }
 
 export function ProgramScopeChips({ scopes }: { scopes: string[] }) {

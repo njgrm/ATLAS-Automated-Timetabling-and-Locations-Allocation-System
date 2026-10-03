@@ -52,6 +52,28 @@ export function programFullLabel(code: string | null | undefined): string {
 	return PROGRAM_LABELS[code]?.full ?? programShortLabel(code);
 }
 
+/**
+ * Compact plain-language labels for the `/subjects` program chips. These are
+ * display-only; persisted/API values stay the program codes above. The full
+ * descriptor remains available through the chip Tooltip.
+ */
+export const PROGRAM_CHIP_LABELS: Readonly<Record<string, string>> = {
+	REGULAR: 'Regular',
+	STE: 'Science',
+	SPA: 'Arts',
+	SPS: 'Sports',
+	SPJ: 'Journalism',
+	SPFL: 'Foreign language',
+	SPTVE: 'Technical-vocational',
+	OTHER: 'Other',
+} as const;
+
+/** Resolve a program chip to a compact plain-language label. */
+export function programChipLabel(code: string | null | undefined): string {
+	if (!code) return PROGRAM_CHIP_LABELS.REGULAR;
+	return PROGRAM_CHIP_LABELS[code] ?? programShortLabel(code);
+}
+
 /** Compact grade label, e.g. `GR7`. Decision 5: compact form is `GR{grade}`, never `G{grade}`. */
 export function gradeCompact(grade: number): string {
 	return `GR${grade}`;
