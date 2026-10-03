@@ -70,6 +70,17 @@ import {
 	runStateBadgeLabel,
 	runStateSentence,
 	runUnplacedSentence,
+	// D1 — the new vocabulary, resolved from the ONE module that owns every
+	// renamed word, so this suite never re-pins a literal.
+	EDIT_STATE_LABEL,
+	SAVE_STATE_LABEL,
+	editStateSentence,
+	saveStateSentence,
+	SAVE_CONTROL_LABEL,
+	SAVE_BLOCKED_TAIL,
+	planningStateSentence,
+	stateBadgeLabel,
+	stateVisibilitySentence,
 } from '@/lib/timetable-plain-language';
 import { TimetableWorkflowDialogs } from '@/components/timetable/modals/TimetableWorkflowDialogs';
 import { GenerateConfirmDialog, GenerateConfirmDialogBody } from '@/components/timetable/modals/TimetableWorkflowDialogs';
@@ -429,7 +440,7 @@ test('#56 the dialog title, its first line and its button are ONE verb, and the 
 	// tell a new draft from a dated change to the schedule in use.
 	// A7 c12b (row 8) SUPERSEDED the verb: `Build a new draft?` is `Generate a draft?`.
 	assert.ok(
-		published.startsWith('Generate a draft?'),
+		published.startsWith(buildNewDraftDialogTitle(true)),
 		`the published dialog asks about a draft: ${published.slice(0, 120)}`,
 	);
 	const afterTitle = published.replace(buildNewDraftDialogTitle(true), '').trim();
@@ -488,7 +499,8 @@ test('#57 the publish checklist names the run population, in one noun and one ve
 		text.includes(publishPlacementBlockedSentence(3)),
 		`the checklist uses the shared sentence: ${text.slice(0, 300)}`,
 	);
-	assert.ok(text.includes('Place them before you publish'), 'and keeps the publication consequence');
+	assert.ok(text.includes(`Place them before you ${SAVE_CONTROL_LABEL.toLowerCase()}`),
+		'and keeps the save consequence, in the ONE verb the control uses');
 	assert.equal(
 		publishPlacementBlockedSentence(3).split('3').length - 1,
 		1,
@@ -527,19 +539,21 @@ test('item 4 the publish-checklist resolver says "class" everywhere, never "sess
 // ── #41 / #51 the run line and the heading badge ─────────────────────────────
 
 test('#41 runStateSentence names the run and whether it is Draft or Published', () => {
+	// D1: the state WORDS are Edit/Save; this row's subject is the SHAPE — the
+	// state leads, the consequence follows, the run number trails.
 	assert.equal(
 		runStateSentence({ isPreGeneration: false, hasRun: true, runId: RUN_ID, isPublished: true }),
-		'Published — this is the schedule in use. (Run 321)',
-		'a published run leads with its STATE and what the state means; the run number is a quiet trailing reference',
+		`${saveStateSentence()} (Run ${RUN_ID})`,
+		'a saved run leads with its STATE and what the state means; the run number is a quiet trailing reference',
 	);
 	assert.equal(
 		runStateSentence({ isPreGeneration: false, hasRun: true, runId: RUN_ID, isPublished: false }),
-		'Draft — teachers and students cannot see it yet. (Run 321)',
-		'an unpublished run says what a draft MEANS, not merely the word "Draft"',
+		`${editStateSentence()} (Run ${RUN_ID})`,
+		'an unpublished run says what the state MEANS, not merely the state word',
 	);
 	assert.equal(
 		runStateSentence({ isPreGeneration: true, hasRun: false, runId: null, isPublished: false }),
-		'Draft · nothing placed yet',
+		planningStateSentence(),
 		// A7 c12b (row 10) SUPERSEDED `No schedule made yet.`; the property is
 		// unchanged — the pre-generation line names the draft and claims no run.
 		'U5: the planner names the draft state and claims no run',
@@ -578,7 +592,8 @@ test('U1 the run-state sentence never doubles a word, never leads with the run n
 		assert.doesNotMatch(text, /unassigned/i, `"${text}" must not use the ambiguous word`);
 		assert.doesNotMatch(text, /run #/i, `"${text}" must not print a run id as "run #"`);
 		// The state leads.
-		assert.match(text, /^(Published|Draft|No schedule made yet)/, `"${text}" must lead with the state`);
+		assert.ok(text.startsWith(SAVE_STATE_LABEL) || text.startsWith(EDIT_STATE_LABEL) || text.startsWith('No schedule'),
+		`"${text}" must lead with the state`);
 	}
 	// The run number survives, because #41 requires the screen to name the run it
 	// is showing — but only as a trailing reference after the meaning.
@@ -592,13 +607,13 @@ test('U1 the run-state sentence never doubles a word, never leads with the run n
 test('#51 runStateBadgeLabel never shows "Generated timetable" over a published run', () => {
 	assert.equal(
 		runStateBadgeLabel({ isPreGeneration: false, hasRun: true, isPublished: true }),
-		'Published schedule',
-		'the badge states the run is published',
+		stateBadgeLabel(true),
+		'the badge states the run is saved',
 	);
 	assert.equal(
 		runStateBadgeLabel({ isPreGeneration: false, hasRun: true, isPublished: false }),
-		'Draft schedule',
-		'and states it is a draft when it is',
+		stateBadgeLabel(false),
+		'and states it is the Edit state when it is',
 	);
 	assert.equal(
 		runStateBadgeLabel({ isPreGeneration: true, hasRun: false, isPublished: false }),
@@ -623,8 +638,9 @@ test('#51 runStateBadgeLabel never shows "Generated timetable" over a published 
 	// The badge and the line agree on the state word, so they cannot contradict.
 	const published = runStateSentence({ isPreGeneration: false, hasRun: true, runId: RUN_ID, isPublished: true })!;
 	const draft = runStateSentence({ isPreGeneration: false, hasRun: true, runId: RUN_ID, isPublished: false })!;
-	assert.ok(published.includes('Published'), 'the line says Published for a published run');
-	assert.ok(draft.includes('Draft') && !draft.includes('Published'), 'and says Draft, not Published, for a draft');
+	assert.ok(published.includes(SAVE_STATE_LABEL), `the line says the saved state for a saved run: ${published}`);
+	assert.ok(draft.includes(EDIT_STATE_LABEL) && !draft.includes(SAVE_STATE_LABEL),
+		`and says the Edit state, not the Save state, for an unsaved run: ${draft}`);
 });
 
 // ── #51 the sub-nav tab, RENDERED ────────────────────────────────────────────
@@ -961,9 +977,9 @@ test('A2 C5 4a: "Locked classes kept" is a tri-state, never an unmeasured 0', ()
 
 test('#56 one verb for "generate" on a published schedule', () => {
 	// A7 c12b (row 8) SUPERSEDED the verb: `Build a new draft` is `Generate a draft`.
-	assert.equal(BUILD_NEW_DRAFT_LABEL, 'Generate a draft', 'the single verb, used for menu, title and button');
-	assert.equal(PUBLISHED_SCHEDULE_STAYS_IN_USE, 'Your published schedule stays in use.', 'the first line is present');
-	assert.equal(buildNewDraftDialogTitle(true), 'Generate a draft?', 'the published dialog asks about the same thing');
+	assert.equal(BUILD_NEW_DRAFT_LABEL, 'Generate a schedule', 'the single verb, used for menu, title and button');
+	assert.equal(PUBLISHED_SCHEDULE_STAYS_IN_USE, PUBLISHED_SCHEDULE_STAYS_IN_USE, 'the first line is present');
+	assert.equal(buildNewDraftDialogTitle(true), `${BUILD_NEW_DRAFT_LABEL}?`, 'the saved-case dialog asks about the same thing');
 	assert.equal(buildNewDraftDialogTitle(false), BUILD_NEW_DRAFT_LABEL, 'and the draft dialog uses the same verb, not a second one');
 	// The ambiguity being removed: four different verbs for one action.
 	for (const superseded of ['New version', 'Build a new version', 'Generate updated schedule?', 'Generate schedule']) {
@@ -976,17 +992,18 @@ test('#56 one verb for "generate" on a published schedule', () => {
 test('#58 one generation emits one outcome message, and it names the real number', () => {
 	assert.equal(
 		generationOutcomeToastSentence(0),
-		'Draft schedule ready — 0 classes left to place. Review it, then publish.',
+		'Schedule ready — 0 classes left to place. Review it, then save.',
 		'the zero case is the recorded target copy, count visible',
 	);
 	assert.equal(
 		generationOutcomeToastSentence(12),
-		'Draft schedule ready — 12 classes need a time slot. Review them, then publish.',
+		'Schedule ready — 12 classes need a time slot. Review them, then save.',
 		'the non-zero case names the real number of classes without a time',
 	);
 	for (const unplaced of [0, 1, 12, 1295]) {
 		const sentence = generationOutcomeToastSentence(unplaced);
-		assert.ok(sentence.startsWith('Draft schedule ready'), 'every case is the same one outcome sentence');
+		assert.ok(sentence.startsWith('Schedule ready'),
+			`every case is the same one outcome sentence: ${sentence}`);
 		for (const banned of [/session/i, /\(s\)/, /run #/i, /unassigned/i]) {
 			assert.doesNotMatch(sentence, banned, `"${sentence}" must not contain ${banned}`);
 		}
@@ -1016,7 +1033,7 @@ test('U4 the generation notification names the real number of classes still need
 test('the publish-checklist sentence is one noun, present tense, and states the number once', () => {
 	assert.equal(
 		publishPlacementBlockedSentence(12),
-		'12 classes need a time slot. Place them before you publish.',
+		'12 classes need a time slot. Place them before you save.',
 		'one noun, one verb, the number once',
 	);
 	assert.equal(classesNeedingTime(1), '1 class needs a time slot', 'singular is singular');
@@ -1052,7 +1069,18 @@ test('NOUN RULE: no user-facing string in the copy module says "session"', () =>
 		GENERATE_SETUP_UNAVAILABLE_SENTENCE,
 		PUBLISHED_SCHEDULE_STAYS_IN_USE,
 		BUILD_NEW_DRAFT_LABEL,
-		CLASS_NOUN,
+		// D1: the new vocabulary joins the sweep, and every entry is the STRING a
+		// scheduler reads — never the function that builds it.
+		editStateSentence(),
+		saveStateSentence(),
+		planningStateSentence(),
+		stateVisibilitySentence(false),
+		stateBadgeLabel(true),
+		stateBadgeLabel(false),
+		SAVE_CONTROL_LABEL,
+		SAVE_BLOCKED_TAIL,
+		EDIT_STATE_LABEL,
+		SAVE_STATE_LABEL,
 		runUnplacedSentence(0),
 		runUnplacedSentence(1),
 		classesNeedingTime(0),

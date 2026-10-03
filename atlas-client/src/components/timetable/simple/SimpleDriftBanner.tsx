@@ -216,7 +216,7 @@ export function SimpleDriftBanner({
 						<span
 							className="shrink-0 rounded border border-amber-300 bg-white/70 px-2 py-0.5 font-semibold text-amber-900"
 							data-testid="timetable-simple-published-drift-guidance"
-						>Published schedule is safe to view. Changes are made in a separate revision.</span>
+						>Saved schedule is safe to view. Changes are made in a separate revision.</span>
 						<Button asChild variant="outline" size="sm" className="h-8 shrink-0 text-xs" data-testid="timetable-simple-review-published-changes">
 							<Link to={drift.primaryHref}>Review changes</Link>
 						</Button>
@@ -339,8 +339,8 @@ function RegenerateImpactDialog({
 					<DialogTitle>Update this schedule</DialogTitle>
 					<DialogDescription>
 						{status === 'STALE'
-							? 'Nothing has changed yet. ATLAS rebuilds this draft only when you choose Update schedule.'
-							: 'ATLAS could not prove this draft matches current setup. Regenerate to rebuild it against the latest data.'}
+							? 'Nothing has changed yet. ATLAS rebuilds this schedule only when you choose Update schedule.'
+							: 'ATLAS could not prove this schedule matches current setup. Regenerate to rebuild it against the latest data.'}
 					</DialogDescription>
 				</DialogHeader>
 				<div className="rounded-lg border border-border bg-muted/30 p-3">

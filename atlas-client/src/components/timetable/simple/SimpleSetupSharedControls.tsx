@@ -1,7 +1,7 @@
 import { CheckCircle2, Info, RefreshCw } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import { publishBlockedSentence } from '@/lib/timetable-plain-language';
+import { publishBlockedSentence, SAVE_BLOCKED_SHORT } from '@/lib/timetable-plain-language';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
@@ -185,8 +185,8 @@ export function SimpleReadinessChip({
 		 * halves cannot be counted from different places. A run with no advisories
 		 * keeps the pre-existing `publishBlockedReason` byte-for-byte. */
 		const consequence = publishBlocked && softCount > 0
-			? `${readiness} — this schedule cannot be published yet.`
-			: (publishBlockedReason || `${readiness} — this schedule cannot be published yet.`);
+			? `${readiness} — ${SAVE_BLOCKED_SHORT}`
+			: (publishBlockedReason || `${readiness} — ${SAVE_BLOCKED_SHORT}`);
 		return (
 			<Badge
 				variant="outline"
@@ -206,7 +206,7 @@ export function SimpleReadinessChip({
 				aria-label={`${readiness}. ${consequence}`}
 			>
 				<Info className="size-3.5 shrink-0" aria-hidden="true" />
-				<span data-testid="timetable-simple-readiness-consequence" title={consequence}>{readiness} · Can't publish yet</span>
+				<span data-testid="timetable-simple-readiness-consequence" title={consequence}>{readiness} · Can't save yet</span>
 			</Badge>
 		);
 	}

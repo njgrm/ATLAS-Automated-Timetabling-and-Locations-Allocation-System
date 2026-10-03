@@ -1,4 +1,7 @@
 import { deriveSimpleLifecycleAction, type SimpleLifecycleAction } from './simple-timetable-state';
+// D1: the state word on the lifecycle label comes from the vocabulary module, so
+// the capability surface and the header cannot name two different states.
+import { SAVE_STATE_LABEL } from './timetable-plain-language';
 import {
 	deriveTimetableReadinessRepair,
 	type TimetableGenerationBlocker,
@@ -550,8 +553,9 @@ const LIFECYCLE_LABELS: Record<TimetableLifecycleState, string> = {
 	'pre-generation': 'Working schedule draft',
 	generating: 'Generating…',
 	'failed-run': 'Last generation failed',
-	'generated-issues': 'Draft — issues to review',
-	'generated-reviewable': 'Draft — ready to review',
+	// D1: `Draft` is retired on this surface too; `Save schedule` is the state word.
+	'generated-issues': `${SAVE_STATE_LABEL} — issues to review`,
+	'generated-reviewable': `${SAVE_STATE_LABEL} — ready to review`,
 	// LANE-C C03 (B4) — SUPERSEDED: 'Published schedule — view only'. Dated
 	// changes (swap, teacher leaving, move) are allowed, so it was untrue.
 	published: 'Published schedule — changes start on a date you choose',
@@ -605,27 +609,31 @@ export function deriveTimetableCapabilities(input: TimetableCapabilityInput): Ti
 			? allowed()
 			: denied(runOnlyReason('Room requests'), navigate('Start with generation', '/timetable')),
 		move: input.hasSelectedEntry
-			? (runReady ? allowed() : denied(runOnlyReason('Moving a class'), navigate('Generate a draft', '/timetable')))
+			? (runReady ? allowed() : denied(runOnlyReason('Moving a class'), navigate('Generate a schedule', '/timetable')))
 			: denied('Select a scheduled class on the grid first.'),
 		changeRoom: input.hasSelectedEntry
-			? (runReady ? allowed() : denied(runOnlyReason('Changing a room'), navigate('Generate a draft', '/timetable')))
+			? (runReady ? allowed() : denied(runOnlyReason('Changing a room'), navigate('Generate a schedule', '/timetable')))
 			: denied('Select a scheduled class on the grid first.'),
 		swap: runReady
 			? allowed()
-			: denied(runOnlyReason('Swapping sessions'), navigate('Generate a draft', '/timetable')),
+			: denied(runOnlyReason('Swapping sessions'), navigate('Generate a schedule', '/timetable')),
 		ownerRepair: runReady
 			? allowed()
 			: denied(runOnlyReason('Teaching Load owner repair'), navigate('Open Teaching Load', '/teaching-load')),
 		issueReview: runReady
 			? allowed()
-			: denied(runOnlyReason('Reviewing issues'), navigate('Generate a draft', '/timetable')),
+			: denied(runOnlyReason('Reviewing issues'), navigate('Generate a schedule', '/timetable')),
 		generation,
 		publication: (() => {
-			if (!runReady) return denied('No draft yet to publish.', navigate('Generate a draft', '/timetable'), 'No draft to publish');
-			if (input.isPreGeneration) return denied('Finish the pre-generation draft before publishing.', NONE, 'Finish the pre-generation draft');
-			if (input.isPublished) return denied('This schedule is already published.', NONE, 'Already published');
-			if (input.hardCount > 0) return denied(`Fix ${input.hardCount} hard blocker${input.hardCount === 1 ? '' : 's'} before publishing.`, NONE, `Fix ${input.hardCount} hard blocker${input.hardCount === 1 ? '' : 's'}`);
-			if (input.unassignedCount > 0) return denied(`Place ${input.unassignedCount} unresolved session${input.unassignedCount === 1 ? '' : 's'} before publishing.`, NONE, `Place ${input.unassignedCount} unresolved session${input.unassignedCount === 1 ? '' : 's'}`);
+			if (!runReady) return denied('No schedule yet to save.', navigate('Generate a schedule', '/timetable'), 'No schedule to save');
+			if (input.isPreGeneration) return denied('Finish pre-generation planning before saving.', NONE, 'Finish pre-generation planning');
+			// D1: wording only. The three refusal branches below are the PUBLICATION
+			// GATE and they are unchanged in ORDER and in what they refuse — a run
+			// with HARD violations is still refused. Only the words a scheduler
+			// reads were re-worded onto `Save`.
+			if (input.isPublished) return denied('This schedule is already saved.', NONE, 'Already saved');
+			if (input.hardCount > 0) return denied(`Fix ${input.hardCount} hard blocker${input.hardCount === 1 ? '' : 's'} before saving.`, NONE, `Fix ${input.hardCount} hard blocker${input.hardCount === 1 ? '' : 's'}`);
+			if (input.unassignedCount > 0) return denied(`Place ${input.unassignedCount} unresolved session${input.unassignedCount === 1 ? '' : 's'} before saving.`, NONE, `Place ${input.unassignedCount} unresolved session${input.unassignedCount === 1 ? '' : 's'}`);
 			return allowed();
 		})(),
 	};

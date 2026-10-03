@@ -578,7 +578,8 @@ test('F2R1 RENDERED (QA-B2 re-point): the Expert header has the single Undo, and
 		withRouter,
 	);
 	assert.ok(view.has('timetable-draft-state-strip'), 'the Expert layout renders the SAME persistent state sentence as Simple');
-	assert.ok(view.text.includes('not visible to teachers until you publish'), 'and it names the run state from the one derivation');
+	// D1: `publish` -> `save` in the one derivation's visibility sentence.
+	assert.ok(view.text.includes('not visible to teachers until you save'), 'and it names the run state from the one derivation');
 
 	const undo = view.byLabel('Undo last manual schedule change');
 	assert.ok(undo, 'layoutMode === advanced HAS an Undo, in the toolbar it was always reachable from');

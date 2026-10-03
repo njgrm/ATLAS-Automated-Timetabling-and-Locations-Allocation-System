@@ -24,7 +24,12 @@
 
 import { CircleCheck, CircleDashed, Hourglass, PencilLine, type LucideIcon } from 'lucide-react';
 
-import { runStateBadgeLabel, runStateSentence } from '@/lib/timetable-plain-language';
+import {
+	runStateBadgeLabel,
+	runStateSentence,
+	stateVisibilitySentence,
+	stateWord,
+} from '@/lib/timetable-plain-language';
 import { Badge } from '@/ui/badge';
 
 export type RunStateKey = 'planning' | 'published' | 'draft' | 'empty';
@@ -94,9 +99,9 @@ export function runStateKeyOf(input: {
 export function runVisibilitySentence(key: RunStateKey): string | null {
 	if (key === 'planning') return null;
 	if (key === 'empty') return null;
-	return key === 'published'
-		? 'Published'
-		: 'Draft — not visible to teachers until you publish';
+	// D1: the words come from the one mapping, so the strip, the badge and this
+	// sentence cannot disagree about what the run's state is called.
+	return stateVisibilitySentence(key === 'published');
 }
 
 /** The badge and the sentences, from one derivation. */
@@ -143,7 +148,7 @@ export function runIdentityBadgeLabel(input: {
 	const { key } = describeRunState(input);
 	if (key === 'planning' || key === 'empty') return null;
 	if (input.runId == null || !Number.isFinite(input.runId)) return null;
-	return `Run ${input.runId} · ${key === 'published' ? 'Published' : 'Draft'}`;
+	return `Run ${input.runId} · ${stateWord(key === 'published')}`;
 }
 
 /** The Draft/Published badge. Presentation only; it states, it does not act. */

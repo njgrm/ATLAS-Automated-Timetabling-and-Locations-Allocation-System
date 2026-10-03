@@ -105,21 +105,23 @@ export function deriveSimpleLifecycleAction(input: SimpleLifecycleInput): Simple
 		return { kind: 'fix-setup', label: 'Open Year Setup', disabled: false, interactive: true };
 	}
 	if (input.isPreGeneration) {
-		return { kind: 'generate', label: 'Generate a draft', disabled: false, interactive: true };
+		return { kind: 'generate', label: 'Generate a schedule', disabled: false, interactive: true };
 	}
 	if (!input.hasGeneratedRun) {
 		// A failed newest run is history, not a reviewable timetable: the next
 		// action is an explicit retry, never publish or review.
 		if (input.latestRunFailed) {
-			return { kind: 'retry-generate', label: 'Generate a draft', disabled: false, interactive: true };
+			return { kind: 'retry-generate', label: 'Generate a schedule', disabled: false, interactive: true };
 		}
-		return { kind: 'start-draft', label: 'Generate a draft', disabled: false, interactive: true };
+		return { kind: 'start-draft', label: 'Generate a schedule', disabled: false, interactive: true };
 	}
 	if (input.isPublished) {
 		if ((input.unassignedCount ?? 0) > 0) {
 			return { kind: 'review-follow-ups', label: 'Review follow-ups', disabled: false, interactive: true };
 		}
-		return { kind: 'published', label: 'Published', disabled: true, interactive: false };
+		// D1: display word only. The `published` LIFECYCLE KIND is a stored/state
+		// value and is deliberately NOT renamed.
+		return { kind: 'published', label: 'Save', disabled: true, interactive: false };
 	}
 	if ((input.hardCount ?? 0) > 0 || (input.unassignedCount ?? 0) > 0) {
 		return { kind: 'fix-blockers', label: 'Fix blockers', disabled: false, interactive: true };
@@ -127,7 +129,7 @@ export function deriveSimpleLifecycleAction(input: SimpleLifecycleInput): Simple
 	if ((input.softCount ?? 0) > 0) {
 		return { kind: 'review-warnings', label: 'Review warnings', disabled: false, interactive: true };
 	}
-	return { kind: 'publish', label: 'Publish', disabled: false, interactive: true };
+	return { kind: 'publish', label: 'Save', disabled: false, interactive: true };
 }
 
 export type SimpleInteractionMode =

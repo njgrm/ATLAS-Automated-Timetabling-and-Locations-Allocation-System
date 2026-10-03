@@ -1,7 +1,7 @@
 export type TimetableLoadingIntent = { title: string; message: string };
 
 const routeCopy: Record<string, TimetableLoadingIntent> = {
-	'/timetable/pre-generation': { title: 'Draft queue', message: 'Checking the school year and schedule information before showing sessions to place.' },
+	'/timetable/pre-generation': { title: 'Planning queue', message: 'Checking the school year and schedule information before showing sessions to place.' },
 	'/timetable/policies': { title: 'Scheduling policies', message: 'Checking the schedule rules for this school year.' },
 	'/timetable/manual-edit': { title: 'Manual edit', message: 'Checking the selected schedule before opening edit tools.' },
 	'/timetable/map': { title: 'Rooms and map', message: 'Checking rooms and schedule information.' },

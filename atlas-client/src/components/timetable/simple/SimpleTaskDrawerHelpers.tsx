@@ -76,7 +76,7 @@ export const HARD_VIOLATION_GROUP_MAP: Record<string, { plainLabel: string; acti
 	FACULTY_OVERLOAD: { plainLabel: 'Teacher overloaded', actionLabel: 'Open Teaching Load', actionHref: '/teaching-load', nextStep: 'This teacher exceeds their weekly maximum. Reassign some classes.' },
 	FACULTY_SUBJECT_NOT_QUALIFIED: { plainLabel: 'Teacher not qualified for subject', actionLabel: 'Open Teaching Load', actionHref: '/teaching-load', nextStep: 'This teaching-load assignment does not cover the subject. Repair Teaching Load.' },
 	LACKING_FACULTY: { plainLabel: 'Missing faculty coverage', actionLabel: 'Open Teaching Load', actionHref: '/teaching-load', nextStep: 'No teacher covers this subject/grade. Assign a qualified teacher.' },
-	INCOMPLETE_MODULAR_GROUP: { plainLabel: 'Incomplete modular group', actionLabel: 'Open in review', actionHref: '/timetable', nextStep: 'A modular group is missing sessions. Complete the group before publishing.' },
+	INCOMPLETE_MODULAR_GROUP: { plainLabel: 'Incomplete modular group', actionLabel: 'Open in review', actionHref: '/timetable', nextStep: 'A modular group is missing sessions. Complete the group before saving.' },
 	ROOM_TYPE_MISMATCH: { plainLabel: 'Room type mismatch', actionLabel: 'Review rooms', actionHref: '/map', nextStep: 'The subject needs a specific room type. Move it or update the room.' },
 	ROOM_FEATURE_MISMATCH: { plainLabel: 'Room missing a required feature', actionLabel: 'Review rooms', actionHref: '/map', nextStep: 'The assigned room lacks a required feature. Move the class or update the room.' },
 	FACULTY_DAILY_MAX_EXCEEDED: { plainLabel: 'Daily maximum exceeded', actionLabel: 'Open Teaching Load', actionHref: '/teaching-load', nextStep: 'This teacher exceeds the daily maximum. Move a class to another day.' },
@@ -92,7 +92,7 @@ const DEFAULT_GROUP_CONFIG = {
 	plainLabel: 'Needs review',
 	actionLabel: 'Open in review',
 	actionHref: '/timetable',
-	nextStep: 'Open the review rail and resolve this issue before publishing.',
+	nextStep: 'Open the review rail and resolve this issue before saving.',
 };
 
 /**
@@ -314,7 +314,7 @@ export function PublishChecklistContent({
 			{unassignedCount > 0 && runWideBlocking === 0 && (
 				<div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
 					<p className="text-sm font-semibold">Sessions still unresolved</p>
-					<p className="mt-1 text-xs">{unassignedCount} session{unassignedCount === 1 ? '' : 's'} need placement before publishing.</p>
+					<p className="mt-1 text-xs">{unassignedCount} session{unassignedCount === 1 ? '' : 's'} need placement before saving.</p>
 <Button
 					type="button"
 					variant="outline"
@@ -347,7 +347,7 @@ export function PublishChecklistContent({
 			{runId == null && (
 				<div className="rounded-xl border border-slate-200 bg-muted/30 p-3 text-foreground" data-testid="timetable-publish-no-run">
 					<p className="text-sm font-semibold">No timetable generated yet</p>
-					<p className="mt-1 text-xs text-muted-foreground">Generate a draft before reviewing publish readiness. Preview and readiness checks alone cannot be published.</p>
+					<p className="mt-1 text-xs text-muted-foreground">Generate a schedule before reviewing save readiness. Preview and readiness checks alone cannot be saved.</p>
 				</div>
 			)}
 
@@ -373,7 +373,7 @@ export function PublishChecklistContent({
 export function BlockerGroupCard({ group, onNavigate }: { group: BlockerGroup; onNavigate: () => void }) {
 	const [expanded, setExpanded] = useState(false);
 	const visibleItems = expanded ? group.items : group.items.slice(0, 3);
-	const whyItMatters = group.items[0]?.nextStep ?? 'Fix this group before the schedule can be published.';
+	const whyItMatters = group.items[0]?.nextStep ?? 'Fix this group before the schedule can be saved.';
 	const scopeLabel = plainScopeLabel(group.scope);
 	const destination = resolveBlockerDestination(group.reason, group.actionHref);
 

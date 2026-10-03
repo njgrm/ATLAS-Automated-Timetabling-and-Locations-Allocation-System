@@ -27,7 +27,6 @@ import { resolve } from 'node:path';
 import { afterEach, beforeEach, test } from 'node:test';
 import { act, createElement } from 'react';
 import { JSDOM } from 'jsdom';
-
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/timetable' });
 Object.assign(globalThis, {
 	window: dom.window,
@@ -74,7 +73,17 @@ const { TimetableSimpleHeader } = await import('@/components/timetable/Timetable
 const { TimetableRunsPane } = await import('@/components/timetable/TimetableRunsPane');
 const { SimpleReadinessChip, resolveSimpleReadiness } = await import('@/components/timetable/simple/SimpleSetupSharedControls');
 const { deriveSimpleLifecycleAction } = await import('@/lib/simple-timetable-state');
-const { runAnchorLabel, runStateSentence, BUILD_NEW_DRAFT_LABEL, buildNewDraftDialogTitle, runStateBadgeLabel, PUBLISHED_SCHEDULE_STAYS_IN_USE, classesNeedingTime, generationOutcomeToastSentence, generationNotificationSentence, publishPlacementBlockedSentence, publishBlockedSentence } = await import('@/lib/timetable-plain-language');
+const {
+	runAnchorLabel, runStateSentence, BUILD_NEW_DRAFT_LABEL, buildNewDraftDialogTitle,
+	runStateBadgeLabel, PUBLISHED_SCHEDULE_STAYS_IN_USE, classesNeedingTime,
+	generationOutcomeToastSentence, generationNotificationSentence, publishPlacementBlockedSentence,
+	publishBlockedSentence,
+	// D1 — the new vocabulary, resolved through the SAME lazy import so the JSDOM
+	// globals exist first. A static import at the top of this file ran before they
+	// did and broke every Radix menu (see the note in a2-header-budget-2026-09-29).
+	EDIT_STATE_LABEL, SAVE_STATE_LABEL, SAVE_CONTROL_LABEL, SAVE_BLOCKED_TAIL, SAVE_BLOCKED_SHORT,
+	planningStateSentence, stateBadgeLabel,
+} = await import('@/lib/timetable-plain-language');
 const { deriveTimetableCapabilities } = await import('@/lib/timetable-capabilities');
 const { simpleTutorialSteps } = await import('@/components/timetable/simple/SimpleTutorial');
 /* R1-C1: the two NEW shared members. On the pre-correction tip the namespace has no
@@ -209,35 +218,35 @@ test('ROW 1 RENDERED: the draft tab reads `Draft` and never `Planning`', () => {
 
 // ═══ ROW 6 — THE PUBLISH PRIMARY READS `Publish` (RENDERED) ══════════════════
 
-test('ROW 6 RENDERED: with a draft on screen the one primary publish control reads `Publish`', () => {
+test('ROW 6 RENDERED: with a schedule in progress the one primary save control reads `Save`', () => {
 	const host = tree(headerMarkup(draftContext()));
 	const publish = host.querySelector('[data-testid="timetable-simple-publish-action"]');
 	assert.ok(publish, 'the publish primary is rendered');
-	assert.equal((publish!.textContent ?? '').trim(), 'Publish', 'its visible label is `Publish`');
-	assert.equal((publish!.textContent ?? '').includes('Publish schedule'), false, 'and never `Publish schedule`');
+	assert.equal((publish!.textContent ?? '').trim(), SAVE_CONTROL_LABEL, 'its visible label is the Save control verb');
+	assert.equal((publish!.textContent ?? '').includes('Save schedule'), false, 'and never `Save schedule` — the control is one verb');
 });
 
 // ═══ ROWS 18, 19, 23, 24 — THE `keep` ROWS ARE UNCHANGED (RESOLVER) ═════════
 
 test('ROWS 18/19/23/24 RESOLVER: the `keep` rows still say what the table keeps', () => {
-	assert.equal(runStateBadgeLabel({ isPreGeneration: false, hasRun: true, isPublished: false }), 'Draft schedule', 'row 18 keep: draft badge');
-	assert.equal(runStateBadgeLabel({ isPreGeneration: false, hasRun: true, isPublished: true }), 'Published schedule', 'row 18 keep: published badge');
-	assert.equal(PUBLISHED_SCHEDULE_STAYS_IN_USE, 'Your published schedule stays in use.', 'row 24 keep');
+	assert.equal(runStateBadgeLabel({ isPreGeneration: false, hasRun: true, isPublished: false }), stateBadgeLabel(false), 'row 18 keep: the in-progress badge');
+	assert.equal(runStateBadgeLabel({ isPreGeneration: false, hasRun: true, isPublished: true }), stateBadgeLabel(true), 'row 18 keep: the saved badge');
+	assert.equal(PUBLISHED_SCHEDULE_STAYS_IN_USE, 'Your saved schedule stays in use.', 'row 24 keep');
 });
 
 // ═══ ROWS 2, 3, 4, 5, 7 — THE LIFECYCLE PRIMARY LABELS (RESOLVER) ══════════
 
-test('ROWS 2/3/4/5/7 RESOLVER: every Generate primary label is `Generate a draft`; Publish/Published and the job-naming labels are kept', () => {
+test('ROWS 2/3/4/5/7 RESOLVER: every Generate primary label is the one Generate verb; Save and the job-naming labels are kept', () => {
 	const noRun = deriveSimpleLifecycleAction({ hasGeneratedRun: false, isPreGeneration: false, scopeResolved: true, curriculumState: 'ready' });
-	assert.equal(noRun.label, 'Generate a draft', 'row 3: no-run primary');
+	assert.equal(noRun.label, BUILD_NEW_DRAFT_LABEL, 'row 3: no-run primary');
 	const preGen = deriveSimpleLifecycleAction({ hasGeneratedRun: false, isPreGeneration: true, scopeResolved: true, curriculumState: 'ready' });
-	assert.equal(preGen.label, 'Generate a draft', 'row 2: pre-generation primary');
+	assert.equal(preGen.label, BUILD_NEW_DRAFT_LABEL, 'row 2: pre-generation primary');
 	const failed = deriveSimpleLifecycleAction({ hasGeneratedRun: false, isPreGeneration: false, scopeResolved: true, curriculumState: 'ready', latestRunFailed: true });
-	assert.equal(failed.label, 'Generate a draft', 'row 4: failed-run primary');
+	assert.equal(failed.label, BUILD_NEW_DRAFT_LABEL, 'row 4: failed-run primary');
 	const published = deriveSimpleLifecycleAction({ hasGeneratedRun: true, isPublished: true, scopeResolved: true, curriculumState: 'ready' });
-	assert.equal(published.label, 'Published', 'row 5 keep: published');
+	assert.equal(published.label, SAVE_STATE_LABEL, 'row 5 keep: the saved state');
 	const publishable = deriveSimpleLifecycleAction({ hasGeneratedRun: true, isPublished: false, scopeResolved: true, curriculumState: 'ready' });
-	assert.equal(publishable.label, 'Publish', 'row 6: publishable primary');
+	assert.equal(publishable.label, SAVE_CONTROL_LABEL, 'row 6: the savable primary');
 	assert.equal(deriveSimpleLifecycleAction({ hasGeneratedRun: true, hardCount: 2, scopeResolved: true, curriculumState: 'ready' }).label, 'Fix blockers', 'row 7 keep');
 	assert.equal(deriveSimpleLifecycleAction({ hasGeneratedRun: true, softCount: 2, scopeResolved: true, curriculumState: 'ready' }).label, 'Review warnings', 'row 7 keep');
 	assert.equal(deriveSimpleLifecycleAction({ hasGeneratedRun: true, isPublished: true, unassignedCount: 1, scopeResolved: true, curriculumState: 'ready' }).label, 'Review follow-ups', 'row 7 keep');
@@ -245,23 +254,23 @@ test('ROWS 2/3/4/5/7 RESOLVER: every Generate primary label is `Generate a draft
 
 // ═══ ROW 8 — ONE VERB FOR "make a new draft" (RESOLVER) ═════════════════════
 
-test('ROW 8 RESOLVER: `Build a new draft` is gone; the one verb is `Generate a draft`', () => {
-	assert.equal(BUILD_NEW_DRAFT_LABEL, 'Generate a draft', 'the single verb');
-	assert.equal(buildNewDraftDialogTitle(false), 'Generate a draft', 'the dialog title uses the same verb');
-	assert.equal(buildNewDraftDialogTitle(true), 'Generate a draft?', 'and so does the published variant');
+test('ROW 8 RESOLVER: `Build a new draft` is gone; the one verb is the Generate constant', () => {
+	assert.equal(BUILD_NEW_DRAFT_LABEL, 'Generate a schedule', 'the single verb');
+	assert.equal(buildNewDraftDialogTitle(false), BUILD_NEW_DRAFT_LABEL, 'the dialog title uses the same verb');
+	assert.equal(buildNewDraftDialogTitle(true), `${BUILD_NEW_DRAFT_LABEL}?`, 'and so does the saved variant');
 });
 
 // ═══ ROW 16 — THE RUN ANCHOR FALLBACK (RESOLVER) ════════════════════════════
 
-test('ROW 16 RESOLVER: the run anchor fallback reads `Draft · run N`', () => {
-	assert.equal(runAnchorLabel(318), 'Draft · run 318', 'the plain anchor is the draft');
+test('ROW 16 RESOLVER: the run anchor fallback names the state and the run', () => {
+	assert.equal(runAnchorLabel(318), `${EDIT_STATE_LABEL} · run 318`, 'the plain anchor names the state');
 	assert.equal(runAnchorLabel(318, 'Sep 26, 08:05 PM'), 'Sep 26, 08:05 PM · run 318', 'a real timestamp anchor is unchanged');
 });
 
 // ═══ ROW 10 — THE PRE-GENERATION STATE LINE (RESOLVER) ══════════════════════
 
-test('ROW 10 RESOLVER: the pre-generation state sentence is `Draft · nothing placed yet`', () => {
-	assert.equal(runStateSentence({ isPreGeneration: true, hasRun: false, runId: null, isPublished: false }), 'Draft · nothing placed yet', 'the pre-generation line says what the surface is');
+test('ROW 10 RESOLVER: the pre-generation state sentence names the state and what is missing', () => {
+	assert.equal(runStateSentence({ isPreGeneration: true, hasRun: false, runId: null, isPublished: false }), planningStateSentence(), 'the pre-generation line says what the surface is');
 });
 
 // ═══ ROW 17 — THE RUN-STATE BADGE WORDS (RESOLVER) ══════════════════════════
@@ -272,27 +281,27 @@ test('ROW 17 RESOLVER: the run-state badge says `Draft`, never `Generated`', () 
 		hasGeneratedRun: true, isPublished: false, latestRunFailed: false, hardCount: 0, unassignedCount: 0,
 		softCount: 0, hasSelectedEntry: false, requestPendingCount: 0, ...overrides,
 	});
-	assert.equal(build({ hardCount: 1 }).lifecycleLabel, 'Draft — issues to review', 'row 17: issues');
-	assert.equal(build({}).lifecycleLabel, 'Draft — ready to review', 'row 17: reviewable');
+	assert.equal(build({ hardCount: 1 }).lifecycleLabel, `${SAVE_STATE_LABEL} — issues to review`, 'row 17: issues');
+	assert.equal(build({}).lifecycleLabel, `${SAVE_STATE_LABEL} — ready to review`, 'row 17: reviewable');
 });
 
 // ═══ ROWS 20, 21, 22 — THE DENIAL / NAV LABELS (RESOLVER) ═══════════════════
 
-test('ROWS 20/21/22 RESOLVER: denial and nav labels use `Generate a draft` and the draft/schedule words', () => {
+test('ROWS 20/21/22 RESOLVER: denial and nav labels use the Generate verb and the schedule words', () => {
 	const caps = deriveTimetableCapabilities({
 		scopeResolved: true, curriculumState: 'ready', generating: false, isPreGeneration: false,
 		hasGeneratedRun: false, isPublished: false, latestRunFailed: false, hardCount: 0, unassignedCount: 0,
 		softCount: 0, hasSelectedEntry: true, requestPendingCount: 0,
 	});
-	assert.equal(caps.gates.move.repair.label, 'Generate a draft', 'row 20: move nav label');
-	assert.equal(caps.gates.swap.repair.label, 'Generate a draft', 'row 20: swap nav label');
-	assert.equal(caps.gates.publication.reason, 'No draft yet to publish.', 'row 21: no-run publish denial');
+	assert.equal(caps.gates.move.repair.label, BUILD_NEW_DRAFT_LABEL, 'row 20: move nav label');
+	assert.equal(caps.gates.swap.repair.label, BUILD_NEW_DRAFT_LABEL, 'row 20: swap nav label');
+	assert.equal(caps.gates.publication.reason, 'No schedule yet to save.', 'row 21: no-run save denial');
 	const publishedCaps = deriveTimetableCapabilities({
 		scopeResolved: true, curriculumState: 'ready', generating: false, isPreGeneration: false,
 		hasGeneratedRun: true, isPublished: true, latestRunFailed: false, hardCount: 0, unassignedCount: 0,
 		softCount: 0, hasSelectedEntry: true, requestPendingCount: 0,
 	});
-	assert.equal(publishedCaps.gates.publication.reason, 'This schedule is already published.', 'row 22: already-published denial');
+	assert.equal(publishedCaps.gates.publication.reason, 'This schedule is already saved.', 'row 22: the already-saved denial');
 });
 
 // ═══ ROW 13 / D3 — THE ACTIVE YEAR, FROM ONE SOURCE (RENDERED) ══════════════
@@ -305,11 +314,11 @@ test('ROW 13 / D3 RENDERED: the readiness chip names the ACTIVE year and never a
 		hasGeneratedRun: false, isRunPublished: false,
 	};
 	const { readiness, publishBlocked, publishBlockedReason } = resolveSimpleReadiness(snapshot as never);
-	assert.equal(readiness, 'No draft yet for 2026-2027', 'the chip names the active year in the active-year sentence');
+	assert.equal(readiness, 'No schedule yet for 2026-2027', 'the chip names the active year in the active-year sentence');
 	const host = tree(renderToStaticMarkup(createElement(SimpleReadinessChip as never, {
 		readiness, publishBlocked, publishBlockedReason, blockingHardCount: 0, softCount: 0,
 	} as never)));
-	assert.ok((host.textContent ?? '').includes('No draft yet for 2026-2027'), 'and the rendered chip shows it');
+	assert.ok((host.textContent ?? '').includes('No schedule yet for 2026-2027'), 'and the rendered chip shows it');
 	assert.equal((host.textContent ?? '').includes('No 2025-2026 timetable yet'), false, 'the stale year never renders');
 	assert.equal((host.textContent ?? '').includes('timetable yet'), false, 'and the retired wording is gone');
 });
@@ -359,7 +368,7 @@ test('ROWS 4/25 RENDERED: the More menu has NO `Expert tools` group and the unpl
 	assert.ok(unplaced, 'row 25: the unplaced entry renders');
 	assert.match(unplaced.textContent ?? '', /0 classes need a time slot/, 'row 25: the exact decision-8 wording');
 	assert.equal((unplaced.textContent ?? '').includes('Unassigned sessions'), false, 'the retired wording is gone');
-	assert.ok((unplaced.textContent ?? '').includes('No draft yet.'), 'row 25: `No generated schedule yet.` becomes `No draft yet.`');
+	assert.ok((unplaced.textContent ?? '').includes('No schedule yet.'), 'row 25: the empty chip is `No schedule yet.` (D1 retires `Draft`)');
 });
 
 test('ROWS 4/25 RENDERED (control): with no previous year in localStorage the More menu adds no `Past years` item', async () => {
@@ -368,13 +377,13 @@ test('ROWS 4/25 RENDERED (control): with no previous year in localStorage the Mo
 	assert.equal(menu!.querySelector('[data-testid="timetable-more-past-years"]'), null, 'row 4: the `Past years` item is hidden when there is no previous year');
 });
 
-test('ROW 8 RENDERED: with a draft on screen the More `Generate` row reads `Generate a draft`', async () => {
+test('ROW 8 RENDERED: with a run on screen the More `Generate` row reads the one Generate verb', async () => {
 	const view = await mountHeader(draftContext());
 	const menu = await view.openMenu();
 	assert.ok(menu, 'the More menu opens');
 	const generate = menu!.querySelector('[data-testid="timetable-more-generate"]') as HTMLElement;
 	assert.ok(generate, 'the More Generate row renders once a run exists');
-	assert.ok((generate.textContent ?? '').includes('Generate a draft'), 'row 8: the one verb');
+	assert.ok((generate.textContent ?? '').includes(BUILD_NEW_DRAFT_LABEL), 'row 8: the one verb');
 	assert.equal((generate.textContent ?? '').includes('Build a new draft'), false, 'and the retired verb is gone');
 });
 
@@ -394,9 +403,10 @@ test('ROW 11 SOURCE: the pre-generation draft note uses the one verb `Generate a
 	assert.doesNotMatch(center, /Nothing is placed in this draft yet\. The draft is a separate working copy/, 'the 3-line paragraph is replaced by one line');
 });
 
-test('ROW 12 SOURCE: the Schedule empty state reads `No draft yet. Generate one to begin.`', () => {
+// D1: `No draft yet` became `No schedule yet` — the word `Draft` is retired.
+test('ROW 12 SOURCE: the Schedule empty state reads `No schedule yet. Generate one to begin.`', () => {
 	const center = source('src/components/timetable/CenterWorkspacePaneSurface.tsx');
-	assert.match(center, /No draft yet\. Generate one to begin\./, 'the new empty-state sentence');
+	assert.match(center, /No schedule yet\. Generate one to begin\./, 'the new empty-state sentence');
 	assert.doesNotMatch(center, /No timetable yet\. Use the primary action above to begin\./, 'the retired sentence is gone');
 });
 
@@ -476,6 +486,12 @@ test('R1-C2: every user-visible unplaced-count string uses the decision-8 `need(
 		publishBlockedSentence({ blockingHardCount: 0, unassignedCount: 3 }),
 		publishBlockedSentence({ blockingHardCount: 0, unassignedCount: 1 }),
 	];
+	// D1 re-worded the obligation tail onto `Save`; the COUNT phrase the operator
+	// fixed in decision 8 is untouched, which is what this row still decides.
+	// `publishBlockedSentence` ends in the STANDALONE clause; the continuation form
+	// (`SAVE_BLOCKED_TAIL`) belongs to the mid-sentence readiness blockers.
+	assert.match(publishBlockedSentence({ blockingHardCount: 0, unassignedCount: 3 }),
+		new RegExp(SAVE_BLOCKED_SHORT));
 	for (const sentence of produced) {
 		assert.doesNotMatch(sentence, /need a time(?! slot)/, `"${sentence}" must say "a time slot"`);
 	}
@@ -503,10 +519,18 @@ test('R1-C3 SOURCE: `Generate a timetable` is gone from every named user-visible
 	]) {
 		assert.doesNotMatch(source(relative), /Generate a timetable/, `${relative} must not name the retired \`Generate a timetable\``);
 	}
-	assert.match(source('src/components/timetable/SimplePublishReadinessSheet.tsx'), /Generate a draft/);
-	assert.match(source('src/components/timetable/simple/SimpleTaskDrawerHelpers.tsx'), /Generate a draft/);
-	assert.match(source('src/components/timetable/simplePublishReadiness.ts'), /Generate a draft/);
-	assert.match(source('src/hooks/useTimetableData.ts'), /Generate a draft/);
+	// D1: these four surfaces carry the ONE Generate verb. Asserting the constant
+	// rather than a literal is what stops a wording change from needing four more
+	// pins here.
+	for (const relative of [
+		'src/components/timetable/SimplePublishReadinessSheet.tsx',
+		'src/components/timetable/simple/SimpleTaskDrawerHelpers.tsx',
+		'src/components/timetable/simplePublishReadiness.ts',
+		'src/hooks/useTimetableData.ts',
+	]) {
+		assert.ok(source(relative).includes(BUILD_NEW_DRAFT_LABEL),
+			`${relative} carries the one Generate verb`);
+	}
 });
 
 test('R1-C4 SOURCE: the in-workspace leftovers use the decision-8 / Draft vocabulary', () => {
