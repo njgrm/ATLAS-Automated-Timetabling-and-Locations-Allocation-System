@@ -62,6 +62,7 @@ import {
 import {
 	prepareTeachingLoadPlacementPlanner,
 	selectFirstTimetableFeasibleCandidate,
+	type TeachingLoadPlacementPlanner,
 } from './teaching-load-placement-check.service.js';
 import {
 	buildQualificationPolicySnapshot,
@@ -145,7 +146,7 @@ export async function loadPersistedQualificationAuthority(schoolId: number, clie
 	};
 }
 
-interface AutoFillOptions {
+export interface AutoFillOptions {
 	previewOnly?: boolean;
 	staffingOnly?: boolean;
 	coverageMode?: CoverageMode;
@@ -185,6 +186,8 @@ interface AutoFillOptions {
 	 * way, so its three tiers never shrink.
 	 */
 	allowUnqualifiedRealFaculty?: boolean;
+	/** Test seam for exercising auto-fill's shape-ranking wiring with a fixed snapshot. */
+	placementPlanner?: TeachingLoadPlacementPlanner;
 }
 
 export interface StaffingTruthBucket {
@@ -2906,7 +2909,7 @@ export async function autoFill(
 	// the conflict only after its preview is built. When shape authority is not
 	// ready, no candidate is claimed feasible; proposal creation remains fail-closed
 	// through the existing placement gate.
-	const placementPlanner = await prepareTeachingLoadPlacementPlanner(schoolId, schoolYearId);
+	const placementPlanner = options?.placementPlanner ?? await prepareTeachingLoadPlacementPlanner(schoolId, schoolYearId);
 	const placementSession = placementPlanner.begin(new Map(
 		faculty.map((member) => [member.id, `${member.lastName}, ${member.firstName}`]),
 	));
