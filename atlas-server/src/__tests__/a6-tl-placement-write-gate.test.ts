@@ -200,6 +200,52 @@ async function main() {
 		await close();
 	}
 
+	// ─── R1b: impossible suggestions never become proposals ────────────────
+	section('R1b proposal-time shape gate');
+	const beforeProposalGate = await countWrites(p, schoolId);
+	const proposalCountBeforeGate = await p.teachingLoadSuggestionProposal.count({ where: { schoolId, schoolYearId } });
+	let previewError: any = null;
+	let evaluatedProposalLines: any[] = [];
+	try {
+		await suggestionService.createTeachingLoadSuggestionProposal(
+			{ schoolId, schoolYearId, actorId: 1, actorSchoolId: schoolId },
+			{
+				preview: async () => ({
+					preserved: 0, created: 2, assignmentsCreated: 2, uniqueTeachersAffected: 1,
+					unresolved: 0, coverageMode: 'REAL_FACULTY_STANDARD', warnings: [],
+					sectionSource: 'atlas-mirror', sectionFallbackReason: null,
+					staffingReport: {}, staffingTruth: {}, suggestedRows: [],
+					distribution: {
+						policy: { revision: 'shape-gate-test', teachingStandardMinutes: 1200, advisoryCreditMinutes: 0, hardCapMinutes: 1800 },
+						retains: [],
+						inserts: [{ action: 'INSERT', subjectId: tleId, sectionId: 87, facultyId: navarroId }],
+						moves: [{ action: 'MOVE', subjectId: tleId, sectionId: 90, toFacultyId: navarroId }],
+						summary: { distributionEvaluated: true },
+					},
+				}) as any,
+				evaluatePlacement: async (_schoolId: number, _schoolYearId: number, lines: any[]) => {
+					evaluatedProposalLines = lines;
+					return {
+						placeable: false, demandReady: true, evaluated: true,
+						blockers: [{
+							sectionId: 87, subjectId: tleId, facultyId: navarroId,
+							sectionName: 'Grade 8 Makabansa', subjectName: 'TLE Exploratory - ICT',
+							facultyName: 'Francis Miguel Navarro', sentence: 'This load does not fit.', alternatives: [],
+						}],
+					};
+				},
+			},
+		);
+	} catch (error: any) {
+		previewError = error;
+	}
+	assert(previewError?.statusCode === 409 && previewError?.code === 'TEACHING_LOAD_UNPLACEABLE', `proposal preview refuses the impossible batch (got ${previewError?.statusCode} ${previewError?.code})`);
+	assert(evaluatedProposalLines.some((line) => line.sectionId === 87 && line.facultyId === navarroId), 'proposal gate checks new inserts');
+	assert(evaluatedProposalLines.some((line) => line.sectionId === 90 && line.facultyId === navarroId), 'proposal gate checks moved loads');
+	const proposalCountAfterGate = await p.teachingLoadSuggestionProposal.count({ where: { schoolId, schoolYearId } });
+	assert(proposalCountAfterGate === proposalCountBeforeGate, 'an impossible preview creates no pending proposal');
+	assert(sameCounts(beforeProposalGate, await countWrites(p, schoolId)), 'an impossible preview writes no assignment or audit rows');
+
 	// ─── R2: the single-assignment save gate ────────────────────────────────
 	section('R2 single-assignment save gate');
 	const beforeR2 = await countWrites(p, schoolId);

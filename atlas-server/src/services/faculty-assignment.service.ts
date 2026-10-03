@@ -5450,7 +5450,7 @@ export async function setAssignments(
 			assignment.sectionIds.map((sectionId) => ({ sectionId, subjectId: assignment.subjectId, facultyId })),
 		);
 		const placementGate = await evaluatePlacementWriteGate(schoolId, schoolYearId, placementLines);
-		if (!placementGate.placeable) {
+		if (placementGate.evaluated && !placementGate.placeable) {
 			return buildServiceError(
 				'TEACHING_LOAD_UNPLACEABLE',
 				'The timetable cannot place one or more of these classes. Choose a teacher who fits the free time.',

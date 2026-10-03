@@ -372,7 +372,11 @@ async function applyPlan(inserts: Row[]): Promise<ApplyOutcome> {
 	try {
 		const result = await withDataContext(client, () => applyTeachingLoadSuggestionProposal(
 			{ proposalId: 1, actorId: ACTOR, actorSchoolId: SCHOOL },
-			{ preview: refreshedPreview as any, resolveDerivedDemand: derivedAuthority as any },
+			{
+				preview: refreshedPreview as any,
+				resolveDerivedDemand: derivedAuthority as any,
+				evaluatePlacement: async () => ({ placeable: true, demandReady: true, evaluated: true, blockers: [] }),
+			},
 		));
 		return { error: null, result, state: live, writes };
 	} catch (error) {
