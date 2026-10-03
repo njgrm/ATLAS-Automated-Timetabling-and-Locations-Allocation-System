@@ -3,7 +3,7 @@
 Current operational truth only, kept under 60 lines. Update it when a live fact changes; do not append history.
 Full history to 2026-09-30: `docs/archive/2026-09/live-state-to-20260930.md` (and Git).
 
-Last reconciled: 2026-10-03 17:05 MPST (A7 relaxed-header source accepted and integrated; deployment target recorded before cutover).
+Last reconciled: 2026-10-03 (source integration continues; deployment deferred to a later train).
 
 ## Objective
 
@@ -11,7 +11,7 @@ A correct, calm ATLAS for school 1 on EnrollPro's active year: dependable Teachi
 schedulers can hand-fix and publish, official printouts, and SMART-family visual cohesion (`DESIGN.md`).
 
 ## Live release
-- PENDING CUTOVER: target `087fe83cc007ca29a6d280d9c31edf4c13dc0ff1` (prefix `087fe83c`) at
+- DEPLOYMENT DEFERRED: target `087fe83cc007ca29a6d280d9c31edf4c13dc0ff1` (prefix `087fe83c`) remains staged at
   `E:\ATLAS-runtime-supervised-087fe83c-20261003`; rollback basis remains live incumbent `1cbae2e3c3c83aa70e2ff5a9763e6bbb4e5e0204`
   at `E:\ATLAS-worktrees\lane-a4-release-20261003-1cbae2e3`. This line grants no claim that the target is live.
 - LIVE: `1cbae2e3c3c83aa70e2ff5a9763e6bbb4e5e0204` (prefix `1cbae2e3`), Subjects program-label correction deployed 2026-10-03
