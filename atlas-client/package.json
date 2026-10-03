@@ -74,8 +74,6 @@
     "test:a6-c10-cover-class": "tsx --test src/components/faculty-assignments/__tests__/a6-c10-cover-class.test.tsx",
     "test:a6-c11-teacher-truth": "tsx --test src/components/faculty/__tests__/a6-c11-teacher-truth.test.tsx",
     "test:a3-teacher-one": "tsx --test src/components/faculty/__tests__/a3-teacher-one.test.tsx",
-    "test:a6-c10-cover-class": "tsx --test src/components/faculty-assignments/__tests__/a6-c10-cover-class.test.tsx",
-    "test:a6-c11-teacher-truth": "tsx --test src/components/faculty/__tests__/a6-c11-teacher-truth.test.tsx",
     "test:a3-c17-teacher-profile": "tsx --test src/components/faculty/__tests__/a3-teacher-one.test.tsx src/components/faculty/__tests__/a3-c17-teacher-profile.test.tsx src/components/faculty-assignments/__tests__/a3-c17-timetable-identity.test.tsx src/components/faculty/__tests__/a3-c10-teacher-surface.test.tsx src/components/faculty/__tests__/a6-teachers-header-profile.test.tsx src/ui/__tests__/a5-c6-shared-dialog-tooltip.test.tsx src/lib/__tests__/a7-c8-type-scale.test.ts src/lib/__tests__/timetable-cell-info.test.ts",
     "test:a6-c8-more-filters": "tsx --test src/components/faculty-assignments/__tests__/a6-teaching-load-surface.test.tsx src/components/faculty-assignments/__tests__/a6-c6-calm-teaching-load.test.tsx src/components/faculty-assignments/__tests__/a3-teachers-load-c3.test.tsx src/components/faculty-assignments/__tests__/a6-tl-header-budget.test.ts src/components/faculty-assignments/__tests__/a6-c7-shortage-owner-undo.test.tsx src/ui/__tests__/a5-p3-picker-guard.test.ts src/ui/__tests__/a5-c3-picker-contract.test.tsx src/ui/__tests__/a5-c8-filter-bar-contract.test.tsx src/components/faculty/__tests__/d6-teacher-list-filters.test.tsx",
     "test:ux-filter-bar": "tsx --test src/ui/__tests__/a5-c8-filter-bar-contract.test.tsx",
@@ -182,7 +180,8 @@
     "test:a7-c12-calm-header": "tsx --max-old-space-size=6144 --test src/components/timetable/__tests__/a7-c12-calm-header-budget.test.tsx src/components/timetable/__tests__/a7-c12-calm-copy.test.tsx",
     "test:a7-c13-clip": "tsx --test src/components/timetable/__tests__/a7-c13-clip.test.tsx src/components/timetable/__tests__/a7-c13-dom.test.tsx",
     "test:a5-unassigned-panel": "node --experimental-test-module-mocks --import tsx --test --test-force-exit src/components/timetable/__tests__/a5-unassigned-panel.test.tsx && node --experimental-test-module-mocks --import tsx --test --test-force-exit src/components/timetable/__tests__/a5-unassigned-panel-autocommit.test.tsx",
-    "test:timetable-break-block-c01": "tsx --test src/lib/__tests__/timetable-break-block-c01.test.ts"
+    "test:timetable-break-block-c01": "tsx --test src/lib/__tests__/timetable-break-block-c01.test.ts",
+    "test:vocab-state-model-c01": "tsx --test src/lib/__tests__/vocab-state-model-c01.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -235,9 +234,8 @@
     "tw-animate-css": "^1.2.9",
     "typescript": "~6.0.2",
     "vite": "^8.0.3"
-  }
-,
-    "test:a6-c8-subjects-coverage": "tsx --test src/components/subjects/__tests__/mr-71-subjects-name-container.test.tsx src/components/subjects/__tests__/a6-c8-subjects-coverage-opens.test.tsx src/components/subjects/__tests__/subjects-ux-a3.test.tsx src/components/subjects/__tests__/a5-subjects-c1.test.tsx src/components/subjects/__tests__/a5-c3-subjects-calm-surface.test.tsx src/components/subjects/__tests__/a5-c4-subjects-filter-disclosure.test.tsx src/components/subjects/__tests__/a3-c4-subjects-copy.test.tsx",
-    "test:a2-c17-preference-adherence-client": "tsx --test src/components/timetable/__tests__/a2-c17-preference-adherence-line.test.tsx",
-    "test:d6-teacher-filters": "tsx --test src/components/faculty/__tests__/d6-teacher-list-filters.test.tsx"
-  }
+  },
+  "test:a6-c8-subjects-coverage": "tsx --test src/components/subjects/__tests__/mr-71-subjects-name-container.test.tsx src/components/subjects/__tests__/a6-c8-subjects-coverage-opens.test.tsx src/components/subjects/__tests__/subjects-ux-a3.test.tsx src/components/subjects/__tests__/a5-subjects-c1.test.tsx src/components/subjects/__tests__/a5-c3-subjects-calm-surface.test.tsx src/components/subjects/__tests__/a5-c4-subjects-filter-disclosure.test.tsx src/components/subjects/__tests__/a3-c4-subjects-copy.test.tsx",
+  "test:a2-c17-preference-adherence-client": "tsx --test src/components/timetable/__tests__/a2-c17-preference-adherence-line.test.tsx",
+  "test:d6-teacher-filters": "tsx --test src/components/faculty/__tests__/d6-teacher-list-filters.test.tsx"
+}
