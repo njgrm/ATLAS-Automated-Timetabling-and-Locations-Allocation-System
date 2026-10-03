@@ -3,7 +3,7 @@
 Current operational truth only, kept under 60 lines. Update it when a live fact changes; do not append history.
 Full history to 2026-09-30: `docs/archive/2026-09/live-state-to-20260930.md` (and Git).
 
-Last reconciled: 2026-10-03 13:49 MPST (Subjects release live; health, DB-backed read, client artifact, and supervisor identity verified).
+Last reconciled: 2026-10-03 13:53 MPST (Subjects browser acceptance passed at 1366x768; independent post-action QA is running).
 
 ## Objective
 
@@ -13,11 +13,11 @@ schedulers can hand-fix and publish, official printouts, and SMART-family visual
 ## Live release
 - LIVE: `1cbae2e3c3c83aa70e2ff5a9763e6bbb4e5e0204` (prefix `1cbae2e3`), Subjects program-label correction deployed 2026-10-03
   13:47 MPST at `E:\ATLAS-worktrees\lane-a4-release-20261003-1cbae2e3`. SYSTEM task result
-  `20261003-134416-1cbae2e3` is LIVE; live browser acceptance of `/subjects` is pending.
+  `20261003-134416-1cbae2e3` is LIVE; 1366x768 live browser acceptance passed, and independent post-action QA is pending.
 - Rollback basis: incumbent `e44d49256715cd2fa955e009b795904a9abb7b9d` (prefix `e44d4925`) at
   `E:\ATLAS-worktrees\lane-a4-release-20261003-e44d4925`; prior accepted P06c remains the historical fallback.
-- Next: capture live browser acceptance of `/subjects` at 1366x768, including plain-language chips, no global scroll,
-  readable subject names, and aligned Action column. Do not equate the task LIVE receipt with rendered acceptance.
+- Next: independent post-action QA is verifying the release identity and the rendered `/subjects` evidence. Do not equate
+  the task LIVE receipt with rendered acceptance.
 - Runtime: API 5001, client 5174, funnel `https://njgrm.buru-degree.ts.net`; staging API 5101 (not responding
   2026-09-30 17:00, unverified since).
 
